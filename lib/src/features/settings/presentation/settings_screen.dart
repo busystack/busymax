@@ -1,0 +1,763 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:yaru/yaru.dart';
+
+import '../../../app/busymax_about_dialog.dart';
+import '../../../app/busymax_yaru_theme.dart';
+import '../../../app/app_bootstrap.dart';
+import '../../../app/busymax_design.dart';
+import '../../../app/busymax_dialogs.dart';
+import '../../../core/logging/redacting_logger.dart';
+import '../../../l10n/l10n.dart';
+import '../../../platform/linux_header_bar_service.dart';
+import '../../../task_providers/task_provider.dart';
+import '../../accounts/data/accounts_repository.dart';
+import '../../diagnostics/presentation/diagnostics_screen.dart';
+import '../../tasks/presentation/tasks_selection_state.dart';
+
+class SettingsScreen extends ConsumerStatefulWidget {
+  const SettingsScreen({super.key, this.initialPage = SettingsPage.accounts});
+
+  final SettingsPage initialPage;
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  late var _page = widget.initialPage;
+  StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
+  var _headerBarReady = false;
+  var _nativeHeaderBarAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_initializeHeaderBar());
+  }
+
+  @override
+  void dispose() {
+    unawaited(_headerBarActions?.cancel());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedAccount = ref.watch(selectedAccountProvider);
+    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+    final config = ref.watch(buildConfigProvider);
+    final settings = ref.watch(appSettingsControllerProvider);
+    final settingsController = ref.read(appSettingsControllerProvider.notifier);
+    final themeController = ref.read(busyMaxThemeControllerProvider);
+    final l10n = context.l10n;
+    final title = _settingsPageLabel(context, _page);
+    _updateSettingsHeaderBar(context, title);
+
+    final pageBody = switch (_page) {
+      SettingsPage.accounts => _AccountManagementSection(
+        accounts: _selectedAccountFirst(accounts, selectedAccount?.id),
+        googleConfigured: config.hasGoogleOAuthClientId,
+        microsoftConfigured: config.hasMicrosoftOAuthClientId,
+        onAddGoogle: () => unawaited(
+          ref.read(authSessionControllerProvider.notifier).signIn(),
+        ),
+        onAddMicrosoft: () => unawaited(
+          ref
+              .read(authSessionControllerProvider.notifier)
+              .signInWithMicrosoft(),
+        ),
+        onCreateTaskList: (accountId) =>
+            _createTaskList(context, ref, accountId),
+        onSignOut: (accountId) => _signOut(context, ref, accountId),
+        onDisconnect: (accountId) => _disconnect(context, ref, accountId),
+        onDeleteLocalData: (accountId) =>
+            _deleteLocalData(context, ref, accountId),
+      ),
+      SettingsPage.system => BusyMaxGroupedList(
+        title: l10n.themeSystem,
+        filled: true,
+        children: [
+          BusyMaxActionRow(
+            title: l10n.manualFullSync,
+            leading: const Icon(YaruIcons.sync),
+            enabled: accounts.isNotEmpty,
+            onTap: accounts.isEmpty
+                ? null
+                : () => _fullSync(context, ref, accounts),
+          ),
+          BusyMaxSwitchRow(
+            title: 'Run in background when window is closed',
+            value: settings.runInBackgroundWhenClosed,
+            onChanged: settingsController.setRunInBackgroundWhenClosed,
+            leading: const Icon(YaruIcons.window),
+          ),
+          BusyMaxSwitchRow(
+            title: 'Show tray icon',
+            value: settings.showTrayIcon,
+            onChanged: settingsController.setShowTrayIcon,
+            leading: const Icon(YaruIcons.pin),
+          ),
+          BusyMaxSwitchRow(
+            title: 'Start minimized to tray',
+            value: settings.startMinimizedToTray,
+            onChanged: settingsController.setStartMinimizedToTray,
+            leading: const Icon(YaruIcons.window_minimize),
+          ),
+          BusyMaxSwitchRow(
+            title: 'Quit exits completely',
+            value: settings.quitExitsCompletely,
+            onChanged: settingsController.setQuitExitsCompletely,
+            leading: const Icon(YaruIcons.power),
+          ),
+          BusyMaxComboRow<BusyMaxThemeModePreference>(
+            title: l10n.theme,
+            leading: const Icon(Icons.tune),
+            values: BusyMaxThemeModePreference.values,
+            selected: settings.themeModePreference,
+            labelFor: (value) => _themeModeLabel(context, value),
+            onSelected: themeController.setThemeMode,
+          ),
+          BusyMaxActionRow(
+            title: l10n.currentLocale,
+            leading: const Icon(Icons.language),
+            subtitle: Localizations.localeOf(context).toLanguageTag(),
+          ),
+        ],
+      ),
+      SettingsPage.notifications => BusyMaxGroupedList(
+        title: l10n.notifications,
+        filled: true,
+        children: [
+          BusyMaxSwitchRow(
+            title: 'Event reminders',
+            value: settings.notifyEventReminders,
+            onChanged: settingsController.setNotifyEventReminders,
+            leading: const Icon(YaruIcons.calendar_day),
+          ),
+          BusyMaxSwitchRow(
+            title: 'Task reminders',
+            value: settings.notifyTaskReminders,
+            onChanged: settingsController.setNotifyTaskReminders,
+            leading: const Icon(YaruIcons.checkmark),
+          ),
+          BusyMaxSwitchRow(
+            title: l10n.notifyDueToday,
+            value: settings.notifyDueToday,
+            onChanged: settingsController.setNotifyDueToday,
+            leading: const Icon(YaruIcons.calendar_day),
+          ),
+          BusyMaxSwitchRow(
+            title: l10n.notifySyncFailures,
+            value: settings.notifySyncFailures,
+            onChanged: settingsController.setNotifySyncFailures,
+            leading: const Icon(YaruIcons.sync_error),
+          ),
+          BusyMaxSwitchRow(
+            title: l10n.notifyConflicts,
+            value: settings.notifyConflicts,
+            onChanged: settingsController.setNotifyConflicts,
+            leading: const Icon(YaruIcons.warning),
+          ),
+          BusyMaxComboRow<NotificationDetailLevel>(
+            title: 'Notification detail level',
+            leading: const Icon(YaruIcons.eye),
+            values: NotificationDetailLevel.values,
+            selected: settings.notificationDetailLevel,
+            labelFor: _notificationDetailLabel,
+            onSelected: settingsController.setNotificationDetailLevel,
+          ),
+          BusyMaxSwitchRow(
+            title: 'Quiet hours',
+            value: settings.quietHoursEnabled,
+            onChanged: settingsController.setQuietHoursEnabled,
+            leading: const Icon(YaruIcons.clear_night),
+          ),
+        ],
+      ),
+      SettingsPage.privacy => BusyMaxGroupedList(
+        title: l10n.privacy,
+        filled: true,
+        children: [
+          BusyMaxSwitchRow(
+            title: l10n.redactTaskContentInDiagnostics,
+            value: settings.redactTaskContentInDiagnostics,
+            onChanged: settingsController.setRedactTaskContentInDiagnostics,
+            leading: const Icon(YaruIcons.shield_warning),
+          ),
+          BusyMaxSwitchRow(
+            title: l10n.detailedNotifications,
+            value: settings.detailedNotifications,
+            onChanged: settingsController.setDetailedNotifications,
+            leading: const Icon(YaruIcons.eye),
+          ),
+        ],
+      ),
+      SettingsPage.diagnostics => const DiagnosticsPanel(scrollable: false),
+    };
+
+    return Scaffold(
+      body: Row(
+        children: [
+          SizedBox(
+            width: BusyMaxSizes.sidebarWidth,
+            child: _SettingsSidebar(
+              selected: _page,
+              onSelected: (page) => setState(() => _page = page),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_showFallbackHeader)
+                  _SettingsFallbackHeader(title: title, onBack: _goBack),
+                Expanded(
+                  child: BusyMaxClamp(
+                    maxWidth: 760,
+                    margin: EdgeInsets.zero,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    child: pageBody,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool get _showFallbackHeader {
+    if (!Platform.isLinux) {
+      return true;
+    }
+    return _headerBarReady && !_nativeHeaderBarAvailable;
+  }
+
+  Future<void> _initializeHeaderBar() async {
+    final service = ref.read(linuxHeaderBarServiceProvider);
+    _headerBarActions = service.actions.listen(_handleHeaderBarAction);
+    await service.initialize();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _headerBarReady = true;
+      _nativeHeaderBarAvailable = service.isAvailable;
+    });
+  }
+
+  void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
+    if (action == BusyMaxHeaderBarAction.back) {
+      _goBack();
+      return;
+    }
+    if (action == BusyMaxHeaderBarAction.settings) {
+      setState(() => _page = SettingsPage.accounts);
+      return;
+    }
+    if (action == BusyMaxHeaderBarAction.aboutBusyMax) {
+      unawaited(
+        showBusyMaxAboutDialog(
+          context,
+          headerBarService: ref.read(linuxHeaderBarServiceProvider),
+        ),
+      );
+    }
+  }
+
+  void _goBack() {
+    context.go('/schedule');
+  }
+
+  void _updateSettingsHeaderBar(BuildContext context, String title) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final service = ref.read(linuxHeaderBarServiceProvider);
+      unawaited(() async {
+        await service.initialize();
+        await service.setScheduleControlsVisible(false);
+        await service.setBackVisible(true);
+        await service.setOnboardingControls(
+          visible: false,
+          canGoBack: false,
+          canContinue: false,
+          backLabel: '',
+          continueLabel: '',
+        );
+        await service.setTitleRange(title);
+        await service.setCanRefresh(false);
+        await service.setCanCreate(false);
+        await service.setSearchActive(false);
+        await service.setSidebarVisible(true);
+      }());
+    });
+  }
+
+  Future<void> _signOut(
+    BuildContext context,
+    WidgetRef ref,
+    String accountId,
+  ) async {
+    await ref.read(authRepositoryProvider).signOut(accountId: accountId);
+    if (context.mounted) {
+      await _afterAccountRemoved(context, ref, accountId);
+    }
+  }
+
+  Future<void> _disconnect(
+    BuildContext context,
+    WidgetRef ref,
+    String accountId,
+  ) async {
+    await ref
+        .read(authRepositoryProvider)
+        .revokeAndSignOut(accountId: accountId);
+    if (context.mounted) {
+      await _afterAccountRemoved(context, ref, accountId);
+    }
+  }
+
+  Future<void> _deleteLocalData(
+    BuildContext context,
+    WidgetRef ref,
+    String accountId,
+  ) async {
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: context.l10n.deleteLocalData,
+      message: context.l10n.deleteLocalDataConfirmation,
+      confirmLabel: context.l10n.delete,
+      destructive: true,
+    );
+    if (!context.mounted || !confirmed) {
+      return;
+    }
+
+    if (context.mounted) {
+      await ref
+          .read(authRepositoryProvider)
+          .deleteLocalAccountData(accountId: accountId);
+      if (context.mounted) {
+        await _afterAccountRemoved(context, ref, accountId);
+      }
+    }
+  }
+
+  Future<void> _createTaskList(
+    BuildContext context,
+    WidgetRef ref,
+    String accountId,
+  ) async {
+    final title = await _taskListTitleDialog(context);
+    if (title == null || title.trim().isEmpty) {
+      return;
+    }
+
+    await ref
+        .read(taskListsRepositoryForAccountProvider(accountId))
+        .createTaskList(title.trim());
+  }
+
+  Future<void> _fullSync(
+    BuildContext context,
+    WidgetRef ref,
+    List<AccountEntity> accounts,
+  ) async {
+    if (accounts.isEmpty) {
+      return;
+    }
+
+    try {
+      final runSync = ref.read(signedInSyncRunnerProvider);
+      for (final account in accounts) {
+        await runSync(account.id, true);
+      }
+      if (context.mounted) {
+        _showMessage(context, context.l10n.syncComplete);
+      }
+    } on Object catch (error) {
+      if (context.mounted) {
+        _showMessage(context, context.l10n.syncFailed(redactForLog(error)));
+      }
+    }
+  }
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _SettingsSidebar extends StatelessWidget {
+  const _SettingsSidebar({required this.selected, required this.onSelected});
+
+  final SettingsPage selected;
+  final ValueChanged<SettingsPage> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: BusyMaxSurfaceColors.of(context).sidebar,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(
+          horizontal: BusyMaxSpacing.xs,
+          vertical: BusyMaxSpacing.md,
+        ),
+        children: [
+          for (final page in SettingsPage.values)
+            _SettingsSidebarItem(
+              page: page,
+              selected: selected == page,
+              onTap: () => onSelected(page),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsSidebarItem extends StatelessWidget {
+  const _SettingsSidebarItem({
+    required this.page,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final SettingsPage page;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Material(
+        color: selected
+            ? colorScheme.onSurface.withValues(alpha: 0.08)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+          onTap: onTap,
+          child: SizedBox(
+            height: 42,
+            child: Row(
+              children: [
+                const SizedBox(width: BusyMaxSpacing.md),
+                Icon(
+                  _settingsPageIcon(page),
+                  size: BusyMaxSizes.iconSm,
+                  color: selected
+                      ? colorScheme.onSurface
+                      : colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: BusyMaxSpacing.sm),
+                Expanded(
+                  child: Text(
+                    _settingsPageLabel(context, page),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: selected
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: BusyMaxSpacing.md),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsFallbackHeader extends StatelessWidget {
+  const _SettingsFallbackHeader({required this.title, required this.onBack});
+
+  final String title;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: BusyMaxSizes.toolbarHeight,
+      child: Row(
+        children: [
+          const SizedBox(width: BusyMaxSpacing.sm),
+          YaruIconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+            icon: const Icon(YaruIcons.go_previous),
+            onPressed: onBack,
+          ),
+          const SizedBox(width: BusyMaxSpacing.sm),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          const SizedBox(width: BusyMaxSizes.headerIconButton),
+          const SizedBox(width: BusyMaxSpacing.md),
+        ],
+      ),
+    );
+  }
+}
+
+enum SettingsPage { accounts, system, notifications, privacy, diagnostics }
+
+SettingsPage settingsPageFromRouteValue(String? value) {
+  return switch (value) {
+    'system' => SettingsPage.system,
+    'notifications' => SettingsPage.notifications,
+    'privacy' => SettingsPage.privacy,
+    'diagnostics' => SettingsPage.diagnostics,
+    _ => SettingsPage.accounts,
+  };
+}
+
+String settingsPageRouteValue(SettingsPage page) => page.name;
+
+String _settingsPageLabel(BuildContext context, SettingsPage page) {
+  final l10n = context.l10n;
+  return switch (page) {
+    SettingsPage.accounts => l10n.accounts,
+    SettingsPage.system => l10n.themeSystem,
+    SettingsPage.notifications => l10n.notifications,
+    SettingsPage.privacy => l10n.privacy,
+    SettingsPage.diagnostics => l10n.diagnostics,
+  };
+}
+
+IconData _settingsPageIcon(SettingsPage page) {
+  return switch (page) {
+    SettingsPage.accounts => YaruIcons.user,
+    SettingsPage.system => YaruIcons.desktop,
+    SettingsPage.notifications => YaruIcons.bell,
+    SettingsPage.privacy => YaruIcons.shield_warning,
+    SettingsPage.diagnostics => YaruIcons.monitor,
+  };
+}
+
+Future<String?> _taskListTitleDialog(BuildContext context) {
+  return showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.newList,
+    label: context.l10n.title,
+    actionLabel: context.l10n.create,
+  );
+}
+
+class _AccountManagementSection extends StatelessWidget {
+  const _AccountManagementSection({
+    required this.accounts,
+    required this.googleConfigured,
+    required this.microsoftConfigured,
+    required this.onAddGoogle,
+    required this.onAddMicrosoft,
+    required this.onCreateTaskList,
+    required this.onSignOut,
+    required this.onDisconnect,
+    required this.onDeleteLocalData,
+  });
+
+  final List<AccountEntity> accounts;
+  final bool googleConfigured;
+  final bool microsoftConfigured;
+  final VoidCallback onAddGoogle;
+  final VoidCallback onAddMicrosoft;
+  final void Function(String accountId) onCreateTaskList;
+  final void Function(String accountId) onSignOut;
+  final void Function(String accountId) onDisconnect;
+  final void Function(String accountId) onDeleteLocalData;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BusyMaxGroupedList(
+          title: l10n.account,
+          filled: true,
+          children: [
+            if (googleConfigured)
+              BusyMaxActionRow(
+                title: l10n.addGoogleAccount,
+                leading: const Icon(YaruIcons.plus),
+                onTap: onAddGoogle,
+              ),
+            if (microsoftConfigured)
+              BusyMaxActionRow(
+                title: l10n.addMicrosoftAccount,
+                leading: const Icon(YaruIcons.plus),
+                onTap: onAddMicrosoft,
+              ),
+            if (accounts.isEmpty)
+              BusyMaxActionRow(
+                title: l10n.account,
+                subtitle: l10n.connectGoogleAccount,
+                leading: const Icon(YaruIcons.user),
+              ),
+          ],
+        ),
+        for (final account in accounts)
+          _AccountManagementCard(
+            account: account,
+            onCreateTaskList: () => onCreateTaskList(account.id),
+            onSignOut: () => onSignOut(account.id),
+            onDisconnect: () => onDisconnect(account.id),
+            onDeleteLocalData: () => onDeleteLocalData(account.id),
+          ),
+      ],
+    );
+  }
+}
+
+class _AccountManagementCard extends StatelessWidget {
+  const _AccountManagementCard({
+    required this.account,
+    required this.onCreateTaskList,
+    required this.onSignOut,
+    required this.onDisconnect,
+    required this.onDeleteLocalData,
+  });
+
+  final AccountEntity account;
+  final VoidCallback onCreateTaskList;
+  final VoidCallback onSignOut;
+  final VoidCallback onDisconnect;
+  final VoidCallback onDeleteLocalData;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return BusyMaxGroupedList(
+      title: _providerLabel(context, account.provider),
+      description: _accountIdentityLabel(context, account),
+      filled: true,
+      children: [
+        BusyMaxActionRow(
+          title: l10n.newList,
+          leading: const Icon(YaruIcons.plus),
+          onTap: onCreateTaskList,
+        ),
+        BusyMaxActionRow(
+          title: l10n.signOutThisAccount,
+          leading: const Icon(YaruIcons.log_out),
+          onTap: onSignOut,
+        ),
+        BusyMaxActionRow(
+          title: l10n.disconnectThisAccount,
+          leading: const Icon(YaruIcons.insert_link),
+          onTap: onDisconnect,
+        ),
+        BusyMaxActionRow(
+          title: l10n.deleteLocalDataForThisAccount,
+          leading: Icon(
+            YaruIcons.trash,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          destructive: true,
+          onTap: onDeleteLocalData,
+        ),
+      ],
+    );
+  }
+}
+
+Future<void> _afterAccountRemoved(
+  BuildContext context,
+  WidgetRef ref,
+  String removedAccountId,
+) async {
+  ref.read(selectedTaskListIdProvider.notifier).state = null;
+  ref.read(selectedTaskIdProvider.notifier).state = null;
+  ref.read(allTasksModeProvider.notifier).state = true;
+
+  final accounts = await ref
+      .read(accountsRepositoryProvider)
+      .listSignedInAccounts();
+  final remaining = accounts
+      .where((account) => account.id != removedAccountId)
+      .toList();
+
+  if (remaining.isEmpty) {
+    ref.read(selectedAccountIdProvider.notifier).state = null;
+    await ref.read(authSessionControllerProvider.notifier).load();
+    if (context.mounted) {
+      context.go('/sign-in');
+    }
+    return;
+  }
+
+  ref.read(selectedAccountIdProvider.notifier).state = remaining.first.id;
+  await ref.read(authSessionControllerProvider.notifier).load();
+}
+
+List<AccountEntity> _selectedAccountFirst(
+  List<AccountEntity> accounts,
+  String? selectedAccountId,
+) {
+  return [
+    ...accounts.where((account) => account.id == selectedAccountId),
+    ...accounts.where((account) => account.id != selectedAccountId),
+  ];
+}
+
+String _themeModeLabel(
+  BuildContext context,
+  BusyMaxThemeModePreference preference,
+) {
+  final l10n = context.l10n;
+  return switch (preference) {
+    BusyMaxThemeModePreference.system => l10n.themeSystem,
+    BusyMaxThemeModePreference.light => l10n.themeLight,
+    BusyMaxThemeModePreference.dark => l10n.themeDark,
+  };
+}
+
+String _notificationDetailLabel(NotificationDetailLevel level) {
+  return switch (level) {
+    NotificationDetailLevel.private => 'Private',
+    NotificationDetailLevel.normal => 'Normal',
+  };
+}
+
+String _accountIdentityLabel(BuildContext context, AccountEntity account) {
+  final name = account.displayName?.trim();
+  final address = account.email?.trim();
+  if (name != null && name.isNotEmpty) {
+    if (address != null && address.isNotEmpty && address != name) {
+      return '$name · $address';
+    }
+    return name;
+  }
+  if (address != null && address.isNotEmpty) {
+    return address;
+  }
+  return context.l10n.signedInAccount;
+}
+
+String _providerLabel(BuildContext context, TaskProvider provider) {
+  return switch (provider) {
+    TaskProvider.google => context.l10n.googleTasksProvider,
+    TaskProvider.microsoft => context.l10n.microsoftTodoProvider,
+  };
+}

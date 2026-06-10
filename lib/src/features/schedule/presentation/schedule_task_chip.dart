@@ -1,0 +1,105 @@
+import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
+
+import '../../../app/busymax_design.dart';
+import '../../../schedule/schedule_item.dart';
+import '../../../schedule/schedule_projection.dart';
+import 'schedule_event_block.dart';
+
+class ScheduleTaskChip extends StatelessWidget {
+  const ScheduleTaskChip({
+    super.key,
+    required this.item,
+    required this.height,
+    this.width,
+    this.compact = false,
+    this.onTap,
+    this.onCompletionChanged,
+  });
+
+  final TaskScheduleItem item;
+  final double height;
+  final double? width;
+  final bool compact;
+  final ValueChanged<BuildContext>? onTap;
+  final ValueChanged<bool>? onCompletionChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final color = ScheduleProjection.colorForItem(item, colorScheme.brightness);
+    final background = Color.alphaBlend(
+      color.withValues(alpha: item.completed ? 0.07 : 0.12),
+      colorScheme.surface,
+    );
+    final titleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: item.completed
+          ? colorScheme.onSurfaceVariant
+          : colorScheme.onSurface,
+      fontWeight: FontWeight.w600,
+      decoration: item.completed ? TextDecoration.lineThrough : null,
+    );
+    final details = [
+      scheduleTimeRange(context, item),
+      ScheduleProjection.sourceLabelForScheduleItem(item),
+    ].join(' · ');
+    final blockWidth = scheduleSafeBlockWidth(width);
+    final blockHeight = scheduleSafeBlockHeight(height);
+
+    return Tooltip(
+      message: '${item.title}\n$details',
+      waitDuration: const Duration(milliseconds: 600),
+      child: SizedBox(
+        width: blockWidth,
+        height: blockHeight,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
+            onTap: onTap == null ? null : () => onTap!(context),
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 5 : 8,
+                vertical: compact ? 1 : 5,
+              ),
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
+                border: Border(left: BorderSide(color: color, width: 3)),
+              ),
+              child: Row(
+                children: [
+                  SizedBox.square(
+                    dimension: compact ? 14 : 16,
+                    child: YaruCheckbox(
+                      value: item.completed,
+                      onChanged: onCompletionChanged == null
+                          ? null
+                          : (value) => onCompletionChanged!(value ?? false),
+                    ),
+                  ),
+                  const SizedBox(width: BusyMaxSpacing.xs),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          item.title,
+                          maxLines: compact ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: titleStyle,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

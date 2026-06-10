@@ -1,0 +1,118 @@
+import '../task_providers/task_provider.dart';
+
+enum ScheduleItemKind { calendarEvent, task, localReminder }
+
+sealed class ScheduleItem {
+  String get id;
+  String get accountId;
+  BusyProvider get provider;
+  String get sourceId;
+  String get title;
+  String? get sourceName;
+  String? get accountDisplayName;
+  String? get accountEmail;
+  DateTime? get start;
+  DateTime? get end;
+  bool get allDay;
+  ScheduleItemKind get kind;
+}
+
+class CalendarScheduleItem implements ScheduleItem {
+  const CalendarScheduleItem({
+    required this.id,
+    required this.accountId,
+    required this.provider,
+    required this.sourceId,
+    required this.providerCalendarId,
+    required this.title,
+    required this.allDay,
+    this.start,
+    this.end,
+    this.location,
+    this.description,
+    this.descriptionContentType,
+    this.descriptionHtml,
+    this.colorHex,
+    this.sourceName,
+    this.accountDisplayName,
+    this.accountEmail,
+  });
+
+  @override
+  final String id;
+  @override
+  final String accountId;
+  @override
+  final BusyProvider provider;
+  @override
+  final String sourceId;
+  final String providerCalendarId;
+  @override
+  final String title;
+  @override
+  final DateTime? start;
+  @override
+  final DateTime? end;
+  @override
+  final bool allDay;
+  final String? location;
+  final String? description;
+  final String? descriptionContentType;
+  final String? descriptionHtml;
+  final String? colorHex;
+  @override
+  final String? sourceName;
+  @override
+  final String? accountDisplayName;
+  @override
+  final String? accountEmail;
+
+  @override
+  ScheduleItemKind get kind => ScheduleItemKind.calendarEvent;
+}
+
+class TaskScheduleItem implements ScheduleItem {
+  const TaskScheduleItem({
+    required this.id,
+    required this.accountId,
+    required this.provider,
+    required this.sourceId,
+    required this.title,
+    required this.completed,
+    required this.allDay,
+    this.start,
+    this.end,
+    this.notes,
+    this.sourceName,
+    this.accountDisplayName,
+    this.accountEmail,
+  });
+
+  @override
+  final String id;
+  @override
+  final String accountId;
+  @override
+  final BusyProvider provider;
+  @override
+  final String sourceId;
+  @override
+  final String title;
+  @override
+  final DateTime? start;
+  @override
+  final DateTime? end;
+  @override
+  final bool allDay;
+  final bool completed;
+  final String? notes;
+  @override
+  final String? sourceName;
+  @override
+  final String? accountDisplayName;
+  @override
+  final String? accountEmail;
+
+  @override
+  ScheduleItemKind get kind => ScheduleItemKind.task;
+}

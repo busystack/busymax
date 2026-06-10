@@ -1,0 +1,93 @@
+name: Flutter Linux
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            libstdc++-12-dev \
+            libsecret-1-dev \
+            libjsoncpp-dev \
+            liblzma-dev \
+            zip
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs --force-jit
+
+      - name: Verify generated files are committed
+        run: git diff --exit-code
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Linux debug
+        run: flutter build linux --debug
+
+      - name: Build Linux release
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
+        run: |
+          args=(--release)
+          if [ -n "$GOOGLE_OAUTH_CLIENT_ID" ]; then
+            args+=("--dart-define=GOOGLE_OAUTH_CLIENT_ID=$GOOGLE_OAUTH_CLIENT_ID")
+          fi
+          if [ -n "$GOOGLE_OAUTH_CLIENT_SECRET" ]; then
+            args+=("--dart-define=GOOGLE_OAUTH_CLIENT_SECRET=$GOOGLE_OAUTH_CLIENT_SECRET")
+          fi
+          if [ -n "$MICROSOFT_OAUTH_CLIENT_ID" ]; then
+            args+=("--dart-define=MICROSOFT_OAUTH_CLIENT_ID=$MICROSOFT_OAUTH_CLIENT_ID")
+          fi
+          flutter build linux "${args[@]}"
+
+      - name: Package Linux release bundle
+        run: |
+          cd build/linux/x64/release
+          zip -r todomax-linux-x64-release-bundle.zip bundle
+          sha256sum todomax-linux-x64-release-bundle.zip > todomax-linux-x64-release-bundle.zip.sha256
+
+      - name: Upload Linux release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: todomax-linux-x64-release-bundle
+          path: |
+            build/linux/x64/release/todomax-linux-x64-release-bundle.zip
+            build/linux/x64/release/todomax-linux-x64-release-bundle.zip.sha256
+          if-no-files-found: error

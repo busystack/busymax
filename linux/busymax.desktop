@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=BusyMax
+Comment=Calendar and task manager
+Exec=busymax
+Icon=io.busystack.busymax
+Terminal=false
+Categories=Office;Calendar;ProjectManagement;Utility;
+StartupNotify=true
+StartupWMClass=io.busystack.busymax

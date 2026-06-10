@@ -1,0 +1,20 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'test_api_client_support.dart';
+
+void main() {
+  test('tasklists.delete sends exact request', () async {
+    final httpClient = RecordingClient('');
+    final client = newTestApiClient(httpClient);
+
+    await client.deleteTaskList('list/id');
+
+    final request = httpClient.singleRequest;
+    expect(request.method, 'DELETE');
+    expect(request.url.host, 'tasks.googleapis.com');
+    expect(request.url.path, '/tasks/v1/users/@me/lists/list%2Fid');
+    expect(request.url.queryParameters, isEmpty);
+    expect(request.body, isEmpty);
+    expectBearer(request);
+  });
+}

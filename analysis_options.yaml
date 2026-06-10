@@ -1,0 +1,12 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - tool/cache/**
+
+linter:
+  rules:
+    prefer_initializing_formals: false
+    prefer_single_quotes: true
+    use_null_aware_elements: false
