@@ -328,18 +328,21 @@ void main() {
       database,
       providerEventId: 'provider-event',
     );
+    var schedulerCalls = 0;
 
     await CalendarSyncEngine(
       database: database,
       client: client,
       accountId: 'account',
       nowUtc: () => DateTime.utc(2026, 6, 8),
+      onNotificationScheduleChanged: () async => schedulerCalls += 1,
     ).fullSync();
 
     final row = await (database.select(
       database.calendarEvents,
     )..where((table) => table.id.equals(eventId))).getSingle();
     expect(row.isDeleted, isTrue);
+    expect(schedulerCalls, 1);
   });
 
   test('full refresh does not remove pending local dirty event', () async {

@@ -67,7 +67,7 @@ void main() {
 
     await _waitUntil(() => backend.notifications.isNotEmpty);
 
-    expect(backend.notifications.single.summary, 'Task reminder');
+    expect(backend.notifications.single.summary, 'File report');
     final rows = await database.select(database.notificationSchedule).get();
     expect(rows.single.sentAtUtc, isNotNull);
   });
@@ -106,7 +106,7 @@ void main() {
 
     await _waitUntil(() => backend.notifications.isNotEmpty);
 
-    expect(backend.notifications.single.summary, 'Task reminder');
+    expect(backend.notifications.single.summary, 'Future report');
   });
 }
 

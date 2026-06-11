@@ -129,7 +129,7 @@ DateTime? _eventStart(CalendarEvent event) {
   if (event.allDay) {
     return _parseDate(event.startDate);
   }
-  return DateTime.tryParse(event.startDateTime ?? '');
+  return _parseDateTime(event.startDateTime, event.startTimeZone);
 }
 
 List<int> _eventReminderMinutes(CalendarEvent event) {
@@ -165,4 +165,30 @@ DateTime? _parseDate(String? value) {
     return null;
   }
   return DateTime.tryParse('${value.substring(0, 10)}T00:00:00');
+}
+
+DateTime? _parseDateTime(String? value, String? timeZone) {
+  final parsed = DateTime.tryParse(value ?? '');
+  if (parsed == null || parsed.isUtc) {
+    return parsed;
+  }
+
+  final normalizedZone = timeZone?.trim().toLowerCase();
+  if (normalizedZone == 'utc' ||
+      normalizedZone == 'etc/utc' ||
+      normalizedZone == 'gmt' ||
+      normalizedZone == 'etc/gmt') {
+    return DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
+    );
+  }
+
+  return parsed;
 }

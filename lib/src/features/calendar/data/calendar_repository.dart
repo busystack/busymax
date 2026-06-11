@@ -426,9 +426,9 @@ class CalendarRepository {
             ),
           );
     });
-    await NotificationScheduleService(
-      database: _database,
-    ).rebuildUpcomingEventNotifications(draft.accountId);
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      draft.accountId,
+    );
     await _onNotificationScheduleChanged?.call();
   }
 
@@ -515,9 +515,9 @@ class CalendarRepository {
             ),
           );
     });
-    await NotificationScheduleService(
-      database: _database,
-    ).rebuildUpcomingEventNotifications(draft.accountId);
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      draft.accountId,
+    );
     await _onNotificationScheduleChanged?.call();
   }
 
@@ -557,11 +557,18 @@ class CalendarRepository {
             ),
           );
     });
-    await NotificationScheduleService(
-      database: _database,
-    ).rebuildUpcomingEventNotifications(existing.accountId);
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      existing.accountId,
+    );
     await _onNotificationScheduleChanged?.call();
     return existing.accountId;
+  }
+
+  NotificationScheduleService _notificationScheduleService() {
+    return NotificationScheduleService(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    );
   }
 
   Future<void> markMissingEventsDeleted({
