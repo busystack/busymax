@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +12,6 @@ import 'package:window_manager/window_manager.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/system_accent.dart';
-import '../../../l10n/generated/app_localizations.dart';
 import '../../../platform/gtk_font_service.dart';
 import '../application/compact_agenda_data.dart';
 import 'compact_agenda_panel.dart';

@@ -27,8 +27,7 @@ List<CompactAgendaSection> buildCompactAgendaSections({
     return start != null &&
         !item.completed &&
         ScheduleProjection.day(start).isBefore(today);
-  }).toList()
-    ..sort(compareScheduleItems);
+  }).toList()..sort(compareScheduleItems);
 
   final sections = <CompactAgendaSection>[];
   if (overdueTasks.isNotEmpty) {

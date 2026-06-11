@@ -51,7 +51,8 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   @override
   Widget build(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
-    final data = widget.data ?? ref.watch(compactAgendaDataProvider);
+    final AsyncValue<CompactAgendaData> data =
+        widget.data ?? ref.watch(compactAgendaDataProvider);
     return Shortcuts(
       shortcuts: const {
         SingleActivator(LogicalKeyboardKey.escape): _HideIntent(),
@@ -227,10 +228,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
     await windowManager.hide();
   }
 
-  Future<void> _setTaskCompleted(
-    TaskScheduleItem item,
-    bool completed,
-  ) async {
+  Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {
     final key = compactAgendaTaskMutationKey(item);
     if (_mutatingTaskKeys.contains(key)) {
       return;
@@ -247,9 +245,9 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(redactForLog(error))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(redactForLog(error))));
       }
     } finally {
       if (mounted) {
@@ -561,8 +559,8 @@ class _CompactAgendaSectionView extends StatelessWidget {
                             section.items[index] as TaskScheduleItem,
                           ),
                         ),
-                    showDivider: index < section.items.length - 1 ||
-                        section.hasMore,
+                    showDivider:
+                        index < section.items.length - 1 || section.hasMore,
                     onOpenItem: onOpenItem,
                     onTaskCompletionChanged: onTaskCompletionChanged,
                   ),
@@ -679,8 +677,9 @@ class _CompactAgendaRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color:
-                              BusyMaxSurfaceColors.of(context).mutedForeground,
+                          color: BusyMaxSurfaceColors.of(
+                            context,
+                          ).mutedForeground,
                         ),
                       ),
                     ],

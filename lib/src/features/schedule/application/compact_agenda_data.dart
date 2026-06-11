@@ -91,8 +91,7 @@ final compactAgendaDataProvider = FutureProvider.autoDispose<CompactAgendaData>(
         return !item.completed && start.isBefore(end);
       }
       return false;
-    }).toList()
-      ..sort(compareScheduleItems);
+    }).toList()..sort(compareScheduleItems);
 
     return CompactAgendaData(
       today: today,
