@@ -664,6 +664,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "padding: 0;"
       "min-height: 0;"
       "border-radius: %dpx;"
+      "box-shadow: 0 5px 18px 2px %s;"
       "}"
       "tooltip > box,"
       "tooltip.background > box {"
@@ -693,7 +694,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       border_color, shade_color, kHeaderButtonHeight,
       kHeaderButtonHorizontalPadding, kHeaderButtonRadius,
       control_hover_color, foreground_color, muted_foreground_color,
-      kHeaderButtonRadius, kHeaderTooltipVerticalPadding,
+      kHeaderButtonRadius, shade_color, kHeaderTooltipVerticalPadding,
       kHeaderTooltipHorizontalPadding, kHeaderButtonRadius);
 
   g_autoptr(GError) error = nullptr;

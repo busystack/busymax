@@ -433,6 +433,7 @@ void main() {
       expect(source, contains('tooltip label'));
       expect(source, contains('margin: 0;'));
       expect(source, contains('min-height: 0;'));
+      expect(source, contains('"box-shadow: 0 5px 18px 2px %s;"'));
       expect(source, contains('kHeaderTooltipVerticalPadding'));
       expect(source, contains('kHeaderTooltipHorizontalPadding'));
       expect(

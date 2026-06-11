@@ -9,6 +9,7 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
 import 'schedule_event_block.dart';
+import 'schedule_item_selection.dart';
 
 class ScheduleAgendaView extends StatelessWidget {
   const ScheduleAgendaView({
@@ -21,7 +22,7 @@ class ScheduleAgendaView extends StatelessWidget {
 
   final ScheduleRange range;
   final List<ScheduleItem> items;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -56,7 +57,8 @@ class ScheduleAgendaView extends StatelessWidget {
                 for (final item in groups[day]!)
                   _AgendaRow(
                     item: item,
-                    onTap: (context) => onItemSelected(context, item),
+                    onTap: (context, [globalPosition]) =>
+                        onItemSelected(context, item, globalPosition),
                     onTaskCompletionChanged: item is TaskScheduleItem
                         ? (completed) =>
                               onTaskCompletionChanged(item, completed)
@@ -72,7 +74,8 @@ class ScheduleAgendaView extends StatelessWidget {
                 for (final item in noDateTasks)
                   _AgendaRow(
                     item: item,
-                    onTap: (context) => onItemSelected(context, item),
+                    onTap: (context, [globalPosition]) =>
+                        onItemSelected(context, item, globalPosition),
                     onTaskCompletionChanged: item is TaskScheduleItem
                         ? (completed) =>
                               onTaskCompletionChanged(item, completed)
@@ -94,12 +97,13 @@ class _AgendaRow extends StatelessWidget {
   });
 
   final ScheduleItem item;
-  final ValueChanged<BuildContext> onTap;
+  final ScheduleItemTapCallback onTap;
   final ValueChanged<bool>? onTaskCompletionChanged;
 
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
+    Offset? pointerDownPosition;
 
     return BusyMaxActionRow(
       title: item.title,
@@ -114,7 +118,8 @@ class _AgendaRow extends StatelessWidget {
                   ? null
                   : (value) => onTaskCompletionChanged!(value ?? false),
             ),
-      onTap: () => onTap(context),
+      onPointerDown: (position) => pointerDownPosition = position,
+      onTap: () => onTap(context, pointerDownPosition),
     );
   }
 }

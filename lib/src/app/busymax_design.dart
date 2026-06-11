@@ -54,6 +54,7 @@ abstract final class BusyMaxSizes {
 abstract final class BusyMaxElevation {
   static const double surface = 1;
   static const double popover = 6;
+  static const double tooltip = 10;
   static const double window = 12;
 }
 
@@ -62,8 +63,18 @@ abstract final class BusyMaxShadow {
   static const Offset floatingOffset = Offset(0, 8);
   static const double windowMargin = 32;
 
+  static Color _scaleAlpha(Color color, double scale) {
+    return color.withValues(
+      alpha: (color.a * scale).clamp(0.0, 1.0).toDouble(),
+    );
+  }
+
   static Color floatingColor(BuildContext context) {
     return BusyMaxSurfaceColors.of(context).shade;
+  }
+
+  static Color tooltipColor(BuildContext context) {
+    return _scaleAlpha(floatingColor(context), 1.45);
   }
 
   static List<BoxShadow> floatingShadows(Color color) {
@@ -72,8 +83,27 @@ abstract final class BusyMaxShadow {
     ];
   }
 
+  static List<BoxShadow> tooltipShadows(Color color) {
+    return [
+      BoxShadow(
+        color: _scaleAlpha(color, 1.45),
+        blurRadius: 30,
+        offset: const Offset(0, 10),
+      ),
+      BoxShadow(
+        color: _scaleAlpha(color, 0.9),
+        blurRadius: 8,
+        offset: const Offset(0, 2),
+      ),
+    ];
+  }
+
   static List<BoxShadow> floatingShadowsFor(BuildContext context) {
     return floatingShadows(floatingColor(context));
+  }
+
+  static List<BoxShadow> tooltipShadowsFor(BuildContext context) {
+    return tooltipShadows(floatingColor(context));
   }
 
   static List<BoxShadow> windowShadows(Color color) {
@@ -148,8 +178,8 @@ class BusyMaxPopoverSurface extends StatelessWidget {
         alignment: arrowAlignment.clamp(0.0, 1.0).toDouble(),
       ),
       color: color,
-      elevation: BusyMaxElevation.popover,
-      shadowColor: BusyMaxShadow.floatingColor(context),
+      elevation: BusyMaxElevation.tooltip,
+      shadowColor: BusyMaxShadow.tooltipColor(context),
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: EdgeInsets.only(
@@ -824,6 +854,7 @@ class BusyMaxActionRow extends StatelessWidget {
     this.leading,
     this.trailing,
     this.onTap,
+    this.onPointerDown,
     this.enabled = true,
     this.tooltip,
     this.destructive = false,
@@ -838,6 +869,7 @@ class BusyMaxActionRow extends StatelessWidget {
   final Widget? leading;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final ValueChanged<Offset>? onPointerDown;
   final bool enabled;
   final String? tooltip;
   final bool destructive;
@@ -870,13 +902,22 @@ class BusyMaxActionRow extends StatelessWidget {
       onTap: enabled ? onTap : null,
     );
 
+    final trackedRow = onPointerDown == null
+        ? row
+        : Listener(
+            onPointerDown: enabled
+                ? (event) => onPointerDown!(event.position)
+                : null,
+            child: row,
+          );
+
     if (enabled || tooltip == null) {
-      return row;
+      return trackedRow;
     }
 
     return Tooltip(
       message: tooltip!,
-      child: Opacity(opacity: 0.6, child: IgnorePointer(child: row)),
+      child: Opacity(opacity: 0.6, child: IgnorePointer(child: trackedRow)),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_day_week_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_event_block.dart';
@@ -36,7 +37,7 @@ void main() {
               items: _itemsFor(selectedDate),
               onDaySelected: (_) {},
               onEmptySlot: (_) {},
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -92,7 +93,7 @@ void main() {
               items: _sameSlotItemsFor(selectedDate),
               onDaySelected: (_) {},
               onEmptySlot: (_) {},
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -133,7 +134,7 @@ void main() {
               items: _manyAllDayItemsFor(selectedDate),
               onDaySelected: (_) {},
               onEmptySlot: (_) {},
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -233,7 +234,7 @@ void main() {
               items: _itemsFor(selectedDate),
               onDaySelected: (_) {},
               onCreateAtDay: (_) {},
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -262,7 +263,7 @@ void main() {
             child: ScheduleItemChip(
               item: event,
               height: 34,
-              onTap: (_) => selectedItem = event,
+              onTap: (_, [_]) => selectedItem = event,
             ),
           ),
         ),
@@ -360,6 +361,100 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Categories: Home, Work'), findsOneWidget);
+  });
+
+  testWidgets('schedule item details popover anchors near click point', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final event = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: Builder(
+              builder: (context) {
+                return TextButton(
+                  onPressed: () {
+                    showScheduleItemDetailsPopover(
+                      context: context,
+                      anchorContext: context,
+                      anchorPoint: const Offset(700, 120),
+                      item: event,
+                    );
+                  },
+                  child: const Text('Open details'),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    final popover = find.byWidgetPredicate(
+      (widget) =>
+          widget is PhysicalShape &&
+          widget.elevation == BusyMaxElevation.tooltip,
+    );
+    final topLeft = tester.getTopLeft(popover);
+
+    expect(topLeft.dx, greaterThan(300));
+    expect(topLeft.dy, greaterThan(100));
+  });
+
+  testWidgets('schedule item details popover shown above stays near click', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final event = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: Builder(
+              builder: (context) {
+                return TextButton(
+                  onPressed: () {
+                    showScheduleItemDetailsPopover(
+                      context: context,
+                      anchorContext: context,
+                      anchorPoint: const Offset(700, 540),
+                      item: event,
+                    );
+                  },
+                  child: const Text('Open details'),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    final popover = find.byWidgetPredicate(
+      (widget) =>
+          widget is PhysicalShape &&
+          widget.elevation == BusyMaxElevation.tooltip,
+    );
+    final rect = tester.getRect(popover);
+
+    expect(rect.bottom, greaterThan(500));
+    expect(rect.bottom, lessThan(545));
   });
 
   testWidgets('schedule item details popover closes from empty space', (
@@ -480,7 +575,7 @@ void main() {
                   sourceName: 'Inbox',
                 ),
               ],
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -509,7 +604,7 @@ void main() {
             child: ScheduleAgendaView(
               range: ScheduleRange.week(selectedDate),
               items: const [],
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -867,7 +962,7 @@ void main() {
     expect(selectedYear, DateTime(2026));
   });
 
-  test('sidebar mini calendar opens month and week modes', () {
+  test('sidebar mini calendar opens day, month, year, and week modes', () {
     final sidebar = File(
       'lib/src/features/schedule/presentation/schedule_sidebar.dart',
     ).readAsStringSync();
@@ -888,18 +983,32 @@ void main() {
     expect(sidebar, contains('onMonthSelected: onMonthSelected'));
     expect(sidebar, contains('onYearSelected: onYearSelected'));
     expect(sidebar, contains('onWeekSelected: onWeekSelected'));
+    expect(workspace, contains('onDateSelected: _openDay'));
     expect(workspace, contains('onMonthSelected: _setMonth'));
     expect(workspace, contains('onYearSelected: _setYear'));
     expect(workspace, contains('onWeekSelected: _setWeek'));
+    expect(workspace, contains('void _openDay(DateTime date)'));
     expect(workspace, contains('void _setMonth(DateTime month)'));
     expect(workspace, contains('void _setYear(DateTime year)'));
     expect(workspace, contains('void _setWeek(DateTime weekStart)'));
+    expect(workspace, contains('_mode = ScheduleViewMode.day'));
     expect(workspace, contains('_mode = ScheduleViewMode.month'));
     expect(workspace, contains('_mode = ScheduleViewMode.year'));
     expect(workspace, contains('_mode = ScheduleViewMode.week'));
+    expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.day)'));
     expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.month)'));
     expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.year)'));
     expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.week)'));
+  });
+
+  test('year view day clicks open day mode', () {
+    final workspace = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(workspace, contains('required this.onYearDaySelected'));
+    expect(workspace, contains('onYearDaySelected: _openDay'));
+    expect(workspace, contains('onDaySelected: onYearDaySelected'));
   });
 
   test('sidebar source rows keep visibility actions on the right', () {

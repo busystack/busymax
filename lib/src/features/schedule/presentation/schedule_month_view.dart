@@ -8,6 +8,7 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
 import 'schedule_item_chip.dart';
+import 'schedule_item_selection.dart';
 import 'schedule_more_popover.dart';
 
 class ScheduleMonthView extends StatelessWidget {
@@ -29,7 +30,7 @@ class ScheduleMonthView extends StatelessWidget {
   final int firstWeekday;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onCreateAtDay;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -139,7 +140,7 @@ class _MonthDayCell extends StatelessWidget {
   final List<ScheduleItem> items;
   final VoidCallback onSelect;
   final VoidCallback onCreate;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -215,7 +216,8 @@ class _MonthDayCell extends StatelessWidget {
                     item: item,
                     height: 22,
                     compact: true,
-                    onTap: (context) => onItemSelected(context, item),
+                    onTap: (context, [globalPosition]) =>
+                        onItemSelected(context, item, globalPosition),
                     onTaskCompletionChanged: item is TaskScheduleItem
                         ? (completed) =>
                               onTaskCompletionChanged(item, completed)

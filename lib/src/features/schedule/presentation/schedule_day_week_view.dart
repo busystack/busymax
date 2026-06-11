@@ -12,6 +12,7 @@ import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
 import 'schedule_event_block.dart';
 import 'schedule_item_chip.dart';
+import 'schedule_item_selection.dart';
 
 const _fullDayBarDefaultHeight = 82.0;
 const _fullDayBarMinHeight = 82.0;
@@ -38,7 +39,7 @@ class ScheduleDayWeekView extends StatefulWidget {
   final List<ScheduleItem> items;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onEmptySlot;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -168,7 +169,8 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
               height: 24,
               width: width,
               compact: true,
-              onTap: (context) => widget.onItemSelected(context, item),
+              onTap: (context, [globalPosition]) =>
+                  widget.onItemSelected(context, item, globalPosition),
               onTaskCompletionChanged: item is TaskScheduleItem
                   ? (completed) =>
                         widget.onTaskCompletionChanged(item, completed)
@@ -215,7 +217,8 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
             height: height,
             width: width,
             compact: height < 36,
-            onTap: (context) => widget.onItemSelected(context, item),
+            onTap: (context, [globalPosition]) =>
+                widget.onItemSelected(context, item, globalPosition),
             onTaskCompletionChanged: item is TaskScheduleItem
                 ? (completed) => widget.onTaskCompletionChanged(item, completed)
                 : null,
@@ -396,7 +399,7 @@ class _FullDayScrollPane extends StatefulWidget {
   final List<icv.Event> events;
   final double height;
   final double width;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -470,7 +473,7 @@ class _FullDayEventTile extends StatelessWidget {
 
   final icv.Event event;
   final double width;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -501,7 +504,8 @@ class _FullDayEventTile extends StatelessWidget {
         height: 24,
         width: width,
         compact: true,
-        onTap: (context) => onItemSelected(context, item),
+        onTap: (context, [globalPosition]) =>
+            onItemSelected(context, item, globalPosition),
         onTaskCompletionChanged: item is TaskScheduleItem
             ? (completed) => onTaskCompletionChanged(item, completed)
             : null,
@@ -587,7 +591,7 @@ class _SameSlotItemsStrip extends StatefulWidget {
   final double height;
   final double width;
   final bool compact;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -646,8 +650,11 @@ class _SameSlotItemsStripState extends State<_SameSlotItemsStrip> {
                     height: height,
                     width: chipWidth,
                     compact: widget.compact,
-                    onTap: (context) =>
-                        widget.onItemSelected(context, widget.items[index]),
+                    onTap: (context, [globalPosition]) => widget.onItemSelected(
+                      context,
+                      widget.items[index],
+                      globalPosition,
+                    ),
                     onTaskCompletionChanged:
                         widget.items[index] is TaskScheduleItem
                         ? (completed) => widget.onTaskCompletionChanged(

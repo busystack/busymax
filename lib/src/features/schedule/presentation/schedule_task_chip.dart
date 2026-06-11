@@ -5,6 +5,7 @@ import '../../../app/busymax_design.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'schedule_event_block.dart';
+import 'schedule_item_selection.dart';
 
 class ScheduleTaskChip extends StatelessWidget {
   const ScheduleTaskChip({
@@ -21,7 +22,7 @@ class ScheduleTaskChip extends StatelessWidget {
   final double height;
   final double? width;
   final bool compact;
-  final ValueChanged<BuildContext>? onTap;
+  final ScheduleItemTapCallback? onTap;
   final ValueChanged<bool>? onCompletionChanged;
 
   @override
@@ -53,6 +54,7 @@ class ScheduleTaskChip extends StatelessWidget {
     final showContent = contentWidth >= 28;
     final showCheckbox = contentWidth >= checkboxSize + BusyMaxSpacing.xs + 24;
 
+    Offset? pointerDownPosition;
     return Tooltip(
       message: '${item.title}\n$details',
       waitDuration: const Duration(milliseconds: 600),
@@ -63,7 +65,12 @@ class ScheduleTaskChip extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-            onTap: onTap == null ? null : () => onTap!(context),
+            onTapDown: onTap == null
+                ? null
+                : (details) => pointerDownPosition = details.globalPosition,
+            onTap: onTap == null
+                ? null
+                : () => onTap!(context, pointerDownPosition),
             child: Container(
               padding: EdgeInsets.symmetric(
                 horizontal: horizontalPadding,

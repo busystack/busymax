@@ -408,7 +408,7 @@ class BusyMaxYaruTheme {
         decoration: BoxDecoration(
           color: colors.popover,
           borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-          boxShadow: BusyMaxShadow.floatingShadows(colors.shade),
+          boxShadow: BusyMaxShadow.tooltipShadows(colors.shade),
         ),
         padding: const EdgeInsets.symmetric(
           horizontal: BusyMaxSpacing.tooltipHorizontal,

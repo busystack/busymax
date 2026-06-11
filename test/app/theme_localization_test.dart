@@ -143,7 +143,7 @@ void main() {
     expect((light.tooltipTheme.decoration! as BoxDecoration).border, isNull);
     expect(
       (light.tooltipTheme.decoration! as BoxDecoration).boxShadow,
-      BusyMaxShadow.floatingShadows(lightColors.shade),
+      BusyMaxShadow.tooltipShadows(lightColors.shade),
     );
     expect(
       (dark.tooltipTheme.decoration! as BoxDecoration).color,
@@ -152,7 +152,7 @@ void main() {
     expect((dark.tooltipTheme.decoration! as BoxDecoration).border, isNull);
     expect(
       (dark.tooltipTheme.decoration! as BoxDecoration).boxShadow,
-      BusyMaxShadow.floatingShadows(darkColors.shade),
+      BusyMaxShadow.tooltipShadows(darkColors.shade),
     );
     expect(light.tooltipTheme.textStyle?.color, lightColors.foreground);
     expect(dark.tooltipTheme.textStyle?.color, darkColors.foreground);

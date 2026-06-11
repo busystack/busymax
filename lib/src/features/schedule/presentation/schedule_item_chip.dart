@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../schedule/schedule_item.dart';
 import 'schedule_event_block.dart';
+import 'schedule_item_selection.dart';
 import 'schedule_task_chip.dart';
 
 class ScheduleItemChip extends StatelessWidget {
@@ -19,7 +20,7 @@ class ScheduleItemChip extends StatelessWidget {
   final double height;
   final double? width;
   final bool compact;
-  final ValueChanged<BuildContext>? onTap;
+  final ScheduleItemTapCallback? onTap;
   final ValueChanged<bool>? onTaskCompletionChanged;
 
   @override

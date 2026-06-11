@@ -4,6 +4,7 @@ import '../../../app/busymax_design.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import 'schedule_item_selection.dart';
 
 class ScheduleEventBlock extends StatelessWidget {
   const ScheduleEventBlock({
@@ -19,7 +20,7 @@ class ScheduleEventBlock extends StatelessWidget {
   final double height;
   final double? width;
   final bool compact;
-  final ValueChanged<BuildContext>? onTap;
+  final ScheduleItemTapCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -39,9 +40,13 @@ class ScheduleEventBlock extends StatelessWidget {
     final titleMaxLines = showTime || contentHeight < 36 ? 1 : 2;
     final tooltipDetails = _tooltipDetails(context);
 
+    Offset? pointerDownPosition;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap == null ? null : () => onTap!(context),
+      onTapDown: onTap == null
+          ? null
+          : (details) => pointerDownPosition = details.globalPosition,
+      onTap: onTap == null ? null : () => onTap!(context, pointerDownPosition),
       child: Tooltip(
         message: tooltipDetails.isEmpty
             ? item.title

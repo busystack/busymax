@@ -35,6 +35,7 @@ import 'schedule_create_menu.dart';
 import 'schedule_day_week_view.dart';
 import 'schedule_item_details_popover.dart';
 import 'schedule_item_exporter.dart';
+import 'schedule_item_selection.dart';
 import 'schedule_month_view.dart';
 import 'schedule_sidebar.dart';
 import 'schedule_toolbar.dart';
@@ -237,6 +238,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             visibility.hasTaskLists,
                         items: items,
                         onDaySelected: _setDate,
+                        onYearDaySelected: _openDay,
                         onMonthSelected: _setMonth,
                         onEmptySlot: (start) => unawaited(
                           _openCreateChoice(accounts, visibleSources, start),
@@ -254,8 +256,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onNewTask: () => unawaited(_openNewTask(accounts)),
                         onPrevious: _previous,
                         onNext: _next,
-                        onItemSelected: (context, item) =>
-                            unawaited(_openItem(context, item, visibleSources)),
+                        onItemSelected: (context, item, [globalPosition]) =>
+                            unawaited(
+                              _openItem(
+                                context,
+                                item,
+                                visibleSources,
+                                globalPosition: globalPosition,
+                              ),
+                            ),
                         onTaskCompletionChanged: _setTaskCompleted,
                       ),
                     ),
@@ -293,7 +302,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                         selectedDate: _selectedDate,
                                         firstWeekday: firstWeekday,
                                         items: miniCalendarItems,
-                                        onDateSelected: _setDate,
+                                        onDateSelected: _openDay,
                                         onMonthSelected: _setMonth,
                                         onYearSelected: _setYear,
                                         onWeekSelected: _setWeek,
@@ -526,6 +535,22 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     });
   }
 
+  void _openDay(DateTime date) {
+    setState(() {
+      if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
+        _scope = ScheduleScope.all;
+      }
+      _selectedDate = _day(date);
+      _mode = ScheduleViewMode.day;
+      _lastSettingsMode = ScheduleViewMode.day;
+    });
+    unawaited(
+      ref
+          .read(appSettingsControllerProvider.notifier)
+          .setScheduleViewMode(ScheduleViewMode.day),
+    );
+  }
+
   void _setWeek(DateTime weekStart) {
     setState(() {
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
@@ -732,12 +757,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   Future<void> _openItem(
     BuildContext anchorContext,
     ScheduleItem item,
-    List<CalendarSourceEntity> sources,
-  ) async {
+    List<CalendarSourceEntity> sources, {
+    Offset? globalPosition,
+  }) async {
     final action = await showScheduleItemDetailsPopover(
       context: context,
       anchorContext: anchorContext,
       item: item,
+      anchorPoint: globalPosition,
     );
     if (!mounted || action == null) {
       return;
@@ -1136,6 +1163,7 @@ class _ScheduleBody extends StatelessWidget {
     required this.hasAnySources,
     required this.items,
     required this.onDaySelected,
+    required this.onYearDaySelected,
     required this.onMonthSelected,
     required this.onEmptySlot,
     required this.onCreateAtDay,
@@ -1155,6 +1183,7 @@ class _ScheduleBody extends StatelessWidget {
   final bool hasAnySources;
   final List<ScheduleItem> items;
   final ValueChanged<DateTime> onDaySelected;
+  final ValueChanged<DateTime> onYearDaySelected;
   final ValueChanged<DateTime> onMonthSelected;
   final ValueChanged<DateTime> onEmptySlot;
   final ValueChanged<DateTime> onCreateAtDay;
@@ -1162,7 +1191,7 @@ class _ScheduleBody extends StatelessWidget {
   final VoidCallback onNewTask;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -1216,7 +1245,7 @@ class _ScheduleBody extends StatelessWidget {
           selectedDate: selectedDate,
           items: items,
           firstWeekday: firstWeekday,
-          onDaySelected: onDaySelected,
+          onDaySelected: onYearDaySelected,
           onMonthSelected: onMonthSelected,
           onCreateAtDay: onCreateAtDay,
         ),

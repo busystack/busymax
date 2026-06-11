@@ -307,7 +307,11 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
     await windowManager.hide();
   }
 
-  Future<void> _openItem(BuildContext anchorContext, ScheduleItem item) async {
+  Future<void> _openItem(
+    BuildContext anchorContext,
+    ScheduleItem item, [
+    Offset? globalPosition,
+  ]) async {
     final callback = widget.onOpenItem;
     if (callback != null) {
       await callback(item);
@@ -317,6 +321,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       context: context,
       anchorContext: anchorContext,
       item: item,
+      anchorPoint: globalPosition,
     );
     if (!mounted || action == null) {
       return;
@@ -623,7 +628,11 @@ class _CompactAgendaSectionView extends StatelessWidget {
   final CompactAgendaSection section;
   final DateTime today;
   final Set<String> mutatingTaskKeys;
-  final Future<void> Function(BuildContext anchorContext, ScheduleItem item)
+  final Future<void> Function(
+    BuildContext anchorContext,
+    ScheduleItem item, [
+    Offset? globalPosition,
+  ])
   onOpenItem;
   final CompactAgendaTaskCompletionCallback onTaskCompletionChanged;
   final Future<void> Function() onOpenBusyMax;
@@ -670,13 +679,18 @@ class _CompactAgendaRow extends StatelessWidget {
   final ScheduleItem item;
   final DateTime today;
   final bool mutating;
-  final Future<void> Function(BuildContext anchorContext, ScheduleItem item)
+  final Future<void> Function(
+    BuildContext anchorContext,
+    ScheduleItem item, [
+    Offset? globalPosition,
+  ])
   onOpenItem;
   final CompactAgendaTaskCompletionCallback onTaskCompletionChanged;
 
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
+    Offset? pointerDownPosition;
     return AnimatedOpacity(
       opacity: mutating ? 0.48 : 1,
       duration: const Duration(milliseconds: 120),
@@ -696,7 +710,8 @@ class _CompactAgendaRow extends StatelessWidget {
                       ),
               ),
         enabled: !mutating,
-        onTap: () => unawaited(onOpenItem(context, item)),
+        onPointerDown: (position) => pointerDownPosition = position,
+        onTap: () => unawaited(onOpenItem(context, item, pointerDownPosition)),
       ),
     );
   }
