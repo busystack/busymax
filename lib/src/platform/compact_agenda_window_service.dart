@@ -11,7 +11,7 @@ class CompactAgendaWindowService {
       await _createCompactAgendaWindow();
       return;
     }
-    await _invokeOrShow(controller, 'busymax.compactAgenda.toggle');
+    await _invokeCompactMethod(controller, 'busymax.compactAgenda.toggle');
   }
 
   Future<void> show() async {
@@ -20,7 +20,7 @@ class CompactAgendaWindowService {
       await _createCompactAgendaWindow();
       return;
     }
-    await _invokeOrShow(controller, 'busymax.compactAgenda.show');
+    await _invokeCompactMethod(controller, 'busymax.compactAgenda.show');
   }
 
   Future<void> hide() async {
@@ -51,20 +51,30 @@ class CompactAgendaWindowService {
   }
 
   Future<void> _createCompactAgendaWindow() async {
-    final controller = await WindowController.create(
+    await WindowController.create(
       WindowConfiguration(
         arguments: BusyMaxWindowArgs.compactAgenda.encode(),
         hiddenAtLaunch: true,
       ),
     );
-    await _invokeOrShow(controller, 'busymax.compactAgenda.show');
   }
 
-  Future<void> _invokeOrShow(WindowController controller, String method) async {
-    try {
-      await controller.invokeMethod<bool>(method);
-    } on Object {
-      await controller.show();
+  Future<void> _invokeCompactMethod(
+    WindowController controller,
+    String method,
+  ) async {
+    const attempts = 12;
+    const retryDelay = Duration(milliseconds: 80);
+    for (var attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        await controller.invokeMethod<bool>(method);
+        return;
+      } on Object {
+        if (attempt == attempts - 1) {
+          return;
+        }
+        await Future<void>.delayed(retryDelay);
+      }
     }
   }
 

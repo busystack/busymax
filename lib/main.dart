@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,9 +24,7 @@ Future<void> main(List<String> args) async {
 
   switch (windowArgs.kind) {
     case BusyMaxWindowKind.main:
-      runApp(
-        ProviderScope(overrides: overrides, child: const BusyMaxApp()),
-      );
+      runApp(ProviderScope(overrides: overrides, child: const BusyMaxApp()));
     case BusyMaxWindowKind.compactAgenda:
       await configureCompactAgendaNativeWindow();
       runApp(
@@ -42,27 +38,4 @@ Future<void> main(List<String> args) async {
 
 Future<void> configureCompactAgendaNativeWindow() async {
   await windowManager.ensureInitialized();
-
-  const size = Size(420, 680);
-  const options = WindowOptions(
-    size: size,
-    minimumSize: Size(360, 520),
-    maximumSize: Size(480, 840),
-    center: false,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: true,
-    title: 'BusyMax Agenda',
-    titleBarStyle: TitleBarStyle.hidden,
-    windowButtonVisibility: false,
-  );
-
-  await windowManager.waitUntilReadyToShow(options, () {
-    unawaited(() async {
-      await windowManager.setPreventClose(true);
-      await windowManager.setResizable(false);
-      await windowManager.setAlignment(Alignment.topRight);
-      await windowManager.show();
-      await windowManager.focus();
-    }());
-  });
 }

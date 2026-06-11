@@ -36,6 +36,11 @@ class _BusyMaxCompactAgendaAppState
     );
     windowManager.addListener(this);
     unawaited(windowManager.setPreventClose(true));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_show());
+      }
+    });
   }
 
   @override
@@ -51,13 +56,13 @@ class _BusyMaxCompactAgendaAppState
         await _show();
         return true;
       case 'busymax.compactAgenda.hide':
-        await windowManager.hide();
+        await widget.windowController.hide();
         return true;
       case 'busymax.compactAgenda.toggle':
         final visible = await windowManager.isVisible();
         final focused = await _isFocused();
         if (visible && focused) {
-          await windowManager.hide();
+          await widget.windowController.hide();
         } else {
           await _show();
         }
@@ -75,10 +80,18 @@ class _BusyMaxCompactAgendaAppState
   }
 
   Future<void> _show() async {
-    await windowManager.setAlignment(Alignment.topRight);
-    await windowManager.show();
-    await windowManager.focus();
+    await widget.windowController.show();
+    unawaited(_focusTopRight());
     ref.invalidate(compactAgendaDataProvider);
+  }
+
+  Future<void> _focusTopRight() async {
+    try {
+      await windowManager.setAlignment(Alignment.topRight);
+      await windowManager.focus();
+    } on Object {
+      // Positioning is best-effort, especially on Wayland.
+    }
   }
 
   Future<bool> _isFocused() async {
@@ -91,7 +104,7 @@ class _BusyMaxCompactAgendaAppState
 
   @override
   void onWindowClose() {
-    unawaited(windowManager.hide());
+    unawaited(widget.windowController.hide());
   }
 
   @override
@@ -102,7 +115,7 @@ class _BusyMaxCompactAgendaAppState
   Future<void> _hideAfterBlurDelay() async {
     await Future<void>.delayed(const Duration(milliseconds: 180));
     if (!await _isFocused()) {
-      await windowManager.hide();
+      await widget.windowController.hide();
     }
   }
 

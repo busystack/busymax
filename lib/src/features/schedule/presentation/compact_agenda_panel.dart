@@ -17,6 +17,8 @@ import '../application/compact_agenda_controller.dart';
 import '../application/compact_agenda_data.dart';
 import '../application/compact_agenda_sections.dart';
 import 'compact_agenda_formatting.dart';
+import 'schedule_item_details_popover.dart';
+import 'schedule_item_exporter.dart';
 
 typedef CompactAgendaTaskCompletionCallback =
     Future<void> Function(TaskScheduleItem item, bool completed);
@@ -218,14 +220,46 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
     await windowManager.hide();
   }
 
-  Future<void> _openItem(ScheduleItem item) async {
+  Future<void> _openItem(BuildContext anchorContext, ScheduleItem item) async {
     final callback = widget.onOpenItem;
     if (callback != null) {
       await callback(item);
       return;
     }
-    await const MainWindowCommandClient().openScheduleItem(item);
-    await windowManager.hide();
+    final action = await showScheduleItemDetailsPopover(
+      context: context,
+      anchorContext: anchorContext,
+      item: item,
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case ScheduleItemDetailsAction.export:
+        await _exportItem(item);
+      case ScheduleItemDetailsAction.edit:
+        await const MainWindowCommandClient().openScheduleItem(item);
+        await windowManager.hide();
+    }
+  }
+
+  Future<void> _exportItem(ScheduleItem item) async {
+    try {
+      final file = await exportScheduleItemWithSaveDialog(item);
+      if (file == null || !mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.exportedFile(file.path))),
+      );
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.exportFailed(redactForLog(error)))),
+      );
+    }
   }
 
   Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {
@@ -504,7 +538,8 @@ class _CompactAgendaSectionView extends StatelessWidget {
   final CompactAgendaSection section;
   final DateTime today;
   final Set<String> mutatingTaskKeys;
-  final Future<void> Function(ScheduleItem item) onOpenItem;
+  final Future<void> Function(BuildContext anchorContext, ScheduleItem item)
+  onOpenItem;
   final CompactAgendaTaskCompletionCallback onTaskCompletionChanged;
   final Future<void> Function() onOpenBusyMax;
 
@@ -589,7 +624,8 @@ class _CompactAgendaRow extends StatelessWidget {
   final DateTime today;
   final bool mutating;
   final bool showDivider;
-  final Future<void> Function(ScheduleItem item) onOpenItem;
+  final Future<void> Function(BuildContext anchorContext, ScheduleItem item)
+  onOpenItem;
   final CompactAgendaTaskCompletionCallback onTaskCompletionChanged;
 
   @override
@@ -608,7 +644,7 @@ class _CompactAgendaRow extends StatelessWidget {
       opacity: mutating ? 0.48 : 1,
       duration: const Duration(milliseconds: 120),
       child: InkWell(
-        onTap: mutating ? null : () => unawaited(onOpenItem(item)),
+        onTap: mutating ? null : () => unawaited(onOpenItem(context, item)),
         child: Container(
           constraints: const BoxConstraints(minHeight: 62),
           decoration: BoxDecoration(

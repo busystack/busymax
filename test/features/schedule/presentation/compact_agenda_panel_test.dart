@@ -92,6 +92,21 @@ void main() {
     expect(opened, event);
   });
 
+  testWidgets('default row tap shows details popover in compact window', (
+    tester,
+  ) async {
+    final event = _event('Team sync', start: today);
+
+    await tester.pumpWidget(_testPanel(data: _data(today, items: [event])));
+
+    await tester.tap(find.text('Team sync'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+    expect(find.text('Work'), findsWidgets);
+  });
+
   testWidgets('loading state renders progress and skeleton rows', (
     tester,
   ) async {

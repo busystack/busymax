@@ -38,6 +38,12 @@ constexpr gint kHeaderMainContentStartInset = kHeaderSidebarContentInset;
 constexpr gint kHeaderTooltipVerticalPadding = 5;
 constexpr gint kHeaderTooltipHorizontalPadding = 8;
 constexpr gint kHeaderWindowRadius = 8;
+constexpr gint kCompactAgendaWindowWidth = 420;
+constexpr gint kCompactAgendaWindowHeight = 680;
+constexpr gint kCompactAgendaWindowMinWidth = 360;
+constexpr gint kCompactAgendaWindowMinHeight = 520;
+constexpr gint kCompactAgendaWindowMaxWidth = 480;
+constexpr gint kCompactAgendaWindowMaxHeight = 840;
 constexpr char kDefaultHeaderBarBackgroundColor[] = "#1D1D20";
 constexpr char kDefaultHeaderBarSidebarBackgroundColor[] = "#2E2E32";
 
@@ -2103,6 +2109,46 @@ static void configure_transparent_window_backing(GtkWindow* window) {
                    nullptr);
 }
 
+static void configure_compact_agenda_subwindow(FlPluginRegistry* registry) {
+  // BusyMax creates desktop_multi_window subwindows for the compact tray
+  // Agenda. Configure the GTK shell before Dart/window_manager can show the
+  // plugin's default 1280x720 secondary window.
+  if (!FL_IS_VIEW(registry)) {
+    return;
+  }
+
+  FlView* view = FL_VIEW(registry);
+  GtkWidget* toplevel = gtk_widget_get_toplevel(GTK_WIDGET(view));
+  if (!GTK_IS_WINDOW(toplevel)) {
+    return;
+  }
+
+  GtkWindow* window = GTK_WINDOW(toplevel);
+  GdkRGBA transparent = {0, 0, 0, 0};
+  fl_view_set_background_color(view, &transparent);
+
+  gtk_widget_set_name(GTK_WIDGET(window), "busymax-compact-agenda-window");
+  GtkWidget* titlebar = gtk_window_get_titlebar(window);
+  if (titlebar != nullptr) {
+    gtk_widget_hide(titlebar);
+  }
+  gtk_window_set_title(window, "BusyMax Agenda");
+  gtk_window_set_resizable(window, FALSE);
+  gtk_window_set_default_size(window, kCompactAgendaWindowWidth,
+                              kCompactAgendaWindowHeight);
+  gtk_window_resize(window, kCompactAgendaWindowWidth,
+                    kCompactAgendaWindowHeight);
+
+  GdkGeometry geometry = {};
+  geometry.min_width = kCompactAgendaWindowMinWidth;
+  geometry.min_height = kCompactAgendaWindowMinHeight;
+  geometry.max_width = kCompactAgendaWindowMaxWidth;
+  geometry.max_height = kCompactAgendaWindowMaxHeight;
+  gtk_window_set_geometry_hints(
+      window, GTK_WIDGET(window), &geometry,
+      static_cast<GdkWindowHints>(GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE));
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -2178,7 +2224,10 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
   desktop_multi_window_plugin_set_window_created_callback(
-      [](FlPluginRegistry* registry) { fl_register_plugins(registry); });
+      [](FlPluginRegistry* registry) {
+        configure_compact_agenda_subwindow(registry);
+        fl_register_plugins(registry);
+      });
   register_native_date_time_picker(self, view, window);
   register_window_channel(self, view);
   register_header_bar_channel(self, view);

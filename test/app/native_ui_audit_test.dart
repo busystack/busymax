@@ -137,8 +137,12 @@ void main() {
         'lib/src/platform/busymax_tray_service.dart',
       ).readAsStringSync();
       final router = File('lib/src/app/app_router.dart').readAsStringSync();
+      final main = File('lib/main.dart').readAsStringSync();
       final compactApp = File(
         'lib/src/features/schedule/presentation/compact_agenda_app.dart',
+      ).readAsStringSync();
+      final compactWindowService = File(
+        'lib/src/platform/compact_agenda_window_service.dart',
       ).readAsStringSync();
 
       expect(pubspec, contains('desktop_multi_window:'));
@@ -146,6 +150,18 @@ void main() {
       expect(
         runner,
         contains('desktop_multi_window_plugin_set_window_created_callback'),
+      );
+      expect(runner, contains('configure_compact_agenda_subwindow'));
+      expect(runner, contains('kCompactAgendaWindowWidth = 420'));
+      expect(
+        runner,
+        contains('gtk_window_resize(window, kCompactAgendaWindowWidth'),
+      );
+      expect(runner, contains('gtk_window_get_titlebar(window)'));
+      expect(runner, contains('gtk_widget_hide(titlebar)'));
+      expect(
+        runner,
+        isNot(contains('gtk_window_set_titlebar(window, nullptr)')),
       );
       expect(tray, contains('return _onOpenAgenda();'));
       expect(tray, isNot(contains('BusyMaxTrayAgendaSnapshot')));
@@ -158,6 +174,9 @@ void main() {
       expect(compactApp, isNot(contains('syncSchedulerProvider')));
       expect(compactApp, isNot(contains('notificationSchedulerProvider')));
       expect(compactApp, isNot(contains('dueTodayNotificationProvider')));
+      expect(compactWindowService, isNot(contains('controller.show()')));
+      expect(main, isNot(contains('waitUntilReadyToShow')));
+      expect(main, isNot(contains('await windowManager.show();')));
     });
 
     test('native headerbar keeps sidebar top branded and aligned', () {
