@@ -310,8 +310,7 @@ String? _timePart(String? value) {
 }
 
 String? _scheduleTimePart(String? value) {
-  final time = _timePart(value);
-  return time == '00:00' ? null : time;
+  return _timePart(value);
 }
 
 Map<String, Object?> _graphDateTime(

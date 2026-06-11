@@ -793,8 +793,8 @@ void main() {
     'Microsoft all-day scheduled tasks can be switched to time slot',
     (tester) async {
       final repository = _FakeTasksRepository(
-        microsoftDueDateTime: '2026-06-06T00:00:00',
-        microsoftStartDateTime: '2026-06-04T00:00:00',
+        microsoftDueDateTime: '2026-06-06',
+        microsoftStartDateTime: '2026-06-04',
       );
       await _pumpDetails(
         tester,
@@ -826,6 +826,31 @@ void main() {
       });
     },
   );
+
+  testWidgets('Microsoft midnight task stays in time slot mode', (
+    tester,
+  ) async {
+    final repository = _FakeTasksRepository(
+      microsoftDueDateTime: '2026-06-06T00:00:00',
+      microsoftStartDateTime: '2026-06-04T00:00:00',
+    );
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      repository: repository,
+    );
+
+    expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
+    expect(find.text('Due time'), findsOneWidget);
+    expect(find.text('Start time'), findsOneWidget);
+    expect(find.text('All Day'), findsOneWidget);
+    expect(find.text('Time Slot'), findsOneWidget);
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(repository.patches, isEmpty);
+  });
 
   testWidgets('time entries do not show redundant internal input label', (
     tester,
