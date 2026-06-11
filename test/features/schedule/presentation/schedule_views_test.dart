@@ -302,6 +302,33 @@ void main() {
     expect(find.text('Submit report'), findsOneWidget);
   });
 
+  testWidgets('month view avoids overflow in very short cells', (tester) async {
+    final selectedDate = DateTime(2026, 1, 15);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 700,
+            height: 120,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: _sameSlotItemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onCreateAtDay: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('calendar schedule chip invokes calendar item tap', (
     tester,
   ) async {
@@ -608,6 +635,7 @@ void main() {
 
   testWidgets('agenda view is custom and keeps no-date tasks', (tester) async {
     final selectedDate = DateTime(2026, 1, 15);
+    final yesterday = selectedDate.subtract(const Duration(days: 1));
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -616,8 +644,55 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange(
+                start: selectedDate,
+                end: selectedDate.add(const Duration(days: 7)),
+              ),
               items: [
+                CalendarScheduleItem(
+                  id: 'event:past',
+                  accountId: 'google:g',
+                  provider: TaskProvider.google,
+                  sourceId: 'calendar:primary',
+                  providerCalendarId: 'primary',
+                  title: 'Yesterday event',
+                  allDay: false,
+                  start: DateTime(
+                    yesterday.year,
+                    yesterday.month,
+                    yesterday.day,
+                    9,
+                  ),
+                  end: DateTime(
+                    yesterday.year,
+                    yesterday.month,
+                    yesterday.day,
+                    10,
+                  ),
+                  sourceName: 'Work',
+                ),
+                TaskScheduleItem(
+                  id: 'task:overdue',
+                  accountId: 'microsoft:m',
+                  provider: TaskProvider.microsoft,
+                  sourceId: 'tasks:inbox',
+                  title: 'Pay invoice',
+                  completed: false,
+                  allDay: true,
+                  start: yesterday,
+                  sourceName: 'Inbox',
+                ),
+                TaskScheduleItem(
+                  id: 'task:completed-overdue',
+                  accountId: 'microsoft:m',
+                  provider: TaskProvider.microsoft,
+                  sourceId: 'tasks:inbox',
+                  title: 'Completed old task',
+                  completed: true,
+                  allDay: true,
+                  start: yesterday,
+                  sourceName: 'Inbox',
+                ),
                 ..._itemsFor(selectedDate),
                 const TaskScheduleItem(
                   id: 'task:no-date',
@@ -639,6 +714,10 @@ void main() {
     );
 
     expect(find.byType(icv.EventsList), findsNothing);
+    expect(find.text('Overdue'), findsOneWidget);
+    expect(find.text('Pay invoice'), findsOneWidget);
+    expect(find.text('Completed old task'), findsNothing);
+    expect(find.text('Yesterday event'), findsNothing);
     expect(find.text('Design review'), findsOneWidget);
     expect(find.text('Submit report'), findsOneWidget);
     expect(find.text('No date'), findsOneWidget);
@@ -1164,6 +1243,12 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('final _plannerKey = GlobalKey'));
+    expect(
+      source,
+      contains(
+        '_controller = icv.EventsController();\n    _jumpToVisibleDayStart();',
+      ),
+    );
     expect(source, contains('_plannerKey.currentState?.jumpToDate(date)'));
     expect(source, contains('initialDate: _plannerStartDate(widget)'));
   });
@@ -1221,6 +1306,33 @@ void main() {
       source,
       isNot(contains('ScheduleViewMode.agenda => ScheduleRange.week')),
     );
+    expect(source, contains('ScheduleRange _allOverdueTasksRange'));
+    expect(source, contains('start: DateTime(1)'));
+    expect(source, contains('end: displayRange.start'));
+    expect(source, isNot(contains('subtract(const Duration(days: 30))')));
+  });
+
+  test('agenda queries overdue tasks separately from current events', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('Future<List<ScheduleItem>> _scheduleItems'));
+    expect(source, contains('final currentItems = repository.listItems'));
+    expect(source, contains('final overdueTasks = repository.listItems'));
+    expect(source, contains('range: _allOverdueTasksRange(range)'));
+    expect(source, contains('includeCalendarEvents: false'));
+    expect(source, contains('showCompletedTasks: false'));
+    expect(source, contains('showNoDateTasks: false'));
+    expect(source, contains('Future.wait([currentItems, overdueTasks])'));
+    expect(source, contains('List<ScheduleItem> _agendaItems'));
+    expect(source, contains('if (item is CalendarScheduleItem)'));
+    expect(
+      source,
+      contains('return ScheduleProjection.intersects(item, range);'),
+    );
+    expect(source, contains('if (item is TaskScheduleItem)'));
+    expect(source, contains('return !item.completed;'));
   });
 
   test('agenda task markers use task list icons, not checkbox icons', () {

@@ -13,7 +13,6 @@ final compactAgendaDataProvider = FutureProvider.autoDispose<CompactAgendaData>(
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final end = today.add(const Duration(days: 7));
-    final queryStart = today.subtract(const Duration(days: 30));
     final range = ScheduleRange(start: today, end: end);
 
     CompactAgendaData empty({
@@ -62,27 +61,41 @@ final compactAgendaDataProvider = FutureProvider.autoDispose<CompactAgendaData>(
       return empty(hasSignedInAccounts: true, hasSources: false);
     }
 
-    final rawItems = await ref
-        .read(scheduleRepositoryProvider)
-        .listItems(
-          range: ScheduleRange(start: queryStart, end: end),
-          filters: ScheduleFilters(
-            accountIds: accountIds,
-            sourceIds: visibility.visibleCalendarSourceIds,
-            taskListIds: visibility.visibleTaskListIds,
-            sourceFilterActive: true,
-            taskListFilterActive: true,
-            includeCalendarEvents: true,
-            includeTasks: true,
-            showCompletedTasks: false,
-            showNoDateTasks: false,
-          ),
-        );
+    final repository = ref.read(scheduleRepositoryProvider);
+    final rawItemLists = await Future.wait([
+      repository.listItems(
+        range: range,
+        filters: ScheduleFilters(
+          accountIds: accountIds,
+          sourceIds: visibility.visibleCalendarSourceIds,
+          taskListIds: visibility.visibleTaskListIds,
+          sourceFilterActive: true,
+          taskListFilterActive: true,
+          includeCalendarEvents: true,
+          includeTasks: true,
+          showCompletedTasks: false,
+          showNoDateTasks: true,
+        ),
+      ),
+      repository.listItems(
+        range: ScheduleRange(start: DateTime(1), end: today),
+        filters: ScheduleFilters(
+          accountIds: accountIds,
+          taskListIds: visibility.visibleTaskListIds,
+          taskListFilterActive: true,
+          includeCalendarEvents: false,
+          includeTasks: true,
+          showCompletedTasks: false,
+          showNoDateTasks: false,
+        ),
+      ),
+    ]);
+    final rawItems = rawItemLists.expand((items) => items);
 
     final items = rawItems.where((item) {
       final start = item.start;
       if (start == null) {
-        return false;
+        return item is TaskScheduleItem && !item.completed;
       }
       if (item is CalendarScheduleItem) {
         return !start.isBefore(today) && start.isBefore(end);

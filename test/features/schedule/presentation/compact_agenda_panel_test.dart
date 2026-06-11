@@ -34,11 +34,34 @@ void main() {
     expect(find.text('Open BusyMax'), findsWidgets);
   });
 
+  testWidgets('long error state scrolls without overflowing', (tester) async {
+    final message = List.filled(160, 'Failure details').join('\n');
+
+    await tester.pumpWidget(
+      _testPanel(
+        data: AsyncError<CompactAgendaData>(message, StackTrace.empty),
+        size: const Size(420, 520),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Agenda unavailable'), findsOneWidget);
+  });
+
   testWidgets('empty state shows positive empty message', (tester) async {
     await tester.pumpWidget(_testPanel(data: _data(today)));
 
     expect(find.text('Clear for the next 7 days'), findsOneWidget);
     expect(find.text('No events or tasks'), findsOneWidget);
+  });
+
+  testWidgets('no-date tasks render in a No date section', (tester) async {
+    await tester.pumpWidget(
+      _testPanel(data: _data(today, items: [_task('Plan someday')])),
+    );
+
+    expect(find.text('No date'), findsOneWidget);
+    expect(find.text('Plan someday'), findsOneWidget);
   });
 
   testWidgets('compact shell has rounded corners', (tester) async {
@@ -259,7 +282,7 @@ AsyncValue<CompactAgendaData> _data(
   );
 }
 
-TaskScheduleItem _task(String title, {required DateTime start}) {
+TaskScheduleItem _task(String title, {DateTime? start}) {
   return TaskScheduleItem(
     id: title,
     accountId: 'account',

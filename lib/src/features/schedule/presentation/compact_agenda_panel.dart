@@ -559,58 +559,70 @@ class _CompactAgendaMessageState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(BusyMaxSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 34, color: colors.mutedForeground),
-            const SizedBox(height: BusyMaxSpacing.md),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            if (message != null && message!.isNotEmpty) ...[
-              const SizedBox(height: BusyMaxSpacing.sm),
-              Text(
-                message!,
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: colors.mutedForeground),
-              ),
-            ],
-            if (primaryLabel != null || secondaryLabel != null) ...[
-              const SizedBox(height: BusyMaxSpacing.lg),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: BusyMaxSpacing.sm,
-                runSpacing: BusyMaxSpacing.sm,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minHeight = constraints.maxHeight.isFinite
+            ? (constraints.maxHeight - BusyMaxSpacing.xl * 2)
+                  .clamp(0.0, double.infinity)
+                  .toDouble()
+            : 0.0;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(BusyMaxSpacing.xl),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (primaryLabel != null)
-                    BusyMaxPushButton.filled(
-                      onPressed: onPrimary == null
-                          ? null
-                          : () => unawaited(onPrimary!()),
-                      child: Text(primaryLabel!),
+                  Icon(icon, size: 34, color: colors.mutedForeground),
+                  const SizedBox(height: BusyMaxSpacing.md),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                  if (secondaryLabel != null)
-                    BusyMaxPushButton.outlined(
-                      onPressed: onSecondary == null
-                          ? null
-                          : () => unawaited(onSecondary!()),
-                      child: Text(secondaryLabel!),
+                  ),
+                  if (message != null && message!.isNotEmpty) ...[
+                    const SizedBox(height: BusyMaxSpacing.sm),
+                    Text(
+                      message!,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.mutedForeground,
+                      ),
                     ),
+                  ],
+                  if (primaryLabel != null || secondaryLabel != null) ...[
+                    const SizedBox(height: BusyMaxSpacing.lg),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: BusyMaxSpacing.sm,
+                      runSpacing: BusyMaxSpacing.sm,
+                      children: [
+                        if (primaryLabel != null)
+                          BusyMaxPushButton.filled(
+                            onPressed: onPrimary == null
+                                ? null
+                                : () => unawaited(onPrimary!()),
+                            child: Text(primaryLabel!),
+                          ),
+                        if (secondaryLabel != null)
+                          BusyMaxPushButton.outlined(
+                            onPressed: onSecondary == null
+                                ? null
+                                : () => unawaited(onSecondary!()),
+                            child: Text(secondaryLabel!),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
-            ],
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -646,6 +658,7 @@ class _CompactAgendaSectionView extends StatelessWidget {
         today: today,
         day: section.day ?? today,
       ),
+      CompactAgendaSectionKind.noDate => context.l10n.noDate,
     };
     return BusyMaxGroupedList(
       title: title,

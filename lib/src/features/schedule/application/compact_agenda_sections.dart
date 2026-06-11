@@ -2,7 +2,7 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_sorting.dart';
 
-enum CompactAgendaSectionKind { overdue, day }
+enum CompactAgendaSectionKind { overdue, day, noDate }
 
 class CompactAgendaSection {
   const CompactAgendaSection({
@@ -41,6 +41,7 @@ List<CompactAgendaSection> buildCompactAgendaSections({
   }
 
   final grouped = <DateTime, List<ScheduleItem>>{};
+  final noDateTasks = <TaskScheduleItem>[];
   final end = today.add(const Duration(days: 7));
   for (final item in items) {
     if (item is TaskScheduleItem && item.completed) {
@@ -48,6 +49,9 @@ List<CompactAgendaSection> buildCompactAgendaSections({
     }
     final start = item.start;
     if (start == null) {
+      if (item is TaskScheduleItem) {
+        noDateTasks.add(item);
+      }
       continue;
     }
     final day = ScheduleProjection.day(start);
@@ -65,6 +69,16 @@ List<CompactAgendaSection> buildCompactAgendaSections({
         kind: CompactAgendaSectionKind.day,
         day: day,
         items: dayItems,
+      ),
+    );
+  }
+
+  if (noDateTasks.isNotEmpty) {
+    noDateTasks.sort(compareScheduleItems);
+    sections.add(
+      CompactAgendaSection(
+        kind: CompactAgendaSectionKind.noDate,
+        items: noDateTasks,
       ),
     );
   }

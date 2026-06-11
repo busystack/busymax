@@ -21,6 +21,7 @@ import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
+import '../../../schedule/schedule_repository.dart';
 import '../../../schedule/schedule_scope.dart';
 import '../../../schedule/schedule_source_visibility.dart';
 import '../../../schedule/schedule_view_mode.dart';
@@ -141,23 +142,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 .toList();
 
             return FutureBuilder<List<ScheduleItem>>(
-              future: ref
-                  .watch(scheduleRepositoryProvider)
-                  .listItems(
-                    range: range,
-                    filters: ScheduleFilters(
-                      query: _searchQuery,
-                      accountIds: accountIds.toSet(),
-                      sourceIds: visibility.visibleCalendarSourceIds,
-                      taskListIds: visibility.visibleTaskListIds,
-                      sourceFilterActive: true,
-                      taskListFilterActive: true,
-                      includeCalendarEvents: _scope != ScheduleScope.tasks,
-                      includeTasks: _scope != ScheduleScope.events,
-                      showCompletedTasks: true,
-                      showNoDateTasks: true,
-                    ),
-                  ),
+              future: _scheduleItems(
+                repository: ref.watch(scheduleRepositoryProvider),
+                range: range,
+                searchHasQuery: searchHasQuery,
+                accountIds: accountIds.toSet(),
+                sourceIds: visibility.visibleCalendarSourceIds,
+                taskListIds: visibility.visibleTaskListIds,
+              ),
               builder: (context, snapshot) {
                 final itemsLoading =
                     snapshot.connectionState == ConnectionState.waiting &&
@@ -167,10 +159,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     sourcesLoading ||
                     taskListsLoading ||
                     itemsLoading;
-                final items = ScheduleProjection.filterByScope(
+                final scopedItems = ScheduleProjection.filterByScope(
                   snapshot.data ?? const <ScheduleItem>[],
                   _scope,
                 );
+                final items =
+                    !searchHasQuery && _mode == ScheduleViewMode.agenda
+                    ? _agendaItems(scopedItems, range)
+                    : scopedItems;
                 _latestItems = items;
                 final miniCalendarItemsFuture = ref
                     .watch(scheduleRepositoryProvider)
@@ -513,6 +509,77 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       start: days.first,
       end: days.last.add(const Duration(days: 1)),
     );
+  }
+
+  Future<List<ScheduleItem>> _scheduleItems({
+    required ScheduleRepository repository,
+    required ScheduleRange range,
+    required bool searchHasQuery,
+    required Set<String> accountIds,
+    required Set<String> sourceIds,
+    required Set<String> taskListIds,
+  }) async {
+    final currentItems = repository.listItems(
+      range: range,
+      filters: ScheduleFilters(
+        query: _searchQuery,
+        accountIds: accountIds,
+        sourceIds: sourceIds,
+        taskListIds: taskListIds,
+        sourceFilterActive: true,
+        taskListFilterActive: true,
+        includeCalendarEvents: _scope != ScheduleScope.tasks,
+        includeTasks: _scope != ScheduleScope.events,
+        showCompletedTasks: true,
+        showNoDateTasks: true,
+      ),
+    );
+    if (searchHasQuery || _mode != ScheduleViewMode.agenda) {
+      return currentItems;
+    }
+
+    final overdueTasks = repository.listItems(
+      range: _allOverdueTasksRange(range),
+      filters: ScheduleFilters(
+        accountIds: accountIds,
+        taskListIds: taskListIds,
+        taskListFilterActive: true,
+        includeCalendarEvents: false,
+        includeTasks: _scope != ScheduleScope.events,
+        showCompletedTasks: false,
+        showNoDateTasks: false,
+      ),
+    );
+    final results = await Future.wait([currentItems, overdueTasks]);
+    return [...results[0], ...results[1]];
+  }
+
+  ScheduleRange _allOverdueTasksRange(ScheduleRange displayRange) {
+    return ScheduleRange(start: DateTime(1), end: displayRange.start);
+  }
+
+  List<ScheduleItem> _agendaItems(
+    List<ScheduleItem> items,
+    ScheduleRange range,
+  ) {
+    final startDay = ScheduleProjection.day(range.start);
+    return items.where((item) {
+      final start = item.start;
+      if (start == null) {
+        return true;
+      }
+      if (item is CalendarScheduleItem) {
+        return ScheduleProjection.intersects(item, range);
+      }
+      if (item is TaskScheduleItem) {
+        final itemDay = ScheduleProjection.day(start);
+        if (itemDay.isBefore(startDay)) {
+          return !item.completed;
+        }
+        return start.isBefore(range.end);
+      }
+      return ScheduleProjection.intersects(item, range);
+    }).toList();
   }
 
   Future<List<TaskListEntity>> _taskListsForAccounts(

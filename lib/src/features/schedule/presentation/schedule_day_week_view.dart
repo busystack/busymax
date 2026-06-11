@@ -63,6 +63,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   void initState() {
     super.initState();
     _controller = icv.EventsController();
+    _jumpToVisibleDayStart();
   }
 
   @override

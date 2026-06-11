@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:busymax/src/features/schedule/application/compact_agenda_sections.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
@@ -87,11 +89,31 @@ void main() {
     expect(sections.single.items, hasLength(8));
     expect(sections.single.hasMore, isTrue);
   });
+
+  test('no-date tasks appear in No date section', () {
+    final sections = buildCompactAgendaSections(
+      today: today,
+      items: [_task('someday')],
+    );
+
+    expect(sections.single.kind, CompactAgendaSectionKind.noDate);
+    expect(sections.single.items.single.title, 'someday');
+  });
+
+  test('compact agenda data includes no-date tasks without old events', () {
+    final source = File(
+      'lib/src/features/schedule/application/compact_agenda_data.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('showNoDateTasks: true'));
+    expect(source, contains('ScheduleRange(start: DateTime(1), end: today)'));
+    expect(source, contains('includeCalendarEvents: false'));
+  });
 }
 
 TaskScheduleItem _task(
   String title, {
-  required DateTime start,
+  DateTime? start,
   bool completed = false,
 }) {
   return TaskScheduleItem(

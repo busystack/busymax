@@ -8,6 +8,7 @@ import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
+import '../../../schedule/schedule_sorting.dart';
 import 'schedule_event_block.dart';
 import 'schedule_item_selection.dart';
 
@@ -33,6 +34,12 @@ class ScheduleAgendaView extends StatelessWidget {
     final groups = ScheduleProjection.groupByDay(dated);
     final rangeStart = ScheduleProjection.day(range.start);
     final rangeEnd = ScheduleProjection.day(range.end);
+    final overdueTasks = dated.whereType<TaskScheduleItem>().where((item) {
+      final start = item.start;
+      return start != null &&
+          !item.completed &&
+          ScheduleProjection.day(start).isBefore(rangeStart);
+    }).toList()..sort(compareScheduleItems);
     final days =
         groups.keys
             .where((day) => !day.isBefore(rangeStart) && day.isBefore(rangeEnd))
@@ -49,6 +56,21 @@ class ScheduleAgendaView extends StatelessWidget {
           BusyMaxSpacing.xl,
         ),
         children: [
+          if (overdueTasks.isNotEmpty)
+            BusyMaxGroupedList(
+              title: context.l10n.overdue,
+              filled: true,
+              children: [
+                for (final item in overdueTasks)
+                  _AgendaRow(
+                    item: item,
+                    onTap: (context, [globalPosition]) =>
+                        onItemSelected(context, item, globalPosition),
+                    onTaskCompletionChanged: (completed) =>
+                        onTaskCompletionChanged(item, completed),
+                  ),
+              ],
+            ),
           for (final day in days)
             BusyMaxGroupedList(
               title: _dayLabel(context, day),
