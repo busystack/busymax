@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import '../calendar_providers/calendar_colors.dart';
 import '../calendar_providers/calendar_description.dart';
 import '../db/app_database.dart';
+import '../core/time/provider_date_time.dart';
 import '../task_providers/task_provider.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
@@ -363,7 +364,10 @@ class ScheduleRepository {
       notes: task.notes ?? task.bodyContent,
       categories: _stringListFromJson(task.categoriesJson),
       reminder: task.microsoftIsReminderOn == true
-          ? DateTime.tryParse(task.microsoftReminderDateTime ?? '')
+          ? providerDateTimeAsLocal(
+              task.microsoftReminderDateTime,
+              task.microsoftReminderTimeZone,
+            )
           : null,
       sourceName: list?.title,
       accountDisplayName: accountDisplayNames[task.accountId],
@@ -535,14 +539,14 @@ bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
 
 DateTime? _eventStart(CalendarEvent event) {
   if (!event.allDay) {
-    return _parseDateTime(event.startDateTime);
+    return _parseCalendarDateTime(event.startDateTime);
   }
   return _parseDate(event.startDate) ?? _parseDate(event.startDateTime);
 }
 
 DateTime? _eventEnd(CalendarEvent event) {
   if (!event.allDay) {
-    return _parseDateTime(event.endDateTime);
+    return _parseCalendarDateTime(event.endDateTime);
   }
   return _parseDate(event.endDate) ?? _parseDate(event.endDateTime);
 }
@@ -559,6 +563,29 @@ DateTime? _parseDateTime(String? value) {
     return null;
   }
   return DateTime.tryParse(value);
+}
+
+DateTime? _parseCalendarDateTime(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  final offsetWallTime = _parseOffsetWallDateTime(value);
+  if (offsetWallTime != null) {
+    return offsetWallTime;
+  }
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) {
+    return null;
+  }
+  return parsed.isUtc ? parsed.toLocal() : parsed;
+}
+
+DateTime? _parseOffsetWallDateTime(String value) {
+  if (!RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value)) {
+    return null;
+  }
+  final wallTime = value.replaceFirst(RegExp(r'[+-]\d{2}:?\d{2}$'), '');
+  return DateTime.tryParse(wallTime);
 }
 
 List<String> _stringListFromJson(String? value) {

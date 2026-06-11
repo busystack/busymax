@@ -1025,18 +1025,12 @@ class _BusyMaxCategoryChip extends StatelessWidget {
               ),
             ),
             const SizedBox(width: BusyMaxSpacing.xs),
-            Tooltip(
-              message:
+            _BusyMaxCategoryIconAction(
+              icon: YaruIcons.window_close,
+              tooltip:
                   '${MaterialLocalizations.of(context).deleteButtonTooltip} $label',
-              child: InkResponse(
-                onTap: onDeleted,
-                radius: BusyMaxSizes.iconMd,
-                child: Icon(
-                  YaruIcons.window_close,
-                  size: BusyMaxSizes.iconSm,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
+              color: colorScheme.onSurfaceVariant,
+              onPressed: onDeleted,
             ),
           ],
         ),
@@ -1153,7 +1147,7 @@ class _BusyMaxCategoryInputChipState extends State<_BusyMaxCategoryInputChip> {
                   textEditingController: widget.controller,
                   focusNode: _focusNode,
                   displayStringForOption: (option) => option,
-                  optionsViewOpenDirection: OptionsViewOpenDirection.up,
+                  optionsViewOpenDirection: OptionsViewOpenDirection.down,
                   optionsBuilder: _categoryOptionsFor,
                   onSelected: widget.onSubmitted,
                   fieldViewBuilder:
@@ -1163,7 +1157,7 @@ class _BusyMaxCategoryInputChipState extends State<_BusyMaxCategoryInputChip> {
                           controller: controller,
                           focusNode: focusNode,
                           autofocus: true,
-                          decoration: InputDecoration.collapsed(
+                          decoration: busyMaxDropdownDecoration().copyWith(
                             hintText: widget.hintText,
                           ),
                           textInputAction: TextInputAction.done,
@@ -1178,24 +1172,18 @@ class _BusyMaxCategoryInputChipState extends State<_BusyMaxCategoryInputChip> {
                   },
                 ),
               ),
-              InkResponse(
-                onTap: () => _submitTypedCategory(widget.controller.text),
-                radius: BusyMaxSizes.iconMd,
-                child: Icon(
-                  YaruIcons.checkmark,
-                  size: BusyMaxSizes.iconSm,
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              _BusyMaxCategoryIconAction(
+                icon: YaruIcons.checkmark,
+                tooltip: MaterialLocalizations.of(context).okButtonLabel,
+                color: colorScheme.onSurfaceVariant,
+                onPressed: () => _submitTypedCategory(widget.controller.text),
               ),
               const SizedBox(width: BusyMaxSpacing.xs),
-              InkResponse(
-                onTap: widget.onCancel,
-                radius: BusyMaxSizes.iconMd,
-                child: Icon(
-                  YaruIcons.window_close,
-                  size: BusyMaxSizes.iconSm,
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              _BusyMaxCategoryIconAction(
+                icon: YaruIcons.window_close,
+                tooltip: MaterialLocalizations.of(context).cancelButtonLabel,
+                color: colorScheme.onSurfaceVariant,
+                onPressed: widget.onCancel,
               ),
             ],
           ),
@@ -1242,6 +1230,47 @@ class _BusyMaxCategoryInputChipState extends State<_BusyMaxCategoryInputChip> {
   }
 }
 
+class _BusyMaxCategoryIconAction extends StatelessWidget {
+  const _BusyMaxCategoryIconAction({
+    required this.icon,
+    required this.tooltip,
+    required this.color,
+    required this.onPressed,
+  });
+
+  static const _size = 22.0;
+
+  final IconData icon;
+  final String tooltip;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+          hoverColor: surfaceColors.controlHover,
+          focusColor: surfaceColors.controlHover,
+          highlightColor: surfaceColors.controlActive,
+          splashColor: Colors.transparent,
+          onTap: onPressed,
+          child: SizedBox.square(
+            dimension: _size,
+            child: Icon(icon, size: BusyMaxSizes.iconSm, color: color),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BusyMaxCategoryAutocompleteOptions extends StatelessWidget {
   const _BusyMaxCategoryAutocompleteOptions({
     required this.options,
@@ -1258,52 +1287,99 @@ class _BusyMaxCategoryAutocompleteOptions extends StatelessWidget {
     }
     final popupTheme = Theme.of(context).popupMenuTheme;
     final colorScheme = Theme.of(context).colorScheme;
-    const width = 180.0;
-    const menuAffordanceWidth = 36.0;
-    const labelWidth = width - BusyMaxSpacing.md * 2 - menuAffordanceWidth;
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Material(
-        color: popupTheme.color ?? colorScheme.surfaceContainerHigh,
-        elevation: BusyMaxElevation.popover,
-        shadowColor: BusyMaxShadow.floatingColor(context),
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            minWidth: width,
-            maxWidth: width,
-            maxHeight: 240,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 180.0;
+        final labelWidth = (width - BusyMaxSpacing.md * 2).clamp(0.0, width);
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            color: popupTheme.color ?? colorScheme.surfaceContainerHigh,
+            elevation: BusyMaxElevation.popover,
+            shadowColor: BusyMaxShadow.floatingColor(context),
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: width,
+                maxWidth: width,
+                maxHeight: 240,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final option = options[index];
+                    return _BusyMaxCategoryAutocompleteOption(
+                      width: width,
+                      labelWidth: labelWidth,
+                      option: option,
+                      onSelected: onSelected,
+                    );
+                  },
+                ),
+              ),
+            ),
           ),
+        );
+      },
+    );
+  }
+}
+
+class _BusyMaxCategoryAutocompleteOption extends StatelessWidget {
+  const _BusyMaxCategoryAutocompleteOption({
+    required this.width,
+    required this.labelWidth,
+    required this.option,
+    required this.onSelected,
+  });
+
+  final double width;
+  final double labelWidth;
+  final String option;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: width,
+      height: 36,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+          hoverColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.08),
+          focusColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.08),
+          highlightColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.12),
+          splashColor: Colors.transparent,
+          onTap: () => onSelected(option),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: ListView.builder(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: options.length,
-              itemBuilder: (context, index) {
-                final option = options[index];
-                return SizedBox(
-                  width: width,
-                  child: MenuItemButton(
-                    style: busyMaxDropdownMenuItemStyle(context).copyWith(
-                      fixedSize: const WidgetStatePropertyAll(Size(width, 36)),
-                    ),
-                    onPressed: () => onSelected(option),
-                    child: SizedBox(
-                      width: labelWidth,
-                      child: Text(
-                        option,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                      ),
-                    ),
+            padding: const EdgeInsets.symmetric(horizontal: BusyMaxSpacing.md),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: SizedBox(
+                width: labelWidth,
+                child: Text(
+                  option,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colorScheme.onSurface,
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
         ),

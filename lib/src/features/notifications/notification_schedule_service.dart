@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
+import '../../core/time/provider_date_time.dart';
 import '../../db/app_database.dart';
 import '../../task_providers/task_provider.dart';
 
@@ -85,9 +86,10 @@ class NotificationScheduleService {
       if (task.status == 'completed' || task.microsoftIsReminderOn != true) {
         continue;
       }
-      final reminderAt = DateTime.tryParse(
-        task.microsoftReminderDateTime ?? '',
-      )?.toUtc();
+      final reminderAt = providerDateTimeAsUtcInstant(
+        task.microsoftReminderDateTime,
+        task.microsoftReminderTimeZone,
+      );
       if (reminderAt == null || reminderAt.isBefore(now)) {
         continue;
       }

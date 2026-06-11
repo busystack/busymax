@@ -283,6 +283,27 @@ void main() {
 
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
+
+  test(
+    'Microsoft UTC task reminder schedules from provider timezone',
+    () async {
+      await _insertTaskReminder(
+        database,
+        status: 'needsAction',
+        reminderDateTime: '2026-06-08T13:15:00',
+        reminderTimeZone: 'UTC',
+      );
+
+      await service.rebuildUpcomingTaskNotifications('microsoft:m');
+
+      final rows = await database.select(database.notificationSchedule).get();
+      expect(rows.single.sourceType, 'task');
+      expect(
+        rows.single.scheduledAtUtc,
+        DateTime.utc(2026, 6, 8, 13, 15).millisecondsSinceEpoch,
+      );
+    },
+  );
 }
 
 Future<void> _insertAccount(
@@ -342,6 +363,8 @@ Future<void> _upsertEvent(
 Future<void> _insertTaskReminder(
   AppDatabase database, {
   required String status,
+  String reminderDateTime = '2026-06-08T09:15:00.000Z',
+  String? reminderTimeZone,
 }) async {
   await database
       .into(database.taskLists)
@@ -365,7 +388,8 @@ Future<void> _insertTaskReminder(
           title: 'File report',
           status: Value(status),
           microsoftIsReminderOn: const Value(true),
-          microsoftReminderDateTime: const Value('2026-06-08T09:15:00.000Z'),
+          microsoftReminderDateTime: Value(reminderDateTime),
+          microsoftReminderTimeZone: Value(reminderTimeZone),
           rawJson: jsonEncode({'id': 'task-1'}),
           createdLocalAtUtc: '2026-06-08T00:00:00.000Z',
           updatedLocalAtUtc: '2026-06-08T00:00:00.000Z',

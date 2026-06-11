@@ -505,14 +505,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('event-category-input')), 'wo');
     await tester.pumpAndSettle();
-    await tester.tap(
-      find
-          .ancestor(
-            of: find.text('Work').last,
-            matching: find.byType(MenuItemButton),
-          )
-          .last,
-    );
+    await tester.tap(find.text('Work').last);
     await tester.pumpAndSettle();
     await tester.tap(_headerButtonFinder('Save'));
 

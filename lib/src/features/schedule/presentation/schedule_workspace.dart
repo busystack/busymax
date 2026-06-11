@@ -72,6 +72,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   final _searchFocusNode = FocusNode();
   var _latestCanShowSidebar = false;
   var _latestItems = const <ScheduleItem>[];
+  final _itemAnchorContexts = <String, BuildContext>{};
+  ScheduleWorkspaceCommand? _pendingAnchoredCommand;
+  List<CalendarSourceEntity> _pendingAnchoredSources =
+      const <CalendarSourceEntity>[];
   var _agendaLoadedDays = _agendaInitialDays;
   var _agendaOverdueTaskLimit = _agendaInitialTaskBucketLimit;
   var _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit;
@@ -202,7 +206,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 final displayMode = searchHasQuery
                     ? ScheduleViewMode.agenda
                     : _mode;
-                _consumePendingCommand(visibleSources, accounts, items);
+                _consumePendingCommand(visibleSources, accounts);
                 final showFallbackHeader = _showFlutterHeaderFallback;
                 final main = Column(
                   children: [
@@ -292,6 +296,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 globalPosition: globalPosition,
                               ),
                             ),
+                        onItemAnchorAvailable: _handleItemAnchorAvailable,
                         onTaskCompletionChanged: _setTaskCompleted,
                       ),
                     ),
@@ -1175,7 +1180,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   void _consumePendingCommand(
     List<CalendarSourceEntity> sources,
     List<AccountEntity> accounts,
-    List<ScheduleItem> items,
   ) {
     final command = ref.watch(scheduleWorkspaceCommandProvider);
     if (command == null) {
@@ -1196,19 +1200,62 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         case ScheduleWorkspaceCommandKind.openDate:
           _openCommandDate(command.date);
         case ScheduleWorkspaceCommandKind.openCalendarEvent:
-          _openCommandDate(command.date);
-          final item = _findCommandItem<CalendarScheduleItem>(items, command);
-          if (item != null) {
-            unawaited(_openItem(context, item, sources));
-          }
+          _queueAnchoredCommand(command, sources);
         case ScheduleWorkspaceCommandKind.openTask:
-          _openCommandDate(command.date);
-          final item = _findCommandItem<TaskScheduleItem>(items, command);
-          if (item != null) {
-            unawaited(_openItem(context, item, sources));
-          }
+          _queueAnchoredCommand(command, sources);
       }
     });
+  }
+
+  void _queueAnchoredCommand(
+    ScheduleWorkspaceCommand command,
+    List<CalendarSourceEntity> sources,
+  ) {
+    _pendingAnchoredCommand = command;
+    _pendingAnchoredSources = List<CalendarSourceEntity>.unmodifiable(sources);
+    _openCommandDate(command.date);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _tryOpenPendingAnchoredCommand();
+      }
+    });
+  }
+
+  void _handleItemAnchorAvailable(ScheduleItem item, BuildContext context) {
+    _itemAnchorContexts[_itemAnchorKey(item)] = context;
+    _tryOpenPendingAnchoredCommand();
+  }
+
+  void _tryOpenPendingAnchoredCommand() {
+    if (!mounted) {
+      return;
+    }
+    final command = _pendingAnchoredCommand;
+    if (command == null) {
+      return;
+    }
+    final item = _findLatestCommandItem(command);
+    if (item == null) {
+      return;
+    }
+    final anchorContext = _itemAnchorContexts[_itemAnchorKey(item)];
+    if (anchorContext == null || !anchorContext.mounted) {
+      return;
+    }
+    final sources = _pendingAnchoredSources;
+    _pendingAnchoredCommand = null;
+    _pendingAnchoredSources = const <CalendarSourceEntity>[];
+    unawaited(_openItem(anchorContext, item, sources));
+  }
+
+  ScheduleItem? _findLatestCommandItem(ScheduleWorkspaceCommand command) {
+    return switch (command.kind) {
+      ScheduleWorkspaceCommandKind.openCalendarEvent =>
+        _findCommandItem<CalendarScheduleItem>(_latestItems, command),
+      ScheduleWorkspaceCommandKind.openTask =>
+        _findCommandItem<TaskScheduleItem>(_latestItems, command),
+      _ => null,
+    };
   }
 
   void _openCommandDate(DateTime? date) {
@@ -1230,6 +1277,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           .setScheduleViewMode(ScheduleViewMode.agenda),
     );
   }
+}
+
+String _itemAnchorKey(ScheduleItem item) {
+  return '${item.kind.name}:${item.accountId}:${item.sourceId}:${item.id}';
 }
 
 Object? _eventRemindersForEdit(BusyProvider provider, List<int> minutes) {
@@ -1386,6 +1437,7 @@ class _ScheduleBody extends StatelessWidget {
     required this.onAgendaLoadMoreOverdue,
     required this.onAgendaLoadMoreNoDate,
     required this.onItemSelected,
+    required this.onItemAnchorAvailable,
     required this.onTaskCompletionChanged,
   });
 
@@ -1413,6 +1465,7 @@ class _ScheduleBody extends StatelessWidget {
   final VoidCallback? onAgendaLoadMoreOverdue;
   final VoidCallback? onAgendaLoadMoreNoDate;
   final ScheduleItemSelectionCallback onItemSelected;
+  final ScheduleItemAnchorCallback onItemAnchorAvailable;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -1484,6 +1537,7 @@ class _ScheduleBody extends StatelessWidget {
         onLoadMoreOverdue: onAgendaLoadMoreOverdue,
         onLoadMoreNoDate: onAgendaLoadMoreNoDate,
         onItemSelected: onItemSelected,
+        onItemAnchorAvailable: onItemAnchorAvailable,
         onTaskCompletionChanged: onTaskCompletionChanged,
       ),
     };

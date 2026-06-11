@@ -183,6 +183,55 @@ void main() {
   });
 
   test(
+    'Google timed calendar event keeps provider wall time for editing',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertScheduleAccount(database, provider: TaskProvider.google);
+      final calendarRepository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 9),
+      );
+      await calendarRepository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar',
+          summary: 'Work',
+        ),
+      );
+      await calendarRepository.upsertEvent(
+        accountId: 'account',
+        event: const CalendarEventDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'event',
+          title: 'Planning',
+          startDateTime: '2026-06-11T05:52:00-07:00',
+          startTimeZone: 'America/Vancouver',
+          endDateTime: '2026-06-11T06:52:00-07:00',
+          endTimeZone: 'America/Vancouver',
+        ),
+      );
+
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 11)),
+        filters: const ScheduleFilters(
+          accountIds: {'account'},
+          includeTasks: false,
+        ),
+      );
+
+      expect(items, hasLength(1));
+      final event = items.single as CalendarScheduleItem;
+      expect(event.start, DateTime(2026, 6, 11, 5, 52));
+      expect(event.end, DateTime(2026, 6, 11, 6, 52));
+      expect(event.startTimeZone, 'America/Vancouver');
+      expect(event.endTimeZone, 'America/Vancouver');
+    },
+  );
+
+  test(
     'Google calendar event default reminders appear on schedule item',
     () async {
       final database = AppDatabase(NativeDatabase.memory());
@@ -213,8 +262,8 @@ void main() {
           providerCalendarId: 'calendar',
           providerEventId: 'event',
           title: 'Planning',
-        startDateTime: '2026-06-11T09:00:00',
-        endDateTime: '2026-06-11T10:00:00',
+          startDateTime: '2026-06-11T09:00:00',
+          endDateTime: '2026-06-11T10:00:00',
           remindersJson: {'useDefault': true},
         ),
       );
@@ -321,6 +370,43 @@ void main() {
     expect(task.end, DateTime(2026, 6, 12, 0, 30));
     expect(task.reminder, DateTime(2026, 6, 12, 8, 30));
     expect(task.categories, ['Expenses', 'Work']);
+  });
+
+  test('Microsoft UTC task reminder appears as local display time', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertTaskList(database);
+    await database
+        .into(database.tasks)
+        .insert(
+          TasksCompanion.insert(
+            accountId: 'account',
+            taskListId: 'inbox',
+            id: 'ms-utc-reminder-task',
+            title: 'File expenses',
+            status: const Value('needsAction'),
+            dueUtc: const Value('2026-06-12'),
+            microsoftDueDateTime: const Value('2026-06-12'),
+            microsoftIsReminderOn: const Value(true),
+            microsoftReminderDateTime: const Value('2026-06-12T13:02:00'),
+            microsoftReminderTimeZone: const Value('UTC'),
+            rawJson: '{}',
+            createdLocalAtUtc: _now,
+            updatedLocalAtUtc: _now,
+          ),
+        );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 12)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeCalendarEvents: false,
+      ),
+    );
+
+    final task = items.single as TaskScheduleItem;
+    expect(task.reminder, DateTime.utc(2026, 6, 12, 13, 2).toLocal());
   });
 
   test('Microsoft task with date-only due appears as all-day', () async {

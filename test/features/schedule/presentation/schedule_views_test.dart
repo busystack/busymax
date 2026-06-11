@@ -850,6 +850,39 @@ void main() {
     expect(find.text('New task'), findsNothing);
   });
 
+  testWidgets('agenda view reports row anchors for command popovers', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final anchors = <String, BuildContext>{};
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleAgendaView(
+              range: ScheduleRange.week(selectedDate),
+              items: _itemsFor(selectedDate),
+              onItemSelected: (_, _, [_]) {},
+              onItemAnchorAvailable: (item, context) {
+                anchors[item.id] = context;
+              },
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(anchors.keys, containsAll(['event:1', 'task:1']));
+    final renderObject = anchors['event:1']!.findRenderObject();
+    expect(renderObject, isA<RenderBox>());
+    expect((renderObject! as RenderBox).hasSize, isTrue);
+  });
+
   testWidgets('agenda view asks for more items at the bottom', (tester) async {
     final selectedDate = DateTime(2026, 1, 15);
     var loadMoreCount = 0;

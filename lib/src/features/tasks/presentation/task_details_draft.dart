@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../core/time/provider_date_time.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../task_providers/task_provider.dart';
 import '../data/tasks_repository.dart';
@@ -32,16 +33,42 @@ class TaskDetailsDraft {
       title: task.title,
       notes: task.notes ?? '',
       dueDate: _dateOnly(task.dueUtc),
-      microsoftDueTime: _scheduleTimePart(task.microsoftDueDateTime),
-      microsoftDueTimeZone: task.microsoftDueTimeZone ?? localTimeZone,
-      microsoftStartDate: _datePart(task.microsoftStartDateTime),
-      microsoftStartTime: _scheduleTimePart(task.microsoftStartDateTime),
-      microsoftStartTimeZone: task.microsoftStartTimeZone ?? localTimeZone,
+      microsoftDueTime: _providerTimePart(
+        task.microsoftDueDateTime,
+        task.microsoftDueTimeZone,
+      ),
+      microsoftDueTimeZone: _editorTimeZone(
+        task.microsoftDueDateTime,
+        task.microsoftDueTimeZone,
+        localTimeZone,
+      ),
+      microsoftStartDate: _providerDatePart(
+        task.microsoftStartDateTime,
+        task.microsoftStartTimeZone,
+      ),
+      microsoftStartTime: _providerTimePart(
+        task.microsoftStartDateTime,
+        task.microsoftStartTimeZone,
+      ),
+      microsoftStartTimeZone: _editorTimeZone(
+        task.microsoftStartDateTime,
+        task.microsoftStartTimeZone,
+        localTimeZone,
+      ),
       microsoftReminderEnabled: task.microsoftIsReminderOn ?? false,
-      microsoftReminderDate: _datePart(task.microsoftReminderDateTime),
-      microsoftReminderTime: _timePart(task.microsoftReminderDateTime),
-      microsoftReminderTimeZone:
-          task.microsoftReminderTimeZone ?? localTimeZone,
+      microsoftReminderDate: _providerDatePart(
+        task.microsoftReminderDateTime,
+        task.microsoftReminderTimeZone,
+      ),
+      microsoftReminderTime: _providerTimePart(
+        task.microsoftReminderDateTime,
+        task.microsoftReminderTimeZone,
+      ),
+      microsoftReminderTimeZone: _editorTimeZone(
+        task.microsoftReminderDateTime,
+        task.microsoftReminderTimeZone,
+        localTimeZone,
+      ),
       recurrenceJson: task.recurrenceJson,
       importance: _importanceValue(task.importance),
       categories: _categories(task.categoriesJson),
@@ -117,8 +144,15 @@ class TaskDetailsDraft {
       fields['due'] = dueDate;
     }
     if (capabilities.supportsDueTime) {
-      final originalDueTime = _scheduleTimePart(original.microsoftDueDateTime);
-      final originalDueZone = original.microsoftDueTimeZone ?? localTimeZone;
+      final originalDueTime = _providerTimePart(
+        original.microsoftDueDateTime,
+        original.microsoftDueTimeZone,
+      );
+      final originalDueZone = _editorTimeZone(
+        original.microsoftDueDateTime,
+        original.microsoftDueTimeZone,
+        localTimeZone,
+      );
       final dueTimeChanged = microsoftDueTime != originalDueTime;
       final dueZoneChanged = microsoftDueTimeZone != originalDueZone;
       if (dueChanged || dueTimeChanged || dueZoneChanged) {
@@ -154,11 +188,21 @@ class TaskDetailsDraft {
       final reminderChanged =
           microsoftReminderEnabled != originalEnabled ||
           microsoftReminderDate !=
-              _datePart(original.microsoftReminderDateTime) ||
+              _providerDatePart(
+                original.microsoftReminderDateTime,
+                original.microsoftReminderTimeZone,
+              ) ||
           microsoftReminderTime !=
-              _timePart(original.microsoftReminderDateTime) ||
+              _providerTimePart(
+                original.microsoftReminderDateTime,
+                original.microsoftReminderTimeZone,
+              ) ||
           (microsoftReminderTimeZone ?? localTimeZone) !=
-              (original.microsoftReminderTimeZone ?? localTimeZone);
+              _editorTimeZone(
+                original.microsoftReminderDateTime,
+                original.microsoftReminderTimeZone,
+                localTimeZone,
+              );
       if (reminderChanged) {
         fields['microsoftIsReminderOn'] = microsoftReminderEnabled;
         if (!microsoftReminderEnabled) {
@@ -295,9 +339,9 @@ void _putDateTimePatch(
   required String timeZoneField,
 }) {
   final changed =
-      date != _datePart(originalDateTime) ||
-      time != _scheduleTimePart(originalDateTime) ||
-      timeZone != originalTimeZone;
+      date != _providerDatePart(originalDateTime, originalTimeZone) ||
+      time != _providerTimePart(originalDateTime, originalTimeZone) ||
+      timeZone != _editorTimeZone(originalDateTime, originalTimeZone, timeZone);
   if (!changed) {
     return;
   }
@@ -343,8 +387,35 @@ String? _timePart(String? value) {
   return time.substring(0, 5);
 }
 
-String? _scheduleTimePart(String? value) {
-  return _timePart(value);
+String? _providerDatePart(String? value, String? timeZone) {
+  final parsed = providerDateTimeAsLocal(value, timeZone);
+  if (parsed == null) {
+    return _datePart(value);
+  }
+  return encodeGoogleDateOnly(parsed);
+}
+
+String? _providerTimePart(String? value, String? timeZone) {
+  if (value == null || !value.contains('T')) {
+    return null;
+  }
+  final parsed = providerDateTimeAsLocal(value, timeZone);
+  if (parsed == null) {
+    return _timePart(value);
+  }
+  return '${parsed.hour.toString().padLeft(2, '0')}:'
+      '${parsed.minute.toString().padLeft(2, '0')}';
+}
+
+String _editorTimeZone(
+  String? value,
+  String? providerTimeZone,
+  String localTimeZone,
+) {
+  if (providerDateTimeIsInstant(value, providerTimeZone)) {
+    return localTimeZone;
+  }
+  return providerTimeZone ?? localTimeZone;
 }
 
 Map<String, Object?> _graphDateTime(

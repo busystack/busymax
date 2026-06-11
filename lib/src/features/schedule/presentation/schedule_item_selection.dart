@@ -11,3 +11,6 @@ typedef ScheduleItemSelectionCallback =
 
 typedef ScheduleItemTapCallback =
     void Function(BuildContext context, [Offset? globalPosition]);
+
+typedef ScheduleItemAnchorCallback =
+    void Function(ScheduleItem item, BuildContext context);

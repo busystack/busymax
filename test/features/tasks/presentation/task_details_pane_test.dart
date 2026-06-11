@@ -594,14 +594,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('task-category-input')), 'wo');
     await tester.pumpAndSettle();
-    await tester.tap(
-      find
-          .ancestor(
-            of: find.text('Work').last,
-            matching: find.byType(MenuItemButton),
-          )
-          .last,
+    final input = find.byKey(const Key('task-category-input'));
+    final field = tester.widget<TextField>(input);
+    expect(field.decoration?.border, InputBorder.none);
+    expect(field.decoration?.focusedBorder, InputBorder.none);
+    expect(
+      tester.getTopLeft(find.text('Work').last).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(input).dy - 1),
     );
+    await tester.tap(find.text('Work').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -1222,7 +1223,7 @@ class _FakeTasksRepository implements TasksRepository {
         microsoftStartTimeZone: 'UTC',
         microsoftIsReminderOn: reminderOn,
         microsoftReminderDateTime: reminderOn ? '2026-06-05T09:15:00' : null,
-        microsoftReminderTimeZone: 'UTC',
+        microsoftReminderTimeZone: 'America/Vancouver',
         importance: 'high',
         categoriesJson: '["Home"]',
       ),

@@ -348,6 +348,7 @@ authSessionControllerProvider =
 final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
   return CalendarRepository(
     database: ref.watch(databaseProvider),
+    localTimeZone: ref.watch(localTimeZoneProvider),
     onNotificationScheduleChanged: () =>
         ref.read(notificationSchedulerProvider).checkNow(),
   );

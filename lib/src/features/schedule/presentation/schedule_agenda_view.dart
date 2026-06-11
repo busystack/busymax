@@ -24,6 +24,7 @@ class ScheduleAgendaView extends StatefulWidget {
     this.onLoadMore,
     this.onLoadMoreOverdue,
     this.onLoadMoreNoDate,
+    this.onItemAnchorAvailable,
   });
 
   final ScheduleRange range;
@@ -36,6 +37,7 @@ class ScheduleAgendaView extends StatefulWidget {
   final VoidCallback? onLoadMore;
   final VoidCallback? onLoadMoreOverdue;
   final VoidCallback? onLoadMoreNoDate;
+  final ScheduleItemAnchorCallback? onItemAnchorAvailable;
 
   @override
   State<ScheduleAgendaView> createState() => _ScheduleAgendaViewState();
@@ -107,6 +109,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
                   for (final item in overdueTasks)
                     _AgendaRow(
                       item: item,
+                      onAnchorAvailable: widget.onItemAnchorAvailable,
                       onTap: (context, [globalPosition]) =>
                           widget.onItemSelected(context, item, globalPosition),
                       onTaskCompletionChanged: (completed) =>
@@ -128,6 +131,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
                   for (final item in noDateTasks)
                     _AgendaRow(
                       item: item,
+                      onAnchorAvailable: widget.onItemAnchorAvailable,
                       onTap: (context, [globalPosition]) =>
                           widget.onItemSelected(context, item, globalPosition),
                       onTaskCompletionChanged: item is TaskScheduleItem
@@ -151,6 +155,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
                   for (final item in groups[day]!)
                     _AgendaRow(
                       item: item,
+                      onAnchorAvailable: widget.onItemAnchorAvailable,
                       onTap: (context, [globalPosition]) =>
                           widget.onItemSelected(context, item, globalPosition),
                       onTaskCompletionChanged: item is TaskScheduleItem
@@ -187,17 +192,27 @@ class _AgendaRow extends StatelessWidget {
   const _AgendaRow({
     required this.item,
     required this.onTap,
+    this.onAnchorAvailable,
     this.onTaskCompletionChanged,
   });
 
   final ScheduleItem item;
   final ScheduleItemTapCallback onTap;
+  final ScheduleItemAnchorCallback? onAnchorAvailable;
   final ValueChanged<bool>? onTaskCompletionChanged;
 
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
     Offset? pointerDownPosition;
+    final onAnchorAvailable = this.onAnchorAvailable;
+    if (onAnchorAvailable != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          onAnchorAvailable(item, context);
+        }
+      });
+    }
 
     return BusyMaxActionRow(
       title: item.title,

@@ -69,13 +69,16 @@ class CalendarRepository {
   CalendarRepository({
     required AppDatabase database,
     DateTime Function()? now,
+    String? localTimeZone,
     Future<void> Function()? onNotificationScheduleChanged,
   }) : _database = database,
        _now = now ?? DateTime.now,
+       _localTimeZone = localTimeZone,
        _onNotificationScheduleChanged = onNotificationScheduleChanged;
 
   final AppDatabase _database;
   final DateTime Function() _now;
+  final String? _localTimeZone;
   final Future<void> Function()? _onNotificationScheduleChanged;
 
   Stream<List<CalendarSourceEntity>> watchSourcesForAccounts(
@@ -346,11 +349,16 @@ class CalendarRepository {
     final now = _now().millisecondsSinceEpoch;
     final provider = TaskProviderParsing.fromStorageValue(source.provider);
     final localEventId = 'local:${const Uuid().v4()}';
-    final startTimeZone = _effectiveStartTimeZone(draft, source.timeZone);
+    final startTimeZone = _effectiveStartTimeZone(
+      draft,
+      source.timeZone,
+      _localTimeZone,
+    );
     final endTimeZone = _effectiveEndTimeZone(
       draft,
       source.timeZone,
       startTimeZone,
+      _localTimeZone,
     );
     final id = eventId(
       accountId: draft.accountId,
@@ -445,11 +453,16 @@ class CalendarRepository {
     )..where((row) => row.id.equals(eventId))).getSingle();
     final now = _now().millisecondsSinceEpoch;
     final provider = TaskProviderParsing.fromStorageValue(source.provider);
-    final startTimeZone = _effectiveStartTimeZone(draft, source.timeZone);
+    final startTimeZone = _effectiveStartTimeZone(
+      draft,
+      source.timeZone,
+      _localTimeZone,
+    );
     final endTimeZone = _effectiveEndTimeZone(
       draft,
       source.timeZone,
       startTimeZone,
+      _localTimeZone,
     );
     final requestJson = jsonEncode(
       _eventRequest(
@@ -707,25 +720,59 @@ Map<String, Object?> _eventRequest(
 String? _effectiveStartTimeZone(
   EventEditorDraft draft,
   String? sourceTimeZone,
+  String? localTimeZone,
 ) {
   if (draft.allDay) {
     return null;
   }
-  return _nonBlank(draft.startTimeZone) ?? _nonBlank(sourceTimeZone) ?? 'UTC';
+  return _effectiveTimedEventZone(
+    explicitTimeZone: draft.startTimeZone,
+    sourceTimeZone: sourceTimeZone,
+    localTimeZone: localTimeZone,
+  );
 }
 
 String? _effectiveEndTimeZone(
   EventEditorDraft draft,
   String? sourceTimeZone,
   String? startTimeZone,
+  String? localTimeZone,
 ) {
   if (draft.allDay) {
     return null;
   }
-  return _nonBlank(draft.endTimeZone) ??
+  final explicit = _nonBlank(draft.endTimeZone);
+  if (explicit != null && !_isUtcTimeZone(explicit)) {
+    return explicit;
+  }
+  return _nonBlank(startTimeZone) ??
+      _nonBlank(localTimeZone) ??
+      explicit ??
       _nonBlank(sourceTimeZone) ??
-      startTimeZone ??
       'UTC';
+}
+
+String _effectiveTimedEventZone({
+  required String? explicitTimeZone,
+  required String? sourceTimeZone,
+  required String? localTimeZone,
+}) {
+  final explicit = _nonBlank(explicitTimeZone);
+  if (explicit != null && !_isUtcTimeZone(explicit)) {
+    return explicit;
+  }
+  return _nonBlank(localTimeZone) ??
+      explicit ??
+      _nonBlank(sourceTimeZone) ??
+      'UTC';
+}
+
+bool _isUtcTimeZone(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized == 'utc' ||
+      normalized == 'etc/utc' ||
+      normalized == 'gmt' ||
+      normalized == 'etc/gmt';
 }
 
 String? _nonBlank(String? value) {

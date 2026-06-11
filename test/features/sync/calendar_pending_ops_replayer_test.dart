@@ -74,6 +74,96 @@ void main() {
   );
 
   test(
+    'local Google event create uses app local timezone over UTC source',
+    () async {
+      await CalendarRepository(database: database).upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'cal-1',
+          summary: 'Work',
+          timeZone: 'UTC',
+        ),
+      );
+
+      await CalendarRepository(
+        database: database,
+        localTimeZone: 'America/Vancouver',
+      ).createLocalEvent(
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'account|google|cal-1',
+          providerCalendarId: 'cal-1',
+          start: DateTime(2026, 6, 8, 9),
+          end: DateTime(2026, 6, 8, 10),
+        ).copyWith(title: 'Planning'),
+      );
+
+      final event = await database.select(database.calendarEvents).getSingle();
+      final op = await database.select(database.pendingOps).getSingle();
+      final request = jsonDecode(op.requestJson) as Map<String, Object?>;
+
+      expect(event.startTimeZone, 'America/Vancouver');
+      expect(event.endTimeZone, 'America/Vancouver');
+      expect(request['startTimeZone'], 'America/Vancouver');
+      expect(request['endTimeZone'], 'America/Vancouver');
+    },
+  );
+
+  test(
+    'local Google event edit uses app local timezone over UTC event',
+    () async {
+      await CalendarRepository(database: database).upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'cal-1',
+          summary: 'Work',
+          timeZone: 'UTC',
+        ),
+      );
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-event',
+        startTimeZone: 'UTC',
+        endTimeZone: 'UTC',
+      );
+
+      await CalendarRepository(
+        database: database,
+        localTimeZone: 'America/Vancouver',
+      ).updateLocalEvent(
+        EventEditorDraft.existing(
+          eventId: eventId,
+          accountId: 'account',
+          sourceId: 'account|google|cal-1',
+          providerCalendarId: 'cal-1',
+          title: 'Patched',
+          allDay: false,
+          start: DateTime(2026, 6, 8, 9),
+          end: DateTime(2026, 6, 8, 10),
+          startTimeZone: 'UTC',
+          endTimeZone: 'UTC',
+        ),
+      );
+
+      final event = await (database.select(
+        database.calendarEvents,
+      )..where((table) => table.id.equals(eventId))).getSingle();
+      final op =
+          await (database.select(database.pendingOps)
+                ..where((table) => table.operationType.equals('event.patch')))
+              .getSingle();
+      final request = jsonDecode(op.requestJson) as Map<String, Object?>;
+
+      expect(event.startTimeZone, 'America/Vancouver');
+      expect(event.endTimeZone, 'America/Vancouver');
+      expect(request['startTimeZone'], 'America/Vancouver');
+      expect(request['endTimeZone'], 'America/Vancouver');
+    },
+  );
+
+  test(
     'blocked Google create with missing time zone is replayed with source zone',
     () async {
       await _enqueueEventOp(
@@ -417,6 +507,8 @@ Future<void> _insertAccount(AppDatabase database) {
 Future<String> _insertEvent(
   AppDatabase database, {
   required String providerEventId,
+  String? startTimeZone,
+  String? endTimeZone,
 }) async {
   final event = CalendarEventDto(
     provider: TaskProvider.google,
@@ -424,7 +516,9 @@ Future<String> _insertEvent(
     providerEventId: providerEventId,
     title: 'Base',
     startDateTime: '2026-06-08T09:00:00.000Z',
+    startTimeZone: startTimeZone,
     endDateTime: '2026-06-08T10:00:00.000Z',
+    endTimeZone: endTimeZone,
     updatedAtServer: '2026-06-08T00:00:00.000Z',
     rawJson: {
       'id': providerEventId,
