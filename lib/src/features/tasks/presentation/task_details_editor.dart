@@ -40,6 +40,7 @@ class TaskDetailsEditor extends StatefulWidget {
     this.accountIds = const [],
     this.selectedAccountId,
     this.accountLabelFor,
+    this.accountSecondaryLabelFor,
     this.onAccountSelected,
     this.allowTaskListSelection,
     this.showAdvancedActions = true,
@@ -74,6 +75,7 @@ class TaskDetailsEditor extends StatefulWidget {
   final List<String> accountIds;
   final String? selectedAccountId;
   final String Function(String accountId)? accountLabelFor;
+  final String? Function(String accountId)? accountSecondaryLabelFor;
   final ValueChanged<String>? onAccountSelected;
   final bool? allowTaskListSelection;
   final bool showAdvancedActions;
@@ -354,14 +356,21 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   Widget _accountRow() {
     final l10n = context.l10n;
     final labelFor = widget.accountLabelFor!;
+    final secondaryLabelFor = widget.accountSecondaryLabelFor;
     return BusyMaxComboRow<String>(
       title: l10n.account,
       leading: const Icon(YaruIcons.user),
       values: widget.accountIds,
       selected: widget.selectedAccountId!,
       labelFor: labelFor,
-      selectedBuilder: (context, value) =>
-          _taskEditorSelectedValue(context, labelFor(value)),
+      menuItemBuilder: (context, value) => _TaskEditorAccountIdentity(
+        label: labelFor(value),
+        secondaryLabel: secondaryLabelFor?.call(value),
+      ),
+      selectedBuilder: (context, value) => _TaskEditorAccountIdentity(
+        label: labelFor(value),
+        secondaryLabel: secondaryLabelFor?.call(value),
+      ),
       onSelected: widget.onAccountSelected!,
     );
   }
@@ -825,6 +834,48 @@ Widget _taskEditorSelectedValue(BuildContext context, String value) {
       textAlign: TextAlign.end,
     ),
   );
+}
+
+class _TaskEditorAccountIdentity extends StatelessWidget {
+  const _TaskEditorAccountIdentity({required this.label, this.secondaryLabel});
+
+  final String label;
+  final String? secondaryLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final secondary = secondaryLabel?.trim();
+    final primaryStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(height: 1.05);
+    final secondaryStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: colorScheme.onSurfaceVariant,
+      height: 1.05,
+    );
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: primaryStyle,
+          ),
+          if (secondary != null && secondary.isNotEmpty)
+            Text(
+              secondary,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: secondaryStyle,
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 TextStyle? _taskEditorProminentActionStyle(

@@ -134,6 +134,7 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
               accountIds: [for (final account in widget.accounts) account.id],
               selectedAccountId: accountId,
               accountLabelFor: _accountLabel,
+              accountSecondaryLabelFor: _accountSecondaryLabel,
               onAccountSelected: _selectAccount,
               allowTaskListSelection: true,
               showAdvancedActions: false,
@@ -221,6 +222,10 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
 
   String _accountLabel(String accountId) {
     return _accountForId(accountId)?.displayLabel ?? accountId;
+  }
+
+  String? _accountSecondaryLabel(String accountId) {
+    return _accountForId(accountId)?.secondaryLabel;
   }
 
   String _accountEditorLabel(
