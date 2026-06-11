@@ -164,6 +164,51 @@ class AppLocalizationsFr extends AppLocalizations {
   String get trayAgendaError => 'Agenda indisponible';
 
   @override
+  String get compactAgendaTitle => 'Agenda';
+
+  @override
+  String get compactAgendaSubtitle => '7 prochains jours';
+
+  @override
+  String get compactAgendaOverdue => 'En retard';
+
+  @override
+  String get compactAgendaClear => 'Libre pour les 7 prochains jours';
+
+  @override
+  String get compactAgendaOpenBusyMax => 'Ouvrir BusyMax';
+
+  @override
+  String get compactAgendaHide => 'Masquer';
+
+  @override
+  String get compactAgendaNewTask => 'Nouvelle tâche';
+
+  @override
+  String get compactAgendaRetry => 'Réessayer';
+
+  @override
+  String get compactAgendaRefresh => 'Actualiser';
+
+  @override
+  String get compactAgendaAllDay => 'Toute la journée';
+
+  @override
+  String get compactAgendaDueToday => 'Due aujourd’hui';
+
+  @override
+  String get compactAgendaDueTomorrow => 'Due demain';
+
+  @override
+  String compactAgendaDueOn(String date) {
+    return 'Due $date';
+  }
+
+  @override
+  String get compactAgendaMoreOverdue =>
+      'Plus de tâches en retard dans BusyMax';
+
+  @override
   String get viewDay => 'Jour';
 
   @override
