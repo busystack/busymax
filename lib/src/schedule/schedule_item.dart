@@ -29,6 +29,8 @@ class CalendarScheduleItem implements ScheduleItem {
     required this.allDay,
     this.start,
     this.end,
+    this.startTimeZone,
+    this.endTimeZone,
     this.location,
     this.description,
     this.descriptionContentType,
@@ -56,6 +58,8 @@ class CalendarScheduleItem implements ScheduleItem {
   final DateTime? start;
   @override
   final DateTime? end;
+  final String? startTimeZone;
+  final String? endTimeZone;
   @override
   final bool allDay;
   final String? location;

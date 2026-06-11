@@ -319,7 +319,7 @@ class _DesktopTimeValueDialog extends StatefulWidget {
 }
 
 class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
-  late final YaruTimeEntryController? _controller;
+  late final YaruTimeEntryController _controller;
   final _focusNode = FocusNode();
   TimeOfDay? _selected;
 
@@ -327,7 +327,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   void initState() {
     super.initState();
     _selected = parseTimeOfDay(widget.time);
-    _controller = _selected == null ? YaruTimeEntryController() : null;
+    _controller = YaruTimeEntryController(timeOfDay: _selected);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -337,23 +337,14 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final timeEntry = _controller == null
-        ? YaruTimeEntry(
-            focusNode: _focusNode,
-            initialTimeOfDay: _selected,
-            force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-            acceptEmpty: widget.allowEmpty,
-            clearIconSemanticLabel: widget.label,
-            onChanged: _setSelectedTime,
-          )
-        : YaruTimeEntry(
-            controller: _controller,
-            focusNode: _focusNode,
-            force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-            acceptEmpty: widget.allowEmpty,
-            clearIconSemanticLabel: widget.label,
-            onChanged: _setSelectedTime,
-          );
+    final timeEntry = YaruTimeEntry(
+      controller: _controller,
+      focusNode: _focusNode,
+      force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+      acceptEmpty: widget.allowEmpty,
+      clearIconSemanticLabel: widget.label,
+      onChanged: _setSelectedTime,
+    );
     return BusyMaxDialogShell(
       title: widget.label,
       maxWidth: 360,

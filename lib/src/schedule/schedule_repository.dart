@@ -177,6 +177,8 @@ class ScheduleRepository {
           allDay: event.allDay,
           start: start,
           end: end,
+          startTimeZone: event.startTimeZone,
+          endTimeZone: event.endTimeZone,
           location: event.location,
           description: event.description,
           descriptionContentType: descriptionBody.contentType,

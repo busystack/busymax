@@ -1623,6 +1623,28 @@ void main() {
     expect(compactAgenda, isNot(contains('YaruIcons.checkbox')));
   });
 
+  test(
+    'event editor receives calendar event time zones from schedule item',
+    () {
+      final workspace = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
+      final scheduleItem = File(
+        'lib/src/schedule/schedule_item.dart',
+      ).readAsStringSync();
+      final repository = File(
+        'lib/src/schedule/schedule_repository.dart',
+      ).readAsStringSync();
+
+      expect(scheduleItem, contains('final String? startTimeZone;'));
+      expect(scheduleItem, contains('final String? endTimeZone;'));
+      expect(repository, contains('startTimeZone: event.startTimeZone'));
+      expect(repository, contains('endTimeZone: event.endTimeZone'));
+      expect(workspace, contains('startTimeZone: item.startTimeZone'));
+      expect(workspace, contains('endTimeZone: item.endTimeZone'));
+    },
+  );
+
   test('year mode uses existing schedule primitives', () {
     final mode = File(
       'lib/src/schedule/schedule_view_mode.dart',

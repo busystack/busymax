@@ -151,13 +151,22 @@ void main() {
     await tester.pumpAndSettle();
 
     final entry = tester.widget<YaruTimeEntry>(find.byType(YaruTimeEntry));
-    expect(entry.initialTimeOfDay, const TimeOfDay(hour: 9, minute: 0));
+    expect(entry.controller?.timeOfDay, const TimeOfDay(hour: 9, minute: 0));
     expect(entry.acceptEmpty, isFalse);
     expect(
       tester
           .widgetList<EditableText>(find.byType(EditableText))
           .any((entry) => entry.controller.text.contains('09:00')),
       isTrue,
+    );
+
+    entry.onChanged?.call(null);
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.widget<YaruTimeEntry>(find.byType(YaruTimeEntry)).controller,
+      isNotNull,
     );
   });
 

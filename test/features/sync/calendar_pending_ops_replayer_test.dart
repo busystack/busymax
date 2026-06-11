@@ -144,6 +144,9 @@ void main() {
         'getEvent:cal-1:provider-event',
         'updateEvent:cal-1:provider-event:Patched',
       ]);
+      expect(client.updatedMutations.single.title, 'Patched');
+      expect(client.updatedMutations.single.startTimeZone, 'America/Vancouver');
+      expect(client.updatedMutations.single.endTimeZone, 'America/Vancouver');
       expect(
         await database.pendingOpsDao.pendingOpsForReplay('account', _later),
         isEmpty,
@@ -476,6 +479,7 @@ final _later = DateTime.utc(2026, 6, 9);
 class _FakeCalendarClient implements CloudCalendarClient {
   final calls = <String>[];
   final createdMutations = <CalendarEventMutation>[];
+  final updatedMutations = <CalendarEventMutation>[];
   int _createdCount = 0;
   GoogleCalendarApiError? deleteError;
 
@@ -521,7 +525,13 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required CalendarEventMutation mutation,
   }) async {
     calls.add('updateEvent:$calendarId:$eventId:${mutation.title}');
-    return _event(eventId, title: mutation.title ?? '');
+    updatedMutations.add(mutation);
+    return _event(
+      eventId,
+      title: mutation.title ?? '',
+      startTimeZone: mutation.startTimeZone,
+      endTimeZone: mutation.endTimeZone,
+    );
   }
 
   @override

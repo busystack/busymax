@@ -960,6 +960,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             allDay: item.allDay,
             start: item.start,
             end: item.end,
+            startTimeZone: item.startTimeZone,
+            endTimeZone: item.endTimeZone,
             location: item.location,
             description: item.description,
             descriptionContentType: item.descriptionContentType,

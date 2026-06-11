@@ -114,6 +114,46 @@ void main() {
     );
   });
 
+  test('missed event reminder before event start fires immediately', () async {
+    service = NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 6, 8, 4, 21, 30),
+    );
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      startDateTime: '2026-06-08T04:26:00.000Z',
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 5},
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    final rows = await database.select(database.notificationSchedule).get();
+    expect(
+      rows.single.scheduledAtUtc,
+      DateTime.utc(2026, 6, 8, 4, 21, 30).millisecondsSinceEpoch,
+    );
+  });
+
+  test('missed event reminder after event start is not scheduled', () async {
+    service = NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 6, 8, 4, 26, 30),
+    );
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      startDateTime: '2026-06-08T04:26:00.000Z',
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 5},
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+  });
+
   test('local Microsoft event reminder wakes notification scheduler', () async {
     var schedulerCalls = 0;
     final repository = CalendarRepository(

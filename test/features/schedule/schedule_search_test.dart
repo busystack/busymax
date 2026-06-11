@@ -136,6 +136,52 @@ void main() {
     },
   );
 
+  test('Microsoft timed calendar event keeps time zones for editing', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    final calendarRepository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 9),
+    );
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.microsoft,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: TaskProvider.microsoft,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Planning',
+        startDateTime: '2026-06-11T04:20:00.0000000',
+        startTimeZone: 'Pacific Standard Time',
+        endDateTime: '2026-06-11T04:50:00.0000000',
+        endTimeZone: 'Pacific Standard Time',
+      ),
+    );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+
+    expect(items, hasLength(1));
+    final event = items.single as CalendarScheduleItem;
+    expect(event.start, DateTime(2026, 6, 11, 4, 20));
+    expect(event.end, DateTime(2026, 6, 11, 4, 50));
+    expect(event.startTimeZone, 'Pacific Standard Time');
+    expect(event.endTimeZone, 'Pacific Standard Time');
+  });
+
   test('Microsoft task with start and due appears on start day', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);

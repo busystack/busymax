@@ -38,10 +38,12 @@ class NotificationScheduleService {
       }
       final reminders = _eventReminderMinutes(event);
       for (final minutes in reminders) {
-        final scheduledAt = start.toUtc().subtract(Duration(minutes: minutes));
-        if (scheduledAt.isBefore(now)) {
+        final startUtc = start.toUtc();
+        final reminderAt = startUtc.subtract(Duration(minutes: minutes));
+        if (startUtc.isBefore(now) || startUtc.isAtSameMomentAs(now)) {
           continue;
         }
+        final scheduledAt = reminderAt.isBefore(now) ? now : reminderAt;
         await _upsertNotification(
           id: 'event|${event.id}|$minutes',
           accountId: accountId,
