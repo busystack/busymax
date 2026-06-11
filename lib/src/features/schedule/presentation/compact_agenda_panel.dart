@@ -92,7 +92,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
               return DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(BusyMaxRadius.window),
-                  boxShadow: BusyMaxShadow.floatingShadowsFor(context),
+                  boxShadow: BusyMaxShadow.windowShadowsFor(context),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(BusyMaxRadius.window),

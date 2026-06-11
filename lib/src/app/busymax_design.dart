@@ -60,7 +60,7 @@ abstract final class BusyMaxElevation {
 abstract final class BusyMaxShadow {
   static const double floatingBlur = 24;
   static const Offset floatingOffset = Offset(0, 8);
-  static const double windowMargin = 14;
+  static const double windowMargin = 32;
 
   static Color floatingColor(BuildContext context) {
     return BusyMaxSurfaceColors.of(context).shade;
@@ -74,6 +74,30 @@ abstract final class BusyMaxShadow {
 
   static List<BoxShadow> floatingShadowsFor(BuildContext context) {
     return floatingShadows(floatingColor(context));
+  }
+
+  static List<BoxShadow> windowShadows(Color color) {
+    return [
+      BoxShadow(
+        color: color.withValues(alpha: color.a * 0.75),
+        blurRadius: 22,
+        offset: const Offset(0, 10),
+      ),
+      BoxShadow(
+        color: color.withValues(alpha: color.a * 0.45),
+        blurRadius: 10,
+        offset: const Offset(0, 3),
+      ),
+      BoxShadow(
+        color: color.withValues(alpha: color.a * 0.25),
+        blurRadius: 3,
+        offset: const Offset(0, 1),
+      ),
+    ];
+  }
+
+  static List<BoxShadow> windowShadowsFor(BuildContext context) {
+    return windowShadows(floatingColor(context));
   }
 }
 

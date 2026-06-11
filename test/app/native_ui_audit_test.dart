@@ -160,7 +160,7 @@ void main() {
       expect(runner, contains('install_compact_agenda_window_css'));
       expect(runner, contains('io.busystack.busymax/compact_agenda_window'));
       expect(runner, contains('kCompactAgendaPanelWidth = 420'));
-      expect(runner, contains('kCompactAgendaWindowShadowMargin = 14'));
+      expect(runner, contains('kCompactAgendaWindowShadowMargin = 32'));
       expect(
         runner,
         contains('gtk_window_resize(window, kCompactAgendaWindowWidth'),
@@ -225,7 +225,7 @@ void main() {
       expect(compactApp, isNot(contains('_hideAfterBlurDelay')));
       expect(compactPanel, contains('ClipRRect'));
       expect(compactPanel, contains('BusyMaxRadius.window'));
-      expect(compactPanel, contains('BusyMaxShadow.floatingShadowsFor'));
+      expect(compactPanel, contains('BusyMaxShadow.windowShadowsFor'));
       expect(compactWindowService, isNot(contains('controller.show()')));
       expect(main, isNot(contains('waitUntilReadyToShow')));
       expect(main, isNot(contains('await windowManager.show();')));
@@ -360,8 +360,22 @@ void main() {
       expect(source, contains('kHeaderWindowRadius'));
       expect(source, contains('border-top-left-radius: %dpx;'));
       expect(source, contains('border-top-right-radius: %dpx;'));
-      expect(source, contains('clear_transparent_window_cb'));
-      expect(source, contains('CAIRO_OPERATOR_CLEAR'));
+      final mainWindowCssStart = source.indexOf('"window#busymax-window,"');
+      final mainWindowDecorationCssStart = source.indexOf(
+        '"window#busymax-window decoration,"',
+        mainWindowCssStart,
+      );
+      final mainWindowCss = source.substring(
+        mainWindowCssStart,
+        mainWindowDecorationCssStart,
+      );
+      expect(mainWindowCss, contains('"background-color: %s;"'));
+      expect(
+        mainWindowCss,
+        isNot(contains('"background-color: transparent;"')),
+      );
+      expect(source, isNot(contains('clear_transparent_window_cb')));
+      expect(source, isNot(contains('CAIRO_OPERATOR_CLEAR')));
       expect(
         source,
         contains('gtk_widget_set_name(GTK_WIDGET(window), "busymax-window")'),
@@ -370,9 +384,7 @@ void main() {
       expect(source, contains('window#busymax-window decoration:backdrop'));
       expect(
         source,
-        contains(
-          'g_signal_connect(window, "draw", G_CALLBACK(clear_transparent_window_cb)',
-        ),
+        isNot(contains('gtk_widget_set_app_paintable(GTK_WIDGET(window)')),
       );
       expect(source, isNot(contains('kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('-kHeaderSidebarEdgeCompensation')));

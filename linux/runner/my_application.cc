@@ -1,7 +1,6 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
-#include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <pango/pango.h>
 #include <cmath>
@@ -43,7 +42,7 @@ constexpr gint kHeaderTooltipHorizontalPadding = 8;
 constexpr gint kHeaderWindowRadius = 8;
 constexpr gint kCompactAgendaPanelWidth = 420;
 constexpr gint kCompactAgendaPanelHeight = 680;
-constexpr gint kCompactAgendaWindowShadowMargin = 14;
+constexpr gint kCompactAgendaWindowShadowMargin = 32;
 constexpr gint kCompactAgendaWindowWidth =
     kCompactAgendaPanelWidth + kCompactAgendaWindowShadowMargin * 2;
 constexpr gint kCompactAgendaWindowHeight =
@@ -435,7 +434,7 @@ static void refresh_header_bar_css(MyApplication* self) {
   g_autofree gchar* css = g_strdup_printf(
       "window#busymax-window,"
       "window#busymax-window:backdrop {"
-      "background-color: transparent;"
+      "background-color: %s;"
       "background-image: none;"
       "}"
       "window#busymax-window decoration,"
@@ -647,6 +646,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "min-height: 0;"
       "border-radius: %dpx;"
       "}",
+      background_color,
       background_color, kHeaderWindowRadius, kHeaderWindowRadius,
       kHeaderWindowRadius, sidebar_background_color, kHeaderWindowRadius,
       foreground_color, foreground_color, modal_barrier_color,
@@ -2290,27 +2290,6 @@ static void register_window_channel(MyApplication* self, FlView* view) {
       self->window_channel, window_method_call_cb, self, nullptr);
 }
 
-static gboolean clear_transparent_window_cb(GtkWidget* widget,
-                                            cairo_t* cr,
-                                            gpointer user_data) {
-  cairo_save(cr);
-  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_paint(cr);
-  cairo_restore(cr);
-  return FALSE;
-}
-
-static void configure_transparent_window_backing(GtkWindow* window) {
-  GdkScreen* screen = gtk_window_get_screen(window);
-  GdkVisual* visual = gdk_screen_get_rgba_visual(screen);
-  if (visual != nullptr) {
-    gtk_widget_set_visual(GTK_WIDGET(window), visual);
-  }
-  gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
-  g_signal_connect(window, "draw", G_CALLBACK(clear_transparent_window_cb),
-                   nullptr);
-}
-
 static void install_compact_agenda_window_css(GtkWindow* window) {
   static const gchar* css =
       "window#busymax-compact-agenda-window,"
@@ -2519,7 +2498,6 @@ static void my_application_activate(GApplication* application) {
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   self->main_window = window;
   gtk_widget_set_name(GTK_WIDGET(window), "busymax-window");
-  configure_transparent_window_backing(window);
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu

@@ -6,11 +6,8 @@ import 'busymax_window_args.dart';
 
 const _compactAgendaWindowWidth = 420.0;
 const _compactAgendaWindowHeight = 680.0;
-const _compactAgendaWindowShadowMargin = 14.0;
-const _compactAgendaOuterWindowSize = Size(
-  _compactAgendaWindowWidth + _compactAgendaWindowShadowMargin * 2,
-  _compactAgendaWindowHeight + _compactAgendaWindowShadowMargin * 2,
-);
+const _compactAgendaWindowShadowMargin = 32.0;
+const _compactAgendaPanelScreenGap = 6.0;
 
 class CompactAgendaWindowService {
   const CompactAgendaWindowService();
@@ -158,17 +155,26 @@ class CompactAgendaWindowService {
       visibleSize.width,
       visibleSize.height,
     );
-    final left = _clampToVisibleFrame(
-      visibleFrame.right - _compactAgendaOuterWindowSize.width,
-      visibleFrame.left,
-      visibleFrame.right - _compactAgendaOuterWindowSize.width,
+    final panelLeft = _clampToVisibleFrame(
+      visibleFrame.right -
+          _compactAgendaWindowWidth -
+          _compactAgendaPanelScreenGap,
+      visibleFrame.left + _compactAgendaPanelScreenGap,
+      visibleFrame.right -
+          _compactAgendaWindowWidth -
+          _compactAgendaPanelScreenGap,
     );
-    final top = _clampToVisibleFrame(
-      visibleFrame.top,
-      visibleFrame.top,
-      visibleFrame.bottom - _compactAgendaOuterWindowSize.height,
+    final panelTop = _clampToVisibleFrame(
+      visibleFrame.top + _compactAgendaPanelScreenGap,
+      visibleFrame.top + _compactAgendaPanelScreenGap,
+      visibleFrame.bottom -
+          _compactAgendaWindowHeight -
+          _compactAgendaPanelScreenGap,
     );
-    return Offset(left, top);
+    return Offset(
+      panelLeft - _compactAgendaWindowShadowMargin,
+      panelTop - _compactAgendaWindowShadowMargin,
+    );
   }
 
   double _clampToVisibleFrame(double value, double min, double max) {
