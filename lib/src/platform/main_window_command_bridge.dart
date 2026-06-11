@@ -120,6 +120,7 @@ class _MainWindowCommandBridgeState
     ref
         .read(pendingMutationSyncRequesterForAccountProvider(accountId))
         .request();
+    unawaited(ref.read(notificationSchedulerProvider).checkNow());
     return true;
   }
 

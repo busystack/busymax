@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../core/logging/redacting_logger.dart';
@@ -13,6 +14,8 @@ import '../../../l10n/l10n.dart';
 import '../../../platform/main_window_command_client.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import '../../tasks/data/tasks_repository.dart';
+import '../../tasks/presentation/new_task_dialog.dart';
 import '../application/compact_agenda_controller.dart';
 import '../application/compact_agenda_data.dart';
 import '../application/compact_agenda_sections.dart';
@@ -59,6 +62,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   CompactAgendaData? _lastAgendaData;
   bool _bodyScrolledUnderHeader = false;
   bool _bodyScrolledUnderFooter = false;
+  bool _creatingTask = false;
 
   @override
   Widget build(BuildContext context) {
@@ -109,20 +113,12 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                 return const SizedBox.expand();
               }
 
-              return DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(BusyMaxRadius.window),
-                  boxShadow: BusyMaxShadow.windowShadowsFor(context),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(BusyMaxRadius.window),
-                  clipBehavior: Clip.antiAliasWithSaveLayer,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colors.card,
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: Column(
+              final child = _creatingTask
+                  ? _CompactAgendaNewTaskView(
+                      onCancel: _closeNewTaskEditor,
+                      onSubmitted: _createTask,
+                    )
+                  : Column(
                       children: [
                         _CompactAgendaHeader(
                           data: data.valueOrNull,
@@ -156,7 +152,22 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                         ),
                         _CompactAgendaBottomBar(onNewTask: _newTask),
                       ],
+                    );
+
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(BusyMaxRadius.window),
+                  boxShadow: BusyMaxShadow.windowShadowsFor(context),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(BusyMaxRadius.window),
+                  clipBehavior: Clip.antiAliasWithSaveLayer,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.card,
+                      border: Border.all(color: colors.border),
                     ),
+                    child: child,
                   ),
                 ),
               );
@@ -334,8 +345,37 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       await callback();
       return;
     }
-    await const MainWindowCommandClient().newTask();
-    await windowManager.hide();
+    setState(() {
+      _creatingTask = true;
+      _bodyScrolledUnderHeader = false;
+      _bodyScrolledUnderFooter = false;
+    });
+  }
+
+  void _closeNewTaskEditor() {
+    if (!_creatingTask) {
+      return;
+    }
+    setState(() {
+      _creatingTask = false;
+    });
+  }
+
+  Future<void> _createTask(NewTaskDraft draft) async {
+    await ref
+        .read(compactAgendaControllerProvider)
+        .createTask(
+          accountId: draft.accountId,
+          taskListId: draft.taskListId,
+          input: draft.input,
+        );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _creatingTask = false;
+    });
+    _invalidateAgendaData();
   }
 
   Future<void> _refresh() async {
@@ -535,6 +575,53 @@ class _CompactHeaderButton extends StatelessWidget {
       style: busyMaxHeaderIconButtonStyle(
         foregroundColor: BusyMaxSurfaceColors.of(context).foreground,
         backgroundColor: busyMaxSubtleButtonBackground(context),
+      ),
+    );
+  }
+}
+
+class _CompactAgendaNewTaskView extends ConsumerWidget {
+  const _CompactAgendaNewTaskView({
+    required this.onCancel,
+    required this.onSubmitted,
+  });
+
+  final VoidCallback onCancel;
+  final Future<void> Function(NewTaskDraft draft) onSubmitted;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accounts = ref.watch(accountsStreamProvider);
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: accounts.when(
+        loading: () => const _CompactAgendaLoadingState(),
+        error: (error, stackTrace) => _CompactAgendaMessageState(
+          icon: Icons.event_busy_outlined,
+          title: context.l10n.trayAgendaError,
+          message: redactForLog(error),
+          primaryLabel: context.l10n.cancel,
+          onPrimary: () async => onCancel(),
+        ),
+        data: (accounts) {
+          if (accounts.isEmpty) {
+            return _CompactAgendaMessageState(
+              icon: Icons.login,
+              title: context.l10n.trayAgendaSignInRequired,
+              primaryLabel: context.l10n.cancel,
+              onPrimary: () async => onCancel(),
+            );
+          }
+          return NewTaskEditorPanel(
+            accounts: accounts,
+            categorySuggestionsForAccount: (accountId) => TasksRepository(
+              database: ref.read(databaseProvider),
+              accountId: accountId,
+            ).watchCategorySuggestions(),
+            onSubmitted: onSubmitted,
+            onCancel: onCancel,
+          );
+        },
       ),
     );
   }

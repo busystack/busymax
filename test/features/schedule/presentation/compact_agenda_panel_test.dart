@@ -71,6 +71,16 @@ void main() {
     expect(source, contains('end: data.range.end'));
   });
 
+  test('new task action stays inside the compact agenda window', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('NewTaskEditorPanel'));
+    expect(source, isNot(contains('MainWindowCommandClient().newTask')));
+    expect(source, contains('_creatingTask = true'));
+  });
+
   testWidgets('no-date tasks render in a No date section', (tester) async {
     await tester.pumpWidget(
       _testPanel(data: _data(today, items: [_task('Plan someday')])),

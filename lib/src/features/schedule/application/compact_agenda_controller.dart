@@ -17,6 +17,28 @@ class CompactAgendaController {
 
   final Ref _ref;
 
+  Future<void> createTask({
+    required String accountId,
+    required String taskListId,
+    required TaskCreateInput input,
+  }) async {
+    final repository = TasksRepository(
+      database: _ref.read(databaseProvider),
+      accountId: accountId,
+    );
+    await repository.createTask(taskListId, input);
+
+    try {
+      await const MainWindowCommandClient().requestTaskSync(accountId);
+    } on Object {
+      // The pending operation remains queued and will sync when the main engine
+      // is available.
+    }
+
+    _ref.invalidate(compactAgendaDataProvider);
+    _ref.invalidate(compactAgendaDataForQueryProvider);
+  }
+
   Future<void> setTaskCompleted(TaskScheduleItem item, bool completed) async {
     final fields = <String, Object?>{
       'status': completed ? 'completed' : 'needsAction',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,6 +31,9 @@ class NewTaskDraft {
   List<String> get categories => input.categories;
 }
 
+typedef TaskCategorySuggestionsStreamForAccount =
+    Stream<List<String>> Function(String accountId);
+
 Future<NewTaskDraft?> showBusyMaxNewTaskDialog(
   BuildContext context, {
   required WidgetRef ref,
@@ -45,34 +50,43 @@ Future<NewTaskDraft?> showBusyMaxNewTaskDialog(
     maxHeight: 760,
     builder: (dialogContext) => UncontrolledProviderScope(
       container: ProviderScope.containerOf(context),
-      child: _NewTaskDialog(
+      child: NewTaskEditorPanel(
         accounts: accounts,
         initialAccountId: initialAccountId,
         initialListId: initialListId,
         initialDueUtc: initialDueUtc,
+        onSubmitted: (draft) => Navigator.of(dialogContext).pop(draft),
+        onCancel: () => Navigator.of(dialogContext).pop(),
       ),
     ),
   );
 }
 
-class _NewTaskDialog extends ConsumerStatefulWidget {
-  const _NewTaskDialog({
+class NewTaskEditorPanel extends ConsumerStatefulWidget {
+  const NewTaskEditorPanel({
+    super.key,
     required this.accounts,
+    required this.onSubmitted,
+    required this.onCancel,
     this.initialAccountId,
     this.initialListId,
     this.initialDueUtc,
+    this.categorySuggestionsForAccount,
   });
 
   final List<AccountEntity> accounts;
   final String? initialAccountId;
   final String? initialListId;
   final DateTime? initialDueUtc;
+  final FutureOr<void> Function(NewTaskDraft draft) onSubmitted;
+  final VoidCallback onCancel;
+  final TaskCategorySuggestionsStreamForAccount? categorySuggestionsForAccount;
 
   @override
-  ConsumerState<_NewTaskDialog> createState() => _NewTaskDialogState();
+  ConsumerState<NewTaskEditorPanel> createState() => _NewTaskEditorPanelState();
 }
 
-class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
+class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
   String? _accountId;
   String? _taskListId;
   TaskDetailsDraft? _draftSnapshot;
@@ -97,12 +111,14 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
     final repository = ref.watch(
       taskListsRepositoryForAccountProvider(accountId),
     );
-    final tasksRepository = ref.watch(
-      tasksRepositoryForAccountProvider(accountId),
-    );
+    final categorySuggestionsStream =
+        widget.categorySuggestionsForAccount?.call(accountId) ??
+        ref
+            .watch(tasksRepositoryForAccountProvider(accountId))
+            .watchCategorySuggestions();
 
     return StreamBuilder<List<String>>(
-      stream: tasksRepository.watchCategorySuggestions(),
+      stream: categorySuggestionsStream,
       builder: (context, categorySnapshot) {
         final categorySuggestions = categorySnapshot.data ?? const <String>[];
         return StreamBuilder<List<TaskListEntity>>(
@@ -151,7 +167,7 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
               onCreateSubtask: (_) {},
               onMoveToTop: () {},
               onDelete: () async {},
-              onCancel: () => Navigator.of(context).pop(),
+              onCancel: widget.onCancel,
             );
           },
         );
@@ -266,7 +282,7 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
         draft.title.trim().isEmpty) {
       return;
     }
-    Navigator.of(context).pop(
+    await widget.onSubmitted(
       NewTaskDraft(
         accountId: accountId,
         taskListId: draft.taskListId,
