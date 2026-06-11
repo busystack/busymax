@@ -152,6 +152,9 @@ void main() {
       expect(tray, isNot(contains('BusyMaxTrayAgendaEntry')));
       expect(router, isNot(contains('/tray-agenda')));
       expect(compactApp, isNot(contains('linux_header_bar_service.dart')));
+      expect(compactApp, isNot(contains('gtk_font_service.dart')));
+      expect(compactApp, isNot(contains('gtkFontSettingsProvider')));
+      expect(compactApp, isNot(contains('gtkThemeColorsProvider')));
       expect(compactApp, isNot(contains('syncSchedulerProvider')));
       expect(compactApp, isNot(contains('notificationSchedulerProvider')));
       expect(compactApp, isNot(contains('dueTodayNotificationProvider')));

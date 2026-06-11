@@ -12,7 +12,6 @@ import 'package:window_manager/window_manager.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/system_accent.dart';
-import '../../../platform/gtk_font_service.dart';
 import '../application/compact_agenda_data.dart';
 import 'compact_agenda_panel.dart';
 
@@ -113,8 +112,6 @@ class _BusyMaxCompactAgendaAppState
     final ubuntuAccentColor = ref
         .watch(ubuntuSystemAccentColorProvider)
         .valueOrNull;
-    final gtkFont = ref.watch(gtkFontSettingsProvider).valueOrNull;
-    final gtkThemeColors = ref.watch(gtkThemeColorsProvider).valueOrNull;
 
     return SystemThemeBuilder(
       builder: (context, systemColor) {
@@ -126,17 +123,11 @@ class _BusyMaxCompactAgendaAppState
             brightness: Brightness.light,
             accentColor: accentColor,
             family: settings.themeFamily,
-            gtkFontFamily: gtkFont?.family,
-            gtkFontSize: gtkFont?.size,
-            gtkThemeColors: gtkThemeColors,
           ),
           darkTheme: buildBusyMaxTheme(
             brightness: Brightness.dark,
             accentColor: accentColor,
             family: settings.themeFamily,
-            gtkFontFamily: gtkFont?.family,
-            gtkFontSize: gtkFont?.size,
-            gtkThemeColors: gtkThemeColors,
           ),
           themeMode: settings.themeMode,
           localizationsDelegates: const [
