@@ -6,6 +6,7 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../schedule/schedule_projection.dart';
 import '../../../task_providers/task_provider.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../data/calendar_repository.dart';
@@ -166,11 +167,7 @@ class _EventEditorState extends State<EventEditor> {
           children: [
             BusyMaxTimeModeRow(
               allDay: _draft.allDay,
-              onChanged: (value) {
-                setState(() {
-                  _draft = _draft.copyWith(allDay: value);
-                });
-              },
+              onChanged: _setAllDay,
             ),
           ],
         ),
@@ -181,11 +178,7 @@ class _EventEditorState extends State<EventEditor> {
               label: l10n.startDate,
               date: _dateString(_draft.start),
               onChanged: (value) {
-                setState(() {
-                  _draft = _draft.copyWith(
-                    start: _withDate(_draft.start, value),
-                  );
-                });
+                _setStart(_withDate(_draft.start, value));
               },
               emptyLabel: l10n.noneValue,
             ),
@@ -194,13 +187,10 @@ class _EventEditorState extends State<EventEditor> {
                 label: l10n.startTime,
                 time: _timeString(_draft.start),
                 onChanged: (value) {
-                  setState(() {
-                    _draft = _draft.copyWith(
-                      start: _withTime(_draft.start, value),
-                    );
-                  });
+                  _setStart(_withTime(_draft.start, value));
                 },
-                emptyLabel: l10n.noneValue,
+                emptyLabel: '--:--',
+                allowEmpty: false,
               ),
           ],
         ),
@@ -211,9 +201,7 @@ class _EventEditorState extends State<EventEditor> {
               label: l10n.endDate,
               date: _dateString(_draft.end),
               onChanged: (value) {
-                setState(() {
-                  _draft = _draft.copyWith(end: _withDate(_draft.end, value));
-                });
+                _setEnd(_withDate(_draft.end, value));
               },
               emptyLabel: l10n.noneValue,
             ),
@@ -222,11 +210,10 @@ class _EventEditorState extends State<EventEditor> {
                 label: l10n.endTime,
                 time: _timeString(_draft.end),
                 onChanged: (value) {
-                  setState(() {
-                    _draft = _draft.copyWith(end: _withTime(_draft.end, value));
-                  });
+                  _setEnd(_withTime(_draft.end, value));
                 },
-                emptyLabel: l10n.noneValue,
+                emptyLabel: '--:--',
+                allowEmpty: false,
               ),
           ],
         ),
@@ -652,6 +639,42 @@ class _EventEditorState extends State<EventEditor> {
     });
   }
 
+  void _setAllDay(bool allDay) {
+    final start = _draft.start;
+    final end = _draft.end;
+    setState(() {
+      _draft = _draft.copyWith(
+        allDay: allDay,
+        end: start != null && (end == null || !end.isAfter(start))
+            ? _defaultEndFor(start, allDay)
+            : end,
+      );
+    });
+  }
+
+  void _setStart(DateTime start) {
+    final end = _draft.end;
+    setState(() {
+      _draft = _draft.copyWith(
+        start: start,
+        end: end == null || !end.isAfter(start)
+            ? _defaultEndFor(start, _draft.allDay)
+            : end,
+      );
+    });
+  }
+
+  void _setEnd(DateTime end) {
+    final start = _draft.start;
+    setState(() {
+      _draft = _draft.copyWith(
+        end: start != null && !end.isAfter(start)
+            ? _defaultEndFor(start, _draft.allDay)
+            : end,
+      );
+    });
+  }
+
   void _setReminderMinutes(BusyProvider provider, List<int> minutes) {
     final reminders = _remindersFor(provider, minutes);
     setState(() {
@@ -731,6 +754,10 @@ DateTime _withTime(DateTime? current, String? time) {
   final parsed = parseTimeOfDay(time) ?? const TimeOfDay(hour: 9, minute: 0);
   final date = current ?? DateTime.now();
   return DateTime(date.year, date.month, date.day, parsed.hour, parsed.minute);
+}
+
+DateTime _defaultEndFor(DateTime start, bool allDay) {
+  return start.add(allDay ? const Duration(days: 1) : const Duration(hours: 1));
 }
 
 String _recurrenceType(Object? recurrence) {
@@ -968,7 +995,10 @@ Color _calendarSourceColor(BuildContext context, CalendarSourceEntity source) {
           colorId: source.colorId,
         ),
       ) ??
-      Theme.of(context).colorScheme.primary;
+      ScheduleProjection.deterministicSourceColor(
+        source.id,
+        Theme.of(context).colorScheme.brightness,
+      );
 }
 
 Color? _colorFromHex(String? value) {

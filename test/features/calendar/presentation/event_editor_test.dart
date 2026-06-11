@@ -8,6 +8,7 @@ import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ubuntu_widgets/ubuntu_widgets.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
@@ -121,6 +122,52 @@ void main() {
     expect(find.text('End Date'), findsOneWidget);
     expect(find.text('End Time'), findsOneWidget);
     expect(find.text('End date/time'), findsNothing);
+  });
+
+  testWidgets('event time popup opens with current time and requires a value', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning', allDay: false),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Start time'));
+    await tester.tap(find.text('Start time'));
+    await tester.pumpAndSettle();
+
+    final entry = tester.widget<YaruTimeEntry>(find.byType(YaruTimeEntry));
+    expect(entry.initialTimeOfDay, const TimeOfDay(hour: 9, minute: 0));
+    expect(entry.acceptEmpty, isFalse);
+  });
+
+  test('event draft requires end after start', () {
+    final draft = EventEditorDraft.existing(
+      eventId: 'event-1',
+      accountId: 'account',
+      sourceId: 'source',
+      providerCalendarId: 'cal-1',
+      title: 'Planning',
+      allDay: false,
+      start: DateTime.utc(2026, 6, 8, 10),
+      end: DateTime.utc(2026, 6, 8, 9),
+    );
+
+    expect(draft.canSave, isFalse);
   });
 
   testWidgets('event editor does not show metadata fields', (tester) async {
@@ -633,6 +680,10 @@ void main() {
       expect(editor, contains('textAlign: TextAlign.end'));
       expect(editor, contains('class _CalendarSourceDot'));
       expect(editor, contains('source.backgroundColor'));
+      expect(
+        editor,
+        contains('ScheduleProjection.deterministicSourceColor'),
+      );
       expect(editor, isNot(contains('SourcePicker(')));
       expect(editor, isNot(contains('labelText: l10n.calendar')));
     },

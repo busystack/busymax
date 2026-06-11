@@ -252,6 +252,7 @@ class DesktopTimeValueRow extends StatelessWidget {
     required this.onChanged,
     this.enabled = true,
     this.emptyLabel,
+    this.allowEmpty = true,
   });
 
   final String label;
@@ -259,6 +260,7 @@ class DesktopTimeValueRow extends StatelessWidget {
   final ValueChanged<String?> onChanged;
   final bool enabled;
   final String? emptyLabel;
+  final bool allowEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -291,6 +293,7 @@ class DesktopTimeValueRow extends StatelessWidget {
           label: label,
           time: time,
           onChanged: onChanged,
+          allowEmpty: allowEmpty,
         );
       },
     );
@@ -302,11 +305,13 @@ class _DesktopTimeValueDialog extends StatefulWidget {
     required this.label,
     required this.time,
     required this.onChanged,
+    required this.allowEmpty,
   });
 
   final String label;
   final String? time;
   final ValueChanged<String?> onChanged;
+  final bool allowEmpty;
 
   @override
   State<_DesktopTimeValueDialog> createState() =>
@@ -314,14 +319,14 @@ class _DesktopTimeValueDialog extends StatefulWidget {
 }
 
 class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
-  late final YaruTimeEntryController _controller;
+  late final YaruTimeEntryController? _controller;
   TimeOfDay? _selected;
 
   @override
   void initState() {
     super.initState();
     _selected = parseTimeOfDay(widget.time);
-    _controller = YaruTimeEntryController(timeOfDay: _selected);
+    _controller = _selected == null ? YaruTimeEntryController() : null;
   }
 
   @override
@@ -335,12 +340,14 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
           child: Text(context.l10n.cancel),
         ),
         BusyMaxPushButton.filled(
-          onPressed: () {
-            widget.onChanged(
-              _selected == null ? null : encodeTimeOfDay(_selected!),
-            );
-            Navigator.of(context).pop();
-          },
+          onPressed: widget.allowEmpty || _selected != null
+              ? () {
+                  widget.onChanged(
+                    _selected == null ? null : encodeTimeOfDay(_selected!),
+                  );
+                  Navigator.of(context).pop();
+                }
+              : null,
           child: Text(MaterialLocalizations.of(context).okButtonLabel),
         ),
       ],
@@ -349,11 +356,14 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
           context,
           YaruTimeEntry(
             controller: _controller,
+            initialTimeOfDay: _controller == null ? _selected : null,
             force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-            acceptEmpty: true,
+            acceptEmpty: widget.allowEmpty,
             clearIconSemanticLabel: widget.label,
             onChanged: (time) {
-              _selected = time;
+              setState(() {
+                _selected = time;
+              });
             },
           ),
         ),
