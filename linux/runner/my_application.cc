@@ -2708,8 +2708,7 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_icon(window, application_icon);
   }
   G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-  gtk_window_set_wmclass(
-      window, kApplicationDisplayName, kApplicationDisplayName);
+  gtk_window_set_wmclass(window, APPLICATION_ID, APPLICATION_ID);
   G_GNUC_END_IGNORE_DEPRECATIONS
   if (application_icon == nullptr) {
     gtk_window_set_icon_name(window, APPLICATION_ID);

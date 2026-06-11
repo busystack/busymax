@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Save in source tree: busymax/linux/io.busystack.busymax.metainfo.xml
+  Install in package: share/metainfo/io.busystack.busymax.metainfo.xml
+
+  Required before final validation/publishing:
+  - Add <project_license> after adding a real LICENSE file to the project.
+  - Add <developer> after confirming the exact developer/organization name.
+  - Add screenshot URLs after publishing screenshots.
+-->
+<component type="desktop-application">
+  <id>io.busystack.busymax</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <name>BusyMax</name>
+  <summary>Calendar and task manager</summary>
+  <description>
+    <p>BusyMax is a Linux desktop calendar and task manager built with Flutter.</p>
+    <p>It supports Google Calendar, Google Tasks, Microsoft Calendar, and Microsoft To Do.</p>
+  </description>
+  <launchable type="desktop-id">io.busystack.busymax.desktop</launchable>
+  <icon type="stock">io.busystack.busymax</icon>
+  <categories>
+    <category>Office</category>
+    <category>Calendar</category>
+    <category>ProjectManagement</category>
+    <category>Utility</category>
+  </categories>
+  <url type="homepage">https://github.com/busystack/busymax</url>
+  <url type="bugtracker">https://github.com/busystack/busymax/issues</url>
+  <url type="vcs-browser">https://github.com/busystack/busymax</url>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0+1" date="2026-06-11" />
+  </releases>
+</component>

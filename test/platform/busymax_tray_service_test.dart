@@ -44,19 +44,29 @@ void main() {
   });
 
   test('Linux desktop identity matches the displayed BusyMax window', () {
-    final desktop = File('linux/busymax.desktop').readAsStringSync();
+    final desktop = File(
+      'linux/io.busystack.busymax.desktop',
+    ).readAsStringSync();
     final cmake = File('linux/CMakeLists.txt').readAsStringSync();
     final runner = File('linux/runner/my_application.cc').readAsStringSync();
 
     expect(desktop, contains('Name=BusyMax'));
     expect(desktop, contains('Icon=io.busystack.busymax'));
-    expect(desktop, contains('StartupWMClass=BusyMax'));
-    expect(cmake, contains('RENAME "io.busystack.busymax.desktop"'));
+    expect(desktop, contains('StartupWMClass=io.busystack.busymax'));
+    expect(
+      cmake,
+      contains(r'"${CMAKE_CURRENT_SOURCE_DIR}/io.busystack.busymax.desktop"'),
+    );
+    expect(
+      cmake,
+      contains(
+        r'"${CMAKE_CURRENT_SOURCE_DIR}/io.busystack.busymax.metainfo.xml"',
+      ),
+    );
     expect(
       runner,
       contains(
-        'gtk_window_set_wmclass(\n'
-        '      window, kApplicationDisplayName, kApplicationDisplayName);',
+        'gtk_window_set_wmclass(window, APPLICATION_ID, APPLICATION_ID);',
       ),
     );
     expect(

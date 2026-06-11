@@ -94,14 +94,17 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/busymax.desktop"
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/io.busystack.busymax.desktop"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications"
-  RENAME "io.busystack.busymax.desktop"
+  COMPONENT Runtime)
+
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/io.busystack.busymax.metainfo.xml"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/share/metainfo"
   COMPONENT Runtime)
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.svg"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/256x256/apps"
-  RENAME "io.busystack.busymax.png"
+  RENAME "busymax-logo.svg"
   COMPONENT Runtime)
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.svg"

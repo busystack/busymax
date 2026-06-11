@@ -7,4 +7,4 @@ Icon=io.busystack.busymax
 Terminal=false
 Categories=Office;Calendar;ProjectManagement;Utility;
 StartupNotify=true
-StartupWMClass=BusyMax
+StartupWMClass=io.busystack.busymax
