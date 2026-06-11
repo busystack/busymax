@@ -300,22 +300,10 @@ bool _taskAllDay(Task task, BusyProvider provider) {
     task.microsoftStartDateTime,
     task.microsoftDueDateTime,
   ].whereType<String>().where((value) => value.isNotEmpty);
-  return scheduleDateTimes.isEmpty ||
-      scheduleDateTimes.every(_isDateOnlyOrMidnight);
+  return scheduleDateTimes.isEmpty || scheduleDateTimes.every(_isDateOnly);
 }
 
-bool _isDateOnlyOrMidnight(String value) {
-  return !value.contains('T') || _isMidnightDateTime(value);
-}
-
-bool _isMidnightDateTime(String value) {
-  final separatorIndex = value.indexOf('T');
-  if (separatorIndex < 0 || separatorIndex + 1 >= value.length) {
-    return false;
-  }
-  final time = value.substring(separatorIndex + 1);
-  return time.length >= 5 && time.substring(0, 5) == '00:00';
-}
+bool _isDateOnly(String value) => !value.contains('T');
 
 bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
   if (start == null) {
