@@ -12,13 +12,14 @@ import '../../../schedule/schedule_sorting.dart';
 import 'schedule_event_block.dart';
 import 'schedule_item_selection.dart';
 
-class ScheduleAgendaView extends StatelessWidget {
+class ScheduleAgendaView extends StatefulWidget {
   const ScheduleAgendaView({
     super.key,
     required this.range,
     required this.items,
     required this.onItemSelected,
     required this.onTaskCompletionChanged,
+    this.onLoadMore,
   });
 
   final ScheduleRange range;
@@ -26,14 +27,46 @@ class ScheduleAgendaView extends StatelessWidget {
   final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
+  final VoidCallback? onLoadMore;
+
+  @override
+  State<ScheduleAgendaView> createState() => _ScheduleAgendaViewState();
+}
+
+class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
+  var _loadMoreArmed = true;
+
+  @override
+  void didUpdateWidget(covariant ScheduleAgendaView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.range.end != widget.range.end) {
+      _loadMoreArmed = true;
+    }
+  }
+
+  bool _handleScroll(ScrollNotification notification) {
+    final onLoadMore = widget.onLoadMore;
+    if (!_loadMoreArmed || onLoadMore == null) {
+      return false;
+    }
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    if (notification.metrics.extentAfter > 480) {
+      return false;
+    }
+    _loadMoreArmed = false;
+    onLoadMore();
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final dated = items.where((item) => item.start != null).toList();
-    final noDateTasks = ScheduleProjection.noDateTasks(items);
+    final dated = widget.items.where((item) => item.start != null).toList();
+    final noDateTasks = ScheduleProjection.noDateTasks(widget.items);
     final groups = ScheduleProjection.groupByDay(dated);
-    final rangeStart = ScheduleProjection.day(range.start);
-    final rangeEnd = ScheduleProjection.day(range.end);
+    final rangeStart = ScheduleProjection.day(widget.range.start);
+    final rangeEnd = ScheduleProjection.day(widget.range.end);
     final overdueTasks = dated.whereType<TaskScheduleItem>().where((item) {
       final start = item.start;
       return start != null &&
@@ -46,66 +79,69 @@ class ScheduleAgendaView extends StatelessWidget {
             .toList()
           ..sort();
 
-    return ColoredBox(
-      color: Theme.of(context).colorScheme.surface,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          BusyMaxSpacing.lg,
-          BusyMaxSpacing.md,
-          BusyMaxSpacing.lg,
-          BusyMaxSpacing.xl,
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleScroll,
+      child: ColoredBox(
+        color: Theme.of(context).colorScheme.surface,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            BusyMaxSpacing.lg,
+            BusyMaxSpacing.md,
+            BusyMaxSpacing.lg,
+            BusyMaxSpacing.xl,
+          ),
+          children: [
+            if (overdueTasks.isNotEmpty)
+              BusyMaxGroupedList(
+                title: context.l10n.overdue,
+                filled: true,
+                children: [
+                  for (final item in overdueTasks)
+                    _AgendaRow(
+                      item: item,
+                      onTap: (context, [globalPosition]) =>
+                          widget.onItemSelected(context, item, globalPosition),
+                      onTaskCompletionChanged: (completed) =>
+                          widget.onTaskCompletionChanged(item, completed),
+                    ),
+                ],
+              ),
+            for (final day in days)
+              BusyMaxGroupedList(
+                title: _dayLabel(context, day),
+                filled: true,
+                children: [
+                  for (final item in groups[day]!)
+                    _AgendaRow(
+                      item: item,
+                      onTap: (context, [globalPosition]) =>
+                          widget.onItemSelected(context, item, globalPosition),
+                      onTaskCompletionChanged: item is TaskScheduleItem
+                          ? (completed) =>
+                                widget.onTaskCompletionChanged(item, completed)
+                          : null,
+                    ),
+                ],
+              ),
+            if (noDateTasks.isNotEmpty)
+              BusyMaxGroupedList(
+                title: context.l10n.noDate,
+                filled: true,
+                children: [
+                  for (final item in noDateTasks)
+                    _AgendaRow(
+                      item: item,
+                      onTap: (context, [globalPosition]) =>
+                          widget.onItemSelected(context, item, globalPosition),
+                      onTaskCompletionChanged: item is TaskScheduleItem
+                          ? (completed) =>
+                                widget.onTaskCompletionChanged(item, completed)
+                          : null,
+                    ),
+                ],
+              ),
+          ],
         ),
-        children: [
-          if (overdueTasks.isNotEmpty)
-            BusyMaxGroupedList(
-              title: context.l10n.overdue,
-              filled: true,
-              children: [
-                for (final item in overdueTasks)
-                  _AgendaRow(
-                    item: item,
-                    onTap: (context, [globalPosition]) =>
-                        onItemSelected(context, item, globalPosition),
-                    onTaskCompletionChanged: (completed) =>
-                        onTaskCompletionChanged(item, completed),
-                  ),
-              ],
-            ),
-          for (final day in days)
-            BusyMaxGroupedList(
-              title: _dayLabel(context, day),
-              filled: true,
-              children: [
-                for (final item in groups[day]!)
-                  _AgendaRow(
-                    item: item,
-                    onTap: (context, [globalPosition]) =>
-                        onItemSelected(context, item, globalPosition),
-                    onTaskCompletionChanged: item is TaskScheduleItem
-                        ? (completed) =>
-                              onTaskCompletionChanged(item, completed)
-                        : null,
-                  ),
-              ],
-            ),
-          if (noDateTasks.isNotEmpty)
-            BusyMaxGroupedList(
-              title: context.l10n.noDate,
-              filled: true,
-              children: [
-                for (final item in noDateTasks)
-                  _AgendaRow(
-                    item: item,
-                    onTap: (context, [globalPosition]) =>
-                        onItemSelected(context, item, globalPosition),
-                    onTaskCompletionChanged: item is TaskScheduleItem
-                        ? (completed) =>
-                              onTaskCompletionChanged(item, completed)
-                        : null,
-                  ),
-              ],
-            ),
-        ],
       ),
     );
   }

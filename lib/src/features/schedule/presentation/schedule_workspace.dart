@@ -52,6 +52,9 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
 }
 
 class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
+  static const _agendaInitialDays = 30;
+  static const _agendaPageDays = 30;
+
   var _selectedDate = DateTime.now();
   var _mode = ScheduleViewMode.week;
   late ScheduleScope _scope;
@@ -66,6 +69,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   final _searchFocusNode = FocusNode();
   var _latestCanShowSidebar = false;
   var _latestItems = const <ScheduleItem>[];
+  var _agendaLoadedDays = _agendaInitialDays;
   ScheduleViewMode? _lastSettingsMode;
   _HeaderBarStateSnapshot? _lastHeaderBarState;
 
@@ -254,6 +258,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onNewTask: () => unawaited(_openNewTask(accounts)),
                         onPrevious: _previous,
                         onNext: _next,
+                        onAgendaLoadMore:
+                            !searchHasQuery && _mode == ScheduleViewMode.agenda
+                            ? _loadMoreAgendaDays
+                            : null,
                         onItemSelected: (context, item, [globalPosition]) =>
                             unawaited(
                               _openItem(
@@ -389,6 +397,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       canRefresh: accounts.isNotEmpty,
       searchActive: _searchActive,
       sidebarVisible: sidebarVisible,
+      navigationVisible: _mode != ScheduleViewMode.agenda,
     );
     if (_lastHeaderBarState == headerBarState) {
       return;
@@ -412,6 +421,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       );
       unawaited(service.setTitleRange(headerBarState.titleRange));
       unawaited(service.setViewMode(headerBarState.viewMode));
+      unawaited(service.setNavigationVisible(headerBarState.navigationVisible));
       unawaited(service.setCanRefresh(headerBarState.canRefresh));
       unawaited(service.setSearchActive(headerBarState.searchActive));
       unawaited(service.setSidebarVisible(headerBarState.sidebarVisible));
@@ -431,8 +441,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       case BusyMaxHeaderBarAction.today:
         _goToToday();
       case BusyMaxHeaderBarAction.previous:
+        if (_mode == ScheduleViewMode.agenda) {
+          return;
+        }
         _previous();
       case BusyMaxHeaderBarAction.next:
+        if (_mode == ScheduleViewMode.agenda) {
+          return;
+        }
         _next();
       case BusyMaxHeaderBarAction.viewModeDay:
         _setMode(ScheduleViewMode.day);
@@ -471,7 +487,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       final start = _day(DateTime.now());
       return ScheduleRange(
         start: start,
-        end: start.add(const Duration(days: 30)),
+        end: start.add(Duration(days: _agendaLoadedDays)),
       );
     }
     return switch (_mode) {
@@ -487,7 +503,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       ScheduleViewMode.year => ScheduleRange.year(_selectedDate),
       ScheduleViewMode.agenda => ScheduleRange(
         start: _day(_selectedDate),
-        end: _day(_selectedDate).add(const Duration(days: 7)),
+        end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays)),
       ),
     };
   }
@@ -601,6 +617,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _scope = ScheduleScope.all;
       }
       _selectedDate = _day(date);
+      if (_mode == ScheduleViewMode.agenda) {
+        _resetAgendaLoadedDays();
+      }
     });
   }
 
@@ -692,6 +711,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     if (previousSettingsMode == null || _mode == previousSettingsMode) {
+      if (_mode != ScheduleViewMode.agenda &&
+          settingsMode == ScheduleViewMode.agenda) {
+        _resetAgendaLoadedDays();
+      }
       _mode = settingsMode;
     }
   }
@@ -699,6 +722,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   void _goToToday() {
     setState(() {
       _selectedDate = _day(DateTime.now());
+      if (_mode == ScheduleViewMode.agenda) {
+        _resetAgendaLoadedDays();
+      }
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
@@ -712,6 +738,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     setState(() {
       _mode = mode;
       _lastSettingsMode = mode;
+      if (mode == ScheduleViewMode.agenda) {
+        _resetAgendaLoadedDays();
+      }
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
@@ -741,11 +770,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _previous() {
+    if (_mode == ScheduleViewMode.agenda) {
+      return;
+    }
     setState(() {
       _selectedDate = switch (_mode) {
         ScheduleViewMode.day => _selectedDate.subtract(const Duration(days: 1)),
-        ScheduleViewMode.week || ScheduleViewMode.agenda =>
-          _selectedDate.subtract(const Duration(days: 7)),
+        ScheduleViewMode.week => _selectedDate.subtract(
+          const Duration(days: 7),
+        ),
         ScheduleViewMode.month => DateTime(
           _selectedDate.year,
           _selectedDate.month - 1,
@@ -756,6 +789,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           _selectedDate.month,
           _selectedDate.day,
         ),
+        ScheduleViewMode.agenda => _selectedDate,
       };
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
@@ -764,11 +798,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _next() {
+    if (_mode == ScheduleViewMode.agenda) {
+      return;
+    }
     setState(() {
       _selectedDate = switch (_mode) {
         ScheduleViewMode.day => _selectedDate.add(const Duration(days: 1)),
-        ScheduleViewMode.week ||
-        ScheduleViewMode.agenda => _selectedDate.add(const Duration(days: 7)),
+        ScheduleViewMode.week => _selectedDate.add(const Duration(days: 7)),
         ScheduleViewMode.month => DateTime(
           _selectedDate.year,
           _selectedDate.month + 1,
@@ -779,11 +815,25 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           _selectedDate.month,
           _selectedDate.day,
         ),
+        ScheduleViewMode.agenda => _selectedDate,
       };
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
     });
+  }
+
+  void _loadMoreAgendaDays() {
+    if (_mode != ScheduleViewMode.agenda) {
+      return;
+    }
+    setState(() {
+      _agendaLoadedDays += _agendaPageDays;
+    });
+  }
+
+  void _resetAgendaLoadedDays() {
+    _agendaLoadedDays = _agendaInitialDays;
   }
 
   Future<void> _openCreateChoice(
@@ -1121,6 +1171,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _selectedDate = _day(date);
       _mode = ScheduleViewMode.agenda;
       _lastSettingsMode = ScheduleViewMode.agenda;
+      _resetAgendaLoadedDays();
     });
     unawaited(
       ref
@@ -1193,6 +1244,7 @@ class _HeaderBarStateSnapshot {
     required this.canRefresh,
     required this.searchActive,
     required this.sidebarVisible,
+    required this.navigationVisible,
   });
 
   final String titleRange;
@@ -1200,6 +1252,7 @@ class _HeaderBarStateSnapshot {
   final bool canRefresh;
   final bool searchActive;
   final bool sidebarVisible;
+  final bool navigationVisible;
 
   @override
   bool operator ==(Object other) {
@@ -1209,7 +1262,8 @@ class _HeaderBarStateSnapshot {
             viewMode == other.viewMode &&
             canRefresh == other.canRefresh &&
             searchActive == other.searchActive &&
-            sidebarVisible == other.sidebarVisible;
+            sidebarVisible == other.sidebarVisible &&
+            navigationVisible == other.navigationVisible;
   }
 
   @override
@@ -1219,6 +1273,7 @@ class _HeaderBarStateSnapshot {
     canRefresh,
     searchActive,
     sidebarVisible,
+    navigationVisible,
   );
 }
 
@@ -1242,6 +1297,7 @@ class _ScheduleBody extends StatelessWidget {
     required this.onNewTask,
     required this.onPrevious,
     required this.onNext,
+    required this.onAgendaLoadMore,
     required this.onItemSelected,
     required this.onTaskCompletionChanged,
   });
@@ -1264,6 +1320,7 @@ class _ScheduleBody extends StatelessWidget {
   final VoidCallback onNewTask;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final VoidCallback? onAgendaLoadMore;
   final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
@@ -1327,15 +1384,12 @@ class _ScheduleBody extends StatelessWidget {
           onCreateAtDay: onCreateAtDay,
         ),
       ),
-      ScheduleViewMode.agenda => _HorizontalSchedulePager(
-        onPrevious: onPrevious,
-        onNext: onNext,
-        child: ScheduleAgendaView(
-          range: range,
-          items: items,
-          onItemSelected: onItemSelected,
-          onTaskCompletionChanged: onTaskCompletionChanged,
-        ),
+      ScheduleViewMode.agenda => ScheduleAgendaView(
+        range: range,
+        items: items,
+        onLoadMore: onAgendaLoadMore,
+        onItemSelected: onItemSelected,
+        onTaskCompletionChanged: onTaskCompletionChanged,
       ),
     };
   }
@@ -1443,7 +1497,7 @@ String _scheduleRangeLabel(
     ScheduleViewMode.day => DateFormat.yMMMMEEEEd(locale).format(selectedDate),
     ScheduleViewMode.month => DateFormat.yMMMM(locale).format(selectedDate),
     ScheduleViewMode.year => DateFormat.y(locale).format(selectedDate),
-    ScheduleViewMode.agenda => _weekRangeLabel(locale, range),
+    ScheduleViewMode.agenda => context.l10n.viewAgenda,
     ScheduleViewMode.week => _weekRangeLabel(locale, range),
   };
 }

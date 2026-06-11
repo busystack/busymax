@@ -751,6 +751,52 @@ void main() {
     expect(find.text('New task'), findsNothing);
   });
 
+  testWidgets('agenda view asks for more items near the bottom', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    var loadMoreCount = 0;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 420,
+            height: 360,
+            child: ScheduleAgendaView(
+              range: ScheduleRange(
+                start: selectedDate,
+                end: selectedDate.add(const Duration(days: 30)),
+              ),
+              items: [
+                for (var index = 0; index < 45; index++)
+                  TaskScheduleItem(
+                    id: 'task:$index',
+                    accountId: 'google:g',
+                    provider: TaskProvider.google,
+                    sourceId: 'tasks:inbox',
+                    title: 'Task $index',
+                    completed: false,
+                    allDay: true,
+                    start: selectedDate.add(Duration(days: index)),
+                    sourceName: 'Inbox',
+                  ),
+              ],
+              onLoadMore: () => loadMoreCount++,
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -5000));
+    await tester.pump();
+
+    expect(loadMoreCount, 1);
+  });
+
   test('schedule presentation does not use banned package final UI', () {
     final files = Directory(
       'lib/src/features/schedule/presentation',
@@ -1268,7 +1314,7 @@ void main() {
     },
   );
 
-  test('month and agenda views support horizontal paging gestures', () {
+  test('month and year views support horizontal paging gestures', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -1285,23 +1331,32 @@ void main() {
     );
     expect(
       source,
-      contains('ScheduleViewMode.agenda => _HorizontalSchedulePager'),
+      isNot(contains('ScheduleViewMode.agenda => _HorizontalSchedulePager')),
     );
+    expect(source, contains('ScheduleViewMode.agenda => ScheduleAgendaView'));
     expect(source, contains('onPrevious: onPrevious'));
     expect(source, contains('onNext: onNext'));
   });
 
-  test('agenda range starts at the selected date', () {
+  test('agenda range starts at selected date and grows while scrolling', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
 
+    expect(source, contains('static const _agendaInitialDays = 30'));
+    expect(source, contains('static const _agendaPageDays = 30'));
+    expect(source, contains('var _agendaLoadedDays = _agendaInitialDays'));
     expect(source, contains('ScheduleViewMode.agenda => ScheduleRange('));
     expect(source, contains('start: _day(_selectedDate)'));
     expect(
       source,
-      contains('end: _day(_selectedDate).add(const Duration(days: 7))'),
+      contains(
+        'end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays))',
+      ),
     );
+    expect(source, contains('void _loadMoreAgendaDays()'));
+    expect(source, contains('_agendaLoadedDays += _agendaPageDays'));
+    expect(source, contains('onLoadMore: onAgendaLoadMore'));
     expect(
       source,
       isNot(contains('ScheduleViewMode.agenda => ScheduleRange.week')),
@@ -1310,6 +1365,44 @@ void main() {
     expect(source, contains('start: DateTime(1)'));
     expect(source, contains('end: displayRange.start'));
     expect(source, isNot(contains('subtract(const Duration(days: 30))')));
+  });
+
+  test('agenda removes page controls from toolbar and native headerbar', () {
+    final workspace = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+    final toolbar = File(
+      'lib/src/features/schedule/presentation/schedule_toolbar.dart',
+    ).readAsStringSync();
+    final headerService = File(
+      'lib/src/platform/linux_header_bar_service.dart',
+    ).readAsStringSync();
+    final nativeRunner = File(
+      'linux/runner/my_application.cc',
+    ).readAsStringSync();
+
+    expect(
+      toolbar,
+      contains('final showPaging = mode != ScheduleViewMode.agenda'),
+    );
+    expect(toolbar, contains('if (showPaging)'));
+    expect(
+      toolbar,
+      contains('ScheduleViewMode.agenda => context.l10n.viewAgenda'),
+    );
+    expect(
+      workspace,
+      contains('navigationVisible: _mode != ScheduleViewMode.agenda'),
+    );
+    expect(
+      workspace,
+      contains(
+        'service.setNavigationVisible(headerBarState.navigationVisible)',
+      ),
+    );
+    expect(headerService, contains('Future<void> setNavigationVisible'));
+    expect(nativeRunner, contains('set_header_navigation_visible'));
+    expect(nativeRunner, contains('setNavigationVisible'));
   });
 
   test('agenda queries overdue tasks separately from current events', () {

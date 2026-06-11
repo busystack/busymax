@@ -239,6 +239,7 @@ class LinuxHeaderBarService {
   bool? _canCreate;
   bool? _searchActive;
   bool? _sidebarVisible;
+  bool? _navigationVisible;
   bool? _scheduleControlsVisible;
   bool? _backVisible;
   _BusyMaxOnboardingControlsState? _onboardingControls;
@@ -354,6 +355,17 @@ class LinuxHeaderBarService {
     }
     _sidebarVisible = value;
     await _invokeIfAvailable('setSidebarVisible', value);
+  }
+
+  Future<void> setNavigationVisible(bool value) async {
+    if (!_available) {
+      return;
+    }
+    if (_navigationVisible == value) {
+      return;
+    }
+    _navigationVisible = value;
+    await _invokeIfAvailable('setNavigationVisible', value);
   }
 
   Future<void> setScheduleControlsVisible(bool value) async {

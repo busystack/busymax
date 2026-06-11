@@ -31,6 +31,7 @@ class ScheduleToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showPaging = mode != ScheduleViewMode.agenda;
     return SizedBox(
       height: BusyMaxSizes.toolbarHeight,
       child: Row(
@@ -41,17 +42,19 @@ class ScheduleToolbar extends StatelessWidget {
             child: Text(context.l10n.today),
           ),
           const SizedBox(width: BusyMaxSpacing.sm),
-          YaruIconButton(
-            tooltip: MaterialLocalizations.of(context).previousPageTooltip,
-            icon: const Icon(YaruIcons.arrow_left),
-            onPressed: onPrevious,
-          ),
-          YaruIconButton(
-            tooltip: MaterialLocalizations.of(context).nextPageTooltip,
-            icon: const Icon(YaruIcons.arrow_right),
-            onPressed: onNext,
-          ),
-          const SizedBox(width: BusyMaxSpacing.sm),
+          if (showPaging) ...[
+            YaruIconButton(
+              tooltip: MaterialLocalizations.of(context).previousPageTooltip,
+              icon: const Icon(YaruIcons.arrow_left),
+              onPressed: onPrevious,
+            ),
+            YaruIconButton(
+              tooltip: MaterialLocalizations.of(context).nextPageTooltip,
+              icon: const Icon(YaruIcons.arrow_right),
+              onPressed: onNext,
+            ),
+            const SizedBox(width: BusyMaxSpacing.sm),
+          ],
           Expanded(
             child: Text(
               _rangeLabel(context, mode, range, selectedDate),
@@ -103,7 +106,7 @@ String _rangeLabel(
     ScheduleViewMode.day => DateFormat.yMMMMEEEEd(locale).format(selectedDate),
     ScheduleViewMode.month => DateFormat.yMMMM(locale).format(selectedDate),
     ScheduleViewMode.year => DateFormat.y(locale).format(selectedDate),
-    ScheduleViewMode.agenda => _weekRange(locale, range),
+    ScheduleViewMode.agenda => context.l10n.viewAgenda,
     ScheduleViewMode.week => _weekRange(locale, range),
   };
 }

@@ -130,6 +130,7 @@ struct _MyApplication {
   gboolean hide_on_close;
   gboolean suppress_header_bar_actions;
   gboolean header_schedule_controls_visible;
+  gboolean header_navigation_visible;
   gboolean header_back_visible;
   gboolean header_onboarding_controls_visible;
   gboolean main_window_transparent_backing;
@@ -1250,12 +1251,23 @@ static void set_header_schedule_controls_visible(MyApplication* self,
                      visible || self->header_back_visible);
   set_widget_visible(self->sidebar_collapsed_toggle_button, visible);
   set_widget_visible(self->today_button, visible);
-  set_widget_visible(self->previous_button, visible);
-  set_widget_visible(self->next_button, visible);
+  set_widget_visible(self->previous_button,
+                     visible && self->header_navigation_visible);
+  set_widget_visible(self->next_button,
+                     visible && self->header_navigation_visible);
   set_widget_visible(self->header_view_box, visible);
   set_widget_visible(self->search_button, visible);
   set_widget_visible(self->refresh_button, visible);
   update_header_title_balance_spacer(self);
+}
+
+static void set_header_navigation_visible(MyApplication* self,
+                                          gboolean visible) {
+  self->header_navigation_visible = visible;
+  set_widget_visible(self->previous_button,
+                     self->header_schedule_controls_visible && visible);
+  set_widget_visible(self->next_button,
+                     self->header_schedule_controls_visible && visible);
 }
 
 static void set_header_back_visible(MyApplication* self, gboolean visible) {
@@ -1641,6 +1653,9 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
     respond_success(method_call);
   } else if (strcmp(method, "setSidebarVisible") == 0) {
     set_header_sidebar_visible(self, fl_method_bool_arg(args));
+    respond_success(method_call);
+  } else if (strcmp(method, "setNavigationVisible") == 0) {
+    set_header_navigation_visible(self, fl_method_bool_arg(args));
     respond_success(method_call);
   } else if (strcmp(method, "setScheduleControlsVisible") == 0) {
     set_header_schedule_controls_visible(self, fl_method_bool_arg(args));
@@ -2909,6 +2924,7 @@ static void my_application_init(MyApplication* self) {
   self->search_button = nullptr;
   self->refresh_button = nullptr;
   self->header_view_mode = nullptr;
+  self->header_navigation_visible = TRUE;
 }
 
 MyApplication* my_application_new() {
