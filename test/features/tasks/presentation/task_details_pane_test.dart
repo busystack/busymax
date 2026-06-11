@@ -592,7 +592,16 @@ void main() {
 
     await tester.tap(find.text('Add category'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Work'));
+    await tester.enterText(find.byKey(const Key('task-category-input')), 'wo');
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.text('Work').last,
+            matching: find.byType(MenuItemButton),
+          )
+          .last,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();

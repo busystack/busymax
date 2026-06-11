@@ -147,6 +147,44 @@ void main() {
     expect(mutationQueuedCalls, 1);
   });
 
+  test('patchTask rebuilds task reminders and notifies scheduler', () async {
+    var schedulerCalls = 0;
+    repository = _repository(
+      database,
+      onNotificationScheduleChanged: () async => schedulerCalls += 1,
+    );
+    await database.tasksDao.upsertTask(
+      _task(
+        id: 'task-1',
+        position: '1',
+        rawJson: '{"id":"task-1","title":"Original"}',
+      ),
+    );
+
+    await repository.patchTask(
+      'list-1',
+      'task-1',
+      const TaskPatchInput({
+        'microsoftIsReminderOn': true,
+        'microsoftReminderDateTime': {
+          'dateTime': '2026-06-05T08:30:00',
+          'timeZone': 'America/Vancouver',
+        },
+        'microsoftReminderTimeZone': 'America/Vancouver',
+      }),
+    );
+
+    final rows = await database.select(database.notificationSchedule).get();
+
+    expect(schedulerCalls, 1);
+    expect(rows.single.sourceType, 'task');
+    expect(rows.single.title, 'task-1');
+    expect(
+      rows.single.scheduledAtUtc,
+      DateTime(2026, 6, 5, 8, 30).toUtc().millisecondsSinceEpoch,
+    );
+  });
+
   test('task mutations request sync after queuing pending ops', () async {
     var mutationQueuedCalls = 0;
     repository = _repository(
@@ -254,11 +292,13 @@ void main() {
 TasksRepository _repository(
   AppDatabase database, {
   void Function()? onMutationQueued,
+  Future<void> Function()? onNotificationScheduleChanged,
 }) {
   return TasksRepository(
     database: database,
     accountId: 'account',
     onMutationQueued: onMutationQueued,
+    onNotificationScheduleChanged: onNotificationScheduleChanged,
     nowUtc: () => DateTime.utc(2026, 6, 4),
   );
 }

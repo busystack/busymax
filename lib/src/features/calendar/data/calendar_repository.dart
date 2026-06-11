@@ -66,12 +66,17 @@ class CalendarSourceEntity {
 }
 
 class CalendarRepository {
-  CalendarRepository({required AppDatabase database, DateTime Function()? now})
-    : _database = database,
-      _now = now ?? DateTime.now;
+  CalendarRepository({
+    required AppDatabase database,
+    DateTime Function()? now,
+    Future<void> Function()? onNotificationScheduleChanged,
+  }) : _database = database,
+       _now = now ?? DateTime.now,
+       _onNotificationScheduleChanged = onNotificationScheduleChanged;
 
   final AppDatabase _database;
   final DateTime Function() _now;
+  final Future<void> Function()? _onNotificationScheduleChanged;
 
   Stream<List<CalendarSourceEntity>> watchSourcesForAccounts(
     List<String> accountIds,
@@ -424,6 +429,7 @@ class CalendarRepository {
     await NotificationScheduleService(
       database: _database,
     ).rebuildUpcomingEventNotifications(draft.accountId);
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> updateLocalEvent(EventEditorDraft draft) async {
@@ -512,6 +518,7 @@ class CalendarRepository {
     await NotificationScheduleService(
       database: _database,
     ).rebuildUpcomingEventNotifications(draft.accountId);
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<String> deleteLocalEvent(String eventId) async {
@@ -553,6 +560,7 @@ class CalendarRepository {
     await NotificationScheduleService(
       database: _database,
     ).rebuildUpcomingEventNotifications(existing.accountId);
+    await _onNotificationScheduleChanged?.call();
     return existing.accountId;
   }
 

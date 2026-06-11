@@ -182,6 +182,10 @@ class ScheduleRepository {
           descriptionContentType: descriptionBody.contentType,
           descriptionHtml: descriptionBody.html,
           categories: _stringListFromJson(event.categoriesJson),
+          reminderMinutesBeforeStart: _eventReminderMinutes(
+            provider,
+            event.remindersJson,
+          ),
           colorHex:
               event.colorHex ??
               calendarSourceBackgroundColorHex(
@@ -355,6 +359,9 @@ class ScheduleRepository {
       end: _taskEnd(task, provider),
       notes: task.notes ?? task.bodyContent,
       categories: _stringListFromJson(task.categoriesJson),
+      reminder: task.microsoftIsReminderOn == true
+          ? DateTime.tryParse(task.microsoftReminderDateTime ?? '')
+          : null,
       sourceName: list?.title,
       accountDisplayName: accountDisplayNames[task.accountId],
       accountEmail: accountEmails[task.accountId],
@@ -568,4 +575,36 @@ List<String> _stringListFromJson(String? value) {
     return const [];
   }
   return const [];
+}
+
+List<int> _eventReminderMinutes(BusyProvider provider, String? value) {
+  if (value == null || value.isEmpty) {
+    return const [];
+  }
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is! Map) {
+      return const [];
+    }
+    final map = decoded.cast<String, Object?>();
+    final minutes = switch (provider) {
+      TaskProvider.microsoft =>
+        map['isReminderOn'] == true
+            ? [map['reminderMinutesBeforeStart']]
+            : const <Object?>[],
+      TaskProvider.google => switch (map['overrides']) {
+        final List<Object?> overrides => [
+          for (final item in overrides)
+            if (item is Map && item['method'] == 'popup') item['minutes'],
+        ],
+        _ => const <Object?>[],
+      },
+    };
+    return [
+      for (final value in minutes)
+        if (value is int && value >= 0) value,
+    ]..sort();
+  } on FormatException {
+    return const [];
+  }
 }

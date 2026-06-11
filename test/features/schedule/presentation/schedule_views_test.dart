@@ -445,6 +445,97 @@ void main() {
     expect(find.text('Categories: Home, Work'), findsOneWidget);
   });
 
+  testWidgets('schedule event details popover shows reminders and categories', (
+    tester,
+  ) async {
+    final event = CalendarScheduleItem(
+      id: 'event:1',
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'cal-1',
+      title: 'Design review',
+      allDay: false,
+      start: DateTime(2026, 1, 15, 9),
+      end: DateTime(2026, 1, 15, 10),
+      categories: const ['Blue category', 'Work'],
+      reminderMinutesBeforeStart: const [10, 60],
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: event,
+                  );
+                },
+                child: const Text('Open details'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Reminder: 10 minutes before, 1 hour before'),
+      findsOneWidget,
+    );
+    expect(find.text('Categories: Blue category, Work'), findsOneWidget);
+  });
+
+  testWidgets('schedule task details popover shows reminder', (tester) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final task = TaskScheduleItem(
+      id: 'task:1',
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      sourceId: 'tasks:inbox',
+      title: 'Submit report',
+      completed: false,
+      allDay: true,
+      start: selectedDate,
+      end: selectedDate.add(const Duration(days: 1)),
+      reminder: DateTime(2026, 1, 15, 8, 30),
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: task,
+                  );
+                },
+                child: const Text('Open details'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Reminder:'), findsOneWidget);
+    expect(find.textContaining('8:30'), findsOneWidget);
+  });
+
   testWidgets('schedule item details popover anchors near click point', (
     tester,
   ) async {

@@ -264,12 +264,14 @@ class TasksRepository {
     required String accountId,
     GoogleTasksApiClient? apiClient,
     void Function()? onMutationQueued,
+    Future<void> Function()? onNotificationScheduleChanged,
     Uuid uuid = const Uuid(),
     DateTime Function()? nowUtc,
   }) : _database = database,
        _accountId = accountId,
        _apiClient = apiClient,
        _onMutationQueued = onMutationQueued,
+       _onNotificationScheduleChanged = onNotificationScheduleChanged,
        _uuid = uuid,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
@@ -277,6 +279,7 @@ class TasksRepository {
   final String _accountId;
   final GoogleTasksApiClient? _apiClient;
   final void Function()? _onMutationQueued;
+  final Future<void> Function()? _onNotificationScheduleChanged;
   final Uuid _uuid;
   final DateTime Function() _nowUtc;
 
@@ -394,10 +397,7 @@ class TasksRepository {
         createdAtUtc: now,
       );
     });
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
 
@@ -418,10 +418,7 @@ class TasksRepository {
       baselineRawJson: baseline?.rawJson,
       createdAtUtc: now,
     );
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
 
@@ -442,10 +439,7 @@ class TasksRepository {
       baselineRawJson: baseline?.rawJson,
       createdAtUtc: now,
     );
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
 
@@ -470,10 +464,7 @@ class TasksRepository {
       baselineRawJson: baseline?.rawJson,
       createdAtUtc: now,
     );
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
 
@@ -536,6 +527,14 @@ class TasksRepository {
     await _database.tasksDao.upsertTask(
       taskFromDto(_accountId, taskListId, dto, _now()),
     );
+  }
+
+  Future<void> _rebuildTaskNotifications() async {
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> _patchLocalTask(

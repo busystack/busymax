@@ -153,6 +153,12 @@ void main() {
     final entry = tester.widget<YaruTimeEntry>(find.byType(YaruTimeEntry));
     expect(entry.initialTimeOfDay, const TimeOfDay(hour: 9, minute: 0));
     expect(entry.acceptEmpty, isFalse);
+    expect(
+      tester
+          .widgetList<EditableText>(find.byType(EditableText))
+          .any((entry) => entry.controller.text.contains('09:00')),
+      isTrue,
+    );
   });
 
   test('event draft requires end after start', () {
@@ -454,8 +460,16 @@ void main() {
 
     await tester.tap(find.text('Add category'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Work'));
-    await tester.tap(find.text('Work'));
+    await tester.enterText(find.byKey(const Key('event-category-input')), 'wo');
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.text('Work').last,
+            matching: find.byType(MenuItemButton),
+          )
+          .last,
+    );
     await tester.pumpAndSettle();
     await tester.tap(_headerButtonFinder('Save'));
 

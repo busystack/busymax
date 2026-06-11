@@ -109,6 +109,11 @@ void main() {
           allDay: true,
           startDateTime: '2026-06-11T00:00:00.0000000',
           endDateTime: '2026-06-12T00:00:00.0000000',
+          remindersJson: {
+            'isReminderOn': true,
+            'reminderMinutesBeforeStart': 30,
+          },
+          categoriesJson: ['Holiday', 'Company'],
         ),
       );
 
@@ -126,6 +131,8 @@ void main() {
       expect(event.allDay, isTrue);
       expect(event.start, DateTime(2026, 6, 11));
       expect(event.end, DateTime(2026, 6, 12));
+      expect(event.reminderMinutesBeforeStart, [30]);
+      expect(event.categories, ['Holiday', 'Company']);
     },
   );
 
@@ -192,6 +199,9 @@ void main() {
             status: const Value('needsAction'),
             dueUtc: const Value('2026-06-12'),
             microsoftDueDateTime: const Value('2026-06-12T00:00:00'),
+            microsoftIsReminderOn: const Value(true),
+            microsoftReminderDateTime: const Value('2026-06-12T08:30:00'),
+            categoriesJson: const Value('["Expenses","Work"]'),
             rawJson: '{}',
             createdLocalAtUtc: _now,
             updatedLocalAtUtc: _now,
@@ -212,6 +222,8 @@ void main() {
     expect(task.allDay, isFalse);
     expect(task.start, DateTime(2026, 6, 12));
     expect(task.end, DateTime(2026, 6, 12, 0, 30));
+    expect(task.reminder, DateTime(2026, 6, 12, 8, 30));
+    expect(task.categories, ['Expenses', 'Work']);
   });
 
   test('Microsoft task with date-only due appears as all-day', () async {

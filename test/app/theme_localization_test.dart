@@ -13,6 +13,7 @@ import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
+import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
@@ -761,6 +762,10 @@ void main() {
   test('ThemeMode.system is the default', () {
     expect(AppSettings.defaults().themeMode, ThemeMode.system);
     expect(AppSettings.defaults().scheduleViewMode, ScheduleViewMode.week);
+    expect(
+      AppSettings.defaults().notificationDetailLevel,
+      NotificationDetailLevel.normal,
+    );
   });
 
   test('light and dark override persists', () async {
@@ -862,10 +867,14 @@ void main() {
   testWidgets('BusyMaxApp wires localization delegates and system theme', (
     tester,
   ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
           localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
         ],
         child: const BusyMaxApp(),

@@ -282,6 +282,8 @@ final calendarSyncEngineForAccountFactoryProvider =
           onConflictBlocked: ref
               .read(desktopNotificationServiceProvider)
               .notifyConflict,
+          onNotificationScheduleChanged: () =>
+              ref.read(notificationSchedulerProvider).checkNow(),
         );
       };
     });
@@ -342,7 +344,11 @@ authSessionControllerProvider =
     });
 
 final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
-  return CalendarRepository(database: ref.watch(databaseProvider));
+  return CalendarRepository(
+    database: ref.watch(databaseProvider),
+    onNotificationScheduleChanged: () =>
+        ref.read(notificationSchedulerProvider).checkNow(),
+  );
 });
 
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
@@ -410,6 +416,8 @@ final tasksRepositoryProvider = Provider<TasksRepository?>((ref) {
     accountId: accountId,
     apiClient: ref.watch(googleTasksApiClientProvider),
     onMutationQueued: ref.watch(pendingMutationSyncRequesterProvider)?.request,
+    onNotificationScheduleChanged: () =>
+        ref.read(notificationSchedulerProvider).checkNow(),
   );
 });
 
@@ -427,6 +435,8 @@ final tasksRepositoryForAccountProvider =
         onMutationQueued: ref
             .watch(pendingMutationSyncRequesterForAccountProvider(accountId))
             .request,
+        onNotificationScheduleChanged: () =>
+            ref.read(notificationSchedulerProvider).checkNow(),
       );
     });
 

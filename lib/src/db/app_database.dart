@@ -37,6 +37,13 @@ class AppDatabase extends _$AppDatabase {
 
   factory AppDatabase.open() => AppDatabase(openBusyMaxDatabase());
 
+  factory AppDatabase.memoryForTests() => AppDatabase(
+    DatabaseConnection(
+      NativeDatabase.memory(),
+      closeStreamsSynchronously: true,
+    ),
+  );
+
   @override
   int get schemaVersion => latestSchemaVersion;
 

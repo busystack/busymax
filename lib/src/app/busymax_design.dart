@@ -976,15 +976,11 @@ class BusyMaxCategoryEditorRow extends StatelessWidget {
               _BusyMaxCategoryInputChip(
                 controller: controller,
                 hintText: addLabel,
+                suggestions: visibleSuggestions,
                 inputKey: inputKey,
                 onSubmitted: onSubmitted,
                 onCancel: onCancelAdding,
               ),
-              for (final suggestion in visibleSuggestions)
-                _BusyMaxCategorySuggestionChip(
-                  label: suggestion,
-                  onPressed: () => onSubmitted(suggestion),
-                ),
             ] else
               _BusyMaxAddCategoryChip(label: addLabel, onPressed: onAddPressed),
           ],
@@ -1096,43 +1092,11 @@ class _BusyMaxAddCategoryChip extends StatelessWidget {
   }
 }
 
-class _BusyMaxCategorySuggestionChip extends StatelessWidget {
-  const _BusyMaxCategorySuggestionChip({
-    required this.label,
-    required this.onPressed,
-  });
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return ActionChip(
-      avatar: Icon(
-        YaruIcons.plus,
-        size: BusyMaxSizes.iconSm,
-        color: colorScheme.onSurfaceVariant,
-      ),
-      label: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 150),
-        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      ),
-      labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-        color: colorScheme.onSurfaceVariant,
-        fontWeight: FontWeight.w600,
-      ),
-      side: BorderSide(color: colorScheme.outlineVariant),
-      backgroundColor: Colors.transparent,
-      onPressed: onPressed,
-    );
-  }
-}
-
-class _BusyMaxCategoryInputChip extends StatelessWidget {
+class _BusyMaxCategoryInputChip extends StatefulWidget {
   const _BusyMaxCategoryInputChip({
     required this.controller,
     required this.hintText,
+    required this.suggestions,
     this.inputKey,
     required this.onSubmitted,
     required this.onCancel,
@@ -1140,9 +1104,30 @@ class _BusyMaxCategoryInputChip extends StatelessWidget {
 
   final TextEditingController controller;
   final String hintText;
+  final List<String> suggestions;
   final Key? inputKey;
   final ValueChanged<String> onSubmitted;
   final VoidCallback onCancel;
+
+  @override
+  State<_BusyMaxCategoryInputChip> createState() =>
+      _BusyMaxCategoryInputChipState();
+}
+
+class _BusyMaxCategoryInputChipState extends State<_BusyMaxCategoryInputChip> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1164,17 +1149,37 @@ class _BusyMaxCategoryInputChip extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: TextField(
-                  key: inputKey,
-                  controller: controller,
-                  autofocus: true,
-                  decoration: InputDecoration.collapsed(hintText: hintText),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: onSubmitted,
+                child: RawAutocomplete<String>(
+                  textEditingController: widget.controller,
+                  focusNode: _focusNode,
+                  displayStringForOption: (option) => option,
+                  optionsViewOpenDirection: OptionsViewOpenDirection.up,
+                  optionsBuilder: _categoryOptionsFor,
+                  onSelected: widget.onSubmitted,
+                  fieldViewBuilder:
+                      (context, controller, focusNode, onFieldSubmitted) {
+                        return TextField(
+                          key: widget.inputKey,
+                          controller: controller,
+                          focusNode: focusNode,
+                          autofocus: true,
+                          decoration: InputDecoration.collapsed(
+                            hintText: widget.hintText,
+                          ),
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: _submitTypedCategory,
+                        );
+                      },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return _BusyMaxCategoryAutocompleteOptions(
+                      options: options.toList(growable: false),
+                      onSelected: onSelected,
+                    );
+                  },
                 ),
               ),
               InkResponse(
-                onTap: () => onSubmitted(controller.text),
+                onTap: () => _submitTypedCategory(widget.controller.text),
                 radius: BusyMaxSizes.iconMd,
                 child: Icon(
                   YaruIcons.checkmark,
@@ -1184,7 +1189,7 @@ class _BusyMaxCategoryInputChip extends StatelessWidget {
               ),
               const SizedBox(width: BusyMaxSpacing.xs),
               InkResponse(
-                onTap: onCancel,
+                onTap: widget.onCancel,
                 radius: BusyMaxSizes.iconMd,
                 child: Icon(
                   YaruIcons.window_close,
@@ -1193,6 +1198,113 @@ class _BusyMaxCategoryInputChip extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Iterable<String> _categoryOptionsFor(TextEditingValue value) {
+    final query = value.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      return const [];
+    }
+    final matching = [
+      for (final suggestion in widget.suggestions)
+        if (suggestion.toLowerCase().contains(query)) suggestion,
+    ];
+    matching.sort((left, right) {
+      final leftLower = left.toLowerCase();
+      final rightLower = right.toLowerCase();
+      final leftStarts = leftLower.startsWith(query);
+      final rightStarts = rightLower.startsWith(query);
+      if (leftStarts != rightStarts) {
+        return leftStarts ? -1 : 1;
+      }
+      return leftLower.compareTo(rightLower);
+    });
+    return matching.take(8);
+  }
+
+  void _submitTypedCategory(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    String? existing;
+    for (final suggestion in widget.suggestions) {
+      if (suggestion.toLowerCase() == trimmed.toLowerCase()) {
+        existing = suggestion;
+        break;
+      }
+    }
+    widget.onSubmitted(existing ?? trimmed);
+  }
+}
+
+class _BusyMaxCategoryAutocompleteOptions extends StatelessWidget {
+  const _BusyMaxCategoryAutocompleteOptions({
+    required this.options,
+    required this.onSelected,
+  });
+
+  final List<String> options;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final popupTheme = Theme.of(context).popupMenuTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    const width = 180.0;
+    const menuAffordanceWidth = 36.0;
+    const labelWidth = width - BusyMaxSpacing.md * 2 - menuAffordanceWidth;
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Material(
+        color: popupTheme.color ?? colorScheme.surfaceContainerHigh,
+        elevation: BusyMaxElevation.popover,
+        shadowColor: BusyMaxShadow.floatingColor(context),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: width,
+            maxWidth: width,
+            maxHeight: 240,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: options.length,
+              itemBuilder: (context, index) {
+                final option = options[index];
+                return SizedBox(
+                  width: width,
+                  child: MenuItemButton(
+                    style: busyMaxDropdownMenuItemStyle(context).copyWith(
+                      fixedSize: const WidgetStatePropertyAll(Size(width, 36)),
+                    ),
+                    onPressed: () => onSelected(option),
+                    child: SizedBox(
+                      width: labelWidth,
+                      child: Text(
+                        option,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),

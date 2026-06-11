@@ -481,6 +481,13 @@ List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
   return [
     if (location != null && location.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.place_outlined, text: location),
+    if (item.reminderMinutesBeforeStart.isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.notifications_outlined,
+        text:
+            '${context.l10n.reminder}: '
+            '${item.reminderMinutesBeforeStart.map(_reminderBeforeLabel).join(', ')}',
+      ),
     if (item.categories.isNotEmpty)
       _ScheduleDetailRow(
         icon: Icons.sell_outlined,
@@ -505,6 +512,13 @@ List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
       icon: item.completed ? YaruIcons.checkmark : Icons.radio_button_unchecked,
       text: item.completed ? context.l10n.completed : context.l10n.openStatus,
     ),
+    if (item.reminder != null)
+      _ScheduleDetailRow(
+        icon: Icons.notifications_outlined,
+        text:
+            '${context.l10n.reminder}: '
+            '${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).add_jm().format(item.reminder!)}',
+      ),
     if (item.categories.isNotEmpty)
       _ScheduleDetailRow(
         icon: Icons.sell_outlined,
@@ -513,6 +527,19 @@ List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
     if (notes != null && notes.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.notes, text: notes),
   ];
+}
+
+String _reminderBeforeLabel(int minutes) {
+  return switch (minutes) {
+    0 => 'At start',
+    1 => '1 minute before',
+    < 60 => '$minutes minutes before',
+    60 => '1 hour before',
+    < 1440 when minutes % 60 == 0 => '${minutes ~/ 60} hours before',
+    1440 => '1 day before',
+    > 1440 when minutes % 1440 == 0 => '${minutes ~/ 1440} days before',
+    _ => '$minutes minutes before',
+  };
 }
 
 String _kindLabel(BuildContext context, ScheduleItem item) {

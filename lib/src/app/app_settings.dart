@@ -68,7 +68,7 @@ class AppSettings {
       showTrayIcon: true,
       startMinimizedToTray: false,
       quitExitsCompletely: true,
-      notificationDetailLevel: NotificationDetailLevel.private,
+      notificationDetailLevel: NotificationDetailLevel.normal,
       quietHoursEnabled: false,
       quietHoursStart: '22:00',
       quietHoursEnd: '07:00',

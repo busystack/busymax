@@ -59,6 +59,37 @@ void main() {
 
     expect(backend.notifications.single.summary, 'Tareas que vencen hoy');
   });
+
+  test('reminder notification details are visible by default', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults(),
+    );
+
+    await service.notifyTaskReminder('Pay rent', 'Due at 9:00 AM');
+
+    expect(backend.notifications.single.summary, 'Pay rent');
+    expect(backend.notifications.single.body, 'Due at 9:00 AM');
+  });
+
+  test('private reminder notifications hide item details', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(
+        notificationDetailLevel: NotificationDetailLevel.private,
+      ),
+    );
+
+    await service.notifyEventReminder('Doctor', 'Clinic');
+
+    expect(backend.notifications.single.summary, 'Event reminder');
+    expect(
+      backend.notifications.single.body,
+      'Details are hidden by privacy settings.',
+    );
+  });
 }
 
 class _FakeNotificationBackend implements DesktopNotificationBackend {

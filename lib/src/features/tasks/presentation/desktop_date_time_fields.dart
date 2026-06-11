@@ -320,6 +320,7 @@ class _DesktopTimeValueDialog extends StatefulWidget {
 
 class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   late final YaruTimeEntryController? _controller;
+  final _focusNode = FocusNode();
   TimeOfDay? _selected;
 
   @override
@@ -327,10 +328,32 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     super.initState();
     _selected = parseTimeOfDay(widget.time);
     _controller = _selected == null ? YaruTimeEntryController() : null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final timeEntry = _controller == null
+        ? YaruTimeEntry(
+            focusNode: _focusNode,
+            initialTimeOfDay: _selected,
+            force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+            acceptEmpty: widget.allowEmpty,
+            clearIconSemanticLabel: widget.label,
+            onChanged: _setSelectedTime,
+          )
+        : YaruTimeEntry(
+            controller: _controller,
+            focusNode: _focusNode,
+            force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+            acceptEmpty: widget.allowEmpty,
+            clearIconSemanticLabel: widget.label,
+            onChanged: _setSelectedTime,
+          );
     return BusyMaxDialogShell(
       title: widget.label,
       maxWidth: 360,
@@ -351,24 +374,14 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
           child: Text(MaterialLocalizations.of(context).okButtonLabel),
         ),
       ],
-      children: [
-        _withoutInternalDateTimeEntryLabel(
-          context,
-          YaruTimeEntry(
-            controller: _controller,
-            initialTimeOfDay: _controller == null ? _selected : null,
-            force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-            acceptEmpty: widget.allowEmpty,
-            clearIconSemanticLabel: widget.label,
-            onChanged: (time) {
-              setState(() {
-                _selected = time;
-              });
-            },
-          ),
-        ),
-      ],
+      children: [_withoutInternalDateTimeEntryLabel(context, timeEntry)],
     );
+  }
+
+  void _setSelectedTime(TimeOfDay? time) {
+    setState(() {
+      _selected = time;
+    });
   }
 }
 

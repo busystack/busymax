@@ -43,6 +43,32 @@ void main() {
     expect(busyMaxApplicationId, 'io.busystack.busymax');
   });
 
+  test('Linux desktop identity matches the displayed BusyMax window', () {
+    final desktop = File('linux/busymax.desktop').readAsStringSync();
+    final cmake = File('linux/CMakeLists.txt').readAsStringSync();
+    final runner = File('linux/runner/my_application.cc').readAsStringSync();
+
+    expect(desktop, contains('Name=BusyMax'));
+    expect(desktop, contains('Icon=io.busystack.busymax'));
+    expect(desktop, contains('StartupWMClass=BusyMax'));
+    expect(cmake, contains('RENAME "io.busystack.busymax.desktop"'));
+    expect(
+      runner,
+      contains(
+        'gtk_window_set_wmclass(\n'
+        '      window, kApplicationDisplayName, kApplicationDisplayName);',
+      ),
+    );
+    expect(
+      runner,
+      contains(
+        'if (application_icon == nullptr) {\n'
+        '    gtk_window_set_icon_name(window, APPLICATION_ID);\n'
+        '  }',
+      ),
+    );
+  });
+
   test('agenda action no longer opens the main window', () {
     final source = File(
       'lib/src/platform/busymax_tray_service.dart',

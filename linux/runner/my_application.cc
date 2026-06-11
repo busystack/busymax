@@ -2694,9 +2694,11 @@ static void my_application_activate(GApplication* application) {
   }
   G_GNUC_BEGIN_IGNORE_DEPRECATIONS
   gtk_window_set_wmclass(
-      window, APPLICATION_ID, APPLICATION_ID);
+      window, kApplicationDisplayName, kApplicationDisplayName);
   G_GNUC_END_IGNORE_DEPRECATIONS
-  gtk_window_set_icon_name(window, APPLICATION_ID);
+  if (application_icon == nullptr) {
+    gtk_window_set_icon_name(window, APPLICATION_ID);
+  }
   gtk_window_set_default_size(window, 1280, 720);
   g_signal_connect(window, "delete-event", G_CALLBACK(window_delete_event_cb),
                    self);

@@ -96,6 +96,7 @@ install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/busymax.desktop"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications"
+  RENAME "io.busystack.busymax.desktop"
   COMPONENT Runtime)
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.png"

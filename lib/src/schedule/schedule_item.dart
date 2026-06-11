@@ -35,6 +35,7 @@ class CalendarScheduleItem implements ScheduleItem {
     this.descriptionHtml,
     this.colorHex,
     this.categories = const [],
+    this.reminderMinutesBeforeStart = const [],
     this.sourceName,
     this.accountDisplayName,
     this.accountEmail,
@@ -64,6 +65,7 @@ class CalendarScheduleItem implements ScheduleItem {
   final String? colorHex;
   @override
   final List<String> categories;
+  final List<int> reminderMinutesBeforeStart;
   @override
   final String? sourceName;
   @override
@@ -88,6 +90,7 @@ class TaskScheduleItem implements ScheduleItem {
     this.end,
     this.notes,
     this.categories = const [],
+    this.reminder,
     this.sourceName,
     this.accountDisplayName,
     this.accountEmail,
@@ -113,6 +116,7 @@ class TaskScheduleItem implements ScheduleItem {
   final String? notes;
   @override
   final List<String> categories;
+  final DateTime? reminder;
   @override
   final String? sourceName;
   @override
