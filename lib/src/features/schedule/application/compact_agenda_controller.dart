@@ -37,6 +37,7 @@ class CompactAgendaController {
     }
 
     _ref.invalidate(compactAgendaDataProvider);
+    _ref.invalidate(compactAgendaDataForQueryProvider);
   }
 }
 

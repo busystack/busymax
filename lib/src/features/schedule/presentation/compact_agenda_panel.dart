@@ -51,6 +51,12 @@ class CompactAgendaPanel extends ConsumerStatefulWidget {
 
 class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   final _mutatingTaskKeys = <String>{};
+  var _loadedDays = compactAgendaInitialDays;
+  var _overdueLimit = compactAgendaInitialOverdueLimit;
+  var _noDateLimit = compactAgendaInitialNoDateLimit;
+  var _loadMoreArmed = true;
+  DateTime? _lastLoadedRangeEnd;
+  CompactAgendaData? _lastAgendaData;
   bool _bodyScrolledUnderHeader = false;
   bool _bodyScrolledUnderFooter = false;
 
@@ -58,8 +64,19 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   Widget build(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final AsyncValue<CompactAgendaData> data =
-        widget.data ?? ref.watch(compactAgendaDataProvider);
+    final AsyncValue<CompactAgendaData> watchedData =
+        widget.data ?? ref.watch(compactAgendaDataForQueryProvider(_query));
+    final currentData = watchedData.valueOrNull;
+    if (currentData != null) {
+      _lastAgendaData = currentData;
+      if (_lastLoadedRangeEnd != currentData.range.end) {
+        _lastLoadedRangeEnd = currentData.range.end;
+        _loadMoreArmed = true;
+      }
+    }
+    final data = watchedData.isLoading && _lastAgendaData != null
+        ? AsyncData(_lastAgendaData!)
+        : watchedData;
     return Shortcuts(
       shortcuts: const {
         SingleActivator(LogicalKeyboardKey.escape): _HideIntent(),
@@ -110,7 +127,6 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                         _CompactAgendaHeader(
                           data: data.valueOrNull,
                           onRefresh: _refresh,
-                          onOpenBusyMax: _openBusyMax,
                           onHide: _hide,
                         ),
                         Expanded(
@@ -138,10 +154,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                             ],
                           ),
                         ),
-                        _CompactAgendaBottomBar(
-                          onNewTask: _newTask,
-                          onOpenBusyMax: _openBusyMax,
-                        ),
+                        _CompactAgendaBottomBar(onNewTask: _newTask),
                       ],
                     ),
                   ),
@@ -200,6 +213,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
 
   bool _handleScrollNotification(ScrollNotification notification) {
     _updateScrollChrome(notification.metrics);
+    _maybeLoadMore(notification.metrics);
     return false;
   }
 
@@ -242,10 +256,32 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
     });
   }
 
+  void _maybeLoadMore(ScrollMetrics metrics) {
+    if (widget.data != null ||
+        !_loadMoreArmed ||
+        metrics.axis != Axis.vertical ||
+        metrics.extentAfter > 1) {
+      return;
+    }
+    final agenda = _lastAgendaData;
+    if (agenda == null || !agenda.hasSignedInAccounts || !agenda.hasSources) {
+      return;
+    }
+    _loadMoreArmed = false;
+    setState(() {
+      _loadedDays += compactAgendaPageDays;
+    });
+  }
+
   Widget _sections(CompactAgendaData data) {
     final sections = buildCompactAgendaSections(
       today: data.today,
+      end: data.range.end,
       items: data.items,
+      overdueLimit: _overdueLimit,
+      noDateLimit: _noDateLimit,
+      hasMoreOverdueTasks: data.hasMoreOverdueTasks,
+      hasMoreNoDateTasks: data.hasMoreNoDateTasks,
     );
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(
@@ -263,10 +299,23 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
           mutatingTaskKeys: _mutatingTaskKeys,
           onOpenItem: _openItem,
           onTaskCompletionChanged: _setTaskCompleted,
-          onOpenBusyMax: _openBusyMax,
+          onLoadMoreOverdue: _loadMoreOverdue,
+          onLoadMoreNoDate: _loadMoreNoDate,
         );
       },
     );
+  }
+
+  void _loadMoreOverdue() {
+    setState(() {
+      _overdueLimit += compactAgendaOverduePageSize;
+    });
+  }
+
+  void _loadMoreNoDate() {
+    setState(() {
+      _noDateLimit += compactAgendaNoDatePageSize;
+    });
   }
 
   Future<void> _openBusyMax() async {
@@ -295,7 +344,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       await callback();
       return;
     }
-    ref.invalidate(compactAgendaDataProvider);
+    _invalidateAgendaData();
   }
 
   Future<void> _hide() async {
@@ -369,6 +418,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
             .read(compactAgendaControllerProvider)
             .setTaskCompleted(item, completed);
       }
+      _invalidateAgendaData();
     } on Object catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -381,19 +431,30 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       }
     }
   }
+
+  void _invalidateAgendaData() {
+    ref.invalidate(compactAgendaDataProvider);
+    ref.invalidate(compactAgendaDataForQueryProvider(_query));
+  }
+
+  CompactAgendaQuery get _query {
+    return CompactAgendaQuery(
+      futureDays: _loadedDays,
+      overdueLimit: _overdueLimit,
+      noDateLimit: _noDateLimit,
+    );
+  }
 }
 
 class _CompactAgendaHeader extends StatelessWidget {
   const _CompactAgendaHeader({
     required this.data,
     required this.onRefresh,
-    required this.onOpenBusyMax,
     required this.onHide,
   });
 
   final CompactAgendaData? data;
   final Future<void> Function() onRefresh;
-  final Future<void> Function() onOpenBusyMax;
   final Future<void> Function() onHide;
 
   @override
@@ -440,15 +501,11 @@ class _CompactAgendaHeader extends StatelessWidget {
               icon: Icons.refresh,
               onPressed: () => unawaited(onRefresh()),
             ),
-            _CompactHeaderButton(
-              tooltip: context.l10n.compactAgendaOpenBusyMax,
-              icon: Icons.open_in_full,
-              onPressed: () => unawaited(onOpenBusyMax()),
-            ),
-            _CompactHeaderButton(
-              tooltip: context.l10n.compactAgendaHide,
-              icon: Icons.close,
-              onPressed: () => unawaited(onHide()),
+            const SizedBox(width: BusyMaxSpacing.xs),
+            YaruWindowControl(
+              type: YaruWindowControlType.close,
+              semanticLabel: context.l10n.compactAgendaHide,
+              onTap: () => unawaited(onHide()),
             ),
           ],
         ),
@@ -634,7 +691,8 @@ class _CompactAgendaSectionView extends StatelessWidget {
     required this.mutatingTaskKeys,
     required this.onOpenItem,
     required this.onTaskCompletionChanged,
-    required this.onOpenBusyMax,
+    required this.onLoadMoreOverdue,
+    required this.onLoadMoreNoDate,
   });
 
   final CompactAgendaSection section;
@@ -647,7 +705,8 @@ class _CompactAgendaSectionView extends StatelessWidget {
   ])
   onOpenItem;
   final CompactAgendaTaskCompletionCallback onTaskCompletionChanged;
-  final Future<void> Function() onOpenBusyMax;
+  final VoidCallback onLoadMoreOverdue;
+  final VoidCallback onLoadMoreNoDate;
 
   @override
   Widget build(BuildContext context) {
@@ -674,7 +733,22 @@ class _CompactAgendaSectionView extends StatelessWidget {
             onOpenItem: onOpenItem,
             onTaskCompletionChanged: onTaskCompletionChanged,
           ),
-        if (section.hasMore) _MoreOverdueRow(onOpenBusyMax: onOpenBusyMax),
+        if (section.hasMore)
+          _MoreBucketRow(
+            title: switch (section.kind) {
+              CompactAgendaSectionKind.overdue =>
+                context.l10n.agendaLoadMoreOverdue,
+              CompactAgendaSectionKind.noDate =>
+                context.l10n.agendaLoadMoreNoDate,
+              CompactAgendaSectionKind.day =>
+                context.l10n.agendaLoadMoreOverdue,
+            },
+            onLoadMore: switch (section.kind) {
+              CompactAgendaSectionKind.overdue => onLoadMoreOverdue,
+              CompactAgendaSectionKind.noDate => onLoadMoreNoDate,
+              CompactAgendaSectionKind.day => onLoadMoreOverdue,
+            },
+          ),
       ],
     );
   }
@@ -809,29 +883,26 @@ class _CompactAgendaRowSubtitle extends StatelessWidget {
   }
 }
 
-class _MoreOverdueRow extends StatelessWidget {
-  const _MoreOverdueRow({required this.onOpenBusyMax});
+class _MoreBucketRow extends StatelessWidget {
+  const _MoreBucketRow({required this.title, required this.onLoadMore});
 
-  final Future<void> Function() onOpenBusyMax;
+  final String title;
+  final VoidCallback onLoadMore;
 
   @override
   Widget build(BuildContext context) {
     return BusyMaxActionRow(
-      title: context.l10n.compactAgendaMoreOverdue,
-      leading: const Icon(Icons.open_in_full, size: BusyMaxSizes.iconSm),
-      onTap: () => unawaited(onOpenBusyMax()),
+      title: title,
+      leading: const Icon(YaruIcons.plus, size: BusyMaxSizes.iconSm),
+      onTap: onLoadMore,
     );
   }
 }
 
 class _CompactAgendaBottomBar extends StatelessWidget {
-  const _CompactAgendaBottomBar({
-    required this.onNewTask,
-    required this.onOpenBusyMax,
-  });
+  const _CompactAgendaBottomBar({required this.onNewTask});
 
   final Future<void> Function() onNewTask;
-  final Future<void> Function() onOpenBusyMax;
 
   @override
   Widget build(BuildContext context) {
@@ -845,13 +916,6 @@ class _CompactAgendaBottomBar extends StatelessWidget {
             child: BusyMaxPushButton.filled(
               onPressed: () => unawaited(onNewTask()),
               child: Text(context.l10n.compactAgendaNewTask),
-            ),
-          ),
-          const SizedBox(width: BusyMaxSpacing.sm),
-          Expanded(
-            child: BusyMaxPushButton.outlined(
-              onPressed: () => unawaited(onOpenBusyMax()),
-              child: Text(context.l10n.compactAgendaOpenBusyMax),
             ),
           ),
         ],

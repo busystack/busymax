@@ -722,6 +722,14 @@ void main() {
     expect(find.text('Submit report'), findsOneWidget);
     expect(find.text('No date'), findsOneWidget);
     expect(find.text('Plan someday'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Overdue')).dy,
+      lessThan(tester.getTopLeft(find.text('No date')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('No date')).dy,
+      lessThan(tester.getTopLeft(find.text('Design review')).dy),
+    );
   });
 
   testWidgets('agenda view stays blank instead of showing empty-state card', (
@@ -751,9 +759,7 @@ void main() {
     expect(find.text('New task'), findsNothing);
   });
 
-  testWidgets('agenda view asks for more items near the bottom', (
-    tester,
-  ) async {
+  testWidgets('agenda view asks for more items at the bottom', (tester) async {
     final selectedDate = DateTime(2026, 1, 15);
     var loadMoreCount = 0;
 
@@ -795,6 +801,66 @@ void main() {
     await tester.pump();
 
     expect(loadMoreCount, 1);
+  });
+
+  testWidgets('agenda view renders load-more rows for bounded buckets', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    var overdueLoads = 0;
+    var noDateLoads = 0;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 640,
+            height: 520,
+            child: ScheduleAgendaView(
+              range: ScheduleRange(
+                start: selectedDate,
+                end: selectedDate.add(const Duration(days: 30)),
+              ),
+              items: [
+                TaskScheduleItem(
+                  id: 'task:overdue',
+                  accountId: 'google:g',
+                  provider: TaskProvider.google,
+                  sourceId: 'tasks:inbox',
+                  title: 'Pay invoice',
+                  completed: false,
+                  allDay: true,
+                  start: selectedDate.subtract(const Duration(days: 1)),
+                  sourceName: 'Inbox',
+                ),
+                const TaskScheduleItem(
+                  id: 'task:no-date',
+                  accountId: 'google:g',
+                  provider: TaskProvider.google,
+                  sourceId: 'tasks:inbox',
+                  title: 'Plan someday',
+                  completed: false,
+                  allDay: true,
+                  sourceName: 'Inbox',
+                ),
+              ],
+              hasMoreOverdueTasks: true,
+              hasMoreNoDateTasks: true,
+              onLoadMoreOverdue: () => overdueLoads += 1,
+              onLoadMoreNoDate: () => noDateLoads += 1,
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Load more overdue tasks'));
+    await tester.tap(find.text('Load more no-date tasks'));
+
+    expect(overdueLoads, 1);
+    expect(noDateLoads, 1);
   });
 
   test('schedule presentation does not use banned package final UI', () {
@@ -1342,10 +1408,23 @@ void main() {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
+    final agendaSource = File(
+      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+    ).readAsStringSync();
 
     expect(source, contains('static const _agendaInitialDays = 30'));
     expect(source, contains('static const _agendaPageDays = 30'));
+    expect(source, contains('static const _agendaInitialTaskBucketLimit = 8'));
+    expect(source, contains('static const _agendaTaskBucketPageSize = 8'));
     expect(source, contains('var _agendaLoadedDays = _agendaInitialDays'));
+    expect(
+      source,
+      contains('var _agendaOverdueTaskLimit = _agendaInitialTaskBucketLimit'),
+    );
+    expect(
+      source,
+      contains('var _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit'),
+    );
     expect(source, contains('ScheduleViewMode.agenda => ScheduleRange('));
     expect(source, contains('start: _day(_selectedDate)'));
     expect(
@@ -1361,10 +1440,10 @@ void main() {
       source,
       isNot(contains('ScheduleViewMode.agenda => ScheduleRange.week')),
     );
-    expect(source, contains('ScheduleRange _allOverdueTasksRange'));
-    expect(source, contains('start: DateTime(1)'));
-    expect(source, contains('end: displayRange.start'));
+    expect(agendaSource, contains('notification.metrics.extentAfter > 1'));
     expect(source, isNot(contains('subtract(const Duration(days: 30))')));
+    expect(source, contains('void _loadMoreAgendaOverdueTasks()'));
+    expect(source, contains('void _loadMoreAgendaNoDateTasks()'));
   });
 
   test('agenda removes page controls from toolbar and native headerbar', () {
@@ -1405,19 +1484,30 @@ void main() {
     expect(nativeRunner, contains('setNavigationVisible'));
   });
 
-  test('agenda queries overdue tasks separately from current events', () {
+  test('agenda queries bounded buckets separately from dated items', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
 
-    expect(source, contains('Future<List<ScheduleItem>> _scheduleItems'));
+    expect(source, contains('Future<_ScheduleItemsResult> _scheduleItems'));
     expect(source, contains('final currentItems = repository.listItems'));
-    expect(source, contains('final overdueTasks = repository.listItems'));
-    expect(source, contains('range: _allOverdueTasksRange(range)'));
-    expect(source, contains('includeCalendarEvents: false'));
+    expect(
+      source,
+      contains(
+        'showNoDateTasks: searchHasQuery || _mode != ScheduleViewMode.agenda',
+      ),
+    );
+    expect(
+      source,
+      contains('final overdueTasks = repository.listOverdueTasks'),
+    );
+    expect(source, contains('before: range.start'));
+    expect(source, contains('limit: _agendaOverdueTaskLimit'));
+    expect(source, contains('final noDateTasks = repository.listNoDateTasks'));
+    expect(source, contains('limit: _agendaNoDateTaskLimit'));
     expect(source, contains('showCompletedTasks: false'));
-    expect(source, contains('showNoDateTasks: false'));
-    expect(source, contains('Future.wait([currentItems, overdueTasks])'));
+    expect(source, contains('hasMoreOverdueTasks: overduePage.hasMore'));
+    expect(source, contains('hasMoreNoDateTasks: noDatePage.hasMore'));
     expect(source, contains('List<ScheduleItem> _agendaItems'));
     expect(source, contains('if (item is CalendarScheduleItem)'));
     expect(

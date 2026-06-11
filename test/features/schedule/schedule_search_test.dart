@@ -251,6 +251,103 @@ void main() {
     expect(task.start, DateTime(2026, 6, 12));
     expect(task.end, DateTime(2026, 6, 13));
   });
+
+  test('repository limits no-date task bucket', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertTaskList(database);
+    for (var index = 0; index < 10; index += 1) {
+      await _insertTask(
+        database,
+        id: 'no-date-$index',
+        title: 'Someday $index',
+      );
+    }
+
+    final repository = ScheduleRepository(database);
+    final firstPage = await repository.listNoDateTasks(
+      limit: 8,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        taskListFilterActive: true,
+        taskListIds: {'inbox'},
+      ),
+    );
+    final expandedPage = await repository.listNoDateTasks(
+      limit: 12,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        taskListFilterActive: true,
+        taskListIds: {'inbox'},
+      ),
+    );
+
+    expect(firstPage.items, hasLength(8));
+    expect(firstPage.hasMore, isTrue);
+    expect(firstPage.items.every((item) => item.start == null), isTrue);
+    expect(expandedPage.items, hasLength(10));
+    expect(expandedPage.hasMore, isFalse);
+  });
+
+  test('repository limits overdue task bucket', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertTaskList(database);
+    for (var index = 0; index < 10; index += 1) {
+      final due = DateTime(2026, 6, 9).subtract(Duration(days: index));
+      await _insertTask(
+        database,
+        id: 'overdue-$index',
+        title: 'Overdue $index',
+        dueUtc: _dateOnly(due),
+      );
+    }
+    await _insertTask(
+      database,
+      id: 'today',
+      title: 'Today',
+      dueUtc: '2026-06-10',
+    );
+    await _insertTask(database, id: 'no-date', title: 'Someday');
+
+    final repository = ScheduleRepository(database);
+    final firstPage = await repository.listOverdueTasks(
+      before: DateTime(2026, 6, 10),
+      limit: 8,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        taskListFilterActive: true,
+        taskListIds: {'inbox'},
+      ),
+    );
+    final expandedPage = await repository.listOverdueTasks(
+      before: DateTime(2026, 6, 10),
+      limit: 12,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        taskListFilterActive: true,
+        taskListIds: {'inbox'},
+      ),
+    );
+
+    expect(firstPage.items, hasLength(8));
+    expect(firstPage.hasMore, isTrue);
+    expect(firstPage.items.every((item) => item.start != null), isTrue);
+    expect(
+      firstPage.items,
+      isNot(
+        contains(
+          predicate<TaskScheduleItem>((item) {
+            return item.title == 'Today' || item.title == 'Someday';
+          }),
+        ),
+      ),
+    );
+    expect(expandedPage.items, hasLength(10));
+    expect(expandedPage.hasMore, isFalse);
+  });
 }
 
 Future<void> _seedSearchDatabase(AppDatabase database) async {
@@ -305,6 +402,37 @@ Future<void> _insertTaskList(AppDatabase database) {
           updatedLocalAtUtc: _now,
         ),
       );
+}
+
+Future<void> _insertTask(
+  AppDatabase database, {
+  required String id,
+  required String title,
+  String? dueUtc,
+}) {
+  return database
+      .into(database.tasks)
+      .insert(
+        TasksCompanion.insert(
+          accountId: 'account',
+          taskListId: 'inbox',
+          id: id,
+          title: title,
+          status: const Value('needsAction'),
+          dueUtc: Value(dueUtc),
+          rawJson: '{}',
+          createdLocalAtUtc: _now,
+          updatedLocalAtUtc: _now,
+        ),
+      );
+}
+
+String _dateOnly(DateTime date) {
+  return [
+    date.year.toString().padLeft(4, '0'),
+    date.month.toString().padLeft(2, '0'),
+    date.day.toString().padLeft(2, '0'),
+  ].join('-');
 }
 
 const _now = '2026-01-01T00:00:00.000Z';

@@ -19,7 +19,11 @@ class ScheduleAgendaView extends StatefulWidget {
     required this.items,
     required this.onItemSelected,
     required this.onTaskCompletionChanged,
+    this.hasMoreOverdueTasks = false,
+    this.hasMoreNoDateTasks = false,
     this.onLoadMore,
+    this.onLoadMoreOverdue,
+    this.onLoadMoreNoDate,
   });
 
   final ScheduleRange range;
@@ -27,7 +31,11 @@ class ScheduleAgendaView extends StatefulWidget {
   final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
+  final bool hasMoreOverdueTasks;
+  final bool hasMoreNoDateTasks;
   final VoidCallback? onLoadMore;
+  final VoidCallback? onLoadMoreOverdue;
+  final VoidCallback? onLoadMoreNoDate;
 
   @override
   State<ScheduleAgendaView> createState() => _ScheduleAgendaViewState();
@@ -52,7 +60,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     if (notification.metrics.axis != Axis.vertical) {
       return false;
     }
-    if (notification.metrics.extentAfter > 480) {
+    if (notification.metrics.extentAfter > 1) {
       return false;
     }
     _loadMoreArmed = false;
@@ -104,6 +112,35 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
                       onTaskCompletionChanged: (completed) =>
                           widget.onTaskCompletionChanged(item, completed),
                     ),
+                  if (widget.hasMoreOverdueTasks &&
+                      widget.onLoadMoreOverdue != null)
+                    _AgendaLoadMoreRow(
+                      title: context.l10n.agendaLoadMoreOverdue,
+                      onTap: widget.onLoadMoreOverdue!,
+                    ),
+                ],
+              ),
+            if (noDateTasks.isNotEmpty)
+              BusyMaxGroupedList(
+                title: context.l10n.noDate,
+                filled: true,
+                children: [
+                  for (final item in noDateTasks)
+                    _AgendaRow(
+                      item: item,
+                      onTap: (context, [globalPosition]) =>
+                          widget.onItemSelected(context, item, globalPosition),
+                      onTaskCompletionChanged: item is TaskScheduleItem
+                          ? (completed) =>
+                                widget.onTaskCompletionChanged(item, completed)
+                          : null,
+                    ),
+                  if (widget.hasMoreNoDateTasks &&
+                      widget.onLoadMoreNoDate != null)
+                    _AgendaLoadMoreRow(
+                      title: context.l10n.agendaLoadMoreNoDate,
+                      onTap: widget.onLoadMoreNoDate!,
+                    ),
                 ],
               ),
             for (final day in days)
@@ -123,26 +160,25 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
                     ),
                 ],
               ),
-            if (noDateTasks.isNotEmpty)
-              BusyMaxGroupedList(
-                title: context.l10n.noDate,
-                filled: true,
-                children: [
-                  for (final item in noDateTasks)
-                    _AgendaRow(
-                      item: item,
-                      onTap: (context, [globalPosition]) =>
-                          widget.onItemSelected(context, item, globalPosition),
-                      onTaskCompletionChanged: item is TaskScheduleItem
-                          ? (completed) =>
-                                widget.onTaskCompletionChanged(item, completed)
-                          : null,
-                    ),
-                ],
-              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AgendaLoadMoreRow extends StatelessWidget {
+  const _AgendaLoadMoreRow({required this.title, required this.onTap});
+
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxActionRow(
+      title: title,
+      leading: const Icon(YaruIcons.plus, size: BusyMaxSizes.iconSm),
+      onTap: onTap,
     );
   }
 }

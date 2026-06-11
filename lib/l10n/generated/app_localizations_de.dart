@@ -166,13 +166,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get compactAgendaTitle => 'Agenda';
 
   @override
-  String get compactAgendaSubtitle => 'Nächste 7 Tage';
+  String get compactAgendaSubtitle => 'Anstehend';
 
   @override
   String get compactAgendaOverdue => 'Überfällig';
 
   @override
-  String get compactAgendaClear => 'Frei für die nächsten 7 Tage';
+  String get compactAgendaClear => 'Im Moment frei';
 
   @override
   String get compactAgendaOpenBusyMax => 'BusyMax öffnen';
@@ -204,8 +204,13 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get compactAgendaMoreOverdue =>
-      'Weitere überfällige Aufgaben in BusyMax';
+  String get compactAgendaMoreOverdue => 'Weitere überfällige Aufgaben laden';
+
+  @override
+  String get agendaLoadMoreOverdue => 'Weitere überfällige Aufgaben laden';
+
+  @override
+  String get agendaLoadMoreNoDate => 'Weitere Aufgaben ohne Datum laden';
 
   @override
   String get viewDay => 'Tag';

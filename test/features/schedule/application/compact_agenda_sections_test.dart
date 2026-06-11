@@ -74,6 +74,18 @@ void main() {
     );
   });
 
+  test('future items are not capped to seven days by sectioning', () {
+    final later = today.add(const Duration(days: 14));
+    final sections = buildCompactAgendaSections(
+      today: today,
+      items: [_task('later', start: later)],
+    );
+
+    expect(sections.single.kind, CompactAgendaSectionKind.day);
+    expect(sections.single.day, later);
+    expect(sections.single.items.single.title, 'later');
+  });
+
   test('more than 8 overdue tasks are capped', () {
     final sections = buildCompactAgendaSections(
       today: today,
@@ -90,6 +102,44 @@ void main() {
     expect(sections.single.hasMore, isTrue);
   });
 
+  test('overdue limit can be expanded', () {
+    final sections = buildCompactAgendaSections(
+      today: today,
+      overdueLimit: 16,
+      items: [
+        for (var index = 0; index < 10; index += 1)
+          _task(
+            'overdue $index',
+            start: today.subtract(Duration(days: index + 1)),
+          ),
+      ],
+    );
+
+    expect(sections.single.items, hasLength(10));
+    expect(sections.single.hasMore, isFalse);
+  });
+
+  test('no-date tasks are capped and can be expanded', () {
+    final cappedSections = buildCompactAgendaSections(
+      today: today,
+      items: [
+        for (var index = 0; index < 10; index += 1) _task('someday $index'),
+      ],
+    );
+    final expandedSections = buildCompactAgendaSections(
+      today: today,
+      noDateLimit: 16,
+      items: [
+        for (var index = 0; index < 10; index += 1) _task('someday $index'),
+      ],
+    );
+
+    expect(cappedSections.single.items, hasLength(8));
+    expect(cappedSections.single.hasMore, isTrue);
+    expect(expandedSections.single.items, hasLength(10));
+    expect(expandedSections.single.hasMore, isFalse);
+  });
+
   test('no-date tasks appear in No date section', () {
     final sections = buildCompactAgendaSections(
       today: today,
@@ -100,14 +150,37 @@ void main() {
     expect(sections.single.items.single.title, 'someday');
   });
 
+  test('no-date tasks appear after overdue and before dated sections', () {
+    final sections = buildCompactAgendaSections(
+      today: today,
+      items: [
+        _task('dated', start: today),
+        _task('someday'),
+        _task('overdue', start: today.subtract(const Duration(days: 1))),
+      ],
+    );
+
+    expect(sections.map((section) => section.kind), [
+      CompactAgendaSectionKind.overdue,
+      CompactAgendaSectionKind.noDate,
+      CompactAgendaSectionKind.day,
+    ]);
+    expect(sections[1].items.single.title, 'someday');
+  });
+
   test('compact agenda data includes no-date tasks without old events', () {
     final source = File(
       'lib/src/features/schedule/application/compact_agenda_data.dart',
     ).readAsStringSync();
 
-    expect(source, contains('showNoDateTasks: true'));
-    expect(source, contains('ScheduleRange(start: DateTime(1), end: today)'));
-    expect(source, contains('includeCalendarEvents: false'));
+    expect(source, contains('showNoDateTasks: false'));
+    expect(source, contains('compactAgendaInitialDays = 30'));
+    expect(source, contains('compactAgendaPageDays = 30'));
+    expect(source, contains('compactAgendaDataForQueryProvider'));
+    expect(source, contains('repository.listOverdueTasks'));
+    expect(source, contains('repository.listNoDateTasks'));
+    expect(source, contains('limit: query.overdueLimit'));
+    expect(source, contains('limit: query.noDateLimit'));
   });
 }
 

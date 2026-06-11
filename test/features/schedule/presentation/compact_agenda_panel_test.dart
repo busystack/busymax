@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/schedule/application/compact_agenda_data.dart';
 import 'package:busymax/src/features/schedule/presentation/compact_agenda_panel.dart';
@@ -51,8 +53,22 @@ void main() {
   testWidgets('empty state shows positive empty message', (tester) async {
     await tester.pumpWidget(_testPanel(data: _data(today)));
 
-    expect(find.text('Clear for the next 7 days'), findsOneWidget);
+    expect(find.text('Clear for now'), findsOneWidget);
     expect(find.text('No events or tasks'), findsOneWidget);
+  });
+
+  test('compact agenda panel loads more days as the list is scrolled', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains('ref.watch(compactAgendaDataForQueryProvider(_query))'),
+    );
+    expect(source, contains('_loadedDays += compactAgendaPageDays'));
+    expect(source, contains('metrics.extentAfter > 1'));
+    expect(source, contains('end: data.range.end'));
   });
 
   testWidgets('no-date tasks render in a No date section', (tester) async {
@@ -70,6 +86,73 @@ void main() {
     final clip = tester.widget<ClipRRect>(find.byType(ClipRRect).first);
 
     expect(clip.borderRadius, isA<BorderRadius>());
+  });
+
+  testWidgets('header uses native close control and no open-app chrome', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, items: [_event('Team sync', start: today)]),
+      ),
+    );
+
+    expect(find.byType(YaruWindowControl), findsOneWidget);
+    expect(find.byIcon(Icons.open_in_full), findsNothing);
+    expect(find.text('Open BusyMax'), findsNothing);
+    expect(find.text('New task'), findsOneWidget);
+  });
+
+  testWidgets('more overdue row loads overdue tasks in place', (tester) async {
+    final overdueDay = today.subtract(const Duration(days: 1));
+    final items = [
+      for (var index = 0; index < 10; index += 1)
+        _task('Overdue task $index', start: overdueDay),
+    ];
+
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, items: items),
+        size: const Size(420, 680),
+      ),
+    );
+
+    expect(find.text('Load more overdue tasks'), findsOneWidget);
+    expect(find.text('Overdue task 8'), findsNothing);
+
+    await tester.ensureVisible(find.text('Load more overdue tasks'));
+    await tester.pump();
+    await tester.tap(find.text('Load more overdue tasks'));
+    await tester.pump();
+
+    expect(find.text('Load more overdue tasks'), findsNothing);
+    expect(find.text('Overdue task 8'), findsOneWidget);
+    expect(find.text('Overdue task 9'), findsOneWidget);
+  });
+
+  testWidgets('more no-date row loads no-date tasks in place', (tester) async {
+    final items = [
+      for (var index = 0; index < 10; index += 1) _task('Someday task $index'),
+    ];
+
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, items: items),
+        size: const Size(420, 680),
+      ),
+    );
+
+    expect(find.text('Load more no-date tasks'), findsOneWidget);
+    expect(find.text('Someday task 8'), findsNothing);
+
+    await tester.ensureVisible(find.text('Load more no-date tasks'));
+    await tester.pump();
+    await tester.tap(find.text('Load more no-date tasks'));
+    await tester.pump();
+
+    expect(find.text('Load more no-date tasks'), findsNothing);
+    expect(find.text('Someday task 8'), findsOneWidget);
+    expect(find.text('Someday task 9'), findsOneWidget);
   });
 
   testWidgets('task row renders checkbox and calls completion callback', (
@@ -264,6 +347,8 @@ Widget _testPanel({
 AsyncValue<CompactAgendaData> _data(
   DateTime today, {
   List<ScheduleItem> items = const [],
+  bool hasMoreOverdueTasks = false,
+  bool hasMoreNoDateTasks = false,
   bool hasSignedInAccounts = true,
   bool hasSources = true,
 }) {
@@ -272,9 +357,11 @@ AsyncValue<CompactAgendaData> _data(
       today: today,
       range: ScheduleRange(
         start: today,
-        end: today.add(const Duration(days: 7)),
+        end: today.add(const Duration(days: 30)),
       ),
       items: items,
+      hasMoreOverdueTasks: hasMoreOverdueTasks,
+      hasMoreNoDateTasks: hasMoreNoDateTasks,
       hasSignedInAccounts: hasSignedInAccounts,
       hasSources: hasSources,
       generatedAt: today,

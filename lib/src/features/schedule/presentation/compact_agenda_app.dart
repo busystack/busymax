@@ -87,6 +87,7 @@ class _BusyMaxCompactAgendaAppState
         return true;
       case 'busymax.compactAgenda.refresh':
         ref.invalidate(compactAgendaDataProvider);
+        ref.invalidate(compactAgendaDataForQueryProvider);
         return true;
       case 'busymax.compactAgenda.destroy':
         await windowManager.setPreventClose(false);
@@ -106,6 +107,7 @@ class _BusyMaxCompactAgendaAppState
       unawaited(_focusNearTrayArea());
     }
     ref.invalidate(compactAgendaDataProvider);
+    ref.invalidate(compactAgendaDataForQueryProvider);
   }
 
   Future<bool> _showNativeWindow(Offset? position) async {

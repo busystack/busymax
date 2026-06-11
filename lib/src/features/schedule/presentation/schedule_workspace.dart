@@ -54,6 +54,8 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
 class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   static const _agendaInitialDays = 30;
   static const _agendaPageDays = 30;
+  static const _agendaInitialTaskBucketLimit = 8;
+  static const _agendaTaskBucketPageSize = 8;
 
   var _selectedDate = DateTime.now();
   var _mode = ScheduleViewMode.week;
@@ -70,6 +72,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _latestCanShowSidebar = false;
   var _latestItems = const <ScheduleItem>[];
   var _agendaLoadedDays = _agendaInitialDays;
+  var _agendaOverdueTaskLimit = _agendaInitialTaskBucketLimit;
+  var _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit;
   ScheduleViewMode? _lastSettingsMode;
   _HeaderBarStateSnapshot? _lastHeaderBarState;
 
@@ -145,7 +149,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 )
                 .toList();
 
-            return FutureBuilder<List<ScheduleItem>>(
+            return FutureBuilder<_ScheduleItemsResult>(
               future: _scheduleItems(
                 repository: ref.watch(scheduleRepositoryProvider),
                 range: range,
@@ -164,7 +168,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     taskListsLoading ||
                     itemsLoading;
                 final scopedItems = ScheduleProjection.filterByScope(
-                  snapshot.data ?? const <ScheduleItem>[],
+                  snapshot.data?.items ?? const <ScheduleItem>[],
                   _scope,
                 );
                 final items =
@@ -261,6 +265,22 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onAgendaLoadMore:
                             !searchHasQuery && _mode == ScheduleViewMode.agenda
                             ? _loadMoreAgendaDays
+                            : null,
+                        hasMoreAgendaOverdueTasks:
+                            !searchHasQuery &&
+                            _mode == ScheduleViewMode.agenda &&
+                            (snapshot.data?.hasMoreOverdueTasks ?? false),
+                        hasMoreAgendaNoDateTasks:
+                            !searchHasQuery &&
+                            _mode == ScheduleViewMode.agenda &&
+                            (snapshot.data?.hasMoreNoDateTasks ?? false),
+                        onAgendaLoadMoreOverdue:
+                            !searchHasQuery && _mode == ScheduleViewMode.agenda
+                            ? _loadMoreAgendaOverdueTasks
+                            : null,
+                        onAgendaLoadMoreNoDate:
+                            !searchHasQuery && _mode == ScheduleViewMode.agenda
+                            ? _loadMoreAgendaNoDateTasks
                             : null,
                         onItemSelected: (context, item, [globalPosition]) =>
                             unawaited(
@@ -527,7 +547,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
   }
 
-  Future<List<ScheduleItem>> _scheduleItems({
+  Future<_ScheduleItemsResult> _scheduleItems({
     required ScheduleRepository repository,
     required ScheduleRange range,
     required bool searchHasQuery,
@@ -547,31 +567,42 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         includeCalendarEvents: _scope != ScheduleScope.tasks,
         includeTasks: _scope != ScheduleScope.events,
         showCompletedTasks: true,
-        showNoDateTasks: true,
+        showNoDateTasks: searchHasQuery || _mode != ScheduleViewMode.agenda,
       ),
     );
     if (searchHasQuery || _mode != ScheduleViewMode.agenda) {
-      return currentItems;
+      return _ScheduleItemsResult(items: await currentItems);
     }
 
-    final overdueTasks = repository.listItems(
-      range: _allOverdueTasksRange(range),
+    final overdueTasks = repository.listOverdueTasks(
+      before: range.start,
+      limit: _agendaOverdueTaskLimit,
       filters: ScheduleFilters(
         accountIds: accountIds,
         taskListIds: taskListIds,
         taskListFilterActive: true,
-        includeCalendarEvents: false,
         includeTasks: _scope != ScheduleScope.events,
         showCompletedTasks: false,
-        showNoDateTasks: false,
       ),
     );
-    final results = await Future.wait([currentItems, overdueTasks]);
-    return [...results[0], ...results[1]];
-  }
-
-  ScheduleRange _allOverdueTasksRange(ScheduleRange displayRange) {
-    return ScheduleRange(start: DateTime(1), end: displayRange.start);
+    final noDateTasks = repository.listNoDateTasks(
+      limit: _agendaNoDateTaskLimit,
+      filters: ScheduleFilters(
+        accountIds: accountIds,
+        taskListIds: taskListIds,
+        taskListFilterActive: true,
+        includeTasks: _scope != ScheduleScope.events,
+        showCompletedTasks: true,
+      ),
+    );
+    final datedItems = await currentItems;
+    final overduePage = await overdueTasks;
+    final noDatePage = await noDateTasks;
+    return _ScheduleItemsResult(
+      items: [...datedItems, ...overduePage.items, ...noDatePage.items],
+      hasMoreOverdueTasks: overduePage.hasMore,
+      hasMoreNoDateTasks: noDatePage.hasMore,
+    );
   }
 
   List<ScheduleItem> _agendaItems(
@@ -832,8 +863,28 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     });
   }
 
+  void _loadMoreAgendaOverdueTasks() {
+    if (_mode != ScheduleViewMode.agenda) {
+      return;
+    }
+    setState(() {
+      _agendaOverdueTaskLimit += _agendaTaskBucketPageSize;
+    });
+  }
+
+  void _loadMoreAgendaNoDateTasks() {
+    if (_mode != ScheduleViewMode.agenda) {
+      return;
+    }
+    setState(() {
+      _agendaNoDateTaskLimit += _agendaTaskBucketPageSize;
+    });
+  }
+
   void _resetAgendaLoadedDays() {
     _agendaLoadedDays = _agendaInitialDays;
+    _agendaOverdueTaskLimit = _agendaInitialTaskBucketLimit;
+    _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit;
   }
 
   Future<void> _openCreateChoice(
@@ -1277,6 +1328,18 @@ class _HeaderBarStateSnapshot {
   );
 }
 
+class _ScheduleItemsResult {
+  const _ScheduleItemsResult({
+    required this.items,
+    this.hasMoreOverdueTasks = false,
+    this.hasMoreNoDateTasks = false,
+  });
+
+  final List<ScheduleItem> items;
+  final bool hasMoreOverdueTasks;
+  final bool hasMoreNoDateTasks;
+}
+
 class _ScheduleBody extends StatelessWidget {
   const _ScheduleBody({
     required this.isLoading,
@@ -1298,6 +1361,10 @@ class _ScheduleBody extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onAgendaLoadMore,
+    required this.hasMoreAgendaOverdueTasks,
+    required this.hasMoreAgendaNoDateTasks,
+    required this.onAgendaLoadMoreOverdue,
+    required this.onAgendaLoadMoreNoDate,
     required this.onItemSelected,
     required this.onTaskCompletionChanged,
   });
@@ -1321,6 +1388,10 @@ class _ScheduleBody extends StatelessWidget {
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback? onAgendaLoadMore;
+  final bool hasMoreAgendaOverdueTasks;
+  final bool hasMoreAgendaNoDateTasks;
+  final VoidCallback? onAgendaLoadMoreOverdue;
+  final VoidCallback? onAgendaLoadMoreNoDate;
   final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
@@ -1387,7 +1458,11 @@ class _ScheduleBody extends StatelessWidget {
       ScheduleViewMode.agenda => ScheduleAgendaView(
         range: range,
         items: items,
+        hasMoreOverdueTasks: hasMoreAgendaOverdueTasks,
+        hasMoreNoDateTasks: hasMoreAgendaNoDateTasks,
         onLoadMore: onAgendaLoadMore,
+        onLoadMoreOverdue: onAgendaLoadMoreOverdue,
+        onLoadMoreNoDate: onAgendaLoadMoreNoDate,
         onItemSelected: onItemSelected,
         onTaskCompletionChanged: onTaskCompletionChanged,
       ),
