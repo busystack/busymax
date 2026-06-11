@@ -441,10 +441,7 @@ Future<void> _createTaskFromWorkspace(
   }
   await ref
       .read(tasksRepositoryForAccountProvider(draft.accountId))
-      .createTask(
-        draft.taskListId,
-        TaskCreateInput(title: draft.title, categories: draft.categories),
-      );
+      .createTask(draft.taskListId, draft.input);
 }
 
 Future<void> _refreshList(BuildContext context, SyncEngine syncEngine) async {

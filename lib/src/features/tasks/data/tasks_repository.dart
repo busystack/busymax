@@ -174,6 +174,7 @@ class TaskCreateInput {
     this.status,
     this.dueUtc,
     this.categories = const [],
+    this.fields = const {},
     this.parentTaskId,
     this.previousSiblingTaskId,
   });
@@ -183,8 +184,24 @@ class TaskCreateInput {
   final String? status;
   final DateTime? dueUtc;
   final List<String> categories;
+  final Map<String, Object?> fields;
   final String? parentTaskId;
   final String? previousSiblingTaskId;
+
+  Map<String, Object?> toFields() {
+    final trimmedCategories = [
+      for (final category in categories)
+        if (category.trim().isNotEmpty) category.trim(),
+    ];
+    return {
+      'title': title,
+      if (notes != null) 'notes': notes,
+      if (status != null) 'status': status,
+      if (dueUtc != null) 'due': dueUtc,
+      if (trimmedCategories.isNotEmpty) 'categories': trimmedCategories,
+      ...fields,
+    };
+  }
 }
 
 class TaskPatchInput {
@@ -344,45 +361,32 @@ class TasksRepository {
   Future<void> createTask(String taskListId, TaskCreateInput input) async {
     final now = _now();
     final localId = 'local-task-${_uuid.v4()}';
-    final due = normalizeGoogleDueDateValue(input.dueUtc);
-    final categories = [
-      for (final category in input.categories)
-        if (category.trim().isNotEmpty) category.trim(),
-    ];
+    final fields = input.toFields();
+    final title = fields['title']?.toString() ?? input.title;
     await _database.transaction(() async {
       await _database.tasksDao.upsertTask(
         TasksCompanion.insert(
           accountId: _accountId,
           taskListId: taskListId,
           id: localId,
-          title: input.title,
-          notes: Value(input.notes),
-          status: Value(input.status ?? 'needsAction'),
-          dueUtc: Value(due),
-          categoriesJson: categories.isEmpty
-              ? const Value.absent()
-              : Value(_jsonOrNull(categories)),
+          title: title,
+          status: Value(fields['status']?.toString() ?? 'needsAction'),
           parent: Value(input.parentTaskId),
-          rawJson: jsonEncode({'id': localId, 'title': input.title}),
+          rawJson: jsonEncode({'id': localId, 'title': title}),
           localDirty: const Value(true),
           localCreated: const Value(true),
           createdLocalAtUtc: now,
           updatedLocalAtUtc: now,
         ),
       );
+      await _patchLocalTask(taskListId, localId, fields, now);
       await _enqueue(
         operation: 'create_task',
         taskListId: taskListId,
         taskId: localId,
         localTempId: localId,
         request: {
-          'body': {
-            'title': input.title,
-            if (input.notes != null) 'notes': input.notes,
-            if (input.status != null) 'status': input.status,
-            if (input.dueUtc != null) 'due': encodeGoogleDueDate(input.dueUtc!),
-            if (categories.isNotEmpty) 'categories': categories,
-          },
+          'body': _remoteTaskFields(fields),
           if (input.parentTaskId != null) 'parent': input.parentTaskId,
           if (input.previousSiblingTaskId != null)
             'previous': input.previousSiblingTaskId,
@@ -390,6 +394,10 @@ class TasksRepository {
         createdAtUtc: now,
       );
     });
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingTaskNotifications(_accountId);
     _onMutationQueued?.call();
   }
 

@@ -1106,14 +1106,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     await ref
         .read(tasksRepositoryForAccountProvider(draft.accountId))
-        .createTask(
-          draft.taskListId,
-          TaskCreateInput(
-            title: draft.title,
-            dueUtc: draft.dueUtc,
-            categories: draft.categories,
-          ),
-        );
+        .createTask(draft.taskListId, draft.input);
   }
 
   Map<String, List<String>> _categorySuggestionsByAccount() {

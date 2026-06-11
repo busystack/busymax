@@ -32,7 +32,20 @@ class TaskDetailsEditor extends StatefulWidget {
     this.onSaved,
     this.onTaskSwitchCancelled,
     this.onDirtyChanged,
+    this.onDraftChanged,
     this.categorySuggestions = const [],
+    this.initialDraft,
+    this.editorTitle,
+    this.saveLabel,
+    this.accountIds = const [],
+    this.selectedAccountId,
+    this.accountLabelFor,
+    this.onAccountSelected,
+    this.allowTaskListSelection,
+    this.showAdvancedActions = true,
+    this.showDeleteAction = true,
+    this.confirmTaskSwitch = true,
+    this.canSaveDraft,
   });
 
   final TaskEntity task;
@@ -53,7 +66,20 @@ class TaskDetailsEditor extends StatefulWidget {
   final VoidCallback? onSaved;
   final ValueChanged<TaskEntity>? onTaskSwitchCancelled;
   final ValueChanged<bool>? onDirtyChanged;
+  final ValueChanged<TaskDetailsDraft>? onDraftChanged;
   final List<String> categorySuggestions;
+  final TaskDetailsDraft? initialDraft;
+  final String? editorTitle;
+  final String? saveLabel;
+  final List<String> accountIds;
+  final String? selectedAccountId;
+  final String Function(String accountId)? accountLabelFor;
+  final ValueChanged<String>? onAccountSelected;
+  final bool? allowTaskListSelection;
+  final bool showAdvancedActions;
+  final bool showDeleteAction;
+  final bool confirmTaskSwitch;
+  final bool Function(TaskDetailsDraft draft)? canSaveDraft;
 
   @override
   State<TaskDetailsEditor> createState() => _TaskDetailsEditorState();
@@ -87,7 +113,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final hasChanges = _hasDraftChanges(_draft);
 
     if (!sameKey) {
-      if (hasChanges) {
+      if (hasChanges && widget.confirmTaskSwitch) {
         unawaited(_confirmTaskSelectionChange(widget.task));
       } else {
         _loadDraft(widget.task, force: true);
@@ -114,7 +140,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         _draft ?? TaskDetailsDraft.fromTask(_editingTask, widget.localTimeZone);
     final l10n = context.l10n;
     final hasChanges = _hasDraftChanges(draft);
-    final canSave = draft.title.trim().isNotEmpty && hasChanges && !_saving;
+    final canSave =
+        draft.title.trim().isNotEmpty &&
+        hasChanges &&
+        !_saving &&
+        (widget.canSaveDraft?.call(draft) ?? true);
     final currentList = _listTitle(draft.taskListId);
     final scheduledAllDay = _isScheduledAllDay(draft);
     final listValue = [
@@ -129,9 +159,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         child: Column(
           children: [
             _TaskDetailsHeader(
-              title: l10n.editTask,
+              title: widget.editorTitle ?? l10n.editTask,
               cancelLabel: l10n.cancel,
-              saveLabel: l10n.save,
+              saveLabel: widget.saveLabel ?? l10n.save,
               saving: _saving,
               canSave: canSave,
               onCancel: _cancel,
@@ -165,6 +195,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ),
                       ],
                     ),
+                    if (_hasAccountSelector)
+                      BusyMaxGroupedList(
+                        filled: true,
+                        children: [_accountRow()],
+                      ),
                     BusyMaxGroupedList(
                       filled: true,
                       children: [_listRow(draft, listValue)],
@@ -257,7 +292,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ),
                       ],
                     ),
-                    if (widget.capabilities.supportsTaskHierarchy)
+                    if (widget.showAdvancedActions &&
+                        widget.capabilities.supportsTaskHierarchy)
                       BusyMaxGroupedList(
                         title: l10n.advancedSection,
                         filled: true,
@@ -274,27 +310,29 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                           ),
                         ],
                       ),
-                    const SizedBox(height: BusyMaxSpacing.md),
-                    BusyMaxGroupedList(
-                      filled: true,
-                      children: [
-                        BusyMaxActionRow(
-                          title: l10n.deleteTask,
-                          titleWidget: Center(
-                            child: Text(
-                              l10n.deleteTask,
-                              style: _taskEditorProminentActionStyle(
-                                context,
-                                color: Theme.of(context).colorScheme.error,
-                                fontWeight: FontWeight.w700,
+                    if (widget.showDeleteAction) ...[
+                      const SizedBox(height: BusyMaxSpacing.md),
+                      BusyMaxGroupedList(
+                        filled: true,
+                        children: [
+                          BusyMaxActionRow(
+                            title: l10n.deleteTask,
+                            titleWidget: Center(
+                              child: Text(
+                                l10n.deleteTask,
+                                style: _taskEditorProminentActionStyle(
+                                  context,
+                                  color: Theme.of(context).colorScheme.error,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
+                            destructive: true,
+                            onTap: _deleteTask,
                           ),
-                          destructive: true,
-                          onTap: _deleteTask,
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: BusyMaxSpacing.lg),
                   ],
                 ),
@@ -303,6 +341,28 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           ],
         ),
       ),
+    );
+  }
+
+  bool get _hasAccountSelector {
+    return widget.selectedAccountId != null &&
+        widget.accountIds.isNotEmpty &&
+        widget.accountLabelFor != null &&
+        widget.onAccountSelected != null;
+  }
+
+  Widget _accountRow() {
+    final l10n = context.l10n;
+    final labelFor = widget.accountLabelFor!;
+    return BusyMaxComboRow<String>(
+      title: l10n.account,
+      leading: const Icon(YaruIcons.user),
+      values: widget.accountIds,
+      selected: widget.selectedAccountId!,
+      labelFor: labelFor,
+      selectedBuilder: (context, value) =>
+          _taskEditorSelectedValue(context, labelFor(value)),
+      onSelected: widget.onAccountSelected!,
     );
   }
 
@@ -316,13 +376,18 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         enabled: false,
       );
     }
-    if (!widget.capabilities.supportsCrossListMove) {
+    final canSelectList =
+        widget.allowTaskListSelection ??
+        widget.capabilities.supportsCrossListMove;
+    if (!canSelectList) {
       return BusyMaxActionRow(
         title: l10n.list,
         leading: const Icon(Icons.drive_file_move_outline),
         subtitle: listValue.isEmpty ? null : listValue,
         enabled: false,
-        tooltip: l10n.microsoftMoveUnsupported,
+        tooltip: widget.capabilities.supportsCrossListMove
+            ? null
+            : l10n.microsoftMoveUnsupported,
       );
     }
     return BusyMaxComboRow<String>(
@@ -610,7 +675,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (!force && _loadedTaskKey == taskKey) {
       return;
     }
-    final draft = TaskDetailsDraft.fromTask(task, widget.localTimeZone);
+    final draft =
+        widget.initialDraft ??
+        TaskDetailsDraft.fromTask(task, widget.localTimeZone);
     _editingTask = task;
     _loadedTaskKey = taskKey;
     _draft = draft;
@@ -624,6 +691,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     setState(() {
       _draft = draft;
     });
+    widget.onDraftChanged?.call(draft);
     widget.onDirtyChanged?.call(_hasDraftChanges(draft));
   }
 
@@ -801,7 +869,8 @@ class _TaskDetailsHeader extends StatelessWidget {
   }
 }
 
-String _taskKey(TaskEntity task) => '${task.taskListId}/${task.id}';
+String _taskKey(TaskEntity task) =>
+    '${task.accountId}/${task.taskListId}/${task.id}';
 
 bool _taskChanged(TaskEntity oldTask, TaskEntity newTask) {
   return oldTask.updatedLocalAtUtc != newTask.updatedLocalAtUtc ||

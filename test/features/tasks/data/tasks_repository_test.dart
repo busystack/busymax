@@ -60,6 +60,57 @@ void main() {
     expect(mutationQueuedCalls, 1);
   });
 
+  test('createTask writes and queues extended task fields', () async {
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(
+        title: 'Task',
+        fields: {
+          'title': 'Task',
+          'microsoftDueDateTime': {
+            'dateTime': '2026-06-05T09:30:00',
+            'timeZone': 'America/Vancouver',
+          },
+          'microsoftDueTimeZone': 'America/Vancouver',
+          'microsoftReminderDateTime': {
+            'dateTime': '2026-06-05T08:30:00',
+            'timeZone': 'America/Vancouver',
+          },
+          'microsoftReminderTimeZone': 'America/Vancouver',
+          'microsoftIsReminderOn': true,
+          'recurrence': {
+            'pattern': {'type': 'daily', 'interval': 1},
+            'range': {'type': 'noEnd', 'startDate': '2026-06-05'},
+          },
+          'importance': 'high',
+          'categories': ['Work'],
+        },
+      ),
+    );
+
+    final tasks = await database.tasksDao.listTasks('account', 'list-1');
+    final ops = await database.pendingOpsDao.pendingOpsForReplay(
+      'account',
+      DateTime.utc(2026, 6, 4, 1),
+    );
+    final body = (jsonDecode(ops.single.requestJson) as Map)['body'] as Map;
+
+    expect(tasks.single.microsoftDueDateTime, '2026-06-05T09:30:00');
+    expect(tasks.single.microsoftDueTimeZone, 'America/Vancouver');
+    expect(tasks.single.microsoftReminderDateTime, '2026-06-05T08:30:00');
+    expect(tasks.single.microsoftReminderTimeZone, 'America/Vancouver');
+    expect(tasks.single.microsoftIsReminderOn, isTrue);
+    expect(tasks.single.importance, 'high');
+    expect(jsonDecode(tasks.single.categoriesJson!), ['Work']);
+    expect(body['microsoftDueDateTime'], {
+      'dateTime': '2026-06-05T09:30:00',
+      'timeZone': 'America/Vancouver',
+    });
+    expect(body['microsoftIsReminderOn'], isTrue);
+    expect(body['importance'], 'high');
+    expect(body['categories'], ['Work']);
+  });
+
   test('patchTask updates local fields and queues patch op', () async {
     var mutationQueuedCalls = 0;
     repository = _repository(

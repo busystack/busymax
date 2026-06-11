@@ -107,7 +107,7 @@ void main() {
         expect(settings, contains('setBackVisible(true)'));
         expect(settings, contains('setSidebarVisible(true)'));
         expect(newTaskDialog, contains('showBusyMaxModalEditorDialog'));
-        expect(newTaskDialog, contains('BusyMaxModalEditorScaffold'));
+        expect(newTaskDialog, contains('TaskDetailsEditor'));
         expect(newTaskDialog, isNot(contains('BusyMaxDialogShell')));
 
         expect(scheduleAgenda, contains('BusyMaxGroupedList'));

@@ -193,6 +193,40 @@ class TaskDetailsDraft {
     return fields;
   }
 
+  TaskCreateInput toCreateInput(
+    TaskProviderCapabilities capabilities, {
+    required String localTimeZone,
+  }) {
+    final baseline = TaskEntity(
+      accountId: '',
+      taskListId: taskListId,
+      id: taskId,
+      title: '',
+      notes: '',
+      status: 'needsAction',
+      localDirty: false,
+      pendingDelete: false,
+      pendingMove: false,
+      rawJson: '{}',
+      updatedLocalAtUtc: '',
+    );
+    final fields = toPatch(
+      baseline,
+      capabilities,
+      localTimeZone: localTimeZone,
+    );
+    final trimmedTitle = title.trim();
+    fields['title'] = trimmedTitle;
+
+    return TaskCreateInput(
+      title: trimmedTitle,
+      notes: notes.trim().isEmpty ? null : notes,
+      dueUtc: dueDate == null ? null : DateTime.tryParse(dueDate!),
+      categories: categories,
+      fields: fields,
+    );
+  }
+
   TaskDetailsDraft copyWith({
     String? taskListId,
     String? title,
