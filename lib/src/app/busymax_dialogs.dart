@@ -48,9 +48,11 @@ Future<String?> showBusyMaxTextPrompt(
   required String actionLabel,
   String? initialValue,
   String? message,
+  Color? barrierColor,
 }) {
   return showDialog<String>(
     context: context,
+    barrierColor: barrierColor,
     builder: (context) => BusyMaxPromptDialog(
       title: title,
       label: label,
@@ -67,9 +69,11 @@ Future<bool> showBusyMaxConfirm(
   required String message,
   required String confirmLabel,
   bool destructive = false,
+  Color? barrierColor,
 }) async {
   final confirmed = await showDialog<bool>(
     context: context,
+    barrierColor: barrierColor,
     builder: (context) => BusyMaxConfirmDialog(
       title: title,
       message: message,

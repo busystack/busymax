@@ -47,6 +47,7 @@ class TaskDetailsEditor extends StatefulWidget {
     this.showDeleteAction = true,
     this.confirmTaskSwitch = true,
     this.useNativeDatePicker = true,
+    this.dialogBarrierColor,
     this.canSaveDraft,
   });
 
@@ -83,6 +84,7 @@ class TaskDetailsEditor extends StatefulWidget {
   final bool showDeleteAction;
   final bool confirmTaskSwitch;
   final bool useNativeDatePicker;
+  final Color? dialogBarrierColor;
   final bool Function(TaskDetailsDraft draft)? canSaveDraft;
 
   @override
@@ -624,6 +626,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         message: context.l10n.discardChangesConfirmation,
         confirmLabel: context.l10n.discard,
         destructive: true,
+        barrierColor: widget.dialogBarrierColor,
       );
       if (!discard || !mounted) {
         return;
@@ -645,6 +648,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       message: context.l10n.discardChangesConfirmation,
       confirmLabel: context.l10n.discard,
       destructive: true,
+      barrierColor: widget.dialogBarrierColor,
     );
     if (!mounted) {
       return;
@@ -663,6 +667,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       title: context.l10n.newSubtask,
       label: context.l10n.title,
       actionLabel: context.l10n.create,
+      barrierColor: widget.dialogBarrierColor,
     );
     if (title == null || title.trim().isEmpty) {
       return;
@@ -677,6 +682,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       message: context.l10n.deleteTaskConfirmation(_editingTask.title),
       confirmLabel: context.l10n.delete,
       destructive: true,
+      barrierColor: widget.dialogBarrierColor,
     );
     if (confirmed) {
       await widget.onDelete();

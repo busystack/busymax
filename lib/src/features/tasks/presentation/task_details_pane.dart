@@ -32,6 +32,7 @@ class TaskDetailsPane extends ConsumerStatefulWidget {
     this.onClose,
     this.onTaskSwitchCancelled,
     this.onDirtyChanged,
+    this.dialogBarrierColor,
   });
 
   final String accountId;
@@ -43,6 +44,7 @@ class TaskDetailsPane extends ConsumerStatefulWidget {
   final VoidCallback? onClose;
   final ValueChanged<TaskEntity>? onTaskSwitchCancelled;
   final ValueChanged<bool>? onDirtyChanged;
+  final Color? dialogBarrierColor;
 
   @override
   ConsumerState<TaskDetailsPane> createState() => _TaskDetailsPaneState();
@@ -262,6 +264,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       onSaved: () => widget.onClose?.call(),
       onTaskSwitchCancelled: widget.onTaskSwitchCancelled,
       onDirtyChanged: _setEditorDirty,
+      dialogBarrierColor: widget.dialogBarrierColor,
     );
   }
 

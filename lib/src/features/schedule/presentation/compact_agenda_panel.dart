@@ -827,23 +827,21 @@ class _CompactAgendaTaskEditorView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final database = ref.read(databaseProvider);
+    final controller = ref.read(compactAgendaControllerProvider);
     return ColoredBox(
       color: Theme.of(context).colorScheme.surface,
       child: TaskDetailsPane(
         accountId: item.accountId,
         taskListId: item.sourceId,
         taskId: item.id,
-        tasksRepositoryForAccount: (accountId) => TasksRepository(
-          database: ref.read(databaseProvider),
-          accountId: accountId,
-        ),
-        taskListsRepositoryForAccount: (accountId) => TaskListsRepository(
-          database: ref.read(databaseProvider),
-          accountId: accountId,
-        ),
-        onTaskMutationCommitted: (accountId) =>
-            ref.read(compactAgendaControllerProvider).taskMutated(accountId),
+        tasksRepositoryForAccount: (accountId) =>
+            TasksRepository(database: database, accountId: accountId),
+        taskListsRepositoryForAccount: (accountId) =>
+            TaskListsRepository(database: database, accountId: accountId),
+        onTaskMutationCommitted: controller.taskMutated,
         onClose: onClose,
+        dialogBarrierColor: Colors.transparent,
       ),
     );
   }
@@ -1409,7 +1407,7 @@ class _CompactAgendaBottomBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: BusyMaxPushButton.outlined(
+            child: BusyMaxPushButton.filled(
               onPressed: () => unawaited(onNewEvent()),
               child: Text(context.l10n.newEvent),
             ),

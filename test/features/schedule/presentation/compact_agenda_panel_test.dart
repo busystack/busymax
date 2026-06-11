@@ -93,6 +93,7 @@ void main() {
     expect(source, contains('_openTaskEditor(item)'));
     expect(source, contains('_openEventEditor(item)'));
     expect(source, contains('_creatingEvent = true'));
+    expect(source, contains('dialogBarrierColor: Colors.transparent'));
     expect(source, isNot(contains('MainWindowCommandClient().newTask')));
   });
 
