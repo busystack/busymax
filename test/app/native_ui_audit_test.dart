@@ -28,83 +28,104 @@ void main() {
       );
     });
 
-    test('Task Details and Settings use BusyMax Yaru row patterns', () {
-      final taskDetails = File(
-        'lib/src/features/tasks/presentation/task_details_editor.dart',
-      ).readAsStringSync();
-      final settings = File(
-        'lib/src/features/settings/presentation/settings_screen.dart',
-      ).readAsStringSync();
-      final diagnostics = File(
-        'lib/src/features/diagnostics/presentation/diagnostics_screen.dart',
-      ).readAsStringSync();
-      final router = File('lib/src/app/app_router.dart').readAsStringSync();
-      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
-      final dateTimeFields = File(
-        'lib/src/features/tasks/presentation/desktop_date_time_fields.dart',
-      ).readAsStringSync();
-      final newTaskDialog = File(
-        'lib/src/features/tasks/presentation/new_task_dialog.dart',
-      ).readAsStringSync();
+    test(
+      'Task Details, Settings, and Agenda use BusyMax Yaru row patterns',
+      () {
+        final taskDetails = File(
+          'lib/src/features/tasks/presentation/task_details_editor.dart',
+        ).readAsStringSync();
+        final settings = File(
+          'lib/src/features/settings/presentation/settings_screen.dart',
+        ).readAsStringSync();
+        final diagnostics = File(
+          'lib/src/features/diagnostics/presentation/diagnostics_screen.dart',
+        ).readAsStringSync();
+        final router = File('lib/src/app/app_router.dart').readAsStringSync();
+        final design = File(
+          'lib/src/app/busymax_design.dart',
+        ).readAsStringSync();
+        final dateTimeFields = File(
+          'lib/src/features/tasks/presentation/desktop_date_time_fields.dart',
+        ).readAsStringSync();
+        final newTaskDialog = File(
+          'lib/src/features/tasks/presentation/new_task_dialog.dart',
+        ).readAsStringSync();
+        final scheduleAgenda = File(
+          'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+        ).readAsStringSync();
+        final compactAgenda = File(
+          'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+        ).readAsStringSync();
 
-      expect(design, contains('class BusyMaxClamp'));
-      expect(design, contains('class BusyMaxGroupedList'));
-      expect(design, contains('class BusyMaxActionRow'));
-      expect(design, contains('class BusyMaxComboRow'));
-      expect(design, contains('class BusyMaxSwitchRow'));
-      expect(design, contains('class BusyMaxDialogShell'));
-      expect(design, contains('class BusyMaxModalEditorSurface'));
-      expect(design, contains('Color busyMaxModalBarrierColor'));
-      expect(design, contains('abstract final class BusyMaxElevation'));
-      expect(design, contains('elevation: BusyMaxElevation.surface'));
-      expect(
-        design,
-        contains('shadowColor: BusyMaxShadow.floatingColor(context)'),
-      );
-      expect(design, contains('final bool filled;'));
-      expect(design, contains('BusyMaxSurfaceColors.of(context)'));
-      expect(design, contains('surfaceColors.card'));
-      expect(design, contains('surfaceColors.control'));
-      expect(design, isNot(contains('YaruTileList(children: children)')));
+        expect(design, contains('class BusyMaxClamp'));
+        expect(design, contains('class BusyMaxGroupedList'));
+        expect(design, contains('class BusyMaxActionRow'));
+        expect(design, contains('class BusyMaxComboRow'));
+        expect(design, contains('class BusyMaxSwitchRow'));
+        expect(design, contains('class BusyMaxDialogShell'));
+        expect(design, contains('class BusyMaxModalEditorSurface'));
+        expect(design, contains('Color busyMaxModalBarrierColor'));
+        expect(design, contains('abstract final class BusyMaxElevation'));
+        expect(design, contains('elevation: BusyMaxElevation.surface'));
+        expect(
+          design,
+          contains('shadowColor: BusyMaxShadow.floatingColor(context)'),
+        );
+        expect(design, contains('final bool filled;'));
+        expect(design, contains('BusyMaxSurfaceColors.of(context)'));
+        expect(design, contains('surfaceColors.card'));
+        expect(design, contains('surfaceColors.control'));
+        expect(design, isNot(contains('YaruTileList(children: children)')));
 
-      expect(taskDetails, contains('BusyMaxClamp'));
-      expect(taskDetails, contains('BusyMaxGroupedList'));
-      expect(taskDetails, contains('BusyMaxActionRow'));
-      expect(taskDetails, contains('BusyMaxComboRow'));
+        expect(taskDetails, contains('BusyMaxClamp'));
+        expect(taskDetails, contains('BusyMaxGroupedList'));
+        expect(taskDetails, contains('BusyMaxActionRow'));
+        expect(taskDetails, contains('BusyMaxComboRow'));
 
-      expect(settings, contains('BusyMaxClamp'));
-      expect(settings, contains('BusyMaxGroupedList'));
-      expect(settings, contains('BusyMaxActionRow'));
-      expect(settings, contains('BusyMaxComboRow'));
-      expect(settings, contains('BusyMaxSwitchRow'));
-      expect(settings, contains('class _SettingsSidebar'));
-      expect(settings, contains('enum SettingsPage'));
-      expect(settings, contains('filled: true'));
-      expect(settings, contains('DiagnosticsPanel(scrollable: false)'));
-      expect(settings, isNot(contains("context.go('/diagnostics')")));
-      expect(diagnostics, contains('class DiagnosticsPanel'));
-      expect(diagnostics, isNot(contains('class DiagnosticsScreen')));
-      expect(diagnostics, isNot(contains('Scaffold(')));
-      expect(router, isNot(contains("path: '/diagnostics'")));
-      expect(router, isNot(contains('DiagnosticsScreen')));
-      expect(settings, contains('SettingsPage.system'));
-      expect(settings, contains('l10n.manualFullSync'));
-      expect(settings, contains('l10n.currentLocale'));
-      expect(settings, isNot(contains('SettingsPage.sync')));
-      expect(settings, isNot(contains('SettingsPage.appearance')));
-      expect(settings, isNot(contains('SettingsPage.localization')));
-      expect(settings, isNot(contains('l10n.themeFamily')));
-      expect(settings, contains('setBackVisible(true)'));
-      expect(settings, contains('setSidebarVisible(true)'));
-      expect(newTaskDialog, contains('showBusyMaxModalEditorDialog'));
-      expect(newTaskDialog, contains('BusyMaxModalEditorScaffold'));
-      expect(newTaskDialog, isNot(contains('BusyMaxDialogShell')));
+        expect(settings, contains('BusyMaxClamp'));
+        expect(settings, contains('BusyMaxGroupedList'));
+        expect(settings, contains('BusyMaxActionRow'));
+        expect(settings, contains('BusyMaxComboRow'));
+        expect(settings, contains('BusyMaxSwitchRow'));
+        expect(settings, contains('class _SettingsSidebar'));
+        expect(settings, contains('enum SettingsPage'));
+        expect(settings, contains('filled: true'));
+        expect(settings, contains('DiagnosticsPanel(scrollable: false)'));
+        expect(settings, isNot(contains("context.go('/diagnostics')")));
+        expect(diagnostics, contains('class DiagnosticsPanel'));
+        expect(diagnostics, isNot(contains('class DiagnosticsScreen')));
+        expect(diagnostics, isNot(contains('Scaffold(')));
+        expect(router, isNot(contains("path: '/diagnostics'")));
+        expect(router, isNot(contains('DiagnosticsScreen')));
+        expect(settings, contains('SettingsPage.system'));
+        expect(settings, contains('l10n.manualFullSync'));
+        expect(settings, contains('l10n.currentLocale'));
+        expect(settings, isNot(contains('SettingsPage.sync')));
+        expect(settings, isNot(contains('SettingsPage.appearance')));
+        expect(settings, isNot(contains('SettingsPage.localization')));
+        expect(settings, isNot(contains('l10n.themeFamily')));
+        expect(settings, contains('setBackVisible(true)'));
+        expect(settings, contains('setSidebarVisible(true)'));
+        expect(newTaskDialog, contains('showBusyMaxModalEditorDialog'));
+        expect(newTaskDialog, contains('BusyMaxModalEditorScaffold'));
+        expect(newTaskDialog, isNot(contains('BusyMaxDialogShell')));
 
-      expect(dateTimeFields, contains('YaruDateTimeEntry'));
-      expect(dateTimeFields, contains('YaruTimeEntry'));
-      expect(dateTimeFields, isNot(contains('showDatePicker')));
-      expect(dateTimeFields, isNot(contains('showTimePicker')));
-    });
+        expect(scheduleAgenda, contains('BusyMaxGroupedList'));
+        expect(scheduleAgenda, contains('BusyMaxActionRow'));
+        expect(scheduleAgenda, isNot(contains('scheduleAgendaRowBackground')));
+        expect(scheduleAgenda, isNot(contains('class _AgendaDayHeader')));
+        expect(scheduleAgenda, isNot(contains('class _AgendaPlainHeader')));
+
+        expect(compactAgenda, contains('BusyMaxGroupedList'));
+        expect(compactAgenda, contains('BusyMaxActionRow'));
+        expect(compactAgenda, isNot(contains('scheduleAgendaRowBackground')));
+
+        expect(dateTimeFields, contains('YaruDateTimeEntry'));
+        expect(dateTimeFields, contains('YaruTimeEntry'));
+        expect(dateTimeFields, isNot(contains('showDatePicker')));
+        expect(dateTimeFields, isNot(contains('showTimePicker')));
+      },
+    );
 
     test('tray DBus menu labels come from injected labels', () {
       final source = File(

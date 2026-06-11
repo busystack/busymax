@@ -17,7 +17,6 @@ import '../application/compact_agenda_controller.dart';
 import '../application/compact_agenda_data.dart';
 import '../application/compact_agenda_sections.dart';
 import 'compact_agenda_formatting.dart';
-import 'schedule_agenda_view.dart';
 import 'schedule_item_details_popover.dart';
 import 'schedule_item_exporter.dart';
 
@@ -631,8 +630,6 @@ class _CompactAgendaSectionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final title = switch (section.kind) {
       CompactAgendaSectionKind.overdue => context.l10n.compactAgendaOverdue,
       CompactAgendaSectionKind.day => compactAgendaDayLabel(
@@ -641,57 +638,22 @@ class _CompactAgendaSectionView extends StatelessWidget {
         day: section.day ?? today,
       ),
     };
-    return Padding(
-      padding: const EdgeInsets.only(bottom: BusyMaxSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              BusyMaxSpacing.xs,
-              0,
-              BusyMaxSpacing.xs,
-              BusyMaxSpacing.xs,
-            ),
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: BusyMaxSurfaceColors.of(context).mutedForeground,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+    return BusyMaxGroupedList(
+      title: title,
+      filled: true,
+      children: [
+        for (final item in section.items)
+          _CompactAgendaRow(
+            item: item,
+            today: today,
+            mutating:
+                item is TaskScheduleItem &&
+                mutatingTaskKeys.contains(compactAgendaTaskMutationKey(item)),
+            onOpenItem: onOpenItem,
+            onTaskCompletionChanged: onTaskCompletionChanged,
           ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-              border: Border.all(color: surfaceColors.subtleBorder),
-            ),
-            child: Column(
-              children: [
-                for (var index = 0; index < section.items.length; index += 1)
-                  _CompactAgendaRow(
-                    item: section.items[index],
-                    today: today,
-                    mutating:
-                        section.items[index] is TaskScheduleItem &&
-                        mutatingTaskKeys.contains(
-                          compactAgendaTaskMutationKey(
-                            section.items[index] as TaskScheduleItem,
-                          ),
-                        ),
-                    showDivider:
-                        index < section.items.length - 1 || section.hasMore,
-                    onOpenItem: onOpenItem,
-                    onTaskCompletionChanged: onTaskCompletionChanged,
-                  ),
-                if (section.hasMore)
-                  _MoreOverdueRow(onOpenBusyMax: onOpenBusyMax),
-              ],
-            ),
-          ),
-        ],
-      ),
+        if (section.hasMore) _MoreOverdueRow(onOpenBusyMax: onOpenBusyMax),
+      ],
     );
   }
 }
@@ -701,7 +663,6 @@ class _CompactAgendaRow extends StatelessWidget {
     required this.item,
     required this.today,
     required this.mutating,
-    required this.showDivider,
     required this.onOpenItem,
     required this.onTaskCompletionChanged,
   });
@@ -709,7 +670,6 @@ class _CompactAgendaRow extends StatelessWidget {
   final ScheduleItem item;
   final DateTime today;
   final bool mutating;
-  final bool showDivider;
   final Future<void> Function(BuildContext anchorContext, ScheduleItem item)
   onOpenItem;
   final CompactAgendaTaskCompletionCallback onTaskCompletionChanged;
@@ -717,97 +677,126 @@ class _CompactAgendaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
+    return AnimatedOpacity(
+      opacity: mutating ? 0.48 : 1,
+      duration: const Duration(milliseconds: 120),
+      child: BusyMaxActionRow(
+        title: item.title,
+        titleWidget: _CompactAgendaRowTitle(item: item),
+        subtitleWidget: _CompactAgendaRowSubtitle(item: item, today: today),
+        leading: _CompactAgendaRowMarker(item: item),
+        trailing: task == null
+            ? null
+            : YaruCheckbox(
+                value: task.completed,
+                onChanged: mutating
+                    ? null
+                    : (value) => unawaited(
+                        onTaskCompletionChanged(task, value ?? false),
+                      ),
+              ),
+        enabled: !mutating,
+        onTap: () => unawaited(onOpenItem(context, item)),
+      ),
+    );
+  }
+}
+
+class _CompactAgendaRowMarker extends StatelessWidget {
+  const _CompactAgendaRowMarker({required this.item});
+
+  final ScheduleItem item;
+
+  @override
+  Widget build(BuildContext context) {
     final color = ScheduleProjection.colorForItem(
       item,
       Theme.of(context).colorScheme.brightness,
     );
+    final icon = item.kind == ScheduleItemKind.task
+        ? YaruIcons.checkbox
+        : YaruIcons.calendar;
+    return SizedBox(
+      width: BusyMaxSizes.iconLg,
+      height: BusyMaxSizes.iconLg,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(
+            icon,
+            size: BusyMaxSizes.iconSm,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          Align(
+            alignment: AlignmentDirectional.bottomEnd,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactAgendaRowTitle extends StatelessWidget {
+  const _CompactAgendaRowTitle({required this.item});
+
+  final ScheduleItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
+    return Text(
+      item.title,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+        decoration: task?.completed == true ? TextDecoration.lineThrough : null,
+      ),
+    );
+  }
+}
+
+class _CompactAgendaRowSubtitle extends StatelessWidget {
+  const _CompactAgendaRowSubtitle({required this.item, required this.today});
+
+  final ScheduleItem item;
+  final DateTime today;
+
+  @override
+  Widget build(BuildContext context) {
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final source = ScheduleProjection.sourceLabelForScheduleItem(item);
     final meta = compactAgendaItemMeta(context, item, today: today);
     final event = item is CalendarScheduleItem
         ? item as CalendarScheduleItem
         : null;
-    return AnimatedOpacity(
-      opacity: mutating ? 0.48 : 1,
-      duration: const Duration(milliseconds: 120),
-      child: InkWell(
-        onTap: mutating ? null : () => unawaited(onOpenItem(context, item)),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 62),
-          decoration: BoxDecoration(
-            color: scheduleAgendaRowBackground(context, item),
-            border: showDivider
-                ? Border(bottom: BorderSide(color: surfaceColors.subtleBorder))
-                : null,
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: BusyMaxSpacing.md,
-            vertical: BusyMaxSpacing.sm,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (task != null) ...[
-                YaruCheckbox(
-                  value: task.completed,
-                  onChanged: mutating
-                      ? null
-                      : (value) => unawaited(
-                          onTaskCompletionChanged(task, value ?? false),
-                        ),
-                ),
-                const SizedBox(width: BusyMaxSpacing.sm),
-              ] else ...[
-                Container(
-                  width: 4,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: BusyMaxSpacing.md),
-              ],
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: BusyMaxSpacing.xxs),
-                    Text(
-                      [if (meta.isNotEmpty) meta, source].join(' - '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: surfaceColors.mutedForeground,
-                      ),
-                    ),
-                    if (event?.location?.trim().isNotEmpty == true) ...[
-                      const SizedBox(height: BusyMaxSpacing.xxs),
-                      Text(
-                        event!.location!.trim(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: surfaceColors.mutedForeground,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          [if (meta.isNotEmpty) meta, source].join(' - '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: surfaceColors.mutedForeground),
         ),
-      ),
+        if (event?.location?.trim().isNotEmpty == true)
+          Text(
+            event!.location!.trim(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: surfaceColors.mutedForeground,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -819,31 +808,10 @@ class _MoreOverdueRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return BusyMaxActionRow(
+      title: context.l10n.compactAgendaMoreOverdue,
+      leading: const Icon(Icons.open_in_full, size: BusyMaxSizes.iconSm),
       onTap: () => unawaited(onOpenBusyMax()),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: BusyMaxSpacing.md,
-          vertical: BusyMaxSpacing.sm,
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.open_in_full, size: BusyMaxSizes.iconSm),
-            const SizedBox(width: BusyMaxSpacing.sm),
-            Expanded(
-              child: Text(
-                context.l10n.compactAgendaMoreOverdue,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

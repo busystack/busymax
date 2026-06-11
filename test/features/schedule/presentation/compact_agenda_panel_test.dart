@@ -1,6 +1,6 @@
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/schedule/application/compact_agenda_data.dart';
 import 'package:busymax/src/features/schedule/presentation/compact_agenda_panel.dart';
-import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
@@ -82,24 +82,14 @@ void main() {
     expect(find.byType(YaruCheckbox), findsNothing);
   });
 
-  testWidgets('row background matches main agenda item surface', (
-    tester,
-  ) async {
+  testWidgets('rows use native grouped action row pattern', (tester) async {
     final event = _event('Team sync', start: today);
 
     await tester.pumpWidget(_testPanel(data: _data(today, items: [event])));
 
-    final itemContext = tester.element(find.text('Team sync'));
-    final expected = scheduleAgendaRowBackground(itemContext, event);
-    final rowContainers = tester.widgetList<Container>(find.byType(Container));
-
-    expect(
-      rowContainers.any((container) {
-        final decoration = container.decoration;
-        return decoration is BoxDecoration && decoration.color == expected;
-      }),
-      isTrue,
-    );
+    expect(find.byType(BusyMaxGroupedList), findsWidgets);
+    expect(find.byType(BusyMaxActionRow), findsWidgets);
+    expect(find.text('Team sync'), findsOneWidget);
   });
 
   testWidgets('chrome uses scroll shadows instead of static borders', (
