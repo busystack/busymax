@@ -470,6 +470,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: transparent;"
       "background-image: none;"
       "border: none;"
+      "box-shadow: 0 3px 18px 2px %s;"
+      "outline: none;"
       "border-radius: %dpx;"
       "}"
       ".busymax-titlebar,"
@@ -675,7 +677,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "min-height: 0;"
       "border-radius: %dpx;"
       "}",
-      window_css_background_color, kHeaderWindowRadius,
+      window_css_background_color, shade_color, kHeaderWindowRadius,
       background_color, kHeaderWindowRadius, kHeaderWindowRadius,
       kHeaderWindowRadius, sidebar_background_color, kHeaderWindowRadius,
       foreground_color, foreground_color, modal_barrier_color,

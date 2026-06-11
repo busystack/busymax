@@ -388,6 +388,9 @@ void main() {
       );
       expect(source, contains('window#busymax-window decoration,'));
       expect(source, contains('window#busymax-window decoration:backdrop'));
+      expect(source, contains('"box-shadow: 0 3px 18px 2px %s;"'));
+      expect(source, contains('window_css_background_color, shade_color'));
+      expect(source, contains('"outline: none;"'));
       expect(
         source,
         contains('gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE)'),
