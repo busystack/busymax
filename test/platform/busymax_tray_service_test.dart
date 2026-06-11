@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -39,6 +41,25 @@ void main() {
 
   test('application id uses Busystack reverse DNS id', () {
     expect(busyMaxApplicationId, 'io.busystack.busymax');
+  });
+
+  test('agenda action no longer opens the main window', () {
+    final source = File(
+      'lib/src/platform/busymax_tray_service.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('Future<void> _showAgenda()'));
+    expect(source, contains('return _onOpenAgenda();'));
+    expect(
+      source,
+      isNot(
+        contains(
+          'await _windowService.showWindow();\n'
+          '    await _onOpenAgenda();',
+        ),
+      ),
+    );
+    expect(source, contains('await _onBeforeQuit?.call();'));
   });
 }
 
