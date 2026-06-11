@@ -831,6 +831,284 @@ class BusyMaxActionRow extends StatelessWidget {
   }
 }
 
+class BusyMaxCategoryEditorRow extends StatelessWidget {
+  const BusyMaxCategoryEditorRow({
+    super.key,
+    required this.title,
+    required this.addLabel,
+    required this.categories,
+    required this.suggestions,
+    required this.adding,
+    required this.controller,
+    required this.onAddPressed,
+    required this.onSubmitted,
+    required this.onCancelAdding,
+    required this.onDeleted,
+    this.inputKey,
+  });
+
+  final String title;
+  final String addLabel;
+  final List<String> categories;
+  final List<String> suggestions;
+  final bool adding;
+  final TextEditingController controller;
+  final VoidCallback onAddPressed;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onCancelAdding;
+  final ValueChanged<String> onDeleted;
+  final Key? inputKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleSuggestions = [
+      for (final suggestion in suggestions)
+        if (suggestion.trim().isNotEmpty && !categories.contains(suggestion))
+          suggestion,
+    ];
+    return BusyMaxActionRow(
+      title: title,
+      leading: const Icon(Icons.sell_outlined),
+      subtitleWidget: Padding(
+        padding: const EdgeInsets.only(top: BusyMaxSpacing.xs),
+        child: Wrap(
+          spacing: BusyMaxSpacing.xs,
+          runSpacing: BusyMaxSpacing.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final category in categories)
+              _BusyMaxCategoryChip(
+                label: category,
+                onDeleted: () => onDeleted(category),
+              ),
+            if (adding) ...[
+              _BusyMaxCategoryInputChip(
+                controller: controller,
+                hintText: addLabel,
+                inputKey: inputKey,
+                onSubmitted: onSubmitted,
+                onCancel: onCancelAdding,
+              ),
+              for (final suggestion in visibleSuggestions)
+                _BusyMaxCategorySuggestionChip(
+                  label: suggestion,
+                  onPressed: () => onSubmitted(suggestion),
+                ),
+            ] else
+              _BusyMaxAddCategoryChip(label: addLabel, onPressed: onAddPressed),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BusyMaxCategoryChip extends StatelessWidget {
+  const _BusyMaxCategoryChip({required this.label, required this.onDeleted});
+
+  final String label;
+  final VoidCallback onDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: surfaceColors.control,
+        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+      ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(
+          start: BusyMaxSpacing.md,
+          end: BusyMaxSpacing.xs,
+          top: BusyMaxSpacing.xs,
+          bottom: BusyMaxSpacing.xs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ),
+            const SizedBox(width: BusyMaxSpacing.xs),
+            Tooltip(
+              message:
+                  '${MaterialLocalizations.of(context).deleteButtonTooltip} $label',
+              child: InkResponse(
+                onTap: onDeleted,
+                radius: BusyMaxSizes.iconMd,
+                child: Icon(
+                  YaruIcons.window_close,
+                  size: BusyMaxSizes.iconSm,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BusyMaxAddCategoryChip extends StatelessWidget {
+  const _BusyMaxAddCategoryChip({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+        hoverColor: busyMaxEditorRowHoverColor(context),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: BusyMaxSpacing.md,
+            vertical: BusyMaxSpacing.xs,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                YaruIcons.plus,
+                size: BusyMaxSizes.iconSm,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: BusyMaxSpacing.xs),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BusyMaxCategorySuggestionChip extends StatelessWidget {
+  const _BusyMaxCategorySuggestionChip({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ActionChip(
+      avatar: Icon(
+        YaruIcons.plus,
+        size: BusyMaxSizes.iconSm,
+        color: colorScheme.onSurfaceVariant,
+      ),
+      label: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 150),
+        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+      ),
+      side: BorderSide(color: colorScheme.outlineVariant),
+      backgroundColor: Colors.transparent,
+      onPressed: onPressed,
+    );
+  }
+}
+
+class _BusyMaxCategoryInputChip extends StatelessWidget {
+  const _BusyMaxCategoryInputChip({
+    required this.controller,
+    required this.hintText,
+    this.inputKey,
+    required this.onSubmitted,
+    required this.onCancel,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final Key? inputKey;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: surfaceColors.control,
+        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+      ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(
+          start: BusyMaxSpacing.md,
+          end: BusyMaxSpacing.xs,
+        ),
+        child: SizedBox(
+          width: 180,
+          height: 30,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: inputKey,
+                  controller: controller,
+                  autofocus: true,
+                  decoration: InputDecoration.collapsed(hintText: hintText),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: onSubmitted,
+                ),
+              ),
+              InkResponse(
+                onTap: () => onSubmitted(controller.text),
+                radius: BusyMaxSizes.iconMd,
+                child: Icon(
+                  YaruIcons.checkmark,
+                  size: BusyMaxSizes.iconSm,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: BusyMaxSpacing.xs),
+              InkResponse(
+                onTap: onCancel,
+                radius: BusyMaxSizes.iconMd,
+                child: Icon(
+                  YaruIcons.window_close,
+                  size: BusyMaxSizes.iconSm,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class BusyMaxCalendarValueRow extends StatelessWidget {
   const BusyMaxCalendarValueRow({
     super.key,
@@ -1390,6 +1668,141 @@ class BusyMaxEditorHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class BusyMaxTimeModeRow extends StatelessWidget {
+  const BusyMaxTimeModeRow({
+    super.key,
+    required this.allDay,
+    required this.onChanged,
+  });
+
+  final bool allDay;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.all(BusyMaxSpacing.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: _BusyMaxTimeModeButton(
+              label: l10n.allDay,
+              selected: allDay,
+              onPressed: () => onChanged(true),
+            ),
+          ),
+          const SizedBox(width: BusyMaxSpacing.xs),
+          Expanded(
+            child: _BusyMaxTimeModeButton(
+              label: l10n.timeSlot,
+              selected: !allDay,
+              onPressed: () => onChanged(false),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BusyMaxTimeModeButton extends StatelessWidget {
+  const _BusyMaxTimeModeButton({
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
+    final borderRadius = BorderRadius.circular(BusyMaxRadius.headerButton);
+    return Material(
+      color: selected ? surfaceColors.controlHover : Colors.transparent,
+      borderRadius: borderRadius,
+      child: InkWell(
+        borderRadius: borderRadius,
+        onTap: selected ? null : onPressed,
+        child: SizedBox(
+          height: BusyMaxSizes.pushButtonHeight,
+          child: Center(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: selected
+                    ? colorScheme.onSurface
+                    : colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class BusyMaxModalEditorScaffold extends StatelessWidget {
+  const BusyMaxModalEditorScaffold({
+    super.key,
+    required this.title,
+    required this.cancelLabel,
+    required this.saveLabel,
+    required this.onCancel,
+    required this.onSave,
+    required this.children,
+    this.saving = false,
+    this.contentMaxWidth = 640,
+  });
+
+  final String title;
+  final String cancelLabel;
+  final String saveLabel;
+  final VoidCallback onCancel;
+  final VoidCallback? onSave;
+  final bool saving;
+  final double contentMaxWidth;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BusyMaxEditorHeader(
+          title: title,
+          cancelLabel: cancelLabel,
+          saveLabel: saveLabel,
+          onCancel: onCancel,
+          onSave: onSave,
+          saving: saving,
+        ),
+        const SizedBox(height: BusyMaxSpacing.headerInset),
+        Flexible(
+          child: SingleChildScrollView(
+            child: BusyMaxClamp(
+              maxWidth: contentMaxWidth,
+              margin: EdgeInsets.zero,
+              padding: const EdgeInsets.symmetric(
+                horizontal: BusyMaxSpacing.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

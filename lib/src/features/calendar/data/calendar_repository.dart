@@ -269,6 +269,7 @@ class CalendarRepository {
             recurrenceJson: Value(_json(event.recurrenceJson)),
             remindersJson: Value(_json(event.remindersJson)),
             attendeesJson: Value(_json(event.attendeesJson)),
+            categoriesJson: Value(_json(event.categoriesJson)),
             organizerJson: Value(_json(event.organizerJson)),
             creatorJson: Value(_json(event.creatorJson)),
             colorId: Value(event.colorId),
@@ -388,6 +389,7 @@ class CalendarRepository {
               recurrenceJson: Value(_json(draft.recurrence)),
               remindersJson: Value(_json(draft.reminders)),
               attendeesJson: Value(_json(_attendeesJson(draft, provider))),
+              categoriesJson: Value(_json(_categoriesJson(draft, provider))),
               colorId: Value(draft.colorId),
               visibility: Value(draft.visibilityOrSensitivity),
               transparencyOrShowAs: Value(draft.showAs),
@@ -477,6 +479,7 @@ class CalendarRepository {
           recurrenceJson: Value(_json(draft.recurrence)),
           remindersJson: Value(_json(draft.reminders)),
           attendeesJson: Value(_json(_attendeesJson(draft, provider))),
+          categoriesJson: Value(_json(_categoriesJson(draft, provider))),
           colorId: Value(draft.colorId),
           visibility: Value(draft.visibilityOrSensitivity),
           transparencyOrShowAs: Value(draft.showAs),
@@ -670,7 +673,7 @@ Map<String, Object?> _eventRequest(
     'remindersJson': draft.reminders,
     'attendeesJson': _attendeesJson(draft, provider),
     'colorId': draft.colorId,
-    'categoriesJson': draft.categories,
+    'categoriesJson': _categoriesJson(draft, provider),
     'visibility': provider == TaskProvider.google
         ? draft.visibilityOrSensitivity
         : null,
@@ -725,6 +728,13 @@ Object? _attendeesJson(EventEditorDraft draft, BusyProvider provider) {
           ? attendee.toMicrosoftJson()
           : attendee.toGoogleJson(),
   ];
+}
+
+Object? _categoriesJson(EventEditorDraft draft, BusyProvider provider) {
+  if (provider != TaskProvider.microsoft) {
+    return null;
+  }
+  return draft.categories;
 }
 
 String? _date(DateTime? value) {

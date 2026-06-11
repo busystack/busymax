@@ -197,6 +197,7 @@ class CalendarEvents extends Table {
   TextColumn get recurrenceJson => text().nullable()();
   TextColumn get remindersJson => text().nullable()();
   TextColumn get attendeesJson => text().nullable()();
+  TextColumn get categoriesJson => text().nullable()();
   TextColumn get organizerJson => text().nullable()();
   TextColumn get creatorJson => text().nullable()();
   TextColumn get colorId => text().nullable()();

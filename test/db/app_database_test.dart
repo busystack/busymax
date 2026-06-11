@@ -20,7 +20,7 @@ void main() {
     await database.close();
   });
 
-  test('opens schema version 4 and creates required indexes', () async {
+  test('opens schema version 5 and creates required indexes', () async {
     final version = await database
         .customSelect('PRAGMA user_version')
         .getSingle();
@@ -31,7 +31,7 @@ void main() {
         )
         .get();
 
-    expect(version.data['user_version'], 4);
+    expect(version.data['user_version'], 5);
     expect(indexes.map((row) => row.data['name']).toSet(), {
       'idx_accounts_provider',
       'idx_accounts_provider_account',
@@ -285,7 +285,7 @@ void main() {
           .getSingle();
       final op = await database.pendingOpsDao.getOp('op-1');
 
-      expect(version.data['user_version'], 4);
+      expect(version.data['user_version'], 5);
       expect(op, isNot(equals(null)));
       expect(op!.baselineRawJson, equals(null));
 

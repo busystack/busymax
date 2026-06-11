@@ -32,10 +32,10 @@ class TaskDetailsDraft {
       title: task.title,
       notes: task.notes ?? '',
       dueDate: _dateOnly(task.dueUtc),
-      microsoftDueTime: _timePart(task.microsoftDueDateTime),
+      microsoftDueTime: _scheduleTimePart(task.microsoftDueDateTime),
       microsoftDueTimeZone: task.microsoftDueTimeZone ?? localTimeZone,
       microsoftStartDate: _datePart(task.microsoftStartDateTime),
-      microsoftStartTime: _timePart(task.microsoftStartDateTime),
+      microsoftStartTime: _scheduleTimePart(task.microsoftStartDateTime),
       microsoftStartTimeZone: task.microsoftStartTimeZone ?? localTimeZone,
       microsoftReminderEnabled: task.microsoftIsReminderOn ?? false,
       microsoftReminderDate: _datePart(task.microsoftReminderDateTime),
@@ -117,7 +117,7 @@ class TaskDetailsDraft {
       fields['due'] = dueDate;
     }
     if (capabilities.supportsDueTime) {
-      final originalDueTime = _timePart(original.microsoftDueDateTime);
+      final originalDueTime = _scheduleTimePart(original.microsoftDueDateTime);
       final originalDueZone = original.microsoftDueTimeZone ?? localTimeZone;
       final dueTimeChanged = microsoftDueTime != originalDueTime;
       final dueZoneChanged = microsoftDueTimeZone != originalDueZone;
@@ -128,7 +128,7 @@ class TaskDetailsDraft {
         } else {
           fields['microsoftDueDateTime'] = _graphDateTime(
             date,
-            microsoftDueTime ?? '00:00',
+            microsoftDueTime,
             microsoftDueTimeZone ?? localTimeZone,
           );
         }
@@ -262,7 +262,7 @@ void _putDateTimePatch(
 }) {
   final changed =
       date != _datePart(originalDateTime) ||
-      time != _timePart(originalDateTime) ||
+      time != _scheduleTimePart(originalDateTime) ||
       timeZone != originalTimeZone;
   if (!changed) {
     return;
@@ -273,7 +273,7 @@ void _putDateTimePatch(
   } else {
     fields[dateTimeField] = _graphDateTime(
       date ?? _todayDateOnly(),
-      time ?? '00:00',
+      time,
       timeZone,
     );
   }
@@ -309,8 +309,20 @@ String? _timePart(String? value) {
   return time.substring(0, 5);
 }
 
-Map<String, Object?> _graphDateTime(String date, String time, String timeZone) {
-  return {'dateTime': '${date}T${_timeForGraph(time)}', 'timeZone': timeZone};
+String? _scheduleTimePart(String? value) {
+  final time = _timePart(value);
+  return time == '00:00' ? null : time;
+}
+
+Map<String, Object?> _graphDateTime(
+  String date,
+  String? time,
+  String timeZone,
+) {
+  return {
+    'dateTime': time == null ? date : '${date}T${_timeForGraph(time)}',
+    'timeZone': timeZone,
+  };
 }
 
 String _timeForGraph(String time) {

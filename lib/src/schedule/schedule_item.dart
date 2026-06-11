@@ -14,6 +14,7 @@ sealed class ScheduleItem {
   DateTime? get start;
   DateTime? get end;
   bool get allDay;
+  List<String> get categories;
   ScheduleItemKind get kind;
 }
 
@@ -33,6 +34,7 @@ class CalendarScheduleItem implements ScheduleItem {
     this.descriptionContentType,
     this.descriptionHtml,
     this.colorHex,
+    this.categories = const [],
     this.sourceName,
     this.accountDisplayName,
     this.accountEmail,
@@ -61,6 +63,8 @@ class CalendarScheduleItem implements ScheduleItem {
   final String? descriptionHtml;
   final String? colorHex;
   @override
+  final List<String> categories;
+  @override
   final String? sourceName;
   @override
   final String? accountDisplayName;
@@ -83,6 +87,7 @@ class TaskScheduleItem implements ScheduleItem {
     this.start,
     this.end,
     this.notes,
+    this.categories = const [],
     this.sourceName,
     this.accountDisplayName,
     this.accountEmail,
@@ -106,6 +111,8 @@ class TaskScheduleItem implements ScheduleItem {
   final bool allDay;
   final bool completed;
   final String? notes;
+  @override
+  final List<String> categories;
   @override
   final String? sourceName;
   @override

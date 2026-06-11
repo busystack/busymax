@@ -45,6 +45,13 @@ class ScheduleTaskChip extends StatelessWidget {
     ].join(' · ');
     final blockWidth = scheduleSafeBlockWidth(width);
     final blockHeight = scheduleSafeBlockHeight(height);
+    final horizontalPadding = compact ? 5.0 : 8.0;
+    final checkboxSize = compact ? 14.0 : 16.0;
+    final contentWidth = blockWidth == null
+        ? double.infinity
+        : blockWidth - horizontalPadding * 2;
+    final showContent = contentWidth >= 28;
+    final showCheckbox = contentWidth >= checkboxSize + BusyMaxSpacing.xs + 24;
 
     return Tooltip(
       message: '${item.title}\n$details',
@@ -59,7 +66,7 @@ class ScheduleTaskChip extends StatelessWidget {
             onTap: onTap == null ? null : () => onTap!(context),
             child: Container(
               padding: EdgeInsets.symmetric(
-                horizontal: compact ? 5 : 8,
+                horizontal: horizontalPadding,
                 vertical: compact ? 1 : 5,
               ),
               decoration: BoxDecoration(
@@ -67,35 +74,40 @@ class ScheduleTaskChip extends StatelessWidget {
                 borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
                 border: Border(left: BorderSide(color: color, width: 3)),
               ),
-              child: Row(
-                children: [
-                  SizedBox.square(
-                    dimension: compact ? 14 : 16,
-                    child: YaruCheckbox(
-                      value: item.completed,
-                      onChanged: onCompletionChanged == null
-                          ? null
-                          : (value) => onCompletionChanged!(value ?? false),
-                    ),
-                  ),
-                  const SizedBox(width: BusyMaxSpacing.xs),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
+              child: showContent
+                  ? Row(
                       children: [
-                        Text(
-                          item.title,
-                          maxLines: compact ? 1 : 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: titleStyle,
+                        if (showCheckbox) ...[
+                          SizedBox.square(
+                            dimension: checkboxSize,
+                            child: YaruCheckbox(
+                              value: item.completed,
+                              onChanged: onCompletionChanged == null
+                                  ? null
+                                  : (value) =>
+                                        onCompletionChanged!(value ?? false),
+                            ),
+                          ),
+                          const SizedBox(width: BusyMaxSpacing.xs),
+                        ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: compact ? 1 : 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: titleStyle,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                ],
-              ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
         ),

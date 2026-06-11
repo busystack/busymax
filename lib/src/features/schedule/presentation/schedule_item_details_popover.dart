@@ -330,7 +330,7 @@ class _ScheduleItemDetails extends StatelessWidget {
       if (_accountLabel(item) case final account? when account.isNotEmpty)
         _ScheduleDetailRow(icon: Icons.person_outline, text: account),
       if (item is CalendarScheduleItem)
-        ..._eventDetails(item as CalendarScheduleItem),
+        ..._eventDetails(context, item as CalendarScheduleItem),
       if (item is TaskScheduleItem)
         ..._taskDetails(context, item as TaskScheduleItem),
     ];
@@ -427,12 +427,17 @@ class _ScheduleDetailRichRow extends StatelessWidget {
   }
 }
 
-List<Widget> _eventDetails(CalendarScheduleItem item) {
+List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
   final location = item.location?.trim();
   final description = item.description?.trim();
   return [
     if (location != null && location.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.place_outlined, text: location),
+    if (item.categories.isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.sell_outlined,
+        text: '${context.l10n.categories}: ${item.categories.join(', ')}',
+      ),
     if (item.descriptionHtml != null &&
         isHtmlContentType(item.descriptionContentType))
       _ScheduleDetailRichRow(
@@ -452,6 +457,11 @@ List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
       icon: item.completed ? YaruIcons.checkmark : Icons.radio_button_unchecked,
       text: item.completed ? context.l10n.completed : context.l10n.openStatus,
     ),
+    if (item.categories.isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.sell_outlined,
+        text: '${context.l10n.categories}: ${item.categories.join(', ')}',
+      ),
     if (notes != null && notes.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.notes, text: notes),
   ];

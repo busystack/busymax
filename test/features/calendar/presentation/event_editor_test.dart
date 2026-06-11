@@ -372,6 +372,72 @@ void main() {
     expect(find.text('5 minutes before'), findsOneWidget);
   });
 
+  testWidgets('Microsoft event categories can be selected from suggestions', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'microsoft-account',
+              sourceId: 'microsoft-source',
+              providerCalendarId: 'ms-cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+              categories: const ['Home'],
+            ),
+            sources: _microsoftSources,
+            categorySuggestionsByAccount: const {
+              'microsoft-account': ['Home', 'Work'],
+            },
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Add category'));
+    expect(find.text('Home'), findsOneWidget);
+
+    await tester.tap(find.text('Add category'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Work'));
+    await tester.tap(find.text('Work'));
+    await tester.pumpAndSettle();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.categories, ['Home', 'Work']);
+  });
+
+  testWidgets('Google event editor does not show categories', (tester) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Categories'), findsNothing);
+  });
+
   testWidgets(
     'removing a Microsoft event reminder disables provider reminder',
     (tester) async {
@@ -428,7 +494,7 @@ void main() {
       dialogs,
       contains('barrierColor: busyMaxModalBarrierColor(context)'),
     );
-    expect(editor, contains('SingleChildScrollView'));
+    expect(dialogs, contains('BusyMaxModalEditorSurface'));
     expect(workspace, contains('showBusyMaxEventEditorDialog'));
     expect(workspace, isNot(contains('ScheduleEditorOverlay')));
   });
@@ -439,7 +505,10 @@ void main() {
     ).readAsStringSync();
     final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
-    expect(editor, contains('BusyMaxEditorHeader('));
+    expect(editor, contains('BusyMaxModalEditorScaffold('));
+    expect(design, contains('class BusyMaxModalEditorScaffold'));
+    expect(design, contains('BusyMaxEditorHeader('));
+    expect(design, contains('SingleChildScrollView'));
     expect(design, contains('BusyMaxHeaderPushButton.outlined'));
     expect(design, contains('BusyMaxHeaderPushButton.filled'));
     expect(
@@ -574,7 +643,7 @@ void main() {
       'lib/src/features/calendar/presentation/event_editor.dart',
     ).readAsStringSync();
 
-    final modeIndex = editor.indexOf('_EventTimeModeRow(');
+    final modeIndex = editor.indexOf('BusyMaxTimeModeRow(');
     final startDateIndex = editor.indexOf('label: l10n.startDate');
     final startTimeIndex = editor.indexOf('label: l10n.startTime');
     final endDateIndex = editor.indexOf('label: l10n.endDate');

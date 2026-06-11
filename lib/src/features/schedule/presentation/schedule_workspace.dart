@@ -63,6 +63,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   var _latestCanShowSidebar = false;
+  var _latestItems = const <ScheduleItem>[];
   ScheduleViewMode? _lastSettingsMode;
   _HeaderBarStateSnapshot? _lastHeaderBarState;
 
@@ -169,6 +170,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                   snapshot.data ?? const <ScheduleItem>[],
                   _scope,
                 );
+                _latestItems = items;
                 final miniCalendarItemsFuture = ref
                     .watch(scheduleRepositoryProvider)
                     .listItems(
@@ -765,6 +767,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             description: item.description,
             descriptionContentType: item.descriptionContentType,
             descriptionHtml: item.descriptionHtml,
+            categories: item.categories,
           ),
           sources,
         ),
@@ -858,6 +861,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       context,
       initialDraft: draft,
       sources: sources,
+      categorySuggestionsByAccount: _categorySuggestionsByAccount(),
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!mounted || result == null) {
@@ -898,6 +902,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       initialAccountId: ref.read(activeAccountProvider),
       initialListId: null,
       initialDueUtc: due,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (draft == null) {
       return;
@@ -906,8 +911,31 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         .read(tasksRepositoryForAccountProvider(draft.accountId))
         .createTask(
           draft.taskListId,
-          TaskCreateInput(title: draft.title, dueUtc: draft.dueUtc),
+          TaskCreateInput(
+            title: draft.title,
+            dueUtc: draft.dueUtc,
+            categories: draft.categories,
+          ),
         );
+  }
+
+  Map<String, List<String>> _categorySuggestionsByAccount() {
+    final byAccount = <String, Set<String>>{};
+    for (final item in _latestItems) {
+      if (item.categories.isEmpty) {
+        continue;
+      }
+      byAccount
+          .putIfAbsent(item.accountId, () => <String>{})
+          .addAll(
+            item.categories.where((category) => category.trim().isNotEmpty),
+          );
+    }
+    return {
+      for (final entry in byAccount.entries)
+        entry.key: entry.value.toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase())),
+    };
   }
 
   Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {

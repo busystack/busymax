@@ -173,6 +173,7 @@ class TaskCreateInput {
     this.notes,
     this.status,
     this.dueUtc,
+    this.categories = const [],
     this.parentTaskId,
     this.previousSiblingTaskId,
   });
@@ -181,6 +182,7 @@ class TaskCreateInput {
   final String? notes;
   final String? status;
   final DateTime? dueUtc;
+  final List<String> categories;
   final String? parentTaskId;
   final String? previousSiblingTaskId;
 }
@@ -321,10 +323,32 @@ class TasksRepository {
     );
   }
 
+  Stream<List<String>> watchCategorySuggestions() {
+    final query = _database.select(_database.tasks)
+      ..where(
+        (row) =>
+            row.accountId.equals(_accountId) &
+            row.pendingDelete.equals(false) &
+            row.categoriesJson.isNotNull(),
+      );
+    return query.watch().map((rows) {
+      final categories = <String>{};
+      for (final row in rows) {
+        categories.addAll(_stringListFromJson(row.categoriesJson));
+      }
+      return categories.toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    });
+  }
+
   Future<void> createTask(String taskListId, TaskCreateInput input) async {
     final now = _now();
     final localId = 'local-task-${_uuid.v4()}';
     final due = normalizeGoogleDueDateValue(input.dueUtc);
+    final categories = [
+      for (final category in input.categories)
+        if (category.trim().isNotEmpty) category.trim(),
+    ];
     await _database.transaction(() async {
       await _database.tasksDao.upsertTask(
         TasksCompanion.insert(
@@ -335,6 +359,9 @@ class TasksRepository {
           notes: Value(input.notes),
           status: Value(input.status ?? 'needsAction'),
           dueUtc: Value(due),
+          categoriesJson: categories.isEmpty
+              ? const Value.absent()
+              : Value(_jsonOrNull(categories)),
           parent: Value(input.parentTaskId),
           rawJson: jsonEncode({'id': localId, 'title': input.title}),
           localDirty: const Value(true),
@@ -354,6 +381,7 @@ class TasksRepository {
             if (input.notes != null) 'notes': input.notes,
             if (input.status != null) 'status': input.status,
             if (input.dueUtc != null) 'due': encodeGoogleDueDate(input.dueUtc!),
+            if (categories.isNotEmpty) 'categories': categories,
           },
           if (input.parentTaskId != null) 'parent': input.parentTaskId,
           if (input.previousSiblingTaskId != null)
@@ -744,6 +772,25 @@ Object? _remoteDueValue(Object value) {
     return null;
   }
   return '${normalized}T00:00:00.000Z';
+}
+
+List<String> _stringListFromJson(String? value) {
+  if (value == null || value.isEmpty) {
+    return const [];
+  }
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is List) {
+      return [
+        for (final item in decoded)
+          if (item != null && item.toString().trim().isNotEmpty)
+            item.toString().trim(),
+      ];
+    }
+  } on FormatException {
+    return const [];
+  }
+  return const [];
 }
 
 TasksCompanion taskFromDto(

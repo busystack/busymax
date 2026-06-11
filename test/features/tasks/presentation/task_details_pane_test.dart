@@ -488,6 +488,8 @@ void main() {
 
     expect(find.text('Due'), findsOneWidget);
     expect(find.text('Due date'), findsOneWidget);
+    expect(find.text('All Day'), findsNothing);
+    expect(find.text('Time Slot'), findsNothing);
     expect(find.text('Due time'), findsNothing);
     expect(find.text('Start'), findsNothing);
     expect(find.text('Start date'), findsNothing);
@@ -576,6 +578,26 @@ void main() {
 
     expect(repository.patches, hasLength(1));
     expect(repository.patches.single.fields['categories'], ['Work']);
+  });
+
+  testWidgets('Microsoft category suggestions can be selected', (tester) async {
+    final repository = _FakeTasksRepository(
+      categorySuggestions: const ['Home', 'Work'],
+    );
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      repository: repository,
+    );
+
+    await tester.tap(find.text('Add category'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Work'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(repository.patches.single.fields['categories'], ['Home', 'Work']);
   });
 
   testWidgets('Due group appears before separate Start group', (tester) async {
@@ -726,6 +748,82 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(calls, isEmpty);
+    },
+  );
+
+  testWidgets('Microsoft task scheduled mode can be switched to all-day', (
+    tester,
+  ) async {
+    final repository = _FakeTasksRepository();
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      repository: repository,
+    );
+
+    expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
+    expect(find.text('All Day'), findsOneWidget);
+    expect(find.text('Time Slot'), findsOneWidget);
+    expect(find.text('Due time'), findsOneWidget);
+    expect(find.text('Start time'), findsOneWidget);
+
+    await tester.tap(find.text('All Day'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Due time'), findsNothing);
+    expect(find.text('Start time'), findsNothing);
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(repository.patches, hasLength(1));
+    final fields = repository.patches.single.fields;
+    expect(fields.containsKey('due'), isFalse);
+    expect(fields['microsoftDueDateTime'], {
+      'dateTime': '2026-06-06',
+      'timeZone': 'America/Vancouver',
+    });
+    expect(fields['microsoftStartDateTime'], {
+      'dateTime': '2026-06-04',
+      'timeZone': 'UTC',
+    });
+  });
+
+  testWidgets(
+    'Microsoft all-day scheduled tasks can be switched to time slot',
+    (tester) async {
+      final repository = _FakeTasksRepository(
+        microsoftDueDateTime: '2026-06-06T00:00:00',
+        microsoftStartDateTime: '2026-06-04T00:00:00',
+      );
+      await _pumpDetails(
+        tester,
+        microsoftTaskProviderCapabilities,
+        repository: repository,
+      );
+
+      expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
+      expect(find.text('Due time'), findsNothing);
+      expect(find.text('Start time'), findsNothing);
+
+      await tester.tap(find.text('Time Slot'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Due time'), findsOneWidget);
+      expect(find.text('Start time'), findsOneWidget);
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(repository.patches, hasLength(1));
+      expect(repository.patches.single.fields['microsoftDueDateTime'], {
+        'dateTime': '2026-06-06T09:00:00',
+        'timeZone': 'America/Vancouver',
+      });
+      expect(repository.patches.single.fields['microsoftStartDateTime'], {
+        'dateTime': '2026-06-04T09:00:00',
+        'timeZone': 'UTC',
+      });
     },
   );
 
@@ -1005,11 +1103,17 @@ class _FakeTasksRepository implements TasksRepository {
     this.accountId = 'microsoft:m',
     this.reminderOn = false,
     this.missingTask = false,
+    this.microsoftDueDateTime = '2026-06-06T14:30:00',
+    this.microsoftStartDateTime = '2026-06-04T07:00:00.0000000',
+    this.categorySuggestions = const [],
   });
 
   final String accountId;
   final bool reminderOn;
   final bool missingTask;
+  final String microsoftDueDateTime;
+  final String? microsoftStartDateTime;
+  final List<String> categorySuggestions;
   final List<TaskPatchInput> patches = [];
   final List<TaskMoveInput> moves = [];
   var deleteCalls = 0;
@@ -1032,9 +1136,9 @@ class _FakeTasksRepository implements TasksRepository {
         updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
         status: 'needsAction',
         dueUtc: '2026-06-06',
-        microsoftDueDateTime: '2026-06-06T14:30:00',
+        microsoftDueDateTime: microsoftDueDateTime,
         microsoftDueTimeZone: 'America/Vancouver',
-        microsoftStartDateTime: '2026-06-04T07:00:00.0000000',
+        microsoftStartDateTime: microsoftStartDateTime,
         microsoftStartTimeZone: 'UTC',
         microsoftIsReminderOn: reminderOn,
         microsoftReminderDateTime: reminderOn ? '2026-06-05T09:15:00' : null,
@@ -1043,6 +1147,11 @@ class _FakeTasksRepository implements TasksRepository {
         categoriesJson: '["Home"]',
       ),
     );
+  }
+
+  @override
+  Stream<List<String>> watchCategorySuggestions() {
+    return Stream.value(categorySuggestions);
   }
 
   @override
@@ -1094,6 +1203,11 @@ class _SwitchingTasksRepository implements TasksRepository {
     yield* _controllers
         .putIfAbsent(taskId, () => StreamController<TaskEntity?>.broadcast())
         .stream;
+  }
+
+  @override
+  Stream<List<String>> watchCategorySuggestions() {
+    return Stream.value(const []);
   }
 
   @override

@@ -74,29 +74,119 @@ void main() {
     expect(find.text('Design review'), findsOneWidget);
   });
 
-  testWidgets('event and task chips tolerate negative planner widths', (
+  testWidgets('same-slot day items render in a horizontal strip', (
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final items = _itemsFor(selectedDate);
-    final event = items.whereType<CalendarScheduleItem>().first;
-    final task = items.whereType<TaskScheduleItem>().first;
 
     await tester.pumpWidget(
       localizedTestApp(
         child: Scaffold(
-          body: Column(
-            children: [
-              ScheduleEventBlock(item: event, width: -331.6, height: 54),
-              ScheduleItemChip(item: task, width: -331.6, height: 54),
-            ],
+          body: SizedBox(
+            width: 320,
+            height: 520,
+            child: ScheduleDayWeekView(
+              range: ScheduleRange.day(selectedDate),
+              selectedDate: selectedDate,
+              daysShowed: 1,
+              items: _sameSlotItemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onEmptySlot: (_) {},
+              onItemSelected: (_, _) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
           ),
         ),
       ),
     );
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(tester.takeException(), isNull);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SingleChildScrollView &&
+            widget.scrollDirection == Axis.horizontal,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Design review', skipOffstage: false), findsOneWidget);
+    expect(find.text('Pairing session', skipOffstage: false), findsOneWidget);
+    expect(find.text('Submit report', skipOffstage: false), findsOneWidget);
   });
+
+  testWidgets('all-day panel scrolls vertically and resizes from handle', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 420,
+            height: 520,
+            child: ScheduleDayWeekView(
+              range: ScheduleRange.day(selectedDate),
+              selectedDate: selectedDate,
+              daysShowed: 1,
+              items: _manyAllDayItemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onEmptySlot: (_) {},
+              onItemSelected: (_, _) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final allDayScroll = find.byKey(const ValueKey('schedule-all-day-scroll'));
+    expect(tester.takeException(), isNull);
+    expect(allDayScroll, findsOneWidget);
+    expect(
+      tester.widget<SingleChildScrollView>(allDayScroll).scrollDirection,
+      Axis.vertical,
+    );
+    expect(find.text('All-day task 8', skipOffstage: false), findsOneWidget);
+
+    final handle = find.byKey(const ValueKey('schedule-all-day-resize-handle'));
+    expect(handle, findsOneWidget);
+    final before = tester.getTopLeft(handle).dy;
+    await tester.drag(handle, const Offset(0, 64));
+    await tester.pumpAndSettle();
+    final after = tester.getTopLeft(handle).dy;
+
+    expect(after, greaterThan(before + 30));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'event and task chips tolerate negative and tiny planner widths',
+    (tester) async {
+      final selectedDate = DateTime(2026, 1, 15);
+      final items = _itemsFor(selectedDate);
+      final event = items.whereType<CalendarScheduleItem>().first;
+      final task = items.whereType<TaskScheduleItem>().first;
+
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: Column(
+              children: [
+                ScheduleEventBlock(item: event, width: -331.6, height: 54),
+                ScheduleItemChip(item: task, width: -331.6, height: 54),
+                ScheduleItemChip(item: task, width: 33.5, height: 27),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   test('all-day bar uses rendered range and collapses without items', () {
     final source = File(
@@ -105,11 +195,16 @@ void main() {
 
     expect(
       source,
-      contains('final fullDayBarHeight = showFullDayBar ? 82.0 : 0.0;'),
+      contains(
+        'final fullDayBarHeight = showFullDayBar ? _fullDayBarHeight : 0.0;',
+      ),
     );
     expect(source, contains('fullDayEventsBarVisibility: showFullDayBar'));
     expect(source, contains('fullDayEventsBarHeight: fullDayBarHeight'));
     expect(source, contains('fullDayEventHeight: showFullDayBar ? 24 : 0'));
+    expect(source, contains('fullDayEventsBuilder: (events, width)'));
+    expect(source, contains("ValueKey('schedule-all-day-scroll')"));
+    expect(source, contains("ValueKey('schedule-all-day-resize-handle')"));
     expect(source, contains('final displayEnd = _endOfDay('));
     expect(source, contains('endTime: displayEnd'));
     expect(source, contains('final visibleStart = _plannerStartDate(widget);'));
@@ -223,6 +318,48 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(await action, ScheduleItemDetailsAction.export);
+  });
+
+  testWidgets('schedule item details popover shows categories', (tester) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final task = TaskScheduleItem(
+      id: 'task:1',
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      sourceId: 'tasks:inbox',
+      title: 'Submit report',
+      completed: false,
+      allDay: true,
+      start: selectedDate,
+      end: selectedDate.add(const Duration(days: 1)),
+      categories: const ['Home', 'Work'],
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: task,
+                  );
+                },
+                child: const Text('Open details'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Categories: Home, Work'), findsOneWidget);
   });
 
   testWidgets('schedule item details popover closes from empty space', (
@@ -988,5 +1125,82 @@ List<ScheduleItem> _itemsFor(DateTime day) {
       end: DateTime(day.year, day.month, day.day + 1),
       sourceName: 'Inbox',
     ),
+  ];
+}
+
+List<ScheduleItem> _sameSlotItemsFor(DateTime day) {
+  final start = DateTime(day.year, day.month, day.day, 9);
+  final end = DateTime(day.year, day.month, day.day, 10);
+  return [
+    CalendarScheduleItem(
+      id: 'event:1',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'primary',
+      title: 'Design review',
+      allDay: false,
+      start: start,
+      end: end,
+      colorHex: '#3584e4',
+      sourceName: 'Work',
+    ),
+    CalendarScheduleItem(
+      id: 'event:2',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'primary',
+      title: 'Pairing session',
+      allDay: false,
+      start: start,
+      end: end,
+      colorHex: '#33d17a',
+      sourceName: 'Work',
+    ),
+    TaskScheduleItem(
+      id: 'task:1',
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      sourceId: 'tasks:inbox',
+      title: 'Submit report',
+      completed: false,
+      allDay: false,
+      start: start,
+      end: end,
+      sourceName: 'Inbox',
+    ),
+    TaskScheduleItem(
+      id: 'task:2',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'tasks:inbox',
+      title: 'Review notes',
+      completed: false,
+      allDay: false,
+      start: start,
+      end: end,
+      sourceName: 'Inbox',
+    ),
+  ];
+}
+
+List<ScheduleItem> _manyAllDayItemsFor(DateTime day) {
+  final start = DateTime(day.year, day.month, day.day);
+  final end = start.add(const Duration(days: 1));
+  return [
+    for (var index = 0; index < 8; index++)
+      TaskScheduleItem(
+        id: 'all-day-task:$index',
+        accountId: index.isEven ? 'google:g' : 'microsoft:m',
+        provider: index.isEven ? TaskProvider.google : TaskProvider.microsoft,
+        sourceId: 'tasks:inbox',
+        title: 'All-day task ${index + 1}',
+        completed: false,
+        allDay: true,
+        start: start,
+        end: end,
+        sourceName: 'Inbox',
+      ),
   ];
 }

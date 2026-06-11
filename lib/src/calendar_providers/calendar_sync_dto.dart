@@ -58,6 +58,7 @@ class CalendarEventDto {
     this.recurrenceJson,
     this.remindersJson,
     this.attendeesJson,
+    this.categoriesJson,
     this.organizerJson,
     this.creatorJson,
     this.colorId,
@@ -95,6 +96,7 @@ class CalendarEventDto {
   final Object? recurrenceJson;
   final Object? remindersJson;
   final Object? attendeesJson;
+  final Object? categoriesJson;
   final Object? organizerJson;
   final Object? creatorJson;
   final String? colorId;

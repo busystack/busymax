@@ -45,11 +45,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   AccountEntity? _lastAccount;
   TaskProviderCapabilities? _lastCapabilities;
   String? _lastLocalTimeZone;
+  List<String> _lastCategorySuggestions = const [];
   TasksRepository? _taskStreamRepository;
   String? _taskStreamAccountId;
   String? _taskStreamTaskListId;
   String? _taskStreamTaskId;
   Stream<TaskEntity?>? _taskStream;
+  TasksRepository? _categorySuggestionsRepository;
+  Stream<List<String>>? _categorySuggestionsStream;
   TaskListsRepository? _listsStreamRepository;
   Stream<List<TaskListEntity>>? _listsStream;
   var _editorDirty = false;
@@ -112,6 +115,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     final capabilities = capabilitiesForProvider(provider);
     final taskStream = _watchTask(repository);
     final listsStream = _watchTaskLists(listsRepository);
+    final categorySuggestionsStream = _watchCategorySuggestions(repository);
 
     return StreamBuilder<TaskEntity?>(
       stream: taskStream,
@@ -126,6 +130,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
               capabilities: _lastCapabilities ?? capabilities,
               localTimeZone: _lastLocalTimeZone ?? localTimeZone,
               account: _lastAccount,
+              categorySuggestions: _lastCategorySuggestions,
             );
           }
           return const SizedBox.shrink();
@@ -148,18 +153,27 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           stream: listsStream,
           builder: (context, listsSnapshot) {
             final taskLists = listsSnapshot.data ?? const <TaskListEntity>[];
-            _lastTask = task;
-            _lastTaskLists = taskLists;
-            _lastAccount = account;
-            _lastCapabilities = capabilities;
-            _lastLocalTimeZone = localTimeZone;
-            return _buildEditor(
-              repository: repository,
-              task: task,
-              taskLists: taskLists,
-              capabilities: capabilities,
-              localTimeZone: localTimeZone,
-              account: account,
+            return StreamBuilder<List<String>>(
+              stream: categorySuggestionsStream,
+              builder: (context, categorySnapshot) {
+                final categorySuggestions =
+                    categorySnapshot.data ?? _lastCategorySuggestions;
+                _lastTask = task;
+                _lastTaskLists = taskLists;
+                _lastAccount = account;
+                _lastCapabilities = capabilities;
+                _lastLocalTimeZone = localTimeZone;
+                _lastCategorySuggestions = categorySuggestions;
+                return _buildEditor(
+                  repository: repository,
+                  task: task,
+                  taskLists: taskLists,
+                  capabilities: capabilities,
+                  localTimeZone: localTimeZone,
+                  account: account,
+                  categorySuggestions: categorySuggestions,
+                );
+              },
             );
           },
         );
@@ -198,12 +212,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     required TaskProviderCapabilities capabilities,
     required String localTimeZone,
     required AccountEntity? account,
+    required List<String> categorySuggestions,
   }) {
     return TaskDetailsEditor(
       task: task,
       taskLists: taskLists,
       capabilities: capabilities,
       localTimeZone: localTimeZone,
+      categorySuggestions: categorySuggestions,
       accountLabel: _accountEditorLabel(
         context,
         account,
@@ -329,6 +345,17 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       _listsStream = listsRepository.watchTaskLists().asBroadcastStream();
     }
     return _listsStream!;
+  }
+
+  Stream<List<String>> _watchCategorySuggestions(TasksRepository repository) {
+    if (!identical(_categorySuggestionsRepository, repository) ||
+        _categorySuggestionsStream == null) {
+      _categorySuggestionsRepository = repository;
+      _categorySuggestionsStream = repository
+          .watchCategorySuggestions()
+          .asBroadcastStream();
+    }
+    return _categorySuggestionsStream!;
   }
 
   @override

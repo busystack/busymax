@@ -138,6 +138,7 @@ class ScheduleRepository {
           description: event.description,
           descriptionContentType: descriptionBody.contentType,
           descriptionHtml: descriptionBody.html,
+          categories: _stringListFromJson(event.categoriesJson),
           colorHex:
               event.colorHex ??
               calendarSourceBackgroundColorHex(
@@ -210,6 +211,7 @@ class ScheduleRepository {
           start: start,
           end: end,
           notes: task.notes ?? task.bodyContent,
+          categories: _stringListFromJson(task.categoriesJson),
           sourceName: list?.title,
           accountDisplayName: accountDisplayNames[task.accountId],
           accountEmail: accountEmails[task.accountId],
@@ -263,8 +265,9 @@ bool matchesScheduleQuery(ScheduleItem item, String query) {
     if (item is CalendarScheduleItem) ...[
       item.location ?? '',
       item.description ?? '',
+      ...item.categories,
     ],
-    if (item is TaskScheduleItem) item.notes ?? '',
+    if (item is TaskScheduleItem) ...[item.notes ?? '', ...item.categories],
   ].map((value) => value.toLowerCase()).toList();
   return terms.every((term) => fields.any((field) => field.contains(term)));
 }
@@ -293,9 +296,25 @@ bool _taskAllDay(Task task, BusyProvider provider) {
   if (provider == TaskProvider.google) {
     return true;
   }
-  final scheduleDateTime =
-      task.microsoftStartDateTime ?? task.microsoftDueDateTime;
-  return scheduleDateTime == null || !scheduleDateTime.contains('T');
+  final scheduleDateTimes = [
+    task.microsoftStartDateTime,
+    task.microsoftDueDateTime,
+  ].whereType<String>().where((value) => value.isNotEmpty);
+  return scheduleDateTimes.isEmpty ||
+      scheduleDateTimes.every(_isDateOnlyOrMidnight);
+}
+
+bool _isDateOnlyOrMidnight(String value) {
+  return !value.contains('T') || _isMidnightDateTime(value);
+}
+
+bool _isMidnightDateTime(String value) {
+  final separatorIndex = value.indexOf('T');
+  if (separatorIndex < 0 || separatorIndex + 1 >= value.length) {
+    return false;
+  }
+  final time = value.substring(separatorIndex + 1);
+  return time.length >= 5 && time.substring(0, 5) == '00:00';
 }
 
 bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
@@ -332,4 +351,23 @@ DateTime? _parseDateTime(String? value) {
     return null;
   }
   return DateTime.tryParse(value);
+}
+
+List<String> _stringListFromJson(String? value) {
+  if (value == null || value.isEmpty) {
+    return const [];
+  }
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is List) {
+      return [
+        for (final item in decoded)
+          if (item != null && item.toString().trim().isNotEmpty)
+            item.toString().trim(),
+      ];
+    }
+  } on FormatException {
+    return const [];
+  }
+  return const [];
 }

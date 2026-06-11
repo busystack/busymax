@@ -67,6 +67,7 @@ CalendarEventDto microsoftCalendarEventFromJson(
       'reminderMinutesBeforeStart': json['reminderMinutesBeforeStart'],
     },
     attendeesJson: json['attendees'],
+    categoriesJson: json['categories'],
     organizerJson: json['organizer'],
     colorId: _firstCategory(json['categories']),
     colorHex: null,

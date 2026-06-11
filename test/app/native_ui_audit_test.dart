@@ -96,7 +96,9 @@ void main() {
       expect(settings, isNot(contains('l10n.themeFamily')));
       expect(settings, contains('setBackVisible(true)'));
       expect(settings, contains('setSidebarVisible(true)'));
-      expect(newTaskDialog, contains('BusyMaxDialogShell'));
+      expect(newTaskDialog, contains('showBusyMaxModalEditorDialog'));
+      expect(newTaskDialog, contains('BusyMaxModalEditorScaffold'));
+      expect(newTaskDialog, isNot(contains('BusyMaxDialogShell')));
 
       expect(dateTimeFields, contains('YaruDateTimeEntry'));
       expect(dateTimeFields, contains('YaruTimeEntry'));

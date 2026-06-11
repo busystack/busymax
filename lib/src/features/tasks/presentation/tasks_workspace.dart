@@ -98,7 +98,6 @@ class _TasksWorkspaceState extends ConsumerState<TasksWorkspace> {
                   onCreateTask: () => _createTaskFromWorkspace(
                     context,
                     ref,
-                    showAllTasks: showAllTasks,
                     selectedListId: selectedListId,
                   ),
                   onRefreshAll: showAllTasks
@@ -337,7 +336,6 @@ class _TasksToolbar extends ConsumerWidget {
                         ? () => _createTaskFromWorkspace(
                             context,
                             ref,
-                            showAllTasks: true,
                             selectedListId: selectedListId,
                           )
                         : null
@@ -346,7 +344,6 @@ class _TasksToolbar extends ConsumerWidget {
                   : () => _createTaskFromWorkspace(
                       context,
                       ref,
-                      showAllTasks: false,
                       selectedListId: selectedListId,
                     ),
             ),
@@ -425,45 +422,29 @@ class _ToolbarTitle extends StatelessWidget {
 Future<void> _createTaskFromWorkspace(
   BuildContext context,
   WidgetRef ref, {
-  required bool showAllTasks,
   required String? selectedListId,
 }) async {
-  if (showAllTasks) {
-    final accounts = ref.read(accountsStreamProvider).valueOrNull ?? const [];
-    if (accounts.isEmpty) {
-      return;
-    }
-    final draft = await showBusyMaxNewTaskDialog(
-      context,
-      ref: ref,
-      accounts: accounts,
-      initialAccountId: ref.read(selectedAccountProvider)?.id,
-      initialListId: selectedListId,
-    );
-    if (draft == null) {
-      return;
-    }
-    await ref
-        .read(tasksRepositoryForAccountProvider(draft.accountId))
-        .createTask(draft.taskListId, TaskCreateInput(title: draft.title));
+  final accounts = ref.read(accountsStreamProvider).valueOrNull ?? const [];
+  if (accounts.isEmpty) {
     return;
   }
-
-  final repository = ref.read(tasksRepositoryProvider);
-  final listId = selectedListId;
-  if (repository == null || listId == null) {
-    return;
-  }
-  final title = await showBusyMaxTextPrompt(
+  final draft = await showBusyMaxNewTaskDialog(
     context,
-    title: context.l10n.newTask,
-    label: context.l10n.title,
-    actionLabel: context.l10n.create,
+    ref: ref,
+    accounts: accounts,
+    initialAccountId: ref.read(selectedAccountProvider)?.id,
+    initialListId: selectedListId,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
-  if (title == null || title.trim().isEmpty) {
+  if (draft == null) {
     return;
   }
-  await repository.createTask(listId, TaskCreateInput(title: title.trim()));
+  await ref
+      .read(tasksRepositoryForAccountProvider(draft.accountId))
+      .createTask(
+        draft.taskListId,
+        TaskCreateInput(title: draft.title, categories: draft.categories),
+      );
 }
 
 Future<void> _refreshList(BuildContext context, SyncEngine syncEngine) async {
