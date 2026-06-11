@@ -1083,6 +1083,8 @@ void main() {
     expect(sidebar, isNot(contains('? context.l10n.hideFromSchedule')));
     expect(sidebar, isNot(contains(': context.l10n.showInSchedule')));
     expect(sidebar, contains('minHeight: BusyMaxSizes.sidebarRowHeight'));
+    expect(sidebar, contains('leading: _SourceDot'));
+    expect(sidebar, contains('class _SourceDot'));
     expect(sidebar, contains('YaruIcons.checkmark'));
     expect(sidebar, contains('busyMaxSubtleButtonBackground(context)'));
     expect(sidebar, isNot(contains('YaruIcons.checkbox')));
@@ -1202,6 +1204,37 @@ void main() {
     );
     expect(source, contains('onPrevious: onPrevious'));
     expect(source, contains('onNext: onNext'));
+  });
+
+  test('agenda range starts at the selected date', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('ScheduleViewMode.agenda => ScheduleRange('));
+    expect(source, contains('start: _day(_selectedDate)'));
+    expect(
+      source,
+      contains('end: _day(_selectedDate).add(const Duration(days: 7))'),
+    );
+    expect(
+      source,
+      isNot(contains('ScheduleViewMode.agenda => ScheduleRange.week')),
+    );
+  });
+
+  test('agenda task markers use task list icons, not checkbox icons', () {
+    final agenda = File(
+      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+    ).readAsStringSync();
+    final compactAgenda = File(
+      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+    ).readAsStringSync();
+
+    expect(agenda, contains('isTask ? YaruIcons.task_list'));
+    expect(compactAgenda, contains('isTask ? YaruIcons.task_list'));
+    expect(agenda, isNot(contains('YaruIcons.checkbox')));
+    expect(compactAgenda, isNot(contains('YaruIcons.checkbox')));
   });
 
   test('year mode uses existing schedule primitives', () {

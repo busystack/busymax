@@ -724,13 +724,14 @@ class _CompactAgendaRowMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = ScheduleProjection.colorForItem(
-      item,
-      Theme.of(context).colorScheme.brightness,
-    );
-    final icon = item.kind == ScheduleItemKind.task
-        ? YaruIcons.checkbox
-        : YaruIcons.calendar;
+    final isTask = item.kind == ScheduleItemKind.task;
+    final color = isTask
+        ? Theme.of(context).colorScheme.onSurfaceVariant
+        : ScheduleProjection.colorForItem(
+            item,
+            Theme.of(context).colorScheme.brightness,
+          );
+    final icon = isTask ? YaruIcons.task_list : YaruIcons.calendar;
     return Icon(icon, size: BusyMaxSizes.iconSm, color: color);
   }
 }

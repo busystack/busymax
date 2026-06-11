@@ -489,9 +489,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         firstWeekday: firstWeekday,
       ),
       ScheduleViewMode.year => ScheduleRange.year(_selectedDate),
-      ScheduleViewMode.agenda => ScheduleRange.week(
-        _selectedDate,
-        firstWeekday: firstWeekday,
+      ScheduleViewMode.agenda => ScheduleRange(
+        start: _day(_selectedDate),
+        end: _day(_selectedDate).add(const Duration(days: 7)),
       ),
     };
   }

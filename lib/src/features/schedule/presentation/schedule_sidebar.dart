@@ -80,7 +80,7 @@ class _SourceRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return _CompactSourceRow(
       title: source.summary,
-      leading: _ColorDot(
+      leading: _SourceDot(
         seed: source.id,
         colorHex: calendarSourceBackgroundColorHex(
           provider: source.provider,
@@ -424,24 +424,26 @@ class _AccountCalendarSources extends ConsumerWidget {
   }
 }
 
-class _ColorDot extends StatelessWidget {
-  const _ColorDot({required this.seed, this.colorHex});
+class _SourceDot extends StatelessWidget {
+  const _SourceDot({this.seed, this.colorHex, this.color});
 
-  final String seed;
+  final String? seed;
   final String? colorHex;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final color =
+    final resolvedColor =
+        color ??
         _colorFromHex(colorHex) ??
         ScheduleProjection.deterministicSourceColor(
-          seed,
+          seed ?? '',
           Theme.of(context).colorScheme.brightness,
         );
     return Container(
       width: 10,
       height: 10,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: resolvedColor, shape: BoxShape.circle),
     );
   }
 }
@@ -462,9 +464,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
     final title = _taskListLabel(account, list);
     return _CompactSourceRow(
       title: title,
-      leading: Icon(
-        YaruIcons.task_list,
-        size: 14,
+      leading: _SourceDot(
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       trailing: _SourceRowActions(
