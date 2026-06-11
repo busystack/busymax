@@ -132,12 +132,16 @@ void main() {
       final source = File(
         'lib/src/platform/busymax_tray_service.dart',
       ).readAsStringSync();
+      final logo = File('assets/branding/busymax-logo.svg').readAsStringSync();
 
       expect(source, contains('class BusyMaxTrayLabels'));
       expect(source, contains('buildBusyMaxTrayMenu'));
       expect(source, contains('busyMaxApplicationId'));
       expect(source, contains('io.busystack.busymax'));
-      expect(source, contains('assets/branding/busymax-logo.png'));
+      expect(source, contains('assets/branding/busymax-logo.svg'));
+      expect(logo, contains('width="512" height="512"'));
+      expect(logo, contains('viewBox="106 108 300 300"'));
+      expect(logo, isNot(contains('viewBox="254 120 232 272"')));
       expect(source, isNot(contains('BusyMaxTrayAgendaSnapshot')));
       expect(source, isNot(contains('BusyMaxTrayAgendaEntry')));
       expect(source, isNot(contains('buildBusyMaxTrayAgendaRows')));

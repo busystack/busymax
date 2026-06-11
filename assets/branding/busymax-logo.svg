@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="106 108 300 300" width="512" height="512"
+    role="img" aria-labelledby="title">
+    <title id="title">BusyMax logo</title>
+    <defs>
+        <path id="layer"
+            d="M274.96 127.17 383.04 190.83Q402 202 383.04 213.17L274.96 276.83Q256 288 237.04 276.83L128.96 213.17Q110 202 128.96 190.83L237.04 127.17Q256 116 274.96 127.17Z" />
+
+        <linearGradient id="top" x1="130" y1="130" x2="382" y2="274" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#1F0BFF" />
+            <stop offset=".52" stop-color="#950BfF" />
+            <stop offset="1" stop-color="#06030A" />
+        </linearGradient>
+        <linearGradient id="middle" x1="130" y1="168" x2="382" y2="310"
+            gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#950BfF" />
+            <stop offset=".55" stop-color="#FF9BFF" />
+            <stop offset="1" stop-color="#0055F7" />
+        </linearGradient>
+        <linearGradient id="bottom" x1="130" y1="204" x2="382" y2="346"
+            gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#ff00ff" />
+            <stop offset="1" stop-color="#0055F7" />
+        </linearGradient>
+
+        <filter id="shadow" x="70" y="90" width="372" height="306" filterUnits="userSpaceOnUse"
+            color-interpolation-filters="sRGB">
+            <feOffset in="SourceAlpha" dx="0" dy="14" result="offset1" />
+            <feGaussianBlur in="offset1" stdDeviation="13" result="blur1" />
+            <feFlood flood-color="#0B0612" flood-opacity=".18" result="color1" />
+            <feComposite in="color1" in2="blur1" operator="in" result="shadow1" />
+            <feOffset in="SourceAlpha" dx="0" dy="3" result="offset2" />
+            <feGaussianBlur in="offset2" stdDeviation="4" result="blur2" />
+            <feFlood flood-color="#0B0612" flood-opacity=".1" result="color2" />
+            <feComposite in="color2" in2="blur2" operator="in" result="shadow2" />
+            <feMerge>
+                <feMergeNode in="shadow1" />
+                <feMergeNode in="shadow2" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+
+        <clipPath id="top-clip">
+            <path
+                d="M274.96 127.17 383.04 190.83Q402 202 383.04 213.17L274.96 276.83Q256 288 237.04 276.83L128.96 213.17Q110 202 128.96 190.83L237.04 127.17Q256 116 274.96 127.17Z" />
+        </clipPath>
+    </defs>
+
+
+    <g filter="url(#shadow)" stroke="#020617" stroke-opacity=".1" stroke-width="2">
+        <path
+            d="M274.96 127.17 383.04 190.83Q402 202 383.04 213.17L274.96 276.83Q256 288 237.04 276.83L128.96 213.17Q110 202 128.96 190.83L237.04 127.17Q256 116 274.96 127.17Z"
+            transform="translate(0 100)" fill="url(#bottom)" />
+        <path
+            d="M274.96 127.17 383.04 190.83Q402 202 383.04 213.17L274.96 276.83Q256 288 237.04 276.83L128.96 213.17Q110 202 128.96 190.83L237.04 127.17Q256 116 274.96 127.17Z"
+            transform="translate(0 50)" fill="url(#middle)" />
+        <path
+            d="M274.96 127.17 383.04 190.83Q402 202 383.04 213.17L274.96 276.83Q256 288 237.04 276.83L128.96 213.17Q110 202 128.96 190.83L237.04 127.17Q256 116 274.96 127.17Z"
+            fill="url(#top)" />
+    </g>
+
+    <g clip-path="url(#top-clip)">
+        <g transform="matrix(60 -40 76 44.8 256 202)" fill="none" stroke="#F8F1E3"
+            stroke-linecap="square" stroke-linejoin="round" opacity=".98">
+            <path d="M-.60 -.65 L.65 -.60 L.65 .55 L-.60 .50 Z" stroke-width=".15"/>
+        </g>
+    </g>
+</svg>

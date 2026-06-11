@@ -99,12 +99,12 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/busymax.desktop"
   RENAME "io.busystack.busymax.desktop"
   COMPONENT Runtime)
 
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.png"
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.svg"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/256x256/apps"
   RENAME "io.busystack.busymax.png"
   COMPONENT Runtime)
 
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.png"
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.svg"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/256x256/apps"
   RENAME "busymax.png"
   COMPONENT Runtime)

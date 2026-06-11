@@ -163,7 +163,7 @@ class _BusyMaxLogoState extends State<_BusyMaxLogo> {
   }
 
   Future<Uint8List?> _loadLogoBytes() async {
-    const assetPath = 'assets/branding/busymax-logo.png';
+    const assetPath = 'assets/branding/busymax-logo.svg';
     try {
       final data = await rootBundle.load(assetPath);
       return Uint8List.view(

@@ -140,7 +140,7 @@ DBusMenuItem buildBusyMaxTrayMenu({
 String _trayIconName() {
   final executableDir = File(Platform.resolvedExecutable).parent;
   final bundledLogo = File(
-    '${executableDir.path}/data/flutter_assets/assets/branding/busymax-logo.png',
+    '${executableDir.path}/data/flutter_assets/assets/branding/busymax-logo.svg',
   );
   if (bundledLogo.existsSync()) {
     return bundledLogo.path;

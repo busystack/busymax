@@ -148,7 +148,7 @@ static GdkPixbuf* load_application_icon_at_size(gint size) {
   g_autofree gchar* executable_dir = g_path_get_dirname(executable_path);
   g_autofree gchar* icon_path =
       g_build_filename(executable_dir, "data", "flutter_assets", "assets",
-                       "branding", "busymax-logo.png", nullptr);
+                       "branding", "busymax-logo.svg", nullptr);
 
   g_autoptr(GError) error = nullptr;
   GdkPixbuf* icon =
