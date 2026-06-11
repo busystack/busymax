@@ -133,28 +133,7 @@ class _AgendaItemMarker extends StatelessWidget {
     final icon = item.kind == ScheduleItemKind.task
         ? YaruIcons.checkbox
         : YaruIcons.calendar;
-    return SizedBox(
-      width: 24,
-      height: 24,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Icon(
-            icon,
-            size: BusyMaxSizes.iconSm,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          Align(
-            alignment: AlignmentDirectional.bottomEnd,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
-          ),
-        ],
-      ),
-    );
+    return Icon(icon, size: BusyMaxSizes.iconSm, color: color);
   }
 }
 
