@@ -117,10 +117,20 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.byType(Container), findsWidgets);
   });
+
+  testWidgets('startup one-pixel allocation does not overflow', (tester) async {
+    await tester.pumpWidget(
+      _testPanel(data: _data(today), size: const Size(1, 1)),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Agenda'), findsNothing);
+  });
 }
 
 Widget _testPanel({
   required AsyncValue<CompactAgendaData> data,
+  Size size = const Size(420, 680),
   Future<void> Function(ScheduleItem item)? onOpenItem,
   CompactAgendaTaskCompletionCallback? onTaskCompletionChanged,
 }) {
@@ -128,8 +138,8 @@ Widget _testPanel({
     child: localizedTestApp(
       child: Scaffold(
         body: SizedBox(
-          width: 420,
-          height: 680,
+          width: size.width,
+          height: size.height,
           child: CompactAgendaPanel(
             data: data,
             onOpenBusyMax: () async {},

@@ -2132,12 +2132,17 @@ static void configure_compact_agenda_subwindow(FlPluginRegistry* registry) {
   if (titlebar != nullptr) {
     gtk_widget_hide(titlebar);
   }
+  gtk_window_set_decorated(window, FALSE);
   gtk_window_set_title(window, "BusyMax Agenda");
   gtk_window_set_resizable(window, FALSE);
   gtk_window_set_default_size(window, kCompactAgendaWindowWidth,
                               kCompactAgendaWindowHeight);
   gtk_window_resize(window, kCompactAgendaWindowWidth,
                     kCompactAgendaWindowHeight);
+  gtk_widget_set_size_request(GTK_WIDGET(window), kCompactAgendaWindowWidth,
+                              kCompactAgendaWindowHeight);
+  gtk_widget_set_size_request(GTK_WIDGET(view), kCompactAgendaWindowWidth,
+                              kCompactAgendaWindowHeight);
 
   GdkGeometry geometry = {};
   geometry.min_width = kCompactAgendaWindowMinWidth;

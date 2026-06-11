@@ -159,6 +159,12 @@ void main() {
       );
       expect(runner, contains('gtk_window_get_titlebar(window)'));
       expect(runner, contains('gtk_widget_hide(titlebar)'));
+      expect(runner, contains('gtk_window_set_decorated(window, FALSE)'));
+      expect(
+        runner,
+        contains('gtk_widget_set_size_request(GTK_WIDGET(window)'),
+      );
+      expect(runner, contains('gtk_widget_set_size_request(GTK_WIDGET(view)'));
       expect(
         runner,
         isNot(contains('gtk_window_set_titlebar(window, nullptr)')),

@@ -23,6 +23,8 @@ import 'schedule_item_exporter.dart';
 typedef CompactAgendaTaskCompletionCallback =
     Future<void> Function(TaskScheduleItem item, bool completed);
 
+const _compactAgendaMinimumLayoutSize = Size(320, 480);
+
 class CompactAgendaPanel extends ConsumerStatefulWidget {
   const CompactAgendaPanel({
     super.key,
@@ -78,19 +80,20 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
         },
         child: Focus(
           autofocus: true,
-          child: Padding(
-            padding: const EdgeInsets.all(BusyMaxSpacing.sm),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.card,
-                borderRadius: BorderRadius.circular(BusyMaxRadius.window),
-                border: Border.all(color: colors.border),
-                boxShadow: BusyMaxShadow.floatingShadows(
-                  BusyMaxShadow.floatingColor(context),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth <
+                      _compactAgendaMinimumLayoutSize.width ||
+                  constraints.maxHeight <
+                      _compactAgendaMinimumLayoutSize.height) {
+                return const SizedBox.expand();
+              }
+
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.card,
+                  border: Border.all(color: colors.border),
                 ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(BusyMaxRadius.window),
                 child: Column(
                   children: [
                     _CompactAgendaHeader(
@@ -106,8 +109,8 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                     ),
                   ],
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
