@@ -31,6 +31,7 @@ import '../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_google_tasks_adapter.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
+import '../platform/compact_agenda_window_service.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_window_service.dart';
 import '../task_providers/task_provider.dart';
@@ -122,6 +123,11 @@ final linuxHeaderBarServiceProvider = Provider<LinuxHeaderBarService>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
+
+final compactAgendaWindowServiceProvider =
+    Provider<CompactAgendaWindowService>((ref) {
+      return const CompactAgendaWindowService();
+    });
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
