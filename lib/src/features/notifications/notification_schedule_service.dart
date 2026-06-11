@@ -23,6 +23,12 @@ class NotificationScheduleService {
         .go();
 
     final now = _nowUtc();
+    final sourcesById = {
+      for (final source in await (_database.select(
+        _database.calendarSources,
+      )..where((row) => row.accountId.equals(accountId))).get())
+        source.id: source,
+    };
     final rows =
         await (_database.select(_database.calendarEvents)..where(
               (row) =>
@@ -36,7 +42,10 @@ class NotificationScheduleService {
       if (start == null) {
         continue;
       }
-      final reminders = _eventReminderMinutes(event);
+      final reminders = _eventReminderMinutes(
+        event,
+        source: sourcesById[event.calendarSourceId],
+      );
       for (final minutes in reminders) {
         final startUtc = start.toUtc();
         final reminderAt = startUtc.subtract(Duration(minutes: minutes));
@@ -134,13 +143,13 @@ DateTime? _eventStart(CalendarEvent event) {
   return _parseDateTime(event.startDateTime, event.startTimeZone);
 }
 
-List<int> _eventReminderMinutes(CalendarEvent event) {
+List<int> _eventReminderMinutes(CalendarEvent event, {CalendarSource? source}) {
   final raw = event.remindersJson;
   if (raw == null || raw.isEmpty) {
     return const [];
   }
   final provider = TaskProviderParsing.fromStorageValue(event.provider);
-  final decoded = jsonDecode(raw);
+  final decoded = _decodeJson(raw);
   if (provider == TaskProvider.microsoft && decoded is Map) {
     final map = decoded.cast<String, Object?>();
     final enabled = map['isReminderOn'] == true;
@@ -149,6 +158,9 @@ List<int> _eventReminderMinutes(CalendarEvent event) {
   }
   if (provider == TaskProvider.google && decoded is Map) {
     final map = decoded.cast<String, Object?>();
+    if (map['useDefault'] == true) {
+      return _googleDefaultReminderMinutes(source);
+    }
     final overrides = map['overrides'];
     if (overrides is! List) {
       return const [];
@@ -160,6 +172,37 @@ List<int> _eventReminderMinutes(CalendarEvent event) {
     ];
   }
   return const [];
+}
+
+Object? _decodeJson(String raw) {
+  try {
+    return jsonDecode(raw);
+  } on Object {
+    return null;
+  }
+}
+
+List<int> _googleDefaultReminderMinutes(CalendarSource? source) {
+  final raw = source?.rawJson;
+  if (raw == null || raw.isEmpty) {
+    return const [];
+  }
+
+  final decoded = _decodeJson(raw);
+  if (decoded is! Map) {
+    return const [];
+  }
+
+  final reminders = decoded['defaultReminders'];
+  if (reminders is! List) {
+    return const [];
+  }
+
+  return [
+    for (final item in reminders)
+      if (item is Map && item['method'] == 'popup' && item['minutes'] is int)
+        item['minutes'] as int,
+  ];
 }
 
 DateTime? _parseDate(String? value) {

@@ -25,6 +25,7 @@ import '../../../schedule/schedule_repository.dart';
 import '../../../schedule/schedule_scope.dart';
 import '../../../schedule/schedule_source_visibility.dart';
 import '../../../schedule/schedule_view_mode.dart';
+import '../../../task_providers/task_provider.dart';
 import '../../calendar/presentation/event_editor.dart';
 import '../../calendar/presentation/event_editor_draft.dart';
 import '../../task_lists/data/task_lists_repository.dart';
@@ -966,6 +967,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             description: item.description,
             descriptionContentType: item.descriptionContentType,
             descriptionHtml: item.descriptionHtml,
+            reminders: _eventRemindersForEdit(
+              item.provider,
+              item.reminderMinutesBeforeStart,
+            ),
             categories: item.categories,
           ),
           sources,
@@ -1225,6 +1230,26 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           .setScheduleViewMode(ScheduleViewMode.agenda),
     );
   }
+}
+
+Object? _eventRemindersForEdit(BusyProvider provider, List<int> minutes) {
+  final normalized = [
+    for (final value in minutes)
+      if (value > 0) value,
+  ];
+  if (normalized.isEmpty) {
+    return null;
+  }
+  if (provider == TaskProvider.google) {
+    return {
+      'useDefault': false,
+      'overrides': [
+        for (final minutes in normalized)
+          {'method': 'popup', 'minutes': minutes},
+      ],
+    };
+  }
+  return {'isReminderOn': true, 'reminderMinutesBeforeStart': normalized.first};
 }
 
 T? _findCommandItem<T extends ScheduleItem>(

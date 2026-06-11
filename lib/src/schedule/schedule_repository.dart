@@ -187,6 +187,7 @@ class ScheduleRepository {
           reminderMinutesBeforeStart: _eventReminderMinutes(
             provider,
             event.remindersJson,
+            source: source,
           ),
           colorHex:
               event.colorHex ??
@@ -579,7 +580,11 @@ List<String> _stringListFromJson(String? value) {
   return const [];
 }
 
-List<int> _eventReminderMinutes(BusyProvider provider, String? value) {
+List<int> _eventReminderMinutes(
+  BusyProvider provider,
+  String? value, {
+  CalendarSource? source,
+}) {
   if (value == null || value.isEmpty) {
     return const [];
   }
@@ -594,18 +599,45 @@ List<int> _eventReminderMinutes(BusyProvider provider, String? value) {
         map['isReminderOn'] == true
             ? [map['reminderMinutesBeforeStart']]
             : const <Object?>[],
-      TaskProvider.google => switch (map['overrides']) {
-        final List<Object?> overrides => [
-          for (final item in overrides)
-            if (item is Map && item['method'] == 'popup') item['minutes'],
-        ],
-        _ => const <Object?>[],
-      },
+      TaskProvider.google =>
+        map['useDefault'] == true
+            ? _googleDefaultReminderMinutes(source)
+            : switch (map['overrides']) {
+                final List<Object?> overrides => [
+                  for (final item in overrides)
+                    if (item is Map && item['method'] == 'popup')
+                      item['minutes'],
+                ],
+                _ => const <Object?>[],
+              },
     };
     return [
       for (final value in minutes)
         if (value is int && value >= 0) value,
     ]..sort();
+  } on FormatException {
+    return const [];
+  }
+}
+
+List<Object?> _googleDefaultReminderMinutes(CalendarSource? source) {
+  final raw = source?.rawJson;
+  if (raw == null || raw.isEmpty) {
+    return const [];
+  }
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) {
+      return const [];
+    }
+    final reminders = decoded['defaultReminders'];
+    if (reminders is! List) {
+      return const [];
+    }
+    return [
+      for (final item in reminders)
+        if (item is Map && item['method'] == 'popup') item['minutes'],
+    ];
   } on FormatException {
     return const [];
   }

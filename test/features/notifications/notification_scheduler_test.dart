@@ -108,6 +108,44 @@ void main() {
 
     expect(backend.notifications.single.summary, 'Future report');
   });
+
+  test('notification activation receives due schedule row', () async {
+    NotificationScheduleData? activatedRow;
+    scheduler.stop();
+    scheduler = NotificationScheduler(
+      database: database,
+      notifications: DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults(),
+      ),
+      interval: const Duration(days: 1),
+      nowUtc: () => now,
+      onNotificationActivated: (row) async => activatedRow = row,
+    );
+    scheduler.start();
+
+    await database
+        .into(database.notificationSchedule)
+        .insert(
+          NotificationScheduleCompanion.insert(
+            id: 'event|event-1|5',
+            accountId: 'microsoft:m',
+            sourceType: 'event',
+            sourceId: 'event-1',
+            scheduledAtUtc: DateTime.utc(2026, 6, 8, 9).millisecondsSinceEpoch,
+            title: 'Standup',
+            createdAtLocal: 0,
+            updatedAtLocal: 0,
+          ),
+        );
+
+    await _waitUntil(() => backend.notifications.isNotEmpty);
+    await backend.notifications.single.onAction?.call('default');
+
+    expect(activatedRow?.id, 'event|event-1|5');
+    expect(activatedRow?.sourceType, 'event');
+    expect(activatedRow?.sourceId, 'event-1');
+  });
 }
 
 Future<void> _waitUntil(
@@ -131,8 +169,10 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
     String summary, {
     String body = '',
     List<NotificationHint> hints = const [],
+    List<NotificationAction> actions = const [],
+    DesktopNotificationActionHandler? onAction,
   }) async {
-    notifications.add(_NotificationRecord(summary, body));
+    notifications.add(_NotificationRecord(summary, body, actions, onAction));
   }
 
   @override
@@ -140,8 +180,15 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
 }
 
 class _NotificationRecord {
-  const _NotificationRecord(this.summary, this.body);
+  const _NotificationRecord(
+    this.summary,
+    this.body,
+    this.actions,
+    this.onAction,
+  );
 
   final String summary;
   final String body;
+  final List<NotificationAction> actions;
+  final DesktopNotificationActionHandler? onAction;
 }

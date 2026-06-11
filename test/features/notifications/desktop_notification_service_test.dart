@@ -73,6 +73,40 @@ void main() {
     expect(backend.notifications.single.body, 'Due at 9:00 AM');
   });
 
+  test('reminder notifications are not transient', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults(),
+    );
+
+    await service.notifyEventReminder('Standup', 'Starts at 9:00 AM');
+
+    expect(
+      backend.notifications.single.hints.map((hint) => hint.key),
+      isNot(contains('transient')),
+    );
+  });
+
+  test('reminder notification default action activates callback', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults(),
+    );
+    var activated = false;
+
+    await service.notifyEventReminder(
+      'Standup',
+      'Starts at 9:00',
+      onActivated: () async => activated = true,
+    );
+    await backend.notifications.single.onAction?.call('default');
+
+    expect(backend.notifications.single.actions.single.key, 'default');
+    expect(activated, isTrue);
+  });
+
   test('private reminder notifications hide item details', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
@@ -119,8 +153,12 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
     String summary, {
     String body = '',
     List<NotificationHint> hints = const [],
+    List<NotificationAction> actions = const [],
+    DesktopNotificationActionHandler? onAction,
   }) async {
-    notifications.add(_NotificationRecord(summary, body));
+    notifications.add(
+      _NotificationRecord(summary, body, hints, actions, onAction),
+    );
   }
 
   @override
@@ -128,8 +166,17 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
 }
 
 class _NotificationRecord {
-  const _NotificationRecord(this.summary, this.body);
+  const _NotificationRecord(
+    this.summary,
+    this.body,
+    this.hints,
+    this.actions,
+    this.onAction,
+  );
 
   final String summary;
   final String body;
+  final List<NotificationHint> hints;
+  final List<NotificationAction> actions;
+  final DesktopNotificationActionHandler? onAction;
 }

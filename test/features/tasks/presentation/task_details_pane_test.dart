@@ -736,7 +736,7 @@ void main() {
   });
 
   testWidgets(
-    'due time uses Yaru time entry instead of custom picker channel',
+    'due time uses in-app time entry instead of custom picker channel',
     (tester) async {
       final calls = <MethodCall>[];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -750,10 +750,10 @@ void main() {
         alwaysUse24HourFormat: false,
       );
 
-      expect(find.byType(YaruTimeEntry), findsNothing);
+      expect(_timeTextEntryFinder(), findsNothing);
       await _openRowMenu(tester, 'Due time');
 
-      expect(find.byType(YaruTimeEntry), findsOneWidget);
+      expect(_timeTextEntryFinder(), findsOneWidget);
 
       expect(tester.takeException(), isNull);
       expect(calls, isEmpty);
@@ -818,7 +818,7 @@ void main() {
       await tester.tap(find.text('Time Slot'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Due time'), findsOneWidget);
+      expect(find.text('Due time'), findsWidgets);
       expect(find.text('Start time'), findsOneWidget);
 
       await tester.tap(find.text('Save'));
@@ -867,7 +867,7 @@ void main() {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
     await _openRowMenu(tester, 'Due time');
 
-    final entryContext = tester.element(find.byType(YaruTimeEntry).first);
+    final entryContext = tester.element(_timeTextEntryFinder().first);
     final decorationTheme = Theme.of(entryContext).inputDecorationTheme;
 
     expect(decorationTheme.floatingLabelBehavior, FloatingLabelBehavior.never);
@@ -876,7 +876,7 @@ void main() {
   });
 
   testWidgets(
-    'empty time field uses Yaru placeholder instead of None subtitle',
+    'empty time field uses time placeholder instead of None subtitle',
     (tester) async {
       await tester.pumpWidget(
         localizedTestApp(
@@ -890,17 +890,57 @@ void main() {
         ),
       );
 
-      expect(find.text('Due time'), findsOneWidget);
+      expect(find.text('Due time'), findsWidgets);
       expect(find.text('None'), findsNothing);
-      expect(
-        tester
-            .widget<YaruTimeEntry>(find.byType(YaruTimeEntry))
-            .controller
-            ?.timeOfDay,
-        isNull,
-      );
+      final entry = tester.widget<TextFormField>(_timeTextEntryFinder());
+      expect(entry.controller?.text, isEmpty);
+      expect(find.text('--:--'), findsOneWidget);
     },
   );
+
+  testWidgets('time field accepts midnight input', (tester) async {
+    String? changed;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopTimeField(
+            label: 'Due time',
+            time: '09:30',
+            onChanged: (time) => changed = time,
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(_timeTextEntryFinder(), '00:00');
+    await tester.pump();
+
+    expect(changed, '00:00');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('time field formats compact numeric input', (tester) async {
+    String? changed;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopTimeField(
+            label: 'Due time',
+            time: null,
+            onChanged: (time) => changed = time,
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(_timeTextEntryFinder(), '0517');
+    await tester.pump();
+
+    final entry = tester.widget<TextFormField>(_timeTextEntryFinder());
+    expect(entry.controller?.text, '05:17');
+    expect(changed, '05:17');
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Microsoft payload still includes time zone on Save', (
     tester,
@@ -1130,6 +1170,12 @@ Future<void> _openRowMenu(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
   await tester.tap(row);
   await tester.pumpAndSettle();
+}
+
+Finder _timeTextEntryFinder() {
+  return find.byWidgetPredicate(
+    (widget) => widget is TextFormField && widget.controller != null,
+  );
 }
 
 class _FakeTasksRepository implements TasksRepository {

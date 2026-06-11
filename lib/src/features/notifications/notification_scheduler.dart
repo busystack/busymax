@@ -11,15 +11,20 @@ class NotificationScheduler {
     required DesktopNotificationService notifications,
     Duration interval = const Duration(minutes: 1),
     DateTime Function()? nowUtc,
+    Future<void> Function(NotificationScheduleData row)?
+    onNotificationActivated,
   }) : _database = database,
        _notifications = notifications,
        _interval = interval,
-       _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
+       _nowUtc = nowUtc ?? (() => DateTime.now().toUtc()),
+       _onNotificationActivated = onNotificationActivated;
 
   final AppDatabase _database;
   final DesktopNotificationService _notifications;
   final Duration _interval;
   final DateTime Function() _nowUtc;
+  final Future<void> Function(NotificationScheduleData row)?
+  _onNotificationActivated;
   Timer? _timer;
   Timer? _dueTimer;
   StreamSubscription<List<NotificationScheduleData>>? _scheduleSubscription;
@@ -78,9 +83,21 @@ class NotificationScheduler {
             .get();
     for (final row in rows) {
       if (row.sourceType == 'event') {
-        await _notifications.notifyEventReminder(row.title, row.body);
+        await _notifications.notifyEventReminder(
+          row.title,
+          row.body,
+          onActivated: _onNotificationActivated == null
+              ? null
+              : () => _onNotificationActivated(row),
+        );
       } else if (row.sourceType == 'task') {
-        await _notifications.notifyTaskReminder(row.title, row.body);
+        await _notifications.notifyTaskReminder(
+          row.title,
+          row.body,
+          onActivated: _onNotificationActivated == null
+              ? null
+              : () => _onNotificationActivated(row),
+        );
       }
       await (_database.update(
         _database.notificationSchedule,

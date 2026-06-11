@@ -59,6 +59,58 @@ void main() {
     );
   });
 
+  test(
+    'Google event default reminder schedules from calendar source',
+    () async {
+      await _upsertEvent(
+        database,
+        accountId: 'google:g',
+        provider: TaskProvider.google,
+        remindersJson: {'useDefault': true},
+        sourceRawJson: {
+          'id': 'cal-1',
+          'defaultReminders': [
+            {'method': 'popup', 'minutes': 15},
+          ],
+        },
+      );
+
+      await service.rebuildUpcomingEventNotifications('google:g');
+
+      final rows = await database.select(database.notificationSchedule).get();
+      expect(rows.single.sourceType, 'event');
+      expect(
+        rows.single.scheduledAtUtc,
+        DateTime.utc(2026, 6, 8, 8, 45).millisecondsSinceEpoch,
+      );
+    },
+  );
+
+  test(
+    'Google event explicit empty reminder ignores calendar defaults',
+    () async {
+      await _upsertEvent(
+        database,
+        accountId: 'google:g',
+        provider: TaskProvider.google,
+        remindersJson: {'useDefault': false, 'overrides': const []},
+        sourceRawJson: {
+          'id': 'cal-1',
+          'defaultReminders': [
+            {'method': 'popup', 'minutes': 15},
+          ],
+        },
+      );
+
+      await service.rebuildUpcomingEventNotifications('google:g');
+
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+    },
+  );
+
   test('Microsoft event reminder schedules notification', () async {
     await _upsertEvent(
       database,
@@ -259,6 +311,7 @@ Future<void> _upsertEvent(
   required Object remindersJson,
   String startDateTime = '2026-06-08T09:00:00.000Z',
   String? startTimeZone,
+  Map<String, Object?> sourceRawJson = const {},
 }) async {
   final repository = CalendarRepository(database: database);
   await repository.upsertSource(
@@ -267,6 +320,7 @@ Future<void> _upsertEvent(
       provider: provider,
       providerCalendarId: 'cal-1',
       summary: 'Calendar',
+      rawJson: sourceRawJson,
     ),
   );
   await repository.upsertEvent(

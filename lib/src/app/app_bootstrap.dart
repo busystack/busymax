@@ -35,7 +35,9 @@ import '../platform/compact_agenda_window_service.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_window_service.dart';
 import '../task_providers/task_provider.dart';
+import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
+import 'app_router.dart';
 import 'app_settings.dart';
 
 export '../app/app_settings.dart';
@@ -538,11 +540,166 @@ final notificationSchedulerProvider = Provider<NotificationScheduler>((ref) {
   final scheduler = NotificationScheduler(
     database: ref.watch(databaseProvider),
     notifications: ref.watch(desktopNotificationServiceProvider),
+    onNotificationActivated: (row) => _openNotificationSource(ref, row),
   );
   scheduler.start();
   ref.onDispose(scheduler.stop);
   return scheduler;
 });
+
+final _notificationOpenSequenceProvider = StateProvider<int>((ref) => 0);
+
+Future<void> _openNotificationSource(
+  Ref ref,
+  NotificationScheduleData row,
+) async {
+  return switch (row.sourceType) {
+    'event' => _openEventNotification(ref, row),
+    'task' => _openTaskNotification(ref, row),
+    _ => ref.read(linuxWindowServiceProvider).showWindow(),
+  };
+}
+
+Future<void> _openEventNotification(
+  Ref ref,
+  NotificationScheduleData row,
+) async {
+  final database = ref.read(databaseProvider);
+  final event =
+      await (database.select(database.calendarEvents)..where(
+            (table) =>
+                table.accountId.equals(row.accountId) &
+                table.id.equals(row.sourceId) &
+                table.isDeleted.equals(false) &
+                table.isCancelled.equals(false),
+          ))
+          .getSingleOrNull();
+  if (event == null) {
+    await ref.read(linuxWindowServiceProvider).showWindow();
+    return;
+  }
+
+  await _openScheduleItemFromNotification(
+    ref,
+    kind: ScheduleWorkspaceCommandKind.openCalendarEvent,
+    date: _calendarEventCommandDate(event),
+    accountId: event.accountId,
+    sourceId: event.calendarSourceId,
+    itemId: event.id,
+  );
+}
+
+Future<void> _openTaskNotification(
+  Ref ref,
+  NotificationScheduleData row,
+) async {
+  final database = ref.read(databaseProvider);
+  final task =
+      await (database.select(database.tasks)
+            ..where(
+              (table) =>
+                  table.accountId.equals(row.accountId) &
+                  table.id.equals(row.sourceId) &
+                  table.pendingDelete.equals(false),
+            )
+            ..limit(1))
+          .getSingleOrNull();
+  if (task == null) {
+    await ref.read(linuxWindowServiceProvider).showWindow();
+    return;
+  }
+
+  await _openScheduleItemFromNotification(
+    ref,
+    kind: ScheduleWorkspaceCommandKind.openTask,
+    date: _taskCommandDate(task),
+    accountId: task.accountId,
+    sourceId: task.taskListId,
+    itemId: task.id,
+  );
+}
+
+Future<void> _openScheduleItemFromNotification(
+  Ref ref, {
+  required ScheduleWorkspaceCommandKind kind,
+  required DateTime? date,
+  required String accountId,
+  required String sourceId,
+  required String itemId,
+}) async {
+  await ref.read(linuxWindowServiceProvider).showWindow();
+  final sequenceController = ref.read(
+    _notificationOpenSequenceProvider.notifier,
+  );
+  final sequence = sequenceController.state + 1;
+  sequenceController.state = sequence;
+  ref
+      .read(scheduleWorkspaceCommandProvider.notifier)
+      .state = ScheduleWorkspaceCommand(
+    kind,
+    sequence,
+    date: date,
+    accountId: accountId,
+    sourceId: sourceId,
+    itemId: itemId,
+  );
+  ref.read(appRouterProvider).go('/schedule');
+}
+
+DateTime? _calendarEventCommandDate(CalendarEvent event) {
+  if (event.allDay) {
+    return _parseLocalDate(event.startDate);
+  }
+  return _parseProviderDateTime(event.startDateTime, event.startTimeZone);
+}
+
+DateTime? _taskCommandDate(Task task) {
+  return _parseProviderDateTime(
+        task.microsoftDueDateTime,
+        task.microsoftDueTimeZone,
+      ) ??
+      _parseProviderDateTime(
+        task.microsoftReminderDateTime,
+        task.microsoftReminderTimeZone,
+      ) ??
+      _parseProviderDateTime(task.dueUtc, 'UTC');
+}
+
+DateTime? _parseLocalDate(String? value) {
+  if (value == null || value.length < 10) {
+    return null;
+  }
+  return DateTime.tryParse('${value.substring(0, 10)}T00:00:00');
+}
+
+DateTime? _parseProviderDateTime(String? value, String? timeZone) {
+  final parsed = DateTime.tryParse(value ?? '');
+  if (parsed == null) {
+    return null;
+  }
+  if (parsed.isUtc) {
+    return parsed.toLocal();
+  }
+
+  final normalizedZone = timeZone?.trim().toLowerCase();
+  if (normalizedZone == 'utc' ||
+      normalizedZone == 'etc/utc' ||
+      normalizedZone == 'gmt' ||
+      normalizedZone == 'etc/gmt') {
+    return DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
+    ).toLocal();
+  }
+
+  return parsed;
+}
 
 final dueTodayNotificationProvider = Provider<void>((ref) {
   final settings = ref.watch(appSettingsControllerProvider);

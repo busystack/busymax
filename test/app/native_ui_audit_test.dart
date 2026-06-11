@@ -121,7 +121,8 @@ void main() {
         expect(compactAgenda, isNot(contains('scheduleAgendaRowBackground')));
 
         expect(dateTimeFields, contains('YaruDateTimeEntry'));
-        expect(dateTimeFields, contains('YaruTimeEntry'));
+        expect(dateTimeFields, contains('_BusyMaxTimeTextEntry'));
+        expect(dateTimeFields, contains('parseTimeInput'));
         expect(dateTimeFields, isNot(contains('showDatePicker')));
         expect(dateTimeFields, isNot(contains('showTimePicker')));
       },

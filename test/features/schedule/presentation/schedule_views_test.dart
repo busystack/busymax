@@ -1037,6 +1037,7 @@ void main() {
     expect(source, contains('exportScheduleItemWithSaveDialog(item)'));
     expect(source, isNot(contains('exportScheduleItemToDownloads(item)')));
     expect(source, contains('void _editItem('));
+    expect(source, contains('reminders: _eventRemindersForEdit('));
   });
 
   test(

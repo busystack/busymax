@@ -182,6 +182,57 @@ void main() {
     expect(event.endTimeZone, 'Pacific Standard Time');
   });
 
+  test(
+    'Google calendar event default reminders appear on schedule item',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertScheduleAccount(database, provider: TaskProvider.google);
+      final calendarRepository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 9),
+      );
+      await calendarRepository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar',
+          summary: 'Work',
+          rawJson: {
+            'id': 'calendar',
+            'defaultReminders': [
+              {'method': 'popup', 'minutes': 15},
+            ],
+          },
+        ),
+      );
+      await calendarRepository.upsertEvent(
+        accountId: 'account',
+        event: const CalendarEventDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'event',
+          title: 'Planning',
+        startDateTime: '2026-06-11T09:00:00',
+        endDateTime: '2026-06-11T10:00:00',
+          remindersJson: {'useDefault': true},
+        ),
+      );
+
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 11)),
+        filters: const ScheduleFilters(
+          accountIds: {'account'},
+          includeTasks: false,
+        ),
+      );
+
+      expect(items, hasLength(1));
+      final event = items.single as CalendarScheduleItem;
+      expect(event.reminderMinutesBeforeStart, [15]);
+    },
+  );
+
   test('Microsoft task with start and due appears on start day', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);

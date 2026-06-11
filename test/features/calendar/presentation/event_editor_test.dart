@@ -8,7 +8,6 @@ import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ubuntu_widgets/ubuntu_widgets.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
@@ -150,9 +149,9 @@ void main() {
     await tester.tap(find.text('Start time'));
     await tester.pumpAndSettle();
 
-    final entry = tester.widget<YaruTimeEntry>(find.byType(YaruTimeEntry));
-    expect(entry.controller?.timeOfDay, const TimeOfDay(hour: 9, minute: 0));
-    expect(entry.acceptEmpty, isFalse);
+    final fieldFinder = _timeTextEntryFinder();
+    final entry = tester.widget<TextFormField>(fieldFinder);
+    expect(entry.controller?.text, '09:00');
     expect(
       tester
           .widgetList<EditableText>(find.byType(EditableText))
@@ -160,14 +159,49 @@ void main() {
       isTrue,
     );
 
-    entry.onChanged?.call(null);
+    await tester.enterText(fieldFinder, '');
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(
-      tester.widget<YaruTimeEntry>(find.byType(YaruTimeEntry)).controller,
-      isNotNull,
+    expect(tester.widget<TextFormField>(fieldFinder).controller?.text, isEmpty);
+  });
+
+  testWidgets('event time popup accepts midnight input', (tester) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning', allDay: false),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
     );
+
+    await tester.ensureVisible(find.text('Start time'));
+    await tester.tap(find.text('Start time'));
+    await tester.pumpAndSettle();
+    await tester.enterText(_timeTextEntryFinder(), '00');
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.start?.year, 2026);
+    expect(saved?.start?.month, 6);
+    expect(saved?.start?.day, 8);
+    expect(saved?.start?.hour, 0);
+    expect(saved?.start?.minute, 0);
+    expect(saved?.end?.hour, 10);
   });
 
   test('event draft requires end after start', () {
@@ -811,6 +845,12 @@ Finder _headerButtonFinder(String label) {
         ),
       )
       .first;
+}
+
+Finder _timeTextEntryFinder() {
+  return find.byWidgetPredicate(
+    (widget) => widget is TextFormField && widget.controller != null,
+  );
 }
 
 Finder _plainTextFinder(String label) {

@@ -1710,5 +1710,7 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
     String summary, {
     String body = '',
     List<NotificationHint> hints = const [],
+    List<NotificationAction> actions = const [],
+    DesktopNotificationActionHandler? onAction,
   }) async {}
 }
