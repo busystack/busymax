@@ -233,6 +233,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             ? displayRange.start
                             : _selectedDate,
                         firstWeekday: _firstWeekday(context),
+                        dayStartMinute: settings.scheduleDayStartMinute,
+                        dayEndMinute: settings.scheduleDayEndMinute,
                         hasAnySources:
                             visibility.hasCalendarSources ||
                             visibility.hasTaskLists,
@@ -1160,6 +1162,8 @@ class _ScheduleBody extends StatelessWidget {
     required this.range,
     required this.selectedDate,
     required this.firstWeekday,
+    required this.dayStartMinute,
+    required this.dayEndMinute,
     required this.hasAnySources,
     required this.items,
     required this.onDaySelected,
@@ -1180,6 +1184,8 @@ class _ScheduleBody extends StatelessWidget {
   final ScheduleRange range;
   final DateTime selectedDate;
   final int firstWeekday;
+  final int dayStartMinute;
+  final int dayEndMinute;
   final bool hasAnySources;
   final List<ScheduleItem> items;
   final ValueChanged<DateTime> onDaySelected;
@@ -1208,6 +1214,8 @@ class _ScheduleBody extends StatelessWidget {
         range: range,
         selectedDate: selectedDate,
         daysShowed: 1,
+        dayStartMinute: dayStartMinute,
+        dayEndMinute: dayEndMinute,
         items: items,
         onDaySelected: onDaySelected,
         onEmptySlot: onEmptySlot,
@@ -1218,6 +1226,8 @@ class _ScheduleBody extends StatelessWidget {
         range: range,
         selectedDate: selectedDate,
         daysShowed: 7,
+        dayStartMinute: dayStartMinute,
+        dayEndMinute: dayEndMinute,
         items: items,
         onDaySelected: onDaySelected,
         onEmptySlot: onEmptySlot,

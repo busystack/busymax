@@ -53,6 +53,61 @@ void main() {
     expect(find.byType(icv.EventsList), findsNothing);
   });
 
+  testWidgets('day view applies configured display hours to planner scroll', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleDayWeekView(
+              range: ScheduleRange.day(selectedDate),
+              selectedDate: selectedDate,
+              daysShowed: 1,
+              dayStartMinute: 8 * 60,
+              dayEndMinute: 18 * 60,
+              items: _itemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onEmptySlot: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final planner = tester.widget<icv.EventsPlanner>(
+      find.byType(icv.EventsPlanner),
+    );
+    expect(planner.initialVerticalScrollOffset, 0.9 * 8 * 60);
+    expect(planner.minVerticalScrollOffset, isNull);
+    expect(planner.maxVerticalScrollOffset, isNull);
+    expect(planner.offTimesParam.offTimesAllDaysRanges, hasLength(2));
+    expect(planner.offTimesParam.offTimesAllDaysRanges.first.start.hour, 0);
+    expect(planner.offTimesParam.offTimesAllDaysRanges.first.end.hour, 8);
+    expect(planner.offTimesParam.offTimesAllDaysRanges.last.start.hour, 18);
+    expect(planner.offTimesParam.offTimesAllDaysRanges.last.end.hour, 24);
+    final painter =
+        planner.offTimesParam.offTimesAllDaysPainter!(
+              0,
+              selectedDate,
+              true,
+              0.9,
+              planner.offTimesParam.offTimesAllDaysRanges,
+              Theme.of(
+                tester.element(find.byType(ScheduleDayWeekView)),
+              ).colorScheme.surface,
+            )
+            as icv.OffSetAllDaysPainter;
+    expect(painter.paintToday, isTrue);
+  });
+
   testWidgets('short overlapping event block does not overflow', (
     tester,
   ) async {

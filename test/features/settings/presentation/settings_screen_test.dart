@@ -128,6 +128,13 @@ void main() {
     expect(find.text('Localization'), findsNothing);
     expect(find.text('Sync'), findsNothing);
 
+    await tester.tap(find.text('Schedule'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Day starts at'), findsOneWidget);
+    expect(find.text('Day ends at'), findsOneWidget);
+    expect(find.text('Add Google account'), findsNothing);
+
     await tester.tap(find.text('System'));
     await tester.pumpAndSettle();
 
@@ -176,6 +183,26 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
+  });
+
+  test('Schedule display hours persist and keep a valid range', () async {
+    final store = _MemorySettingsStore();
+    final first = AppSettingsController(store);
+    await Future<void>.delayed(Duration.zero);
+
+    await first.setScheduleDayStartMinute(9 * 60);
+    await first.setScheduleDayEndMinute(18 * 60);
+
+    final second = AppSettingsController(store);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(second.state.scheduleDayStartMinute, 9 * 60);
+    expect(second.state.scheduleDayEndMinute, 18 * 60);
+
+    await second.setScheduleDayStartMinute(23 * 60);
+
+    expect(second.state.scheduleDayStartMinute, 23 * 60);
+    expect(second.state.scheduleDayEndMinute, 24 * 60);
   });
 
   testWidgets('Settings creates a new list for the account card', (

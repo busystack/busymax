@@ -223,6 +223,22 @@ class AppLocalizationsDe extends AppLocalizations {
   String get viewAgenda => 'Agenda';
 
   @override
+  String get scheduleSettings => 'Zeitplan';
+
+  @override
+  String get scheduleDisplaySettings => 'Zeitplananzeige';
+
+  @override
+  String get scheduleDisplayHoursDescription =>
+      'Tages- und Wochenansicht öffnen innerhalb dieser Zeiten. Frühe und späte Einträge erweitern den Bereich bei Bedarf.';
+
+  @override
+  String get scheduleDayStartsAt => 'Tag beginnt um';
+
+  @override
+  String get scheduleDayEndsAt => 'Tag endet um';
+
+  @override
   String get sourceCalendar => 'Kalender';
 
   @override

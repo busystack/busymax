@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 import 'package:intl/intl.dart';
 
+import '../../../app/app_settings.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
@@ -19,6 +20,7 @@ const _fullDayBarMinHeight = 82.0;
 const _fullDayBarMaxHeight = 260.0;
 const _allDayResizeHandleHeight = 22.0;
 const _timesIndicatorsWidth = 64.0;
+const _defaultHeightPerMinute = 0.9;
 
 class ScheduleDayWeekView extends StatefulWidget {
   const ScheduleDayWeekView({
@@ -31,6 +33,8 @@ class ScheduleDayWeekView extends StatefulWidget {
     required this.onEmptySlot,
     required this.onItemSelected,
     required this.onTaskCompletionChanged,
+    this.dayStartMinute = defaultScheduleDayStartMinute,
+    this.dayEndMinute = defaultScheduleDayEndMinute,
   });
 
   final ScheduleRange range;
@@ -42,6 +46,8 @@ class ScheduleDayWeekView extends StatefulWidget {
   final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
+  final int dayStartMinute;
+  final int dayEndMinute;
 
   @override
   State<ScheduleDayWeekView> createState() => _ScheduleDayWeekViewState();
@@ -51,6 +57,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   late final icv.EventsController _controller;
   final _plannerKey = GlobalKey<icv.EventsPlannerState>();
   var _fullDayBarHeight = _fullDayBarDefaultHeight;
+  var _heightPerMinute = _defaultHeightPerMinute;
 
   @override
   void initState() {
@@ -72,6 +79,10 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         !_sameDay(_plannerStartDate(oldWidget), _plannerStartDate(widget))) {
       _jumpToDate(_plannerStartDate(widget));
     }
+    if (oldWidget.dayStartMinute != widget.dayStartMinute ||
+        oldWidget.dayEndMinute != widget.dayEndMinute) {
+      _jumpToVisibleDayStart();
+    }
   }
 
   @override
@@ -92,6 +103,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
     final showFullDayBar = _hasRenderedFullDayEvents(context, widget);
     final fullDayBarHeight = showFullDayBar ? _fullDayBarHeight : 0.0;
     final daysHeaderHeight = widget.daysShowed == 1 ? 0.0 : 50.0;
+    final visibleMinutes = _visibleMinuteRange(widget);
 
     final planner = icv.EventsPlanner(
       key: _plannerKey,
@@ -100,8 +112,8 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
       daysShowed: widget.daysShowed,
       maxPreviousDays: 730,
       maxNextDays: 730,
-      heightPerMinute: 0.9,
-      initialVerticalScrollOffset: 0.9 * 7 * 60,
+      heightPerMinute: _heightPerMinute,
+      initialVerticalScrollOffset: visibleMinutes.start * _heightPerMinute,
       daySeparationWidth: 1,
       dayEventsArranger: const icv.SideEventArranger(
         paddingLeft: 4,
@@ -257,14 +269,30 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
             ),
       ),
       offTimesParam: icv.OffTimesParam(
+        offTimesAllDaysRanges: _offTimeRanges(
+          startMinute: widget.dayStartMinute,
+          endMinute: widget.dayEndMinute,
+        ),
         offTimesColor: Color.alphaBlend(
           colorScheme.onSurface.withValues(alpha: 0.025),
           colorScheme.surface,
         ),
+        offTimesAllDaysPainter:
+            (column, day, isToday, heightPerMinute, ranges, color) =>
+                icv.OffSetAllDaysPainter(
+                  isToday,
+                  heightPerMinute,
+                  ranges,
+                  color,
+                  paintToday: true,
+                ),
       ),
-      pinchToZoomParam: const icv.PinchToZoomParameters(
+      pinchToZoomParam: icv.PinchToZoomParameters(
         pinchToZoomMinHeightPerMinute: 0.6,
         pinchToZoomMaxHeightPerMinute: 1.6,
+        onZoomChange: (heightPerMinute) {
+          setState(() => _heightPerMinute = heightPerMinute);
+        },
       ),
     );
     if (!showFullDayBar) {
@@ -322,6 +350,18 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
       _plannerKey.currentState?.jumpToDate(date);
     });
   }
+
+  void _jumpToVisibleDayStart() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final visibleMinutes = _visibleMinuteRange(widget);
+      _plannerKey.currentState?.updateVerticalScrollOffset(
+        visibleMinutes.start * _heightPerMinute,
+      );
+    });
+  }
 }
 
 DateTime _plannerStartDate(ScheduleDayWeekView widget) {
@@ -334,6 +374,101 @@ bool _sameDay(DateTime left, DateTime right) {
   return left.year == right.year &&
       left.month == right.month &&
       left.day == right.day;
+}
+
+({int start, int end}) _visibleMinuteRange(ScheduleDayWeekView widget) {
+  var start = _validDayStartMinute(widget.dayStartMinute);
+  var end = _validDayEndMinute(widget.dayEndMinute, start);
+  final range = widget.range;
+
+  for (final item in widget.items) {
+    if (item.allDay || item.start == null) {
+      continue;
+    }
+    final itemStart = item.start!;
+    final itemEnd = item.end != null && item.end!.isAfter(itemStart)
+        ? item.end!
+        : itemStart.add(const Duration(minutes: 30));
+    if (!itemStart.isBefore(range.end) || !itemEnd.isAfter(range.start)) {
+      continue;
+    }
+
+    final firstDay = _day(
+      itemStart.isAfter(range.start) ? itemStart : range.start,
+    );
+    final lastInstant = itemEnd.isBefore(range.end) ? itemEnd : range.end;
+    final lastDay = _day(lastInstant);
+
+    for (
+      var day = firstDay;
+      !day.isAfter(lastDay) && day.isBefore(range.end);
+      day = day.add(const Duration(days: 1))
+    ) {
+      final nextDay = day.add(const Duration(days: 1));
+      final segmentStart = itemStart.isAfter(day) ? itemStart : day;
+      final segmentEnd = itemEnd.isBefore(nextDay) ? itemEnd : nextDay;
+      if (!segmentStart.isBefore(segmentEnd)) {
+        continue;
+      }
+      start = math.min(start, _minuteOfDay(segmentStart));
+      end = math.max(end, _endMinuteOfDay(segmentEnd, day));
+    }
+  }
+
+  return (
+    start: start,
+    end: math.max(start + 60, end).clamp(1, 24 * 60).toInt(),
+  );
+}
+
+int _validDayStartMinute(int minute) {
+  if (minute < 0 || minute >= 24 * 60) {
+    return defaultScheduleDayStartMinute;
+  }
+  return minute;
+}
+
+int _validDayEndMinute(int minute, int startMinute) {
+  if (minute <= startMinute || minute > 24 * 60) {
+    return math.min(startMinute + 60, 24 * 60);
+  }
+  return minute;
+}
+
+int _minuteOfDay(DateTime value) => value.hour * 60 + value.minute;
+
+int _endMinuteOfDay(DateTime value, DateTime day) {
+  if (!value.isBefore(day.add(const Duration(days: 1)))) {
+    return 24 * 60;
+  }
+  return _minuteOfDay(value);
+}
+
+List<icv.OffTimeRange> _offTimeRanges({
+  required int startMinute,
+  required int endMinute,
+}) {
+  final start = _validDayStartMinute(startMinute);
+  final end = _validDayEndMinute(endMinute, start);
+  return [
+    if (start > 0)
+      icv.OffTimeRange(
+        const TimeOfDay(hour: 0, minute: 0),
+        _timeOfDayFromMinute(start),
+      ),
+    if (end < 24 * 60)
+      icv.OffTimeRange(
+        _timeOfDayFromMinute(end),
+        const TimeOfDay(hour: 24, minute: 0),
+      ),
+  ];
+}
+
+TimeOfDay _timeOfDayFromMinute(int minute) {
+  if (minute >= 24 * 60) {
+    return const TimeOfDay(hour: 24, minute: 0);
+  }
+  return TimeOfDay(hour: minute ~/ 60, minute: minute % 60);
 }
 
 class _PlannerDayHeader extends StatelessWidget {

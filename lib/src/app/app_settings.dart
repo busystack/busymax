@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,9 @@ enum BusyMaxThemeFamily { yaru }
 enum BusyMaxThemeModePreference { system, light, dark }
 
 enum NotificationDetailLevel { private, normal }
+
+const defaultScheduleDayStartMinute = 7 * 60;
+const defaultScheduleDayEndMinute = 22 * 60;
 
 extension BusyMaxThemeModePreferenceX on BusyMaxThemeModePreference {
   ThemeMode get themeMode {
@@ -47,6 +51,8 @@ class AppSettings {
     required this.lastDueTodayNotificationDate,
     required this.taskListScheduleVisibility,
     required this.scheduleViewMode,
+    required this.scheduleDayStartMinute,
+    required this.scheduleDayEndMinute,
   });
 
   factory AppSettings.defaults() {
@@ -71,11 +77,31 @@ class AppSettings {
       lastDueTodayNotificationDate: null,
       taskListScheduleVisibility: <String, bool>{},
       scheduleViewMode: ScheduleViewMode.week,
+      scheduleDayStartMinute: defaultScheduleDayStartMinute,
+      scheduleDayEndMinute: defaultScheduleDayEndMinute,
     );
   }
 
   factory AppSettings.fromJson(Map<String, Object?> json) {
     final defaults = AppSettings.defaults();
+    final dayStart = _minuteOfDay(
+      json['scheduleDayStartMinute'],
+      defaults.scheduleDayStartMinute,
+    );
+    final dayEnd = _minuteOfDay(
+      json['scheduleDayEndMinute'],
+      defaults.scheduleDayEndMinute,
+      allowEndOfDay: true,
+    );
+    final (
+      scheduleDayStartMinute,
+      scheduleDayEndMinute,
+    ) = _validScheduleDayRange(
+      startMinute: dayStart,
+      endMinute: dayEnd,
+      fallbackStart: defaults.scheduleDayStartMinute,
+      fallbackEnd: defaults.scheduleDayEndMinute,
+    );
     return AppSettings(
       themeFamily: _enumFromName(
         BusyMaxThemeFamily.values,
@@ -132,6 +158,8 @@ class AppSettings {
         json['scheduleViewMode'],
         defaults.scheduleViewMode,
       ),
+      scheduleDayStartMinute: scheduleDayStartMinute,
+      scheduleDayEndMinute: scheduleDayEndMinute,
     );
   }
 
@@ -155,6 +183,8 @@ class AppSettings {
   final String? lastDueTodayNotificationDate;
   final Map<String, bool> taskListScheduleVisibility;
   final ScheduleViewMode scheduleViewMode;
+  final int scheduleDayStartMinute;
+  final int scheduleDayEndMinute;
 
   ThemeMode get themeMode => themeModePreference.themeMode;
 
@@ -180,6 +210,8 @@ class AppSettings {
       'lastDueTodayNotificationDate': lastDueTodayNotificationDate,
       'taskListScheduleVisibility': taskListScheduleVisibility,
       'scheduleViewMode': scheduleViewMode.name,
+      'scheduleDayStartMinute': scheduleDayStartMinute,
+      'scheduleDayEndMinute': scheduleDayEndMinute,
     };
   }
 
@@ -204,8 +236,19 @@ class AppSettings {
     String? lastDueTodayNotificationDate,
     Map<String, bool>? taskListScheduleVisibility,
     ScheduleViewMode? scheduleViewMode,
+    int? scheduleDayStartMinute,
+    int? scheduleDayEndMinute,
     bool clearLastDueTodayNotificationDate = false,
   }) {
+    final (
+      resolvedScheduleDayStartMinute,
+      resolvedScheduleDayEndMinute,
+    ) = _validScheduleDayRange(
+      startMinute: scheduleDayStartMinute ?? this.scheduleDayStartMinute,
+      endMinute: scheduleDayEndMinute ?? this.scheduleDayEndMinute,
+      fallbackStart: this.scheduleDayStartMinute,
+      fallbackEnd: this.scheduleDayEndMinute,
+    );
     return AppSettings(
       themeFamily: themeFamily ?? this.themeFamily,
       themeModePreference: themeModePreference ?? this.themeModePreference,
@@ -234,6 +277,8 @@ class AppSettings {
       taskListScheduleVisibility:
           taskListScheduleVisibility ?? this.taskListScheduleVisibility,
       scheduleViewMode: scheduleViewMode ?? this.scheduleViewMode,
+      scheduleDayStartMinute: resolvedScheduleDayStartMinute,
+      scheduleDayEndMinute: resolvedScheduleDayEndMinute,
     );
   }
 
@@ -293,6 +338,30 @@ class AppSettingsController extends StateNotifier<AppSettings> {
 
   Future<void> setScheduleViewMode(ScheduleViewMode mode) {
     return _save(state.copyWith(scheduleViewMode: mode));
+  }
+
+  Future<void> setScheduleDayStartMinute(int minute) {
+    final start = _minuteOfDay(minute, state.scheduleDayStartMinute);
+    final end = start >= state.scheduleDayEndMinute
+        ? math.min(start + 60, 24 * 60)
+        : state.scheduleDayEndMinute;
+    return _save(
+      state.copyWith(scheduleDayStartMinute: start, scheduleDayEndMinute: end),
+    );
+  }
+
+  Future<void> setScheduleDayEndMinute(int minute) {
+    final end = _minuteOfDay(
+      minute,
+      state.scheduleDayEndMinute,
+      allowEndOfDay: true,
+    );
+    final start = end <= state.scheduleDayStartMinute
+        ? math.max(end - 60, 0)
+        : state.scheduleDayStartMinute;
+    return _save(
+      state.copyWith(scheduleDayStartMinute: start, scheduleDayEndMinute: end),
+    );
   }
 
   Future<void> setNotifySyncFailures(bool enabled) {
@@ -414,6 +483,35 @@ T _enumFromName<T extends Enum>(List<T> values, Object? name, T fallback) {
     }
   }
   return fallback;
+}
+
+int _minuteOfDay(Object? value, int fallback, {bool allowEndOfDay = false}) {
+  final minute = switch (value) {
+    int() => value,
+    String() => int.tryParse(value) ?? fallback,
+    _ => fallback,
+  };
+  final max = allowEndOfDay ? 24 * 60 : 24 * 60 - 1;
+  if (minute < 0 || minute > max) {
+    return fallback;
+  }
+  return minute;
+}
+
+(int, int) _validScheduleDayRange({
+  required int startMinute,
+  required int endMinute,
+  required int fallbackStart,
+  required int fallbackEnd,
+}) {
+  if (startMinute < 0 ||
+      startMinute >= 24 * 60 ||
+      endMinute <= 0 ||
+      endMinute > 24 * 60 ||
+      endMinute <= startMinute) {
+    return (fallbackStart, fallbackEnd);
+  }
+  return (startMinute, endMinute);
 }
 
 Map<String, bool> _boolMap(Object? value) {

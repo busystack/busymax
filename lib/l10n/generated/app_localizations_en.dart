@@ -220,6 +220,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewAgenda => 'Agenda';
 
   @override
+  String get scheduleSettings => 'Schedule';
+
+  @override
+  String get scheduleDisplaySettings => 'Schedule display';
+
+  @override
+  String get scheduleDisplayHoursDescription =>
+      'Day and Week views open within these hours. Early and late items expand the range when needed.';
+
+  @override
+  String get scheduleDayStartsAt => 'Day starts at';
+
+  @override
+  String get scheduleDayEndsAt => 'Day ends at';
+
+  @override
   String get sourceCalendar => 'Calendar';
 
   @override

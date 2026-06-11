@@ -504,6 +504,36 @@ abstract class AppLocalizations {
   /// **'Agenda'**
   String get viewAgenda;
 
+  /// No description provided for @scheduleSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule'**
+  String get scheduleSettings;
+
+  /// No description provided for @scheduleDisplaySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule display'**
+  String get scheduleDisplaySettings;
+
+  /// No description provided for @scheduleDisplayHoursDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Day and Week views open within these hours. Early and late items expand the range when needed.'**
+  String get scheduleDisplayHoursDescription;
+
+  /// No description provided for @scheduleDayStartsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Day starts at'**
+  String get scheduleDayStartsAt;
+
+  /// No description provided for @scheduleDayEndsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Day ends at'**
+  String get scheduleDayEndsAt;
+
   /// No description provided for @sourceCalendar.
   ///
   /// In en, this message translates to:
