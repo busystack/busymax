@@ -60,10 +60,7 @@ class CompactAgendaWindowService {
     await _invokeOrShow(controller, 'busymax.compactAgenda.show');
   }
 
-  Future<void> _invokeOrShow(
-    WindowController controller,
-    String method,
-  ) async {
+  Future<void> _invokeOrShow(WindowController controller, String method) async {
     try {
       await controller.invokeMethod<bool>(method);
     } on Object {

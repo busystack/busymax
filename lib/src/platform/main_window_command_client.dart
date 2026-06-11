@@ -21,16 +21,14 @@ class MainWindowCommandClient {
     final date = item.start == null
         ? ScheduleProjection.day(DateTime.now())
         : ScheduleProjection.day(item.start!);
-    await busyMaxMainWindowChannel.invokeMethod<bool>(
-      'busymax.main.openScheduleItem',
-      {
-        'kind': item is TaskScheduleItem ? 'task' : 'calendarEvent',
-        'accountId': item.accountId,
-        'sourceId': item.sourceId,
-        'itemId': item.id,
-        'date': date.toIso8601String(),
-      },
-    );
+    await busyMaxMainWindowChannel
+        .invokeMethod<bool>('busymax.main.openScheduleItem', {
+          'kind': item is TaskScheduleItem ? 'task' : 'calendarEvent',
+          'accountId': item.accountId,
+          'sourceId': item.sourceId,
+          'itemId': item.id,
+          'date': date.toIso8601String(),
+        });
   }
 
   Future<void> newTask() async {

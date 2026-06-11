@@ -26,9 +26,7 @@ class _MainWindowCommandBridgeState
   @override
   void initState() {
     super.initState();
-    unawaited(
-      busyMaxMainWindowChannel.setMethodCallHandler(_handleMethodCall),
-    );
+    unawaited(busyMaxMainWindowChannel.setMethodCallHandler(_handleMethodCall));
   }
 
   @override
@@ -85,26 +83,28 @@ class _MainWindowCommandBridgeState
     }
 
     await ref.read(linuxWindowServiceProvider).showWindow();
-    ref.read(scheduleWorkspaceCommandProvider.notifier).state =
-        ScheduleWorkspaceCommand(
-          commandKind,
-          ++_sequence,
-          date: date,
-          accountId: accountId,
-          sourceId: sourceId,
-          itemId: itemId,
-        );
+    ref
+        .read(scheduleWorkspaceCommandProvider.notifier)
+        .state = ScheduleWorkspaceCommand(
+      commandKind,
+      ++_sequence,
+      date: date,
+      accountId: accountId,
+      sourceId: sourceId,
+      itemId: itemId,
+    );
     ref.read(appRouterProvider).go('/schedule');
     return true;
   }
 
   Future<bool> _newTask() async {
     await ref.read(linuxWindowServiceProvider).showWindow();
-    ref.read(scheduleWorkspaceCommandProvider.notifier).state =
-        ScheduleWorkspaceCommand(
-          ScheduleWorkspaceCommandKind.newTask,
-          ++_sequence,
-        );
+    ref
+        .read(scheduleWorkspaceCommandProvider.notifier)
+        .state = ScheduleWorkspaceCommand(
+      ScheduleWorkspaceCommandKind.newTask,
+      ++_sequence,
+    );
     ref.read(appRouterProvider).go('/schedule');
     return true;
   }
@@ -117,7 +117,9 @@ class _MainWindowCommandBridgeState
     if (accountId == null || accountId.isEmpty) {
       return false;
     }
-    ref.read(pendingMutationSyncRequesterForAccountProvider(accountId)).request();
+    ref
+        .read(pendingMutationSyncRequesterForAccountProvider(accountId))
+        .request();
     return true;
   }
 
