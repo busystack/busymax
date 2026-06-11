@@ -17,10 +17,7 @@ class CompactAgendaController {
 
   final Ref _ref;
 
-  Future<void> setTaskCompleted(
-    TaskScheduleItem item,
-    bool completed,
-  ) async {
+  Future<void> setTaskCompleted(TaskScheduleItem item, bool completed) async {
     final fields = <String, Object?>{
       'status': completed ? 'completed' : 'needsAction',
       'completed': completed ? DateTime.now().toUtc().toIso8601String() : null,

@@ -124,10 +124,11 @@ final linuxHeaderBarServiceProvider = Provider<LinuxHeaderBarService>((ref) {
   return service;
 });
 
-final compactAgendaWindowServiceProvider =
-    Provider<CompactAgendaWindowService>((ref) {
-      return const CompactAgendaWindowService();
-    });
+final compactAgendaWindowServiceProvider = Provider<CompactAgendaWindowService>(
+  (ref) {
+    return const CompactAgendaWindowService();
+  },
+);
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(

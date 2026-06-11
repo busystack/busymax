@@ -165,10 +165,7 @@ class _EventEditorState extends State<EventEditor> {
         BusyMaxGroupedList(
           filled: true,
           children: [
-            BusyMaxTimeModeRow(
-              allDay: _draft.allDay,
-              onChanged: _setAllDay,
-            ),
+            BusyMaxTimeModeRow(allDay: _draft.allDay, onChanged: _setAllDay),
           ],
         ),
         BusyMaxGroupedList(

@@ -680,10 +680,7 @@ void main() {
       expect(editor, contains('textAlign: TextAlign.end'));
       expect(editor, contains('class _CalendarSourceDot'));
       expect(editor, contains('source.backgroundColor'));
-      expect(
-        editor,
-        contains('ScheduleProjection.deterministicSourceColor'),
-      );
+      expect(editor, contains('ScheduleProjection.deterministicSourceColor'));
       expect(editor, isNot(contains('SourcePicker(')));
       expect(editor, isNot(contains('labelText: l10n.calendar')));
     },
