@@ -11,6 +11,7 @@
 #endif
 
 #include "flutter/generated_plugin_registrant.h"
+#include "desktop_multi_window/desktop_multi_window_plugin.h"
 
 constexpr char kApplicationDisplayName[] = "BusyMax";
 constexpr char kNativeDateTimePickerChannel[] =
@@ -2176,6 +2177,8 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  desktop_multi_window_plugin_set_window_created_callback(
+      [](FlPluginRegistry* registry) { fl_register_plugins(registry); });
   register_native_date_time_picker(self, view, window);
   register_window_channel(self, view);
   register_header_bar_channel(self, view);
