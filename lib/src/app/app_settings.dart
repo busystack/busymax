@@ -102,6 +102,16 @@ class AppSettings {
       fallbackStart: defaults.scheduleDayStartMinute,
       fallbackEnd: defaults.scheduleDayEndMinute,
     );
+    final detailedNotifications =
+        json['detailedNotifications'] as bool? ??
+        defaults.detailedNotifications;
+    final notificationDetailLevel = detailedNotifications
+        ? NotificationDetailLevel.normal
+        : _enumFromName(
+            NotificationDetailLevel.values,
+            json['notificationDetailLevel'],
+            defaults.notificationDetailLevel,
+          );
     return AppSettings(
       themeFamily: _enumFromName(
         BusyMaxThemeFamily.values,
@@ -133,11 +143,7 @@ class AppSettings {
           defaults.startMinimizedToTray,
       quitExitsCompletely:
           json['quitExitsCompletely'] as bool? ?? defaults.quitExitsCompletely,
-      notificationDetailLevel: _enumFromName(
-        NotificationDetailLevel.values,
-        json['notificationDetailLevel'],
-        defaults.notificationDetailLevel,
-      ),
+      notificationDetailLevel: notificationDetailLevel,
       quietHoursEnabled:
           json['quietHoursEnabled'] as bool? ?? defaults.quietHoursEnabled,
       quietHoursStart:
@@ -147,9 +153,7 @@ class AppSettings {
       redactTaskContentInDiagnostics:
           json['redactTaskContentInDiagnostics'] as bool? ??
           defaults.redactTaskContentInDiagnostics,
-      detailedNotifications:
-          json['detailedNotifications'] as bool? ??
-          defaults.detailedNotifications,
+      detailedNotifications: detailedNotifications,
       lastDueTodayNotificationDate: json['lastDueTodayNotificationDate']
           ?.toString(),
       taskListScheduleVisibility: _boolMap(json['taskListScheduleVisibility']),
@@ -401,7 +405,12 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   }
 
   Future<void> setNotificationDetailLevel(NotificationDetailLevel level) {
-    return _save(state.copyWith(notificationDetailLevel: level));
+    return _save(
+      state.copyWith(
+        notificationDetailLevel: level,
+        detailedNotifications: level != NotificationDetailLevel.private,
+      ),
+    );
   }
 
   Future<void> setQuietHoursEnabled(bool enabled) {
@@ -413,7 +422,14 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   }
 
   Future<void> setDetailedNotifications(bool enabled) {
-    return _save(state.copyWith(detailedNotifications: enabled));
+    return _save(
+      state.copyWith(
+        detailedNotifications: enabled,
+        notificationDetailLevel: enabled
+            ? NotificationDetailLevel.normal
+            : NotificationDetailLevel.private,
+      ),
+    );
   }
 
   Future<void> markDueTodayNotified(String date) {

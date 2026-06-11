@@ -798,6 +798,27 @@ void main() {
     expect(store.json['scheduleViewMode'], 'month');
   });
 
+  test('notification detail settings stay synchronized', () async {
+    final store = _MemorySettingsStore();
+    final settings = AppSettingsController(store);
+    await Future<void>.delayed(Duration.zero);
+
+    await settings.setNotificationDetailLevel(NotificationDetailLevel.private);
+    expect(settings.state.detailedNotifications, isFalse);
+
+    await settings.setDetailedNotifications(true);
+    expect(
+      settings.state.notificationDetailLevel,
+      NotificationDetailLevel.normal,
+    );
+
+    final loaded = AppSettings.fromJson({
+      'detailedNotifications': true,
+      'notificationDetailLevel': 'private',
+    });
+    expect(loaded.notificationDetailLevel, NotificationDetailLevel.normal);
+  });
+
   test('native headerbar receives semantic surface colors', () {
     final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
 

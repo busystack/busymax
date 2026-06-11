@@ -117,8 +117,7 @@ class DesktopNotificationService {
     if (!_settings.notifyEventReminders || _isQuietHours()) {
       return;
     }
-    final private =
-        _settings.notificationDetailLevel == NotificationDetailLevel.private;
+    final private = _usesPrivateReminderText;
     await _safeNotify(
       private ? _strings.eventReminderTitle : redactForLog(title),
       private
@@ -132,8 +131,7 @@ class DesktopNotificationService {
     if (!_settings.notifyTaskReminders || _isQuietHours()) {
       return;
     }
-    final private =
-        _settings.notificationDetailLevel == NotificationDetailLevel.private;
+    final private = _usesPrivateReminderText;
     await _safeNotify(
       private ? _strings.taskReminderTitle : redactForLog(title),
       private
@@ -141,6 +139,11 @@ class DesktopNotificationService {
           : _nonEmpty(redactForLog(body ?? ''), _strings.taskReminderBody),
       NotificationCategory.device(),
     );
+  }
+
+  bool get _usesPrivateReminderText {
+    return !_settings.detailedNotifications &&
+        _settings.notificationDetailLevel == NotificationDetailLevel.private;
   }
 
   Future<void> _safeNotify(

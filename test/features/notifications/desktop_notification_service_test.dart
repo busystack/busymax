@@ -90,6 +90,25 @@ void main() {
       'Details are hidden by privacy settings.',
     );
   });
+
+  test(
+    'detailed notification switch overrides private reminder text',
+    () async {
+      final backend = _FakeNotificationBackend();
+      final service = DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults().copyWith(
+          detailedNotifications: true,
+          notificationDetailLevel: NotificationDetailLevel.private,
+        ),
+      );
+
+      await service.notifyEventReminder('Doctor', 'Clinic');
+
+      expect(backend.notifications.single.summary, 'Doctor');
+      expect(backend.notifications.single.body, 'Clinic');
+    },
+  );
 }
 
 class _FakeNotificationBackend implements DesktopNotificationBackend {
