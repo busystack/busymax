@@ -194,14 +194,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get compactAgendaAllDay => 'Toute la journée';
 
   @override
-  String get compactAgendaDueToday => 'Due aujourd’hui';
+  String get compactAgendaDueToday => 'Échéance aujourd’hui';
 
   @override
-  String get compactAgendaDueTomorrow => 'Due demain';
+  String get compactAgendaDueTomorrow => 'Échéance demain';
 
   @override
   String compactAgendaDueOn(String date) {
-    return 'Due $date';
+    return 'Échéance $date';
   }
 
   @override
