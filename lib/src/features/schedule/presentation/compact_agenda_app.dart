@@ -11,14 +11,32 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/app_theme.dart';
+import '../../../app/busymax_design.dart';
 import '../../../app/system_accent.dart';
+import '../../../platform/gtk_font_service.dart';
+import '../../../platform/busymax_window_args.dart';
 import '../application/compact_agenda_data.dart';
 import 'compact_agenda_panel.dart';
 
+const _compactAgendaPanelWidth = 420.0;
+const _compactAgendaPanelHeight = 680.0;
+const _compactAgendaWindowSize = Size(
+  _compactAgendaPanelWidth + BusyMaxShadow.windowMargin * 2,
+  _compactAgendaPanelHeight + BusyMaxShadow.windowMargin * 2,
+);
+const _compactAgendaWindowChannel = MethodChannel(
+  'io.busystack.busymax/compact_agenda_window',
+);
+
 class BusyMaxCompactAgendaApp extends ConsumerStatefulWidget {
-  const BusyMaxCompactAgendaApp({required this.windowController, super.key});
+  const BusyMaxCompactAgendaApp({
+    required this.windowController,
+    required this.windowArgs,
+    super.key,
+  });
 
   final WindowController windowController;
+  final BusyMaxWindowArgs windowArgs;
 
   @override
   ConsumerState<BusyMaxCompactAgendaApp> createState() =>
@@ -53,7 +71,7 @@ class _BusyMaxCompactAgendaAppState
   Future<Object?> _handleWindowMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'busymax.compactAgenda.show':
-        await _show();
+        await _show(call.arguments);
         return true;
       case 'busymax.compactAgenda.hide':
         await widget.windowController.hide();
@@ -64,7 +82,7 @@ class _BusyMaxCompactAgendaAppState
         if (visible && focused) {
           await widget.windowController.hide();
         } else {
-          await _show();
+          await _show(call.arguments);
         }
         return true;
       case 'busymax.compactAgenda.refresh':
@@ -79,19 +97,93 @@ class _BusyMaxCompactAgendaAppState
     throw MissingPluginException('Not implemented: ${call.method}');
   }
 
-  Future<void> _show() async {
-    await widget.windowController.show();
-    unawaited(_focusTopRight());
+  Future<void> _show([Object? rawArgs]) async {
+    final position = _requestedPosition(rawArgs) ?? _initialRequestedPosition();
+    final shownNatively = await _showNativeWindow(position);
+    if (!shownNatively) {
+      await _moveNearTrayArea(position);
+      await widget.windowController.show();
+      unawaited(_focusNearTrayArea());
+    }
     ref.invalidate(compactAgendaDataProvider);
   }
 
-  Future<void> _focusTopRight() async {
+  Future<bool> _showNativeWindow(Offset? position) async {
     try {
-      await windowManager.setAlignment(Alignment.topRight);
+      final result = await _compactAgendaWindowChannel.invokeMethod<bool>(
+        'show',
+        _nativeWindowArguments(position),
+      );
+      return result ?? false;
+    } on MissingPluginException {
+      return false;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<void> _moveNearTrayArea(Offset? requestedPosition) async {
+    try {
+      final position = requestedPosition ?? _initialRequestedPosition();
+      if (position == null) {
+        await windowManager.setSize(_compactAgendaWindowSize);
+        await windowManager.setAlignment(Alignment.topRight);
+        return;
+      }
+      await windowManager.setBounds(
+        null,
+        position: position,
+        size: _compactAgendaWindowSize,
+      );
+    } on Object {
+      // Positioning is best-effort, especially on Wayland.
+    }
+  }
+
+  Future<void> _focusNearTrayArea() async {
+    try {
       await windowManager.focus();
     } on Object {
       // Positioning is best-effort, especially on Wayland.
     }
+  }
+
+  Offset? _initialRequestedPosition() {
+    final x = widget.windowArgs.requestedPositionX;
+    final y = widget.windowArgs.requestedPositionY;
+    if (x == null || y == null) {
+      return null;
+    }
+    return Offset(x, y);
+  }
+
+  Offset? _requestedPosition(Object? rawArgs) {
+    if (rawArgs is! Map) {
+      return null;
+    }
+    final position = rawArgs['position'];
+    if (position is! Map) {
+      return null;
+    }
+    final x = position['x'];
+    final y = position['y'];
+    if (x is! num || y is! num) {
+      return null;
+    }
+    final dx = x.toDouble();
+    final dy = y.toDouble();
+    if (!dx.isFinite || !dy.isFinite) {
+      return null;
+    }
+    return Offset(dx, dy);
+  }
+
+  Map<String, Object?> _nativeWindowArguments(Offset? position) {
+    return {
+      if (position != null) ...{'x': position.dx, 'y': position.dy},
+      'width': _compactAgendaWindowSize.width,
+      'height': _compactAgendaWindowSize.height,
+    };
   }
 
   Future<bool> _isFocused() async {
@@ -108,23 +200,13 @@ class _BusyMaxCompactAgendaAppState
   }
 
   @override
-  void onWindowBlur() {
-    unawaited(_hideAfterBlurDelay());
-  }
-
-  Future<void> _hideAfterBlurDelay() async {
-    await Future<void>.delayed(const Duration(milliseconds: 180));
-    if (!await _isFocused()) {
-      await widget.windowController.hide();
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsControllerProvider);
     final ubuntuAccentColor = ref
         .watch(ubuntuSystemAccentColorProvider)
         .valueOrNull;
+    final gtkFont = ref.watch(gtkFontSettingsProvider).valueOrNull;
+    final gtkThemeColors = ref.watch(gtkThemeColorsProvider).valueOrNull;
 
     return SystemThemeBuilder(
       builder: (context, systemColor) {
@@ -136,11 +218,17 @@ class _BusyMaxCompactAgendaAppState
             brightness: Brightness.light,
             accentColor: accentColor,
             family: settings.themeFamily,
+            gtkFontFamily: gtkFont?.family,
+            gtkFontSize: gtkFont?.size,
+            gtkThemeColors: gtkThemeColors,
           ),
           darkTheme: buildBusyMaxTheme(
             brightness: Brightness.dark,
             accentColor: accentColor,
             family: settings.themeFamily,
+            gtkFontFamily: gtkFont?.family,
+            gtkFontSize: gtkFont?.size,
+            gtkThemeColors: gtkThemeColors,
           ),
           themeMode: settings.themeMode,
           localizationsDelegates: const [
@@ -150,7 +238,10 @@ class _BusyMaxCompactAgendaAppState
           supportedLocales: AppLocalizations.supportedLocales,
           home: const Scaffold(
             backgroundColor: Colors.transparent,
-            body: CompactAgendaPanel(),
+            body: Padding(
+              padding: EdgeInsets.all(BusyMaxShadow.windowMargin),
+              child: CompactAgendaPanel(),
+            ),
           ),
         );
       },

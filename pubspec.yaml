@@ -28,6 +28,7 @@ dependencies:
   package_info_plus: ^10.1.0
   path: ^1.9.0
   path_provider: ^2.1.0
+  screen_retriever: ^0.2.0
   sqlite3: ^3.3.0
   sqlite3_flutter_libs: ^0.6.0
   system_theme: ^3.3.0

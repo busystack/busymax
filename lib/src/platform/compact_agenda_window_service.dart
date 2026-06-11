@@ -1,26 +1,46 @@
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter/widgets.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 
 import 'busymax_window_args.dart';
+
+const _compactAgendaWindowWidth = 420.0;
+const _compactAgendaWindowHeight = 680.0;
+const _compactAgendaWindowShadowMargin = 14.0;
+const _compactAgendaOuterWindowSize = Size(
+  _compactAgendaWindowWidth + _compactAgendaWindowShadowMargin * 2,
+  _compactAgendaWindowHeight + _compactAgendaWindowShadowMargin * 2,
+);
 
 class CompactAgendaWindowService {
   const CompactAgendaWindowService();
 
   Future<void> toggle() async {
+    final position = await _preferredCompactAgendaPosition();
     final controller = await _findCompactAgendaWindow();
     if (controller == null) {
-      await _createCompactAgendaWindow();
+      await _createCompactAgendaWindow(position);
       return;
     }
-    await _invokeCompactMethod(controller, 'busymax.compactAgenda.toggle');
+    await _invokeCompactMethod(
+      controller,
+      'busymax.compactAgenda.toggle',
+      position,
+    );
   }
 
   Future<void> show() async {
+    final position = await _preferredCompactAgendaPosition();
     final controller = await _findCompactAgendaWindow();
     if (controller == null) {
-      await _createCompactAgendaWindow();
+      await _createCompactAgendaWindow(position);
       return;
     }
-    await _invokeCompactMethod(controller, 'busymax.compactAgenda.show');
+    await _invokeCompactMethod(
+      controller,
+      'busymax.compactAgenda.show',
+      position,
+    );
   }
 
   Future<void> hide() async {
@@ -50,10 +70,13 @@ class CompactAgendaWindowService {
     return null;
   }
 
-  Future<void> _createCompactAgendaWindow() async {
+  Future<void> _createCompactAgendaWindow(Offset position) async {
     await WindowController.create(
       WindowConfiguration(
-        arguments: BusyMaxWindowArgs.compactAgenda.encode(),
+        arguments: BusyMaxWindowArgs.compactAgendaAt(
+          x: position.dx,
+          y: position.dy,
+        ).encode(),
         hiddenAtLaunch: true,
       ),
     );
@@ -62,12 +85,16 @@ class CompactAgendaWindowService {
   Future<void> _invokeCompactMethod(
     WindowController controller,
     String method,
+    Offset position,
   ) async {
     const attempts = 12;
     const retryDelay = Duration(milliseconds: 80);
     for (var attempt = 0; attempt < attempts; attempt += 1) {
       try {
-        await controller.invokeMethod<bool>(method);
+        await controller.invokeMethod<bool>(
+          method,
+          _positionMethodArguments(position),
+        );
         return;
       } on Object {
         if (attempt == attempts - 1) {
@@ -87,5 +114,67 @@ class CompactAgendaWindowService {
     } on Object {
       // Window may already be closing; nothing useful to do.
     }
+  }
+
+  Future<Offset> _preferredCompactAgendaPosition() async {
+    try {
+      final primaryDisplay = await screenRetriever.getPrimaryDisplay();
+      final displays = await screenRetriever.getAllDisplays();
+      final cursor = await screenRetriever.getCursorScreenPoint();
+      final display = displays.firstWhere((display) {
+        final position = display.visiblePosition ?? Offset.zero;
+        final size = display.visibleSize ?? display.size;
+        return Rect.fromLTWH(
+          position.dx,
+          position.dy,
+          size.width,
+          size.height,
+        ).contains(cursor);
+      }, orElse: () => primaryDisplay);
+      return _topRightWorkAreaPosition(display);
+    } on Object {
+      try {
+        return _topRightWorkAreaPosition(
+          await screenRetriever.getPrimaryDisplay(),
+        );
+      } on Object {
+        return Offset.zero;
+      }
+    }
+  }
+
+  Map<String, Object?> _positionMethodArguments(Offset position) {
+    return {
+      'position': {'x': position.dx, 'y': position.dy},
+    };
+  }
+
+  Offset _topRightWorkAreaPosition(Display display) {
+    final visiblePosition = display.visiblePosition ?? Offset.zero;
+    final visibleSize = display.visibleSize ?? display.size;
+    final visibleFrame = Rect.fromLTWH(
+      visiblePosition.dx,
+      visiblePosition.dy,
+      visibleSize.width,
+      visibleSize.height,
+    );
+    final left = _clampToVisibleFrame(
+      visibleFrame.right - _compactAgendaOuterWindowSize.width,
+      visibleFrame.left,
+      visibleFrame.right - _compactAgendaOuterWindowSize.width,
+    );
+    final top = _clampToVisibleFrame(
+      visibleFrame.top,
+      visibleFrame.top,
+      visibleFrame.bottom - _compactAgendaOuterWindowSize.height,
+    );
+    return Offset(left, top);
+  }
+
+  double _clampToVisibleFrame(double value, double min, double max) {
+    if (max < min) {
+      return min;
+    }
+    return value.clamp(min, max).toDouble();
   }
 }

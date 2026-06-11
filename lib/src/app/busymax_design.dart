@@ -54,20 +54,26 @@ abstract final class BusyMaxSizes {
 abstract final class BusyMaxElevation {
   static const double surface = 1;
   static const double popover = 6;
+  static const double window = 12;
 }
 
 abstract final class BusyMaxShadow {
-  static const double floatingBlur = 18;
-  static const Offset floatingOffset = Offset(0, 6);
+  static const double floatingBlur = 24;
+  static const Offset floatingOffset = Offset(0, 8);
+  static const double windowMargin = 14;
 
   static Color floatingColor(BuildContext context) {
-    return Theme.of(context).shadowColor.withValues(alpha: 0.32);
+    return BusyMaxSurfaceColors.of(context).shade;
   }
 
   static List<BoxShadow> floatingShadows(Color color) {
     return [
       BoxShadow(color: color, blurRadius: floatingBlur, offset: floatingOffset),
     ];
+  }
+
+  static List<BoxShadow> floatingShadowsFor(BuildContext context) {
+    return floatingShadows(floatingColor(context));
   }
 }
 

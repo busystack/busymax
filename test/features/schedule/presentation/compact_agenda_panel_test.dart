@@ -40,6 +40,14 @@ void main() {
     expect(find.text('No events or tasks'), findsOneWidget);
   });
 
+  testWidgets('compact shell has rounded corners', (tester) async {
+    await tester.pumpWidget(_testPanel(data: _data(today)));
+
+    final clip = tester.widget<ClipRRect>(find.byType(ClipRRect).first);
+
+    expect(clip.borderRadius, isA<BorderRadius>());
+  });
+
   testWidgets('task row renders checkbox and calls completion callback', (
     tester,
   ) async {

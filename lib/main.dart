@@ -30,7 +30,10 @@ Future<void> main(List<String> args) async {
       runApp(
         ProviderScope(
           overrides: overrides,
-          child: BusyMaxCompactAgendaApp(windowController: windowController),
+          child: BusyMaxCompactAgendaApp(
+            windowController: windowController,
+            windowArgs: windowArgs,
+          ),
         ),
       );
   }

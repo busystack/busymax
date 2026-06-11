@@ -91,23 +91,33 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
 
               return DecoratedBox(
                 decoration: BoxDecoration(
-                  color: colors.card,
-                  border: Border.all(color: colors.border),
+                  borderRadius: BorderRadius.circular(BusyMaxRadius.window),
+                  boxShadow: BusyMaxShadow.floatingShadowsFor(context),
                 ),
-                child: Column(
-                  children: [
-                    _CompactAgendaHeader(
-                      data: data.valueOrNull,
-                      onRefresh: _refresh,
-                      onOpenBusyMax: _openBusyMax,
-                      onHide: _hide,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(BusyMaxRadius.window),
+                  clipBehavior: Clip.antiAliasWithSaveLayer,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.card,
+                      border: Border.all(color: colors.border),
                     ),
-                    Expanded(child: _body(data)),
-                    _CompactAgendaBottomBar(
-                      onNewTask: _newTask,
-                      onOpenBusyMax: _openBusyMax,
+                    child: Column(
+                      children: [
+                        _CompactAgendaHeader(
+                          data: data.valueOrNull,
+                          onRefresh: _refresh,
+                          onOpenBusyMax: _openBusyMax,
+                          onHide: _hide,
+                        ),
+                        Expanded(child: _body(data)),
+                        _CompactAgendaBottomBar(
+                          onNewTask: _newTask,
+                          onOpenBusyMax: _openBusyMax,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               );
             },

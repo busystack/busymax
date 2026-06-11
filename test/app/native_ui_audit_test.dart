@@ -133,6 +133,7 @@ void main() {
     test('compact agenda uses a separate desktop window', () {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final linuxMain = File('linux/runner/main.cc').readAsStringSync();
       final tray = File(
         'lib/src/platform/busymax_tray_service.dart',
       ).readAsStringSync();
@@ -141,22 +142,45 @@ void main() {
       final compactApp = File(
         'lib/src/features/schedule/presentation/compact_agenda_app.dart',
       ).readAsStringSync();
+      final compactPanel = File(
+        'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+      ).readAsStringSync();
       final compactWindowService = File(
         'lib/src/platform/compact_agenda_window_service.dart',
       ).readAsStringSync();
 
       expect(pubspec, contains('desktop_multi_window:'));
       expect(pubspec, contains('window_manager:'));
+      expect(linuxMain, contains('gdk_set_allowed_backends("x11")'));
       expect(
         runner,
         contains('desktop_multi_window_plugin_set_window_created_callback'),
       );
       expect(runner, contains('configure_compact_agenda_subwindow'));
-      expect(runner, contains('kCompactAgendaWindowWidth = 420'));
+      expect(runner, contains('install_compact_agenda_window_css'));
+      expect(runner, contains('io.busystack.busymax/compact_agenda_window'));
+      expect(runner, contains('kCompactAgendaPanelWidth = 420'));
+      expect(runner, contains('kCompactAgendaWindowShadowMargin = 14'));
       expect(
         runner,
         contains('gtk_window_resize(window, kCompactAgendaWindowWidth'),
       );
+      expect(runner, contains('gtk_window_move(window, x, y)'));
+      expect(runner, contains('apply_compact_agenda_geometry'));
+      expect(
+        runner,
+        contains(
+          'gtk_window_set_type_hint(window, GDK_WINDOW_TYPE_HINT_UTILITY)',
+        ),
+      );
+      expect(
+        runner,
+        contains('gtk_window_set_skip_taskbar_hint(window, TRUE)'),
+      );
+      expect(runner, contains('gtk_window_set_skip_pager_hint(window, TRUE)'));
+      expect(runner, contains('gtk_window_set_keep_above(window, TRUE)'));
+      expect(runner, contains('register_compact_gtk_settings_channel'));
+      expect(runner, contains('window#busymax-compact-agenda-window'));
       expect(runner, contains('gtk_window_get_titlebar(window)'));
       expect(runner, contains('gtk_widget_hide(titlebar)'));
       expect(runner, contains('gtk_window_set_decorated(window, FALSE)'));
@@ -174,12 +198,34 @@ void main() {
       expect(tray, isNot(contains('BusyMaxTrayAgendaEntry')));
       expect(router, isNot(contains('/tray-agenda')));
       expect(compactApp, isNot(contains('linux_header_bar_service.dart')));
-      expect(compactApp, isNot(contains('gtk_font_service.dart')));
-      expect(compactApp, isNot(contains('gtkFontSettingsProvider')));
-      expect(compactApp, isNot(contains('gtkThemeColorsProvider')));
+      expect(compactApp, contains('gtk_font_service.dart'));
+      expect(compactApp, contains('gtkFontSettingsProvider'));
+      expect(compactApp, contains('gtkThemeColorsProvider'));
       expect(compactApp, isNot(contains('syncSchedulerProvider')));
       expect(compactApp, isNot(contains('notificationSchedulerProvider')));
       expect(compactApp, isNot(contains('dueTodayNotificationProvider')));
+      expect(compactApp, contains('const _compactAgendaPanelWidth = 420.0'));
+      expect(compactApp, contains('const _compactAgendaPanelHeight = 680.0'));
+      expect(compactApp, contains('BusyMaxShadow.windowMargin'));
+      expect(
+        compactApp,
+        contains('io.busystack.busymax/compact_agenda_window'),
+      );
+      expect(
+        compactApp,
+        contains('_compactAgendaWindowChannel.invokeMethod<bool>'),
+      );
+      expect(
+        compactApp,
+        contains('await windowManager.setSize(_compactAgendaWindowSize)'),
+      );
+      expect(compactApp, contains('await windowManager.setBounds('));
+      expect(compactApp, contains('await _moveNearTrayArea('));
+      expect(compactApp, isNot(contains('void onWindowBlur()')));
+      expect(compactApp, isNot(contains('_hideAfterBlurDelay')));
+      expect(compactPanel, contains('ClipRRect'));
+      expect(compactPanel, contains('BusyMaxRadius.window'));
+      expect(compactPanel, contains('BusyMaxShadow.floatingShadowsFor'));
       expect(compactWindowService, isNot(contains('controller.show()')));
       expect(main, isNot(contains('waitUntilReadyToShow')));
       expect(main, isNot(contains('await windowManager.show();')));
@@ -187,6 +233,10 @@ void main() {
 
     test('native headerbar keeps sidebar top branded and aligned', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final headerBarSource = source.substring(
+        0,
+        source.indexOf('static void install_compact_agenda_window_css'),
+      );
 
       expect(source, isNot(contains('GtkWidget* brand_box')));
       expect(
@@ -489,13 +539,19 @@ void main() {
       expect(source, isNot(contains('gtk_menu_popup_at_widget')));
       expect(source, isNot(contains('gtk_menu_shell_append')));
       expect(source, isNot(contains('gtk_menu_popdown')));
-      expect(source, isNot(contains('gtk_window_set_skip_taskbar_hint')));
-      expect(source, isNot(contains('gtk_window_set_skip_pager_hint')));
+      expect(
+        headerBarSource,
+        isNot(contains('gtk_window_set_skip_taskbar_hint')),
+      );
+      expect(
+        headerBarSource,
+        isNot(contains('gtk_window_set_skip_pager_hint')),
+      );
       expect(source, isNot(contains('create_header_popup_box')));
       expect(source, isNot(contains('draw_header_popup_background_cb')));
       expect(source, isNot(contains('gtk_event_box_new()')));
       expect(source, isNot(contains('gtk_widget_set_app_paintable(popup')));
-      expect(source, isNot(contains('gtk_window_move')));
+      expect(headerBarSource, isNot(contains('gtk_window_move')));
       expect(source, isNot(contains('override_header_menu_colors')));
       expect(source, isNot(contains('GTK_STYLE_PROVIDER_PRIORITY_USER')));
       expect(source, isNot(contains('add_header_menu_provider_to_widget')));

@@ -19,6 +19,27 @@ void main() {
     expect(args.version, BusyMaxWindowArgs.currentVersion);
   });
 
+  test('compact agenda JSON preserves requested position', () {
+    final args = BusyMaxWindowArgs.parse(
+      BusyMaxWindowArgs.compactAgendaAt(x: 123, y: 45).encode(),
+    );
+
+    expect(args.kind, BusyMaxWindowKind.compactAgenda);
+    expect(args.requestedPositionX, 123);
+    expect(args.requestedPositionY, 45);
+  });
+
+  test('compact agenda JSON ignores malformed requested position', () {
+    final args = BusyMaxWindowArgs.parse(
+      '{"app":"BusyMax","version":1,"kind":"compactAgenda",'
+      '"position":{"x":"bad","y":45}}',
+    );
+
+    expect(args.kind, BusyMaxWindowKind.compactAgenda);
+    expect(args.requestedPositionX, isNull);
+    expect(args.requestedPositionY, isNull);
+  });
+
   test('unknown app parses as main window', () {
     final args = BusyMaxWindowArgs.parse(
       '{"app":"Other","version":1,"kind":"compactAgenda"}',
