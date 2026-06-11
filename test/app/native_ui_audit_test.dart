@@ -371,11 +371,17 @@ void main() {
       );
       expect(mainWindowCss, contains('"background-color: %s;"'));
       expect(
-        mainWindowCss,
-        isNot(contains('"background-color: transparent;"')),
+        source,
+        contains('self->main_window_transparent_backing ? "transparent"'),
       );
-      expect(source, isNot(contains('clear_transparent_window_cb')));
-      expect(source, isNot(contains('CAIRO_OPERATOR_CLEAR')));
+      expect(
+        source,
+        contains(
+          'g_signal_connect(window, "draw", G_CALLBACK(clear_transparent_window_cb)',
+        ),
+      );
+      expect(source, contains('clear_transparent_window_cb'));
+      expect(source, contains('CAIRO_OPERATOR_CLEAR'));
       expect(
         source,
         contains('gtk_widget_set_name(GTK_WIDGET(window), "busymax-window")'),
@@ -384,8 +390,13 @@ void main() {
       expect(source, contains('window#busymax-window decoration:backdrop'));
       expect(
         source,
-        isNot(contains('gtk_widget_set_app_paintable(GTK_WIDGET(window)')),
+        contains('gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE)'),
       );
+      expect(source, contains('configure_rounded_window_shape'));
+      expect(source, contains('create_rounded_window_region'));
+      expect(source, contains('gdk_window_shape_combine_region'));
+      expect(source, contains('GDK_WINDOW_STATE_MAXIMIZED'));
+      expect(source, contains('GDK_WINDOW_STATE_FULLSCREEN'));
       expect(source, isNot(contains('kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('-kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('linear-gradient(to right')));
@@ -664,12 +675,11 @@ void main() {
         contains('kDefaultHeaderBarSidebarBackgroundColor[] = "#2E2E32"'),
       );
       expect(source, contains('set_flutter_view_background_color'));
+      expect(source, contains('header_bar_window_background_color'));
+      expect(source, contains('"windowBackgroundColor"'));
       expect(
         source,
-        contains(
-          'set_flutter_view_background_color(self, '
-          'self->header_bar_background_color)',
-        ),
+        contains('css_color_or(self->header_bar_window_background_color,'),
       );
       expect(
         source,

@@ -166,12 +166,7 @@ class _AgendaRow extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 52),
           padding: const EdgeInsets.all(BusyMaxSpacing.sm),
           decoration: BoxDecoration(
-            color: Color.alphaBlend(
-              color.withValues(
-                alpha: item.kind == ScheduleItemKind.task ? 0.08 : 0.12,
-              ),
-              colorScheme.surface,
-            ),
+            color: scheduleAgendaRowBackground(context, item),
             borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
             border: Border(left: BorderSide(color: color, width: 4)),
           ),
@@ -236,6 +231,15 @@ class _AgendaRow extends StatelessWidget {
       ),
     );
   }
+}
+
+Color scheduleAgendaRowBackground(BuildContext context, ScheduleItem item) {
+  final colorScheme = Theme.of(context).colorScheme;
+  final color = ScheduleProjection.colorForItem(item, colorScheme.brightness);
+  return Color.alphaBlend(
+    color.withValues(alpha: item.kind == ScheduleItemKind.task ? 0.08 : 0.12),
+    colorScheme.surface,
+  );
 }
 
 String _dayLabel(BuildContext context, DateTime day) {

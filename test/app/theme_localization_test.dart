@@ -801,6 +801,7 @@ void main() {
       contains('final colors = BusyMaxSurfaceColors.of(context);'),
     );
     expect(source, contains('await service.setTheme('));
+    expect(source, contains('windowBackgroundColor: colors.window'));
     expect(source, contains('backgroundColor: colors.view'));
     expect(source, contains('sidebarBackgroundColor: colors.sidebar'));
     expect(source, contains('controlHoverColor: colors.controlHover'));
@@ -812,12 +813,20 @@ void main() {
     expect(source, isNot(contains('setSidebarBackgroundColor(')));
   });
 
-  test('root window clip avoids transparent black corner fringes', () {
-    final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
+  test(
+    'root window wrapper clips bottom corners over matching native backing',
+    () {
+      final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
 
-    expect(source, contains('clipBehavior: Clip.antiAliasWithSaveLayer'));
-    expect(source, contains('color: BusyMaxSurfaceColors.of(context).window'));
-  });
+      expect(source, contains('ClipRRect('));
+      expect(source, contains('bottom: Radius.circular(BusyMaxRadius.window)'));
+      expect(source, contains('clipBehavior: Clip.antiAliasWithSaveLayer'));
+      expect(
+        source,
+        contains('color: BusyMaxSurfaceColors.of(context).window'),
+      );
+    },
+  );
 
   test('signed-out onboarding background matches main content surface', () {
     final source = File(

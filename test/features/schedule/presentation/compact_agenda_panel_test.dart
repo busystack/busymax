@@ -1,5 +1,6 @@
 import 'package:busymax/src/features/schedule/application/compact_agenda_data.dart';
 import 'package:busymax/src/features/schedule/presentation/compact_agenda_panel.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
@@ -79,6 +80,90 @@ void main() {
 
     expect(find.text('Team sync'), findsOneWidget);
     expect(find.byType(YaruCheckbox), findsNothing);
+  });
+
+  testWidgets('row background matches main agenda item surface', (
+    tester,
+  ) async {
+    final event = _event('Team sync', start: today);
+
+    await tester.pumpWidget(_testPanel(data: _data(today, items: [event])));
+
+    final itemContext = tester.element(find.text('Team sync'));
+    final expected = scheduleAgendaRowBackground(itemContext, event);
+    final rowContainers = tester.widgetList<Container>(find.byType(Container));
+
+    expect(
+      rowContainers.any((container) {
+        final decoration = container.decoration;
+        return decoration is BoxDecoration && decoration.color == expected;
+      }),
+      isTrue,
+    );
+  });
+
+  testWidgets('chrome uses scroll shadows instead of static borders', (
+    tester,
+  ) async {
+    final items = [
+      for (var index = 0; index < 24; index += 1)
+        _event('Event $index', start: today.add(Duration(minutes: index))),
+    ];
+
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, items: items),
+        size: const Size(420, 520),
+      ),
+    );
+
+    final header = tester.widget<Container>(
+      find.byKey(const ValueKey('compactAgendaHeader')),
+    );
+    final footer = tester.widget<Container>(
+      find.byKey(const ValueKey('compactAgendaFooter')),
+    );
+    final headerDecoration = header.decoration! as BoxDecoration;
+    final footerDecoration = footer.decoration! as BoxDecoration;
+
+    expect(headerDecoration.border, isNull);
+    expect(footerDecoration.border, isNull);
+    expect(
+      tester
+          .widget<AnimatedOpacity>(
+            find.byKey(const ValueKey('compactAgendaTopScrollShadow')),
+          )
+          .opacity,
+      0,
+    );
+    expect(
+      tester
+          .widget<AnimatedOpacity>(
+            find.byKey(const ValueKey('compactAgendaBottomScrollShadow')),
+          )
+          .opacity,
+      0,
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -180));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<AnimatedOpacity>(
+            find.byKey(const ValueKey('compactAgendaTopScrollShadow')),
+          )
+          .opacity,
+      1,
+    );
+    expect(
+      tester
+          .widget<AnimatedOpacity>(
+            find.byKey(const ValueKey('compactAgendaBottomScrollShadow')),
+          )
+          .opacity,
+      1,
+    );
   });
 
   testWidgets('row tap calls open-item callback', (tester) async {

@@ -17,6 +17,7 @@ import '../application/compact_agenda_controller.dart';
 import '../application/compact_agenda_data.dart';
 import '../application/compact_agenda_sections.dart';
 import 'compact_agenda_formatting.dart';
+import 'schedule_agenda_view.dart';
 import 'schedule_item_details_popover.dart';
 import 'schedule_item_exporter.dart';
 
@@ -51,10 +52,13 @@ class CompactAgendaPanel extends ConsumerStatefulWidget {
 
 class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   final _mutatingTaskKeys = <String>{};
+  bool _bodyScrolledUnderHeader = false;
+  bool _bodyScrolledUnderFooter = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     final AsyncValue<CompactAgendaData> data =
         widget.data ?? ref.watch(compactAgendaDataProvider);
     return Shortcuts(
@@ -110,7 +114,31 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                           onOpenBusyMax: _openBusyMax,
                           onHide: _hide,
                         ),
-                        Expanded(child: _body(data)),
+                        Expanded(
+                          child: Stack(
+                            children: [
+                              NotificationListener<ScrollMetricsNotification>(
+                                onNotification:
+                                    _handleScrollMetricsNotification,
+                                child: NotificationListener<ScrollNotification>(
+                                  onNotification: _handleScrollNotification,
+                                  child: ColoredBox(
+                                    color: colorScheme.surface,
+                                    child: _body(data),
+                                  ),
+                                ),
+                              ),
+                              _CompactAgendaScrollShadow(
+                                visible: _bodyScrolledUnderHeader,
+                                below: true,
+                              ),
+                              _CompactAgendaScrollShadow(
+                                visible: _bodyScrolledUnderFooter,
+                                below: false,
+                              ),
+                            ],
+                          ),
+                        ),
                         _CompactAgendaBottomBar(
                           onNewTask: _newTask,
                           onOpenBusyMax: _openBusyMax,
@@ -141,6 +169,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       ),
       data: (agenda) {
         if (!agenda.hasSignedInAccounts) {
+          _scheduleScrollChromeReset();
           return _CompactAgendaMessageState(
             icon: Icons.login,
             title: context.l10n.trayAgendaSignInRequired,
@@ -149,6 +178,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
           );
         }
         if (!agenda.hasSources) {
+          _scheduleScrollChromeReset();
           return _CompactAgendaMessageState(
             icon: Icons.event_busy_outlined,
             title: context.l10n.trayAgendaNoSources,
@@ -157,6 +187,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
           );
         }
         if (agenda.items.isEmpty) {
+          _scheduleScrollChromeReset();
           return _CompactAgendaMessageState(
             icon: Icons.event_available,
             title: context.l10n.compactAgendaClear,
@@ -166,6 +197,50 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
         return _sections(agenda);
       },
     );
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    _updateScrollChrome(notification.metrics);
+    return false;
+  }
+
+  bool _handleScrollMetricsNotification(
+    ScrollMetricsNotification notification,
+  ) {
+    _updateScrollChrome(notification.metrics);
+    return false;
+  }
+
+  void _updateScrollChrome(ScrollMetrics metrics) {
+    final pixels = metrics.pixels.clamp(0.0, metrics.maxScrollExtent);
+    final scrolledFromTop = pixels > 0.5;
+    final canScrollFurtherDown = metrics.maxScrollExtent - pixels > 0.5;
+    _setScrollChrome(
+      header: scrolledFromTop,
+      footer: scrolledFromTop && canScrollFurtherDown,
+    );
+  }
+
+  void _scheduleScrollChromeReset() {
+    if (!_bodyScrolledUnderHeader && !_bodyScrolledUnderFooter) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _setScrollChrome(header: false, footer: false);
+      }
+    });
+  }
+
+  void _setScrollChrome({required bool header, required bool footer}) {
+    if (_bodyScrolledUnderHeader == header &&
+        _bodyScrolledUnderFooter == footer) {
+      return;
+    }
+    setState(() {
+      _bodyScrolledUnderHeader = header;
+      _bodyScrolledUnderFooter = footer;
+    });
   }
 
   Widget _sections(CompactAgendaData data) {
@@ -327,11 +402,9 @@ class _CompactAgendaHeader extends StatelessWidget {
     return DragToMoveArea(
       child: Container(
         height: 56,
+        key: const ValueKey('compactAgendaHeader'),
         padding: const EdgeInsets.symmetric(horizontal: BusyMaxSpacing.md),
-        decoration: BoxDecoration(
-          color: colors.headerbarFlat,
-          border: Border(bottom: BorderSide(color: colors.subtleBorder)),
-        ),
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface),
         child: Row(
           children: [
             Expanded(
@@ -558,6 +631,8 @@ class _CompactAgendaSectionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final title = switch (section.kind) {
       CompactAgendaSectionKind.overdue => context.l10n.compactAgendaOverdue,
       CompactAgendaSectionKind.day => compactAgendaDayLabel(
@@ -588,11 +663,9 @@ class _CompactAgendaSectionView extends StatelessWidget {
           ),
           DecoratedBox(
             decoration: BoxDecoration(
-              color: BusyMaxSurfaceColors.of(context).view,
+              color: colorScheme.surface,
               borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-              border: Border.all(
-                color: BusyMaxSurfaceColors.of(context).subtleBorder,
-              ),
+              border: Border.all(color: surfaceColors.subtleBorder),
             ),
             child: Column(
               children: [
@@ -644,6 +717,7 @@ class _CompactAgendaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final color = ScheduleProjection.colorForItem(
       item,
       Theme.of(context).colorScheme.brightness,
@@ -661,12 +735,9 @@ class _CompactAgendaRow extends StatelessWidget {
         child: Container(
           constraints: const BoxConstraints(minHeight: 62),
           decoration: BoxDecoration(
+            color: scheduleAgendaRowBackground(context, item),
             border: showDivider
-                ? Border(
-                    bottom: BorderSide(
-                      color: BusyMaxSurfaceColors.of(context).subtleBorder,
-                    ),
-                  )
+                ? Border(bottom: BorderSide(color: surfaceColors.subtleBorder))
                 : null,
           ),
           padding: const EdgeInsets.symmetric(
@@ -716,7 +787,7 @@ class _CompactAgendaRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: BusyMaxSurfaceColors.of(context).mutedForeground,
+                        color: surfaceColors.mutedForeground,
                       ),
                     ),
                     if (event?.location?.trim().isNotEmpty == true) ...[
@@ -726,9 +797,7 @@ class _CompactAgendaRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: BusyMaxSurfaceColors.of(
-                            context,
-                          ).mutedForeground,
+                          color: surfaceColors.mutedForeground,
                         ),
                       ),
                     ],
@@ -790,13 +859,10 @@ class _CompactAgendaBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = BusyMaxSurfaceColors.of(context);
     return Container(
+      key: const ValueKey('compactAgendaFooter'),
       padding: const EdgeInsets.all(BusyMaxSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.headerbarFlat,
-        border: Border(top: BorderSide(color: colors.subtleBorder)),
-      ),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface),
       child: Row(
         children: [
           Expanded(
@@ -813,6 +879,40 @@ class _CompactAgendaBottomBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CompactAgendaScrollShadow extends StatelessWidget {
+  const _CompactAgendaScrollShadow({
+    required this.visible,
+    required this.below,
+  });
+
+  final bool visible;
+  final bool below;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        key: ValueKey(
+          below
+              ? 'compactAgendaTopScrollShadow'
+              : 'compactAgendaBottomScrollShadow',
+        ),
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 120),
+        child: Align(
+          alignment: below ? Alignment.topCenter : Alignment.bottomCenter,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              boxShadow: BusyMaxShadow.edgeShadowsFor(context, below: below),
+            ),
+            child: const SizedBox(width: double.infinity, height: 1),
+          ),
+        ),
       ),
     );
   }

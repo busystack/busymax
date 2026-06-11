@@ -1,6 +1,7 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <pango/pango.h>
 #include <cmath>
@@ -73,6 +74,7 @@ struct _MyApplication {
   gboolean gtk_font_settings_listening;
   gboolean gtk_theme_colors_listening;
   GtkCssProvider* header_bar_css_provider;
+  gchar* header_bar_window_background_color;
   gchar* header_bar_background_color;
   gchar* header_bar_sidebar_background_color;
   gchar* header_bar_foreground_color;
@@ -130,6 +132,7 @@ struct _MyApplication {
   gboolean header_schedule_controls_visible;
   gboolean header_back_visible;
   gboolean header_onboarding_controls_visible;
+  gboolean main_window_transparent_backing;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -384,6 +387,26 @@ static void set_flutter_view_background_color(MyApplication* self,
   fl_view_set_background_color(FL_VIEW(self->flutter_view), &background_color);
 }
 
+static void set_flutter_view_background_transparent(MyApplication* self) {
+  if (self->flutter_view == nullptr || !FL_IS_VIEW(self->flutter_view)) {
+    return;
+  }
+
+  GdkRGBA transparent = {0, 0, 0, 0};
+  fl_view_set_background_color(FL_VIEW(self->flutter_view), &transparent);
+}
+
+static void set_main_flutter_view_background(MyApplication* self) {
+  if (self->main_window_transparent_backing) {
+    set_flutter_view_background_transparent(self);
+    return;
+  }
+
+  set_flutter_view_background_color(
+      self, css_color_or(self->header_bar_window_background_color,
+                         self->header_bar_background_color));
+}
+
 static gint header_sidebar_effective_width(MyApplication* self) {
   if (!self->header_bar_sidebar_visible) {
     return 0;
@@ -398,6 +421,11 @@ static void refresh_header_bar_css(MyApplication* self) {
   }
 
   const gchar* background_color = self->header_bar_background_color;
+  const gchar* window_background_color =
+      css_color_or(self->header_bar_window_background_color, background_color);
+  const gchar* window_css_background_color =
+      self->main_window_transparent_backing ? "transparent"
+                                            : window_background_color;
   const gchar* sidebar_background_color =
       is_css_color_token(self->header_bar_sidebar_background_color)
           ? self->header_bar_sidebar_background_color
@@ -442,6 +470,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: transparent;"
       "background-image: none;"
       "border: none;"
+      "border-radius: %dpx;"
       "}"
       ".busymax-titlebar,"
       ".busymax-titlebar:backdrop,"
@@ -646,7 +675,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "min-height: 0;"
       "border-radius: %dpx;"
       "}",
-      background_color,
+      window_css_background_color, kHeaderWindowRadius,
       background_color, kHeaderWindowRadius, kHeaderWindowRadius,
       kHeaderWindowRadius, sidebar_background_color, kHeaderWindowRadius,
       foreground_color, foreground_color, modal_barrier_color,
@@ -698,6 +727,8 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
   if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
     return;
   }
+  set_css_color_field(&self->header_bar_window_background_color,
+                      fl_lookup_string_arg(args, "windowBackgroundColor"));
   set_css_color_field(&self->header_bar_background_color,
                       fl_lookup_string_arg(args, "backgroundColor"));
   set_css_color_field(&self->header_bar_sidebar_background_color,
@@ -726,7 +757,7 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
                       fl_lookup_string_arg(args, "shadeColor"));
   set_css_color_field(&self->header_bar_modal_barrier_color,
                       fl_lookup_string_arg(args, "modalBarrierColor"));
-  set_flutter_view_background_color(self, self->header_bar_background_color);
+  set_main_flutter_view_background(self);
   refresh_header_bar_css(self);
 }
 
@@ -2290,6 +2321,118 @@ static void register_window_channel(MyApplication* self, FlView* view) {
       self->window_channel, window_method_call_cb, self, nullptr);
 }
 
+static gboolean clear_transparent_window_cb(GtkWidget* widget,
+                                            cairo_t* cr,
+                                            gpointer user_data) {
+  cairo_save(cr);
+  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+  cairo_paint(cr);
+  cairo_restore(cr);
+  return FALSE;
+}
+
+static void rounded_window_realize_cb(GtkWidget* widget, gpointer user_data);
+
+static gboolean rounded_window_configure_event_cb(GtkWidget* widget,
+                                                  GdkEventConfigure* event,
+                                                  gpointer user_data);
+
+static gboolean configure_transparent_window_backing(GtkWindow* window) {
+  GdkScreen* screen = gtk_window_get_screen(window);
+  GdkVisual* visual = gdk_screen_get_rgba_visual(screen);
+  if (visual == nullptr) {
+    return FALSE;
+  }
+
+  gtk_widget_set_visual(GTK_WIDGET(window), visual);
+  gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
+  g_signal_connect(window, "draw", G_CALLBACK(clear_transparent_window_cb),
+                   nullptr);
+  g_signal_connect_after(window, "realize", G_CALLBACK(rounded_window_realize_cb),
+                         nullptr);
+  g_signal_connect(window, "configure-event",
+                   G_CALLBACK(rounded_window_configure_event_cb), nullptr);
+  return TRUE;
+}
+
+static cairo_region_t* create_rounded_window_region(gint width,
+                                                    gint height,
+                                                    gint radius) {
+  cairo_region_t* region = cairo_region_create();
+  if (width <= 0 || height <= 0) {
+    return region;
+  }
+
+  if (radius <= 0 || width < radius * 2 || height < radius * 2) {
+    const cairo_rectangle_int_t rect = {0, 0, width, height};
+    cairo_region_union_rectangle(region, &rect);
+    return region;
+  }
+
+  const gdouble radius_squared = radius * radius;
+  for (gint y = 0; y < height; y++) {
+    gint inset = 0;
+    if (y < radius) {
+      const gdouble dy = radius - y - 1;
+      inset = radius - static_cast<gint>(std::sqrt(radius_squared - dy * dy));
+    } else if (y >= height - radius) {
+      const gdouble dy = y - (height - radius);
+      inset = radius - static_cast<gint>(std::sqrt(radius_squared - dy * dy));
+    }
+
+    const gint row_width = width - inset * 2;
+    if (row_width <= 0) {
+      continue;
+    }
+
+    const cairo_rectangle_int_t row = {inset, y, row_width, 1};
+    cairo_region_union_rectangle(region, &row);
+  }
+
+  return region;
+}
+
+static void configure_rounded_window_shape(GtkWidget* widget) {
+  if (widget == nullptr || !GTK_IS_WIDGET(widget) ||
+      !gtk_widget_get_realized(widget)) {
+    return;
+  }
+
+  GdkWindow* window = gtk_widget_get_window(widget);
+  if (window == nullptr || !GDK_IS_WINDOW(window)) {
+    return;
+  }
+
+  const GdkWindowState state = gdk_window_get_state(window);
+  if ((state & GDK_WINDOW_STATE_MAXIMIZED) != 0 ||
+      (state & GDK_WINDOW_STATE_FULLSCREEN) != 0) {
+    gdk_window_shape_combine_region(window, nullptr, 0, 0);
+    return;
+  }
+
+  const gint width = gtk_widget_get_allocated_width(widget);
+  const gint height = gtk_widget_get_allocated_height(widget);
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
+  cairo_region_t* region =
+      create_rounded_window_region(width, height, kHeaderWindowRadius);
+  gdk_window_shape_combine_region(window, region, 0, 0);
+  cairo_region_destroy(region);
+}
+
+static void rounded_window_realize_cb(GtkWidget* widget, gpointer user_data) {
+  configure_rounded_window_shape(widget);
+}
+
+static gboolean rounded_window_configure_event_cb(GtkWidget* widget,
+                                                  GdkEventConfigure* event,
+                                                  gpointer user_data) {
+  configure_rounded_window_shape(widget);
+  return FALSE;
+}
+
 static void install_compact_agenda_window_css(GtkWindow* window) {
   static const gchar* css =
       "window#busymax-compact-agenda-window,"
@@ -2498,6 +2641,8 @@ static void my_application_activate(GApplication* application) {
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   self->main_window = window;
   gtk_widget_set_name(GTK_WIDGET(window), "busymax-window");
+  self->main_window_transparent_backing =
+      configure_transparent_window_backing(window);
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -2544,11 +2689,7 @@ static void my_application_activate(GApplication* application) {
 
   FlView* view = fl_view_new(project);
   track_widget_pointer(&self->flutter_view, GTK_WIDGET(view));
-  GdkRGBA background_color;
-  gdk_rgba_parse(&background_color,
-                 css_color_or(self->header_bar_background_color,
-                              kDefaultHeaderBarBackgroundColor));
-  fl_view_set_background_color(view, &background_color);
+  set_main_flutter_view_background(self);
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
 
@@ -2661,6 +2802,7 @@ static void my_application_dispose(GObject* object) {
   clear_widget_pointer(&self->view_mode_agenda_item);
   clear_widget_pointer(&self->search_button);
   clear_widget_pointer(&self->refresh_button);
+  g_clear_pointer(&self->header_bar_window_background_color, g_free);
   g_clear_pointer(&self->header_bar_background_color, g_free);
   g_clear_pointer(&self->header_bar_sidebar_background_color, g_free);
   g_clear_pointer(&self->header_bar_foreground_color, g_free);
@@ -2706,7 +2848,10 @@ static void my_application_init(MyApplication* self) {
   self->header_schedule_controls_visible = TRUE;
   self->header_back_visible = FALSE;
   self->header_onboarding_controls_visible = FALSE;
+  self->main_window_transparent_backing = FALSE;
   self->header_bar_css_provider = nullptr;
+  self->header_bar_window_background_color =
+      g_strdup(kDefaultHeaderBarBackgroundColor);
   self->header_bar_background_color =
       g_strdup(kDefaultHeaderBarBackgroundColor);
   self->header_bar_sidebar_background_color =

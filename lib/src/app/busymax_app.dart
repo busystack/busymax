@@ -137,6 +137,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         await service.setSidebarWidth(BusyMaxSizes.sidebarWidth);
         await service.setTheme(
           BusyMaxHeaderBarTheme(
+            windowBackgroundColor: colors.window,
             backgroundColor: colors.view,
             sidebarBackgroundColor: colors.sidebar,
             foregroundColor: colors.foreground,

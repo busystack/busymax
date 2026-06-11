@@ -99,6 +99,26 @@ abstract final class BusyMaxShadow {
   static List<BoxShadow> windowShadowsFor(BuildContext context) {
     return windowShadows(floatingColor(context));
   }
+
+  static List<BoxShadow> edgeShadows(Color color, {required bool below}) {
+    return [
+      BoxShadow(
+        color: color,
+        blurRadius: floatingBlur / 2,
+        offset: Offset(
+          0,
+          below ? floatingOffset.dy / 2 : -floatingOffset.dy / 2,
+        ),
+      ),
+    ];
+  }
+
+  static List<BoxShadow> edgeShadowsFor(
+    BuildContext context, {
+    required bool below,
+  }) {
+    return edgeShadows(floatingColor(context), below: below);
+  }
 }
 
 enum BusyMaxPopoverArrowSide { top, bottom }
