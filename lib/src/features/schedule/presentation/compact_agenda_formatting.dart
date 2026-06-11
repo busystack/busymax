@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../l10n/l10n.dart';
@@ -24,7 +24,7 @@ String compactAgendaDayLabel(
 
 String compactAgendaTodaySubtitle(BuildContext context, DateTime today) {
   final locale = Localizations.localeOf(context).toString();
-  return '${context.l10n.today} · ${DateFormat.MMMd(locale).format(today)}';
+  return '${context.l10n.today} - ${DateFormat.MMMd(locale).format(today)}';
 }
 
 String compactAgendaItemMeta(
