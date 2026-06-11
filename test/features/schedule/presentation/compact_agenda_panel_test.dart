@@ -1,0 +1,181 @@
+import 'package:busymax/src/features/schedule/application/compact_agenda_data.dart';
+import 'package:busymax/src/features/schedule/presentation/compact_agenda_panel.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:yaru/yaru.dart';
+
+import '../../../test_localized_app.dart';
+
+void main() {
+  final today = DateTime(2026, 6, 10);
+
+  testWidgets('signed-out state shows sign-in and open app message', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, hasSignedInAccounts: false, hasSources: false),
+      ),
+    );
+
+    expect(find.text('Sign in to show agenda.'), findsOneWidget);
+    expect(find.text('Open BusyMax'), findsWidgets);
+  });
+
+  testWidgets('no sources state shows no sources message', (tester) async {
+    await tester.pumpWidget(_testPanel(data: _data(today, hasSources: false)));
+
+    expect(find.text('No visible calendars or task lists.'), findsOneWidget);
+    expect(find.text('Open BusyMax'), findsWidgets);
+  });
+
+  testWidgets('empty state shows positive empty message', (tester) async {
+    await tester.pumpWidget(_testPanel(data: _data(today)));
+
+    expect(find.text('Clear for the next 7 days'), findsOneWidget);
+    expect(find.text('No events or tasks'), findsOneWidget);
+  });
+
+  testWidgets('task row renders checkbox and calls completion callback', (
+    tester,
+  ) async {
+    var completed = false;
+    final task = _task('Submit report', start: today);
+
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, items: [task]),
+        onTaskCompletionChanged: (_, value) async {
+          completed = value;
+        },
+      ),
+    );
+
+    expect(find.byType(YaruCheckbox), findsOneWidget);
+    await tester.tap(find.byType(YaruCheckbox));
+    await tester.pump();
+
+    expect(completed, isTrue);
+  });
+
+  testWidgets('event row does not render checkbox', (tester) async {
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, items: [_event('Team sync', start: today)]),
+      ),
+    );
+
+    expect(find.text('Team sync'), findsOneWidget);
+    expect(find.byType(YaruCheckbox), findsNothing);
+  });
+
+  testWidgets('row tap calls open-item callback', (tester) async {
+    ScheduleItem? opened;
+    final event = _event('Team sync', start: today);
+
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, items: [event]),
+        onOpenItem: (item) async {
+          opened = item;
+        },
+      ),
+    );
+
+    await tester.tap(find.text('Team sync'));
+    await tester.pump();
+
+    expect(opened, event);
+  });
+
+  testWidgets('loading state renders progress and skeleton rows', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testPanel(data: const AsyncLoading<CompactAgendaData>()),
+    );
+
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.byType(Container), findsWidgets);
+  });
+}
+
+Widget _testPanel({
+  required AsyncValue<CompactAgendaData> data,
+  Future<void> Function(ScheduleItem item)? onOpenItem,
+  CompactAgendaTaskCompletionCallback? onTaskCompletionChanged,
+}) {
+  return ProviderScope(
+    child: localizedTestApp(
+      child: Scaffold(
+        body: SizedBox(
+          width: 420,
+          height: 680,
+          child: CompactAgendaPanel(
+            data: data,
+            onOpenBusyMax: () async {},
+            onNewTask: () async {},
+            onRefresh: () async {},
+            onHide: () async {},
+            onOpenItem: onOpenItem,
+            onTaskCompletionChanged: onTaskCompletionChanged,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+AsyncValue<CompactAgendaData> _data(
+  DateTime today, {
+  List<ScheduleItem> items = const [],
+  bool hasSignedInAccounts = true,
+  bool hasSources = true,
+}) {
+  return AsyncData(
+    CompactAgendaData(
+      today: today,
+      range: ScheduleRange(
+        start: today,
+        end: today.add(const Duration(days: 7)),
+      ),
+      items: items,
+      hasSignedInAccounts: hasSignedInAccounts,
+      hasSources: hasSources,
+      generatedAt: today,
+    ),
+  );
+}
+
+TaskScheduleItem _task(String title, {required DateTime start}) {
+  return TaskScheduleItem(
+    id: title,
+    accountId: 'account',
+    provider: TaskProvider.google,
+    sourceId: 'tasks',
+    title: title,
+    completed: false,
+    allDay: true,
+    start: start,
+    sourceName: 'Inbox',
+  );
+}
+
+CalendarScheduleItem _event(String title, {required DateTime start}) {
+  return CalendarScheduleItem(
+    id: title,
+    accountId: 'account',
+    provider: TaskProvider.google,
+    sourceId: 'calendar',
+    providerCalendarId: 'calendar',
+    title: title,
+    allDay: false,
+    start: start,
+    end: start.add(const Duration(hours: 1)),
+    sourceName: 'Work',
+  );
+}

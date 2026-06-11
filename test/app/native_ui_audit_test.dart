@@ -130,6 +130,33 @@ void main() {
       expect(source, isNot(contains("label: 'Quit BusyMax'")));
     });
 
+    test('compact agenda uses a separate desktop window', () {
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final tray = File(
+        'lib/src/platform/busymax_tray_service.dart',
+      ).readAsStringSync();
+      final router = File('lib/src/app/app_router.dart').readAsStringSync();
+      final compactApp = File(
+        'lib/src/features/schedule/presentation/compact_agenda_app.dart',
+      ).readAsStringSync();
+
+      expect(pubspec, contains('desktop_multi_window:'));
+      expect(pubspec, contains('window_manager:'));
+      expect(
+        runner,
+        contains('desktop_multi_window_plugin_set_window_created_callback'),
+      );
+      expect(tray, contains('return _onOpenAgenda();'));
+      expect(tray, isNot(contains('BusyMaxTrayAgendaSnapshot')));
+      expect(tray, isNot(contains('BusyMaxTrayAgendaEntry')));
+      expect(router, isNot(contains('/tray-agenda')));
+      expect(compactApp, isNot(contains('linux_header_bar_service.dart')));
+      expect(compactApp, isNot(contains('syncSchedulerProvider')));
+      expect(compactApp, isNot(contains('notificationSchedulerProvider')));
+      expect(compactApp, isNot(contains('dueTodayNotificationProvider')));
+    });
+
     test('native headerbar keeps sidebar top branded and aligned', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
 
