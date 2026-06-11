@@ -25,7 +25,9 @@ const _nativePickerChannel = MethodChannel(nativeDateTimePickerChannelName);
 void main() {
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(_nativePickerChannel, null);
+        .setMockMethodCallHandler(_nativePickerChannel, (_) async {
+          throw MissingPluginException();
+        });
   });
 
   testWidgets('Task Details header shows Cancel and Save', (tester) async {
@@ -734,6 +736,65 @@ void main() {
     expect(calls, hasLength(1));
     expect(find.text('June 2026'), findsNothing);
     expect(find.text('Jun 15, 2026'), findsOneWidget);
+  });
+
+  testWidgets('date value row can use in-window picker', (tester) async {
+    String? changed;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopDateValueRow(
+            label: 'Due date',
+            date: '2026-06-06',
+            useNativePicker: false,
+            onChanged: (date) => changed = date,
+          ),
+        ),
+      ),
+    );
+
+    await _openRowMenu(tester, 'Due date');
+
+    expect(find.byType(YaruDateTimeEntry), findsOneWidget);
+    expect(find.byType(CalendarDatePicker), findsNothing);
+
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(changed, '2026-06-06');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('in-window date picker opens empty date on today', (
+    tester,
+  ) async {
+    String? changed;
+    final now = DateTime.now();
+    final today =
+        '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopDateValueRow(
+            label: 'Due date',
+            date: null,
+            useNativePicker: false,
+            onChanged: (date) => changed = date,
+          ),
+        ),
+      ),
+    );
+
+    await _openRowMenu(tester, 'Due date');
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(changed, today);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

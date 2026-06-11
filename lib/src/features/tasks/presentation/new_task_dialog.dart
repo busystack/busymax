@@ -72,6 +72,7 @@ class NewTaskEditorPanel extends ConsumerStatefulWidget {
     this.initialListId,
     this.initialDueUtc,
     this.categorySuggestionsForAccount,
+    this.useNativeDatePicker = true,
   });
 
   final List<AccountEntity> accounts;
@@ -81,6 +82,7 @@ class NewTaskEditorPanel extends ConsumerStatefulWidget {
   final FutureOr<void> Function(NewTaskDraft draft) onSubmitted;
   final VoidCallback onCancel;
   final TaskCategorySuggestionsStreamForAccount? categorySuggestionsForAccount;
+  final bool useNativeDatePicker;
 
   @override
   ConsumerState<NewTaskEditorPanel> createState() => _NewTaskEditorPanelState();
@@ -156,6 +158,7 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
               showAdvancedActions: false,
               showDeleteAction: false,
               confirmTaskSwitch: false,
+              useNativeDatePicker: widget.useNativeDatePicker,
               categorySuggestions: categorySuggestions,
               canSaveDraft: (draft) => draft.taskListId.isNotEmpty,
               onDraftChanged: (draft) {

@@ -202,6 +202,10 @@ void main() {
       expect(runner, contains('gtk_window_set_skip_pager_hint(window, TRUE)'));
       expect(runner, contains('gtk_window_set_keep_above(window, TRUE)'));
       expect(runner, contains('register_compact_gtk_settings_channel'));
+      expect(
+        runner,
+        contains('register_native_date_time_picker_for_subwindow'),
+      );
       expect(runner, contains('window#busymax-compact-agenda-window'));
       expect(runner, contains('gtk_window_get_titlebar(window)'));
       expect(runner, contains('gtk_widget_hide(titlebar)'));

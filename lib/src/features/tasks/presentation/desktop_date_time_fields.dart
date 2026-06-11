@@ -15,12 +15,12 @@ class NativeDateTimePicker {
 
   static const _channel = MethodChannel(nativeDateTimePickerChannelName);
 
-  Future<String?> pickDate({
+  Future<NativeDatePickResult> pickDate({
     required String title,
     required String? initialDate,
     required String cancelLabel,
     required String okLabel,
-  }) {
+  }) async {
     return _invoke('pickDate', {
       'title': title,
       'initialDate': initialDate,
@@ -29,13 +29,26 @@ class NativeDateTimePicker {
     });
   }
 
-  Future<String?> _invoke(String method, Map<String, Object?> arguments) async {
+  Future<NativeDatePickResult> _invoke(
+    String method,
+    Map<String, Object?> arguments,
+  ) async {
     try {
-      return await _channel.invokeMethod<String>(method, arguments);
+      return NativeDatePickResult(
+        available: true,
+        date: await _channel.invokeMethod<String>(method, arguments),
+      );
     } on MissingPluginException {
-      return null;
+      return const NativeDatePickResult(available: false);
     }
   }
+}
+
+class NativeDatePickResult {
+  const NativeDatePickResult({required this.available, this.date});
+
+  final bool available;
+  final String? date;
 }
 
 class DesktopDateField extends StatefulWidget {
@@ -47,6 +60,7 @@ class DesktopDateField extends StatefulWidget {
     this.enabled = true,
     this.onClear,
     this.emptyLabel,
+    this.useNativePicker = true,
   });
 
   final String label;
@@ -55,6 +69,7 @@ class DesktopDateField extends StatefulWidget {
   final bool enabled;
   final VoidCallback? onClear;
   final String? emptyLabel;
+  final bool useNativePicker;
 
   @override
   State<DesktopDateField> createState() => _DesktopDateFieldState();
@@ -69,6 +84,7 @@ class DesktopDateValueRow extends StatelessWidget {
     this.enabled = true,
     this.onClear,
     this.emptyLabel,
+    this.useNativePicker = true,
   });
 
   final String label;
@@ -77,6 +93,7 @@ class DesktopDateValueRow extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onClear;
   final String? emptyLabel;
+  final bool useNativePicker;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +127,17 @@ class DesktopDateValueRow extends StatelessWidget {
     if (!enabled) {
       return;
     }
+    if (!useNativePicker) {
+      final fallbackPicked = await showBusyMaxDateValueDialog(
+        context,
+        label: label,
+        initialDate: date,
+      );
+      if (context.mounted && fallbackPicked != null) {
+        onChanged(fallbackPicked);
+      }
+      return;
+    }
     final localizations = MaterialLocalizations.of(context);
     final picked = await _nativeDateTimePicker.pickDate(
       title: label,
@@ -117,8 +145,23 @@ class DesktopDateValueRow extends StatelessWidget {
       cancelLabel: localizations.cancelButtonLabel,
       okLabel: localizations.okButtonLabel,
     );
-    if (context.mounted && picked != null) {
-      onChanged(picked);
+    if (!context.mounted) {
+      return;
+    }
+    if (picked.date != null) {
+      onChanged(picked.date!);
+      return;
+    }
+    if (picked.available) {
+      return;
+    }
+    final fallbackPicked = await showBusyMaxDateValueDialog(
+      context,
+      label: label,
+      initialDate: date,
+    );
+    if (context.mounted && fallbackPicked != null) {
+      onChanged(fallbackPicked);
     }
   }
 }
@@ -199,6 +242,17 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
   }
 
   Future<void> _pickNativeDate(BuildContext context) async {
+    if (!widget.useNativePicker) {
+      final fallbackPicked = await showBusyMaxDateValueDialog(
+        context,
+        label: widget.label,
+        initialDate: widget.date,
+      );
+      if (mounted && fallbackPicked != null) {
+        _applyPickedDate(fallbackPicked);
+      }
+      return;
+    }
     final localizations = MaterialLocalizations.of(context);
     final picked = await _nativeDateTimePicker.pickDate(
       title: widget.label,
@@ -206,23 +260,126 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
       cancelLabel: localizations.cancelButtonLabel,
       okLabel: localizations.okButtonLabel,
     );
-    if (context.mounted && picked != null) {
-      final pickedDate = parseDateOnly(picked);
-      if (!isSameDate(_controller.dateTime, pickedDate)) {
-        _syncingController = true;
-        _controller.dateTime = pickedDate;
-        _syncingController = false;
-      }
-      widget.onChanged(picked);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || isSameDate(_controller.dateTime, pickedDate)) {
-          return;
-        }
-        _syncingController = true;
-        _controller.dateTime = pickedDate;
-        _syncingController = false;
-      });
+    if (!context.mounted) {
+      return;
     }
+    if (picked.date != null) {
+      _applyPickedDate(picked.date!);
+      return;
+    }
+    if (picked.available) {
+      return;
+    }
+    final fallbackPicked = await showBusyMaxDateValueDialog(
+      context,
+      label: widget.label,
+      initialDate: widget.date,
+    );
+    if (mounted && fallbackPicked != null) {
+      _applyPickedDate(fallbackPicked);
+    }
+  }
+
+  void _applyPickedDate(String picked) {
+    final pickedDate = parseDateOnly(picked);
+    if (!isSameDate(_controller.dateTime, pickedDate)) {
+      _syncingController = true;
+      _controller.dateTime = pickedDate;
+      _syncingController = false;
+    }
+    widget.onChanged(picked);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || isSameDate(_controller.dateTime, pickedDate)) {
+        return;
+      }
+      _syncingController = true;
+      _controller.dateTime = pickedDate;
+      _syncingController = false;
+    });
+  }
+}
+
+Future<String?> showBusyMaxDateValueDialog(
+  BuildContext context, {
+  required String label,
+  required String? initialDate,
+}) {
+  return showDialog<String>(
+    context: context,
+    barrierColor: Colors.transparent,
+    builder: (context) {
+      return _DesktopDateValueDialog(label: label, initialDate: initialDate);
+    },
+  );
+}
+
+class _DesktopDateValueDialog extends StatefulWidget {
+  const _DesktopDateValueDialog({
+    required this.label,
+    required this.initialDate,
+  });
+
+  final String label;
+  final String? initialDate;
+
+  @override
+  State<_DesktopDateValueDialog> createState() =>
+      _DesktopDateValueDialogState();
+}
+
+class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
+  late final YaruDateTimeEntryController _controller;
+  DateTime? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = parseDateOnly(widget.initialDate) ?? _today();
+    _controller = YaruDateTimeEntryController(dateTime: _selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxDialogShell(
+      title: widget.label,
+      maxWidth: 360,
+      actions: [
+        BusyMaxPushButton.outlined(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.l10n.cancel),
+        ),
+        BusyMaxPushButton.filled(
+          onPressed: _selected == null ? null : _submit,
+          child: Text(MaterialLocalizations.of(context).okButtonLabel),
+        ),
+      ],
+      children: [
+        _withoutInternalDateTimeEntryLabel(
+          context,
+          YaruDateTimeEntry(
+            controller: _controller,
+            includeTime: false,
+            firstDateTime: DateTime(1900),
+            lastDateTime: DateTime(2100, 12, 31),
+            acceptEmpty: false,
+            clearIconSemanticLabel: widget.label,
+            onChanged: (date) {
+              setState(() {
+                _selected = date;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    final selected = _selected;
+    if (selected == null) {
+      return;
+    }
+    Navigator.of(context).pop(encodeDateOnly(selected));
   }
 }
 
@@ -605,6 +762,11 @@ DateTime? parseDateOnly(String? date) {
     return null;
   }
   return DateTime.tryParse('${date.substring(0, 10)}T00:00:00');
+}
+
+DateTime _today() {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
 }
 
 DateTime? parseGraphLocalDateTime(String? dateTime) {

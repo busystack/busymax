@@ -271,17 +271,31 @@ static void native_date_time_picker_method_call_cb(FlMethodChannel* channel,
   }
 }
 
-static void register_native_date_time_picker(MyApplication* self,
-                                             FlView* view,
-                                             GtkWindow* window) {
+static FlMethodChannel* create_native_date_time_picker_channel(
+    FlView* view,
+    GtkWindow* window) {
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
-  self->native_date_time_picker_channel = fl_method_channel_new(
+  FlMethodChannel* channel = fl_method_channel_new(
       fl_engine_get_binary_messenger(fl_view_get_engine(view)),
       kNativeDateTimePickerChannel, FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(
-      self->native_date_time_picker_channel,
-      native_date_time_picker_method_call_cb, g_object_ref(window),
+      channel, native_date_time_picker_method_call_cb, g_object_ref(window),
       g_object_unref);
+  return channel;
+}
+
+static void register_native_date_time_picker(MyApplication* self,
+                                             FlView* view,
+                                             GtkWindow* window) {
+  self->native_date_time_picker_channel =
+      create_native_date_time_picker_channel(view, window);
+}
+
+static void register_native_date_time_picker_for_subwindow(FlView* view,
+                                                           GtkWindow* window) {
+  FlMethodChannel* channel = create_native_date_time_picker_channel(view, window);
+  g_object_set_data_full(G_OBJECT(window), "busymax-native-date-time-picker",
+                         channel, g_object_unref);
 }
 
 static void respond_bool(FlMethodCall* method_call, gboolean value) {
@@ -2645,6 +2659,7 @@ static void configure_compact_agenda_subwindow(FlPluginRegistry* registry) {
 
   register_compact_agenda_window_channel(view, window);
   register_compact_gtk_settings_channel(view, window);
+  register_native_date_time_picker_for_subwindow(view, window);
 }
 
 // Called when first Flutter frame received.

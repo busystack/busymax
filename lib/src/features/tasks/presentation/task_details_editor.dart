@@ -46,6 +46,7 @@ class TaskDetailsEditor extends StatefulWidget {
     this.showAdvancedActions = true,
     this.showDeleteAction = true,
     this.confirmTaskSwitch = true,
+    this.useNativeDatePicker = true,
     this.canSaveDraft,
   });
 
@@ -81,6 +82,7 @@ class TaskDetailsEditor extends StatefulWidget {
   final bool showAdvancedActions;
   final bool showDeleteAction;
   final bool confirmTaskSwitch;
+  final bool useNativeDatePicker;
   final bool Function(TaskDetailsDraft draft)? canSaveDraft;
 
   @override
@@ -222,6 +224,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                           emptyLabel: l10n.noneValue,
                           onChanged: (value) =>
                               _updateDraft(draft.copyWith(dueDate: value)),
+                          useNativePicker: widget.useNativeDatePicker,
                           onClear: () => _updateDraft(
                             draft.copyWith(
                               dueDate: null,
@@ -423,6 +426,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftStartDate: value)),
+        useNativePicker: widget.useNativeDatePicker,
         onClear: () => _updateDraft(
           draft.copyWith(microsoftStartDate: null, microsoftStartTime: null),
         ),
@@ -766,6 +770,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderDate: value)),
+        useNativePicker: widget.useNativeDatePicker,
         onClear: () =>
             _updateDraft(draft.copyWith(microsoftReminderDate: null)),
       ),

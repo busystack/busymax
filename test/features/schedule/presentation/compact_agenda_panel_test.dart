@@ -79,6 +79,7 @@ void main() {
     expect(source, contains('NewTaskEditorPanel'));
     expect(source, isNot(contains('MainWindowCommandClient().newTask')));
     expect(source, contains('_creatingTask = true'));
+    expect(source, isNot(contains('useNativeDatePicker: false')));
   });
 
   testWidgets('no-date tasks render in a No date section', (tester) async {
