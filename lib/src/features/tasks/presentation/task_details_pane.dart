@@ -14,12 +14,21 @@ import '../data/tasks_repository.dart';
 import 'task_details_draft.dart';
 import 'task_details_editor.dart';
 
+typedef TasksRepositoryForAccount = TasksRepository Function(String accountId);
+typedef TaskListsRepositoryForAccount =
+    TaskListsRepository Function(String accountId);
+typedef TaskMutationCommittedCallback =
+    FutureOr<void> Function(String accountId);
+
 class TaskDetailsPane extends ConsumerStatefulWidget {
   const TaskDetailsPane({
     super.key,
     required this.accountId,
     required this.taskListId,
     required this.taskId,
+    this.tasksRepositoryForAccount,
+    this.taskListsRepositoryForAccount,
+    this.onTaskMutationCommitted,
     this.onClose,
     this.onTaskSwitchCancelled,
     this.onDirtyChanged,
@@ -28,6 +37,9 @@ class TaskDetailsPane extends ConsumerStatefulWidget {
   final String accountId;
   final String taskListId;
   final String taskId;
+  final TasksRepositoryForAccount? tasksRepositoryForAccount;
+  final TaskListsRepositoryForAccount? taskListsRepositoryForAccount;
+  final TaskMutationCommittedCallback? onTaskMutationCommitted;
   final VoidCallback? onClose;
   final ValueChanged<TaskEntity>? onTaskSwitchCancelled;
   final ValueChanged<bool>? onDirtyChanged;
@@ -55,6 +67,10 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   Stream<List<String>>? _categorySuggestionsStream;
   TaskListsRepository? _listsStreamRepository;
   Stream<List<TaskListEntity>>? _listsStream;
+  String? _customTasksRepositoryAccountId;
+  TasksRepository? _customTasksRepository;
+  String? _customTaskListsRepositoryAccountId;
+  TaskListsRepository? _customTaskListsRepository;
   var _editorDirty = false;
   var _confirmingTaskSwitch = false;
 
@@ -101,12 +117,8 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   }
 
   Widget _buildContent(BuildContext context, WidgetRef ref) {
-    final repository = ref.watch(
-      tasksRepositoryForAccountProvider(_effectiveAccountId),
-    );
-    final listsRepository = ref.watch(
-      taskListsRepositoryForAccountProvider(_effectiveAccountId),
-    );
+    final repository = _tasksRepository(ref, _effectiveAccountId);
+    final listsRepository = _taskListsRepository(ref, _effectiveAccountId);
     final localTimeZone = ref.watch(localTimeZoneProvider);
     final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
     final account = _accountForId(accounts, _effectiveAccountId);
@@ -187,12 +199,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     TaskDetailsDraft draft,
     Map<String, Object?> patch,
   ) async {
+    var mutated = false;
     if (patch.isNotEmpty) {
       await repository.patchTask(
         task.taskListId,
         task.id,
         TaskPatchInput(patch),
       );
+      mutated = true;
     }
     if (draft.taskListId != task.taskListId) {
       await repository.moveTask(
@@ -202,6 +216,10 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           destinationTaskListId: draft.taskListId,
         ),
       );
+      mutated = true;
+    }
+    if (mutated) {
+      await widget.onTaskMutationCommitted?.call(task.accountId);
     }
   }
 
@@ -230,22 +248,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       },
       onSave: (draft, patch) => _saveDraft(repository, task, draft, patch),
       onCreateSubtask: (title) {
-        unawaited(
-          repository.createTask(
-            task.taskListId,
-            TaskCreateInput(title: title, parentTaskId: task.id),
-          ),
-        );
+        unawaited(_createSubtask(repository, task, title));
       },
       onMoveToTop: () {
-        unawaited(
-          repository.moveTask(
-            TaskMoveInput(sourceTaskListId: task.taskListId, taskId: task.id),
-          ),
-        );
+        unawaited(_moveToTop(repository, task));
       },
       onDelete: () async {
         await repository.deleteTask(task.taskListId, task.id);
+        await widget.onTaskMutationCommitted?.call(task.accountId);
         widget.onClose?.call();
       },
       onCancel: () => widget.onClose?.call(),
@@ -253,6 +263,25 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       onTaskSwitchCancelled: widget.onTaskSwitchCancelled,
       onDirtyChanged: _setEditorDirty,
     );
+  }
+
+  Future<void> _createSubtask(
+    TasksRepository repository,
+    TaskEntity task,
+    String title,
+  ) async {
+    await repository.createTask(
+      task.taskListId,
+      TaskCreateInput(title: title, parentTaskId: task.id),
+    );
+    await widget.onTaskMutationCommitted?.call(task.accountId);
+  }
+
+  Future<void> _moveToTop(TasksRepository repository, TaskEntity task) async {
+    await repository.moveTask(
+      TaskMoveInput(sourceTaskListId: task.taskListId, taskId: task.id),
+    );
+    await widget.onTaskMutationCommitted?.call(task.accountId);
   }
 
   void _setEditorDirty(bool dirty) {
@@ -281,6 +310,32 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     _effectiveAccountId = accountId;
     _effectiveTaskListId = taskListId;
     _effectiveTaskId = taskId;
+  }
+
+  TasksRepository _tasksRepository(WidgetRef ref, String accountId) {
+    final factory = widget.tasksRepositoryForAccount;
+    if (factory == null) {
+      return ref.watch(tasksRepositoryForAccountProvider(accountId));
+    }
+    if (_customTasksRepository == null ||
+        _customTasksRepositoryAccountId != accountId) {
+      _customTasksRepositoryAccountId = accountId;
+      _customTasksRepository = factory(accountId);
+    }
+    return _customTasksRepository!;
+  }
+
+  TaskListsRepository _taskListsRepository(WidgetRef ref, String accountId) {
+    final factory = widget.taskListsRepositoryForAccount;
+    if (factory == null) {
+      return ref.watch(taskListsRepositoryForAccountProvider(accountId));
+    }
+    if (_customTaskListsRepository == null ||
+        _customTaskListsRepositoryAccountId != accountId) {
+      _customTaskListsRepositoryAccountId = accountId;
+      _customTaskListsRepository = factory(accountId);
+    }
+    return _customTaskListsRepository!;
   }
 
   Future<void> _confirmSelectionChange({

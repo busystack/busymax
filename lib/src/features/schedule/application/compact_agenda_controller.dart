@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../platform/main_window_command_client.dart';
 import '../../../schedule/schedule_item.dart';
+import '../../calendar/data/calendar_repository.dart';
+import '../../calendar/presentation/event_editor_draft.dart';
 import '../../tasks/data/tasks_repository.dart';
 import 'compact_agenda_data.dart';
 
@@ -28,13 +30,38 @@ class CompactAgendaController {
     );
     await repository.createTask(taskListId, input);
 
-    try {
-      await const MainWindowCommandClient().requestTaskSync(accountId);
-    } on Object {
-      // The pending operation remains queued and will sync when the main engine
-      // is available.
-    }
+    await _requestTaskSync(accountId);
 
+    _ref.invalidate(compactAgendaDataProvider);
+    _ref.invalidate(compactAgendaDataForQueryProvider);
+  }
+
+  Future<void> saveEvent(EventEditorDraft draft) async {
+    final repository = CalendarRepository(
+      database: _ref.read(databaseProvider),
+      localTimeZone: _ref.read(localTimeZoneProvider),
+    );
+    await repository.updateLocalEvent(draft);
+    await _requestCalendarSync(draft.accountId);
+
+    _ref.invalidate(compactAgendaDataProvider);
+    _ref.invalidate(compactAgendaDataForQueryProvider);
+  }
+
+  Future<void> deleteEvent(String eventId) async {
+    final repository = CalendarRepository(
+      database: _ref.read(databaseProvider),
+      localTimeZone: _ref.read(localTimeZoneProvider),
+    );
+    final accountId = await repository.deleteLocalEvent(eventId);
+    await _requestCalendarSync(accountId);
+
+    _ref.invalidate(compactAgendaDataProvider);
+    _ref.invalidate(compactAgendaDataForQueryProvider);
+  }
+
+  Future<void> taskMutated(String accountId) async {
+    await _requestTaskSync(accountId);
     _ref.invalidate(compactAgendaDataProvider);
     _ref.invalidate(compactAgendaDataForQueryProvider);
   }
@@ -51,15 +78,28 @@ class CompactAgendaController {
     );
     await repository.patchTask(item.sourceId, item.id, TaskPatchInput(fields));
 
+    await _requestTaskSync(item.accountId);
+
+    _ref.invalidate(compactAgendaDataProvider);
+    _ref.invalidate(compactAgendaDataForQueryProvider);
+  }
+
+  Future<void> _requestTaskSync(String accountId) async {
     try {
-      await const MainWindowCommandClient().requestTaskSync(item.accountId);
+      await const MainWindowCommandClient().requestTaskSync(accountId);
     } on Object {
       // The pending operation remains queued and will sync when the main engine
       // is available.
     }
+  }
 
-    _ref.invalidate(compactAgendaDataProvider);
-    _ref.invalidate(compactAgendaDataForQueryProvider);
+  Future<void> _requestCalendarSync(String accountId) async {
+    try {
+      await const MainWindowCommandClient().requestCalendarSync(accountId);
+    } on Object {
+      // The pending operation remains queued and will sync when the main engine
+      // is available.
+    }
   }
 }
 

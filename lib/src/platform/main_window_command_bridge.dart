@@ -49,6 +49,8 @@ class _MainWindowCommandBridgeState
         return true;
       case 'busymax.main.requestTaskSync':
         return _requestTaskSync(call.arguments);
+      case 'busymax.main.requestCalendarSync':
+        return _requestCalendarSync(call.arguments);
     }
 
     throw MissingPluginException('Not implemented: ${call.method}');
@@ -122,6 +124,30 @@ class _MainWindowCommandBridgeState
         .request();
     unawaited(ref.read(notificationSchedulerProvider).checkNow());
     return true;
+  }
+
+  Future<bool> _requestCalendarSync(Object? rawArgs) async {
+    if (rawArgs is! Map) {
+      return false;
+    }
+    final accountId = rawArgs.cast<Object?, Object?>()['accountId']?.toString();
+    if (accountId == null || accountId.isEmpty) {
+      return false;
+    }
+    unawaited(_syncCalendarAccount(accountId));
+    unawaited(ref.read(notificationSchedulerProvider).checkNow());
+    return true;
+  }
+
+  Future<void> _syncCalendarAccount(String accountId) async {
+    try {
+      await ref
+          .read(calendarSyncEngineForAccountFactoryProvider)(accountId)
+          .incrementalSync();
+    } on Object {
+      // The local pending operation remains queued and a later refresh/sync can
+      // retry it.
+    }
   }
 
   @override

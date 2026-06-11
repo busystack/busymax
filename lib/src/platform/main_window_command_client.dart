@@ -47,4 +47,11 @@ class MainWindowCommandClient {
       {'accountId': accountId},
     );
   }
+
+  Future<void> requestCalendarSync(String accountId) async {
+    await busyMaxMainWindowChannel.invokeMethod<bool>(
+      'busymax.main.requestCalendarSync',
+      {'accountId': accountId},
+    );
+  }
 }

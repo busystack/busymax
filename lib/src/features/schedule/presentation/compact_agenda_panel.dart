@@ -14,8 +14,14 @@ import '../../../l10n/l10n.dart';
 import '../../../platform/main_window_command_client.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import '../../../task_providers/task_provider.dart';
+import '../../calendar/data/calendar_repository.dart';
+import '../../calendar/presentation/event_editor.dart';
+import '../../calendar/presentation/event_editor_draft.dart';
+import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/data/tasks_repository.dart';
 import '../../tasks/presentation/new_task_dialog.dart';
+import '../../tasks/presentation/task_details_pane.dart';
 import '../application/compact_agenda_controller.dart';
 import '../application/compact_agenda_data.dart';
 import '../application/compact_agenda_sections.dart';
@@ -63,6 +69,9 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   bool _bodyScrolledUnderHeader = false;
   bool _bodyScrolledUnderFooter = false;
   bool _creatingTask = false;
+  bool _creatingEvent = false;
+  TaskScheduleItem? _editingTask;
+  EventEditorDraft? _editingEventDraft;
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +122,21 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                 return const SizedBox.expand();
               }
 
-              final child = _creatingTask
+              final child = _editingTask != null
+                  ? _CompactAgendaTaskEditorView(
+                      item: _editingTask!,
+                      onClose: _closeTaskEditor,
+                    )
+                  : _creatingEvent || _editingEventDraft != null
+                  ? _CompactAgendaEventEditorView(
+                      initialDraft: _editingEventDraft,
+                      categorySuggestionsByAccount:
+                          _categorySuggestionsByAccount(),
+                      onCancel: _closeEventEditor,
+                      onSave: _saveEvent,
+                      onDelete: _deleteEvent,
+                    )
+                  : _creatingTask
                   ? _CompactAgendaNewTaskView(
                       onCancel: _closeNewTaskEditor,
                       onSubmitted: _createTask,
@@ -150,7 +173,10 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                             ],
                           ),
                         ),
-                        _CompactAgendaBottomBar(onNewTask: _newTask),
+                        _CompactAgendaBottomBar(
+                          onNewEvent: _newEvent,
+                          onNewTask: _newTask,
+                        ),
                       ],
                     );
 
@@ -347,6 +373,20 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
     }
     setState(() {
       _creatingTask = true;
+      _creatingEvent = false;
+      _editingTask = null;
+      _editingEventDraft = null;
+      _bodyScrolledUnderHeader = false;
+      _bodyScrolledUnderFooter = false;
+    });
+  }
+
+  Future<void> _newEvent() async {
+    setState(() {
+      _creatingEvent = true;
+      _creatingTask = false;
+      _editingTask = null;
+      _editingEventDraft = null;
       _bodyScrolledUnderHeader = false;
       _bodyScrolledUnderFooter = false;
     });
@@ -374,6 +414,73 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
     }
     setState(() {
       _creatingTask = false;
+    });
+    _invalidateAgendaData();
+  }
+
+  void _openTaskEditor(TaskScheduleItem item) {
+    setState(() {
+      _editingTask = item;
+      _creatingTask = false;
+      _creatingEvent = false;
+      _editingEventDraft = null;
+      _bodyScrolledUnderHeader = false;
+      _bodyScrolledUnderFooter = false;
+    });
+  }
+
+  void _closeTaskEditor() {
+    if (_editingTask == null) {
+      return;
+    }
+    setState(() {
+      _editingTask = null;
+    });
+    _invalidateAgendaData();
+  }
+
+  void _openEventEditor(CalendarScheduleItem item) {
+    setState(() {
+      _editingEventDraft = _eventDraftFromItem(item);
+      _creatingEvent = false;
+      _creatingTask = false;
+      _editingTask = null;
+      _bodyScrolledUnderHeader = false;
+      _bodyScrolledUnderFooter = false;
+    });
+  }
+
+  void _closeEventEditor() {
+    if (!_creatingEvent && _editingEventDraft == null) {
+      return;
+    }
+    setState(() {
+      _creatingEvent = false;
+      _editingEventDraft = null;
+    });
+    _invalidateAgendaData();
+  }
+
+  Future<void> _saveEvent(EventEditorDraft draft) async {
+    await ref.read(compactAgendaControllerProvider).saveEvent(draft);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _creatingEvent = false;
+      _editingEventDraft = null;
+    });
+    _invalidateAgendaData();
+  }
+
+  Future<void> _deleteEvent(String eventId) async {
+    await ref.read(compactAgendaControllerProvider).deleteEvent(eventId);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _creatingEvent = false;
+      _editingEventDraft = null;
     });
     _invalidateAgendaData();
   }
@@ -419,8 +526,14 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       case ScheduleItemDetailsAction.export:
         await _exportItem(item);
       case ScheduleItemDetailsAction.edit:
-        await const MainWindowCommandClient().openScheduleItem(item);
-        await windowManager.hide();
+        if (item is TaskScheduleItem) {
+          _openTaskEditor(item);
+        } else if (item is CalendarScheduleItem) {
+          _openEventEditor(item);
+        } else {
+          await const MainWindowCommandClient().openScheduleItem(item);
+          await windowManager.hide();
+        }
     }
   }
 
@@ -484,6 +597,129 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       noDateLimit: _noDateLimit,
     );
   }
+
+  EventEditorDraft _eventDraftFromItem(CalendarScheduleItem item) {
+    return EventEditorDraft.existing(
+      eventId: item.id,
+      accountId: item.accountId,
+      sourceId: item.sourceId,
+      providerCalendarId: item.providerCalendarId,
+      title: item.title,
+      allDay: item.allDay,
+      start: item.start,
+      end: item.end,
+      startTimeZone: item.startTimeZone,
+      endTimeZone: item.endTimeZone,
+      location: item.location,
+      description: item.description,
+      descriptionContentType: item.descriptionContentType,
+      descriptionHtml: item.descriptionHtml,
+      reminders: _eventRemindersForEdit(
+        item.provider,
+        item.reminderMinutesBeforeStart,
+      ),
+      categories: item.categories,
+    );
+  }
+
+  Map<String, List<String>> _categorySuggestionsByAccount() {
+    final byAccount = <String, Set<String>>{};
+    for (final item in _lastAgendaData?.items ?? const <ScheduleItem>[]) {
+      if (item.categories.isEmpty) {
+        continue;
+      }
+      byAccount
+          .putIfAbsent(item.accountId, () => <String>{})
+          .addAll(
+            item.categories
+                .map((category) => category.trim())
+                .where((category) => category.isNotEmpty),
+          );
+    }
+    return {
+      for (final entry in byAccount.entries)
+        entry.key: (entry.value.toList()..sort()),
+    };
+  }
+}
+
+EventEditorDraft _newEventDraft(List<CalendarSourceEntity> sources) {
+  final source = sources.first;
+  final start = _defaultNewEventStart();
+  return EventEditorDraft.newEvent(
+    accountId: source.accountId,
+    sourceId: source.id,
+    providerCalendarId: source.providerCalendarId,
+    start: start,
+    end: start.add(const Duration(hours: 1)),
+  );
+}
+
+DateTime _defaultNewEventStart() {
+  final now = DateTime.now();
+  final base = DateTime(now.year, now.month, now.day, now.hour);
+  return now.minute < 30
+      ? base.add(const Duration(minutes: 30))
+      : base.add(const Duration(hours: 1));
+}
+
+List<CalendarSourceEntity> _editableSources(
+  List<CalendarSourceEntity> sources, {
+  required String? currentSourceId,
+}) {
+  final visibleEditable = [
+    for (final source in sources)
+      if (!source.isDeleted &&
+          !source.hidden &&
+          source.selected &&
+          (!source.readOnly || source.id == currentSourceId))
+        source,
+  ];
+  if (visibleEditable.isNotEmpty) {
+    return visibleEditable;
+  }
+  return [
+    for (final source in sources)
+      if (!source.isDeleted &&
+          !source.hidden &&
+          (!source.readOnly || source.id == currentSourceId))
+        source,
+  ];
+}
+
+Object? _eventRemindersForEdit(BusyProvider provider, List<int> minutes) {
+  final normalized = [
+    for (final value in minutes)
+      if (value > 0) value,
+  ];
+  if (normalized.isEmpty) {
+    return null;
+  }
+  if (provider == TaskProvider.google) {
+    return {
+      'useDefault': false,
+      'overrides': [
+        for (final minutes in normalized)
+          {'method': 'popup', 'minutes': minutes},
+      ],
+    };
+  }
+  return {'isReminderOn': true, 'reminderMinutesBeforeStart': normalized.first};
+}
+
+bool _listEquals<T>(List<T> a, List<T> b) {
+  if (identical(a, b)) {
+    return true;
+  }
+  if (a.length != b.length) {
+    return false;
+  }
+  for (var index = 0; index < a.length; index += 1) {
+    if (a[index] != b[index]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 class _CompactAgendaHeader extends StatelessWidget {
@@ -577,6 +813,175 @@ class _CompactHeaderButton extends StatelessWidget {
         backgroundColor: busyMaxSubtleButtonBackground(context),
       ),
     );
+  }
+}
+
+class _CompactAgendaTaskEditorView extends ConsumerWidget {
+  const _CompactAgendaTaskEditorView({
+    required this.item,
+    required this.onClose,
+  });
+
+  final TaskScheduleItem item;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: TaskDetailsPane(
+        accountId: item.accountId,
+        taskListId: item.sourceId,
+        taskId: item.id,
+        tasksRepositoryForAccount: (accountId) => TasksRepository(
+          database: ref.read(databaseProvider),
+          accountId: accountId,
+        ),
+        taskListsRepositoryForAccount: (accountId) => TaskListsRepository(
+          database: ref.read(databaseProvider),
+          accountId: accountId,
+        ),
+        onTaskMutationCommitted: (accountId) =>
+            ref.read(compactAgendaControllerProvider).taskMutated(accountId),
+        onClose: onClose,
+      ),
+    );
+  }
+}
+
+class _CompactAgendaEventEditorView extends ConsumerStatefulWidget {
+  const _CompactAgendaEventEditorView({
+    required this.initialDraft,
+    required this.categorySuggestionsByAccount,
+    required this.onCancel,
+    required this.onSave,
+    required this.onDelete,
+  });
+
+  final EventEditorDraft? initialDraft;
+  final Map<String, List<String>> categorySuggestionsByAccount;
+  final VoidCallback onCancel;
+  final Future<void> Function(EventEditorDraft draft) onSave;
+  final Future<void> Function(String eventId) onDelete;
+
+  @override
+  ConsumerState<_CompactAgendaEventEditorView> createState() =>
+      _CompactAgendaEventEditorViewState();
+}
+
+class _CompactAgendaEventEditorViewState
+    extends ConsumerState<_CompactAgendaEventEditorView> {
+  late final CalendarRepository _repository;
+  Stream<List<CalendarSourceEntity>>? _sourcesStream;
+  List<String>? _sourceAccountIds;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository = CalendarRepository(
+      database: ref.read(databaseProvider),
+      localTimeZone: ref.read(localTimeZoneProvider),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accounts = ref.watch(accountsStreamProvider);
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: accounts.when(
+        loading: () => const _CompactAgendaLoadingState(),
+        error: (error, stackTrace) => _CompactAgendaMessageState(
+          icon: Icons.event_busy_outlined,
+          title: context.l10n.trayAgendaError,
+          message: redactForLog(error),
+          primaryLabel: context.l10n.cancel,
+          onPrimary: () async => widget.onCancel(),
+        ),
+        data: (accounts) {
+          if (accounts.isEmpty) {
+            return _CompactAgendaMessageState(
+              icon: Icons.login,
+              title: context.l10n.trayAgendaSignInRequired,
+              primaryLabel: context.l10n.cancel,
+              onPrimary: () async => widget.onCancel(),
+            );
+          }
+          final accountIds = [for (final account in accounts) account.id];
+          return StreamBuilder<List<CalendarSourceEntity>>(
+            stream: _watchSources(accountIds),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return const _CompactAgendaLoadingState();
+              }
+              final sources = _editableSources(
+                snapshot.data ?? const <CalendarSourceEntity>[],
+                currentSourceId: widget.initialDraft?.sourceId,
+              );
+              if (sources.isEmpty) {
+                return _CompactAgendaMessageState(
+                  icon: Icons.event_busy_outlined,
+                  title: context.l10n.trayAgendaNoSources,
+                  primaryLabel: context.l10n.cancel,
+                  onPrimary: () async => widget.onCancel(),
+                );
+              }
+              final draft = widget.initialDraft ?? _newEventDraft(sources);
+              return EventEditor(
+                initialDraft: draft,
+                sources: sources,
+                categorySuggestionsByAccount:
+                    widget.categorySuggestionsByAccount,
+                onCancel: widget.onCancel,
+                onSave: (draft) => unawaited(_save(draft)),
+                onDelete: draft.eventId == null
+                    ? null
+                    : (eventId) => unawaited(_delete(eventId)),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Stream<List<CalendarSourceEntity>> _watchSources(List<String> accountIds) {
+    if (_sourcesStream == null ||
+        _sourceAccountIds == null ||
+        !_listEquals(_sourceAccountIds!, accountIds)) {
+      _sourceAccountIds = accountIds;
+      _sourcesStream = _repository
+          .watchSourcesForAccounts(accountIds)
+          .asBroadcastStream();
+    }
+    return _sourcesStream!;
+  }
+
+  Future<void> _save(EventEditorDraft draft) async {
+    try {
+      await widget.onSave(draft);
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(redactForLog(error))));
+    }
+  }
+
+  Future<void> _delete(String eventId) async {
+    try {
+      await widget.onDelete(eventId);
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(redactForLog(error))));
+    }
   }
 }
 
@@ -987,8 +1392,12 @@ class _MoreBucketRow extends StatelessWidget {
 }
 
 class _CompactAgendaBottomBar extends StatelessWidget {
-  const _CompactAgendaBottomBar({required this.onNewTask});
+  const _CompactAgendaBottomBar({
+    required this.onNewEvent,
+    required this.onNewTask,
+  });
 
+  final Future<void> Function() onNewEvent;
   final Future<void> Function() onNewTask;
 
   @override
@@ -999,6 +1408,13 @@ class _CompactAgendaBottomBar extends StatelessWidget {
       decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface),
       child: Row(
         children: [
+          Expanded(
+            child: BusyMaxPushButton.outlined(
+              onPressed: () => unawaited(onNewEvent()),
+              child: Text(context.l10n.newEvent),
+            ),
+          ),
+          const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
             child: BusyMaxPushButton.filled(
               onPressed: () => unawaited(onNewTask()),

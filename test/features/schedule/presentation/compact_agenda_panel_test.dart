@@ -82,6 +82,20 @@ void main() {
     expect(source, isNot(contains('useNativeDatePicker: false')));
   });
 
+  test('compact agenda uses in-window editors for task and event actions', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('NewTaskEditorPanel'));
+    expect(source, contains('TaskDetailsPane'));
+    expect(source, contains('EventEditor('));
+    expect(source, contains('_openTaskEditor(item)'));
+    expect(source, contains('_openEventEditor(item)'));
+    expect(source, contains('_creatingEvent = true'));
+    expect(source, isNot(contains('MainWindowCommandClient().newTask')));
+  });
+
   testWidgets('no-date tasks render in a No date section', (tester) async {
     await tester.pumpWidget(
       _testPanel(data: _data(today, items: [_task('Plan someday')])),
