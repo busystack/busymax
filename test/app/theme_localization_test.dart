@@ -762,6 +762,7 @@ void main() {
   test('ThemeMode.system is the default', () {
     expect(AppSettings.defaults().themeMode, ThemeMode.system);
     expect(AppSettings.defaults().scheduleViewMode, ScheduleViewMode.week);
+    expect(AppSettings.defaults().showTrayIcon, isFalse);
     expect(
       AppSettings.defaults().notificationDetailLevel,
       NotificationDetailLevel.normal,

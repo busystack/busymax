@@ -93,6 +93,8 @@ void main() {
         'gtk_window_set_wmclass(window, APPLICATION_ID, APPLICATION_ID);',
       ),
     );
+    expect(runner, contains('static_cast<GApplicationFlags>(0)'));
+    expect(runner, isNot(contains('G_APPLICATION_NON_UNIQUE')));
     expect(
       runner,
       contains(
