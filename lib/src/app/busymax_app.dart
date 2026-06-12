@@ -8,6 +8,7 @@ import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 import '../platform/busymax_tray_service.dart';
 import '../platform/gtk_font_service.dart';
 import '../platform/linux_header_bar_service.dart';
+import '../platform/linux_window_service.dart';
 import '../platform/main_window_command_bridge.dart';
 import 'app_bootstrap.dart';
 import 'app_router.dart';
@@ -28,6 +29,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   BusyMaxTrayService? _trayService;
   bool? _lastHideOnClose;
   bool? _lastTrayEnabled;
+  bool _startMinimizedHandled = false;
 
   @override
   void dispose() {
@@ -190,10 +192,32 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       onBeforeQuit: compactAgendaWindows.closeIfOpen,
     );
     if (trayEnabled) {
-      unawaited(tray.start());
+      unawaited(
+        _startTray(
+          tray,
+          windowService,
+          startMinimizedToTray: settings.startMinimizedToTray,
+        ),
+      );
     } else {
       unawaited(tray.stop());
     }
+  }
+
+  Future<void> _startTray(
+    BusyMaxTrayService tray,
+    LinuxWindowService windowService, {
+    required bool startMinimizedToTray,
+  }) async {
+    await tray.start();
+    if (!mounted ||
+        !startMinimizedToTray ||
+        _startMinimizedHandled ||
+        !tray.available) {
+      return;
+    }
+    _startMinimizedHandled = true;
+    await windowService.hideWindow();
   }
 }
 

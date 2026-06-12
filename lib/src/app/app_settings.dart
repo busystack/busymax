@@ -65,7 +65,7 @@ class AppSettings {
       notifyEventReminders: true,
       notifyTaskReminders: true,
       runInBackgroundWhenClosed: false,
-      showTrayIcon: true,
+      showTrayIcon: false,
       startMinimizedToTray: false,
       quitExitsCompletely: true,
       notificationDetailLevel: NotificationDetailLevel.normal,

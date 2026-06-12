@@ -1,10 +1,7 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yaru/yaru.dart';
 
@@ -131,68 +128,21 @@ class BusyMaxAboutDialog extends StatelessWidget {
   }
 }
 
-class _BusyMaxLogo extends StatefulWidget {
+class _BusyMaxLogo extends StatelessWidget {
   const _BusyMaxLogo({required this.size});
 
   final double size;
 
   @override
-  State<_BusyMaxLogo> createState() => _BusyMaxLogoState();
-}
-
-class _BusyMaxLogoState extends State<_BusyMaxLogo> {
-  late final Future<Uint8List?> _logoBytes = _loadLogoBytes();
-
-  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List?>(
-      future: _logoBytes,
-      builder: (context, snapshot) {
-        final bytes = snapshot.data;
-        if (bytes != null) {
-          return Image.memory(
-            bytes,
-            width: widget.size,
-            height: widget.size,
-            filterQuality: FilterQuality.high,
-          );
-        }
-        return SizedBox.square(dimension: widget.size);
-      },
+    return Image.asset(
+      'assets/branding/busymax-logo.png',
+      width: size,
+      height: size,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) =>
+          SizedBox.square(dimension: size),
     );
-  }
-
-  Future<Uint8List?> _loadLogoBytes() async {
-    const assetPath = 'assets/branding/busymax-logo.svg';
-    try {
-      final data = await rootBundle.load(assetPath);
-      return Uint8List.view(
-        data.buffer,
-        data.offsetInBytes,
-        data.lengthInBytes,
-      );
-    } on Object {
-      return _loadLogoFileBytes(assetPath);
-    }
-  }
-
-  Future<Uint8List?> _loadLogoFileBytes(String assetPath) async {
-    final executableDir = File(Platform.resolvedExecutable).parent.path;
-    final candidates = [
-      p.join(executableDir, 'data', 'flutter_assets', assetPath),
-      assetPath,
-    ];
-    for (final candidate in candidates) {
-      try {
-        final file = File(candidate);
-        if (await file.exists()) {
-          return file.readAsBytes();
-        }
-      } on Object {
-        // Try the next known location.
-      }
-    }
-    return null;
   }
 }
 
