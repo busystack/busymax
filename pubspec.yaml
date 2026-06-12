@@ -56,6 +56,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/busymax-logo.svg
+    - assets/branding/busymax-logo.png
 
 # Do not add google_sign_in for Linux OAuth. It does not support Linux.
 # Do not add extension_google_sign_in_as_googleapis_auth for Linux OAuth.
