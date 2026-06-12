@@ -85,3 +85,8 @@ flutter run -d linux \
   --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<google-secret-if-needed> \
   --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
 ```
+
+## Beta snap
+
+See [Beta Snap Release](docs/beta_snap_release.md) for local beta build,
+install, and validation notes.
