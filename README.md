@@ -4,9 +4,13 @@ BusyMax is a Linux desktop calendar and task manager built with Flutter.
 
 It brings calendar events and tasks into a native-feeling Linux desktop interface, with support for `Google Calendar`, `Google Tasks`, `Microsoft Calendar`, and `Microsoft To Do`.
 
-![BusyMax month view](docs/screenshots/main_window_month.png)
+<p align="center">
+  <img src="docs/screenshots/main_window_month.png" alt="BusyMax month view" width="900">
+</p>
 
-**Month view** — calendars, tasks, and event details in one workspace.
+<p align="center">
+  <sub>Month view with calendars, tasks, and event details.</sub>
+</p>
 
 ## Highlights
 
@@ -19,59 +23,53 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 
 ## Screenshots
 
-### Week view
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/main_window_week.png" alt="BusyMax week view">
+      <br>
+      <sub><b>Week view</b> with color-coded calendars and scheduled tasks.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/main_window_day.png" alt="BusyMax day view">
+      <br>
+      <sub><b>Day view</b> for focused daily planning.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/main_window_agenda.png" alt="BusyMax agenda view">
+      <br>
+      <sub><b>Agenda view</b> with upcoming events, tasks, and details.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/main_window_new_task.png" alt="BusyMax new task editor">
+      <br>
+      <sub><b>Task creation</b> with lists, due dates, reminders, and repeat options.</sub>
+    </td>
+  </tr>
+</table>
 
-![BusyMax week view](docs/screenshots/main_window_week.png)
+<details>
+<summary>More screenshots</summary>
 
-Color-coded calendars and scheduled tasks.
+<br>
 
-### Day view
+<p>
+  <img src="docs/screenshots/main_window_year.png" alt="BusyMax year view" width="700">
+</p>
 
-![BusyMax day view](docs/screenshots/main_window_day.png)
+<p>
+  <img src="docs/screenshots/main_window_edit_event.png" alt="BusyMax event editor" width="700">
+</p>
 
-Focused daily planning with calendar events and tasks.
+<p>
+  <img src="docs/screenshots/agenda_window_agenda.png" alt="BusyMax compact agenda window" width="300">
+  <img src="docs/screenshots/agenda_window_agenda_event_details.png" alt="BusyMax compact agenda event details" width="300">
+  <img src="docs/screenshots/agenda_window_edit_event.png" alt="BusyMax compact agenda event editor" width="300">
+</p>
 
-### Agenda view
-
-![BusyMax agenda view](docs/screenshots/main_window_agenda.png)
-
-Upcoming events, tasks, and details in a compact agenda layout.
-
-### Task creation
-
-![BusyMax new task editor](docs/screenshots/main_window_new_task.png)
-
-Task creation with lists, due dates, reminders, and repeat options.
-
-### Event editing
-
-![BusyMax event editor](docs/screenshots/main_window_edit_event.png)
-
-Event editing with calendar selection, time controls, repeat rules, and reminders.
-
-### Year view
-
-![BusyMax year view](docs/screenshots/main_window_year.png)
-
-A high-level view for navigating the calendar year.
-
-### Compact agenda window
-
-![BusyMax compact agenda window](docs/screenshots/agenda_window_agenda.png)
-
-A small agenda window for quick access to upcoming work.
-
-### Compact agenda event details
-
-![BusyMax compact agenda event details](docs/screenshots/agenda_window_agenda_event_details.png)
-
-Event details from the compact agenda window.
-
-### Compact agenda event editing
-
-![BusyMax compact agenda event editor](docs/screenshots/agenda_window_edit_event.png)
-
-Event editing from the compact agenda window.
+</details>
 
 ## Prerequisites
 
