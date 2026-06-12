@@ -1348,6 +1348,21 @@ ProviderContainer _workspaceContainerWithAccountSync(
       tasksRepositoryProvider.overrideWithValue(
         TasksRepository(database: database, accountId: 'google:g'),
       ),
+      tasksRepositoryForAccountProvider.overrideWith((ref, accountId) {
+        final apiClient = accountId.startsWith('microsoft:')
+            ? ref.watch(
+                microsoftAsGoogleTasksApiClientForAccountProvider(accountId),
+              )
+            : ref.watch(googleTasksApiClientForAccountProvider(accountId));
+        return TasksRepository(
+          database: database,
+          accountId: accountId,
+          apiClient: apiClient,
+          onMutationQueued: ref
+              .watch(pendingMutationSyncRequesterForAccountProvider(accountId))
+              .request,
+        );
+      }),
       syncEngineProvider.overrideWithValue(null),
       syncEngineForAccountFactoryProvider.overrideWithValue((accountId) {
         return syncEngines[accountId]!;

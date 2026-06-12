@@ -3,12 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/config/build_config.dart';
+import 'package:busymax/src/db/app_database.dart';
 
 void main() {
   testWidgets('missing OAuth client ID screen is shown', (tester) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
           buildConfigProvider.overrideWithValue(
             const BuildConfig(
               googleOAuthClientId: '',
@@ -45,4 +51,18 @@ void main() {
     expect(find.text('Accounts'), findsNothing);
     expect(find.textContaining('sync task.'), findsNothing);
   });
+}
+
+class _MemorySettingsStore implements LocalSettingsStore {
+  Map<String, Object?> json = <String, Object?>{};
+
+  @override
+  Future<Map<String, Object?>> load() async {
+    return Map<String, Object?>.from(json);
+  }
+
+  @override
+  Future<void> save(Map<String, Object?> json) async {
+    this.json = Map<String, Object?>.from(json);
+  }
 }
