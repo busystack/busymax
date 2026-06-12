@@ -64,6 +64,30 @@ void main() {
       ),
     );
     expect(
+      cmake,
+      contains(
+        r'"${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.svg"',
+      ),
+    );
+    expect(cmake, contains('share/icons/hicolor/scalable/apps'));
+    expect(cmake, contains('RENAME "io.busystack.busymax.svg"'));
+    const pngExtension = 'png';
+    expect(cmake, isNot(contains('.$pngExtension')));
+    final iconFileName =
+        '${busyMaxApplicationId.split('.').last}.$pngExtension';
+    for (final size in [64, 128, 256]) {
+      final path = [
+        'linux',
+        'runner',
+        'resources',
+        'icons',
+        '${size}x$size',
+        'apps',
+        iconFileName,
+      ].join(Platform.pathSeparator);
+      expect(File(path).existsSync(), isFalse);
+    }
+    expect(
       runner,
       contains(
         'gtk_window_set_wmclass(window, APPLICATION_ID, APPLICATION_ID);',

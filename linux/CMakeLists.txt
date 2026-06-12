@@ -103,13 +103,8 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/io.busystack.busymax.metainfo.xml"
   COMPONENT Runtime)
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.svg"
-  DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/256x256/apps"
-  RENAME "busymax-logo.svg"
-  COMPONENT Runtime)
-
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busymax-logo.svg"
-  DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/256x256/apps"
-  RENAME "busymax.png"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/apps"
+  RENAME "io.busystack.busymax.svg"
   COMPONENT Runtime)
 
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
