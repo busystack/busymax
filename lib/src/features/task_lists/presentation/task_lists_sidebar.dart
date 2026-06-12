@@ -428,7 +428,7 @@ class _SidebarHeader extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final logo = Image.asset(
-            'assets/branding/busymax-logo.png',
+            'assets/branding/busymax-logo.svg',
             width: 26,
             height: 26,
             errorBuilder: (context, error, stackTrace) =>

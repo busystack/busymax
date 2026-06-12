@@ -1,7 +1,75 @@
 # BusyMax
 
 BusyMax is a Linux desktop calendar and task manager built with Flutter.
-It supports `Google Calendar`, `Google Tasks`, `Microsoft Calendar`, and `Microsoft To Do`.
+
+It brings calendar events and tasks into a native-feeling Linux desktop interface, with support for `Google Calendar`, `Google Tasks`, `Microsoft Calendar`, and `Microsoft To Do`.
+
+<p align="center">
+  <img src="docs/screenshots/main_window_month.png" alt="BusyMax month view" width="900">
+</p>
+
+<p align="center">
+  <sub>Month view with calendars, tasks, and event details.</sub>
+</p>
+
+## Highlights
+
+- Linux desktop app built with Flutter.
+- Calendar views for day, week, month, year, and agenda planning.
+- Task creation with lists, due dates, reminders, and repeat options.
+- Event editing with calendar selection, time controls, repeat rules, and reminders.
+- Compact agenda window for quick access to upcoming work.
+- Integrations with Google Calendar, Google Tasks, Microsoft Calendar, and Microsoft To Do.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/main_window_week.png" alt="BusyMax week view">
+      <br>
+      <sub><b>Week view</b> with color-coded calendars and scheduled tasks.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/main_window_day.png" alt="BusyMax day view">
+      <br>
+      <sub><b>Day view</b> for focused daily planning.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/main_window_agenda.png" alt="BusyMax agenda view">
+      <br>
+      <sub><b>Agenda view</b> with upcoming events, tasks, and details.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/main_window_new_task.png" alt="BusyMax new task editor">
+      <br>
+      <sub><b>Task creation</b> with lists, due dates, reminders, and repeat options.</sub>
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary>More screenshots</summary>
+
+<br>
+
+<p>
+  <img src="docs/screenshots/main_window_year.png" alt="BusyMax year view" width="700">
+</p>
+
+<p>
+  <img src="docs/screenshots/main_window_edit_event.png" alt="BusyMax event editor" width="700">
+</p>
+
+<p>
+  <img src="docs/screenshots/agenda_window_agenda.png" alt="BusyMax compact agenda window" width="300">
+  <img src="docs/screenshots/agenda_window_agenda_event_details.png" alt="BusyMax compact agenda event details" width="300">
+  <img src="docs/screenshots/agenda_window_edit_event.png" alt="BusyMax compact agenda event editor" width="300">
+</p>
+
+</details>
 
 ## Prerequisites
 

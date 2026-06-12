@@ -4,6 +4,7 @@
 #include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <pango/pango.h>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #ifdef GDK_WINDOWING_X11
@@ -11,6 +12,7 @@
 #endif
 
 #include "flutter/generated_plugin_registrant.h"
+#include "desktop_multi_window/desktop_multi_window_plugin.h"
 
 constexpr char kApplicationDisplayName[] = "BusyMax";
 constexpr char kNativeDateTimePickerChannel[] =
@@ -22,6 +24,8 @@ constexpr char kGtkFontSettingsEventChannel[] =
     "io.busystack.busymax/gtk_font_settings";
 constexpr char kGtkThemeColorsEventChannel[] =
     "io.busystack.busymax/gtk_theme_colors";
+constexpr char kCompactAgendaWindowChannel[] =
+    "io.busystack.busymax/compact_agenda_window";
 constexpr gint kHeaderButtonHeight = 34;
 constexpr gint kHeaderButtonRadius = 8;
 constexpr gint kHeaderButtonHorizontalPadding = 8;
@@ -37,6 +41,21 @@ constexpr gint kHeaderMainContentStartInset = kHeaderSidebarContentInset;
 constexpr gint kHeaderTooltipVerticalPadding = 5;
 constexpr gint kHeaderTooltipHorizontalPadding = 8;
 constexpr gint kHeaderWindowRadius = 8;
+constexpr gint kCompactAgendaPanelWidth = 420;
+constexpr gint kCompactAgendaPanelHeight = 680;
+constexpr gint kCompactAgendaWindowShadowMargin = 32;
+constexpr gint kCompactAgendaWindowWidth =
+    kCompactAgendaPanelWidth + kCompactAgendaWindowShadowMargin * 2;
+constexpr gint kCompactAgendaWindowHeight =
+    kCompactAgendaPanelHeight + kCompactAgendaWindowShadowMargin * 2;
+constexpr gint kCompactAgendaWindowMinWidth =
+    360 + kCompactAgendaWindowShadowMargin * 2;
+constexpr gint kCompactAgendaWindowMinHeight =
+    520 + kCompactAgendaWindowShadowMargin * 2;
+constexpr gint kCompactAgendaWindowMaxWidth =
+    480 + kCompactAgendaWindowShadowMargin * 2;
+constexpr gint kCompactAgendaWindowMaxHeight =
+    840 + kCompactAgendaWindowShadowMargin * 2;
 constexpr char kDefaultHeaderBarBackgroundColor[] = "#1D1D20";
 constexpr char kDefaultHeaderBarSidebarBackgroundColor[] = "#2E2E32";
 
@@ -55,6 +74,7 @@ struct _MyApplication {
   gboolean gtk_font_settings_listening;
   gboolean gtk_theme_colors_listening;
   GtkCssProvider* header_bar_css_provider;
+  gchar* header_bar_window_background_color;
   gchar* header_bar_background_color;
   gchar* header_bar_sidebar_background_color;
   gchar* header_bar_foreground_color;
@@ -110,8 +130,10 @@ struct _MyApplication {
   gboolean hide_on_close;
   gboolean suppress_header_bar_actions;
   gboolean header_schedule_controls_visible;
+  gboolean header_navigation_visible;
   gboolean header_back_visible;
   gboolean header_onboarding_controls_visible;
+  gboolean main_window_transparent_backing;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -126,7 +148,7 @@ static GdkPixbuf* load_application_icon_at_size(gint size) {
   g_autofree gchar* executable_dir = g_path_get_dirname(executable_path);
   g_autofree gchar* icon_path =
       g_build_filename(executable_dir, "data", "flutter_assets", "assets",
-                       "branding", "busymax-logo.png", nullptr);
+                       "branding", "busymax-logo.svg", nullptr);
 
   g_autoptr(GError) error = nullptr;
   GdkPixbuf* icon =
@@ -249,17 +271,31 @@ static void native_date_time_picker_method_call_cb(FlMethodChannel* channel,
   }
 }
 
-static void register_native_date_time_picker(MyApplication* self,
-                                             FlView* view,
-                                             GtkWindow* window) {
+static FlMethodChannel* create_native_date_time_picker_channel(
+    FlView* view,
+    GtkWindow* window) {
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
-  self->native_date_time_picker_channel = fl_method_channel_new(
+  FlMethodChannel* channel = fl_method_channel_new(
       fl_engine_get_binary_messenger(fl_view_get_engine(view)),
       kNativeDateTimePickerChannel, FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(
-      self->native_date_time_picker_channel,
-      native_date_time_picker_method_call_cb, g_object_ref(window),
+      channel, native_date_time_picker_method_call_cb, g_object_ref(window),
       g_object_unref);
+  return channel;
+}
+
+static void register_native_date_time_picker(MyApplication* self,
+                                             FlView* view,
+                                             GtkWindow* window) {
+  self->native_date_time_picker_channel =
+      create_native_date_time_picker_channel(view, window);
+}
+
+static void register_native_date_time_picker_for_subwindow(FlView* view,
+                                                           GtkWindow* window) {
+  FlMethodChannel* channel = create_native_date_time_picker_channel(view, window);
+  g_object_set_data_full(G_OBJECT(window), "busymax-native-date-time-picker",
+                         channel, g_object_unref);
 }
 
 static void respond_bool(FlMethodCall* method_call, gboolean value) {
@@ -366,6 +402,26 @@ static void set_flutter_view_background_color(MyApplication* self,
   fl_view_set_background_color(FL_VIEW(self->flutter_view), &background_color);
 }
 
+static void set_flutter_view_background_transparent(MyApplication* self) {
+  if (self->flutter_view == nullptr || !FL_IS_VIEW(self->flutter_view)) {
+    return;
+  }
+
+  GdkRGBA transparent = {0, 0, 0, 0};
+  fl_view_set_background_color(FL_VIEW(self->flutter_view), &transparent);
+}
+
+static void set_main_flutter_view_background(MyApplication* self) {
+  if (self->main_window_transparent_backing) {
+    set_flutter_view_background_transparent(self);
+    return;
+  }
+
+  set_flutter_view_background_color(
+      self, css_color_or(self->header_bar_window_background_color,
+                         self->header_bar_background_color));
+}
+
 static gint header_sidebar_effective_width(MyApplication* self) {
   if (!self->header_bar_sidebar_visible) {
     return 0;
@@ -380,6 +436,11 @@ static void refresh_header_bar_css(MyApplication* self) {
   }
 
   const gchar* background_color = self->header_bar_background_color;
+  const gchar* window_background_color =
+      css_color_or(self->header_bar_window_background_color, background_color);
+  const gchar* window_css_background_color =
+      self->main_window_transparent_backing ? "transparent"
+                                            : window_background_color;
   const gchar* sidebar_background_color =
       is_css_color_token(self->header_bar_sidebar_background_color)
           ? self->header_bar_sidebar_background_color
@@ -416,7 +477,7 @@ static void refresh_header_bar_css(MyApplication* self) {
   g_autofree gchar* css = g_strdup_printf(
       "window#busymax-window,"
       "window#busymax-window:backdrop {"
-      "background-color: transparent;"
+      "background-color: %s;"
       "background-image: none;"
       "}"
       "window#busymax-window decoration,"
@@ -424,7 +485,9 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: transparent;"
       "background-image: none;"
       "border: none;"
-      "box-shadow: none;"
+      "box-shadow: 0 3px 18px 2px %s;"
+      "outline: none;"
+      "border-radius: %dpx;"
       "}"
       ".busymax-titlebar,"
       ".busymax-titlebar:backdrop,"
@@ -616,6 +679,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "padding: 0;"
       "min-height: 0;"
       "border-radius: %dpx;"
+      "box-shadow: 0 5px 18px 2px %s;"
       "}"
       "tooltip > box,"
       "tooltip.background > box {"
@@ -629,6 +693,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "min-height: 0;"
       "border-radius: %dpx;"
       "}",
+      window_css_background_color, shade_color, kHeaderWindowRadius,
       background_color, kHeaderWindowRadius, kHeaderWindowRadius,
       kHeaderWindowRadius, sidebar_background_color, kHeaderWindowRadius,
       foreground_color, foreground_color, modal_barrier_color,
@@ -644,7 +709,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       border_color, shade_color, kHeaderButtonHeight,
       kHeaderButtonHorizontalPadding, kHeaderButtonRadius,
       control_hover_color, foreground_color, muted_foreground_color,
-      kHeaderButtonRadius, kHeaderTooltipVerticalPadding,
+      kHeaderButtonRadius, shade_color, kHeaderTooltipVerticalPadding,
       kHeaderTooltipHorizontalPadding, kHeaderButtonRadius);
 
   g_autoptr(GError) error = nullptr;
@@ -680,6 +745,8 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
   if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
     return;
   }
+  set_css_color_field(&self->header_bar_window_background_color,
+                      fl_lookup_string_arg(args, "windowBackgroundColor"));
   set_css_color_field(&self->header_bar_background_color,
                       fl_lookup_string_arg(args, "backgroundColor"));
   set_css_color_field(&self->header_bar_sidebar_background_color,
@@ -708,7 +775,7 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
                       fl_lookup_string_arg(args, "shadeColor"));
   set_css_color_field(&self->header_bar_modal_barrier_color,
                       fl_lookup_string_arg(args, "modalBarrierColor"));
-  set_flutter_view_background_color(self, self->header_bar_background_color);
+  set_main_flutter_view_background(self);
   refresh_header_bar_css(self);
 }
 
@@ -1198,12 +1265,23 @@ static void set_header_schedule_controls_visible(MyApplication* self,
                      visible || self->header_back_visible);
   set_widget_visible(self->sidebar_collapsed_toggle_button, visible);
   set_widget_visible(self->today_button, visible);
-  set_widget_visible(self->previous_button, visible);
-  set_widget_visible(self->next_button, visible);
+  set_widget_visible(self->previous_button,
+                     visible && self->header_navigation_visible);
+  set_widget_visible(self->next_button,
+                     visible && self->header_navigation_visible);
   set_widget_visible(self->header_view_box, visible);
   set_widget_visible(self->search_button, visible);
   set_widget_visible(self->refresh_button, visible);
   update_header_title_balance_spacer(self);
+}
+
+static void set_header_navigation_visible(MyApplication* self,
+                                          gboolean visible) {
+  self->header_navigation_visible = visible;
+  set_widget_visible(self->previous_button,
+                     self->header_schedule_controls_visible && visible);
+  set_widget_visible(self->next_button,
+                     self->header_schedule_controls_visible && visible);
 }
 
 static void set_header_back_visible(MyApplication* self, gboolean visible) {
@@ -1589,6 +1667,9 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
     respond_success(method_call);
   } else if (strcmp(method, "setSidebarVisible") == 0) {
     set_header_sidebar_visible(self, fl_method_bool_arg(args));
+    respond_success(method_call);
+  } else if (strcmp(method, "setNavigationVisible") == 0) {
+    set_header_navigation_visible(self, fl_method_bool_arg(args));
     respond_success(method_call);
   } else if (strcmp(method, "setScheduleControlsVisible") == 0) {
     set_header_schedule_controls_visible(self, fl_method_bool_arg(args));
@@ -2024,6 +2105,197 @@ static void register_gtk_settings_channel(MyApplication* self, FlView* view) {
       gtk_theme_colors_cancel_cb, self, nullptr);
 }
 
+struct CompactGtkSettingsBridge {
+  FlMethodChannel* settings_channel;
+  FlEventChannel* font_settings_event_channel;
+  FlEventChannel* theme_colors_event_channel;
+  gulong font_settings_signal_id;
+  gulong theme_name_signal_id;
+  gulong theme_dark_signal_id;
+  gboolean font_settings_listening;
+  gboolean theme_colors_listening;
+};
+
+static void compact_gtk_settings_bridge_disconnect_font(
+    CompactGtkSettingsBridge* bridge) {
+  if (bridge == nullptr || bridge->font_settings_signal_id == 0) {
+    return;
+  }
+  GtkSettings* settings = gtk_settings_get_default();
+  if (settings != nullptr) {
+    g_signal_handler_disconnect(settings, bridge->font_settings_signal_id);
+  }
+  bridge->font_settings_signal_id = 0;
+}
+
+static void compact_gtk_settings_bridge_disconnect_theme(
+    CompactGtkSettingsBridge* bridge) {
+  if (bridge == nullptr) {
+    return;
+  }
+  GtkSettings* settings = gtk_settings_get_default();
+  if (settings != nullptr && bridge->theme_name_signal_id != 0) {
+    g_signal_handler_disconnect(settings, bridge->theme_name_signal_id);
+  }
+  if (settings != nullptr && bridge->theme_dark_signal_id != 0) {
+    g_signal_handler_disconnect(settings, bridge->theme_dark_signal_id);
+  }
+  bridge->theme_name_signal_id = 0;
+  bridge->theme_dark_signal_id = 0;
+}
+
+static void compact_gtk_settings_bridge_free(gpointer data) {
+  CompactGtkSettingsBridge* bridge =
+      static_cast<CompactGtkSettingsBridge*>(data);
+  if (bridge == nullptr) {
+    return;
+  }
+  compact_gtk_settings_bridge_disconnect_font(bridge);
+  compact_gtk_settings_bridge_disconnect_theme(bridge);
+  g_clear_object(&bridge->settings_channel);
+  g_clear_object(&bridge->font_settings_event_channel);
+  g_clear_object(&bridge->theme_colors_event_channel);
+  g_free(bridge);
+}
+
+static void compact_gtk_settings_send_font_event(
+    CompactGtkSettingsBridge* bridge) {
+  if (bridge == nullptr || !bridge->font_settings_listening ||
+      bridge->font_settings_event_channel == nullptr) {
+    return;
+  }
+  g_autoptr(FlValue) result = get_gtk_font_settings();
+  g_autoptr(GError) error = nullptr;
+  if (!fl_event_channel_send(bridge->font_settings_event_channel, result,
+                             nullptr, &error)) {
+    const gchar* message = error != nullptr ? error->message : "unknown error";
+    g_warning("Failed to send compact GTK font settings event: %s", message);
+  }
+}
+
+static void compact_gtk_settings_send_theme_event(
+    CompactGtkSettingsBridge* bridge) {
+  if (bridge == nullptr || !bridge->theme_colors_listening ||
+      bridge->theme_colors_event_channel == nullptr) {
+    return;
+  }
+  g_autoptr(FlValue) result = get_gtk_theme_colors();
+  g_autoptr(GError) error = nullptr;
+  if (!fl_event_channel_send(bridge->theme_colors_event_channel, result,
+                             nullptr, &error)) {
+    const gchar* message = error != nullptr ? error->message : "unknown error";
+    g_warning("Failed to send compact GTK theme colors event: %s", message);
+  }
+}
+
+static void compact_gtk_font_notify_cb(GObject* object,
+                                       GParamSpec* pspec,
+                                       gpointer user_data) {
+  compact_gtk_settings_send_font_event(
+      static_cast<CompactGtkSettingsBridge*>(user_data));
+}
+
+static void compact_gtk_theme_notify_cb(GObject* object,
+                                        GParamSpec* pspec,
+                                        gpointer user_data) {
+  compact_gtk_settings_send_theme_event(
+      static_cast<CompactGtkSettingsBridge*>(user_data));
+}
+
+static FlMethodErrorResponse* compact_gtk_font_settings_listen_cb(
+    FlEventChannel* channel,
+    FlValue* args,
+    gpointer user_data) {
+  CompactGtkSettingsBridge* bridge =
+      static_cast<CompactGtkSettingsBridge*>(user_data);
+  bridge->font_settings_listening = TRUE;
+
+  GtkSettings* settings = gtk_settings_get_default();
+  if (settings != nullptr && bridge->font_settings_signal_id == 0) {
+    bridge->font_settings_signal_id =
+        g_signal_connect(settings, "notify::gtk-font-name",
+                         G_CALLBACK(compact_gtk_font_notify_cb), bridge);
+  }
+
+  compact_gtk_settings_send_font_event(bridge);
+  return nullptr;
+}
+
+static FlMethodErrorResponse* compact_gtk_font_settings_cancel_cb(
+    FlEventChannel* channel,
+    FlValue* args,
+    gpointer user_data) {
+  CompactGtkSettingsBridge* bridge =
+      static_cast<CompactGtkSettingsBridge*>(user_data);
+  bridge->font_settings_listening = FALSE;
+  compact_gtk_settings_bridge_disconnect_font(bridge);
+  return nullptr;
+}
+
+static FlMethodErrorResponse* compact_gtk_theme_colors_listen_cb(
+    FlEventChannel* channel,
+    FlValue* args,
+    gpointer user_data) {
+  CompactGtkSettingsBridge* bridge =
+      static_cast<CompactGtkSettingsBridge*>(user_data);
+  bridge->theme_colors_listening = TRUE;
+
+  GtkSettings* settings = gtk_settings_get_default();
+  if (settings != nullptr && bridge->theme_name_signal_id == 0) {
+    bridge->theme_name_signal_id =
+        g_signal_connect(settings, "notify::gtk-theme-name",
+                         G_CALLBACK(compact_gtk_theme_notify_cb), bridge);
+  }
+  if (settings != nullptr && bridge->theme_dark_signal_id == 0) {
+    bridge->theme_dark_signal_id = g_signal_connect(
+        settings, "notify::gtk-application-prefer-dark-theme",
+        G_CALLBACK(compact_gtk_theme_notify_cb), bridge);
+  }
+
+  compact_gtk_settings_send_theme_event(bridge);
+  return nullptr;
+}
+
+static FlMethodErrorResponse* compact_gtk_theme_colors_cancel_cb(
+    FlEventChannel* channel,
+    FlValue* args,
+    gpointer user_data) {
+  CompactGtkSettingsBridge* bridge =
+      static_cast<CompactGtkSettingsBridge*>(user_data);
+  bridge->theme_colors_listening = FALSE;
+  compact_gtk_settings_bridge_disconnect_theme(bridge);
+  return nullptr;
+}
+
+static void register_compact_gtk_settings_channel(FlView* view,
+                                                  GtkWindow* window) {
+  CompactGtkSettingsBridge* bridge =
+      g_new0(CompactGtkSettingsBridge, 1);
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  FlBinaryMessenger* messenger =
+      fl_engine_get_binary_messenger(fl_view_get_engine(view));
+
+  bridge->settings_channel = fl_method_channel_new(
+      messenger, kGtkSettingsChannel, FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      bridge->settings_channel, gtk_settings_method_call_cb, bridge, nullptr);
+
+  bridge->font_settings_event_channel = fl_event_channel_new(
+      messenger, kGtkFontSettingsEventChannel, FL_METHOD_CODEC(codec));
+  fl_event_channel_set_stream_handlers(
+      bridge->font_settings_event_channel, compact_gtk_font_settings_listen_cb,
+      compact_gtk_font_settings_cancel_cb, bridge, nullptr);
+
+  bridge->theme_colors_event_channel = fl_event_channel_new(
+      messenger, kGtkThemeColorsEventChannel, FL_METHOD_CODEC(codec));
+  fl_event_channel_set_stream_handlers(
+      bridge->theme_colors_event_channel, compact_gtk_theme_colors_listen_cb,
+      compact_gtk_theme_colors_cancel_cb, bridge, nullptr);
+
+  g_object_set_data_full(G_OBJECT(window), "busymax-compact-gtk-settings",
+                         bridge, compact_gtk_settings_bridge_free);
+}
+
 static gboolean window_delete_event_cb(GtkWidget* widget,
                                        GdkEvent* event,
                                        gpointer user_data) {
@@ -2091,15 +2363,303 @@ static gboolean clear_transparent_window_cb(GtkWidget* widget,
   return FALSE;
 }
 
-static void configure_transparent_window_backing(GtkWindow* window) {
+static void rounded_window_realize_cb(GtkWidget* widget, gpointer user_data);
+
+static gboolean rounded_window_configure_event_cb(GtkWidget* widget,
+                                                  GdkEventConfigure* event,
+                                                  gpointer user_data);
+
+static gboolean configure_transparent_window_backing(GtkWindow* window) {
   GdkScreen* screen = gtk_window_get_screen(window);
   GdkVisual* visual = gdk_screen_get_rgba_visual(screen);
-  if (visual != nullptr) {
-    gtk_widget_set_visual(GTK_WIDGET(window), visual);
+  if (visual == nullptr) {
+    return FALSE;
   }
+
+  gtk_widget_set_visual(GTK_WIDGET(window), visual);
   gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
   g_signal_connect(window, "draw", G_CALLBACK(clear_transparent_window_cb),
                    nullptr);
+  g_signal_connect_after(window, "realize", G_CALLBACK(rounded_window_realize_cb),
+                         nullptr);
+  g_signal_connect(window, "configure-event",
+                   G_CALLBACK(rounded_window_configure_event_cb), nullptr);
+  return TRUE;
+}
+
+static cairo_region_t* create_rounded_window_region(gint width,
+                                                    gint height,
+                                                    gint radius) {
+  cairo_region_t* region = cairo_region_create();
+  if (width <= 0 || height <= 0) {
+    return region;
+  }
+
+  if (radius <= 0 || width < radius * 2 || height < radius * 2) {
+    const cairo_rectangle_int_t rect = {0, 0, width, height};
+    cairo_region_union_rectangle(region, &rect);
+    return region;
+  }
+
+  const gdouble radius_squared = radius * radius;
+  for (gint y = 0; y < height; y++) {
+    gint inset = 0;
+    if (y < radius) {
+      const gdouble dy = radius - y - 1;
+      inset = radius - static_cast<gint>(std::sqrt(radius_squared - dy * dy));
+    } else if (y >= height - radius) {
+      const gdouble dy = y - (height - radius);
+      inset = radius - static_cast<gint>(std::sqrt(radius_squared - dy * dy));
+    }
+
+    const gint row_width = width - inset * 2;
+    if (row_width <= 0) {
+      continue;
+    }
+
+    const cairo_rectangle_int_t row = {inset, y, row_width, 1};
+    cairo_region_union_rectangle(region, &row);
+  }
+
+  return region;
+}
+
+static void configure_rounded_window_shape(GtkWidget* widget) {
+  if (widget == nullptr || !GTK_IS_WIDGET(widget) ||
+      !gtk_widget_get_realized(widget)) {
+    return;
+  }
+
+  GdkWindow* window = gtk_widget_get_window(widget);
+  if (window == nullptr || !GDK_IS_WINDOW(window)) {
+    return;
+  }
+
+  const GdkWindowState state = gdk_window_get_state(window);
+  if ((state & GDK_WINDOW_STATE_MAXIMIZED) != 0 ||
+      (state & GDK_WINDOW_STATE_FULLSCREEN) != 0) {
+    gdk_window_shape_combine_region(window, nullptr, 0, 0);
+    return;
+  }
+
+  const gint width = gtk_widget_get_allocated_width(widget);
+  const gint height = gtk_widget_get_allocated_height(widget);
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
+  cairo_region_t* region =
+      create_rounded_window_region(width, height, kHeaderWindowRadius);
+  gdk_window_shape_combine_region(window, region, 0, 0);
+  cairo_region_destroy(region);
+}
+
+static void rounded_window_realize_cb(GtkWidget* widget, gpointer user_data) {
+  configure_rounded_window_shape(widget);
+}
+
+static gboolean rounded_window_configure_event_cb(GtkWidget* widget,
+                                                  GdkEventConfigure* event,
+                                                  gpointer user_data) {
+  configure_rounded_window_shape(widget);
+  return FALSE;
+}
+
+static void install_compact_agenda_window_css(GtkWindow* window) {
+  static const gchar* css =
+      "window#busymax-compact-agenda-window,"
+      "window#busymax-compact-agenda-window:backdrop {"
+      "background-color: transparent;"
+      "background-image: none;"
+      "}"
+      "window#busymax-compact-agenda-window decoration,"
+      "window#busymax-compact-agenda-window decoration:backdrop {"
+      "background-color: transparent;"
+      "background-image: none;"
+      "border: none;"
+      "}";
+
+  g_autoptr(GError) error = nullptr;
+  GtkCssProvider* provider = gtk_css_provider_new();
+  gtk_css_provider_load_from_data(provider, css, -1, &error);
+  if (error != nullptr) {
+    g_warning("Failed to load compact Agenda CSS: %s", error->message);
+    g_object_unref(provider);
+    return;
+  }
+
+  gtk_style_context_add_provider_for_screen(
+      gtk_window_get_screen(window), GTK_STYLE_PROVIDER(provider),
+      GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+  g_object_unref(provider);
+}
+
+static gboolean compact_agenda_number_arg(FlValue* args,
+                                           const gchar* key,
+                                           gdouble* value) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* arg = fl_value_lookup_string(args, key);
+  if (arg == nullptr) {
+    return FALSE;
+  }
+
+  switch (fl_value_get_type(arg)) {
+    case FL_VALUE_TYPE_FLOAT:
+      *value = fl_value_get_float(arg);
+      return std::isfinite(*value);
+    case FL_VALUE_TYPE_INT:
+      *value = static_cast<gdouble>(fl_value_get_int(arg));
+      return std::isfinite(*value);
+    default:
+      return FALSE;
+  }
+}
+
+static gint compact_agenda_dimension_arg(FlValue* args,
+                                          const gchar* key,
+                                          gint fallback,
+                                          gint minimum,
+                                          gint maximum) {
+  gdouble value = fallback;
+  if (!compact_agenda_number_arg(args, key, &value)) {
+    return fallback;
+  }
+  if (value < minimum) {
+    return minimum;
+  }
+  if (value > maximum) {
+    return maximum;
+  }
+  return static_cast<gint>(value);
+}
+
+static gboolean compact_agenda_position_arg(FlValue* args,
+                                             const gchar* key,
+                                             gint* value) {
+  gdouble parsed = 0;
+  if (!compact_agenda_number_arg(args, key, &parsed)) {
+    return FALSE;
+  }
+  *value = static_cast<gint>(parsed);
+  return TRUE;
+}
+
+static void apply_compact_agenda_geometry(GtkWindow* window, FlValue* args) {
+  const gint width = compact_agenda_dimension_arg(
+      args, "width", kCompactAgendaWindowWidth, kCompactAgendaWindowMinWidth,
+      kCompactAgendaWindowMaxWidth);
+  const gint height = compact_agenda_dimension_arg(
+      args, "height", kCompactAgendaWindowHeight, kCompactAgendaWindowMinHeight,
+      kCompactAgendaWindowMaxHeight);
+
+  gtk_window_set_position(window, GTK_WIN_POS_NONE);
+  gtk_window_set_default_size(window, width, height);
+  gtk_window_resize(window, width, height);
+  gtk_widget_set_size_request(GTK_WIDGET(window), width, height);
+
+  GtkWidget* child = gtk_bin_get_child(GTK_BIN(window));
+  if (child != nullptr) {
+    gtk_widget_set_size_request(child, width, height);
+  }
+
+  gint x = 0;
+  gint y = 0;
+  if (compact_agenda_position_arg(args, "x", &x) &&
+      compact_agenda_position_arg(args, "y", &y)) {
+    gtk_window_move(window, x, y);
+  }
+}
+
+static void compact_agenda_window_method_call_cb(FlMethodChannel* channel,
+                                                  FlMethodCall* method_call,
+                                                  gpointer user_data) {
+  GtkWindow* window = GTK_WINDOW(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  FlValue* args = fl_method_call_get_args(method_call);
+
+  if (strcmp(method, "setPlacement") == 0) {
+    apply_compact_agenda_geometry(window, args);
+    respond_bool(method_call, TRUE);
+  } else if (strcmp(method, "show") == 0) {
+    apply_compact_agenda_geometry(window, args);
+    gtk_widget_show(GTK_WIDGET(window));
+    gtk_window_present(window);
+    apply_compact_agenda_geometry(window, args);
+    respond_bool(method_call, TRUE);
+  } else {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+  }
+}
+
+static void register_compact_agenda_window_channel(FlView* view,
+                                                   GtkWindow* window) {
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  FlMethodChannel* channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      kCompactAgendaWindowChannel, FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      channel, compact_agenda_window_method_call_cb, g_object_ref(window),
+      g_object_unref);
+  g_object_set_data_full(G_OBJECT(window), "busymax-compact-agenda-channel",
+                         channel, g_object_unref);
+}
+
+static void configure_compact_agenda_subwindow(FlPluginRegistry* registry) {
+  // BusyMax creates desktop_multi_window subwindows for the compact tray
+  // Agenda. Configure the GTK shell before Dart/window_manager can show the
+  // plugin's default 1280x720 secondary window.
+  if (!FL_IS_VIEW(registry)) {
+    return;
+  }
+
+  FlView* view = FL_VIEW(registry);
+  GtkWidget* toplevel = gtk_widget_get_toplevel(GTK_WIDGET(view));
+  if (!GTK_IS_WINDOW(toplevel)) {
+    return;
+  }
+
+  GtkWindow* window = GTK_WINDOW(toplevel);
+  GdkRGBA transparent = {0, 0, 0, 0};
+  fl_view_set_background_color(view, &transparent);
+
+  gtk_widget_set_name(GTK_WIDGET(window), "busymax-compact-agenda-window");
+  install_compact_agenda_window_css(window);
+  GtkWidget* titlebar = gtk_window_get_titlebar(window);
+  if (titlebar != nullptr) {
+    gtk_widget_hide(titlebar);
+  }
+  gtk_window_set_decorated(window, FALSE);
+  gtk_window_set_type_hint(window, GDK_WINDOW_TYPE_HINT_UTILITY);
+  gtk_window_set_skip_taskbar_hint(window, TRUE);
+  gtk_window_set_skip_pager_hint(window, TRUE);
+  gtk_window_set_keep_above(window, TRUE);
+  gtk_window_set_gravity(window, GDK_GRAVITY_NORTH_EAST);
+  gtk_window_set_position(window, GTK_WIN_POS_NONE);
+  gtk_window_set_title(window, "BusyMax Agenda");
+  gtk_window_set_resizable(window, FALSE);
+  gtk_window_set_default_size(window, kCompactAgendaWindowWidth,
+                              kCompactAgendaWindowHeight);
+  gtk_window_resize(window, kCompactAgendaWindowWidth,
+                    kCompactAgendaWindowHeight);
+  gtk_widget_set_size_request(GTK_WIDGET(window), kCompactAgendaWindowWidth,
+                              kCompactAgendaWindowHeight);
+  gtk_widget_set_size_request(GTK_WIDGET(view), kCompactAgendaWindowWidth,
+                              kCompactAgendaWindowHeight);
+
+  GdkGeometry geometry = {};
+  geometry.min_width = kCompactAgendaWindowMinWidth;
+  geometry.min_height = kCompactAgendaWindowMinHeight;
+  geometry.max_width = kCompactAgendaWindowMaxWidth;
+  geometry.max_height = kCompactAgendaWindowMaxHeight;
+  gtk_window_set_geometry_hints(
+      window, GTK_WIDGET(window), &geometry,
+      static_cast<GdkWindowHints>(GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE));
+
+  register_compact_agenda_window_channel(view, window);
+  register_compact_gtk_settings_channel(view, window);
+  register_native_date_time_picker_for_subwindow(view, window);
 }
 
 // Called when first Flutter frame received.
@@ -2114,7 +2674,8 @@ static void my_application_activate(GApplication* application) {
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   self->main_window = window;
   gtk_widget_set_name(GTK_WIDGET(window), "busymax-window");
-  configure_transparent_window_backing(window);
+  self->main_window_transparent_backing =
+      configure_transparent_window_backing(window);
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -2147,10 +2708,11 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_icon(window, application_icon);
   }
   G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-  gtk_window_set_wmclass(
-      window, APPLICATION_ID, APPLICATION_ID);
+  gtk_window_set_wmclass(window, APPLICATION_ID, APPLICATION_ID);
   G_GNUC_END_IGNORE_DEPRECATIONS
-  gtk_window_set_icon_name(window, APPLICATION_ID);
+  if (application_icon == nullptr) {
+    gtk_window_set_icon_name(window, APPLICATION_ID);
+  }
   gtk_window_set_default_size(window, 1280, 720);
   g_signal_connect(window, "delete-event", G_CALLBACK(window_delete_event_cb),
                    self);
@@ -2161,11 +2723,7 @@ static void my_application_activate(GApplication* application) {
 
   FlView* view = fl_view_new(project);
   track_widget_pointer(&self->flutter_view, GTK_WIDGET(view));
-  GdkRGBA background_color;
-  gdk_rgba_parse(&background_color,
-                 css_color_or(self->header_bar_background_color,
-                              kDefaultHeaderBarBackgroundColor));
-  fl_view_set_background_color(view, &background_color);
+  set_main_flutter_view_background(self);
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
 
@@ -2176,6 +2734,11 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  desktop_multi_window_plugin_set_window_created_callback(
+      [](FlPluginRegistry* registry) {
+        configure_compact_agenda_subwindow(registry);
+        fl_register_plugins(registry);
+      });
   register_native_date_time_picker(self, view, window);
   register_window_channel(self, view);
   register_header_bar_channel(self, view);
@@ -2273,6 +2836,7 @@ static void my_application_dispose(GObject* object) {
   clear_widget_pointer(&self->view_mode_agenda_item);
   clear_widget_pointer(&self->search_button);
   clear_widget_pointer(&self->refresh_button);
+  g_clear_pointer(&self->header_bar_window_background_color, g_free);
   g_clear_pointer(&self->header_bar_background_color, g_free);
   g_clear_pointer(&self->header_bar_sidebar_background_color, g_free);
   g_clear_pointer(&self->header_bar_foreground_color, g_free);
@@ -2318,7 +2882,10 @@ static void my_application_init(MyApplication* self) {
   self->header_schedule_controls_visible = TRUE;
   self->header_back_visible = FALSE;
   self->header_onboarding_controls_visible = FALSE;
+  self->main_window_transparent_backing = FALSE;
   self->header_bar_css_provider = nullptr;
+  self->header_bar_window_background_color =
+      g_strdup(kDefaultHeaderBarBackgroundColor);
   self->header_bar_background_color =
       g_strdup(kDefaultHeaderBarBackgroundColor);
   self->header_bar_sidebar_background_color =
@@ -2373,6 +2940,7 @@ static void my_application_init(MyApplication* self) {
   self->search_button = nullptr;
   self->refresh_button = nullptr;
   self->header_view_mode = nullptr;
+  self->header_navigation_visible = TRUE;
 }
 
 MyApplication* my_application_new() {

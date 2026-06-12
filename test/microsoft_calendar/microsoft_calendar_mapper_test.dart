@@ -57,6 +57,20 @@ void main() {
     expect(event.rawJson['body'], {'contentType': 'html', 'content': html});
   });
 
+  test('Microsoft event maps categories for sync storage', () {
+    final event = microsoftCalendarEventFromJson('cal-1', {
+      'id': 'event-1',
+      'subject': 'Planning',
+      'categories': ['Work', 'Blue category'],
+      'isAllDay': false,
+      'start': {'dateTime': '2026-06-10T09:00:00', 'timeZone': 'UTC'},
+      'end': {'dateTime': '2026-06-10T10:00:00', 'timeZone': 'UTC'},
+    });
+
+    expect(event.categoriesJson, ['Work', 'Blue category']);
+    expect(event.colorId, 'Work');
+  });
+
   test('formatted Microsoft HTML is converted to plain text with ranges', () {
     final document = htmlCalendarDescriptionDocument(
       '<div>Hello <strong>bold</strong> and <em>italic</em></div>',

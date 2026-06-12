@@ -6,11 +6,15 @@ import 'package:desktop_notifications/desktop_notifications.dart';
 import '../../app/app_settings.dart';
 import '../../core/logging/redacting_logger.dart';
 
+typedef DesktopNotificationActionHandler = Future<void> Function(String action);
+
 abstract class DesktopNotificationBackend {
   Future<void> notify(
     String summary, {
     String body = '',
     List<NotificationHint> hints = const [],
+    List<NotificationAction> actions = const [],
+    DesktopNotificationActionHandler? onAction,
   });
 
   Future<void> close();
@@ -27,14 +31,24 @@ class FreedesktopNotificationBackend implements DesktopNotificationBackend {
     String summary, {
     String body = '',
     List<NotificationHint> hints = const [],
-  }) {
-    return _client.notify(
+    List<NotificationAction> actions = const [],
+    DesktopNotificationActionHandler? onAction,
+  }) async {
+    final notification = await _client.notify(
       summary,
       appName: 'BusyMax',
       appIcon: 'io.busystack.busymax',
       body: body,
       hints: hints,
+      actions: actions,
     );
+    if (onAction != null) {
+      unawaited(
+        notification.action
+            .then(onAction)
+            .catchError((Object _) => Future<void>.value()),
+      );
+    }
   }
 
   @override
@@ -113,48 +127,75 @@ class DesktopNotificationService {
     );
   }
 
-  Future<void> notifyEventReminder(String title, String? body) async {
+  Future<void> notifyEventReminder(
+    String title,
+    String? body, {
+    Future<void> Function()? onActivated,
+  }) async {
     if (!_settings.notifyEventReminders || _isQuietHours()) {
       return;
     }
-    final private =
-        _settings.notificationDetailLevel == NotificationDetailLevel.private;
+    final private = _usesPrivateReminderText;
     await _safeNotify(
       private ? _strings.eventReminderTitle : redactForLog(title),
       private
           ? _strings.detailsHidden
           : _nonEmpty(redactForLog(body ?? ''), _strings.eventReminderBody),
       NotificationCategory.device(),
+      onActivated: onActivated,
+      transient: false,
     );
   }
 
-  Future<void> notifyTaskReminder(String title, String? body) async {
+  Future<void> notifyTaskReminder(
+    String title,
+    String? body, {
+    Future<void> Function()? onActivated,
+  }) async {
     if (!_settings.notifyTaskReminders || _isQuietHours()) {
       return;
     }
-    final private =
-        _settings.notificationDetailLevel == NotificationDetailLevel.private;
+    final private = _usesPrivateReminderText;
     await _safeNotify(
       private ? _strings.taskReminderTitle : redactForLog(title),
       private
           ? _strings.detailsHidden
           : _nonEmpty(redactForLog(body ?? ''), _strings.taskReminderBody),
       NotificationCategory.device(),
+      onActivated: onActivated,
+      transient: false,
     );
+  }
+
+  bool get _usesPrivateReminderText {
+    return !_settings.detailedNotifications &&
+        _settings.notificationDetailLevel == NotificationDetailLevel.private;
   }
 
   Future<void> _safeNotify(
     String summary,
     String body,
-    NotificationCategory category,
-  ) async {
+    NotificationCategory category, {
+    Future<void> Function()? onActivated,
+    bool transient = true,
+  }) async {
     try {
       await _backend.notify(
         summary,
         body: body,
+        actions: onActivated == null
+            ? const []
+            : [NotificationAction('default', _strings.openAction)],
+        onAction: onActivated == null
+            ? null
+            : (action) async {
+                if (action == 'default') {
+                  await onActivated();
+                }
+              },
         hints: [
           NotificationHint.category(category),
-          NotificationHint.transient(),
+          if (transient) NotificationHint.transient(),
         ],
       );
     } on Object {
@@ -213,6 +254,7 @@ class NotificationStrings {
     required this.detailsHidden,
     required this.eventReminderBody,
     required this.taskReminderBody,
+    required this.openAction,
     required this.syncFailureBody,
     required this.conflictBody,
     required this.dueTodayBody,
@@ -236,6 +278,7 @@ class NotificationStrings {
     detailsHidden: 'Details are hidden by privacy settings.',
     eventReminderBody: 'Event starts soon.',
     taskReminderBody: 'Task is due soon.',
+    openAction: 'Open',
     syncFailureBody: (message) => 'Background sync failed. $message',
     conflictBody: (summary) => 'A pending local change was blocked. $summary',
     dueTodayBody: (count) =>
@@ -252,6 +295,7 @@ class NotificationStrings {
         'Details werden durch Datenschutzeinstellungen ausgeblendet.',
     eventReminderBody: 'Der Termin beginnt bald.',
     taskReminderBody: 'Die Aufgabe ist bald fällig.',
+    openAction: 'Öffnen',
     syncFailureBody: (message) =>
         'Hintergrundsynchronisierung fehlgeschlagen. $message',
     conflictBody: (summary) =>
@@ -271,6 +315,7 @@ class NotificationStrings {
         'Les détails sont masqués par les paramètres de confidentialité.',
     eventReminderBody: 'L’événement commence bientôt.',
     taskReminderBody: 'La tâche arrive bientôt à échéance.',
+    openAction: 'Ouvrir',
     syncFailureBody: (message) =>
         'La synchronisation en arrière-plan a échoué. $message',
     conflictBody: (summary) =>
@@ -290,6 +335,7 @@ class NotificationStrings {
         'Los detalles están ocultos por la configuración de privacidad.',
     eventReminderBody: 'El evento empieza pronto.',
     taskReminderBody: 'La tarea vence pronto.',
+    openAction: 'Abrir',
     syncFailureBody: (message) =>
         'Falló la sincronización en segundo plano. $message',
     conflictBody: (summary) => 'Se bloqueó un cambio local pendiente. $summary',
@@ -305,6 +351,7 @@ class NotificationStrings {
   final String detailsHidden;
   final String eventReminderBody;
   final String taskReminderBody;
+  final String openAction;
   final String Function(String message) syncFailureBody;
   final String Function(String summary) conflictBody;
   final String Function(int count) dueTodayBody;

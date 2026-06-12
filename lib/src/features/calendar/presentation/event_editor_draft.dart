@@ -187,7 +187,11 @@ class EventEditorDraft {
   final bool? hideAttendees;
   final bool? allowNewTimeProposals;
 
-  bool get canSave => title.trim().isNotEmpty;
+  bool get canSave =>
+      title.trim().isNotEmpty &&
+      start != null &&
+      end != null &&
+      end!.isAfter(start!);
 
   EventEditorDraft copyWith({
     String? accountId,

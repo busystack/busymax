@@ -163,6 +163,56 @@ class AppLocalizationsDe extends AppLocalizations {
   String get trayAgendaError => 'Agenda nicht verfügbar';
 
   @override
+  String get compactAgendaTitle => 'Agenda';
+
+  @override
+  String get compactAgendaSubtitle => 'Anstehend';
+
+  @override
+  String get compactAgendaOverdue => 'Überfällig';
+
+  @override
+  String get compactAgendaClear => 'Im Moment frei';
+
+  @override
+  String get compactAgendaOpenBusyMax => 'BusyMax öffnen';
+
+  @override
+  String get compactAgendaHide => 'Ausblenden';
+
+  @override
+  String get compactAgendaNewTask => 'Neue Aufgabe';
+
+  @override
+  String get compactAgendaRetry => 'Erneut versuchen';
+
+  @override
+  String get compactAgendaRefresh => 'Aktualisieren';
+
+  @override
+  String get compactAgendaAllDay => 'Ganztägig';
+
+  @override
+  String get compactAgendaDueToday => 'Heute fällig';
+
+  @override
+  String get compactAgendaDueTomorrow => 'Morgen fällig';
+
+  @override
+  String compactAgendaDueOn(String date) {
+    return 'Fällig $date';
+  }
+
+  @override
+  String get compactAgendaMoreOverdue => 'Weitere überfällige Aufgaben laden';
+
+  @override
+  String get agendaLoadMoreOverdue => 'Weitere überfällige Aufgaben laden';
+
+  @override
+  String get agendaLoadMoreNoDate => 'Weitere Aufgaben ohne Datum laden';
+
+  @override
   String get viewDay => 'Tag';
 
   @override
@@ -176,6 +226,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get viewAgenda => 'Agenda';
+
+  @override
+  String get scheduleSettings => 'Zeitplan';
+
+  @override
+  String get scheduleDisplaySettings => 'Zeitplananzeige';
+
+  @override
+  String get scheduleDisplayHoursDescription =>
+      'Tages- und Wochenansicht öffnen innerhalb dieser Zeiten. Frühe und späte Einträge erweitern den Bereich bei Bedarf.';
+
+  @override
+  String get scheduleDayStartsAt => 'Tag beginnt um';
+
+  @override
+  String get scheduleDayEndsAt => 'Tag endet um';
 
   @override
   String get sourceCalendar => 'Kalender';

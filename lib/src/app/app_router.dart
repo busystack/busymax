@@ -6,7 +6,6 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/auth/presentation/sign_in_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/schedule/presentation/schedule_workspace.dart';
-import '../features/schedule/presentation/tray_agenda_screen.dart';
 import '../schedule/schedule_scope.dart';
 import 'app_bootstrap.dart';
 
@@ -48,10 +47,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/schedule',
         builder: (context, state) => const ScheduleWorkspace(),
-      ),
-      GoRoute(
-        path: '/tray-agenda',
-        builder: (context, state) => const TrayAgendaScreen(),
       ),
       GoRoute(
         path: '/tasks',

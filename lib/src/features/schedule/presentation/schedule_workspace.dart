@@ -21,9 +21,11 @@ import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
+import '../../../schedule/schedule_repository.dart';
 import '../../../schedule/schedule_scope.dart';
 import '../../../schedule/schedule_source_visibility.dart';
 import '../../../schedule/schedule_view_mode.dart';
+import '../../../task_providers/task_provider.dart';
 import '../../calendar/presentation/event_editor.dart';
 import '../../calendar/presentation/event_editor_draft.dart';
 import '../../task_lists/data/task_lists_repository.dart';
@@ -35,6 +37,7 @@ import 'schedule_create_menu.dart';
 import 'schedule_day_week_view.dart';
 import 'schedule_item_details_popover.dart';
 import 'schedule_item_exporter.dart';
+import 'schedule_item_selection.dart';
 import 'schedule_month_view.dart';
 import 'schedule_sidebar.dart';
 import 'schedule_toolbar.dart';
@@ -50,6 +53,11 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
 }
 
 class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
+  static const _agendaInitialDays = 30;
+  static const _agendaPageDays = 30;
+  static const _agendaInitialTaskBucketLimit = 8;
+  static const _agendaTaskBucketPageSize = 8;
+
   var _selectedDate = DateTime.now();
   var _mode = ScheduleViewMode.week;
   late ScheduleScope _scope;
@@ -63,6 +71,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   var _latestCanShowSidebar = false;
+  var _latestItems = const <ScheduleItem>[];
+  final _itemAnchorContexts = <String, BuildContext>{};
+  ScheduleWorkspaceCommand? _pendingAnchoredCommand;
+  List<CalendarSourceEntity> _pendingAnchoredSources =
+      const <CalendarSourceEntity>[];
+  var _agendaLoadedDays = _agendaInitialDays;
+  var _agendaOverdueTaskLimit = _agendaInitialTaskBucketLimit;
+  var _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit;
   ScheduleViewMode? _lastSettingsMode;
   _HeaderBarStateSnapshot? _lastHeaderBarState;
 
@@ -138,24 +154,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 )
                 .toList();
 
-            return FutureBuilder<List<ScheduleItem>>(
-              future: ref
-                  .watch(scheduleRepositoryProvider)
-                  .listItems(
-                    range: range,
-                    filters: ScheduleFilters(
-                      query: _searchQuery,
-                      accountIds: accountIds.toSet(),
-                      sourceIds: visibility.visibleCalendarSourceIds,
-                      taskListIds: visibility.visibleTaskListIds,
-                      sourceFilterActive: true,
-                      taskListFilterActive: true,
-                      includeCalendarEvents: _scope != ScheduleScope.tasks,
-                      includeTasks: _scope != ScheduleScope.events,
-                      showCompletedTasks: true,
-                      showNoDateTasks: true,
-                    ),
-                  ),
+            return FutureBuilder<_ScheduleItemsResult>(
+              future: _scheduleItems(
+                repository: ref.watch(scheduleRepositoryProvider),
+                range: range,
+                searchHasQuery: searchHasQuery,
+                accountIds: accountIds.toSet(),
+                sourceIds: visibility.visibleCalendarSourceIds,
+                taskListIds: visibility.visibleTaskListIds,
+              ),
               builder: (context, snapshot) {
                 final itemsLoading =
                     snapshot.connectionState == ConnectionState.waiting &&
@@ -165,10 +172,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     sourcesLoading ||
                     taskListsLoading ||
                     itemsLoading;
-                final items = ScheduleProjection.filterByScope(
-                  snapshot.data ?? const <ScheduleItem>[],
+                final scopedItems = ScheduleProjection.filterByScope(
+                  snapshot.data?.items ?? const <ScheduleItem>[],
                   _scope,
                 );
+                final items =
+                    !searchHasQuery && _mode == ScheduleViewMode.agenda
+                    ? _agendaItems(scopedItems, range)
+                    : scopedItems;
+                _latestItems = items;
                 final miniCalendarItemsFuture = ref
                     .watch(scheduleRepositoryProvider)
                     .listItems(
@@ -194,7 +206,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 final displayMode = searchHasQuery
                     ? ScheduleViewMode.agenda
                     : _mode;
-                _consumePendingCommand(visibleSources, accounts, items);
+                _consumePendingCommand(visibleSources, accounts);
                 final showFallbackHeader = _showFlutterHeaderFallback;
                 final main = Column(
                   children: [
@@ -230,11 +242,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             ? displayRange.start
                             : _selectedDate,
                         firstWeekday: _firstWeekday(context),
+                        dayStartMinute: settings.scheduleDayStartMinute,
+                        dayEndMinute: settings.scheduleDayEndMinute,
                         hasAnySources:
                             visibility.hasCalendarSources ||
                             visibility.hasTaskLists,
                         items: items,
                         onDaySelected: _setDate,
+                        onYearDaySelected: _openDay,
                         onMonthSelected: _setMonth,
                         onEmptySlot: (start) => unawaited(
                           _openCreateChoice(accounts, visibleSources, start),
@@ -252,8 +267,36 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onNewTask: () => unawaited(_openNewTask(accounts)),
                         onPrevious: _previous,
                         onNext: _next,
-                        onItemSelected: (context, item) =>
-                            unawaited(_openItem(context, item, visibleSources)),
+                        onAgendaLoadMore:
+                            !searchHasQuery && _mode == ScheduleViewMode.agenda
+                            ? _loadMoreAgendaDays
+                            : null,
+                        hasMoreAgendaOverdueTasks:
+                            !searchHasQuery &&
+                            _mode == ScheduleViewMode.agenda &&
+                            (snapshot.data?.hasMoreOverdueTasks ?? false),
+                        hasMoreAgendaNoDateTasks:
+                            !searchHasQuery &&
+                            _mode == ScheduleViewMode.agenda &&
+                            (snapshot.data?.hasMoreNoDateTasks ?? false),
+                        onAgendaLoadMoreOverdue:
+                            !searchHasQuery && _mode == ScheduleViewMode.agenda
+                            ? _loadMoreAgendaOverdueTasks
+                            : null,
+                        onAgendaLoadMoreNoDate:
+                            !searchHasQuery && _mode == ScheduleViewMode.agenda
+                            ? _loadMoreAgendaNoDateTasks
+                            : null,
+                        onItemSelected: (context, item, [globalPosition]) =>
+                            unawaited(
+                              _openItem(
+                                context,
+                                item,
+                                visibleSources,
+                                globalPosition: globalPosition,
+                              ),
+                            ),
+                        onItemAnchorAvailable: _handleItemAnchorAvailable,
                         onTaskCompletionChanged: _setTaskCompleted,
                       ),
                     ),
@@ -291,7 +334,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                         selectedDate: _selectedDate,
                                         firstWeekday: firstWeekday,
                                         items: miniCalendarItems,
-                                        onDateSelected: _setDate,
+                                        onDateSelected: _openDay,
                                         onMonthSelected: _setMonth,
                                         onYearSelected: _setYear,
                                         onWeekSelected: _setWeek,
@@ -380,6 +423,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       canRefresh: accounts.isNotEmpty,
       searchActive: _searchActive,
       sidebarVisible: sidebarVisible,
+      navigationVisible: _mode != ScheduleViewMode.agenda,
     );
     if (_lastHeaderBarState == headerBarState) {
       return;
@@ -403,6 +447,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       );
       unawaited(service.setTitleRange(headerBarState.titleRange));
       unawaited(service.setViewMode(headerBarState.viewMode));
+      unawaited(service.setNavigationVisible(headerBarState.navigationVisible));
       unawaited(service.setCanRefresh(headerBarState.canRefresh));
       unawaited(service.setSearchActive(headerBarState.searchActive));
       unawaited(service.setSidebarVisible(headerBarState.sidebarVisible));
@@ -422,8 +467,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       case BusyMaxHeaderBarAction.today:
         _goToToday();
       case BusyMaxHeaderBarAction.previous:
+        if (_mode == ScheduleViewMode.agenda) {
+          return;
+        }
         _previous();
       case BusyMaxHeaderBarAction.next:
+        if (_mode == ScheduleViewMode.agenda) {
+          return;
+        }
         _next();
       case BusyMaxHeaderBarAction.viewModeDay:
         _setMode(ScheduleViewMode.day);
@@ -462,7 +513,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       final start = _day(DateTime.now());
       return ScheduleRange(
         start: start,
-        end: start.add(const Duration(days: 30)),
+        end: start.add(Duration(days: _agendaLoadedDays)),
       );
     }
     return switch (_mode) {
@@ -476,9 +527,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         firstWeekday: firstWeekday,
       ),
       ScheduleViewMode.year => ScheduleRange.year(_selectedDate),
-      ScheduleViewMode.agenda => ScheduleRange.week(
-        _selectedDate,
-        firstWeekday: firstWeekday,
+      ScheduleViewMode.agenda => ScheduleRange(
+        start: _day(_selectedDate),
+        end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays)),
       ),
     };
   }
@@ -502,6 +553,88 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
   }
 
+  Future<_ScheduleItemsResult> _scheduleItems({
+    required ScheduleRepository repository,
+    required ScheduleRange range,
+    required bool searchHasQuery,
+    required Set<String> accountIds,
+    required Set<String> sourceIds,
+    required Set<String> taskListIds,
+  }) async {
+    final currentItems = repository.listItems(
+      range: range,
+      filters: ScheduleFilters(
+        query: _searchQuery,
+        accountIds: accountIds,
+        sourceIds: sourceIds,
+        taskListIds: taskListIds,
+        sourceFilterActive: true,
+        taskListFilterActive: true,
+        includeCalendarEvents: _scope != ScheduleScope.tasks,
+        includeTasks: _scope != ScheduleScope.events,
+        showCompletedTasks: true,
+        showNoDateTasks: searchHasQuery || _mode != ScheduleViewMode.agenda,
+      ),
+    );
+    if (searchHasQuery || _mode != ScheduleViewMode.agenda) {
+      return _ScheduleItemsResult(items: await currentItems);
+    }
+
+    final overdueTasks = repository.listOverdueTasks(
+      before: range.start,
+      limit: _agendaOverdueTaskLimit,
+      filters: ScheduleFilters(
+        accountIds: accountIds,
+        taskListIds: taskListIds,
+        taskListFilterActive: true,
+        includeTasks: _scope != ScheduleScope.events,
+        showCompletedTasks: false,
+      ),
+    );
+    final noDateTasks = repository.listNoDateTasks(
+      limit: _agendaNoDateTaskLimit,
+      filters: ScheduleFilters(
+        accountIds: accountIds,
+        taskListIds: taskListIds,
+        taskListFilterActive: true,
+        includeTasks: _scope != ScheduleScope.events,
+        showCompletedTasks: true,
+      ),
+    );
+    final datedItems = await currentItems;
+    final overduePage = await overdueTasks;
+    final noDatePage = await noDateTasks;
+    return _ScheduleItemsResult(
+      items: [...datedItems, ...overduePage.items, ...noDatePage.items],
+      hasMoreOverdueTasks: overduePage.hasMore,
+      hasMoreNoDateTasks: noDatePage.hasMore,
+    );
+  }
+
+  List<ScheduleItem> _agendaItems(
+    List<ScheduleItem> items,
+    ScheduleRange range,
+  ) {
+    final startDay = ScheduleProjection.day(range.start);
+    return items.where((item) {
+      final start = item.start;
+      if (start == null) {
+        return true;
+      }
+      if (item is CalendarScheduleItem) {
+        return ScheduleProjection.intersects(item, range);
+      }
+      if (item is TaskScheduleItem) {
+        final itemDay = ScheduleProjection.day(start);
+        if (itemDay.isBefore(startDay)) {
+          return !item.completed;
+        }
+        return start.isBefore(range.end);
+      }
+      return ScheduleProjection.intersects(item, range);
+    }).toList();
+  }
+
   Future<List<TaskListEntity>> _taskListsForAccounts(
     List<AccountEntity> accounts,
   ) async {
@@ -521,7 +654,26 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _scope = ScheduleScope.all;
       }
       _selectedDate = _day(date);
+      if (_mode == ScheduleViewMode.agenda) {
+        _resetAgendaLoadedDays();
+      }
     });
+  }
+
+  void _openDay(DateTime date) {
+    setState(() {
+      if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
+        _scope = ScheduleScope.all;
+      }
+      _selectedDate = _day(date);
+      _mode = ScheduleViewMode.day;
+      _lastSettingsMode = ScheduleViewMode.day;
+    });
+    unawaited(
+      ref
+          .read(appSettingsControllerProvider.notifier)
+          .setScheduleViewMode(ScheduleViewMode.day),
+    );
   }
 
   void _setWeek(DateTime weekStart) {
@@ -596,6 +748,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     if (previousSettingsMode == null || _mode == previousSettingsMode) {
+      if (_mode != ScheduleViewMode.agenda &&
+          settingsMode == ScheduleViewMode.agenda) {
+        _resetAgendaLoadedDays();
+      }
       _mode = settingsMode;
     }
   }
@@ -603,6 +759,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   void _goToToday() {
     setState(() {
       _selectedDate = _day(DateTime.now());
+      if (_mode == ScheduleViewMode.agenda) {
+        _resetAgendaLoadedDays();
+      }
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
@@ -616,6 +775,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     setState(() {
       _mode = mode;
       _lastSettingsMode = mode;
+      if (mode == ScheduleViewMode.agenda) {
+        _resetAgendaLoadedDays();
+      }
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
@@ -645,11 +807,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _previous() {
+    if (_mode == ScheduleViewMode.agenda) {
+      return;
+    }
     setState(() {
       _selectedDate = switch (_mode) {
         ScheduleViewMode.day => _selectedDate.subtract(const Duration(days: 1)),
-        ScheduleViewMode.week || ScheduleViewMode.agenda =>
-          _selectedDate.subtract(const Duration(days: 7)),
+        ScheduleViewMode.week => _selectedDate.subtract(
+          const Duration(days: 7),
+        ),
         ScheduleViewMode.month => DateTime(
           _selectedDate.year,
           _selectedDate.month - 1,
@@ -660,6 +826,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           _selectedDate.month,
           _selectedDate.day,
         ),
+        ScheduleViewMode.agenda => _selectedDate,
       };
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
@@ -668,11 +835,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _next() {
+    if (_mode == ScheduleViewMode.agenda) {
+      return;
+    }
     setState(() {
       _selectedDate = switch (_mode) {
         ScheduleViewMode.day => _selectedDate.add(const Duration(days: 1)),
-        ScheduleViewMode.week ||
-        ScheduleViewMode.agenda => _selectedDate.add(const Duration(days: 7)),
+        ScheduleViewMode.week => _selectedDate.add(const Duration(days: 7)),
         ScheduleViewMode.month => DateTime(
           _selectedDate.year,
           _selectedDate.month + 1,
@@ -683,11 +852,45 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           _selectedDate.month,
           _selectedDate.day,
         ),
+        ScheduleViewMode.agenda => _selectedDate,
       };
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
     });
+  }
+
+  void _loadMoreAgendaDays() {
+    if (_mode != ScheduleViewMode.agenda) {
+      return;
+    }
+    setState(() {
+      _agendaLoadedDays += _agendaPageDays;
+    });
+  }
+
+  void _loadMoreAgendaOverdueTasks() {
+    if (_mode != ScheduleViewMode.agenda) {
+      return;
+    }
+    setState(() {
+      _agendaOverdueTaskLimit += _agendaTaskBucketPageSize;
+    });
+  }
+
+  void _loadMoreAgendaNoDateTasks() {
+    if (_mode != ScheduleViewMode.agenda) {
+      return;
+    }
+    setState(() {
+      _agendaNoDateTaskLimit += _agendaTaskBucketPageSize;
+    });
+  }
+
+  void _resetAgendaLoadedDays() {
+    _agendaLoadedDays = _agendaInitialDays;
+    _agendaOverdueTaskLimit = _agendaInitialTaskBucketLimit;
+    _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit;
   }
 
   Future<void> _openCreateChoice(
@@ -730,12 +933,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   Future<void> _openItem(
     BuildContext anchorContext,
     ScheduleItem item,
-    List<CalendarSourceEntity> sources,
-  ) async {
+    List<CalendarSourceEntity> sources, {
+    Offset? globalPosition,
+  }) async {
     final action = await showScheduleItemDetailsPopover(
       context: context,
       anchorContext: anchorContext,
       item: item,
+      anchorPoint: globalPosition,
     );
     if (!mounted || action == null) {
       return;
@@ -761,10 +966,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             allDay: item.allDay,
             start: item.start,
             end: item.end,
+            startTimeZone: item.startTimeZone,
+            endTimeZone: item.endTimeZone,
             location: item.location,
             description: item.description,
             descriptionContentType: item.descriptionContentType,
             descriptionHtml: item.descriptionHtml,
+            reminders: _eventRemindersForEdit(
+              item.provider,
+              item.reminderMinutesBeforeStart,
+            ),
+            categories: item.categories,
           ),
           sources,
         ),
@@ -858,6 +1070,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       context,
       initialDraft: draft,
       sources: sources,
+      categorySuggestionsByAccount: _categorySuggestionsByAccount(),
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!mounted || result == null) {
@@ -898,16 +1111,33 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       initialAccountId: ref.read(activeAccountProvider),
       initialListId: null,
       initialDueUtc: due,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (draft == null) {
       return;
     }
     await ref
         .read(tasksRepositoryForAccountProvider(draft.accountId))
-        .createTask(
-          draft.taskListId,
-          TaskCreateInput(title: draft.title, dueUtc: draft.dueUtc),
-        );
+        .createTask(draft.taskListId, draft.input);
+  }
+
+  Map<String, List<String>> _categorySuggestionsByAccount() {
+    final byAccount = <String, Set<String>>{};
+    for (final item in _latestItems) {
+      if (item.categories.isEmpty) {
+        continue;
+      }
+      byAccount
+          .putIfAbsent(item.accountId, () => <String>{})
+          .addAll(
+            item.categories.where((category) => category.trim().isNotEmpty),
+          );
+    }
+    return {
+      for (final entry in byAccount.entries)
+        entry.key: entry.value.toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase())),
+    };
   }
 
   Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {
@@ -950,7 +1180,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   void _consumePendingCommand(
     List<CalendarSourceEntity> sources,
     List<AccountEntity> accounts,
-    List<ScheduleItem> items,
   ) {
     final command = ref.watch(scheduleWorkspaceCommandProvider);
     if (command == null) {
@@ -971,19 +1200,62 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         case ScheduleWorkspaceCommandKind.openDate:
           _openCommandDate(command.date);
         case ScheduleWorkspaceCommandKind.openCalendarEvent:
-          _openCommandDate(command.date);
-          final item = _findCommandItem<CalendarScheduleItem>(items, command);
-          if (item != null) {
-            unawaited(_openItem(context, item, sources));
-          }
+          _queueAnchoredCommand(command, sources);
         case ScheduleWorkspaceCommandKind.openTask:
-          _openCommandDate(command.date);
-          final item = _findCommandItem<TaskScheduleItem>(items, command);
-          if (item != null) {
-            unawaited(_openItem(context, item, sources));
-          }
+          _queueAnchoredCommand(command, sources);
       }
     });
+  }
+
+  void _queueAnchoredCommand(
+    ScheduleWorkspaceCommand command,
+    List<CalendarSourceEntity> sources,
+  ) {
+    _pendingAnchoredCommand = command;
+    _pendingAnchoredSources = List<CalendarSourceEntity>.unmodifiable(sources);
+    _openCommandDate(command.date);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _tryOpenPendingAnchoredCommand();
+      }
+    });
+  }
+
+  void _handleItemAnchorAvailable(ScheduleItem item, BuildContext context) {
+    _itemAnchorContexts[_itemAnchorKey(item)] = context;
+    _tryOpenPendingAnchoredCommand();
+  }
+
+  void _tryOpenPendingAnchoredCommand() {
+    if (!mounted) {
+      return;
+    }
+    final command = _pendingAnchoredCommand;
+    if (command == null) {
+      return;
+    }
+    final item = _findLatestCommandItem(command);
+    if (item == null) {
+      return;
+    }
+    final anchorContext = _itemAnchorContexts[_itemAnchorKey(item)];
+    if (anchorContext == null || !anchorContext.mounted) {
+      return;
+    }
+    final sources = _pendingAnchoredSources;
+    _pendingAnchoredCommand = null;
+    _pendingAnchoredSources = const <CalendarSourceEntity>[];
+    unawaited(_openItem(anchorContext, item, sources));
+  }
+
+  ScheduleItem? _findLatestCommandItem(ScheduleWorkspaceCommand command) {
+    return switch (command.kind) {
+      ScheduleWorkspaceCommandKind.openCalendarEvent =>
+        _findCommandItem<CalendarScheduleItem>(_latestItems, command),
+      ScheduleWorkspaceCommandKind.openTask =>
+        _findCommandItem<TaskScheduleItem>(_latestItems, command),
+      _ => null,
+    };
   }
 
   void _openCommandDate(DateTime? date) {
@@ -997,6 +1269,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _selectedDate = _day(date);
       _mode = ScheduleViewMode.agenda;
       _lastSettingsMode = ScheduleViewMode.agenda;
+      _resetAgendaLoadedDays();
     });
     unawaited(
       ref
@@ -1004,6 +1277,30 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           .setScheduleViewMode(ScheduleViewMode.agenda),
     );
   }
+}
+
+String _itemAnchorKey(ScheduleItem item) {
+  return '${item.kind.name}:${item.accountId}:${item.sourceId}:${item.id}';
+}
+
+Object? _eventRemindersForEdit(BusyProvider provider, List<int> minutes) {
+  final normalized = [
+    for (final value in minutes)
+      if (value > 0) value,
+  ];
+  if (normalized.isEmpty) {
+    return null;
+  }
+  if (provider == TaskProvider.google) {
+    return {
+      'useDefault': false,
+      'overrides': [
+        for (final minutes in normalized)
+          {'method': 'popup', 'minutes': minutes},
+      ],
+    };
+  }
+  return {'isReminderOn': true, 'reminderMinutesBeforeStart': normalized.first};
 }
 
 T? _findCommandItem<T extends ScheduleItem>(
@@ -1069,6 +1366,7 @@ class _HeaderBarStateSnapshot {
     required this.canRefresh,
     required this.searchActive,
     required this.sidebarVisible,
+    required this.navigationVisible,
   });
 
   final String titleRange;
@@ -1076,6 +1374,7 @@ class _HeaderBarStateSnapshot {
   final bool canRefresh;
   final bool searchActive;
   final bool sidebarVisible;
+  final bool navigationVisible;
 
   @override
   bool operator ==(Object other) {
@@ -1085,7 +1384,8 @@ class _HeaderBarStateSnapshot {
             viewMode == other.viewMode &&
             canRefresh == other.canRefresh &&
             searchActive == other.searchActive &&
-            sidebarVisible == other.sidebarVisible;
+            sidebarVisible == other.sidebarVisible &&
+            navigationVisible == other.navigationVisible;
   }
 
   @override
@@ -1095,7 +1395,20 @@ class _HeaderBarStateSnapshot {
     canRefresh,
     searchActive,
     sidebarVisible,
+    navigationVisible,
   );
+}
+
+class _ScheduleItemsResult {
+  const _ScheduleItemsResult({
+    required this.items,
+    this.hasMoreOverdueTasks = false,
+    this.hasMoreNoDateTasks = false,
+  });
+
+  final List<ScheduleItem> items;
+  final bool hasMoreOverdueTasks;
+  final bool hasMoreNoDateTasks;
 }
 
 class _ScheduleBody extends StatelessWidget {
@@ -1105,9 +1418,12 @@ class _ScheduleBody extends StatelessWidget {
     required this.range,
     required this.selectedDate,
     required this.firstWeekday,
+    required this.dayStartMinute,
+    required this.dayEndMinute,
     required this.hasAnySources,
     required this.items,
     required this.onDaySelected,
+    required this.onYearDaySelected,
     required this.onMonthSelected,
     required this.onEmptySlot,
     required this.onCreateAtDay,
@@ -1115,7 +1431,13 @@ class _ScheduleBody extends StatelessWidget {
     required this.onNewTask,
     required this.onPrevious,
     required this.onNext,
+    required this.onAgendaLoadMore,
+    required this.hasMoreAgendaOverdueTasks,
+    required this.hasMoreAgendaNoDateTasks,
+    required this.onAgendaLoadMoreOverdue,
+    required this.onAgendaLoadMoreNoDate,
     required this.onItemSelected,
+    required this.onItemAnchorAvailable,
     required this.onTaskCompletionChanged,
   });
 
@@ -1124,9 +1446,12 @@ class _ScheduleBody extends StatelessWidget {
   final ScheduleRange range;
   final DateTime selectedDate;
   final int firstWeekday;
+  final int dayStartMinute;
+  final int dayEndMinute;
   final bool hasAnySources;
   final List<ScheduleItem> items;
   final ValueChanged<DateTime> onDaySelected;
+  final ValueChanged<DateTime> onYearDaySelected;
   final ValueChanged<DateTime> onMonthSelected;
   final ValueChanged<DateTime> onEmptySlot;
   final ValueChanged<DateTime> onCreateAtDay;
@@ -1134,7 +1459,13 @@ class _ScheduleBody extends StatelessWidget {
   final VoidCallback onNewTask;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final VoidCallback? onAgendaLoadMore;
+  final bool hasMoreAgendaOverdueTasks;
+  final bool hasMoreAgendaNoDateTasks;
+  final VoidCallback? onAgendaLoadMoreOverdue;
+  final VoidCallback? onAgendaLoadMoreNoDate;
+  final ScheduleItemSelectionCallback onItemSelected;
+  final ScheduleItemAnchorCallback onItemAnchorAvailable;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -1151,6 +1482,8 @@ class _ScheduleBody extends StatelessWidget {
         range: range,
         selectedDate: selectedDate,
         daysShowed: 1,
+        dayStartMinute: dayStartMinute,
+        dayEndMinute: dayEndMinute,
         items: items,
         onDaySelected: onDaySelected,
         onEmptySlot: onEmptySlot,
@@ -1161,6 +1494,8 @@ class _ScheduleBody extends StatelessWidget {
         range: range,
         selectedDate: selectedDate,
         daysShowed: 7,
+        dayStartMinute: dayStartMinute,
+        dayEndMinute: dayEndMinute,
         items: items,
         onDaySelected: onDaySelected,
         onEmptySlot: onEmptySlot,
@@ -1188,20 +1523,22 @@ class _ScheduleBody extends StatelessWidget {
           selectedDate: selectedDate,
           items: items,
           firstWeekday: firstWeekday,
-          onDaySelected: onDaySelected,
+          onDaySelected: onYearDaySelected,
           onMonthSelected: onMonthSelected,
           onCreateAtDay: onCreateAtDay,
         ),
       ),
-      ScheduleViewMode.agenda => _HorizontalSchedulePager(
-        onPrevious: onPrevious,
-        onNext: onNext,
-        child: ScheduleAgendaView(
-          range: range,
-          items: items,
-          onItemSelected: onItemSelected,
-          onTaskCompletionChanged: onTaskCompletionChanged,
-        ),
+      ScheduleViewMode.agenda => ScheduleAgendaView(
+        range: range,
+        items: items,
+        hasMoreOverdueTasks: hasMoreAgendaOverdueTasks,
+        hasMoreNoDateTasks: hasMoreAgendaNoDateTasks,
+        onLoadMore: onAgendaLoadMore,
+        onLoadMoreOverdue: onAgendaLoadMoreOverdue,
+        onLoadMoreNoDate: onAgendaLoadMoreNoDate,
+        onItemSelected: onItemSelected,
+        onItemAnchorAvailable: onItemAnchorAvailable,
+        onTaskCompletionChanged: onTaskCompletionChanged,
       ),
     };
   }
@@ -1309,7 +1646,7 @@ String _scheduleRangeLabel(
     ScheduleViewMode.day => DateFormat.yMMMMEEEEd(locale).format(selectedDate),
     ScheduleViewMode.month => DateFormat.yMMMM(locale).format(selectedDate),
     ScheduleViewMode.year => DateFormat.y(locale).format(selectedDate),
-    ScheduleViewMode.agenda => _weekRangeLabel(locale, range),
+    ScheduleViewMode.agenda => context.l10n.viewAgenda,
     ScheduleViewMode.week => _weekRangeLabel(locale, range),
   };
 }

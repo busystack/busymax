@@ -8,6 +8,7 @@ import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 import '../platform/busymax_tray_service.dart';
 import '../platform/gtk_font_service.dart';
 import '../platform/linux_header_bar_service.dart';
+import '../platform/main_window_command_bridge.dart';
 import 'app_bootstrap.dart';
 import 'app_router.dart';
 import '../../l10n/generated/app_localizations.dart';
@@ -91,8 +92,10 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
                 quitBusyMax: l10n.exit,
               ),
             );
-            return _BusyMaxWindowCornerClip(
-              child: child ?? const SizedBox.shrink(),
+            return MainWindowCommandBridge(
+              child: _BusyMaxWindowCornerClip(
+                child: child ?? const SizedBox.shrink(),
+              ),
             );
           },
           routerConfig: router,
@@ -134,6 +137,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         await service.setSidebarWidth(BusyMaxSizes.sidebarWidth);
         await service.setTheme(
           BusyMaxHeaderBarTheme(
+            windowBackgroundColor: colors.window,
             backgroundColor: colors.view,
             sidebarBackgroundColor: colors.sidebar,
             foregroundColor: colors.foreground,
@@ -178,20 +182,18 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       return;
     }
     _lastTrayEnabled = trayEnabled;
+    final compactAgendaWindows = ref.read(compactAgendaWindowServiceProvider);
     final tray = _trayService ??= BusyMaxTrayService(
       windowService: windowService,
       labels: labels,
-      onOpenAgenda: () => _openTrayAgenda(ref),
+      onOpenAgenda: compactAgendaWindows.toggle,
+      onBeforeQuit: compactAgendaWindows.closeIfOpen,
     );
     if (trayEnabled) {
       unawaited(tray.start());
     } else {
       unawaited(tray.stop());
     }
-  }
-
-  Future<void> _openTrayAgenda(WidgetRef ref) async {
-    ref.read(appRouterProvider).go('/tray-agenda');
   }
 }
 

@@ -13,6 +13,7 @@ import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
+import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
@@ -143,7 +144,7 @@ void main() {
     expect((light.tooltipTheme.decoration! as BoxDecoration).border, isNull);
     expect(
       (light.tooltipTheme.decoration! as BoxDecoration).boxShadow,
-      BusyMaxShadow.floatingShadows(lightColors.shade),
+      BusyMaxShadow.tooltipShadows(lightColors.shade),
     );
     expect(
       (dark.tooltipTheme.decoration! as BoxDecoration).color,
@@ -152,7 +153,7 @@ void main() {
     expect((dark.tooltipTheme.decoration! as BoxDecoration).border, isNull);
     expect(
       (dark.tooltipTheme.decoration! as BoxDecoration).boxShadow,
-      BusyMaxShadow.floatingShadows(darkColors.shade),
+      BusyMaxShadow.tooltipShadows(darkColors.shade),
     );
     expect(light.tooltipTheme.textStyle?.color, lightColors.foreground);
     expect(dark.tooltipTheme.textStyle?.color, darkColors.foreground);
@@ -761,6 +762,10 @@ void main() {
   test('ThemeMode.system is the default', () {
     expect(AppSettings.defaults().themeMode, ThemeMode.system);
     expect(AppSettings.defaults().scheduleViewMode, ScheduleViewMode.week);
+    expect(
+      AppSettings.defaults().notificationDetailLevel,
+      NotificationDetailLevel.normal,
+    );
   });
 
   test('light and dark override persists', () async {
@@ -793,6 +798,27 @@ void main() {
     expect(store.json['scheduleViewMode'], 'month');
   });
 
+  test('notification detail settings stay synchronized', () async {
+    final store = _MemorySettingsStore();
+    final settings = AppSettingsController(store);
+    await Future<void>.delayed(Duration.zero);
+
+    await settings.setNotificationDetailLevel(NotificationDetailLevel.private);
+    expect(settings.state.detailedNotifications, isFalse);
+
+    await settings.setDetailedNotifications(true);
+    expect(
+      settings.state.notificationDetailLevel,
+      NotificationDetailLevel.normal,
+    );
+
+    final loaded = AppSettings.fromJson({
+      'detailedNotifications': true,
+      'notificationDetailLevel': 'private',
+    });
+    expect(loaded.notificationDetailLevel, NotificationDetailLevel.normal);
+  });
+
   test('native headerbar receives semantic surface colors', () {
     final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
 
@@ -801,6 +827,7 @@ void main() {
       contains('final colors = BusyMaxSurfaceColors.of(context);'),
     );
     expect(source, contains('await service.setTheme('));
+    expect(source, contains('windowBackgroundColor: colors.window'));
     expect(source, contains('backgroundColor: colors.view'));
     expect(source, contains('sidebarBackgroundColor: colors.sidebar'));
     expect(source, contains('controlHoverColor: colors.controlHover'));
@@ -812,12 +839,20 @@ void main() {
     expect(source, isNot(contains('setSidebarBackgroundColor(')));
   });
 
-  test('root window clip avoids transparent black corner fringes', () {
-    final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
+  test(
+    'root window wrapper clips bottom corners over matching native backing',
+    () {
+      final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
 
-    expect(source, contains('clipBehavior: Clip.antiAliasWithSaveLayer'));
-    expect(source, contains('color: BusyMaxSurfaceColors.of(context).window'));
-  });
+      expect(source, contains('ClipRRect('));
+      expect(source, contains('bottom: Radius.circular(BusyMaxRadius.window)'));
+      expect(source, contains('clipBehavior: Clip.antiAliasWithSaveLayer'));
+      expect(
+        source,
+        contains('color: BusyMaxSurfaceColors.of(context).window'),
+      );
+    },
+  );
 
   test('signed-out onboarding background matches main content surface', () {
     final source = File(
@@ -853,10 +888,14 @@ void main() {
   testWidgets('BusyMaxApp wires localization delegates and system theme', (
     tester,
   ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
           localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
         ],
         child: const BusyMaxApp(),

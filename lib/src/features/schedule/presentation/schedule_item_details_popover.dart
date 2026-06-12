@@ -18,8 +18,11 @@ Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
   required BuildContext context,
   required BuildContext anchorContext,
   required ScheduleItem item,
+  Offset? anchorPoint,
 }) {
-  final anchorRect = _globalRectFor(anchorContext);
+  final anchorRect = anchorPoint == null
+      ? _globalRectFor(anchorContext)
+      : _globalRectForPoint(anchorPoint);
   return showGeneralDialog<ScheduleItemDetailsAction>(
     context: context,
     barrierDismissible: true,
@@ -68,7 +71,7 @@ class _ScheduleItemDetailsPopover extends StatelessWidget {
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final position = _popoverPosition(
+            final layout = _popoverLayout(
               anchorRect,
               constraints.biggest,
               textDirection: Directionality.of(context),
@@ -81,20 +84,21 @@ class _ScheduleItemDetailsPopover extends StatelessWidget {
                     onTap: () => Navigator.of(context).pop(),
                   ),
                 ),
-                Positioned(
-                  left: position.left,
-                  top: position.top,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minWidth: position.width,
-                      maxWidth: position.width,
-                    ),
-                    child: _ScheduleItemDetailsPopoverCard(
-                      item: item,
-                      itemColor: itemColor,
-                      surfaceColors: surfaceColors,
-                      arrowSide: position.arrowSide,
-                      arrowAlignment: position.arrowAlignment,
+                Positioned.fill(
+                  child: CustomSingleChildLayout(
+                    delegate: _PopoverPositionDelegate(layout),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: layout.width,
+                        maxWidth: layout.width,
+                      ),
+                      child: _ScheduleItemDetailsPopoverCard(
+                        item: item,
+                        itemColor: itemColor,
+                        surfaceColors: surfaceColors,
+                        arrowSide: layout.arrowSide,
+                        arrowAlignment: layout.arrowAlignment,
+                      ),
                     ),
                   ),
                 ),
@@ -240,7 +244,11 @@ Rect? _globalRectFor(BuildContext context) {
   return renderObject.localToGlobal(Offset.zero) & renderObject.size;
 }
 
-_PopoverPosition _popoverPosition(
+Rect _globalRectForPoint(Offset point) {
+  return Rect.fromCenter(center: point, width: 1, height: 1);
+}
+
+_PopoverLayout _popoverLayout(
   Rect? anchor,
   Size viewport, {
   required TextDirection textDirection,
@@ -258,11 +266,9 @@ _PopoverPosition _popoverPosition(
   final maxLeft = math.max(margin, viewport.width - width - margin);
 
   if (anchor == null) {
-    return _PopoverPosition(
+    return _PopoverLayout(
+      anchor: null,
       left: ((viewport.width - width) / 2).clamp(margin, maxLeft).toDouble(),
-      top: ((viewport.height - estimatedHeight) / 2)
-          .clamp(margin, math.max(margin, viewport.height - margin))
-          .toDouble(),
       width: width,
       arrowSide: BusyMaxPopoverArrowSide.top,
       arrowAlignment: 0.5,
@@ -274,17 +280,14 @@ _PopoverPosition _popoverPosition(
       : anchor.left;
   final left = preferredLeft.clamp(margin, maxLeft).toDouble();
   final below = anchor.bottom + gap;
-  final above = anchor.top - estimatedHeight - gap;
-  final maxTop = math.max(margin, viewport.height - estimatedHeight - margin);
   final showBelow = below + estimatedHeight <= viewport.height - margin;
-  final top = (showBelow ? below : above).clamp(margin, maxTop).toDouble();
   final arrowAlignment = ((anchor.center.dx - left) / width)
       .clamp(0.08, 0.92)
       .toDouble();
 
-  return _PopoverPosition(
+  return _PopoverLayout(
+    anchor: anchor,
     left: left,
-    top: top,
     width: width,
     arrowSide: showBelow
         ? BusyMaxPopoverArrowSide.top
@@ -293,20 +296,65 @@ _PopoverPosition _popoverPosition(
   );
 }
 
-class _PopoverPosition {
-  const _PopoverPosition({
+class _PopoverLayout {
+  const _PopoverLayout({
+    required this.anchor,
     required this.left,
-    required this.top,
     required this.width,
     required this.arrowSide,
     required this.arrowAlignment,
   });
 
+  final Rect? anchor;
   final double left;
-  final double top;
   final double width;
   final BusyMaxPopoverArrowSide arrowSide;
   final double arrowAlignment;
+}
+
+class _PopoverPositionDelegate extends SingleChildLayoutDelegate {
+  const _PopoverPositionDelegate(this.layout);
+
+  final _PopoverLayout layout;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    const margin = BusyMaxSpacing.md;
+    return BoxConstraints(
+      minWidth: layout.width,
+      maxWidth: layout.width,
+      maxHeight: math.max(0, constraints.maxHeight - margin * 2),
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    const margin = BusyMaxSpacing.md;
+    const gap = BusyMaxSpacing.xs;
+    final maxTop = math.max(margin, size.height - childSize.height - margin);
+    final anchor = layout.anchor;
+
+    if (anchor == null) {
+      final centered = (size.height - childSize.height) / 2;
+      return Offset(layout.left, centered.clamp(margin, maxTop).toDouble());
+    }
+
+    final preferredTop = switch (layout.arrowSide) {
+      BusyMaxPopoverArrowSide.top => anchor.bottom + gap,
+      BusyMaxPopoverArrowSide.bottom => anchor.top - childSize.height - gap,
+    };
+    return Offset(layout.left, preferredTop.clamp(margin, maxTop).toDouble());
+  }
+
+  @override
+  bool shouldRelayout(covariant _PopoverPositionDelegate oldDelegate) {
+    final old = oldDelegate.layout;
+    return layout.anchor != old.anchor ||
+        layout.left != old.left ||
+        layout.width != old.width ||
+        layout.arrowSide != old.arrowSide ||
+        layout.arrowAlignment != old.arrowAlignment;
+  }
 }
 
 class _ScheduleItemDetails extends StatelessWidget {
@@ -330,7 +378,7 @@ class _ScheduleItemDetails extends StatelessWidget {
       if (_accountLabel(item) case final account? when account.isNotEmpty)
         _ScheduleDetailRow(icon: Icons.person_outline, text: account),
       if (item is CalendarScheduleItem)
-        ..._eventDetails(item as CalendarScheduleItem),
+        ..._eventDetails(context, item as CalendarScheduleItem),
       if (item is TaskScheduleItem)
         ..._taskDetails(context, item as TaskScheduleItem),
     ];
@@ -427,12 +475,24 @@ class _ScheduleDetailRichRow extends StatelessWidget {
   }
 }
 
-List<Widget> _eventDetails(CalendarScheduleItem item) {
+List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
   final location = item.location?.trim();
   final description = item.description?.trim();
   return [
     if (location != null && location.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.place_outlined, text: location),
+    if (item.reminderMinutesBeforeStart.isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.notifications_outlined,
+        text:
+            '${context.l10n.reminder}: '
+            '${item.reminderMinutesBeforeStart.map(_reminderBeforeLabel).join(', ')}',
+      ),
+    if (item.categories.isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.sell_outlined,
+        text: '${context.l10n.categories}: ${item.categories.join(', ')}',
+      ),
     if (item.descriptionHtml != null &&
         isHtmlContentType(item.descriptionContentType))
       _ScheduleDetailRichRow(
@@ -452,9 +512,34 @@ List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
       icon: item.completed ? YaruIcons.checkmark : Icons.radio_button_unchecked,
       text: item.completed ? context.l10n.completed : context.l10n.openStatus,
     ),
+    if (item.reminder != null)
+      _ScheduleDetailRow(
+        icon: Icons.notifications_outlined,
+        text:
+            '${context.l10n.reminder}: '
+            '${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).add_jm().format(item.reminder!)}',
+      ),
+    if (item.categories.isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.sell_outlined,
+        text: '${context.l10n.categories}: ${item.categories.join(', ')}',
+      ),
     if (notes != null && notes.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.notes, text: notes),
   ];
+}
+
+String _reminderBeforeLabel(int minutes) {
+  return switch (minutes) {
+    0 => 'At start',
+    1 => '1 minute before',
+    < 60 => '$minutes minutes before',
+    60 => '1 hour before',
+    < 1440 when minutes % 60 == 0 => '${minutes ~/ 60} hours before',
+    1440 => '1 day before',
+    > 1440 when minutes % 1440 == 0 => '${minutes ~/ 1440} days before',
+    _ => '$minutes minutes before',
+  };
 }
 
 String _kindLabel(BuildContext context, ScheduleItem item) {

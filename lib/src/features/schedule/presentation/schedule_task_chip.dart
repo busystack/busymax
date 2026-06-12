@@ -5,6 +5,7 @@ import '../../../app/busymax_design.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'schedule_event_block.dart';
+import 'schedule_item_selection.dart';
 
 class ScheduleTaskChip extends StatelessWidget {
   const ScheduleTaskChip({
@@ -21,7 +22,7 @@ class ScheduleTaskChip extends StatelessWidget {
   final double height;
   final double? width;
   final bool compact;
-  final ValueChanged<BuildContext>? onTap;
+  final ScheduleItemTapCallback? onTap;
   final ValueChanged<bool>? onCompletionChanged;
 
   @override
@@ -45,7 +46,15 @@ class ScheduleTaskChip extends StatelessWidget {
     ].join(' · ');
     final blockWidth = scheduleSafeBlockWidth(width);
     final blockHeight = scheduleSafeBlockHeight(height);
+    final horizontalPadding = compact ? 5.0 : 8.0;
+    final checkboxSize = compact ? 14.0 : 16.0;
+    final contentWidth = blockWidth == null
+        ? double.infinity
+        : blockWidth - horizontalPadding * 2;
+    final showContent = contentWidth >= 28;
+    final showCheckbox = contentWidth >= checkboxSize + BusyMaxSpacing.xs + 24;
 
+    Offset? pointerDownPosition;
     return Tooltip(
       message: '${item.title}\n$details',
       waitDuration: const Duration(milliseconds: 600),
@@ -56,10 +65,15 @@ class ScheduleTaskChip extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-            onTap: onTap == null ? null : () => onTap!(context),
+            onTapDown: onTap == null
+                ? null
+                : (details) => pointerDownPosition = details.globalPosition,
+            onTap: onTap == null
+                ? null
+                : () => onTap!(context, pointerDownPosition),
             child: Container(
               padding: EdgeInsets.symmetric(
-                horizontal: compact ? 5 : 8,
+                horizontal: horizontalPadding,
                 vertical: compact ? 1 : 5,
               ),
               decoration: BoxDecoration(
@@ -67,35 +81,40 @@ class ScheduleTaskChip extends StatelessWidget {
                 borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
                 border: Border(left: BorderSide(color: color, width: 3)),
               ),
-              child: Row(
-                children: [
-                  SizedBox.square(
-                    dimension: compact ? 14 : 16,
-                    child: YaruCheckbox(
-                      value: item.completed,
-                      onChanged: onCompletionChanged == null
-                          ? null
-                          : (value) => onCompletionChanged!(value ?? false),
-                    ),
-                  ),
-                  const SizedBox(width: BusyMaxSpacing.xs),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
+              child: showContent
+                  ? Row(
                       children: [
-                        Text(
-                          item.title,
-                          maxLines: compact ? 1 : 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: titleStyle,
+                        if (showCheckbox) ...[
+                          SizedBox.square(
+                            dimension: checkboxSize,
+                            child: YaruCheckbox(
+                              value: item.completed,
+                              onChanged: onCompletionChanged == null
+                                  ? null
+                                  : (value) =>
+                                        onCompletionChanged!(value ?? false),
+                            ),
+                          ),
+                          const SizedBox(width: BusyMaxSpacing.xs),
+                        ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: compact ? 1 : 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: titleStyle,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                ],
-              ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
         ),

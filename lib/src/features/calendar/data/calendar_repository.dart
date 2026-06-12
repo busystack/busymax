@@ -66,12 +66,20 @@ class CalendarSourceEntity {
 }
 
 class CalendarRepository {
-  CalendarRepository({required AppDatabase database, DateTime Function()? now})
-    : _database = database,
-      _now = now ?? DateTime.now;
+  CalendarRepository({
+    required AppDatabase database,
+    DateTime Function()? now,
+    String? localTimeZone,
+    Future<void> Function()? onNotificationScheduleChanged,
+  }) : _database = database,
+       _now = now ?? DateTime.now,
+       _localTimeZone = localTimeZone,
+       _onNotificationScheduleChanged = onNotificationScheduleChanged;
 
   final AppDatabase _database;
   final DateTime Function() _now;
+  final String? _localTimeZone;
+  final Future<void> Function()? _onNotificationScheduleChanged;
 
   Stream<List<CalendarSourceEntity>> watchSourcesForAccounts(
     List<String> accountIds,
@@ -269,6 +277,7 @@ class CalendarRepository {
             recurrenceJson: Value(_json(event.recurrenceJson)),
             remindersJson: Value(_json(event.remindersJson)),
             attendeesJson: Value(_json(event.attendeesJson)),
+            categoriesJson: Value(_json(event.categoriesJson)),
             organizerJson: Value(_json(event.organizerJson)),
             creatorJson: Value(_json(event.creatorJson)),
             colorId: Value(event.colorId),
@@ -340,11 +349,16 @@ class CalendarRepository {
     final now = _now().millisecondsSinceEpoch;
     final provider = TaskProviderParsing.fromStorageValue(source.provider);
     final localEventId = 'local:${const Uuid().v4()}';
-    final startTimeZone = _effectiveStartTimeZone(draft, source.timeZone);
+    final startTimeZone = _effectiveStartTimeZone(
+      draft,
+      source.timeZone,
+      _localTimeZone,
+    );
     final endTimeZone = _effectiveEndTimeZone(
       draft,
       source.timeZone,
       startTimeZone,
+      _localTimeZone,
     );
     final id = eventId(
       accountId: draft.accountId,
@@ -388,6 +402,7 @@ class CalendarRepository {
               recurrenceJson: Value(_json(draft.recurrence)),
               remindersJson: Value(_json(draft.reminders)),
               attendeesJson: Value(_json(_attendeesJson(draft, provider))),
+              categoriesJson: Value(_json(_categoriesJson(draft, provider))),
               colorId: Value(draft.colorId),
               visibility: Value(draft.visibilityOrSensitivity),
               transparencyOrShowAs: Value(draft.showAs),
@@ -419,9 +434,10 @@ class CalendarRepository {
             ),
           );
     });
-    await NotificationScheduleService(
-      database: _database,
-    ).rebuildUpcomingEventNotifications(draft.accountId);
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      draft.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> updateLocalEvent(EventEditorDraft draft) async {
@@ -437,11 +453,16 @@ class CalendarRepository {
     )..where((row) => row.id.equals(eventId))).getSingle();
     final now = _now().millisecondsSinceEpoch;
     final provider = TaskProviderParsing.fromStorageValue(source.provider);
-    final startTimeZone = _effectiveStartTimeZone(draft, source.timeZone);
+    final startTimeZone = _effectiveStartTimeZone(
+      draft,
+      source.timeZone,
+      _localTimeZone,
+    );
     final endTimeZone = _effectiveEndTimeZone(
       draft,
       source.timeZone,
       startTimeZone,
+      _localTimeZone,
     );
     final requestJson = jsonEncode(
       _eventRequest(
@@ -477,6 +498,7 @@ class CalendarRepository {
           recurrenceJson: Value(_json(draft.recurrence)),
           remindersJson: Value(_json(draft.reminders)),
           attendeesJson: Value(_json(_attendeesJson(draft, provider))),
+          categoriesJson: Value(_json(_categoriesJson(draft, provider))),
           colorId: Value(draft.colorId),
           visibility: Value(draft.visibilityOrSensitivity),
           transparencyOrShowAs: Value(draft.showAs),
@@ -506,9 +528,10 @@ class CalendarRepository {
             ),
           );
     });
-    await NotificationScheduleService(
-      database: _database,
-    ).rebuildUpcomingEventNotifications(draft.accountId);
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      draft.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<String> deleteLocalEvent(String eventId) async {
@@ -547,10 +570,18 @@ class CalendarRepository {
             ),
           );
     });
-    await NotificationScheduleService(
-      database: _database,
-    ).rebuildUpcomingEventNotifications(existing.accountId);
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      existing.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
     return existing.accountId;
+  }
+
+  NotificationScheduleService _notificationScheduleService() {
+    return NotificationScheduleService(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    );
   }
 
   Future<void> markMissingEventsDeleted({
@@ -670,7 +701,7 @@ Map<String, Object?> _eventRequest(
     'remindersJson': draft.reminders,
     'attendeesJson': _attendeesJson(draft, provider),
     'colorId': draft.colorId,
-    'categoriesJson': draft.categories,
+    'categoriesJson': _categoriesJson(draft, provider),
     'visibility': provider == TaskProvider.google
         ? draft.visibilityOrSensitivity
         : null,
@@ -689,25 +720,59 @@ Map<String, Object?> _eventRequest(
 String? _effectiveStartTimeZone(
   EventEditorDraft draft,
   String? sourceTimeZone,
+  String? localTimeZone,
 ) {
   if (draft.allDay) {
     return null;
   }
-  return _nonBlank(draft.startTimeZone) ?? _nonBlank(sourceTimeZone) ?? 'UTC';
+  return _effectiveTimedEventZone(
+    explicitTimeZone: draft.startTimeZone,
+    sourceTimeZone: sourceTimeZone,
+    localTimeZone: localTimeZone,
+  );
 }
 
 String? _effectiveEndTimeZone(
   EventEditorDraft draft,
   String? sourceTimeZone,
   String? startTimeZone,
+  String? localTimeZone,
 ) {
   if (draft.allDay) {
     return null;
   }
-  return _nonBlank(draft.endTimeZone) ??
+  final explicit = _nonBlank(draft.endTimeZone);
+  if (explicit != null && !_isUtcTimeZone(explicit)) {
+    return explicit;
+  }
+  return _nonBlank(startTimeZone) ??
+      _nonBlank(localTimeZone) ??
+      explicit ??
       _nonBlank(sourceTimeZone) ??
-      startTimeZone ??
       'UTC';
+}
+
+String _effectiveTimedEventZone({
+  required String? explicitTimeZone,
+  required String? sourceTimeZone,
+  required String? localTimeZone,
+}) {
+  final explicit = _nonBlank(explicitTimeZone);
+  if (explicit != null && !_isUtcTimeZone(explicit)) {
+    return explicit;
+  }
+  return _nonBlank(localTimeZone) ??
+      explicit ??
+      _nonBlank(sourceTimeZone) ??
+      'UTC';
+}
+
+bool _isUtcTimeZone(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized == 'utc' ||
+      normalized == 'etc/utc' ||
+      normalized == 'gmt' ||
+      normalized == 'etc/gmt';
 }
 
 String? _nonBlank(String? value) {
@@ -725,6 +790,13 @@ Object? _attendeesJson(EventEditorDraft draft, BusyProvider provider) {
           ? attendee.toMicrosoftJson()
           : attendee.toGoogleJson(),
   ];
+}
+
+Object? _categoriesJson(EventEditorDraft draft, BusyProvider provider) {
+  if (provider != TaskProvider.microsoft) {
+    return null;
+  }
+  return draft.categories;
 }
 
 String? _date(DateTime? value) {

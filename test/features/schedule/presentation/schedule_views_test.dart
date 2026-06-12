@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_day_week_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_event_block.dart';
@@ -36,7 +37,7 @@ void main() {
               items: _itemsFor(selectedDate),
               onDaySelected: (_) {},
               onEmptySlot: (_) {},
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -50,6 +51,61 @@ void main() {
     expect(find.text('Submit report', skipOffstage: false), findsOneWidget);
     expect(find.byType(icv.EventsMonths), findsNothing);
     expect(find.byType(icv.EventsList), findsNothing);
+  });
+
+  testWidgets('day view applies configured display hours to planner scroll', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleDayWeekView(
+              range: ScheduleRange.day(selectedDate),
+              selectedDate: selectedDate,
+              daysShowed: 1,
+              dayStartMinute: 8 * 60,
+              dayEndMinute: 18 * 60,
+              items: _itemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onEmptySlot: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final planner = tester.widget<icv.EventsPlanner>(
+      find.byType(icv.EventsPlanner),
+    );
+    expect(planner.initialVerticalScrollOffset, 0.9 * 8 * 60);
+    expect(planner.minVerticalScrollOffset, isNull);
+    expect(planner.maxVerticalScrollOffset, isNull);
+    expect(planner.offTimesParam.offTimesAllDaysRanges, hasLength(2));
+    expect(planner.offTimesParam.offTimesAllDaysRanges.first.start.hour, 0);
+    expect(planner.offTimesParam.offTimesAllDaysRanges.first.end.hour, 8);
+    expect(planner.offTimesParam.offTimesAllDaysRanges.last.start.hour, 18);
+    expect(planner.offTimesParam.offTimesAllDaysRanges.last.end.hour, 24);
+    final painter =
+        planner.offTimesParam.offTimesAllDaysPainter!(
+              0,
+              selectedDate,
+              true,
+              0.9,
+              planner.offTimesParam.offTimesAllDaysRanges,
+              Theme.of(
+                tester.element(find.byType(ScheduleDayWeekView)),
+              ).colorScheme.surface,
+            )
+            as icv.OffSetAllDaysPainter;
+    expect(painter.paintToday, isTrue);
   });
 
   testWidgets('short overlapping event block does not overflow', (
@@ -74,29 +130,119 @@ void main() {
     expect(find.text('Design review'), findsOneWidget);
   });
 
-  testWidgets('event and task chips tolerate negative planner widths', (
+  testWidgets('same-slot day items render in a horizontal strip', (
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
-    final items = _itemsFor(selectedDate);
-    final event = items.whereType<CalendarScheduleItem>().first;
-    final task = items.whereType<TaskScheduleItem>().first;
 
     await tester.pumpWidget(
       localizedTestApp(
         child: Scaffold(
-          body: Column(
-            children: [
-              ScheduleEventBlock(item: event, width: -331.6, height: 54),
-              ScheduleItemChip(item: task, width: -331.6, height: 54),
-            ],
+          body: SizedBox(
+            width: 320,
+            height: 520,
+            child: ScheduleDayWeekView(
+              range: ScheduleRange.day(selectedDate),
+              selectedDate: selectedDate,
+              daysShowed: 1,
+              items: _sameSlotItemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onEmptySlot: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
           ),
         ),
       ),
     );
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(tester.takeException(), isNull);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SingleChildScrollView &&
+            widget.scrollDirection == Axis.horizontal,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Design review', skipOffstage: false), findsOneWidget);
+    expect(find.text('Pairing session', skipOffstage: false), findsOneWidget);
+    expect(find.text('Submit report', skipOffstage: false), findsOneWidget);
   });
+
+  testWidgets('all-day panel scrolls vertically and resizes from handle', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 420,
+            height: 520,
+            child: ScheduleDayWeekView(
+              range: ScheduleRange.day(selectedDate),
+              selectedDate: selectedDate,
+              daysShowed: 1,
+              items: _manyAllDayItemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onEmptySlot: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final allDayScroll = find.byKey(const ValueKey('schedule-all-day-scroll'));
+    expect(tester.takeException(), isNull);
+    expect(allDayScroll, findsOneWidget);
+    expect(
+      tester.widget<SingleChildScrollView>(allDayScroll).scrollDirection,
+      Axis.vertical,
+    );
+    expect(find.text('All-day task 8', skipOffstage: false), findsOneWidget);
+
+    final handle = find.byKey(const ValueKey('schedule-all-day-resize-handle'));
+    expect(handle, findsOneWidget);
+    final before = tester.getTopLeft(handle).dy;
+    await tester.drag(handle, const Offset(0, 64));
+    await tester.pumpAndSettle();
+    final after = tester.getTopLeft(handle).dy;
+
+    expect(after, greaterThan(before + 30));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'event and task chips tolerate negative and tiny planner widths',
+    (tester) async {
+      final selectedDate = DateTime(2026, 1, 15);
+      final items = _itemsFor(selectedDate);
+      final event = items.whereType<CalendarScheduleItem>().first;
+      final task = items.whereType<TaskScheduleItem>().first;
+
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: Column(
+              children: [
+                ScheduleEventBlock(item: event, width: -331.6, height: 54),
+                ScheduleItemChip(item: task, width: -331.6, height: 54),
+                ScheduleItemChip(item: task, width: 33.5, height: 27),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   test('all-day bar uses rendered range and collapses without items', () {
     final source = File(
@@ -105,11 +251,16 @@ void main() {
 
     expect(
       source,
-      contains('final fullDayBarHeight = showFullDayBar ? 82.0 : 0.0;'),
+      contains(
+        'final fullDayBarHeight = showFullDayBar ? _fullDayBarHeight : 0.0;',
+      ),
     );
     expect(source, contains('fullDayEventsBarVisibility: showFullDayBar'));
     expect(source, contains('fullDayEventsBarHeight: fullDayBarHeight'));
     expect(source, contains('fullDayEventHeight: showFullDayBar ? 24 : 0'));
+    expect(source, contains('fullDayEventsBuilder: (events, width)'));
+    expect(source, contains("ValueKey('schedule-all-day-scroll')"));
+    expect(source, contains("ValueKey('schedule-all-day-resize-handle')"));
     expect(source, contains('final displayEnd = _endOfDay('));
     expect(source, contains('endTime: displayEnd'));
     expect(source, contains('final visibleStart = _plannerStartDate(widget);'));
@@ -138,7 +289,7 @@ void main() {
               items: _itemsFor(selectedDate),
               onDaySelected: (_) {},
               onCreateAtDay: (_) {},
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -149,6 +300,33 @@ void main() {
     expect(find.byType(icv.EventsMonths), findsNothing);
     expect(find.text('Design review'), findsOneWidget);
     expect(find.text('Submit report'), findsOneWidget);
+  });
+
+  testWidgets('month view avoids overflow in very short cells', (tester) async {
+    final selectedDate = DateTime(2026, 1, 15);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 700,
+            height: 120,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: _sameSlotItemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onCreateAtDay: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('calendar schedule chip invokes calendar item tap', (
@@ -167,7 +345,7 @@ void main() {
             child: ScheduleItemChip(
               item: event,
               height: 34,
-              onTap: (_) => selectedItem = event,
+              onTap: (_, [_]) => selectedItem = event,
             ),
           ),
         ),
@@ -223,6 +401,233 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(await action, ScheduleItemDetailsAction.export);
+  });
+
+  testWidgets('schedule item details popover shows categories', (tester) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final task = TaskScheduleItem(
+      id: 'task:1',
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      sourceId: 'tasks:inbox',
+      title: 'Submit report',
+      completed: false,
+      allDay: true,
+      start: selectedDate,
+      end: selectedDate.add(const Duration(days: 1)),
+      categories: const ['Home', 'Work'],
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: task,
+                  );
+                },
+                child: const Text('Open details'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Categories: Home, Work'), findsOneWidget);
+  });
+
+  testWidgets('schedule event details popover shows reminders and categories', (
+    tester,
+  ) async {
+    final event = CalendarScheduleItem(
+      id: 'event:1',
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'cal-1',
+      title: 'Design review',
+      allDay: false,
+      start: DateTime(2026, 1, 15, 9),
+      end: DateTime(2026, 1, 15, 10),
+      categories: const ['Blue category', 'Work'],
+      reminderMinutesBeforeStart: const [10, 60],
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: event,
+                  );
+                },
+                child: const Text('Open details'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Reminder: 10 minutes before, 1 hour before'),
+      findsOneWidget,
+    );
+    expect(find.text('Categories: Blue category, Work'), findsOneWidget);
+  });
+
+  testWidgets('schedule task details popover shows reminder', (tester) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final task = TaskScheduleItem(
+      id: 'task:1',
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      sourceId: 'tasks:inbox',
+      title: 'Submit report',
+      completed: false,
+      allDay: true,
+      start: selectedDate,
+      end: selectedDate.add(const Duration(days: 1)),
+      reminder: DateTime(2026, 1, 15, 8, 30),
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: task,
+                  );
+                },
+                child: const Text('Open details'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Reminder:'), findsOneWidget);
+    expect(find.textContaining('8:30'), findsOneWidget);
+  });
+
+  testWidgets('schedule item details popover anchors near click point', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final event = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: Builder(
+              builder: (context) {
+                return TextButton(
+                  onPressed: () {
+                    showScheduleItemDetailsPopover(
+                      context: context,
+                      anchorContext: context,
+                      anchorPoint: const Offset(700, 120),
+                      item: event,
+                    );
+                  },
+                  child: const Text('Open details'),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    final popover = find.byWidgetPredicate(
+      (widget) =>
+          widget is PhysicalShape &&
+          widget.elevation == BusyMaxElevation.tooltip,
+    );
+    final topLeft = tester.getTopLeft(popover);
+
+    expect(topLeft.dx, greaterThan(300));
+    expect(topLeft.dy, greaterThan(100));
+  });
+
+  testWidgets('schedule item details popover shown above stays near click', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final event = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: Builder(
+              builder: (context) {
+                return TextButton(
+                  onPressed: () {
+                    showScheduleItemDetailsPopover(
+                      context: context,
+                      anchorContext: context,
+                      anchorPoint: const Offset(700, 540),
+                      item: event,
+                    );
+                  },
+                  child: const Text('Open details'),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    final popover = find.byWidgetPredicate(
+      (widget) =>
+          widget is PhysicalShape &&
+          widget.elevation == BusyMaxElevation.tooltip,
+    );
+    final rect = tester.getRect(popover);
+
+    expect(rect.bottom, greaterThan(500));
+    expect(rect.bottom, lessThan(545));
   });
 
   testWidgets('schedule item details popover closes from empty space', (
@@ -321,6 +726,7 @@ void main() {
 
   testWidgets('agenda view is custom and keeps no-date tasks', (tester) async {
     final selectedDate = DateTime(2026, 1, 15);
+    final yesterday = selectedDate.subtract(const Duration(days: 1));
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -329,8 +735,55 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange(
+                start: selectedDate,
+                end: selectedDate.add(const Duration(days: 7)),
+              ),
               items: [
+                CalendarScheduleItem(
+                  id: 'event:past',
+                  accountId: 'google:g',
+                  provider: TaskProvider.google,
+                  sourceId: 'calendar:primary',
+                  providerCalendarId: 'primary',
+                  title: 'Yesterday event',
+                  allDay: false,
+                  start: DateTime(
+                    yesterday.year,
+                    yesterday.month,
+                    yesterday.day,
+                    9,
+                  ),
+                  end: DateTime(
+                    yesterday.year,
+                    yesterday.month,
+                    yesterday.day,
+                    10,
+                  ),
+                  sourceName: 'Work',
+                ),
+                TaskScheduleItem(
+                  id: 'task:overdue',
+                  accountId: 'microsoft:m',
+                  provider: TaskProvider.microsoft,
+                  sourceId: 'tasks:inbox',
+                  title: 'Pay invoice',
+                  completed: false,
+                  allDay: true,
+                  start: yesterday,
+                  sourceName: 'Inbox',
+                ),
+                TaskScheduleItem(
+                  id: 'task:completed-overdue',
+                  accountId: 'microsoft:m',
+                  provider: TaskProvider.microsoft,
+                  sourceId: 'tasks:inbox',
+                  title: 'Completed old task',
+                  completed: true,
+                  allDay: true,
+                  start: yesterday,
+                  sourceName: 'Inbox',
+                ),
                 ..._itemsFor(selectedDate),
                 const TaskScheduleItem(
                   id: 'task:no-date',
@@ -343,7 +796,7 @@ void main() {
                   sourceName: 'Inbox',
                 ),
               ],
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -352,10 +805,22 @@ void main() {
     );
 
     expect(find.byType(icv.EventsList), findsNothing);
+    expect(find.text('Overdue'), findsOneWidget);
+    expect(find.text('Pay invoice'), findsOneWidget);
+    expect(find.text('Completed old task'), findsNothing);
+    expect(find.text('Yesterday event'), findsNothing);
     expect(find.text('Design review'), findsOneWidget);
     expect(find.text('Submit report'), findsOneWidget);
     expect(find.text('No date'), findsOneWidget);
     expect(find.text('Plan someday'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Overdue')).dy,
+      lessThan(tester.getTopLeft(find.text('No date')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('No date')).dy,
+      lessThan(tester.getTopLeft(find.text('Design review')).dy),
+    );
   });
 
   testWidgets('agenda view stays blank instead of showing empty-state card', (
@@ -372,7 +837,7 @@ void main() {
             child: ScheduleAgendaView(
               range: ScheduleRange.week(selectedDate),
               items: const [],
-              onItemSelected: (_, _) {},
+              onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
           ),
@@ -383,6 +848,143 @@ void main() {
     expect(find.text('No events or tasks'), findsNothing);
     expect(find.text('New event'), findsNothing);
     expect(find.text('New task'), findsNothing);
+  });
+
+  testWidgets('agenda view reports row anchors for command popovers', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final anchors = <String, BuildContext>{};
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleAgendaView(
+              range: ScheduleRange.week(selectedDate),
+              items: _itemsFor(selectedDate),
+              onItemSelected: (_, _, [_]) {},
+              onItemAnchorAvailable: (item, context) {
+                anchors[item.id] = context;
+              },
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(anchors.keys, containsAll(['event:1', 'task:1']));
+    final renderObject = anchors['event:1']!.findRenderObject();
+    expect(renderObject, isA<RenderBox>());
+    expect((renderObject! as RenderBox).hasSize, isTrue);
+  });
+
+  testWidgets('agenda view asks for more items at the bottom', (tester) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    var loadMoreCount = 0;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 420,
+            height: 360,
+            child: ScheduleAgendaView(
+              range: ScheduleRange(
+                start: selectedDate,
+                end: selectedDate.add(const Duration(days: 30)),
+              ),
+              items: [
+                for (var index = 0; index < 45; index++)
+                  TaskScheduleItem(
+                    id: 'task:$index',
+                    accountId: 'google:g',
+                    provider: TaskProvider.google,
+                    sourceId: 'tasks:inbox',
+                    title: 'Task $index',
+                    completed: false,
+                    allDay: true,
+                    start: selectedDate.add(Duration(days: index)),
+                    sourceName: 'Inbox',
+                  ),
+              ],
+              onLoadMore: () => loadMoreCount++,
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -5000));
+    await tester.pump();
+
+    expect(loadMoreCount, 1);
+  });
+
+  testWidgets('agenda view renders load-more rows for bounded buckets', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    var overdueLoads = 0;
+    var noDateLoads = 0;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 640,
+            height: 520,
+            child: ScheduleAgendaView(
+              range: ScheduleRange(
+                start: selectedDate,
+                end: selectedDate.add(const Duration(days: 30)),
+              ),
+              items: [
+                TaskScheduleItem(
+                  id: 'task:overdue',
+                  accountId: 'google:g',
+                  provider: TaskProvider.google,
+                  sourceId: 'tasks:inbox',
+                  title: 'Pay invoice',
+                  completed: false,
+                  allDay: true,
+                  start: selectedDate.subtract(const Duration(days: 1)),
+                  sourceName: 'Inbox',
+                ),
+                const TaskScheduleItem(
+                  id: 'task:no-date',
+                  accountId: 'google:g',
+                  provider: TaskProvider.google,
+                  sourceId: 'tasks:inbox',
+                  title: 'Plan someday',
+                  completed: false,
+                  allDay: true,
+                  sourceName: 'Inbox',
+                ),
+              ],
+              hasMoreOverdueTasks: true,
+              hasMoreNoDateTasks: true,
+              onLoadMoreOverdue: () => overdueLoads += 1,
+              onLoadMoreNoDate: () => noDateLoads += 1,
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Load more overdue tasks'));
+    await tester.tap(find.text('Load more no-date tasks'));
+
+    expect(overdueLoads, 1);
+    expect(noDateLoads, 1);
   });
 
   test('schedule presentation does not use banned package final UI', () {
@@ -468,6 +1070,7 @@ void main() {
     expect(source, contains('exportScheduleItemWithSaveDialog(item)'));
     expect(source, isNot(contains('exportScheduleItemToDownloads(item)')));
     expect(source, contains('void _editItem('));
+    expect(source, contains('reminders: _eventRemindersForEdit('));
   });
 
   test(
@@ -730,7 +1333,7 @@ void main() {
     expect(selectedYear, DateTime(2026));
   });
 
-  test('sidebar mini calendar opens month and week modes', () {
+  test('sidebar mini calendar opens day, month, year, and week modes', () {
     final sidebar = File(
       'lib/src/features/schedule/presentation/schedule_sidebar.dart',
     ).readAsStringSync();
@@ -751,18 +1354,32 @@ void main() {
     expect(sidebar, contains('onMonthSelected: onMonthSelected'));
     expect(sidebar, contains('onYearSelected: onYearSelected'));
     expect(sidebar, contains('onWeekSelected: onWeekSelected'));
+    expect(workspace, contains('onDateSelected: _openDay'));
     expect(workspace, contains('onMonthSelected: _setMonth'));
     expect(workspace, contains('onYearSelected: _setYear'));
     expect(workspace, contains('onWeekSelected: _setWeek'));
+    expect(workspace, contains('void _openDay(DateTime date)'));
     expect(workspace, contains('void _setMonth(DateTime month)'));
     expect(workspace, contains('void _setYear(DateTime year)'));
     expect(workspace, contains('void _setWeek(DateTime weekStart)'));
+    expect(workspace, contains('_mode = ScheduleViewMode.day'));
     expect(workspace, contains('_mode = ScheduleViewMode.month'));
     expect(workspace, contains('_mode = ScheduleViewMode.year'));
     expect(workspace, contains('_mode = ScheduleViewMode.week'));
+    expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.day)'));
     expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.month)'));
     expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.year)'));
     expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.week)'));
+  });
+
+  test('year view day clicks open day mode', () {
+    final workspace = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(workspace, contains('required this.onYearDaySelected'));
+    expect(workspace, contains('onYearDaySelected: _openDay'));
+    expect(workspace, contains('onDaySelected: onYearDaySelected'));
   });
 
   test('sidebar source rows keep visibility actions on the right', () {
@@ -782,6 +1399,8 @@ void main() {
     expect(sidebar, isNot(contains('? context.l10n.hideFromSchedule')));
     expect(sidebar, isNot(contains(': context.l10n.showInSchedule')));
     expect(sidebar, contains('minHeight: BusyMaxSizes.sidebarRowHeight'));
+    expect(sidebar, contains('leading: _SourceDot'));
+    expect(sidebar, contains('class _SourceDot'));
     expect(sidebar, contains('YaruIcons.checkmark'));
     expect(sidebar, contains('busyMaxSubtleButtonBackground(context)'));
     expect(sidebar, isNot(contains('YaruIcons.checkbox')));
@@ -861,6 +1480,12 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('final _plannerKey = GlobalKey'));
+    expect(
+      source,
+      contains(
+        '_controller = icv.EventsController();\n    _jumpToVisibleDayStart();',
+      ),
+    );
     expect(source, contains('_plannerKey.currentState?.jumpToDate(date)'));
     expect(source, contains('initialDate: _plannerStartDate(widget)'));
   });
@@ -880,7 +1505,7 @@ void main() {
     },
   );
 
-  test('month and agenda views support horizontal paging gestures', () {
+  test('month and year views support horizontal paging gestures', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -897,11 +1522,162 @@ void main() {
     );
     expect(
       source,
-      contains('ScheduleViewMode.agenda => _HorizontalSchedulePager'),
+      isNot(contains('ScheduleViewMode.agenda => _HorizontalSchedulePager')),
     );
+    expect(source, contains('ScheduleViewMode.agenda => ScheduleAgendaView'));
     expect(source, contains('onPrevious: onPrevious'));
     expect(source, contains('onNext: onNext'));
   });
+
+  test('agenda range starts at selected date and grows while scrolling', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+    final agendaSource = File(
+      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('static const _agendaInitialDays = 30'));
+    expect(source, contains('static const _agendaPageDays = 30'));
+    expect(source, contains('static const _agendaInitialTaskBucketLimit = 8'));
+    expect(source, contains('static const _agendaTaskBucketPageSize = 8'));
+    expect(source, contains('var _agendaLoadedDays = _agendaInitialDays'));
+    expect(
+      source,
+      contains('var _agendaOverdueTaskLimit = _agendaInitialTaskBucketLimit'),
+    );
+    expect(
+      source,
+      contains('var _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit'),
+    );
+    expect(source, contains('ScheduleViewMode.agenda => ScheduleRange('));
+    expect(source, contains('start: _day(_selectedDate)'));
+    expect(
+      source,
+      contains(
+        'end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays))',
+      ),
+    );
+    expect(source, contains('void _loadMoreAgendaDays()'));
+    expect(source, contains('_agendaLoadedDays += _agendaPageDays'));
+    expect(source, contains('onLoadMore: onAgendaLoadMore'));
+    expect(
+      source,
+      isNot(contains('ScheduleViewMode.agenda => ScheduleRange.week')),
+    );
+    expect(agendaSource, contains('notification.metrics.extentAfter > 1'));
+    expect(source, isNot(contains('subtract(const Duration(days: 30))')));
+    expect(source, contains('void _loadMoreAgendaOverdueTasks()'));
+    expect(source, contains('void _loadMoreAgendaNoDateTasks()'));
+  });
+
+  test('agenda removes page controls from toolbar and native headerbar', () {
+    final workspace = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+    final toolbar = File(
+      'lib/src/features/schedule/presentation/schedule_toolbar.dart',
+    ).readAsStringSync();
+    final headerService = File(
+      'lib/src/platform/linux_header_bar_service.dart',
+    ).readAsStringSync();
+    final nativeRunner = File(
+      'linux/runner/my_application.cc',
+    ).readAsStringSync();
+
+    expect(
+      toolbar,
+      contains('final showPaging = mode != ScheduleViewMode.agenda'),
+    );
+    expect(toolbar, contains('if (showPaging)'));
+    expect(
+      toolbar,
+      contains('ScheduleViewMode.agenda => context.l10n.viewAgenda'),
+    );
+    expect(
+      workspace,
+      contains('navigationVisible: _mode != ScheduleViewMode.agenda'),
+    );
+    expect(
+      workspace,
+      contains(
+        'service.setNavigationVisible(headerBarState.navigationVisible)',
+      ),
+    );
+    expect(headerService, contains('Future<void> setNavigationVisible'));
+    expect(nativeRunner, contains('set_header_navigation_visible'));
+    expect(nativeRunner, contains('setNavigationVisible'));
+  });
+
+  test('agenda queries bounded buckets separately from dated items', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('Future<_ScheduleItemsResult> _scheduleItems'));
+    expect(source, contains('final currentItems = repository.listItems'));
+    expect(
+      source,
+      contains(
+        'showNoDateTasks: searchHasQuery || _mode != ScheduleViewMode.agenda',
+      ),
+    );
+    expect(
+      source,
+      contains('final overdueTasks = repository.listOverdueTasks'),
+    );
+    expect(source, contains('before: range.start'));
+    expect(source, contains('limit: _agendaOverdueTaskLimit'));
+    expect(source, contains('final noDateTasks = repository.listNoDateTasks'));
+    expect(source, contains('limit: _agendaNoDateTaskLimit'));
+    expect(source, contains('showCompletedTasks: false'));
+    expect(source, contains('hasMoreOverdueTasks: overduePage.hasMore'));
+    expect(source, contains('hasMoreNoDateTasks: noDatePage.hasMore'));
+    expect(source, contains('List<ScheduleItem> _agendaItems'));
+    expect(source, contains('if (item is CalendarScheduleItem)'));
+    expect(
+      source,
+      contains('return ScheduleProjection.intersects(item, range);'),
+    );
+    expect(source, contains('if (item is TaskScheduleItem)'));
+    expect(source, contains('return !item.completed;'));
+  });
+
+  test('agenda task markers use task list icons, not checkbox icons', () {
+    final agenda = File(
+      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+    ).readAsStringSync();
+    final compactAgenda = File(
+      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+    ).readAsStringSync();
+
+    expect(agenda, contains('isTask ? YaruIcons.task_list'));
+    expect(compactAgenda, contains('isTask ? YaruIcons.task_list'));
+    expect(agenda, isNot(contains('YaruIcons.checkbox')));
+    expect(compactAgenda, isNot(contains('YaruIcons.checkbox')));
+  });
+
+  test(
+    'event editor receives calendar event time zones from schedule item',
+    () {
+      final workspace = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
+      final scheduleItem = File(
+        'lib/src/schedule/schedule_item.dart',
+      ).readAsStringSync();
+      final repository = File(
+        'lib/src/schedule/schedule_repository.dart',
+      ).readAsStringSync();
+
+      expect(scheduleItem, contains('final String? startTimeZone;'));
+      expect(scheduleItem, contains('final String? endTimeZone;'));
+      expect(repository, contains('startTimeZone: event.startTimeZone'));
+      expect(repository, contains('endTimeZone: event.endTimeZone'));
+      expect(workspace, contains('startTimeZone: item.startTimeZone'));
+      expect(workspace, contains('endTimeZone: item.endTimeZone'));
+    },
+  );
 
   test('year mode uses existing schedule primitives', () {
     final mode = File(
@@ -988,5 +1764,82 @@ List<ScheduleItem> _itemsFor(DateTime day) {
       end: DateTime(day.year, day.month, day.day + 1),
       sourceName: 'Inbox',
     ),
+  ];
+}
+
+List<ScheduleItem> _sameSlotItemsFor(DateTime day) {
+  final start = DateTime(day.year, day.month, day.day, 9);
+  final end = DateTime(day.year, day.month, day.day, 10);
+  return [
+    CalendarScheduleItem(
+      id: 'event:1',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'primary',
+      title: 'Design review',
+      allDay: false,
+      start: start,
+      end: end,
+      colorHex: '#3584e4',
+      sourceName: 'Work',
+    ),
+    CalendarScheduleItem(
+      id: 'event:2',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'primary',
+      title: 'Pairing session',
+      allDay: false,
+      start: start,
+      end: end,
+      colorHex: '#33d17a',
+      sourceName: 'Work',
+    ),
+    TaskScheduleItem(
+      id: 'task:1',
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      sourceId: 'tasks:inbox',
+      title: 'Submit report',
+      completed: false,
+      allDay: false,
+      start: start,
+      end: end,
+      sourceName: 'Inbox',
+    ),
+    TaskScheduleItem(
+      id: 'task:2',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'tasks:inbox',
+      title: 'Review notes',
+      completed: false,
+      allDay: false,
+      start: start,
+      end: end,
+      sourceName: 'Inbox',
+    ),
+  ];
+}
+
+List<ScheduleItem> _manyAllDayItemsFor(DateTime day) {
+  final start = DateTime(day.year, day.month, day.day);
+  final end = start.add(const Duration(days: 1));
+  return [
+    for (var index = 0; index < 8; index++)
+      TaskScheduleItem(
+        id: 'all-day-task:$index',
+        accountId: index.isEven ? 'google:g' : 'microsoft:m',
+        provider: index.isEven ? TaskProvider.google : TaskProvider.microsoft,
+        sourceId: 'tasks:inbox',
+        title: 'All-day task ${index + 1}',
+        completed: false,
+        allDay: true,
+        start: start,
+        end: end,
+        sourceName: 'Inbox',
+      ),
   ];
 }

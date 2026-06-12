@@ -3,10 +3,10 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
-import '../../../app/busymax_yaru_theme.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../schedule/schedule_projection.dart';
 import '../../../task_providers/task_provider.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../data/calendar_repository.dart';
@@ -19,6 +19,7 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   required List<CalendarSourceEntity> sources,
   LinuxHeaderBarService? headerBarService,
   bool allowDelete = true,
+  Map<String, List<String>> categorySuggestionsByAccount = const {},
 }) async {
   return showBusyMaxModalEditorDialog<EventEditorDialogResult>(
     context,
@@ -29,6 +30,7 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
       return EventEditor(
         initialDraft: initialDraft,
         sources: sources,
+        categorySuggestionsByAccount: categorySuggestionsByAccount,
         onCancel: () => Navigator.of(context).pop(),
         onSave: (draft) =>
             Navigator.of(context).pop(EventEditorDialogResult.save(draft)),
@@ -65,10 +67,12 @@ class EventEditor extends StatefulWidget {
     required this.onCancel,
     required this.onSave,
     this.onDelete,
+    this.categorySuggestionsByAccount = const {},
   });
 
   final EventEditorDraft initialDraft;
   final List<CalendarSourceEntity> sources;
+  final Map<String, List<String>> categorySuggestionsByAccount;
   final VoidCallback onCancel;
   final ValueChanged<EventEditorDraft> onSave;
   final ValueChanged<String>? onDelete;
@@ -80,8 +84,10 @@ class EventEditor extends StatefulWidget {
 class _EventEditorState extends State<EventEditor> {
   late EventEditorDraft _draft;
   final _guestController = TextEditingController();
+  final _categoryController = TextEditingController();
   String? _guestError;
   var _addingGuest = false;
+  var _addingCategory = false;
 
   @override
   void initState() {
@@ -92,6 +98,7 @@ class _EventEditorState extends State<EventEditor> {
   @override
   void dispose() {
     _guestController.dispose();
+    _categoryController.dispose();
     super.dispose();
   }
 
@@ -111,212 +118,171 @@ class _EventEditorState extends State<EventEditor> {
         ? l10n.newEvent
         : l10n.editEvent;
     final canSave = dirty && _draft.canSave;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return BusyMaxModalEditorScaffold(
+      title: title,
+      cancelLabel: l10n.cancel,
+      saveLabel: l10n.save,
+      onCancel: widget.onCancel,
+      onSave: canSave ? () => widget.onSave(_draft) : null,
       children: [
-        BusyMaxEditorHeader(
-          title: title,
-          cancelLabel: l10n.cancel,
-          saveLabel: l10n.save,
-          onCancel: widget.onCancel,
-          onSave: canSave ? () => widget.onSave(_draft) : null,
-        ),
-        const SizedBox(height: BusyMaxSpacing.headerInset),
-        Flexible(
-          child: SingleChildScrollView(
-            child: BusyMaxClamp(
-              maxWidth: 640,
-              margin: EdgeInsets.zero,
-              padding: const EdgeInsets.symmetric(
-                horizontal: BusyMaxSpacing.lg,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [
-                      YaruListTile.square(
-                        hoverColor: busyMaxEditorRowHoverColor(context),
-                        title: TextFormField(
-                          initialValue: _draft.title,
-                          autofocus: true,
-                          decoration: _plainEventFieldDecoration(
-                            context,
-                            labelText: l10n.title,
-                          ),
-                          onChanged: (value) {
-                            setState(() {
-                              _draft = _draft.copyWith(title: value);
-                            });
-                          },
-                        ),
-                      ),
-                      YaruListTile.square(
-                        hoverColor: busyMaxEditorRowHoverColor(context),
-                        title: TextFormField(
-                          initialValue: _draft.location,
-                          decoration: _plainEventFieldDecoration(
-                            context,
-                            labelText: l10n.location,
-                          ),
-                          onChanged: (value) {
-                            setState(() {
-                              _draft = _draft.copyWith(location: value);
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  BusyMaxGroupedList(filled: true, children: [_calendarRow()]),
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [
-                      _EventTimeModeRow(
-                        allDay: _draft.allDay,
-                        onChanged: (value) {
-                          setState(() {
-                            _draft = _draft.copyWith(allDay: value);
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [
-                      DesktopDateValueRow(
-                        label: l10n.startDate,
-                        date: _dateString(_draft.start),
-                        onChanged: (value) {
-                          setState(() {
-                            _draft = _draft.copyWith(
-                              start: _withDate(_draft.start, value),
-                            );
-                          });
-                        },
-                        emptyLabel: l10n.noneValue,
-                      ),
-                      if (!_draft.allDay)
-                        DesktopTimeValueRow(
-                          label: l10n.startTime,
-                          time: _timeString(_draft.start),
-                          onChanged: (value) {
-                            setState(() {
-                              _draft = _draft.copyWith(
-                                start: _withTime(_draft.start, value),
-                              );
-                            });
-                          },
-                          emptyLabel: l10n.noneValue,
-                        ),
-                    ],
-                  ),
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [
-                      DesktopDateValueRow(
-                        label: l10n.endDate,
-                        date: _dateString(_draft.end),
-                        onChanged: (value) {
-                          setState(() {
-                            _draft = _draft.copyWith(
-                              end: _withDate(_draft.end, value),
-                            );
-                          });
-                        },
-                        emptyLabel: l10n.noneValue,
-                      ),
-                      if (!_draft.allDay)
-                        DesktopTimeValueRow(
-                          label: l10n.endTime,
-                          time: _timeString(_draft.end),
-                          onChanged: (value) {
-                            setState(() {
-                              _draft = _draft.copyWith(
-                                end: _withTime(_draft.end, value),
-                              );
-                            });
-                          },
-                          emptyLabel: l10n.noneValue,
-                        ),
-                    ],
-                  ),
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [_repeatRow(provider)],
-                  ),
-                  BusyMaxGroupedList(
-                    title: l10n.reminder,
-                    filled: true,
-                    children: _reminderRows(provider),
-                  ),
-                  BusyMaxGroupedList(
-                    title: l10n.guests,
-                    filled: true,
-                    children: _guestRows(),
-                  ),
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [
-                      YaruListTile.square(
-                        hoverColor: busyMaxEditorRowHoverColor(context),
-                        title: EventDescriptionEditor(
-                          provider: provider,
-                          text: _draft.description,
-                          contentType: _draft.descriptionContentType,
-                          html: _draft.descriptionHtml,
-                          onChanged: (value) {
-                            setState(() {
-                              _draft = _draft.copyWith(
-                                description: value.text,
-                                descriptionContentType: value.contentType,
-                                descriptionHtml: value.html,
-                              );
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [_availabilityRow(provider)],
-                  ),
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [_visibilityRow(provider)],
-                  ),
-                  if (_draft.eventId != null && widget.onDelete != null)
-                    const SizedBox(height: BusyMaxSpacing.md),
-                  if (_draft.eventId != null && widget.onDelete != null)
-                    BusyMaxGroupedList(
-                      filled: true,
-                      children: [
-                        BusyMaxActionRow(
-                          title: l10n.deleteEvent,
-                          titleWidget: Center(
-                            child: Text(
-                              l10n.deleteEvent,
-                              style: _eventEditorProminentActionStyle(
-                                context,
-                                color: Theme.of(context).colorScheme.error,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          destructive: true,
-                          onTap: () => widget.onDelete?.call(_draft.eventId!),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: BusyMaxSpacing.lg),
-                ],
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            YaruListTile.square(
+              hoverColor: busyMaxEditorRowHoverColor(context),
+              title: TextFormField(
+                initialValue: _draft.title,
+                autofocus: true,
+                decoration: _plainEventFieldDecoration(
+                  context,
+                  labelText: l10n.title,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _draft = _draft.copyWith(title: value);
+                  });
+                },
               ),
             ),
-          ),
+            YaruListTile.square(
+              hoverColor: busyMaxEditorRowHoverColor(context),
+              title: TextFormField(
+                initialValue: _draft.location,
+                decoration: _plainEventFieldDecoration(
+                  context,
+                  labelText: l10n.location,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _draft = _draft.copyWith(location: value);
+                  });
+                },
+              ),
+            ),
+          ],
         ),
+        BusyMaxGroupedList(filled: true, children: [_calendarRow()]),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            BusyMaxTimeModeRow(allDay: _draft.allDay, onChanged: _setAllDay),
+          ],
+        ),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            DesktopDateValueRow(
+              label: l10n.startDate,
+              date: _dateString(_draft.start),
+              onChanged: (value) {
+                _setStart(_withDate(_draft.start, value));
+              },
+              emptyLabel: l10n.noneValue,
+            ),
+            if (!_draft.allDay)
+              DesktopTimeValueRow(
+                label: l10n.startTime,
+                time: _timeString(_draft.start),
+                onChanged: (value) {
+                  _setStart(_withTime(_draft.start, value));
+                },
+                emptyLabel: '--:--',
+                allowEmpty: false,
+              ),
+          ],
+        ),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            DesktopDateValueRow(
+              label: l10n.endDate,
+              date: _dateString(_draft.end),
+              onChanged: (value) {
+                _setEnd(_withDate(_draft.end, value));
+              },
+              emptyLabel: l10n.noneValue,
+            ),
+            if (!_draft.allDay)
+              DesktopTimeValueRow(
+                label: l10n.endTime,
+                time: _timeString(_draft.end),
+                onChanged: (value) {
+                  _setEnd(_withTime(_draft.end, value));
+                },
+                emptyLabel: '--:--',
+                allowEmpty: false,
+              ),
+          ],
+        ),
+        BusyMaxGroupedList(filled: true, children: [_repeatRow(provider)]),
+        BusyMaxGroupedList(
+          title: l10n.reminder,
+          filled: true,
+          children: _reminderRows(provider),
+        ),
+        BusyMaxGroupedList(
+          title: l10n.guests,
+          filled: true,
+          children: _guestRows(),
+        ),
+        if (provider == TaskProvider.microsoft)
+          BusyMaxGroupedList(
+            title: l10n.organizationSection,
+            filled: true,
+            children: [_categoriesRow()],
+          ),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            YaruListTile.square(
+              hoverColor: busyMaxEditorRowHoverColor(context),
+              title: EventDescriptionEditor(
+                provider: provider,
+                text: _draft.description,
+                contentType: _draft.descriptionContentType,
+                html: _draft.descriptionHtml,
+                onChanged: (value) {
+                  setState(() {
+                    _draft = _draft.copyWith(
+                      description: value.text,
+                      descriptionContentType: value.contentType,
+                      descriptionHtml: value.html,
+                    );
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [_availabilityRow(provider)],
+        ),
+        BusyMaxGroupedList(filled: true, children: [_visibilityRow(provider)]),
+        if (_draft.eventId != null && widget.onDelete != null)
+          const SizedBox(height: BusyMaxSpacing.md),
+        if (_draft.eventId != null && widget.onDelete != null)
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
+              BusyMaxActionRow(
+                title: l10n.deleteEvent,
+                titleWidget: Center(
+                  child: Text(
+                    l10n.deleteEvent,
+                    style: _eventEditorProminentActionStyle(
+                      context,
+                      color: Theme.of(context).colorScheme.error,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                destructive: true,
+                onTap: () => widget.onDelete?.call(_draft.eventId!),
+              ),
+            ],
+          ),
+        const SizedBox(height: BusyMaxSpacing.lg),
       ],
     );
   }
@@ -386,10 +352,17 @@ class _EventEditorState extends State<EventEditor> {
       onSelected: (value) {
         final source = sources.firstWhere((source) => source.id == value);
         setState(() {
+          if (source.provider != TaskProvider.microsoft) {
+            _addingCategory = false;
+            _categoryController.clear();
+          }
           _draft = _draft.copyWith(
             accountId: source.accountId,
             sourceId: source.id,
             providerCalendarId: source.providerCalendarId,
+            categories: source.provider == TaskProvider.microsoft
+                ? _draft.categories
+                : const [],
           );
         });
       },
@@ -537,6 +510,34 @@ class _EventEditorState extends State<EventEditor> {
     return rows;
   }
 
+  Widget _categoriesRow() {
+    final l10n = context.l10n;
+    return BusyMaxCategoryEditorRow(
+      title: l10n.categories,
+      addLabel: l10n.addCategory,
+      categories: _draft.categories,
+      suggestions:
+          widget.categorySuggestionsByAccount[_draft.accountId] ??
+          const <String>[],
+      adding: _addingCategory,
+      controller: _categoryController,
+      inputKey: const Key('event-category-input'),
+      onAddPressed: () {
+        setState(() {
+          _addingCategory = true;
+        });
+      },
+      onSubmitted: _addCategory,
+      onCancelAdding: () {
+        _categoryController.clear();
+        setState(() {
+          _addingCategory = false;
+        });
+      },
+      onDeleted: _removeCategory,
+    );
+  }
+
   Widget _availabilityRow(BusyProvider provider) {
     final values = provider == TaskProvider.google
         ? const ['opaque', 'transparent']
@@ -612,6 +613,65 @@ class _EventEditorState extends State<EventEditor> {
     });
   }
 
+  void _addCategory(String value) {
+    final category = value.trim();
+    if (category.isEmpty || _draft.categories.contains(category)) {
+      return;
+    }
+    _categoryController.clear();
+    setState(() {
+      _addingCategory = false;
+      _draft = _draft.copyWith(categories: [..._draft.categories, category]);
+    });
+  }
+
+  void _removeCategory(String category) {
+    setState(() {
+      _draft = _draft.copyWith(
+        categories: [
+          for (final value in _draft.categories)
+            if (value != category) value,
+        ],
+      );
+    });
+  }
+
+  void _setAllDay(bool allDay) {
+    final start = _draft.start;
+    final end = _draft.end;
+    setState(() {
+      _draft = _draft.copyWith(
+        allDay: allDay,
+        end: start != null && (end == null || !end.isAfter(start))
+            ? _defaultEndFor(start, allDay)
+            : end,
+      );
+    });
+  }
+
+  void _setStart(DateTime start) {
+    final end = _draft.end;
+    setState(() {
+      _draft = _draft.copyWith(
+        start: start,
+        end: end == null || !end.isAfter(start)
+            ? _defaultEndFor(start, _draft.allDay)
+            : end,
+      );
+    });
+  }
+
+  void _setEnd(DateTime end) {
+    final start = _draft.start;
+    setState(() {
+      _draft = _draft.copyWith(
+        end: start != null && !end.isAfter(start)
+            ? _defaultEndFor(start, _draft.allDay)
+            : end,
+      );
+    });
+  }
+
   void _setReminderMinutes(BusyProvider provider, List<int> minutes) {
     final reminders = _remindersFor(provider, minutes);
     setState(() {
@@ -619,81 +679,6 @@ class _EventEditorState extends State<EventEditor> {
         reminders: reminders ?? _disabledRemindersFor(provider),
       );
     });
-  }
-}
-
-class _EventTimeModeRow extends StatelessWidget {
-  const _EventTimeModeRow({required this.allDay, required this.onChanged});
-
-  final bool allDay;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return Padding(
-      padding: const EdgeInsets.all(BusyMaxSpacing.xs),
-      child: Row(
-        children: [
-          Expanded(
-            child: _EventTimeModeButton(
-              label: l10n.allDay,
-              selected: allDay,
-              onPressed: () => onChanged(true),
-            ),
-          ),
-          const SizedBox(width: BusyMaxSpacing.xs),
-          Expanded(
-            child: _EventTimeModeButton(
-              label: l10n.timeSlot,
-              selected: !allDay,
-              onPressed: () => onChanged(false),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EventTimeModeButton extends StatelessWidget {
-  const _EventTimeModeButton({
-    required this.label,
-    required this.selected,
-    required this.onPressed,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    final borderRadius = BorderRadius.circular(BusyMaxRadius.headerButton);
-    return Material(
-      color: selected ? surfaceColors.controlHover : Colors.transparent,
-      borderRadius: borderRadius,
-      child: InkWell(
-        borderRadius: borderRadius,
-        onTap: selected ? null : onPressed,
-        child: SizedBox(
-          height: BusyMaxSizes.pushButtonHeight,
-          child: Center(
-            child: Text(
-              label,
-              style: _eventEditorProminentActionStyle(
-                context,
-                color: selected
-                    ? colorScheme.onSurface
-                    : colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -766,6 +751,10 @@ DateTime _withTime(DateTime? current, String? time) {
   final parsed = parseTimeOfDay(time) ?? const TimeOfDay(hour: 9, minute: 0);
   final date = current ?? DateTime.now();
   return DateTime(date.year, date.month, date.day, parsed.hour, parsed.minute);
+}
+
+DateTime _defaultEndFor(DateTime start, bool allDay) {
+  return start.add(allDay ? const Duration(days: 1) : const Duration(hours: 1));
 }
 
 String _recurrenceType(Object? recurrence) {
@@ -1003,7 +992,10 @@ Color _calendarSourceColor(BuildContext context, CalendarSourceEntity source) {
           colorId: source.colorId,
         ),
       ) ??
-      Theme.of(context).colorScheme.primary;
+      ScheduleProjection.deterministicSourceColor(
+        source.id,
+        Theme.of(context).colorScheme.brightness,
+      );
 }
 
 Color? _colorFromHex(String? value) {

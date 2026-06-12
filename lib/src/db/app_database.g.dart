@@ -8210,6 +8210,17 @@ class $CalendarEventsTable extends CalendarEvents
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _categoriesJsonMeta = const VerificationMeta(
+    'categoriesJson',
+  );
+  @override
+  late final GeneratedColumn<String> categoriesJson = GeneratedColumn<String>(
+    'categories_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _organizerJsonMeta = const VerificationMeta(
     'organizerJson',
   );
@@ -8453,6 +8464,7 @@ class $CalendarEventsTable extends CalendarEvents
     recurrenceJson,
     remindersJson,
     attendeesJson,
+    categoriesJson,
     organizerJson,
     creatorJson,
     colorId,
@@ -8673,6 +8685,15 @@ class $CalendarEventsTable extends CalendarEvents
         attendeesJson.isAcceptableOrUnknown(
           data['attendees_json']!,
           _attendeesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('categories_json')) {
+      context.handle(
+        _categoriesJsonMeta,
+        categoriesJson.isAcceptableOrUnknown(
+          data['categories_json']!,
+          _categoriesJsonMeta,
         ),
       );
     }
@@ -8928,6 +8949,10 @@ class $CalendarEventsTable extends CalendarEvents
         DriftSqlType.string,
         data['${effectivePrefix}attendees_json'],
       ),
+      categoriesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}categories_json'],
+      ),
       organizerJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}organizer_json'],
@@ -9037,6 +9062,7 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
   final String? recurrenceJson;
   final String? remindersJson;
   final String? attendeesJson;
+  final String? categoriesJson;
   final String? organizerJson;
   final String? creatorJson;
   final String? colorId;
@@ -9080,6 +9106,7 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     this.recurrenceJson,
     this.remindersJson,
     this.attendeesJson,
+    this.categoriesJson,
     this.organizerJson,
     this.creatorJson,
     this.colorId,
@@ -9159,6 +9186,9 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     }
     if (!nullToAbsent || attendeesJson != null) {
       map['attendees_json'] = Variable<String>(attendeesJson);
+    }
+    if (!nullToAbsent || categoriesJson != null) {
+      map['categories_json'] = Variable<String>(categoriesJson);
     }
     if (!nullToAbsent || organizerJson != null) {
       map['organizer_json'] = Variable<String>(organizerJson);
@@ -9265,6 +9295,9 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       attendeesJson: attendeesJson == null && nullToAbsent
           ? const Value.absent()
           : Value(attendeesJson),
+      categoriesJson: categoriesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoriesJson),
       organizerJson: organizerJson == null && nullToAbsent
           ? const Value.absent()
           : Value(organizerJson),
@@ -9350,6 +9383,7 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       recurrenceJson: serializer.fromJson<String?>(json['recurrenceJson']),
       remindersJson: serializer.fromJson<String?>(json['remindersJson']),
       attendeesJson: serializer.fromJson<String?>(json['attendeesJson']),
+      categoriesJson: serializer.fromJson<String?>(json['categoriesJson']),
       organizerJson: serializer.fromJson<String?>(json['organizerJson']),
       creatorJson: serializer.fromJson<String?>(json['creatorJson']),
       colorId: serializer.fromJson<String?>(json['colorId']),
@@ -9404,6 +9438,7 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       'recurrenceJson': serializer.toJson<String?>(recurrenceJson),
       'remindersJson': serializer.toJson<String?>(remindersJson),
       'attendeesJson': serializer.toJson<String?>(attendeesJson),
+      'categoriesJson': serializer.toJson<String?>(categoriesJson),
       'organizerJson': serializer.toJson<String?>(organizerJson),
       'creatorJson': serializer.toJson<String?>(creatorJson),
       'colorId': serializer.toJson<String?>(colorId),
@@ -9450,6 +9485,7 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     Value<String?> recurrenceJson = const Value.absent(),
     Value<String?> remindersJson = const Value.absent(),
     Value<String?> attendeesJson = const Value.absent(),
+    Value<String?> categoriesJson = const Value.absent(),
     Value<String?> organizerJson = const Value.absent(),
     Value<String?> creatorJson = const Value.absent(),
     Value<String?> colorId = const Value.absent(),
@@ -9509,6 +9545,9 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     attendeesJson: attendeesJson.present
         ? attendeesJson.value
         : this.attendeesJson,
+    categoriesJson: categoriesJson.present
+        ? categoriesJson.value
+        : this.categoriesJson,
     organizerJson: organizerJson.present
         ? organizerJson.value
         : this.organizerJson,
@@ -9596,6 +9635,9 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       attendeesJson: data.attendeesJson.present
           ? data.attendeesJson.value
           : this.attendeesJson,
+      categoriesJson: data.categoriesJson.present
+          ? data.categoriesJson.value
+          : this.categoriesJson,
       organizerJson: data.organizerJson.present
           ? data.organizerJson.value
           : this.organizerJson,
@@ -9670,6 +9712,7 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
           ..write('recurrenceJson: $recurrenceJson, ')
           ..write('remindersJson: $remindersJson, ')
           ..write('attendeesJson: $attendeesJson, ')
+          ..write('categoriesJson: $categoriesJson, ')
           ..write('organizerJson: $organizerJson, ')
           ..write('creatorJson: $creatorJson, ')
           ..write('colorId: $colorId, ')
@@ -9718,6 +9761,7 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     recurrenceJson,
     remindersJson,
     attendeesJson,
+    categoriesJson,
     organizerJson,
     creatorJson,
     colorId,
@@ -9765,6 +9809,7 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
           other.recurrenceJson == this.recurrenceJson &&
           other.remindersJson == this.remindersJson &&
           other.attendeesJson == this.attendeesJson &&
+          other.categoriesJson == this.categoriesJson &&
           other.organizerJson == this.organizerJson &&
           other.creatorJson == this.creatorJson &&
           other.colorId == this.colorId &&
@@ -9810,6 +9855,7 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
   final Value<String?> recurrenceJson;
   final Value<String?> remindersJson;
   final Value<String?> attendeesJson;
+  final Value<String?> categoriesJson;
   final Value<String?> organizerJson;
   final Value<String?> creatorJson;
   final Value<String?> colorId;
@@ -9854,6 +9900,7 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     this.recurrenceJson = const Value.absent(),
     this.remindersJson = const Value.absent(),
     this.attendeesJson = const Value.absent(),
+    this.categoriesJson = const Value.absent(),
     this.organizerJson = const Value.absent(),
     this.creatorJson = const Value.absent(),
     this.colorId = const Value.absent(),
@@ -9899,6 +9946,7 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     this.recurrenceJson = const Value.absent(),
     this.remindersJson = const Value.absent(),
     this.attendeesJson = const Value.absent(),
+    this.categoriesJson = const Value.absent(),
     this.organizerJson = const Value.absent(),
     this.creatorJson = const Value.absent(),
     this.colorId = const Value.absent(),
@@ -9952,6 +10000,7 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     Expression<String>? recurrenceJson,
     Expression<String>? remindersJson,
     Expression<String>? attendeesJson,
+    Expression<String>? categoriesJson,
     Expression<String>? organizerJson,
     Expression<String>? creatorJson,
     Expression<String>? colorId,
@@ -10000,6 +10049,7 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
       if (recurrenceJson != null) 'recurrence_json': recurrenceJson,
       if (remindersJson != null) 'reminders_json': remindersJson,
       if (attendeesJson != null) 'attendees_json': attendeesJson,
+      if (categoriesJson != null) 'categories_json': categoriesJson,
       if (organizerJson != null) 'organizer_json': organizerJson,
       if (creatorJson != null) 'creator_json': creatorJson,
       if (colorId != null) 'color_id': colorId,
@@ -10048,6 +10098,7 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     Value<String?>? recurrenceJson,
     Value<String?>? remindersJson,
     Value<String?>? attendeesJson,
+    Value<String?>? categoriesJson,
     Value<String?>? organizerJson,
     Value<String?>? creatorJson,
     Value<String?>? colorId,
@@ -10095,6 +10146,7 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
       recurrenceJson: recurrenceJson ?? this.recurrenceJson,
       remindersJson: remindersJson ?? this.remindersJson,
       attendeesJson: attendeesJson ?? this.attendeesJson,
+      categoriesJson: categoriesJson ?? this.categoriesJson,
       organizerJson: organizerJson ?? this.organizerJson,
       creatorJson: creatorJson ?? this.creatorJson,
       colorId: colorId ?? this.colorId,
@@ -10194,6 +10246,9 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     if (attendeesJson.present) {
       map['attendees_json'] = Variable<String>(attendeesJson.value);
     }
+    if (categoriesJson.present) {
+      map['categories_json'] = Variable<String>(categoriesJson.value);
+    }
     if (organizerJson.present) {
       map['organizer_json'] = Variable<String>(organizerJson.value);
     }
@@ -10285,6 +10340,7 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
           ..write('recurrenceJson: $recurrenceJson, ')
           ..write('remindersJson: $remindersJson, ')
           ..write('attendeesJson: $attendeesJson, ')
+          ..write('categoriesJson: $categoriesJson, ')
           ..write('organizerJson: $organizerJson, ')
           ..write('creatorJson: $creatorJson, ')
           ..write('colorId: $colorId, ')
@@ -19159,6 +19215,7 @@ typedef $$CalendarEventsTableCreateCompanionBuilder =
       Value<String?> recurrenceJson,
       Value<String?> remindersJson,
       Value<String?> attendeesJson,
+      Value<String?> categoriesJson,
       Value<String?> organizerJson,
       Value<String?> creatorJson,
       Value<String?> colorId,
@@ -19205,6 +19262,7 @@ typedef $$CalendarEventsTableUpdateCompanionBuilder =
       Value<String?> recurrenceJson,
       Value<String?> remindersJson,
       Value<String?> attendeesJson,
+      Value<String?> categoriesJson,
       Value<String?> organizerJson,
       Value<String?> creatorJson,
       Value<String?> colorId,
@@ -19450,6 +19508,11 @@ class $$CalendarEventsTableFilterComposer
 
   ColumnFilters<String> get attendeesJson => $composableBuilder(
     column: $table.attendeesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoriesJson => $composableBuilder(
+    column: $table.categoriesJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -19761,6 +19824,11 @@ class $$CalendarEventsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get categoriesJson => $composableBuilder(
+    column: $table.categoriesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get organizerJson => $composableBuilder(
     column: $table.organizerJson,
     builder: (column) => ColumnOrderings(column),
@@ -19998,6 +20066,11 @@ class $$CalendarEventsTableAnnotationComposer
 
   GeneratedColumn<String> get attendeesJson => $composableBuilder(
     column: $table.attendeesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get categoriesJson => $composableBuilder(
+    column: $table.categoriesJson,
     builder: (column) => column,
   );
 
@@ -20241,6 +20314,7 @@ class $$CalendarEventsTableTableManager
                 Value<String?> recurrenceJson = const Value.absent(),
                 Value<String?> remindersJson = const Value.absent(),
                 Value<String?> attendeesJson = const Value.absent(),
+                Value<String?> categoriesJson = const Value.absent(),
                 Value<String?> organizerJson = const Value.absent(),
                 Value<String?> creatorJson = const Value.absent(),
                 Value<String?> colorId = const Value.absent(),
@@ -20285,6 +20359,7 @@ class $$CalendarEventsTableTableManager
                 recurrenceJson: recurrenceJson,
                 remindersJson: remindersJson,
                 attendeesJson: attendeesJson,
+                categoriesJson: categoriesJson,
                 organizerJson: organizerJson,
                 creatorJson: creatorJson,
                 colorId: colorId,
@@ -20331,6 +20406,7 @@ class $$CalendarEventsTableTableManager
                 Value<String?> recurrenceJson = const Value.absent(),
                 Value<String?> remindersJson = const Value.absent(),
                 Value<String?> attendeesJson = const Value.absent(),
+                Value<String?> categoriesJson = const Value.absent(),
                 Value<String?> organizerJson = const Value.absent(),
                 Value<String?> creatorJson = const Value.absent(),
                 Value<String?> colorId = const Value.absent(),
@@ -20375,6 +20451,7 @@ class $$CalendarEventsTableTableManager
                 recurrenceJson: recurrenceJson,
                 remindersJson: remindersJson,
                 attendeesJson: attendeesJson,
+                categoriesJson: categoriesJson,
                 organizerJson: organizerJson,
                 creatorJson: creatorJson,
                 colorId: colorId,

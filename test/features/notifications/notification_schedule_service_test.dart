@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:drift/drift.dart';
@@ -58,6 +59,58 @@ void main() {
     );
   });
 
+  test(
+    'Google event default reminder schedules from calendar source',
+    () async {
+      await _upsertEvent(
+        database,
+        accountId: 'google:g',
+        provider: TaskProvider.google,
+        remindersJson: {'useDefault': true},
+        sourceRawJson: {
+          'id': 'cal-1',
+          'defaultReminders': [
+            {'method': 'popup', 'minutes': 15},
+          ],
+        },
+      );
+
+      await service.rebuildUpcomingEventNotifications('google:g');
+
+      final rows = await database.select(database.notificationSchedule).get();
+      expect(rows.single.sourceType, 'event');
+      expect(
+        rows.single.scheduledAtUtc,
+        DateTime.utc(2026, 6, 8, 8, 45).millisecondsSinceEpoch,
+      );
+    },
+  );
+
+  test(
+    'Google event explicit empty reminder ignores calendar defaults',
+    () async {
+      await _upsertEvent(
+        database,
+        accountId: 'google:g',
+        provider: TaskProvider.google,
+        remindersJson: {'useDefault': false, 'overrides': const []},
+        sourceRawJson: {
+          'id': 'cal-1',
+          'defaultReminders': [
+            {'method': 'popup', 'minutes': 15},
+          ],
+        },
+      );
+
+      await service.rebuildUpcomingEventNotifications('google:g');
+
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+    },
+  );
+
   test('Microsoft event reminder schedules notification', () async {
     await _upsertEvent(
       database,
@@ -72,6 +125,125 @@ void main() {
     expect(
       rows.single.scheduledAtUtc,
       DateTime.utc(2026, 6, 8, 8, 30).millisecondsSinceEpoch,
+    );
+  });
+
+  test('Microsoft UTC event reminder uses event timezone', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      startDateTime: '2026-06-08T09:00:00',
+      startTimeZone: 'UTC',
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 30},
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    final rows = await database.select(database.notificationSchedule).get();
+    expect(
+      rows.single.scheduledAtUtc,
+      DateTime.utc(2026, 6, 8, 8, 30).millisecondsSinceEpoch,
+    );
+  });
+
+  test('Microsoft local event reminder keeps local wall time', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      startDateTime: '2026-06-08T09:00:00',
+      startTimeZone: 'America/Vancouver',
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 30},
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    final rows = await database.select(database.notificationSchedule).get();
+    expect(
+      rows.single.scheduledAtUtc,
+      DateTime(2026, 6, 8, 8, 30).toUtc().millisecondsSinceEpoch,
+    );
+  });
+
+  test('missed event reminder before event start fires immediately', () async {
+    service = NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 6, 8, 4, 21, 30),
+    );
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      startDateTime: '2026-06-08T04:26:00.000Z',
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 5},
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    final rows = await database.select(database.notificationSchedule).get();
+    expect(
+      rows.single.scheduledAtUtc,
+      DateTime.utc(2026, 6, 8, 4, 21, 30).millisecondsSinceEpoch,
+    );
+  });
+
+  test('missed event reminder after event start is not scheduled', () async {
+    service = NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 6, 8, 4, 26, 30),
+    );
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      startDateTime: '2026-06-08T04:26:00.000Z',
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 5},
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+  });
+
+  test('local Microsoft event reminder wakes notification scheduler', () async {
+    var schedulerCalls = 0;
+    final repository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 8, 8),
+      onNotificationScheduleChanged: () async => schedulerCalls += 1,
+    );
+    await repository.upsertSource(
+      accountId: 'microsoft:m',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.microsoft,
+        providerCalendarId: 'cal-1',
+        summary: 'Calendar',
+      ),
+    );
+
+    await repository.createLocalEvent(
+      EventEditorDraft.newEvent(
+        accountId: 'microsoft:m',
+        sourceId: 'microsoft:m|microsoft|cal-1',
+        providerCalendarId: 'cal-1',
+        start: DateTime.utc(2026, 6, 8, 9),
+        end: DateTime.utc(2026, 6, 8, 10),
+      ).copyWith(
+        title: 'Standup',
+        reminders: const {
+          'isReminderOn': true,
+          'reminderMinutesBeforeStart': 15,
+        },
+      ),
+    );
+
+    final rows = await database.select(database.notificationSchedule).get();
+    expect(schedulerCalls, 1);
+    expect(rows.single.sourceType, 'event');
+    expect(
+      rows.single.scheduledAtUtc,
+      DateTime.utc(2026, 6, 8, 8, 45).millisecondsSinceEpoch,
     );
   });
 
@@ -111,6 +283,27 @@ void main() {
 
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
+
+  test(
+    'Microsoft UTC task reminder schedules from provider timezone',
+    () async {
+      await _insertTaskReminder(
+        database,
+        status: 'needsAction',
+        reminderDateTime: '2026-06-08T13:15:00',
+        reminderTimeZone: 'UTC',
+      );
+
+      await service.rebuildUpcomingTaskNotifications('microsoft:m');
+
+      final rows = await database.select(database.notificationSchedule).get();
+      expect(rows.single.sourceType, 'task');
+      expect(
+        rows.single.scheduledAtUtc,
+        DateTime.utc(2026, 6, 8, 13, 15).millisecondsSinceEpoch,
+      );
+    },
+  );
 }
 
 Future<void> _insertAccount(
@@ -137,6 +330,9 @@ Future<void> _upsertEvent(
   required String accountId,
   required TaskProvider provider,
   required Object remindersJson,
+  String startDateTime = '2026-06-08T09:00:00.000Z',
+  String? startTimeZone,
+  Map<String, Object?> sourceRawJson = const {},
 }) async {
   final repository = CalendarRepository(database: database);
   await repository.upsertSource(
@@ -145,6 +341,7 @@ Future<void> _upsertEvent(
       provider: provider,
       providerCalendarId: 'cal-1',
       summary: 'Calendar',
+      rawJson: sourceRawJson,
     ),
   );
   await repository.upsertEvent(
@@ -154,7 +351,8 @@ Future<void> _upsertEvent(
       providerCalendarId: 'cal-1',
       providerEventId: 'event-1',
       title: 'Standup',
-      startDateTime: '2026-06-08T09:00:00.000Z',
+      startDateTime: startDateTime,
+      startTimeZone: startTimeZone,
       endDateTime: '2026-06-08T10:00:00.000Z',
       remindersJson: remindersJson,
       rawJson: {'id': 'event-1', 'subject': 'Standup'},
@@ -165,6 +363,8 @@ Future<void> _upsertEvent(
 Future<void> _insertTaskReminder(
   AppDatabase database, {
   required String status,
+  String reminderDateTime = '2026-06-08T09:15:00.000Z',
+  String? reminderTimeZone,
 }) async {
   await database
       .into(database.taskLists)
@@ -188,7 +388,8 @@ Future<void> _insertTaskReminder(
           title: 'File report',
           status: Value(status),
           microsoftIsReminderOn: const Value(true),
-          microsoftReminderDateTime: const Value('2026-06-08T09:15:00.000Z'),
+          microsoftReminderDateTime: Value(reminderDateTime),
+          microsoftReminderTimeZone: Value(reminderTimeZone),
           rawJson: jsonEncode({'id': 'task-1'}),
           createdLocalAtUtc: '2026-06-08T00:00:00.000Z',
           updatedLocalAtUtc: '2026-06-08T00:00:00.000Z',

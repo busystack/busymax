@@ -390,6 +390,102 @@ abstract class AppLocalizations {
   /// **'Agenda unavailable'**
   String get trayAgendaError;
 
+  /// No description provided for @compactAgendaTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Agenda'**
+  String get compactAgendaTitle;
+
+  /// No description provided for @compactAgendaSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming'**
+  String get compactAgendaSubtitle;
+
+  /// No description provided for @compactAgendaOverdue.
+  ///
+  /// In en, this message translates to:
+  /// **'Overdue'**
+  String get compactAgendaOverdue;
+
+  /// No description provided for @compactAgendaClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear for now'**
+  String get compactAgendaClear;
+
+  /// No description provided for @compactAgendaOpenBusyMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Open BusyMax'**
+  String get compactAgendaOpenBusyMax;
+
+  /// No description provided for @compactAgendaHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide'**
+  String get compactAgendaHide;
+
+  /// No description provided for @compactAgendaNewTask.
+  ///
+  /// In en, this message translates to:
+  /// **'New task'**
+  String get compactAgendaNewTask;
+
+  /// No description provided for @compactAgendaRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get compactAgendaRetry;
+
+  /// No description provided for @compactAgendaRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get compactAgendaRefresh;
+
+  /// No description provided for @compactAgendaAllDay.
+  ///
+  /// In en, this message translates to:
+  /// **'All day'**
+  String get compactAgendaAllDay;
+
+  /// No description provided for @compactAgendaDueToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Due today'**
+  String get compactAgendaDueToday;
+
+  /// No description provided for @compactAgendaDueTomorrow.
+  ///
+  /// In en, this message translates to:
+  /// **'Due tomorrow'**
+  String get compactAgendaDueTomorrow;
+
+  /// No description provided for @compactAgendaDueOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Due {date}'**
+  String compactAgendaDueOn(String date);
+
+  /// No description provided for @compactAgendaMoreOverdue.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more overdue tasks'**
+  String get compactAgendaMoreOverdue;
+
+  /// No description provided for @agendaLoadMoreOverdue.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more overdue tasks'**
+  String get agendaLoadMoreOverdue;
+
+  /// No description provided for @agendaLoadMoreNoDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more no-date tasks'**
+  String get agendaLoadMoreNoDate;
+
   /// No description provided for @viewDay.
   ///
   /// In en, this message translates to:
@@ -419,6 +515,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Agenda'**
   String get viewAgenda;
+
+  /// No description provided for @scheduleSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule'**
+  String get scheduleSettings;
+
+  /// No description provided for @scheduleDisplaySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule display'**
+  String get scheduleDisplaySettings;
+
+  /// No description provided for @scheduleDisplayHoursDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Day and Week views open within these hours. Early and late items expand the range when needed.'**
+  String get scheduleDisplayHoursDescription;
+
+  /// No description provided for @scheduleDayStartsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Day starts at'**
+  String get scheduleDayStartsAt;
+
+  /// No description provided for @scheduleDayEndsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Day ends at'**
+  String get scheduleDayEndsAt;
 
   /// No description provided for @sourceCalendar.
   ///

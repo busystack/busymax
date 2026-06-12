@@ -28,92 +28,120 @@ void main() {
       );
     });
 
-    test('Task Details and Settings use BusyMax Yaru row patterns', () {
-      final taskDetails = File(
-        'lib/src/features/tasks/presentation/task_details_editor.dart',
-      ).readAsStringSync();
-      final settings = File(
-        'lib/src/features/settings/presentation/settings_screen.dart',
-      ).readAsStringSync();
-      final diagnostics = File(
-        'lib/src/features/diagnostics/presentation/diagnostics_screen.dart',
-      ).readAsStringSync();
-      final router = File('lib/src/app/app_router.dart').readAsStringSync();
-      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
-      final dateTimeFields = File(
-        'lib/src/features/tasks/presentation/desktop_date_time_fields.dart',
-      ).readAsStringSync();
-      final newTaskDialog = File(
-        'lib/src/features/tasks/presentation/new_task_dialog.dart',
-      ).readAsStringSync();
+    test(
+      'Task Details, Settings, and Agenda use BusyMax Yaru row patterns',
+      () {
+        final taskDetails = File(
+          'lib/src/features/tasks/presentation/task_details_editor.dart',
+        ).readAsStringSync();
+        final settings = File(
+          'lib/src/features/settings/presentation/settings_screen.dart',
+        ).readAsStringSync();
+        final diagnostics = File(
+          'lib/src/features/diagnostics/presentation/diagnostics_screen.dart',
+        ).readAsStringSync();
+        final router = File('lib/src/app/app_router.dart').readAsStringSync();
+        final design = File(
+          'lib/src/app/busymax_design.dart',
+        ).readAsStringSync();
+        final dateTimeFields = File(
+          'lib/src/features/tasks/presentation/desktop_date_time_fields.dart',
+        ).readAsStringSync();
+        final newTaskDialog = File(
+          'lib/src/features/tasks/presentation/new_task_dialog.dart',
+        ).readAsStringSync();
+        final scheduleAgenda = File(
+          'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+        ).readAsStringSync();
+        final compactAgenda = File(
+          'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+        ).readAsStringSync();
 
-      expect(design, contains('class BusyMaxClamp'));
-      expect(design, contains('class BusyMaxGroupedList'));
-      expect(design, contains('class BusyMaxActionRow'));
-      expect(design, contains('class BusyMaxComboRow'));
-      expect(design, contains('class BusyMaxSwitchRow'));
-      expect(design, contains('class BusyMaxDialogShell'));
-      expect(design, contains('class BusyMaxModalEditorSurface'));
-      expect(design, contains('Color busyMaxModalBarrierColor'));
-      expect(design, contains('abstract final class BusyMaxElevation'));
-      expect(design, contains('elevation: BusyMaxElevation.surface'));
-      expect(
-        design,
-        contains('shadowColor: BusyMaxShadow.floatingColor(context)'),
-      );
-      expect(design, contains('final bool filled;'));
-      expect(design, contains('BusyMaxSurfaceColors.of(context)'));
-      expect(design, contains('surfaceColors.card'));
-      expect(design, contains('surfaceColors.control'));
-      expect(design, isNot(contains('YaruTileList(children: children)')));
+        expect(design, contains('class BusyMaxClamp'));
+        expect(design, contains('class BusyMaxGroupedList'));
+        expect(design, contains('class BusyMaxActionRow'));
+        expect(design, contains('class BusyMaxComboRow'));
+        expect(design, contains('class BusyMaxSwitchRow'));
+        expect(design, contains('class BusyMaxDialogShell'));
+        expect(design, contains('class BusyMaxModalEditorSurface'));
+        expect(design, contains('Color busyMaxModalBarrierColor'));
+        expect(design, contains('abstract final class BusyMaxElevation'));
+        expect(design, contains('elevation: BusyMaxElevation.surface'));
+        expect(
+          design,
+          contains('shadowColor: BusyMaxShadow.floatingColor(context)'),
+        );
+        expect(design, contains('final bool filled;'));
+        expect(design, contains('BusyMaxSurfaceColors.of(context)'));
+        expect(design, contains('surfaceColors.card'));
+        expect(design, contains('surfaceColors.control'));
+        expect(design, isNot(contains('YaruTileList(children: children)')));
 
-      expect(taskDetails, contains('BusyMaxClamp'));
-      expect(taskDetails, contains('BusyMaxGroupedList'));
-      expect(taskDetails, contains('BusyMaxActionRow'));
-      expect(taskDetails, contains('BusyMaxComboRow'));
+        expect(taskDetails, contains('BusyMaxClamp'));
+        expect(taskDetails, contains('BusyMaxGroupedList'));
+        expect(taskDetails, contains('BusyMaxActionRow'));
+        expect(taskDetails, contains('BusyMaxComboRow'));
 
-      expect(settings, contains('BusyMaxClamp'));
-      expect(settings, contains('BusyMaxGroupedList'));
-      expect(settings, contains('BusyMaxActionRow'));
-      expect(settings, contains('BusyMaxComboRow'));
-      expect(settings, contains('BusyMaxSwitchRow'));
-      expect(settings, contains('class _SettingsSidebar'));
-      expect(settings, contains('enum SettingsPage'));
-      expect(settings, contains('filled: true'));
-      expect(settings, contains('DiagnosticsPanel(scrollable: false)'));
-      expect(settings, isNot(contains("context.go('/diagnostics')")));
-      expect(diagnostics, contains('class DiagnosticsPanel'));
-      expect(diagnostics, isNot(contains('class DiagnosticsScreen')));
-      expect(diagnostics, isNot(contains('Scaffold(')));
-      expect(router, isNot(contains("path: '/diagnostics'")));
-      expect(router, isNot(contains('DiagnosticsScreen')));
-      expect(settings, contains('SettingsPage.system'));
-      expect(settings, contains('l10n.manualFullSync'));
-      expect(settings, contains('l10n.currentLocale'));
-      expect(settings, isNot(contains('SettingsPage.sync')));
-      expect(settings, isNot(contains('SettingsPage.appearance')));
-      expect(settings, isNot(contains('SettingsPage.localization')));
-      expect(settings, isNot(contains('l10n.themeFamily')));
-      expect(settings, contains('setBackVisible(true)'));
-      expect(settings, contains('setSidebarVisible(true)'));
-      expect(newTaskDialog, contains('BusyMaxDialogShell'));
+        expect(settings, contains('BusyMaxClamp'));
+        expect(settings, contains('BusyMaxGroupedList'));
+        expect(settings, contains('BusyMaxActionRow'));
+        expect(settings, contains('BusyMaxComboRow'));
+        expect(settings, contains('BusyMaxSwitchRow'));
+        expect(settings, contains('class _SettingsSidebar'));
+        expect(settings, contains('enum SettingsPage'));
+        expect(settings, contains('filled: true'));
+        expect(settings, contains('DiagnosticsPanel(scrollable: false)'));
+        expect(settings, isNot(contains("context.go('/diagnostics')")));
+        expect(diagnostics, contains('class DiagnosticsPanel'));
+        expect(diagnostics, isNot(contains('class DiagnosticsScreen')));
+        expect(diagnostics, isNot(contains('Scaffold(')));
+        expect(router, isNot(contains("path: '/diagnostics'")));
+        expect(router, isNot(contains('DiagnosticsScreen')));
+        expect(settings, contains('SettingsPage.system'));
+        expect(settings, contains('l10n.manualFullSync'));
+        expect(settings, contains('l10n.currentLocale'));
+        expect(settings, isNot(contains('SettingsPage.sync')));
+        expect(settings, isNot(contains('SettingsPage.appearance')));
+        expect(settings, isNot(contains('SettingsPage.localization')));
+        expect(settings, isNot(contains('l10n.themeFamily')));
+        expect(settings, contains('setBackVisible(true)'));
+        expect(settings, contains('setSidebarVisible(true)'));
+        expect(newTaskDialog, contains('showBusyMaxModalEditorDialog'));
+        expect(newTaskDialog, contains('TaskDetailsEditor'));
+        expect(newTaskDialog, isNot(contains('BusyMaxDialogShell')));
 
-      expect(dateTimeFields, contains('YaruDateTimeEntry'));
-      expect(dateTimeFields, contains('YaruTimeEntry'));
-      expect(dateTimeFields, isNot(contains('showDatePicker')));
-      expect(dateTimeFields, isNot(contains('showTimePicker')));
-    });
+        expect(scheduleAgenda, contains('BusyMaxGroupedList'));
+        expect(scheduleAgenda, contains('BusyMaxActionRow'));
+        expect(scheduleAgenda, isNot(contains('scheduleAgendaRowBackground')));
+        expect(scheduleAgenda, isNot(contains('class _AgendaDayHeader')));
+        expect(scheduleAgenda, isNot(contains('class _AgendaPlainHeader')));
+
+        expect(compactAgenda, contains('BusyMaxGroupedList'));
+        expect(compactAgenda, contains('BusyMaxActionRow'));
+        expect(compactAgenda, isNot(contains('scheduleAgendaRowBackground')));
+
+        expect(dateTimeFields, contains('YaruDateTimeEntry'));
+        expect(dateTimeFields, contains('_BusyMaxTimeTextEntry'));
+        expect(dateTimeFields, contains('parseTimeInput'));
+        expect(dateTimeFields, isNot(contains('showDatePicker')));
+        expect(dateTimeFields, isNot(contains('showTimePicker')));
+      },
+    );
 
     test('tray DBus menu labels come from injected labels', () {
       final source = File(
         'lib/src/platform/busymax_tray_service.dart',
       ).readAsStringSync();
+      final logo = File('assets/branding/busymax-logo.svg').readAsStringSync();
 
       expect(source, contains('class BusyMaxTrayLabels'));
       expect(source, contains('buildBusyMaxTrayMenu'));
       expect(source, contains('busyMaxApplicationId'));
       expect(source, contains('io.busystack.busymax'));
-      expect(source, contains('assets/branding/busymax-logo.png'));
+      expect(source, contains('assets/branding/busymax-logo.svg'));
+      expect(logo, contains('width="512" height="512"'));
+      expect(logo, contains('viewBox="106 108 300 300"'));
+      expect(logo, isNot(contains('viewBox="254 120 232 272"')));
       expect(source, isNot(contains('BusyMaxTrayAgendaSnapshot')));
       expect(source, isNot(contains('BusyMaxTrayAgendaEntry')));
       expect(source, isNot(contains('buildBusyMaxTrayAgendaRows')));
@@ -128,8 +156,117 @@ void main() {
       expect(source, isNot(contains("label: 'Quit BusyMax'")));
     });
 
+    test('compact agenda uses a separate desktop window', () {
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final linuxMain = File('linux/runner/main.cc').readAsStringSync();
+      final tray = File(
+        'lib/src/platform/busymax_tray_service.dart',
+      ).readAsStringSync();
+      final router = File('lib/src/app/app_router.dart').readAsStringSync();
+      final main = File('lib/main.dart').readAsStringSync();
+      final compactApp = File(
+        'lib/src/features/schedule/presentation/compact_agenda_app.dart',
+      ).readAsStringSync();
+      final compactPanel = File(
+        'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+      ).readAsStringSync();
+      final compactWindowService = File(
+        'lib/src/platform/compact_agenda_window_service.dart',
+      ).readAsStringSync();
+
+      expect(pubspec, contains('desktop_multi_window:'));
+      expect(pubspec, contains('window_manager:'));
+      expect(linuxMain, contains('gdk_set_allowed_backends("x11")'));
+      expect(
+        runner,
+        contains('desktop_multi_window_plugin_set_window_created_callback'),
+      );
+      expect(runner, contains('configure_compact_agenda_subwindow'));
+      expect(runner, contains('install_compact_agenda_window_css'));
+      expect(runner, contains('io.busystack.busymax/compact_agenda_window'));
+      expect(runner, contains('kCompactAgendaPanelWidth = 420'));
+      expect(runner, contains('kCompactAgendaWindowShadowMargin = 32'));
+      expect(
+        runner,
+        contains('gtk_window_resize(window, kCompactAgendaWindowWidth'),
+      );
+      expect(runner, contains('gtk_window_move(window, x, y)'));
+      expect(runner, contains('apply_compact_agenda_geometry'));
+      expect(
+        runner,
+        contains(
+          'gtk_window_set_type_hint(window, GDK_WINDOW_TYPE_HINT_UTILITY)',
+        ),
+      );
+      expect(
+        runner,
+        contains('gtk_window_set_skip_taskbar_hint(window, TRUE)'),
+      );
+      expect(runner, contains('gtk_window_set_skip_pager_hint(window, TRUE)'));
+      expect(runner, contains('gtk_window_set_keep_above(window, TRUE)'));
+      expect(runner, contains('register_compact_gtk_settings_channel'));
+      expect(
+        runner,
+        contains('register_native_date_time_picker_for_subwindow'),
+      );
+      expect(runner, contains('window#busymax-compact-agenda-window'));
+      expect(runner, contains('gtk_window_get_titlebar(window)'));
+      expect(runner, contains('gtk_widget_hide(titlebar)'));
+      expect(runner, contains('gtk_window_set_decorated(window, FALSE)'));
+      expect(
+        runner,
+        contains('gtk_widget_set_size_request(GTK_WIDGET(window)'),
+      );
+      expect(runner, contains('gtk_widget_set_size_request(GTK_WIDGET(view)'));
+      expect(
+        runner,
+        isNot(contains('gtk_window_set_titlebar(window, nullptr)')),
+      );
+      expect(tray, contains('return _onOpenAgenda();'));
+      expect(tray, isNot(contains('BusyMaxTrayAgendaSnapshot')));
+      expect(tray, isNot(contains('BusyMaxTrayAgendaEntry')));
+      expect(router, isNot(contains('/tray-agenda')));
+      expect(compactApp, isNot(contains('linux_header_bar_service.dart')));
+      expect(compactApp, contains('gtk_font_service.dart'));
+      expect(compactApp, contains('gtkFontSettingsProvider'));
+      expect(compactApp, contains('gtkThemeColorsProvider'));
+      expect(compactApp, isNot(contains('syncSchedulerProvider')));
+      expect(compactApp, isNot(contains('notificationSchedulerProvider')));
+      expect(compactApp, isNot(contains('dueTodayNotificationProvider')));
+      expect(compactApp, contains('const _compactAgendaPanelWidth = 420.0'));
+      expect(compactApp, contains('const _compactAgendaPanelHeight = 680.0'));
+      expect(compactApp, contains('BusyMaxShadow.windowMargin'));
+      expect(
+        compactApp,
+        contains('io.busystack.busymax/compact_agenda_window'),
+      );
+      expect(
+        compactApp,
+        contains('_compactAgendaWindowChannel.invokeMethod<bool>'),
+      );
+      expect(
+        compactApp,
+        contains('await windowManager.setSize(_compactAgendaWindowSize)'),
+      );
+      expect(compactApp, contains('await windowManager.setBounds('));
+      expect(compactApp, contains('await _moveNearTrayArea('));
+      expect(compactApp, isNot(contains('void onWindowBlur()')));
+      expect(compactApp, isNot(contains('_hideAfterBlurDelay')));
+      expect(compactPanel, contains('ClipRRect'));
+      expect(compactPanel, contains('BusyMaxRadius.window'));
+      expect(compactPanel, contains('BusyMaxShadow.windowShadowsFor'));
+      expect(compactWindowService, isNot(contains('controller.show()')));
+      expect(main, isNot(contains('waitUntilReadyToShow')));
+      expect(main, isNot(contains('await windowManager.show();')));
+    });
+
     test('native headerbar keeps sidebar top branded and aligned', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final headerBarSource = source.substring(
+        0,
+        source.indexOf('static void install_compact_agenda_window_css'),
+      );
 
       expect(source, isNot(contains('GtkWidget* brand_box')));
       expect(
@@ -253,6 +390,26 @@ void main() {
       expect(source, contains('kHeaderWindowRadius'));
       expect(source, contains('border-top-left-radius: %dpx;'));
       expect(source, contains('border-top-right-radius: %dpx;'));
+      final mainWindowCssStart = source.indexOf('"window#busymax-window,"');
+      final mainWindowDecorationCssStart = source.indexOf(
+        '"window#busymax-window decoration,"',
+        mainWindowCssStart,
+      );
+      final mainWindowCss = source.substring(
+        mainWindowCssStart,
+        mainWindowDecorationCssStart,
+      );
+      expect(mainWindowCss, contains('"background-color: %s;"'));
+      expect(
+        source,
+        contains('self->main_window_transparent_backing ? "transparent"'),
+      );
+      expect(
+        source,
+        contains(
+          'g_signal_connect(window, "draw", G_CALLBACK(clear_transparent_window_cb)',
+        ),
+      );
       expect(source, contains('clear_transparent_window_cb'));
       expect(source, contains('CAIRO_OPERATOR_CLEAR'));
       expect(
@@ -261,12 +418,18 @@ void main() {
       );
       expect(source, contains('window#busymax-window decoration,'));
       expect(source, contains('window#busymax-window decoration:backdrop'));
+      expect(source, contains('"box-shadow: 0 3px 18px 2px %s;"'));
+      expect(source, contains('window_css_background_color, shade_color'));
+      expect(source, contains('"outline: none;"'));
       expect(
         source,
-        contains(
-          'g_signal_connect(window, "draw", G_CALLBACK(clear_transparent_window_cb)',
-        ),
+        contains('gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE)'),
       );
+      expect(source, contains('configure_rounded_window_shape'));
+      expect(source, contains('create_rounded_window_region'));
+      expect(source, contains('gdk_window_shape_combine_region'));
+      expect(source, contains('GDK_WINDOW_STATE_MAXIMIZED'));
+      expect(source, contains('GDK_WINDOW_STATE_FULLSCREEN'));
       expect(source, isNot(contains('kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('-kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('linear-gradient(to right')));
@@ -279,6 +442,7 @@ void main() {
       expect(source, contains('tooltip label'));
       expect(source, contains('margin: 0;'));
       expect(source, contains('min-height: 0;'));
+      expect(source, contains('"box-shadow: 0 5px 18px 2px %s;"'));
       expect(source, contains('kHeaderTooltipVerticalPadding'));
       expect(source, contains('kHeaderTooltipHorizontalPadding'));
       expect(
@@ -432,13 +596,19 @@ void main() {
       expect(source, isNot(contains('gtk_menu_popup_at_widget')));
       expect(source, isNot(contains('gtk_menu_shell_append')));
       expect(source, isNot(contains('gtk_menu_popdown')));
-      expect(source, isNot(contains('gtk_window_set_skip_taskbar_hint')));
-      expect(source, isNot(contains('gtk_window_set_skip_pager_hint')));
+      expect(
+        headerBarSource,
+        isNot(contains('gtk_window_set_skip_taskbar_hint')),
+      );
+      expect(
+        headerBarSource,
+        isNot(contains('gtk_window_set_skip_pager_hint')),
+      );
       expect(source, isNot(contains('create_header_popup_box')));
       expect(source, isNot(contains('draw_header_popup_background_cb')));
       expect(source, isNot(contains('gtk_event_box_new()')));
       expect(source, isNot(contains('gtk_widget_set_app_paintable(popup')));
-      expect(source, isNot(contains('gtk_window_move')));
+      expect(headerBarSource, isNot(contains('gtk_window_move')));
       expect(source, isNot(contains('override_header_menu_colors')));
       expect(source, isNot(contains('GTK_STYLE_PROVIDER_PRIORITY_USER')));
       expect(source, isNot(contains('add_header_menu_provider_to_widget')));
@@ -539,12 +709,11 @@ void main() {
         contains('kDefaultHeaderBarSidebarBackgroundColor[] = "#2E2E32"'),
       );
       expect(source, contains('set_flutter_view_background_color'));
+      expect(source, contains('header_bar_window_background_color'));
+      expect(source, contains('"windowBackgroundColor"'));
       expect(
         source,
-        contains(
-          'set_flutter_view_background_color(self, '
-          'self->header_bar_background_color)',
-        ),
+        contains('css_color_or(self->header_bar_window_background_color,'),
       );
       expect(
         source,

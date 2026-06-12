@@ -7,7 +7,6 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
-import '../../../app/busymax_yaru_theme.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
 import '../../../task_providers/task_provider.dart';
@@ -33,6 +32,23 @@ class TaskDetailsEditor extends StatefulWidget {
     this.onSaved,
     this.onTaskSwitchCancelled,
     this.onDirtyChanged,
+    this.onDraftChanged,
+    this.categorySuggestions = const [],
+    this.initialDraft,
+    this.editorTitle,
+    this.saveLabel,
+    this.accountIds = const [],
+    this.selectedAccountId,
+    this.accountLabelFor,
+    this.accountSecondaryLabelFor,
+    this.onAccountSelected,
+    this.allowTaskListSelection,
+    this.showAdvancedActions = true,
+    this.showDeleteAction = true,
+    this.confirmTaskSwitch = true,
+    this.useNativeDatePicker = true,
+    this.dialogBarrierColor,
+    this.canSaveDraft,
   });
 
   final TaskEntity task;
@@ -53,6 +69,23 @@ class TaskDetailsEditor extends StatefulWidget {
   final VoidCallback? onSaved;
   final ValueChanged<TaskEntity>? onTaskSwitchCancelled;
   final ValueChanged<bool>? onDirtyChanged;
+  final ValueChanged<TaskDetailsDraft>? onDraftChanged;
+  final List<String> categorySuggestions;
+  final TaskDetailsDraft? initialDraft;
+  final String? editorTitle;
+  final String? saveLabel;
+  final List<String> accountIds;
+  final String? selectedAccountId;
+  final String Function(String accountId)? accountLabelFor;
+  final String? Function(String accountId)? accountSecondaryLabelFor;
+  final ValueChanged<String>? onAccountSelected;
+  final bool? allowTaskListSelection;
+  final bool showAdvancedActions;
+  final bool showDeleteAction;
+  final bool confirmTaskSwitch;
+  final bool useNativeDatePicker;
+  final Color? dialogBarrierColor;
+  final bool Function(TaskDetailsDraft draft)? canSaveDraft;
 
   @override
   State<TaskDetailsEditor> createState() => _TaskDetailsEditorState();
@@ -86,7 +119,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final hasChanges = _hasDraftChanges(_draft);
 
     if (!sameKey) {
-      if (hasChanges) {
+      if (hasChanges && widget.confirmTaskSwitch) {
         unawaited(_confirmTaskSelectionChange(widget.task));
       } else {
         _loadDraft(widget.task, force: true);
@@ -113,8 +146,13 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         _draft ?? TaskDetailsDraft.fromTask(_editingTask, widget.localTimeZone);
     final l10n = context.l10n;
     final hasChanges = _hasDraftChanges(draft);
-    final canSave = draft.title.trim().isNotEmpty && hasChanges && !_saving;
+    final canSave =
+        draft.title.trim().isNotEmpty &&
+        hasChanges &&
+        !_saving &&
+        (widget.canSaveDraft?.call(draft) ?? true);
     final currentList = _listTitle(draft.taskListId);
+    final scheduledAllDay = _isScheduledAllDay(draft);
     final listValue = [
       currentList,
       widget.accountLabel,
@@ -127,9 +165,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         child: Column(
           children: [
             _TaskDetailsHeader(
-              title: l10n.editTask,
+              title: widget.editorTitle ?? l10n.editTask,
               cancelLabel: l10n.cancel,
-              saveLabel: l10n.save,
+              saveLabel: widget.saveLabel ?? l10n.save,
               saving: _saving,
               canSave: canSave,
               onCancel: _cancel,
@@ -163,6 +201,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ),
                       ],
                     ),
+                    if (_hasAccountSelector)
+                      BusyMaxGroupedList(
+                        filled: true,
+                        children: [_accountRow()],
+                      ),
                     BusyMaxGroupedList(
                       filled: true,
                       children: [_listRow(draft, listValue)],
@@ -171,16 +214,31 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       title: l10n.dueGroup,
                       filled: true,
                       children: [
+                        if (_supportsScheduledTimeMode)
+                          BusyMaxTimeModeRow(
+                            allDay: scheduledAllDay,
+                            onChanged: (value) =>
+                                _setScheduledAllDay(draft, value),
+                          ),
                         DesktopDateValueRow(
                           label: l10n.dueDate,
                           date: draft.dueDate,
                           emptyLabel: l10n.noneValue,
                           onChanged: (value) =>
                               _updateDraft(draft.copyWith(dueDate: value)),
-                          onClear: () =>
-                              _updateDraft(draft.copyWith(dueDate: null)),
+                          useNativePicker: widget.useNativeDatePicker,
+                          onClear: () => _updateDraft(
+                            draft.copyWith(
+                              dueDate: null,
+                              microsoftDueTime:
+                                  widget.capabilities.supportsDueTime
+                                  ? null
+                                  : draft.microsoftDueTime,
+                            ),
+                          ),
                         ),
-                        if (widget.capabilities.supportsDueTime)
+                        if (widget.capabilities.supportsDueTime &&
+                            !scheduledAllDay)
                           DesktopTimeValueRow(
                             label: l10n.dueTime,
                             time: draft.microsoftDueTime,
@@ -195,7 +253,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       BusyMaxGroupedList(
                         title: l10n.startGroup,
                         filled: true,
-                        children: _startRows(draft),
+                        children: _startRows(draft, scheduledAllDay),
                       ),
                     if (widget.capabilities.supportsReminderDateTime)
                       BusyMaxGroupedList(
@@ -241,7 +299,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ),
                       ],
                     ),
-                    if (widget.capabilities.supportsTaskHierarchy)
+                    if (widget.showAdvancedActions &&
+                        widget.capabilities.supportsTaskHierarchy)
                       BusyMaxGroupedList(
                         title: l10n.advancedSection,
                         filled: true,
@@ -258,27 +317,29 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                           ),
                         ],
                       ),
-                    const SizedBox(height: BusyMaxSpacing.md),
-                    BusyMaxGroupedList(
-                      filled: true,
-                      children: [
-                        BusyMaxActionRow(
-                          title: l10n.deleteTask,
-                          titleWidget: Center(
-                            child: Text(
-                              l10n.deleteTask,
-                              style: _taskEditorProminentActionStyle(
-                                context,
-                                color: Theme.of(context).colorScheme.error,
-                                fontWeight: FontWeight.w700,
+                    if (widget.showDeleteAction) ...[
+                      const SizedBox(height: BusyMaxSpacing.md),
+                      BusyMaxGroupedList(
+                        filled: true,
+                        children: [
+                          BusyMaxActionRow(
+                            title: l10n.deleteTask,
+                            titleWidget: Center(
+                              child: Text(
+                                l10n.deleteTask,
+                                style: _taskEditorProminentActionStyle(
+                                  context,
+                                  color: Theme.of(context).colorScheme.error,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
+                            destructive: true,
+                            onTap: _deleteTask,
                           ),
-                          destructive: true,
-                          onTap: _deleteTask,
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: BusyMaxSpacing.lg),
                   ],
                 ),
@@ -287,6 +348,35 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           ],
         ),
       ),
+    );
+  }
+
+  bool get _hasAccountSelector {
+    return widget.selectedAccountId != null &&
+        widget.accountIds.isNotEmpty &&
+        widget.accountLabelFor != null &&
+        widget.onAccountSelected != null;
+  }
+
+  Widget _accountRow() {
+    final l10n = context.l10n;
+    final labelFor = widget.accountLabelFor!;
+    final secondaryLabelFor = widget.accountSecondaryLabelFor;
+    return BusyMaxComboRow<String>(
+      title: l10n.account,
+      leading: const Icon(YaruIcons.user),
+      values: widget.accountIds,
+      selected: widget.selectedAccountId!,
+      labelFor: labelFor,
+      menuItemBuilder: (context, value) => _TaskEditorAccountIdentity(
+        label: labelFor(value),
+        secondaryLabel: secondaryLabelFor?.call(value),
+      ),
+      selectedBuilder: (context, value) => _TaskEditorAccountIdentity(
+        label: labelFor(value),
+        secondaryLabel: secondaryLabelFor?.call(value),
+      ),
+      onSelected: widget.onAccountSelected!,
     );
   }
 
@@ -300,13 +390,18 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         enabled: false,
       );
     }
-    if (!widget.capabilities.supportsCrossListMove) {
+    final canSelectList =
+        widget.allowTaskListSelection ??
+        widget.capabilities.supportsCrossListMove;
+    if (!canSelectList) {
       return BusyMaxActionRow(
         title: l10n.list,
         leading: const Icon(Icons.drive_file_move_outline),
         subtitle: listValue.isEmpty ? null : listValue,
         enabled: false,
-        tooltip: l10n.microsoftMoveUnsupported,
+        tooltip: widget.capabilities.supportsCrossListMove
+            ? null
+            : l10n.microsoftMoveUnsupported,
       );
     }
     return BusyMaxComboRow<String>(
@@ -324,7 +419,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     );
   }
 
-  List<Widget> _startRows(TaskDetailsDraft draft) {
+  List<Widget> _startRows(TaskDetailsDraft draft, bool scheduledAllDay) {
     final l10n = context.l10n;
     return [
       DesktopDateValueRow(
@@ -333,18 +428,70 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftStartDate: value)),
+        useNativePicker: widget.useNativeDatePicker,
         onClear: () => _updateDraft(
           draft.copyWith(microsoftStartDate: null, microsoftStartTime: null),
         ),
       ),
-      DesktopTimeValueRow(
-        label: l10n.startTime,
-        time: draft.microsoftStartTime,
-        emptyLabel: l10n.noneValue,
-        onChanged: (value) =>
-            _updateDraft(draft.copyWith(microsoftStartTime: value)),
-      ),
+      if (!scheduledAllDay)
+        DesktopTimeValueRow(
+          label: l10n.startTime,
+          time: draft.microsoftStartTime,
+          emptyLabel: l10n.noneValue,
+          onChanged: (value) =>
+              _updateDraft(draft.copyWith(microsoftStartTime: value)),
+        ),
     ];
+  }
+
+  bool get _supportsScheduledTimeMode {
+    return widget.capabilities.supportsDueTime ||
+        widget.capabilities.supportsStartDateTime;
+  }
+
+  bool _isScheduledAllDay(TaskDetailsDraft draft) {
+    final hasDueTime =
+        widget.capabilities.supportsDueTime && draft.microsoftDueTime != null;
+    final hasStartTime =
+        widget.capabilities.supportsStartDateTime &&
+        draft.microsoftStartTime != null;
+    return !hasDueTime && !hasStartTime;
+  }
+
+  void _setScheduledAllDay(TaskDetailsDraft draft, bool allDay) {
+    if (allDay) {
+      _updateDraft(
+        draft.copyWith(
+          microsoftDueTime: widget.capabilities.supportsDueTime
+              ? null
+              : draft.microsoftDueTime,
+          microsoftStartTime: widget.capabilities.supportsStartDateTime
+              ? null
+              : draft.microsoftStartTime,
+        ),
+      );
+      return;
+    }
+    final hasDueDate = draft.dueDate != null && draft.dueDate!.isNotEmpty;
+    final hasStartDate =
+        draft.microsoftStartDate != null &&
+        draft.microsoftStartDate!.isNotEmpty;
+    final shouldDefaultDueTime =
+        widget.capabilities.supportsDueTime && (hasDueDate || !hasStartDate);
+    _updateDraft(
+      draft.copyWith(
+        dueDate: shouldDefaultDueTime
+            ? draft.dueDate ?? encodeGoogleDateOnly(DateTime.now())
+            : draft.dueDate,
+        microsoftDueTime: shouldDefaultDueTime
+            ? draft.microsoftDueTime ?? '09:00'
+            : draft.microsoftDueTime,
+        microsoftStartTime:
+            widget.capabilities.supportsStartDateTime && hasStartDate
+            ? draft.microsoftStartTime ?? '09:00'
+            : draft.microsoftStartTime,
+      ),
+    );
   }
 
   Widget _repeatRow(TaskDetailsDraft draft) {
@@ -388,45 +535,27 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   Widget _categoriesRow(TaskDetailsDraft draft) {
     final l10n = context.l10n;
-    return BusyMaxActionRow(
+    return BusyMaxCategoryEditorRow(
       title: l10n.categories,
-      leading: const Icon(Icons.sell_outlined),
-      subtitleWidget: Padding(
-        padding: const EdgeInsets.only(top: BusyMaxSpacing.xs),
-        child: Wrap(
-          spacing: BusyMaxSpacing.xs,
-          runSpacing: BusyMaxSpacing.xs,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            for (final category in draft.categories)
-              _TaskCategoryChip(
-                label: category,
-                onDeleted: () => _removeCategory(draft, category),
-              ),
-            if (_addingCategory)
-              _TaskCategoryInputChip(
-                controller: _categoryController,
-                hintText: l10n.addCategory,
-                onSubmitted: (value) => _addCategory(draft, value),
-                onCancel: () {
-                  _categoryController.clear();
-                  setState(() {
-                    _addingCategory = false;
-                  });
-                },
-              )
-            else
-              _TaskAddCategoryChip(
-                label: l10n.addCategory,
-                onPressed: () {
-                  setState(() {
-                    _addingCategory = true;
-                  });
-                },
-              ),
-          ],
-        ),
-      ),
+      addLabel: l10n.addCategory,
+      categories: draft.categories,
+      suggestions: widget.categorySuggestions,
+      adding: _addingCategory,
+      controller: _categoryController,
+      inputKey: const Key('task-category-input'),
+      onAddPressed: () {
+        setState(() {
+          _addingCategory = true;
+        });
+      },
+      onSubmitted: (value) => _addCategory(draft, value),
+      onCancelAdding: () {
+        _categoryController.clear();
+        setState(() {
+          _addingCategory = false;
+        });
+      },
+      onDeleted: (category) => _removeCategory(draft, category),
     );
   }
 
@@ -497,6 +626,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         message: context.l10n.discardChangesConfirmation,
         confirmLabel: context.l10n.discard,
         destructive: true,
+        barrierColor: widget.dialogBarrierColor,
       );
       if (!discard || !mounted) {
         return;
@@ -518,6 +648,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       message: context.l10n.discardChangesConfirmation,
       confirmLabel: context.l10n.discard,
       destructive: true,
+      barrierColor: widget.dialogBarrierColor,
     );
     if (!mounted) {
       return;
@@ -536,6 +667,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       title: context.l10n.newSubtask,
       label: context.l10n.title,
       actionLabel: context.l10n.create,
+      barrierColor: widget.dialogBarrierColor,
     );
     if (title == null || title.trim().isEmpty) {
       return;
@@ -550,6 +682,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       message: context.l10n.deleteTaskConfirmation(_editingTask.title),
       confirmLabel: context.l10n.delete,
       destructive: true,
+      barrierColor: widget.dialogBarrierColor,
     );
     if (confirmed) {
       await widget.onDelete();
@@ -561,7 +694,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (!force && _loadedTaskKey == taskKey) {
       return;
     }
-    final draft = TaskDetailsDraft.fromTask(task, widget.localTimeZone);
+    final draft =
+        widget.initialDraft ??
+        TaskDetailsDraft.fromTask(task, widget.localTimeZone);
     _editingTask = task;
     _loadedTaskKey = taskKey;
     _draft = draft;
@@ -575,6 +710,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     setState(() {
       _draft = draft;
     });
+    widget.onDraftChanged?.call(draft);
     widget.onDirtyChanged?.call(_hasDraftChanges(draft));
   }
 
@@ -640,6 +776,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderDate: value)),
+        useNativePicker: widget.useNativeDatePicker,
         onClear: () =>
             _updateDraft(draft.copyWith(microsoftReminderDate: null)),
       ),
@@ -710,6 +847,48 @@ Widget _taskEditorSelectedValue(BuildContext context, String value) {
   );
 }
 
+class _TaskEditorAccountIdentity extends StatelessWidget {
+  const _TaskEditorAccountIdentity({required this.label, this.secondaryLabel});
+
+  final String label;
+  final String? secondaryLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final secondary = secondaryLabel?.trim();
+    final primaryStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(height: 1.05);
+    final secondaryStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: colorScheme.onSurfaceVariant,
+      height: 1.05,
+    );
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: primaryStyle,
+          ),
+          if (secondary != null && secondary.isNotEmpty)
+            Text(
+              secondary,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: secondaryStyle,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 TextStyle? _taskEditorProminentActionStyle(
   BuildContext context, {
   Color? color,
@@ -752,178 +931,8 @@ class _TaskDetailsHeader extends StatelessWidget {
   }
 }
 
-class _TaskCategoryChip extends StatelessWidget {
-  const _TaskCategoryChip({required this.label, required this.onDeleted});
-
-  final String label;
-  final VoidCallback onDeleted;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: surfaceColors.control,
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          start: BusyMaxSpacing.md,
-          end: BusyMaxSpacing.xs,
-          top: BusyMaxSpacing.xs,
-          bottom: BusyMaxSpacing.xs,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 160),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ),
-            const SizedBox(width: BusyMaxSpacing.xs),
-            Tooltip(
-              message:
-                  '${MaterialLocalizations.of(context).deleteButtonTooltip} $label',
-              child: InkResponse(
-                onTap: onDeleted,
-                radius: BusyMaxSizes.iconMd,
-                child: Icon(
-                  YaruIcons.window_close,
-                  size: BusyMaxSizes.iconSm,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskAddCategoryChip extends StatelessWidget {
-  const _TaskAddCategoryChip({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-        hoverColor: busyMaxEditorRowHoverColor(context),
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: BusyMaxSpacing.md,
-            vertical: BusyMaxSpacing.xs,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                YaruIcons.plus,
-                size: BusyMaxSizes.iconSm,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: BusyMaxSpacing.xs),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskCategoryInputChip extends StatelessWidget {
-  const _TaskCategoryInputChip({
-    required this.controller,
-    required this.hintText,
-    required this.onSubmitted,
-    required this.onCancel,
-  });
-
-  final TextEditingController controller;
-  final String hintText;
-  final ValueChanged<String> onSubmitted;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: surfaceColors.control,
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          start: BusyMaxSpacing.md,
-          end: BusyMaxSpacing.xs,
-        ),
-        child: SizedBox(
-          width: 180,
-          height: 30,
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  key: const Key('task-category-input'),
-                  controller: controller,
-                  autofocus: true,
-                  decoration: InputDecoration.collapsed(hintText: hintText),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: onSubmitted,
-                ),
-              ),
-              InkResponse(
-                onTap: () => onSubmitted(controller.text),
-                radius: BusyMaxSizes.iconMd,
-                child: Icon(
-                  YaruIcons.checkmark,
-                  size: BusyMaxSizes.iconSm,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: BusyMaxSpacing.xs),
-              InkResponse(
-                onTap: onCancel,
-                radius: BusyMaxSizes.iconMd,
-                child: Icon(
-                  YaruIcons.window_close,
-                  size: BusyMaxSizes.iconSm,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _taskKey(TaskEntity task) => '${task.taskListId}/${task.id}';
+String _taskKey(TaskEntity task) =>
+    '${task.accountId}/${task.taskListId}/${task.id}';
 
 bool _taskChanged(TaskEntity oldTask, TaskEntity newTask) {
   return oldTask.updatedLocalAtUtc != newTask.updatedLocalAtUtc ||

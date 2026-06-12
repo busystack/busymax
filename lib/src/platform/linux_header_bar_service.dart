@@ -124,6 +124,7 @@ class BusyMaxHeaderBarLabels {
 @immutable
 class BusyMaxHeaderBarTheme {
   const BusyMaxHeaderBarTheme({
+    required this.windowBackgroundColor,
     required this.backgroundColor,
     required this.sidebarBackgroundColor,
     required this.foregroundColor,
@@ -140,6 +141,7 @@ class BusyMaxHeaderBarTheme {
     required this.modalBarrierColor,
   });
 
+  final Color windowBackgroundColor;
   final Color backgroundColor;
   final Color sidebarBackgroundColor;
   final Color foregroundColor;
@@ -157,6 +159,7 @@ class BusyMaxHeaderBarTheme {
 
   Map<String, String> toJson() {
     return {
+      'windowBackgroundColor': busyMaxCssColor(windowBackgroundColor),
       'backgroundColor': busyMaxCssColor(backgroundColor),
       'sidebarBackgroundColor': busyMaxCssColor(sidebarBackgroundColor),
       'foregroundColor': busyMaxCssColor(foregroundColor),
@@ -178,6 +181,7 @@ class BusyMaxHeaderBarTheme {
   bool operator ==(Object other) {
     return identical(this, other) ||
         other is BusyMaxHeaderBarTheme &&
+            other.windowBackgroundColor == windowBackgroundColor &&
             other.backgroundColor == backgroundColor &&
             other.sidebarBackgroundColor == sidebarBackgroundColor &&
             other.foregroundColor == foregroundColor &&
@@ -196,6 +200,7 @@ class BusyMaxHeaderBarTheme {
 
   @override
   int get hashCode => Object.hash(
+    windowBackgroundColor,
     backgroundColor,
     sidebarBackgroundColor,
     foregroundColor,
@@ -234,6 +239,7 @@ class LinuxHeaderBarService {
   bool? _canCreate;
   bool? _searchActive;
   bool? _sidebarVisible;
+  bool? _navigationVisible;
   bool? _scheduleControlsVisible;
   bool? _backVisible;
   _BusyMaxOnboardingControlsState? _onboardingControls;
@@ -349,6 +355,17 @@ class LinuxHeaderBarService {
     }
     _sidebarVisible = value;
     await _invokeIfAvailable('setSidebarVisible', value);
+  }
+
+  Future<void> setNavigationVisible(bool value) async {
+    if (!_available) {
+      return;
+    }
+    if (_navigationVisible == value) {
+      return;
+    }
+    _navigationVisible = value;
+    await _invokeIfAvailable('setNavigationVisible', value);
   }
 
   Future<void> setScheduleControlsVisible(bool value) async {

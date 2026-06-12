@@ -286,7 +286,7 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
   Map<String, Object?> _dateOnlyToDateTime(Object value) {
     final text = value.toString();
     final date = text.length >= 10 ? text.substring(0, 10) : text;
-    return {'dateTime': '${date}T00:00:00', 'timeZone': _defaultTimeZone};
+    return {'dateTime': date, 'timeZone': _defaultTimeZone};
   }
 
   Map<String, Object?> _dateTimeTimeZone(String value) {

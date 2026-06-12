@@ -4,13 +4,13 @@ import 'package:intl/intl.dart';
 import '../../../app/busymax_design.dart';
 import '../../../schedule/schedule_item.dart';
 import 'schedule_item_chip.dart';
+import 'schedule_item_selection.dart';
 
 Future<void> showScheduleMorePopover({
   required BuildContext context,
   required DateTime day,
   required List<ScheduleItem> items,
-  required void Function(BuildContext context, ScheduleItem item)
-  onItemSelected,
+  required ScheduleItemSelectionCallback onItemSelected,
   required void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged,
 }) {
@@ -46,9 +46,9 @@ Future<void> showScheduleMorePopover({
                       item: item,
                       height: 34,
                       compact: false,
-                      onTap: (_) {
+                      onTap: (context, [globalPosition]) {
                         Navigator.of(context).pop();
-                        onItemSelected(context, item);
+                        onItemSelected(context, item, globalPosition);
                       },
                       onTaskCompletionChanged: item is TaskScheduleItem
                           ? (completed) =>

@@ -3,140 +3,188 @@ import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_yaru_theme.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
+import '../../../schedule/schedule_sorting.dart';
 import 'schedule_event_block.dart';
+import 'schedule_item_selection.dart';
 
-class ScheduleAgendaView extends StatelessWidget {
+class ScheduleAgendaView extends StatefulWidget {
   const ScheduleAgendaView({
     super.key,
     required this.range,
     required this.items,
     required this.onItemSelected,
     required this.onTaskCompletionChanged,
+    this.hasMoreOverdueTasks = false,
+    this.hasMoreNoDateTasks = false,
+    this.onLoadMore,
+    this.onLoadMoreOverdue,
+    this.onLoadMoreNoDate,
+    this.onItemAnchorAvailable,
   });
 
   final ScheduleRange range;
   final List<ScheduleItem> items;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
+  final bool hasMoreOverdueTasks;
+  final bool hasMoreNoDateTasks;
+  final VoidCallback? onLoadMore;
+  final VoidCallback? onLoadMoreOverdue;
+  final VoidCallback? onLoadMoreNoDate;
+  final ScheduleItemAnchorCallback? onItemAnchorAvailable;
+
+  @override
+  State<ScheduleAgendaView> createState() => _ScheduleAgendaViewState();
+}
+
+class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
+  var _loadMoreArmed = true;
+
+  @override
+  void didUpdateWidget(covariant ScheduleAgendaView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.range.end != widget.range.end) {
+      _loadMoreArmed = true;
+    }
+  }
+
+  bool _handleScroll(ScrollNotification notification) {
+    final onLoadMore = widget.onLoadMore;
+    if (!_loadMoreArmed || onLoadMore == null) {
+      return false;
+    }
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    if (notification.metrics.extentAfter > 1) {
+      return false;
+    }
+    _loadMoreArmed = false;
+    onLoadMore();
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final dated = items.where((item) => item.start != null).toList();
-    final noDateTasks = ScheduleProjection.noDateTasks(items);
+    final dated = widget.items.where((item) => item.start != null).toList();
+    final noDateTasks = ScheduleProjection.noDateTasks(widget.items);
     final groups = ScheduleProjection.groupByDay(dated);
-    final rangeStart = ScheduleProjection.day(range.start);
-    final rangeEnd = ScheduleProjection.day(range.end);
+    final rangeStart = ScheduleProjection.day(widget.range.start);
+    final rangeEnd = ScheduleProjection.day(widget.range.end);
+    final overdueTasks = dated.whereType<TaskScheduleItem>().where((item) {
+      final start = item.start;
+      return start != null &&
+          !item.completed &&
+          ScheduleProjection.day(start).isBefore(rangeStart);
+    }).toList()..sort(compareScheduleItems);
     final days =
         groups.keys
             .where((day) => !day.isBefore(rangeStart) && day.isBefore(rangeEnd))
             .toList()
           ..sort();
 
-    return ColoredBox(
-      color: Theme.of(context).colorScheme.surface,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          BusyMaxSpacing.lg,
-          BusyMaxSpacing.md,
-          BusyMaxSpacing.lg,
-          BusyMaxSpacing.xl,
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleScroll,
+      child: ColoredBox(
+        color: Theme.of(context).colorScheme.surface,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            BusyMaxSpacing.lg,
+            BusyMaxSpacing.md,
+            BusyMaxSpacing.lg,
+            BusyMaxSpacing.xl,
+          ),
+          children: [
+            if (overdueTasks.isNotEmpty)
+              BusyMaxGroupedList(
+                title: context.l10n.overdue,
+                filled: true,
+                children: [
+                  for (final item in overdueTasks)
+                    _AgendaRow(
+                      item: item,
+                      onAnchorAvailable: widget.onItemAnchorAvailable,
+                      onTap: (context, [globalPosition]) =>
+                          widget.onItemSelected(context, item, globalPosition),
+                      onTaskCompletionChanged: (completed) =>
+                          widget.onTaskCompletionChanged(item, completed),
+                    ),
+                  if (widget.hasMoreOverdueTasks &&
+                      widget.onLoadMoreOverdue != null)
+                    _AgendaLoadMoreRow(
+                      title: context.l10n.agendaLoadMoreOverdue,
+                      onTap: widget.onLoadMoreOverdue!,
+                    ),
+                ],
+              ),
+            if (noDateTasks.isNotEmpty)
+              BusyMaxGroupedList(
+                title: context.l10n.noDate,
+                filled: true,
+                children: [
+                  for (final item in noDateTasks)
+                    _AgendaRow(
+                      item: item,
+                      onAnchorAvailable: widget.onItemAnchorAvailable,
+                      onTap: (context, [globalPosition]) =>
+                          widget.onItemSelected(context, item, globalPosition),
+                      onTaskCompletionChanged: item is TaskScheduleItem
+                          ? (completed) =>
+                                widget.onTaskCompletionChanged(item, completed)
+                          : null,
+                    ),
+                  if (widget.hasMoreNoDateTasks &&
+                      widget.onLoadMoreNoDate != null)
+                    _AgendaLoadMoreRow(
+                      title: context.l10n.agendaLoadMoreNoDate,
+                      onTap: widget.onLoadMoreNoDate!,
+                    ),
+                ],
+              ),
+            for (final day in days)
+              BusyMaxGroupedList(
+                title: _dayLabel(context, day),
+                filled: true,
+                children: [
+                  for (final item in groups[day]!)
+                    _AgendaRow(
+                      item: item,
+                      onAnchorAvailable: widget.onItemAnchorAvailable,
+                      onTap: (context, [globalPosition]) =>
+                          widget.onItemSelected(context, item, globalPosition),
+                      onTaskCompletionChanged: item is TaskScheduleItem
+                          ? (completed) =>
+                                widget.onTaskCompletionChanged(item, completed)
+                          : null,
+                    ),
+                ],
+              ),
+          ],
         ),
-        children: [
-          for (final day in days) ...[
-            _AgendaDayHeader(day: day),
-            const SizedBox(height: BusyMaxSpacing.sm),
-            for (final item in groups[day]!)
-              Padding(
-                padding: const EdgeInsets.only(bottom: BusyMaxSpacing.sm),
-                child: _AgendaRow(
-                  item: item,
-                  onTap: (context) => onItemSelected(context, item),
-                  onTaskCompletionChanged: item is TaskScheduleItem
-                      ? (completed) => onTaskCompletionChanged(item, completed)
-                      : null,
-                ),
-              ),
-            const SizedBox(height: BusyMaxSpacing.md),
-          ],
-          if (noDateTasks.isNotEmpty) ...[
-            _AgendaPlainHeader(title: context.l10n.noDate),
-            const SizedBox(height: BusyMaxSpacing.sm),
-            for (final item in noDateTasks)
-              Padding(
-                padding: const EdgeInsets.only(bottom: BusyMaxSpacing.sm),
-                child: _AgendaRow(
-                  item: item,
-                  onTap: (context) => onItemSelected(context, item),
-                  onTaskCompletionChanged: item is TaskScheduleItem
-                      ? (completed) => onTaskCompletionChanged(item, completed)
-                      : null,
-                ),
-              ),
-          ],
-        ],
       ),
     );
   }
 }
 
-class _AgendaDayHeader extends StatelessWidget {
-  const _AgendaDayHeader({required this.day});
-
-  final DateTime day;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final today = DateUtils.isSameDay(day, DateTime.now());
-    final label = _dayLabel(context, day);
-    return Row(
-      children: [
-        Container(
-          width: 34,
-          height: 30,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: today ? colorScheme.primary : colorScheme.surface,
-            borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-            border: today
-                ? null
-                : Border.all(color: busyMaxPanelBorder(context)),
-          ),
-          child: Text(
-            '${day.day}',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: today ? colorScheme.onPrimary : colorScheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        const SizedBox(width: BusyMaxSpacing.sm),
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: busyMaxSectionHeaderStyle(context),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AgendaPlainHeader extends StatelessWidget {
-  const _AgendaPlainHeader({required this.title});
+class _AgendaLoadMoreRow extends StatelessWidget {
+  const _AgendaLoadMoreRow({required this.title, required this.onTap});
 
   final String title;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Text(title, style: busyMaxSectionHeaderStyle(context));
+    return BusyMaxActionRow(
+      title: title,
+      leading: const Icon(YaruIcons.plus, size: BusyMaxSizes.iconSm),
+      onTap: onTap,
+    );
   }
 }
 
@@ -144,95 +192,107 @@ class _AgendaRow extends StatelessWidget {
   const _AgendaRow({
     required this.item,
     required this.onTap,
+    this.onAnchorAvailable,
     this.onTaskCompletionChanged,
   });
 
   final ScheduleItem item;
-  final ValueChanged<BuildContext> onTap;
+  final ScheduleItemTapCallback onTap;
+  final ScheduleItemAnchorCallback? onAnchorAvailable;
   final ValueChanged<bool>? onTaskCompletionChanged;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final color = ScheduleProjection.colorForItem(item, colorScheme.brightness);
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
+    Offset? pointerDownPosition;
+    final onAnchorAvailable = this.onAnchorAvailable;
+    if (onAnchorAvailable != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          onAnchorAvailable(item, context);
+        }
+      });
+    }
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-        onTap: () => onTap(context),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 52),
-          padding: const EdgeInsets.all(BusyMaxSpacing.sm),
-          decoration: BoxDecoration(
-            color: Color.alphaBlend(
-              color.withValues(
-                alpha: item.kind == ScheduleItemKind.task ? 0.08 : 0.12,
-              ),
-              colorScheme.surface,
+    return BusyMaxActionRow(
+      title: item.title,
+      titleWidget: _AgendaItemTitle(item: item),
+      subtitleWidget: _AgendaItemSubtitle(item: item),
+      leading: _AgendaItemMarker(item: item),
+      trailing: task == null
+          ? null
+          : YaruCheckbox(
+              value: task.completed,
+              onChanged: onTaskCompletionChanged == null
+                  ? null
+                  : (value) => onTaskCompletionChanged!(value ?? false),
             ),
-            borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-            border: Border(left: BorderSide(color: color, width: 4)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 76,
-                child: Text(
-                  scheduleTimeRange(context, item),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: BusyMaxSpacing.sm),
-              if (task != null) ...[
-                YaruCheckbox(
-                  value: task.completed,
-                  onChanged: onTaskCompletionChanged == null
-                      ? null
-                      : (value) => onTaskCompletionChanged!(value ?? false),
-                ),
-                const SizedBox(width: BusyMaxSpacing.xs),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      item.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        decoration: task?.completed == true
-                            ? TextDecoration.lineThrough
-                            : null,
-                        color: task?.completed == true
-                            ? colorScheme.onSurfaceVariant
-                            : colorScheme.onSurface,
-                      ),
-                    ),
-                    Text(
-                      ScheduleProjection.sourceLabelForScheduleItem(item),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+      onPointerDown: (position) => pointerDownPosition = position,
+      onTap: () => onTap(context, pointerDownPosition),
+    );
+  }
+}
+
+class _AgendaItemMarker extends StatelessWidget {
+  const _AgendaItemMarker({required this.item});
+
+  final ScheduleItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final isTask = item.kind == ScheduleItemKind.task;
+    final color = isTask
+        ? Theme.of(context).colorScheme.onSurfaceVariant
+        : ScheduleProjection.colorForItem(
+            item,
+            Theme.of(context).colorScheme.brightness,
+          );
+    final icon = isTask ? YaruIcons.task_list : YaruIcons.calendar;
+    return Icon(icon, size: BusyMaxSizes.iconSm, color: color);
+  }
+}
+
+class _AgendaItemTitle extends StatelessWidget {
+  const _AgendaItemTitle({required this.item});
+
+  final ScheduleItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Text(
+      item.title,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+        decoration: task?.completed == true ? TextDecoration.lineThrough : null,
+        color: task?.completed == true
+            ? colorScheme.onSurfaceVariant
+            : colorScheme.onSurface,
+      ),
+    );
+  }
+}
+
+class _AgendaItemSubtitle extends StatelessWidget {
+  const _AgendaItemSubtitle({required this.item});
+
+  final ScheduleItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = [
+      scheduleTimeRange(context, item),
+      ScheduleProjection.sourceLabelForScheduleItem(item),
+    ].where((value) => value.trim().isNotEmpty).join(' - ');
+    return Text(
+      values,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: BusyMaxSurfaceColors.of(context).mutedForeground,
       ),
     );
   }

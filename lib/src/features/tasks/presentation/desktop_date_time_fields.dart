@@ -15,12 +15,12 @@ class NativeDateTimePicker {
 
   static const _channel = MethodChannel(nativeDateTimePickerChannelName);
 
-  Future<String?> pickDate({
+  Future<NativeDatePickResult> pickDate({
     required String title,
     required String? initialDate,
     required String cancelLabel,
     required String okLabel,
-  }) {
+  }) async {
     return _invoke('pickDate', {
       'title': title,
       'initialDate': initialDate,
@@ -29,13 +29,26 @@ class NativeDateTimePicker {
     });
   }
 
-  Future<String?> _invoke(String method, Map<String, Object?> arguments) async {
+  Future<NativeDatePickResult> _invoke(
+    String method,
+    Map<String, Object?> arguments,
+  ) async {
     try {
-      return await _channel.invokeMethod<String>(method, arguments);
+      return NativeDatePickResult(
+        available: true,
+        date: await _channel.invokeMethod<String>(method, arguments),
+      );
     } on MissingPluginException {
-      return null;
+      return const NativeDatePickResult(available: false);
     }
   }
+}
+
+class NativeDatePickResult {
+  const NativeDatePickResult({required this.available, this.date});
+
+  final bool available;
+  final String? date;
 }
 
 class DesktopDateField extends StatefulWidget {
@@ -47,6 +60,7 @@ class DesktopDateField extends StatefulWidget {
     this.enabled = true,
     this.onClear,
     this.emptyLabel,
+    this.useNativePicker = true,
   });
 
   final String label;
@@ -55,6 +69,7 @@ class DesktopDateField extends StatefulWidget {
   final bool enabled;
   final VoidCallback? onClear;
   final String? emptyLabel;
+  final bool useNativePicker;
 
   @override
   State<DesktopDateField> createState() => _DesktopDateFieldState();
@@ -69,6 +84,7 @@ class DesktopDateValueRow extends StatelessWidget {
     this.enabled = true,
     this.onClear,
     this.emptyLabel,
+    this.useNativePicker = true,
   });
 
   final String label;
@@ -77,6 +93,7 @@ class DesktopDateValueRow extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onClear;
   final String? emptyLabel;
+  final bool useNativePicker;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +127,17 @@ class DesktopDateValueRow extends StatelessWidget {
     if (!enabled) {
       return;
     }
+    if (!useNativePicker) {
+      final fallbackPicked = await showBusyMaxDateValueDialog(
+        context,
+        label: label,
+        initialDate: date,
+      );
+      if (context.mounted && fallbackPicked != null) {
+        onChanged(fallbackPicked);
+      }
+      return;
+    }
     final localizations = MaterialLocalizations.of(context);
     final picked = await _nativeDateTimePicker.pickDate(
       title: label,
@@ -117,8 +145,23 @@ class DesktopDateValueRow extends StatelessWidget {
       cancelLabel: localizations.cancelButtonLabel,
       okLabel: localizations.okButtonLabel,
     );
-    if (context.mounted && picked != null) {
-      onChanged(picked);
+    if (!context.mounted) {
+      return;
+    }
+    if (picked.date != null) {
+      onChanged(picked.date!);
+      return;
+    }
+    if (picked.available) {
+      return;
+    }
+    final fallbackPicked = await showBusyMaxDateValueDialog(
+      context,
+      label: label,
+      initialDate: date,
+    );
+    if (context.mounted && fallbackPicked != null) {
+      onChanged(fallbackPicked);
     }
   }
 }
@@ -199,6 +242,17 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
   }
 
   Future<void> _pickNativeDate(BuildContext context) async {
+    if (!widget.useNativePicker) {
+      final fallbackPicked = await showBusyMaxDateValueDialog(
+        context,
+        label: widget.label,
+        initialDate: widget.date,
+      );
+      if (mounted && fallbackPicked != null) {
+        _applyPickedDate(fallbackPicked);
+      }
+      return;
+    }
     final localizations = MaterialLocalizations.of(context);
     final picked = await _nativeDateTimePicker.pickDate(
       title: widget.label,
@@ -206,23 +260,126 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
       cancelLabel: localizations.cancelButtonLabel,
       okLabel: localizations.okButtonLabel,
     );
-    if (context.mounted && picked != null) {
-      final pickedDate = parseDateOnly(picked);
-      if (!isSameDate(_controller.dateTime, pickedDate)) {
-        _syncingController = true;
-        _controller.dateTime = pickedDate;
-        _syncingController = false;
-      }
-      widget.onChanged(picked);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || isSameDate(_controller.dateTime, pickedDate)) {
-          return;
-        }
-        _syncingController = true;
-        _controller.dateTime = pickedDate;
-        _syncingController = false;
-      });
+    if (!context.mounted) {
+      return;
     }
+    if (picked.date != null) {
+      _applyPickedDate(picked.date!);
+      return;
+    }
+    if (picked.available) {
+      return;
+    }
+    final fallbackPicked = await showBusyMaxDateValueDialog(
+      context,
+      label: widget.label,
+      initialDate: widget.date,
+    );
+    if (mounted && fallbackPicked != null) {
+      _applyPickedDate(fallbackPicked);
+    }
+  }
+
+  void _applyPickedDate(String picked) {
+    final pickedDate = parseDateOnly(picked);
+    if (!isSameDate(_controller.dateTime, pickedDate)) {
+      _syncingController = true;
+      _controller.dateTime = pickedDate;
+      _syncingController = false;
+    }
+    widget.onChanged(picked);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || isSameDate(_controller.dateTime, pickedDate)) {
+        return;
+      }
+      _syncingController = true;
+      _controller.dateTime = pickedDate;
+      _syncingController = false;
+    });
+  }
+}
+
+Future<String?> showBusyMaxDateValueDialog(
+  BuildContext context, {
+  required String label,
+  required String? initialDate,
+}) {
+  return showDialog<String>(
+    context: context,
+    barrierColor: Colors.transparent,
+    builder: (context) {
+      return _DesktopDateValueDialog(label: label, initialDate: initialDate);
+    },
+  );
+}
+
+class _DesktopDateValueDialog extends StatefulWidget {
+  const _DesktopDateValueDialog({
+    required this.label,
+    required this.initialDate,
+  });
+
+  final String label;
+  final String? initialDate;
+
+  @override
+  State<_DesktopDateValueDialog> createState() =>
+      _DesktopDateValueDialogState();
+}
+
+class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
+  late final YaruDateTimeEntryController _controller;
+  DateTime? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = parseDateOnly(widget.initialDate) ?? _today();
+    _controller = YaruDateTimeEntryController(dateTime: _selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxDialogShell(
+      title: widget.label,
+      maxWidth: 360,
+      actions: [
+        BusyMaxPushButton.outlined(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.l10n.cancel),
+        ),
+        BusyMaxPushButton.filled(
+          onPressed: _selected == null ? null : _submit,
+          child: Text(MaterialLocalizations.of(context).okButtonLabel),
+        ),
+      ],
+      children: [
+        _withoutInternalDateTimeEntryLabel(
+          context,
+          YaruDateTimeEntry(
+            controller: _controller,
+            includeTime: false,
+            firstDateTime: DateTime(1900),
+            lastDateTime: DateTime(2100, 12, 31),
+            acceptEmpty: false,
+            clearIconSemanticLabel: widget.label,
+            onChanged: (date) {
+              setState(() {
+                _selected = date;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    final selected = _selected;
+    if (selected == null) {
+      return;
+    }
+    Navigator.of(context).pop(encodeDateOnly(selected));
   }
 }
 
@@ -252,6 +409,7 @@ class DesktopTimeValueRow extends StatelessWidget {
     required this.onChanged,
     this.enabled = true,
     this.emptyLabel,
+    this.allowEmpty = true,
   });
 
   final String label;
@@ -259,6 +417,7 @@ class DesktopTimeValueRow extends StatelessWidget {
   final ValueChanged<String?> onChanged;
   final bool enabled;
   final String? emptyLabel;
+  final bool allowEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -291,6 +450,7 @@ class DesktopTimeValueRow extends StatelessWidget {
           label: label,
           time: time,
           onChanged: onChanged,
+          allowEmpty: allowEmpty,
         );
       },
     );
@@ -302,11 +462,13 @@ class _DesktopTimeValueDialog extends StatefulWidget {
     required this.label,
     required this.time,
     required this.onChanged,
+    required this.allowEmpty,
   });
 
   final String label;
   final String? time;
   final ValueChanged<String?> onChanged;
+  final bool allowEmpty;
 
   @override
   State<_DesktopTimeValueDialog> createState() =>
@@ -314,18 +476,48 @@ class _DesktopTimeValueDialog extends StatefulWidget {
 }
 
 class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
-  late final YaruTimeEntryController _controller;
+  late final TextEditingController _controller;
+  final _focusNode = FocusNode();
   TimeOfDay? _selected;
+  var _invalid = false;
 
   @override
   void initState() {
     super.initState();
     _selected = parseTimeOfDay(widget.time);
-    _controller = YaruTimeEntryController(timeOfDay: _selected);
+    _controller = TextEditingController(
+      text: _selected == null ? '' : encodeTimeOfDay(_selected!),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+        _controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _controller.text.length,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final timeEntry = _BusyMaxTimeTextEntry(
+      controller: _controller,
+      focusNode: _focusNode,
+      label: widget.label,
+      errorText: _invalid
+          ? MaterialLocalizations.of(context).invalidTimeLabel
+          : null,
+      onChanged: _setSelectedTimeText,
+      onSubmitted: (_) => _submit(),
+    );
     return BusyMaxDialogShell(
       title: widget.label,
       maxWidth: 360,
@@ -335,42 +527,44 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
           child: Text(context.l10n.cancel),
         ),
         BusyMaxPushButton.filled(
-          onPressed: () {
-            widget.onChanged(
-              _selected == null ? null : encodeTimeOfDay(_selected!),
-            );
-            Navigator.of(context).pop();
-          },
+          onPressed: !_invalid && (widget.allowEmpty || _selected != null)
+              ? _submit
+              : null,
           child: Text(MaterialLocalizations.of(context).okButtonLabel),
         ),
       ],
-      children: [
-        _withoutInternalDateTimeEntryLabel(
-          context,
-          YaruTimeEntry(
-            controller: _controller,
-            force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-            acceptEmpty: true,
-            clearIconSemanticLabel: widget.label,
-            onChanged: (time) {
-              _selected = time;
-            },
-          ),
-        ),
-      ],
+      children: [_withoutInternalDateTimeEntryLabel(context, timeEntry)],
     );
+  }
+
+  void _setSelectedTimeText(String value) {
+    final trimmed = value.trim();
+    final parsed = parseTimeInput(trimmed);
+    setState(() {
+      _selected = parsed;
+      _invalid = trimmed.isNotEmpty && parsed == null;
+    });
+  }
+
+  void _submit() {
+    if (_invalid || (!widget.allowEmpty && _selected == null)) {
+      return;
+    }
+    widget.onChanged(_selected == null ? null : encodeTimeOfDay(_selected!));
+    Navigator.of(context).pop();
   }
 }
 
 class _DesktopTimeFieldState extends State<DesktopTimeField> {
-  late final YaruTimeEntryController _controller;
+  late final TextEditingController _controller;
   var _syncingController = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = YaruTimeEntryController(
-      timeOfDay: parseTimeOfDay(widget.time),
+    final time = parseTimeOfDay(widget.time);
+    _controller = TextEditingController(
+      text: time == null ? '' : encodeTimeOfDay(time),
     );
   }
 
@@ -379,11 +573,10 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.time != widget.time) {
       final nextTime = parseTimeOfDay(widget.time);
-      final currentTime = _controller.timeOfDay;
-      if (currentTime?.hour != nextTime?.hour ||
-          currentTime?.minute != nextTime?.minute) {
+      final nextText = nextTime == null ? '' : encodeTimeOfDay(nextTime);
+      if (_controller.text != nextText) {
         _syncingController = true;
-        _controller.timeOfDay = nextTime;
+        _controller.text = nextText;
         _syncingController = false;
       }
     }
@@ -391,6 +584,7 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
 
   @override
   void dispose() {
+    _controller.dispose();
     super.dispose();
   }
 
@@ -398,16 +592,17 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
   Widget build(BuildContext context) {
     final timeEntry = _withoutInternalDateTimeEntryLabel(
       context,
-      YaruTimeEntry(
+      _BusyMaxTimeTextEntry(
         controller: _controller,
-        force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-        acceptEmpty: true,
-        clearIconSemanticLabel: widget.label,
+        label: widget.label,
         onChanged: (time) {
           if (_syncingController) {
             return;
           }
-          widget.onChanged(time == null ? null : encodeTimeOfDay(time));
+          final parsed = parseTimeInput(time);
+          if (time.trim().isEmpty || parsed != null) {
+            widget.onChanged(parsed == null ? null : encodeTimeOfDay(parsed));
+          }
         },
       ),
     );
@@ -425,10 +620,87 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
   }
 }
 
+class _BusyMaxTimeTextEntry extends StatelessWidget {
+  const _BusyMaxTimeTextEntry({
+    required this.controller,
+    required this.label,
+    required this.onChanged,
+    this.focusNode,
+    this.errorText,
+    this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final FocusNode? focusNode;
+  final String label;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final String? errorText;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      focusNode: focusNode,
+      keyboardType: TextInputType.datetime,
+      textInputAction: TextInputAction.done,
+      textAlign: TextAlign.center,
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp('[0-9:]')),
+        const _BusyMaxTimeInputFormatter(),
+      ],
+      decoration: InputDecoration(
+        hintText: '--:--',
+        labelText: label,
+        isDense: true,
+        errorText: errorText,
+      ),
+      onChanged: onChanged,
+      onFieldSubmitted: onSubmitted,
+    );
+  }
+}
+
+class _BusyMaxTimeInputFormatter extends TextInputFormatter {
+  const _BusyMaxTimeInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = _formatTimeEntryInput(newValue.text);
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+String _formatTimeEntryInput(String value) {
+  if (value.contains(':')) {
+    return value.length <= 5 ? value : value.substring(0, 5);
+  }
+
+  final digits = value.length <= 4 ? value : value.substring(0, 4);
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length == 3) {
+    final twoDigitHour = int.tryParse(digits.substring(0, 2));
+    if (twoDigitHour != null && twoDigitHour <= 23) {
+      return '${digits.substring(0, 2)}:${digits.substring(2)}';
+    }
+    return '${digits.substring(0, 1)}:${digits.substring(1)}';
+  }
+
+  return '${digits.substring(0, 2)}:${digits.substring(2)}';
+}
+
 Widget _withoutInternalDateTimeEntryLabel(BuildContext context, Widget child) {
-  // YaruDateTimeEntry/YaruTimeEntry currently expose an internal label.
-  // BusyMax provides the row label through YaruListTile.square, so the
-  // internal field label is hidden here to avoid duplicate labels.
+  // The date/time rows already provide the visible label through
+  // YaruListTile.square, so field labels are hidden here to avoid duplicates.
   final theme = Theme.of(context);
   const hiddenLabelStyle = TextStyle(
     color: Colors.transparent,
@@ -492,6 +764,11 @@ DateTime? parseDateOnly(String? date) {
   return DateTime.tryParse('${date.substring(0, 10)}T00:00:00');
 }
 
+DateTime _today() {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
+}
+
 DateTime? parseGraphLocalDateTime(String? dateTime) {
   if (dateTime == null || dateTime.isEmpty) {
     return null;
@@ -508,7 +785,53 @@ TimeOfDay? parseTimeOfDay(String? time) {
   }
   final hour = int.tryParse(time.substring(0, 2));
   final minute = int.tryParse(time.substring(3, 5));
-  if (hour == null || minute == null || hour > 23 || minute > 59) {
+  if (hour == null ||
+      minute == null ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59) {
+    return null;
+  }
+  return TimeOfDay(hour: hour, minute: minute);
+}
+
+TimeOfDay? parseTimeInput(String? time) {
+  final trimmed = time?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
+    return null;
+  }
+
+  if (trimmed.contains(':')) {
+    final parts = trimmed.split(':');
+    if (parts.length != 2 || parts.first.isEmpty || parts.last.isEmpty) {
+      return null;
+    }
+    return _timeOfDayFromParts(parts.first, parts.last);
+  }
+
+  if (trimmed.length <= 2) {
+    return _timeOfDayFromParts(trimmed, '00');
+  }
+  if (trimmed.length == 3) {
+    return _timeOfDayFromParts(trimmed.substring(0, 1), trimmed.substring(1));
+  }
+  if (trimmed.length == 4) {
+    return _timeOfDayFromParts(trimmed.substring(0, 2), trimmed.substring(2));
+  }
+
+  return null;
+}
+
+TimeOfDay? _timeOfDayFromParts(String hourText, String minuteText) {
+  final hour = int.tryParse(hourText);
+  final minute = int.tryParse(minuteText);
+  if (hour == null ||
+      minute == null ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59) {
     return null;
   }
   return TimeOfDay(hour: hour, minute: minute);

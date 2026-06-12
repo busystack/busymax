@@ -513,6 +513,11 @@ class _FakeTasksRepository implements TasksRepository {
   }
 
   @override
+  Stream<List<String>> watchCategorySuggestions() {
+    return Stream.value(const []);
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

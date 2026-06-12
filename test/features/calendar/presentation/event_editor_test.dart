@@ -123,6 +123,102 @@ void main() {
     expect(find.text('End date/time'), findsNothing);
   });
 
+  testWidgets('event time popup opens with current time and requires a value', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning', allDay: false),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Start time'));
+    await tester.tap(find.text('Start time'));
+    await tester.pumpAndSettle();
+
+    final fieldFinder = _timeTextEntryFinder();
+    final entry = tester.widget<TextFormField>(fieldFinder);
+    expect(entry.controller?.text, '09:00');
+    expect(
+      tester
+          .widgetList<EditableText>(find.byType(EditableText))
+          .any((entry) => entry.controller.text.contains('09:00')),
+      isTrue,
+    );
+
+    await tester.enterText(fieldFinder, '');
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(tester.widget<TextFormField>(fieldFinder).controller?.text, isEmpty);
+  });
+
+  testWidgets('event time popup accepts midnight input', (tester) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning', allDay: false),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Start time'));
+    await tester.tap(find.text('Start time'));
+    await tester.pumpAndSettle();
+    await tester.enterText(_timeTextEntryFinder(), '00');
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.start?.year, 2026);
+    expect(saved?.start?.month, 6);
+    expect(saved?.start?.day, 8);
+    expect(saved?.start?.hour, 0);
+    expect(saved?.start?.minute, 0);
+    expect(saved?.end?.hour, 10);
+  });
+
+  test('event draft requires end after start', () {
+    final draft = EventEditorDraft.existing(
+      eventId: 'event-1',
+      accountId: 'account',
+      sourceId: 'source',
+      providerCalendarId: 'cal-1',
+      title: 'Planning',
+      allDay: false,
+      start: DateTime.utc(2026, 6, 8, 10),
+      end: DateTime.utc(2026, 6, 8, 9),
+    );
+
+    expect(draft.canSave, isFalse);
+  });
+
   testWidgets('event editor does not show metadata fields', (tester) async {
     await tester.pumpWidget(
       localizedTestApp(
@@ -372,6 +468,73 @@ void main() {
     expect(find.text('5 minutes before'), findsOneWidget);
   });
 
+  testWidgets('Microsoft event categories can be selected from suggestions', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'microsoft-account',
+              sourceId: 'microsoft-source',
+              providerCalendarId: 'ms-cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+              categories: const ['Home'],
+            ),
+            sources: _microsoftSources,
+            categorySuggestionsByAccount: const {
+              'microsoft-account': ['Home', 'Work'],
+            },
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Add category'));
+    expect(find.text('Home'), findsOneWidget);
+
+    await tester.tap(find.text('Add category'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('event-category-input')), 'wo');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Work').last);
+    await tester.pumpAndSettle();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.categories, ['Home', 'Work']);
+  });
+
+  testWidgets('Google event editor does not show categories', (tester) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Categories'), findsNothing);
+  });
+
   testWidgets(
     'removing a Microsoft event reminder disables provider reminder',
     (tester) async {
@@ -428,7 +591,7 @@ void main() {
       dialogs,
       contains('barrierColor: busyMaxModalBarrierColor(context)'),
     );
-    expect(editor, contains('SingleChildScrollView'));
+    expect(dialogs, contains('BusyMaxModalEditorSurface'));
     expect(workspace, contains('showBusyMaxEventEditorDialog'));
     expect(workspace, isNot(contains('ScheduleEditorOverlay')));
   });
@@ -439,7 +602,10 @@ void main() {
     ).readAsStringSync();
     final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
-    expect(editor, contains('BusyMaxEditorHeader('));
+    expect(editor, contains('BusyMaxModalEditorScaffold('));
+    expect(design, contains('class BusyMaxModalEditorScaffold'));
+    expect(design, contains('BusyMaxEditorHeader('));
+    expect(design, contains('SingleChildScrollView'));
     expect(design, contains('BusyMaxHeaderPushButton.outlined'));
     expect(design, contains('BusyMaxHeaderPushButton.filled'));
     expect(
@@ -564,6 +730,7 @@ void main() {
       expect(editor, contains('textAlign: TextAlign.end'));
       expect(editor, contains('class _CalendarSourceDot'));
       expect(editor, contains('source.backgroundColor'));
+      expect(editor, contains('ScheduleProjection.deterministicSourceColor'));
       expect(editor, isNot(contains('SourcePicker(')));
       expect(editor, isNot(contains('labelText: l10n.calendar')));
     },
@@ -574,7 +741,7 @@ void main() {
       'lib/src/features/calendar/presentation/event_editor.dart',
     ).readAsStringSync();
 
-    final modeIndex = editor.indexOf('_EventTimeModeRow(');
+    final modeIndex = editor.indexOf('BusyMaxTimeModeRow(');
     final startDateIndex = editor.indexOf('label: l10n.startDate');
     final startTimeIndex = editor.indexOf('label: l10n.startTime');
     final endDateIndex = editor.indexOf('label: l10n.endDate');
@@ -671,6 +838,12 @@ Finder _headerButtonFinder(String label) {
         ),
       )
       .first;
+}
+
+Finder _timeTextEntryFinder() {
+  return find.byWidgetPredicate(
+    (widget) => widget is TextFormField && widget.controller != null,
+  );
 }
 
 Finder _plainTextFinder(String label) {

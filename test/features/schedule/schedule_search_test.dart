@@ -109,6 +109,11 @@ void main() {
           allDay: true,
           startDateTime: '2026-06-11T00:00:00.0000000',
           endDateTime: '2026-06-12T00:00:00.0000000',
+          remindersJson: {
+            'isReminderOn': true,
+            'reminderMinutesBeforeStart': 30,
+          },
+          categoriesJson: ['Holiday', 'Company'],
         ),
       );
 
@@ -126,6 +131,154 @@ void main() {
       expect(event.allDay, isTrue);
       expect(event.start, DateTime(2026, 6, 11));
       expect(event.end, DateTime(2026, 6, 12));
+      expect(event.reminderMinutesBeforeStart, [30]);
+      expect(event.categories, ['Holiday', 'Company']);
+    },
+  );
+
+  test('Microsoft timed calendar event keeps time zones for editing', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    final calendarRepository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 9),
+    );
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.microsoft,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: TaskProvider.microsoft,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Planning',
+        startDateTime: '2026-06-11T04:20:00.0000000',
+        startTimeZone: 'Pacific Standard Time',
+        endDateTime: '2026-06-11T04:50:00.0000000',
+        endTimeZone: 'Pacific Standard Time',
+      ),
+    );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+
+    expect(items, hasLength(1));
+    final event = items.single as CalendarScheduleItem;
+    expect(event.start, DateTime(2026, 6, 11, 4, 20));
+    expect(event.end, DateTime(2026, 6, 11, 4, 50));
+    expect(event.startTimeZone, 'Pacific Standard Time');
+    expect(event.endTimeZone, 'Pacific Standard Time');
+  });
+
+  test(
+    'Google timed calendar event keeps provider wall time for editing',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertScheduleAccount(database, provider: TaskProvider.google);
+      final calendarRepository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 9),
+      );
+      await calendarRepository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar',
+          summary: 'Work',
+        ),
+      );
+      await calendarRepository.upsertEvent(
+        accountId: 'account',
+        event: const CalendarEventDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'event',
+          title: 'Planning',
+          startDateTime: '2026-06-11T05:52:00-07:00',
+          startTimeZone: 'America/Vancouver',
+          endDateTime: '2026-06-11T06:52:00-07:00',
+          endTimeZone: 'America/Vancouver',
+        ),
+      );
+
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 11)),
+        filters: const ScheduleFilters(
+          accountIds: {'account'},
+          includeTasks: false,
+        ),
+      );
+
+      expect(items, hasLength(1));
+      final event = items.single as CalendarScheduleItem;
+      expect(event.start, DateTime(2026, 6, 11, 5, 52));
+      expect(event.end, DateTime(2026, 6, 11, 6, 52));
+      expect(event.startTimeZone, 'America/Vancouver');
+      expect(event.endTimeZone, 'America/Vancouver');
+    },
+  );
+
+  test(
+    'Google calendar event default reminders appear on schedule item',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertScheduleAccount(database, provider: TaskProvider.google);
+      final calendarRepository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 9),
+      );
+      await calendarRepository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar',
+          summary: 'Work',
+          rawJson: {
+            'id': 'calendar',
+            'defaultReminders': [
+              {'method': 'popup', 'minutes': 15},
+            ],
+          },
+        ),
+      );
+      await calendarRepository.upsertEvent(
+        accountId: 'account',
+        event: const CalendarEventDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'event',
+          title: 'Planning',
+          startDateTime: '2026-06-11T09:00:00',
+          endDateTime: '2026-06-11T10:00:00',
+          remindersJson: {'useDefault': true},
+        ),
+      );
+
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 11)),
+        filters: const ScheduleFilters(
+          accountIds: {'account'},
+          includeTasks: false,
+        ),
+      );
+
+      expect(items, hasLength(1));
+      final event = items.single as CalendarScheduleItem;
+      expect(event.reminderMinutesBeforeStart, [15]);
     },
   );
 
@@ -174,6 +327,221 @@ void main() {
     expect(task.end, DateTime(2026, 6, 11, 9, 30));
     expect(task.allDay, isFalse);
     expect(dueDayItems, isEmpty);
+  });
+
+  test('Microsoft task with midnight due appears as timed slot', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertTaskList(database);
+    await database
+        .into(database.tasks)
+        .insert(
+          TasksCompanion.insert(
+            accountId: 'account',
+            taskListId: 'inbox',
+            id: 'ms-all-day-task',
+            title: 'File expenses',
+            status: const Value('needsAction'),
+            dueUtc: const Value('2026-06-12'),
+            microsoftDueDateTime: const Value('2026-06-12T00:00:00'),
+            microsoftIsReminderOn: const Value(true),
+            microsoftReminderDateTime: const Value('2026-06-12T08:30:00'),
+            categoriesJson: const Value('["Expenses","Work"]'),
+            rawJson: '{}',
+            createdLocalAtUtc: _now,
+            updatedLocalAtUtc: _now,
+          ),
+        );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 12)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeCalendarEvents: false,
+      ),
+    );
+
+    expect(items, hasLength(1));
+    final task = items.single as TaskScheduleItem;
+    expect(task.title, 'File expenses');
+    expect(task.allDay, isFalse);
+    expect(task.start, DateTime(2026, 6, 12));
+    expect(task.end, DateTime(2026, 6, 12, 0, 30));
+    expect(task.reminder, DateTime(2026, 6, 12, 8, 30));
+    expect(task.categories, ['Expenses', 'Work']);
+  });
+
+  test('Microsoft UTC task reminder appears as local display time', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertTaskList(database);
+    await database
+        .into(database.tasks)
+        .insert(
+          TasksCompanion.insert(
+            accountId: 'account',
+            taskListId: 'inbox',
+            id: 'ms-utc-reminder-task',
+            title: 'File expenses',
+            status: const Value('needsAction'),
+            dueUtc: const Value('2026-06-12'),
+            microsoftDueDateTime: const Value('2026-06-12'),
+            microsoftIsReminderOn: const Value(true),
+            microsoftReminderDateTime: const Value('2026-06-12T13:02:00'),
+            microsoftReminderTimeZone: const Value('UTC'),
+            rawJson: '{}',
+            createdLocalAtUtc: _now,
+            updatedLocalAtUtc: _now,
+          ),
+        );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 12)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeCalendarEvents: false,
+      ),
+    );
+
+    final task = items.single as TaskScheduleItem;
+    expect(task.reminder, DateTime.utc(2026, 6, 12, 13, 2).toLocal());
+  });
+
+  test('Microsoft task with date-only due appears as all-day', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertTaskList(database);
+    await database
+        .into(database.tasks)
+        .insert(
+          TasksCompanion.insert(
+            accountId: 'account',
+            taskListId: 'inbox',
+            id: 'ms-all-day-task',
+            title: 'File expenses',
+            status: const Value('needsAction'),
+            dueUtc: const Value('2026-06-12'),
+            microsoftDueDateTime: const Value('2026-06-12'),
+            rawJson: '{}',
+            createdLocalAtUtc: _now,
+            updatedLocalAtUtc: _now,
+          ),
+        );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 12)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeCalendarEvents: false,
+      ),
+    );
+
+    expect(items, hasLength(1));
+    final task = items.single as TaskScheduleItem;
+    expect(task.title, 'File expenses');
+    expect(task.allDay, isTrue);
+    expect(task.start, DateTime(2026, 6, 12));
+    expect(task.end, DateTime(2026, 6, 13));
+  });
+
+  test('repository limits no-date task bucket', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertTaskList(database);
+    for (var index = 0; index < 10; index += 1) {
+      await _insertTask(
+        database,
+        id: 'no-date-$index',
+        title: 'Someday $index',
+      );
+    }
+
+    final repository = ScheduleRepository(database);
+    final firstPage = await repository.listNoDateTasks(
+      limit: 8,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        taskListFilterActive: true,
+        taskListIds: {'inbox'},
+      ),
+    );
+    final expandedPage = await repository.listNoDateTasks(
+      limit: 12,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        taskListFilterActive: true,
+        taskListIds: {'inbox'},
+      ),
+    );
+
+    expect(firstPage.items, hasLength(8));
+    expect(firstPage.hasMore, isTrue);
+    expect(firstPage.items.every((item) => item.start == null), isTrue);
+    expect(expandedPage.items, hasLength(10));
+    expect(expandedPage.hasMore, isFalse);
+  });
+
+  test('repository limits overdue task bucket', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertTaskList(database);
+    for (var index = 0; index < 10; index += 1) {
+      final due = DateTime(2026, 6, 9).subtract(Duration(days: index));
+      await _insertTask(
+        database,
+        id: 'overdue-$index',
+        title: 'Overdue $index',
+        dueUtc: _dateOnly(due),
+      );
+    }
+    await _insertTask(
+      database,
+      id: 'today',
+      title: 'Today',
+      dueUtc: '2026-06-10',
+    );
+    await _insertTask(database, id: 'no-date', title: 'Someday');
+
+    final repository = ScheduleRepository(database);
+    final firstPage = await repository.listOverdueTasks(
+      before: DateTime(2026, 6, 10),
+      limit: 8,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        taskListFilterActive: true,
+        taskListIds: {'inbox'},
+      ),
+    );
+    final expandedPage = await repository.listOverdueTasks(
+      before: DateTime(2026, 6, 10),
+      limit: 12,
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        taskListFilterActive: true,
+        taskListIds: {'inbox'},
+      ),
+    );
+
+    expect(firstPage.items, hasLength(8));
+    expect(firstPage.hasMore, isTrue);
+    expect(firstPage.items.every((item) => item.start != null), isTrue);
+    expect(
+      firstPage.items,
+      isNot(
+        contains(
+          predicate<TaskScheduleItem>((item) {
+            return item.title == 'Today' || item.title == 'Someday';
+          }),
+        ),
+      ),
+    );
+    expect(expandedPage.items, hasLength(10));
+    expect(expandedPage.hasMore, isFalse);
   });
 }
 
@@ -229,6 +597,37 @@ Future<void> _insertTaskList(AppDatabase database) {
           updatedLocalAtUtc: _now,
         ),
       );
+}
+
+Future<void> _insertTask(
+  AppDatabase database, {
+  required String id,
+  required String title,
+  String? dueUtc,
+}) {
+  return database
+      .into(database.tasks)
+      .insert(
+        TasksCompanion.insert(
+          accountId: 'account',
+          taskListId: 'inbox',
+          id: id,
+          title: title,
+          status: const Value('needsAction'),
+          dueUtc: Value(dueUtc),
+          rawJson: '{}',
+          createdLocalAtUtc: _now,
+          updatedLocalAtUtc: _now,
+        ),
+      );
+}
+
+String _dateOnly(DateTime date) {
+  return [
+    date.year.toString().padLeft(4, '0'),
+    date.month.toString().padLeft(2, '0'),
+    date.day.toString().padLeft(2, '0'),
+  ].join('-');
 }
 
 const _now = '2026-01-01T00:00:00.000Z';

@@ -12,11 +12,13 @@ class CalendarSyncEngine {
     required String accountId,
     DateTime Function()? nowUtc,
     Future<void> Function(String summary)? onConflictBlocked,
+    Future<void> Function()? onNotificationScheduleChanged,
   }) : _repository = CalendarRepository(database: database, now: nowUtc),
        _database = database,
        _client = client,
        _accountId = accountId,
        _onConflictBlocked = onConflictBlocked,
+       _onNotificationScheduleChanged = onNotificationScheduleChanged,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
@@ -24,6 +26,7 @@ class CalendarSyncEngine {
   final CloudCalendarClient _client;
   final String _accountId;
   final Future<void> Function(String summary)? _onConflictBlocked;
+  final Future<void> Function()? _onNotificationScheduleChanged;
   final DateTime Function() _nowUtc;
 
   BusyProvider get provider => _client.provider;
@@ -50,6 +53,7 @@ class CalendarSyncEngine {
       database: _database,
       nowUtc: _nowUtc,
     ).rebuildUpcomingEventNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> incrementalSync() async {
@@ -89,6 +93,7 @@ class CalendarSyncEngine {
       database: _database,
       nowUtc: _nowUtc,
     ).rebuildUpcomingEventNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> _syncCalendarRange({

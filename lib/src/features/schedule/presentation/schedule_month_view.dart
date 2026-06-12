@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
@@ -8,6 +10,7 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
 import 'schedule_item_chip.dart';
+import 'schedule_item_selection.dart';
 import 'schedule_more_popover.dart';
 
 class ScheduleMonthView extends StatelessWidget {
@@ -29,7 +32,7 @@ class ScheduleMonthView extends StatelessWidget {
   final int firstWeekday;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onCreateAtDay;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -139,7 +142,7 @@ class _MonthDayCell extends StatelessWidget {
   final List<ScheduleItem> items;
   final VoidCallback onSelect;
   final VoidCallback onCreate;
-  final void Function(BuildContext context, ScheduleItem item) onItemSelected;
+  final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
 
@@ -147,8 +150,6 @@ class _MonthDayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final today = DateUtils.isSameDay(day, DateTime.now());
-    final visible = items.take(4).toList();
-    final overflow = items.length - visible.length;
 
     return Material(
       color: selected
@@ -160,89 +161,163 @@ class _MonthDayCell extends StatelessWidget {
       child: InkWell(
         onTap: onSelect,
         onDoubleTap: onCreate,
-        child: Padding(
-          padding: const EdgeInsets.all(BusyMaxSpacing.xs),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const headerHeight = 24.0;
+            const itemHeight = 22.0;
+            const moreHeight = 24.0;
+            const itemGap = BusyMaxSpacing.xs;
+            final contentHeight = math.max(
+              0.0,
+              constraints.maxHeight - BusyMaxSpacing.xs * 2,
+            );
+            final availableRowsHeight = math.max(
+              0.0,
+              contentHeight - headerHeight - itemGap,
+            );
+            final rowSlots = (availableRowsHeight / (itemHeight + itemGap))
+                .floor();
+            final needsOverflowRow = items.length > rowSlots;
+            final visibleCount = needsOverflowRow
+                ? math.max(0, rowSlots - 1)
+                : math.min(items.length, rowSlots);
+            final visible = items.take(visibleCount).toList();
+            final overflow = items.length - visible.length;
+            final showOverflow =
+                overflow > 0 && availableRowsHeight >= moreHeight;
+
+            if (contentHeight < headerHeight + itemGap) {
+              return Padding(
+                padding: const EdgeInsets.all(BusyMaxSpacing.xs),
+                child: Align(
+                  alignment: AlignmentDirectional.topStart,
+                  child: SizedBox(
                     width: 26,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? colorScheme.primaryContainer
-                          : today
-                          ? colorScheme.primary
-                          : null,
-                      borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-                    ),
-                    child: Text(
-                      '${day.day}',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: selected
-                            ? colorScheme.onPrimaryContainer
-                            : today
-                            ? colorScheme.onPrimary
-                            : inCurrentMonth
-                            ? colorScheme.onSurface
-                            : colorScheme.onSurfaceVariant.withValues(
-                                alpha: 0.55,
-                              ),
-                        fontWeight: FontWeight.w600,
+                    height: contentHeight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.topStart,
+                      child: _MonthDayNumber(
+                        day: day,
+                        selected: selected,
+                        today: today,
+                        inCurrentMonth: inCurrentMonth,
                       ),
                     ),
                   ),
-                  const Spacer(),
-                  if (selected)
-                    SizedBox.square(
-                      dimension: 24,
-                      child: YaruIconButton(
-                        tooltip: context.l10n.create,
-                        icon: const Icon(YaruIcons.plus, size: 16),
-                        onPressed: onCreate,
+                ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.all(BusyMaxSpacing.xs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      _MonthDayNumber(
+                        day: day,
+                        selected: selected,
+                        today: today,
+                        inCurrentMonth: inCurrentMonth,
+                      ),
+                      const Spacer(),
+                      if (selected)
+                        SizedBox.square(
+                          dimension: 24,
+                          child: YaruIconButton(
+                            tooltip: context.l10n.create,
+                            icon: const Icon(YaruIcons.plus, size: 16),
+                            onPressed: onCreate,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: BusyMaxSpacing.xs),
+                  for (final item in visible)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: BusyMaxSpacing.xs),
+                      child: ScheduleItemChip(
+                        item: item,
+                        height: itemHeight,
+                        compact: true,
+                        onTap: (context, [globalPosition]) =>
+                            onItemSelected(context, item, globalPosition),
+                        onTaskCompletionChanged: item is TaskScheduleItem
+                            ? (completed) =>
+                                  onTaskCompletionChanged(item, completed)
+                            : null,
+                      ),
+                    ),
+                  if (showOverflow)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          minimumSize: const Size(0, moreHeight),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () => showScheduleMorePopover(
+                          context: context,
+                          day: day,
+                          items: items,
+                          onItemSelected: onItemSelected,
+                          onTaskCompletionChanged: onTaskCompletionChanged,
+                        ),
+                        child: Text(context.l10n.moreItems(overflow)),
                       ),
                     ),
                 ],
               ),
-              const SizedBox(height: BusyMaxSpacing.xs),
-              for (final item in visible)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: BusyMaxSpacing.xs),
-                  child: ScheduleItemChip(
-                    item: item,
-                    height: 22,
-                    compact: true,
-                    onTap: (context) => onItemSelected(context, item),
-                    onTaskCompletionChanged: item is TaskScheduleItem
-                        ? (completed) =>
-                              onTaskCompletionChanged(item, completed)
-                        : null,
-                  ),
-                ),
-              if (overflow > 0)
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      minimumSize: const Size(0, 24),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () => showScheduleMorePopover(
-                      context: context,
-                      day: day,
-                      items: items,
-                      onItemSelected: onItemSelected,
-                      onTaskCompletionChanged: onTaskCompletionChanged,
-                    ),
-                    child: Text(context.l10n.moreItems(overflow)),
-                  ),
-                ),
-            ],
-          ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthDayNumber extends StatelessWidget {
+  const _MonthDayNumber({
+    required this.day,
+    required this.selected,
+    required this.today,
+    required this.inCurrentMonth,
+  });
+
+  final DateTime day;
+  final bool selected;
+  final bool today;
+  final bool inCurrentMonth;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 26,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: selected
+            ? colorScheme.primaryContainer
+            : today
+            ? colorScheme.primary
+            : null,
+        borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
+      ),
+      child: Text(
+        '${day.day}',
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: selected
+              ? colorScheme.onPrimaryContainer
+              : today
+              ? colorScheme.onPrimary
+              : inCurrentMonth
+              ? colorScheme.onSurface
+              : colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

@@ -52,6 +52,7 @@ void main() {
     await service.setSidebarWidth(300);
     await service.setSearchActive(false);
     await service.setSidebarVisible(true);
+    await service.setNavigationVisible(false);
     await service.setBackVisible(false);
     await service.setOnboardingControls(
       visible: true,
@@ -63,6 +64,7 @@ void main() {
     await service.setModalBarrierVisible(true);
     await service.setTheme(
       const BusyMaxHeaderBarTheme(
+        windowBackgroundColor: Color(0xFF18181B),
         backgroundColor: Color(0xFF1D1D20),
         sidebarBackgroundColor: Color(0xFF2E2E32),
         foregroundColor: Color(0xFFFFFFFF),
@@ -93,6 +95,7 @@ void main() {
         'setSidebarWidth',
         'setSearchActive',
         'setSidebarVisible',
+        'setNavigationVisible',
         'setBackVisible',
         'setOnboardingControls',
         'setModalBarrierVisible',
@@ -109,10 +112,15 @@ void main() {
     expect(calls[5].arguments, containsPair('settings', 'Settings'));
     expect(calls[5].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
     expect(calls[6].arguments, 300);
-    expect(calls[10].arguments, containsPair('visible', true));
-    expect(calls[10].arguments, containsPair('canContinue', true));
-    expect(calls[10].arguments, containsPair('continueLabel', 'Continue'));
+    expect(calls[9].arguments, false);
+    expect(calls[11].arguments, containsPair('visible', true));
+    expect(calls[11].arguments, containsPair('canContinue', true));
+    expect(calls[11].arguments, containsPair('continueLabel', 'Continue'));
     expect(calls.last.arguments, containsPair('backgroundColor', '#1D1D20'));
+    expect(
+      calls.last.arguments,
+      containsPair('windowBackgroundColor', '#18181B'),
+    );
     expect(
       calls.last.arguments,
       containsPair('sidebarBackgroundColor', '#2E2E32'),

@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 
 import 'app_database.dart';
 
-const latestSchemaVersion = 4;
+const latestSchemaVersion = 5;
 
 MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
   return MigrationStrategy(
@@ -22,6 +22,9 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       }
       if (from < 4) {
         await _addV4CalendarTables(migrator, database);
+      }
+      if (from >= 4 && from < 5) {
+        await _addV5CalendarEventCategories(migrator, database);
       }
       await _createIndexes(database);
     },
@@ -70,6 +73,18 @@ Future<void> _addV4CalendarTables(
   await migrator.createTable(database.calendarColors);
   await migrator.createTable(database.scheduleItemOverrides);
   await migrator.createTable(database.notificationSchedule);
+}
+
+Future<void> _addV5CalendarEventCategories(
+  Migrator migrator,
+  AppDatabase database,
+) async {
+  if (await _hasTable(database, 'calendar_events')) {
+    await migrator.addColumn(
+      database.calendarEvents,
+      database.calendarEvents.categoriesJson,
+    );
+  }
 }
 
 Future<void> _addV3Columns(Migrator migrator, AppDatabase database) async {

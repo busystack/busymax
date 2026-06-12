@@ -161,6 +161,56 @@ class AppLocalizationsEn extends AppLocalizations {
   String get trayAgendaError => 'Agenda unavailable';
 
   @override
+  String get compactAgendaTitle => 'Agenda';
+
+  @override
+  String get compactAgendaSubtitle => 'Upcoming';
+
+  @override
+  String get compactAgendaOverdue => 'Overdue';
+
+  @override
+  String get compactAgendaClear => 'Clear for now';
+
+  @override
+  String get compactAgendaOpenBusyMax => 'Open BusyMax';
+
+  @override
+  String get compactAgendaHide => 'Hide';
+
+  @override
+  String get compactAgendaNewTask => 'New task';
+
+  @override
+  String get compactAgendaRetry => 'Retry';
+
+  @override
+  String get compactAgendaRefresh => 'Refresh';
+
+  @override
+  String get compactAgendaAllDay => 'All day';
+
+  @override
+  String get compactAgendaDueToday => 'Due today';
+
+  @override
+  String get compactAgendaDueTomorrow => 'Due tomorrow';
+
+  @override
+  String compactAgendaDueOn(String date) {
+    return 'Due $date';
+  }
+
+  @override
+  String get compactAgendaMoreOverdue => 'Load more overdue tasks';
+
+  @override
+  String get agendaLoadMoreOverdue => 'Load more overdue tasks';
+
+  @override
+  String get agendaLoadMoreNoDate => 'Load more no-date tasks';
+
+  @override
   String get viewDay => 'Day';
 
   @override
@@ -174,6 +224,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get viewAgenda => 'Agenda';
+
+  @override
+  String get scheduleSettings => 'Schedule';
+
+  @override
+  String get scheduleDisplaySettings => 'Schedule display';
+
+  @override
+  String get scheduleDisplayHoursDescription =>
+      'Day and Week views open within these hours. Early and late items expand the range when needed.';
+
+  @override
+  String get scheduleDayStartsAt => 'Day starts at';
+
+  @override
+  String get scheduleDayEndsAt => 'Day ends at';
 
   @override
   String get sourceCalendar => 'Calendar';

@@ -78,6 +78,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onDeleteLocalData: (accountId) =>
             _deleteLocalData(context, ref, accountId),
       ),
+      SettingsPage.schedule => BusyMaxGroupedList(
+        title: l10n.scheduleDisplaySettings,
+        description: l10n.scheduleDisplayHoursDescription,
+        filled: true,
+        children: [
+          BusyMaxComboRow<int>(
+            title: l10n.scheduleDayStartsAt,
+            leading: const Icon(YaruIcons.calendar_day),
+            values: _scheduleDayStartValues(settings),
+            selected: settings.scheduleDayStartMinute,
+            labelFor: (value) => _timeOfDayLabel(context, value),
+            onSelected: settingsController.setScheduleDayStartMinute,
+          ),
+          BusyMaxComboRow<int>(
+            title: l10n.scheduleDayEndsAt,
+            leading: const Icon(YaruIcons.clock),
+            values: _scheduleDayEndValues(settings),
+            selected: settings.scheduleDayEndMinute,
+            labelFor: (value) => _timeOfDayLabel(context, value),
+            onSelected: settingsController.setScheduleDayEndMinute,
+          ),
+        ],
+      ),
       SettingsPage.system => BusyMaxGroupedList(
         title: l10n.themeSystem,
         filled: true,
@@ -520,10 +543,18 @@ class _SettingsFallbackHeader extends StatelessWidget {
   }
 }
 
-enum SettingsPage { accounts, system, notifications, privacy, diagnostics }
+enum SettingsPage {
+  accounts,
+  schedule,
+  system,
+  notifications,
+  privacy,
+  diagnostics,
+}
 
 SettingsPage settingsPageFromRouteValue(String? value) {
   return switch (value) {
+    'schedule' => SettingsPage.schedule,
     'system' => SettingsPage.system,
     'notifications' => SettingsPage.notifications,
     'privacy' => SettingsPage.privacy,
@@ -538,6 +569,7 @@ String _settingsPageLabel(BuildContext context, SettingsPage page) {
   final l10n = context.l10n;
   return switch (page) {
     SettingsPage.accounts => l10n.accounts,
+    SettingsPage.schedule => l10n.scheduleSettings,
     SettingsPage.system => l10n.themeSystem,
     SettingsPage.notifications => l10n.notifications,
     SettingsPage.privacy => l10n.privacy,
@@ -548,11 +580,37 @@ String _settingsPageLabel(BuildContext context, SettingsPage page) {
 IconData _settingsPageIcon(SettingsPage page) {
   return switch (page) {
     SettingsPage.accounts => YaruIcons.user,
+    SettingsPage.schedule => YaruIcons.calendar_day,
     SettingsPage.system => YaruIcons.desktop,
     SettingsPage.notifications => YaruIcons.bell,
     SettingsPage.privacy => YaruIcons.shield_warning,
     SettingsPage.diagnostics => YaruIcons.monitor,
   };
+}
+
+List<int> _scheduleDayStartValues(AppSettings settings) {
+  return [
+    for (var minute = 0; minute < 24 * 60; minute += 60)
+      if (minute < settings.scheduleDayEndMinute) minute,
+  ];
+}
+
+List<int> _scheduleDayEndValues(AppSettings settings) {
+  return [
+    for (var minute = 60; minute <= 24 * 60; minute += 60)
+      if (minute > settings.scheduleDayStartMinute) minute,
+  ];
+}
+
+String _timeOfDayLabel(BuildContext context, int minute) {
+  if (minute == 24 * 60) {
+    return '24:00';
+  }
+  final time = TimeOfDay(hour: minute ~/ 60, minute: minute % 60);
+  return MaterialLocalizations.of(context).formatTimeOfDay(
+    time,
+    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+  );
 }
 
 Future<String?> _taskListTitleDialog(BuildContext context) {

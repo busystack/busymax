@@ -34,7 +34,7 @@ void main() {
         'contentType': 'html',
       });
       expect(client.createdTaskBody['dueDateTime'], {
-        'dateTime': '2026-06-06T00:00:00',
+        'dateTime': '2026-06-06',
         'timeZone': 'America/Vancouver',
       });
       expect(client.createdTaskBody['status'], 'completed');

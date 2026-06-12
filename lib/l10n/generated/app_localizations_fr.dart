@@ -164,6 +164,56 @@ class AppLocalizationsFr extends AppLocalizations {
   String get trayAgendaError => 'Agenda indisponible';
 
   @override
+  String get compactAgendaTitle => 'Agenda';
+
+  @override
+  String get compactAgendaSubtitle => 'À venir';
+
+  @override
+  String get compactAgendaOverdue => 'En retard';
+
+  @override
+  String get compactAgendaClear => 'Libre pour le moment';
+
+  @override
+  String get compactAgendaOpenBusyMax => 'Ouvrir BusyMax';
+
+  @override
+  String get compactAgendaHide => 'Masquer';
+
+  @override
+  String get compactAgendaNewTask => 'Nouvelle tâche';
+
+  @override
+  String get compactAgendaRetry => 'Réessayer';
+
+  @override
+  String get compactAgendaRefresh => 'Actualiser';
+
+  @override
+  String get compactAgendaAllDay => 'Toute la journée';
+
+  @override
+  String get compactAgendaDueToday => 'Échéance aujourd’hui';
+
+  @override
+  String get compactAgendaDueTomorrow => 'Échéance demain';
+
+  @override
+  String compactAgendaDueOn(String date) {
+    return 'Échéance $date';
+  }
+
+  @override
+  String get compactAgendaMoreOverdue => 'Charger plus de tâches en retard';
+
+  @override
+  String get agendaLoadMoreOverdue => 'Charger plus de tâches en retard';
+
+  @override
+  String get agendaLoadMoreNoDate => 'Charger plus de tâches sans date';
+
+  @override
   String get viewDay => 'Jour';
 
   @override
@@ -177,6 +227,22 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get viewAgenda => 'Agenda';
+
+  @override
+  String get scheduleSettings => 'Planning';
+
+  @override
+  String get scheduleDisplaySettings => 'Affichage du planning';
+
+  @override
+  String get scheduleDisplayHoursDescription =>
+      'Les vues Jour et Semaine s’ouvrent dans cette plage horaire. Les éléments tôt ou tardifs l’élargissent si nécessaire.';
+
+  @override
+  String get scheduleDayStartsAt => 'La journée commence à';
+
+  @override
+  String get scheduleDayEndsAt => 'La journée se termine à';
 
   @override
   String get sourceCalendar => 'Calendrier';

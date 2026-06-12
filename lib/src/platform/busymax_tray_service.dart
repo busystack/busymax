@@ -35,12 +35,15 @@ class BusyMaxTrayService {
     required LinuxWindowService windowService,
     required BusyMaxTrayLabels labels,
     required Future<void> Function() onOpenAgenda,
+    Future<void> Function()? onBeforeQuit,
   }) : _windowService = windowService,
        _labels = labels,
-       _onOpenAgenda = onOpenAgenda;
+       _onOpenAgenda = onOpenAgenda,
+       _onBeforeQuit = onBeforeQuit;
 
   final LinuxWindowService _windowService;
   final Future<void> Function() _onOpenAgenda;
+  final Future<void> Function()? _onBeforeQuit;
   BusyMaxTrayLabels _labels;
 
   StatusNotifierItemClient? _client;
@@ -108,12 +111,12 @@ class BusyMaxTrayService {
     return _windowService.showWindow();
   }
 
-  Future<void> _showAgenda() async {
-    await _windowService.showWindow();
-    await _onOpenAgenda();
+  Future<void> _showAgenda() {
+    return _onOpenAgenda();
   }
 
   Future<void> _quit() async {
+    await _onBeforeQuit?.call();
     await stop();
     await _windowService.quitApp();
   }
@@ -137,7 +140,7 @@ DBusMenuItem buildBusyMaxTrayMenu({
 String _trayIconName() {
   final executableDir = File(Platform.resolvedExecutable).parent;
   final bundledLogo = File(
-    '${executableDir.path}/data/flutter_assets/assets/branding/busymax-logo.png',
+    '${executableDir.path}/data/flutter_assets/assets/branding/busymax-logo.svg',
   );
   if (bundledLogo.existsSync()) {
     return bundledLogo.path;

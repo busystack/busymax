@@ -173,6 +173,8 @@ class TaskCreateInput {
     this.notes,
     this.status,
     this.dueUtc,
+    this.categories = const [],
+    this.fields = const {},
     this.parentTaskId,
     this.previousSiblingTaskId,
   });
@@ -181,8 +183,25 @@ class TaskCreateInput {
   final String? notes;
   final String? status;
   final DateTime? dueUtc;
+  final List<String> categories;
+  final Map<String, Object?> fields;
   final String? parentTaskId;
   final String? previousSiblingTaskId;
+
+  Map<String, Object?> toFields() {
+    final trimmedCategories = [
+      for (final category in categories)
+        if (category.trim().isNotEmpty) category.trim(),
+    ];
+    return {
+      'title': title,
+      if (notes != null) 'notes': notes,
+      if (status != null) 'status': status,
+      if (dueUtc != null) 'due': dueUtc,
+      if (trimmedCategories.isNotEmpty) 'categories': trimmedCategories,
+      ...fields,
+    };
+  }
 }
 
 class TaskPatchInput {
@@ -245,12 +264,14 @@ class TasksRepository {
     required String accountId,
     GoogleTasksApiClient? apiClient,
     void Function()? onMutationQueued,
+    Future<void> Function()? onNotificationScheduleChanged,
     Uuid uuid = const Uuid(),
     DateTime Function()? nowUtc,
   }) : _database = database,
        _accountId = accountId,
        _apiClient = apiClient,
        _onMutationQueued = onMutationQueued,
+       _onNotificationScheduleChanged = onNotificationScheduleChanged,
        _uuid = uuid,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
@@ -258,6 +279,7 @@ class TasksRepository {
   final String _accountId;
   final GoogleTasksApiClient? _apiClient;
   final void Function()? _onMutationQueued;
+  final Future<void> Function()? _onNotificationScheduleChanged;
   final Uuid _uuid;
   final DateTime Function() _nowUtc;
 
@@ -321,40 +343,53 @@ class TasksRepository {
     );
   }
 
+  Stream<List<String>> watchCategorySuggestions() {
+    final query = _database.select(_database.tasks)
+      ..where(
+        (row) =>
+            row.accountId.equals(_accountId) &
+            row.pendingDelete.equals(false) &
+            row.categoriesJson.isNotNull(),
+      );
+    return query.watch().map((rows) {
+      final categories = <String>{};
+      for (final row in rows) {
+        categories.addAll(_stringListFromJson(row.categoriesJson));
+      }
+      return categories.toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    });
+  }
+
   Future<void> createTask(String taskListId, TaskCreateInput input) async {
     final now = _now();
     final localId = 'local-task-${_uuid.v4()}';
-    final due = normalizeGoogleDueDateValue(input.dueUtc);
+    final fields = input.toFields();
+    final title = fields['title']?.toString() ?? input.title;
     await _database.transaction(() async {
       await _database.tasksDao.upsertTask(
         TasksCompanion.insert(
           accountId: _accountId,
           taskListId: taskListId,
           id: localId,
-          title: input.title,
-          notes: Value(input.notes),
-          status: Value(input.status ?? 'needsAction'),
-          dueUtc: Value(due),
+          title: title,
+          status: Value(fields['status']?.toString() ?? 'needsAction'),
           parent: Value(input.parentTaskId),
-          rawJson: jsonEncode({'id': localId, 'title': input.title}),
+          rawJson: jsonEncode({'id': localId, 'title': title}),
           localDirty: const Value(true),
           localCreated: const Value(true),
           createdLocalAtUtc: now,
           updatedLocalAtUtc: now,
         ),
       );
+      await _patchLocalTask(taskListId, localId, fields, now);
       await _enqueue(
         operation: 'create_task',
         taskListId: taskListId,
         taskId: localId,
         localTempId: localId,
         request: {
-          'body': {
-            'title': input.title,
-            if (input.notes != null) 'notes': input.notes,
-            if (input.status != null) 'status': input.status,
-            if (input.dueUtc != null) 'due': encodeGoogleDueDate(input.dueUtc!),
-          },
+          'body': _remoteTaskFields(fields),
           if (input.parentTaskId != null) 'parent': input.parentTaskId,
           if (input.previousSiblingTaskId != null)
             'previous': input.previousSiblingTaskId,
@@ -362,6 +397,7 @@ class TasksRepository {
         createdAtUtc: now,
       );
     });
+    await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
 
@@ -382,10 +418,7 @@ class TasksRepository {
       baselineRawJson: baseline?.rawJson,
       createdAtUtc: now,
     );
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
 
@@ -406,10 +439,7 @@ class TasksRepository {
       baselineRawJson: baseline?.rawJson,
       createdAtUtc: now,
     );
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
 
@@ -434,10 +464,7 @@ class TasksRepository {
       baselineRawJson: baseline?.rawJson,
       createdAtUtc: now,
     );
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
 
@@ -500,6 +527,14 @@ class TasksRepository {
     await _database.tasksDao.upsertTask(
       taskFromDto(_accountId, taskListId, dto, _now()),
     );
+  }
+
+  Future<void> _rebuildTaskNotifications() async {
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> _patchLocalTask(
@@ -744,6 +779,25 @@ Object? _remoteDueValue(Object value) {
     return null;
   }
   return '${normalized}T00:00:00.000Z';
+}
+
+List<String> _stringListFromJson(String? value) {
+  if (value == null || value.isEmpty) {
+    return const [];
+  }
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is List) {
+      return [
+        for (final item in decoded)
+          if (item != null && item.toString().trim().isNotEmpty)
+            item.toString().trim(),
+      ];
+    }
+  } on FormatException {
+    return const [];
+  }
+  return const [];
 }
 
 TasksCompanion taskFromDto(

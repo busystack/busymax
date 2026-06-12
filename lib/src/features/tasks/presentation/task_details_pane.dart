@@ -14,23 +14,37 @@ import '../data/tasks_repository.dart';
 import 'task_details_draft.dart';
 import 'task_details_editor.dart';
 
+typedef TasksRepositoryForAccount = TasksRepository Function(String accountId);
+typedef TaskListsRepositoryForAccount =
+    TaskListsRepository Function(String accountId);
+typedef TaskMutationCommittedCallback =
+    FutureOr<void> Function(String accountId);
+
 class TaskDetailsPane extends ConsumerStatefulWidget {
   const TaskDetailsPane({
     super.key,
     required this.accountId,
     required this.taskListId,
     required this.taskId,
+    this.tasksRepositoryForAccount,
+    this.taskListsRepositoryForAccount,
+    this.onTaskMutationCommitted,
     this.onClose,
     this.onTaskSwitchCancelled,
     this.onDirtyChanged,
+    this.dialogBarrierColor,
   });
 
   final String accountId;
   final String taskListId;
   final String taskId;
+  final TasksRepositoryForAccount? tasksRepositoryForAccount;
+  final TaskListsRepositoryForAccount? taskListsRepositoryForAccount;
+  final TaskMutationCommittedCallback? onTaskMutationCommitted;
   final VoidCallback? onClose;
   final ValueChanged<TaskEntity>? onTaskSwitchCancelled;
   final ValueChanged<bool>? onDirtyChanged;
+  final Color? dialogBarrierColor;
 
   @override
   ConsumerState<TaskDetailsPane> createState() => _TaskDetailsPaneState();
@@ -45,13 +59,20 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   AccountEntity? _lastAccount;
   TaskProviderCapabilities? _lastCapabilities;
   String? _lastLocalTimeZone;
+  List<String> _lastCategorySuggestions = const [];
   TasksRepository? _taskStreamRepository;
   String? _taskStreamAccountId;
   String? _taskStreamTaskListId;
   String? _taskStreamTaskId;
   Stream<TaskEntity?>? _taskStream;
+  TasksRepository? _categorySuggestionsRepository;
+  Stream<List<String>>? _categorySuggestionsStream;
   TaskListsRepository? _listsStreamRepository;
   Stream<List<TaskListEntity>>? _listsStream;
+  String? _customTasksRepositoryAccountId;
+  TasksRepository? _customTasksRepository;
+  String? _customTaskListsRepositoryAccountId;
+  TaskListsRepository? _customTaskListsRepository;
   var _editorDirty = false;
   var _confirmingTaskSwitch = false;
 
@@ -98,12 +119,8 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   }
 
   Widget _buildContent(BuildContext context, WidgetRef ref) {
-    final repository = ref.watch(
-      tasksRepositoryForAccountProvider(_effectiveAccountId),
-    );
-    final listsRepository = ref.watch(
-      taskListsRepositoryForAccountProvider(_effectiveAccountId),
-    );
+    final repository = _tasksRepository(ref, _effectiveAccountId);
+    final listsRepository = _taskListsRepository(ref, _effectiveAccountId);
     final localTimeZone = ref.watch(localTimeZoneProvider);
     final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
     final account = _accountForId(accounts, _effectiveAccountId);
@@ -112,6 +129,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     final capabilities = capabilitiesForProvider(provider);
     final taskStream = _watchTask(repository);
     final listsStream = _watchTaskLists(listsRepository);
+    final categorySuggestionsStream = _watchCategorySuggestions(repository);
 
     return StreamBuilder<TaskEntity?>(
       stream: taskStream,
@@ -126,6 +144,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
               capabilities: _lastCapabilities ?? capabilities,
               localTimeZone: _lastLocalTimeZone ?? localTimeZone,
               account: _lastAccount,
+              categorySuggestions: _lastCategorySuggestions,
             );
           }
           return const SizedBox.shrink();
@@ -148,18 +167,27 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           stream: listsStream,
           builder: (context, listsSnapshot) {
             final taskLists = listsSnapshot.data ?? const <TaskListEntity>[];
-            _lastTask = task;
-            _lastTaskLists = taskLists;
-            _lastAccount = account;
-            _lastCapabilities = capabilities;
-            _lastLocalTimeZone = localTimeZone;
-            return _buildEditor(
-              repository: repository,
-              task: task,
-              taskLists: taskLists,
-              capabilities: capabilities,
-              localTimeZone: localTimeZone,
-              account: account,
+            return StreamBuilder<List<String>>(
+              stream: categorySuggestionsStream,
+              builder: (context, categorySnapshot) {
+                final categorySuggestions =
+                    categorySnapshot.data ?? _lastCategorySuggestions;
+                _lastTask = task;
+                _lastTaskLists = taskLists;
+                _lastAccount = account;
+                _lastCapabilities = capabilities;
+                _lastLocalTimeZone = localTimeZone;
+                _lastCategorySuggestions = categorySuggestions;
+                return _buildEditor(
+                  repository: repository,
+                  task: task,
+                  taskLists: taskLists,
+                  capabilities: capabilities,
+                  localTimeZone: localTimeZone,
+                  account: account,
+                  categorySuggestions: categorySuggestions,
+                );
+              },
             );
           },
         );
@@ -173,12 +201,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     TaskDetailsDraft draft,
     Map<String, Object?> patch,
   ) async {
+    var mutated = false;
     if (patch.isNotEmpty) {
       await repository.patchTask(
         task.taskListId,
         task.id,
         TaskPatchInput(patch),
       );
+      mutated = true;
     }
     if (draft.taskListId != task.taskListId) {
       await repository.moveTask(
@@ -188,6 +218,10 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           destinationTaskListId: draft.taskListId,
         ),
       );
+      mutated = true;
+    }
+    if (mutated) {
+      await widget.onTaskMutationCommitted?.call(task.accountId);
     }
   }
 
@@ -198,12 +232,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     required TaskProviderCapabilities capabilities,
     required String localTimeZone,
     required AccountEntity? account,
+    required List<String> categorySuggestions,
   }) {
     return TaskDetailsEditor(
       task: task,
       taskLists: taskLists,
       capabilities: capabilities,
       localTimeZone: localTimeZone,
+      categorySuggestions: categorySuggestions,
       accountLabel: _accountEditorLabel(
         context,
         account,
@@ -214,29 +250,41 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       },
       onSave: (draft, patch) => _saveDraft(repository, task, draft, patch),
       onCreateSubtask: (title) {
-        unawaited(
-          repository.createTask(
-            task.taskListId,
-            TaskCreateInput(title: title, parentTaskId: task.id),
-          ),
-        );
+        unawaited(_createSubtask(repository, task, title));
       },
       onMoveToTop: () {
-        unawaited(
-          repository.moveTask(
-            TaskMoveInput(sourceTaskListId: task.taskListId, taskId: task.id),
-          ),
-        );
+        unawaited(_moveToTop(repository, task));
       },
       onDelete: () async {
         await repository.deleteTask(task.taskListId, task.id);
+        await widget.onTaskMutationCommitted?.call(task.accountId);
         widget.onClose?.call();
       },
       onCancel: () => widget.onClose?.call(),
       onSaved: () => widget.onClose?.call(),
       onTaskSwitchCancelled: widget.onTaskSwitchCancelled,
       onDirtyChanged: _setEditorDirty,
+      dialogBarrierColor: widget.dialogBarrierColor,
     );
+  }
+
+  Future<void> _createSubtask(
+    TasksRepository repository,
+    TaskEntity task,
+    String title,
+  ) async {
+    await repository.createTask(
+      task.taskListId,
+      TaskCreateInput(title: title, parentTaskId: task.id),
+    );
+    await widget.onTaskMutationCommitted?.call(task.accountId);
+  }
+
+  Future<void> _moveToTop(TasksRepository repository, TaskEntity task) async {
+    await repository.moveTask(
+      TaskMoveInput(sourceTaskListId: task.taskListId, taskId: task.id),
+    );
+    await widget.onTaskMutationCommitted?.call(task.accountId);
   }
 
   void _setEditorDirty(bool dirty) {
@@ -265,6 +313,32 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     _effectiveAccountId = accountId;
     _effectiveTaskListId = taskListId;
     _effectiveTaskId = taskId;
+  }
+
+  TasksRepository _tasksRepository(WidgetRef ref, String accountId) {
+    final factory = widget.tasksRepositoryForAccount;
+    if (factory == null) {
+      return ref.watch(tasksRepositoryForAccountProvider(accountId));
+    }
+    if (_customTasksRepository == null ||
+        _customTasksRepositoryAccountId != accountId) {
+      _customTasksRepositoryAccountId = accountId;
+      _customTasksRepository = factory(accountId);
+    }
+    return _customTasksRepository!;
+  }
+
+  TaskListsRepository _taskListsRepository(WidgetRef ref, String accountId) {
+    final factory = widget.taskListsRepositoryForAccount;
+    if (factory == null) {
+      return ref.watch(taskListsRepositoryForAccountProvider(accountId));
+    }
+    if (_customTaskListsRepository == null ||
+        _customTaskListsRepositoryAccountId != accountId) {
+      _customTaskListsRepositoryAccountId = accountId;
+      _customTaskListsRepository = factory(accountId);
+    }
+    return _customTaskListsRepository!;
   }
 
   Future<void> _confirmSelectionChange({
@@ -329,6 +403,17 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       _listsStream = listsRepository.watchTaskLists().asBroadcastStream();
     }
     return _listsStream!;
+  }
+
+  Stream<List<String>> _watchCategorySuggestions(TasksRepository repository) {
+    if (!identical(_categorySuggestionsRepository, repository) ||
+        _categorySuggestionsStream == null) {
+      _categorySuggestionsRepository = repository;
+      _categorySuggestionsStream = repository
+          .watchCategorySuggestions()
+          .asBroadcastStream();
+    }
+    return _categorySuggestionsStream!;
   }
 
   @override
