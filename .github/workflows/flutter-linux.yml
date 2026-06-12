@@ -80,14 +80,14 @@ jobs:
       - name: Package Linux release bundle
         run: |
           cd build/linux/x64/release
-          zip -r todomax-linux-x64-release-bundle.zip bundle
-          sha256sum todomax-linux-x64-release-bundle.zip > todomax-linux-x64-release-bundle.zip.sha256
+          zip -r busymax-linux-x64-release-bundle.zip bundle
+          sha256sum busymax-linux-x64-release-bundle.zip > busymax-linux-x64-release-bundle.zip.sha256
 
       - name: Upload Linux release bundle
         uses: actions/upload-artifact@v4
         with:
-          name: todomax-linux-x64-release-bundle
+          name: busymax-linux-x64-release-bundle
           path: |
-            build/linux/x64/release/todomax-linux-x64-release-bundle.zip
-            build/linux/x64/release/todomax-linux-x64-release-bundle.zip.sha256
+            build/linux/x64/release/busymax-linux-x64-release-bundle.zip
+            build/linux/x64/release/busymax-linux-x64-release-bundle.zip.sha256
           if-no-files-found: error
