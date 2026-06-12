@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/demo/screenshot_fake_data.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
@@ -150,6 +151,31 @@ void main() {
     expect(state.status, AuthSessionStatus.signedIn);
     expect(state.accountId, 'account-1');
   });
+
+  test('fake provider data mode loads seeded fake session', () async {
+    final database = await openScreenshotFakeDataDatabase(
+      now: DateTime.utc(2026, 6, 11),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        buildConfigProvider.overrideWithValue(_fakeDataBuildConfig),
+        databaseProvider.overrideWithValue(database),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    await container.read(authSessionControllerProvider.notifier).load();
+    await _flushAsync();
+
+    final state = container.read(authSessionControllerProvider);
+    expect(state.status, AuthSessionStatus.signedIn);
+    expect(state.accountId, screenshotFakeGoogleAccountId);
+    expect(container.read(googleTasksApiClientProvider), isNull);
+    await container.read(allAccountsSyncRunnerProvider)();
+  });
 }
 
 ProviderContainer _container({
@@ -260,6 +286,16 @@ const _configuredBuildConfig = BuildConfig(
   googleOAuthClientId: 'client-id',
   googleOAuthClientSecret: '',
   googleApiBaseUrl: 'https://www.googleapis.com',
+  oauthAuthorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
+  oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+);
+
+const _fakeDataBuildConfig = BuildConfig(
+  googleOAuthClientId: '',
+  googleOAuthClientSecret: '',
+  useFakeProviderData: true,
+  apiBaseUrl: 'https://tasks.googleapis.com',
   oauthAuthorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
   oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
   oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',

@@ -33,4 +33,19 @@ void main() {
     expect(config.hasGoogleOAuthClientId, isFalse);
     expect(config.missingClientIdMessage, contains('flutter run -d linux'));
   });
+
+  test('fake provider data mode counts as configured', () {
+    const config = BuildConfig(
+      googleOAuthClientId: '',
+      googleOAuthClientSecret: '',
+      useFakeProviderData: true,
+      googleApiBaseUrl: 'https://www.googleapis.com',
+      oauthAuthorizationEndpoint:
+          'https://accounts.google.com/o/oauth2/v2/auth',
+      oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
+      oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+    );
+
+    expect(config.hasAnyProviderConfigured, isTrue);
+  });
 }

@@ -4,6 +4,7 @@ class BuildConfig {
   const BuildConfig({
     required this.googleOAuthClientId,
     required this.googleOAuthClientSecret,
+    this.useFakeProviderData = false,
     this.microsoftOAuthClientId = '',
     this.microsoftOAuthAuthorityTenant = 'common',
     this.microsoftGraphBaseUrl = 'https://graph.microsoft.com/v1.0',
@@ -19,6 +20,7 @@ class BuildConfig {
     googleOAuthClientSecret: String.fromEnvironment(
       'GOOGLE_OAUTH_CLIENT_SECRET',
     ),
+    useFakeProviderData: bool.fromEnvironment('BUSYMAX_FAKE_DATA'),
     microsoftOAuthClientId: String.fromEnvironment('MICROSOFT_OAUTH_CLIENT_ID'),
     microsoftOAuthAuthorityTenant: String.fromEnvironment(
       'MICROSOFT_OAUTH_AUTHORITY_TENANT',
@@ -48,6 +50,7 @@ class BuildConfig {
 
   final String googleOAuthClientId;
   final String googleOAuthClientSecret;
+  final bool useFakeProviderData;
   final String microsoftOAuthClientId;
   final String microsoftOAuthAuthorityTenant;
   final String microsoftGraphBaseUrl;
@@ -61,7 +64,9 @@ class BuildConfig {
   bool get hasMicrosoftOAuthClientId =>
       microsoftOAuthClientId.trim().isNotEmpty;
   bool get hasAnyProviderConfigured =>
-      hasGoogleOAuthClientId || hasMicrosoftOAuthClientId;
+      useFakeProviderData ||
+      hasGoogleOAuthClientId ||
+      hasMicrosoftOAuthClientId;
 
   String get missingClientIdMessage {
     if (kReleaseMode) {

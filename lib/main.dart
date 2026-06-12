@@ -8,6 +8,7 @@ import 'src/app/app_bootstrap.dart';
 import 'src/app/busymax_app.dart';
 import 'src/config/build_config.dart';
 import 'src/core/logging/redacting_logger.dart';
+import 'src/demo/screenshot_fake_data.dart';
 import 'src/features/schedule/presentation/compact_agenda_app.dart';
 import 'src/platform/busymax_window_args.dart';
 
@@ -16,10 +17,16 @@ Future<void> main(List<String> args) async {
   await SystemTheme.accentColor.load();
   configureLogging();
 
+  final config = BuildConfig.fromEnvironment();
+  final fakeDataDatabase = config.useFakeProviderData
+      ? await openScreenshotFakeDataDatabase()
+      : null;
   final windowController = await WindowController.fromCurrentEngine();
   final windowArgs = BusyMaxWindowArgs.parse(windowController.arguments);
   final overrides = [
-    buildConfigProvider.overrideWithValue(BuildConfig.fromEnvironment()),
+    buildConfigProvider.overrideWithValue(config),
+    if (fakeDataDatabase != null)
+      databaseProvider.overrideWithValue(fakeDataDatabase),
   ];
 
   switch (windowArgs.kind) {
