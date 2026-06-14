@@ -36,6 +36,8 @@ sudo snap install busymax --beta
 - Snap confinement is strict.
 - The tray/status-notifier feature and background-on-close behavior are enabled
   by default for the beta. Users can disable them in settings.
+- Tray support currently uses a vendored patched `xdg_status_notifier_item`
+  StatusNotifierItem/DBusMenu dependency under `third_party`.
 - The tray menu is intentionally simple: Open BusyMax, Agenda, and Quit.
 - The tray Agenda action opens the compact Agenda utility window. On GNOME
   Wayland this window is a normal top-level utility window and may be placed by
