@@ -9,13 +9,13 @@ The snap build requires OAuth configuration at build time. Do not commit real
 values.
 
 ```bash
-export GOOGLE_OAUTH_CLIENT_ID=<google-desktop-client-id>
-export GOOGLE_OAUTH_CLIENT_SECRET=<google-desktop-client-secret>
-export MICROSOFT_OAUTH_CLIENT_ID=<microsoft-public-client-id>
-snapcraft pack
+mkdir -p .snap-local
+$EDITOR .snap-local/busymax-dart-defines.json
+snapcraft pack --use-lxd
 ```
 
-The build fails if any required OAuth value is missing.
+The ignored `.snap-local/busymax-dart-defines.json` file must contain the
+required Dart defines. The build fails if that local file is missing.
 
 ## Install The Beta
 
@@ -34,12 +34,21 @@ sudo snap install busymax --beta
 ## Scope
 
 - Snap confinement is strict.
-- The tray/status-notifier feature is available but disabled by default for the
-  beta. Users can enable it in settings.
+- The tray/status-notifier feature and background-on-close behavior are enabled
+  by default for the beta. Users can disable them in settings.
+- The tray menu is intentionally simple: Open BusyMax, Agenda, and Quit.
+- The tray Agenda action opens the compact Agenda utility window. On GNOME
+  Wayland this window is a normal top-level utility window and may be placed by
+  Mutter instead of under the tray icon. Under X11/XWayland, BusyMax requests a
+  top-right position when the backend supports absolute movement.
 - Settings, task data, and token metadata are stored inside the snap user data
   sandbox. Normal app restarts preserve data. Removing the snap removes user
   data unless snapd creates and restores a snapshot.
 - OAuth uses the system browser and a local loopback callback listener.
+- OAuth tokens use the XDG Secret portal in the snap to retrieve a
+  per-application encryption secret, then store only AES-GCM ciphertext under
+  `XDG_DATA_HOME`. BusyMax must not require the `password-manager-service`
+  interface.
 
 ## Validation Matrix
 
@@ -54,9 +63,13 @@ Required smoke checks before upload:
 - Google and Microsoft sign-in open in the browser and complete the loopback
   callback.
 - Secure token storage survives app restart.
+- `grep -R` over snap user data does not show plaintext OAuth tokens.
 - Settings and task data survive app restart.
 - Notifications appear through the desktop notification service.
-- Tray opt-in either works or fails without crashing.
+- Tray icon appears, the menu opens, Open BusyMax restores the existing main
+  window, Agenda opens the compact Agenda window, and Quit exits cleanly.
+- Compact Agenda data loads through the main-window bridge without opening a
+  second migrating SQLite connection.
 
 ## Reporting Bugs
 
