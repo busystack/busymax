@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
 final _sensitivePatterns = <RegExp>[
@@ -38,14 +41,14 @@ String redactForLog(Object? value) {
 void configureLogging() {
   Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((record) {
-    assert(() {
-      // ignore: avoid_print
-      print(
+    final line =
         '[${record.level.name}] ${record.loggerName}: '
-        '${redactForLog(record.message)}',
-      );
-      return true;
-    }());
+        '${redactForLog(record.message)}';
+    if (kDebugMode) {
+      debugPrint(line);
+    } else {
+      stderr.writeln(line);
+    }
   });
 }
 

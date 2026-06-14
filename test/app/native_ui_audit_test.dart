@@ -144,7 +144,7 @@ void main() {
       expect(logo, isNot(contains('viewBox="254 120 232 272"')));
       expect(source, isNot(contains('BusyMaxTrayAgendaSnapshot')));
       expect(source, isNot(contains('BusyMaxTrayAgendaEntry')));
-      expect(source, isNot(contains('buildBusyMaxTrayAgendaRows')));
+      expect(source, isNot(contains('_buildAgendaSubmenuItems')));
       expect(source, isNot(contains('busyMaxTrayAgendaSlotCount')));
       expect(source, isNot(contains("iconName: 'busymax-symbolic'")));
       expect(source, isNot(contains("label: 'Show BusyMax'")));
@@ -154,6 +154,27 @@ void main() {
       expect(source, isNot(contains("label: 'Sync now'")));
       expect(source, isNot(contains("label: 'Settings'")));
       expect(source, isNot(contains("label: 'Quit BusyMax'")));
+    });
+
+    test('snap uses portal-backed secret storage without keyring plug', () {
+      final snapcraft = File('snap/snapcraft.yaml').readAsStringSync();
+      final bootstrap = File(
+        'lib/src/app/app_bootstrap.dart',
+      ).readAsStringSync();
+      final portalStore = File(
+        'lib/src/google_tasks/oauth/portal_encrypted_oauth_token_store.dart',
+      ).readAsStringSync();
+
+      expect(snapcraft, contains('- desktop'));
+      expect(snapcraft, contains('- x11'));
+      expect(snapcraft, contains('GDK_BACKEND: wayland,x11'));
+      expect(snapcraft, contains('SECRET_BACKEND: file'));
+      expect(snapcraft, isNot(contains('password-manager-service')));
+      expect(bootstrap, contains('PortalEncryptedOAuthTokenStore'));
+      expect(portalStore, contains('org.freedesktop.portal.Secret'));
+      expect(portalStore, contains('RetrieveSecret'));
+      expect(portalStore, contains('AesGcm.with256bits'));
+      expect(portalStore, contains('Hkdf(hmac: Hmac.sha256()'));
     });
 
     test('compact agenda uses a separate desktop window', () {
@@ -177,7 +198,7 @@ void main() {
 
       expect(pubspec, contains('desktop_multi_window:'));
       expect(pubspec, contains('window_manager:'));
-      expect(linuxMain, contains('gdk_set_allowed_backends("x11")'));
+      expect(linuxMain, contains('gdk_set_allowed_backends("wayland,x11")'));
       expect(
         runner,
         contains('desktop_multi_window_plugin_set_window_created_callback'),
@@ -191,7 +212,15 @@ void main() {
         runner,
         contains('gtk_window_resize(window, kCompactAgendaWindowWidth'),
       );
+      expect(runner, contains('move_compact_agenda_window_if_supported'));
+      expect(runner, contains('GDK_IS_X11_DISPLAY(display)'));
       expect(runner, contains('gtk_window_move(window, x, y)'));
+      expect(runner, contains('"skipped-non-x11"'));
+      expect(
+        runner,
+        contains('gtk_window_set_gravity(window, GDK_GRAVITY_NORTH_EAST)'),
+      );
+      expect(runner, contains('BusyMax compact agenda positioning: phase=%s'));
       expect(runner, contains('apply_compact_agenda_geometry'));
       expect(
         runner,
@@ -224,8 +253,10 @@ void main() {
         isNot(contains('gtk_window_set_titlebar(window, nullptr)')),
       );
       expect(tray, contains('return _onOpenAgenda();'));
-      expect(tray, isNot(contains('BusyMaxTrayAgendaSnapshot')));
+      expect(tray, isNot(contains('BusyMaxTrayAgendaMenu')));
       expect(tray, isNot(contains('BusyMaxTrayAgendaEntry')));
+      expect(tray, isNot(contains('onOpenAgendaEntry')));
+      expect(tray, contains('id: _busyMaxTrayAgendaMenuId'));
       expect(router, isNot(contains('/tray-agenda')));
       expect(compactApp, isNot(contains('linux_header_bar_service.dart')));
       expect(compactApp, contains('gtk_font_service.dart'));
@@ -245,17 +276,44 @@ void main() {
         compactApp,
         contains('_compactAgendaWindowChannel.invokeMethod<bool>'),
       );
+      expect(compactApp, contains('unawaited(_destroyWindow());'));
+      expect(compactApp, contains('Future<void> _clearWindowMethodHandler()'));
+      expect(compactApp, contains('Compact agenda positioning: event='));
       expect(
         compactApp,
         contains('await windowManager.setSize(_compactAgendaWindowSize)'),
       );
       expect(compactApp, contains('await windowManager.setBounds('));
-      expect(compactApp, contains('await _moveNearTrayArea('));
+      expect(compactApp, isNot(contains('windowManager.setPosition(')));
+      expect(
+        compactApp,
+        contains('final shownNatively = await _showNativeWindow(position);'),
+      );
       expect(compactApp, isNot(contains('void onWindowBlur()')));
       expect(compactApp, isNot(contains('_hideAfterBlurDelay')));
       expect(compactPanel, contains('ClipRRect'));
       expect(compactPanel, contains('BusyMaxRadius.window'));
       expect(compactPanel, contains('BusyMaxShadow.windowShadowsFor'));
+      expect(compactWindowService, contains('getPrimaryDisplay()'));
+      expect(compactWindowService, contains('getCursorScreenPoint()'));
+      expect(compactWindowService, contains('getAllDisplays()'));
+      expect(compactWindowService, contains('_compactAgendaWindowFrameWidth'));
+      expect(compactWindowService, contains('_compactAgendaWindowFrameHeight'));
+      expect(compactWindowService, contains('_clampWindowPositionToWorkArea'));
+      expect(compactWindowService, contains('raw_x='));
+      expect(compactWindowService, contains('final_x='));
+      expect(
+        compactWindowService,
+        contains(
+          'workarea.right -\n'
+          '        _compactAgendaWindowFrameWidth -\n'
+          '        _compactAgendaPanelScreenGap',
+        ),
+      );
+      expect(
+        compactWindowService,
+        isNot(contains('panelTop - _compactAgendaWindowShadowMargin')),
+      );
       expect(compactWindowService, isNot(contains('controller.show()')));
       expect(main, isNot(contains('waitUntilReadyToShow')));
       expect(main, isNot(contains('await windowManager.show();')));

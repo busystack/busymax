@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/app_bootstrap.dart';
 import '../app/app_router.dart';
+import '../features/schedule/application/compact_agenda_data.dart';
+import '../features/schedule/application/compact_agenda_snapshot.dart';
 import '../schedule/schedule_commands.dart';
 import 'main_window_command_client.dart';
 
@@ -47,6 +49,8 @@ class _MainWindowCommandBridgeState
       case 'busymax.main.refreshAll':
         await ref.read(allAccountsSyncRunnerProvider)();
         return true;
+      case 'busymax.main.compactAgendaSnapshot':
+        return _compactAgendaSnapshot(call.arguments);
       case 'busymax.main.requestTaskSync':
         return _requestTaskSync(call.arguments);
       case 'busymax.main.requestCalendarSync':
@@ -109,6 +113,14 @@ class _MainWindowCommandBridgeState
     );
     ref.read(appRouterProvider).go('/schedule');
     return true;
+  }
+
+  Future<Map<String, Object?>> _compactAgendaSnapshot(Object? rawArgs) async {
+    final query = decodeCompactAgendaQuery(rawArgs);
+    final data = await ref.read(
+      compactAgendaDataForQueryProvider(query).future,
+    );
+    return encodeCompactAgendaData(data);
   }
 
   Future<bool> _requestTaskSync(Object? rawArgs) async {

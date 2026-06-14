@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/native.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
@@ -15,6 +16,7 @@ import 'package:busymax/src/features/tasks/presentation/tasks_workspace.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
+import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
 
 void main() {
   late AppDatabase database;
@@ -159,6 +161,23 @@ void main() {
     await _disposeApp(tester);
   });
 
+  testWidgets('secure storage failure shows friendly message', (tester) async {
+    oAuth.signInError = PlatformException(
+      code: 'KeyringLocked',
+      message: 'raw keyring message',
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add Google account'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(secureTokenStorageUnavailableMessage), findsOneWidget);
+    expect(find.textContaining('PlatformException'), findsNothing);
+    expect(find.textContaining('raw keyring message'), findsNothing);
+    await _disposeApp(tester);
+  });
+
   testWidgets('sign-in button is disabled while signing in', (tester) async {
     oAuth.signInCompleter = Completer<OAuthSignInResult>();
     await _pumpApp(tester, database: database, oAuth: oAuth);
@@ -231,7 +250,7 @@ Future<void> _pumpApp(
 
 class _FakeOAuthGateway implements OAuthGateway {
   String? activeId;
-  OAuthException? signInError;
+  Object? signInError;
   Completer<OAuthSignInResult>? signInCompleter;
   OAuthTokenSet nextTokenSet = _tokenSet();
   var signInCalls = 0;

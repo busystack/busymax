@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
@@ -11,6 +12,7 @@ import '../../../google_tasks/api/google_tasks_api_surface.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../../../google_tasks/oauth/oauth_models.dart';
 import '../../../google_tasks/oauth/oauth_service.dart';
+import '../../../google_tasks/oauth/oauth_token_store.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../../task_providers/task_provider.dart';
 
@@ -71,57 +73,20 @@ class AuthRepository {
        _accountsRepository =
            accountsRepository ??
            AccountsRepository(database: database, nowUtc: nowUtc),
-       _microsoftOAuth = microsoftOAuth,
-       _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
+       _microsoftOAuth = microsoftOAuth;
 
   final OAuthGateway _oAuth;
   final AppDatabase _database;
   final AccountsRepository _accountsRepository;
   final MicrosoftOAuthService? _microsoftOAuth;
-  final DateTime Function() _nowUtc;
 
   Future<AuthSessionState> loadSession() async {
-    final accountId = await _oAuth.activeAccountId;
-    if (accountId == null) {
-      final accounts = await _accountsRepository.listSignedInAccounts();
-      return accounts.isEmpty
-          ? const AuthSessionState.signedOut()
-          : AuthSessionState.signedIn(accounts.first.id);
-    }
-
-    final tokenSet = await _oAuth.readActiveTokenSet();
-    if (tokenSet == null) {
+    final accounts = await _accountsRepository.listSignedInAccounts();
+    if (accounts.isEmpty) {
       return const AuthSessionState.signedOut();
     }
-    final account = await _accountsRepository.accountById(accountId);
-    final provider = account?.provider ?? TaskProvider.google;
-    if (provider == TaskProvider.microsoft) {
-      if (!_hasRequiredMicrosoftScopes(tokenSet)) {
-        await _microsoftOAuth?.signOutAccount(accountId);
-        await _accountsRepository.markSignedOut(accountId);
-        throw const OAuthException(
-          'MicrosoftOAuthMissingRequiredScope',
-          'Required Microsoft To Do permission is no longer available.',
-        );
-      }
-      await _upsertMicrosoftSignedInAccount(accountId, tokenSet);
-    } else {
-      final missingScopes = _missingRequiredGoogleApiScopes(tokenSet);
-      if (missingScopes.isNotEmpty) {
-        await _oAuth.revokeAndSignOutAccount(accountId);
-        await _accountsRepository.markSignedOut(accountId);
-        throw OAuthException(
-          'OAuthMissingRequiredScope',
-          _googleMissingScopesMessage(missingScopes, noLongerAvailable: true),
-        );
-      }
-      await _upsertGoogleSignedInAccount(accountId, tokenSet);
-    }
 
-    if (tokenSet.expiresAtUtc.isBefore(_nowUtc()) && !tokenSet.canRefresh) {
-      return AuthSessionState.expired(accountId);
-    }
-    return AuthSessionState.signedIn(accountId);
+    return AuthSessionState.signedIn(accounts.first.id);
   }
 
   Future<AuthSessionState> signIn() async {
@@ -293,22 +258,6 @@ class AuthRepository {
       return null;
     }
   }
-
-  Future<void> _upsertMicrosoftSignedInAccount(
-    String accountId,
-    OAuthTokenSet tokenSet,
-  ) async {
-    final existing = await _accountsRepository.accountById(accountId);
-    await _accountsRepository.upsertSignedInAccount(
-      id: accountId,
-      provider: TaskProvider.microsoft,
-      providerAccountId: existing?.providerAccountId,
-      displayName: existing?.displayName,
-      email: existing?.email,
-      tenantId: existing?.tenantId,
-      grantedScopes: tokenSet.scopes.join(' '),
-    );
-  }
 }
 
 String? _firstNonBlank(Iterable<String?> values) {
@@ -360,7 +309,7 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         _startSignedInSync(loaded.accountId!, false);
       }
     } on Object catch (error) {
-      state = AuthSessionState.error(error.toString());
+      state = AuthSessionState.error(_authErrorMessage(error));
     }
   }
 
@@ -465,6 +414,9 @@ String _authErrorMessage(Object error) {
       return googleSignInCallbackNotReceivedMessage;
     }
     return error.message;
+  }
+  if (error is PlatformException) {
+    return secureTokenStorageUnavailableMessage;
   }
   return error.toString();
 }

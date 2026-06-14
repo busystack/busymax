@@ -8,7 +8,9 @@ import 'src/app/app_bootstrap.dart';
 import 'src/app/busymax_app.dart';
 import 'src/config/build_config.dart';
 import 'src/core/logging/redacting_logger.dart';
+import 'src/features/schedule/application/compact_agenda_data.dart';
 import 'src/features/schedule/presentation/compact_agenda_app.dart';
+import 'src/platform/main_window_command_client.dart';
 import 'src/platform/busymax_window_args.dart';
 
 Future<void> main(List<String> args) async {
@@ -29,7 +31,13 @@ Future<void> main(List<String> args) async {
       await configureCompactAgendaNativeWindow();
       runApp(
         ProviderScope(
-          overrides: overrides,
+          overrides: [
+            ...overrides,
+            compactAgendaDataLoaderProvider.overrideWithValue(
+              (ref, query) =>
+                  const MainWindowCommandClient().compactAgendaSnapshot(query),
+            ),
+          ],
           child: BusyMaxCompactAgendaApp(
             windowController: windowController,
             windowArgs: windowArgs,

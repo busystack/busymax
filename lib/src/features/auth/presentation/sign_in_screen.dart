@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:yaru/yaru.dart';
 
@@ -13,6 +14,7 @@ import '../../../app/busymax_yaru_theme.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../../../google_tasks/oauth/oauth_models.dart';
+import '../../../google_tasks/oauth/oauth_token_store.dart';
 import '../../../l10n/l10n.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../../platform/linux_header_bar_service.dart';
@@ -695,6 +697,9 @@ String _onboardingErrorMessage(BuildContext context, Object error) {
       return googleSignInCallbackNotReceivedMessage;
     }
     return error.message;
+  }
+  if (error is PlatformException) {
+    return secureTokenStorageUnavailableMessage;
   }
   return error.toString();
 }

@@ -89,7 +89,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
               ref,
               settings,
               BusyMaxTrayLabels(
-                openBusyMax: l10n.trayAgendaOpenBusyMax,
+                openBusyMax: l10n.compactAgendaOpenBusyMax,
                 agenda: l10n.viewAgenda,
                 quitBusyMax: l10n.exit,
               ),
@@ -166,17 +166,17 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     BusyMaxTrayLabels labels,
   ) {
     final windowService = ref.read(linuxWindowServiceProvider);
-    if (_lastHideOnClose != settings.runInBackgroundWhenClosed) {
-      _lastHideOnClose = settings.runInBackgroundWhenClosed;
-      unawaited(
-        windowService.setHideOnClose(settings.runInBackgroundWhenClosed),
-      );
-    }
 
     final trayEnabled =
         settings.showTrayIcon ||
         settings.runInBackgroundWhenClosed ||
         settings.startMinimizedToTray;
+    _setHideOnClose(
+      windowService,
+      settings.runInBackgroundWhenClosed &&
+          trayEnabled &&
+          (_trayService?.available ?? false),
+    );
     if (_trayService != null) {
       unawaited(_trayService!.updateLabels(labels));
     }
@@ -196,24 +196,36 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         _startTray(
           tray,
           windowService,
+          runInBackgroundWhenClosed: settings.runInBackgroundWhenClosed,
           startMinimizedToTray: settings.startMinimizedToTray,
         ),
       );
     } else {
+      _setHideOnClose(windowService, false);
       unawaited(tray.stop());
     }
+  }
+
+  void _setHideOnClose(LinuxWindowService windowService, bool enabled) {
+    if (_lastHideOnClose == enabled) {
+      return;
+    }
+    _lastHideOnClose = enabled;
+    unawaited(windowService.setHideOnClose(enabled));
   }
 
   Future<void> _startTray(
     BusyMaxTrayService tray,
     LinuxWindowService windowService, {
+    required bool runInBackgroundWhenClosed,
     required bool startMinimizedToTray,
   }) async {
     await tray.start();
-    if (!mounted ||
-        !startMinimizedToTray ||
-        _startMinimizedHandled ||
-        !tray.available) {
+    if (!mounted) {
+      return;
+    }
+    _setHideOnClose(windowService, runInBackgroundWhenClosed && tray.available);
+    if (!startMinimizedToTray || _startMinimizedHandled || !tray.available) {
       return;
     }
     _startMinimizedHandled = true;
