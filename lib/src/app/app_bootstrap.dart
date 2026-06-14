@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -26,6 +27,7 @@ import '../google_tasks/http/retrying_http_client.dart';
 import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import '../google_tasks/oauth/oauth_token_store.dart';
+import '../google_tasks/oauth/portal_encrypted_oauth_token_store.dart';
 import '../google_calendar/google_calendar_api_client.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
@@ -67,6 +69,11 @@ final retryingHttpClientProvider = Provider<http.Client>((ref) {
 });
 
 final oAuthTokenStoreProvider = Provider<OAuthTokenStore>((ref) {
+  if (Platform.isLinux && (Platform.environment['SNAP']?.isNotEmpty ?? false)) {
+    // flutter_secure_storage_linux warms up direct libsecret first, so
+    // SECRET_BACKEND=file cannot avoid a locked keyring inside strict snaps.
+    return PortalEncryptedOAuthTokenStore();
+  }
   return SecureOAuthTokenStore(ref.watch(secureStorageProvider));
 });
 

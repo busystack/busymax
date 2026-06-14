@@ -49,15 +49,17 @@ void main() {
     },
   );
 
-  test('about logo does not depend on AssetManifest.bin', () {
+  test('about logo renders the PNG asset, not the launcher SVG', () {
     final source = File(
       'lib/src/app/busymax_about_dialog.dart',
     ).readAsStringSync();
+    final pubspec = File('pubspec.yaml').readAsStringSync();
 
-    expect(source, isNot(contains('Image.asset')));
-    expect(source, contains('rootBundle.load'));
-    expect(source, contains('_loadLogoFileBytes'));
-    expect(source, contains("p.join(executableDir, 'data', 'flutter_assets'"));
+    expect(source, contains('Image.asset'));
+    expect(source, contains('assets/branding/busymax-logo.png'));
+    expect(source, isNot(contains('assets/branding/busymax-logo.svg')));
+    expect(source, isNot(contains('Image.memory')));
+    expect(pubspec, contains('assets/branding/busymax-logo.png'));
     expect(source, isNot(contains('YaruIcons.calendar')));
   });
 }

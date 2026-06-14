@@ -1,0 +1,70 @@
+name: busymax
+title: BusyMax
+version: "0.1.0+1"
+summary: Calendar and task manager
+description: |
+  BusyMax is a Linux desktop calendar and task manager.
+
+  It supports Google Calendar, Google Tasks, Microsoft Calendar, and
+  Microsoft To Do.
+
+license: Apache-2.0
+base: core24
+grade: devel
+confinement: strict
+icon: assets/branding/busymax-logo.svg
+website: https://github.com/busystack/busymax
+issues: https://github.com/busystack/busymax/issues
+source-code: https://github.com/busystack/busymax
+
+platforms:
+  amd64:
+    build-on: [amd64]
+    build-for: [amd64]
+
+apps:
+  busymax:
+    command: busymax
+    desktop: share/applications/io.busystack.busymax.desktop
+    common-id: io.busystack.busymax
+    extensions: [gnome]
+    slots:
+      - busymax-dbus
+    plugs:
+      - desktop
+      - desktop-legacy
+      - gsettings
+      - network
+      - network-bind
+      - opengl
+      - unity7
+      - wayland
+      - x11
+    environment:
+      GDK_BACKEND: wayland,x11
+      SECRET_BACKEND: file
+      XDG_CACHE_HOME: $SNAP_USER_DATA/.cache
+      XDG_CONFIG_HOME: $SNAP_USER_DATA/.config
+      XDG_DATA_HOME: $SNAP_USER_DATA/.local/share
+
+slots:
+  busymax-dbus:
+    interface: dbus
+    bus: session
+    name: io.busystack.busymax
+
+parts:
+  busymax:
+    plugin: dump
+    source: build/linux/x64/release/bundle
+    stage-packages:
+      - liblzma5
+      - libsecret-1-0
+    override-prime: |
+      craftctl default
+      install -Dm644 "$CRAFT_PROJECT_DIR/linux/io.busystack.busymax.desktop" \
+        "$CRAFT_PRIME/share/applications/io.busystack.busymax.desktop"
+      install -Dm644 "$CRAFT_PROJECT_DIR/linux/io.busystack.busymax.metainfo.xml" \
+        "$CRAFT_PRIME/share/metainfo/io.busystack.busymax.metainfo.xml"
+      install -Dm644 "$CRAFT_PROJECT_DIR/assets/branding/busymax-logo.svg" \
+        "$CRAFT_PRIME/share/icons/hicolor/scalable/apps/io.busystack.busymax.svg"

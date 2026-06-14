@@ -1,35 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Save in source tree: busymax/linux/io.busystack.busymax.metainfo.xml
-  Install in package: share/metainfo/io.busystack.busymax.metainfo.xml
-
-  Required before final validation/publishing:
-  - Add <project_license> after adding a real LICENSE file to the project.
-  - Add <developer> after confirming the exact developer/organization name.
-  - Add screenshot URLs after publishing screenshots.
--->
 <component type="desktop-application">
   <id>io.busystack.busymax</id>
   <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
   <name>BusyMax</name>
   <summary>Calendar and task manager</summary>
   <description>
-    <p>BusyMax is a Linux desktop calendar and task manager built with Flutter.</p>
+    <p>BusyMax is a Linux desktop calendar and task manager for planning events, tasks, reminders, and daily schedules in one native-feeling workspace.</p>
     <p>It supports Google Calendar, Google Tasks, Microsoft Calendar, and Microsoft To Do.</p>
+    <p>This beta release is intended for early Ubuntu App Center and Snap Store testing.</p>
   </description>
+  <developer id="io.busystack">
+    <name>BusyStack</name>
+  </developer>
   <launchable type="desktop-id">io.busystack.busymax.desktop</launchable>
   <icon type="stock">io.busystack.busymax</icon>
   <categories>
     <category>Office</category>
     <category>Calendar</category>
     <category>ProjectManagement</category>
-    <category>Utility</category>
   </categories>
   <url type="homepage">https://github.com/busystack/busymax</url>
   <url type="bugtracker">https://github.com/busystack/busymax/issues</url>
   <url type="vcs-browser">https://github.com/busystack/busymax</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>BusyMax month view with calendars, tasks, and event details.</caption>
+      <image type="source">https://raw.githubusercontent.com/busystack/busymax/main/docs/screenshots/main_window_month.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>BusyMax agenda view with upcoming events and tasks.</caption>
+      <image type="source">https://raw.githubusercontent.com/busystack/busymax/main/docs/screenshots/main_window_agenda.png</image>
+    </screenshot>
+  </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
-    <release version="0.1.0+1" date="2026-06-11" />
+    <release version="0.1.0+1" date="2026-06-11" type="development">
+      <description>
+        <p>Beta release for listed Ubuntu App Center and Snap Store validation.</p>
+      </description>
+    </release>
   </releases>
 </component>

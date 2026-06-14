@@ -64,7 +64,7 @@ class AppSettings {
       notifyDueToday: false,
       notifyEventReminders: true,
       notifyTaskReminders: true,
-      runInBackgroundWhenClosed: false,
+      runInBackgroundWhenClosed: true,
       showTrayIcon: true,
       startMinimizedToTray: false,
       quitExitsCompletely: true,

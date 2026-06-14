@@ -1,5 +1,7 @@
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 
+import '../features/schedule/application/compact_agenda_data.dart';
+import '../features/schedule/application/compact_agenda_snapshot.dart';
 import '../schedule/schedule_item.dart';
 import '../schedule/schedule_projection.dart';
 
@@ -39,6 +41,16 @@ class MainWindowCommandClient {
     await busyMaxMainWindowChannel.invokeMethod<bool>(
       'busymax.main.refreshAll',
     );
+  }
+
+  Future<CompactAgendaData> compactAgendaSnapshot(
+    CompactAgendaQuery query,
+  ) async {
+    final response = await busyMaxMainWindowChannel.invokeMethod<Object?>(
+      'busymax.main.compactAgendaSnapshot',
+      encodeCompactAgendaQuery(query),
+    );
+    return decodeCompactAgendaData(response);
   }
 
   Future<void> requestTaskSync(String accountId) async {

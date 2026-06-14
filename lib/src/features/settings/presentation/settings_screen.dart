@@ -131,12 +131,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onChanged: settingsController.setStartMinimizedToTray,
             leading: const Icon(YaruIcons.window_minimize),
           ),
-          BusyMaxSwitchRow(
-            title: 'Quit exits completely',
-            value: settings.quitExitsCompletely,
-            onChanged: settingsController.setQuitExitsCompletely,
-            leading: const Icon(YaruIcons.power),
-          ),
           BusyMaxComboRow<BusyMaxThemeModePreference>(
             title: l10n.theme,
             leading: const Icon(Icons.tune),

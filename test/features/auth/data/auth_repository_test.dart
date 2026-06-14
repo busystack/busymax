@@ -95,19 +95,30 @@ void main() {
   });
 
   test(
-    'loadSession rejects stored token without required write scope',
+    'loadSession does not touch token storage on signed-out startup',
     () async {
+      final state = await repository.loadSession();
+
+      expect(state.status, AuthSessionStatus.signedOut);
+      expect(oAuth.activeAccountIdReads, 0);
+      expect(oAuth.readActiveTokenSetCalls, 0);
+    },
+  );
+
+  test(
+    'loadSession trusts signed-in account rows without reading tokens',
+    () async {
+      await _insertAccount(database, 'account-1', TaskProvider.google);
       oAuth.activeId = 'account-1';
       oAuth.nextTokenSet = _tokenSet(scopes: {googleTasksReadOnlyScope});
 
-      await expectLater(
-        repository.loadSession(),
-        throwsA(isA<OAuthException>()),
-      );
+      final state = await repository.loadSession();
 
-      expect(oAuth.revoked, isTrue);
-      expect(oAuth.revokedAccountId, 'account-1');
-      expect(await database.select(database.accounts).get(), isEmpty);
+      expect(state.status, AuthSessionStatus.signedIn);
+      expect(state.accountId, 'account-1');
+      expect(oAuth.activeAccountIdReads, 0);
+      expect(oAuth.readActiveTokenSetCalls, 0);
+      expect(oAuth.revoked, isFalse);
     },
   );
 
@@ -252,17 +263,23 @@ class FakeOAuthGateway implements OAuthGateway {
   String? revokedAccountId;
   String? signedOutAccountId;
   String? activeId;
+  var activeAccountIdReads = 0;
+  var readActiveTokenSetCalls = 0;
   OAuthTokenSet nextTokenSet = _tokenSet();
   GoogleUserInfo? nextUserInfo;
 
   @override
-  Future<String?> get activeAccountId async => activeId;
+  Future<String?> get activeAccountId async {
+    activeAccountIdReads += 1;
+    return activeId;
+  }
 
   @override
   Future<void> cancelSignIn() async {}
 
   @override
   Future<OAuthTokenSet?> readActiveTokenSet() async {
+    readActiveTokenSetCalls += 1;
     if (activeId == null) {
       return null;
     }

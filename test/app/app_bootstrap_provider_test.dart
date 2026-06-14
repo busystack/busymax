@@ -6,10 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
+import 'package:busymax/src/task_providers/task_provider.dart';
 
 void main() {
   test('repositories are not created without an active account', () async {
@@ -82,11 +84,12 @@ void main() {
     'loaded session starts incremental sync without circular provider reads',
     () async {
       final database = AppDatabase(NativeDatabase.memory());
+      await _seedSignedInGoogleAccount(database);
       final syncStarted = Completer<void>();
       final syncCalls = <_SyncCall>[];
       final container = _container(
         database: database,
-        oAuth: _FakeOAuthGateway()..activeId = 'account-1',
+        oAuth: _FakeOAuthGateway(),
         signedInSyncRunner: (accountId, initial) async {
           syncCalls.add(_SyncCall(accountId, initial));
           if (!syncStarted.isCompleted) {
@@ -150,6 +153,17 @@ void main() {
     expect(state.status, AuthSessionStatus.signedIn);
     expect(state.accountId, 'account-1');
   });
+}
+
+Future<void> _seedSignedInGoogleAccount(AppDatabase database) {
+  return AccountsRepository(
+    database: database,
+    nowUtc: () => DateTime.utc(2026, 6, 4),
+  ).upsertSignedInAccount(
+    id: 'account-1',
+    provider: TaskProvider.google,
+    grantedScopes: googleBusyMaxOAuthScopes.join(' '),
+  );
 }
 
 ProviderContainer _container({

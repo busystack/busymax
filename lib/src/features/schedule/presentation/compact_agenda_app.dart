@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:system_theme/system_theme.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 import 'package:window_manager/window_manager.dart';
@@ -27,6 +29,7 @@ const _compactAgendaWindowSize = Size(
 const _compactAgendaWindowChannel = MethodChannel(
   'io.busystack.busymax/compact_agenda_window',
 );
+final _compactAgendaWindowLogger = Logger('BusyMaxCompactAgendaWindow');
 
 class BusyMaxCompactAgendaApp extends ConsumerStatefulWidget {
   const BusyMaxCompactAgendaApp({
@@ -63,7 +66,7 @@ class _BusyMaxCompactAgendaAppState
 
   @override
   void dispose() {
-    unawaited(widget.windowController.setWindowMethodHandler(null));
+    unawaited(_clearWindowMethodHandler());
     windowManager.removeListener(this);
     super.dispose();
   }
@@ -90,16 +93,38 @@ class _BusyMaxCompactAgendaAppState
         ref.invalidate(compactAgendaDataForQueryProvider);
         return true;
       case 'busymax.compactAgenda.destroy':
-        await windowManager.setPreventClose(false);
-        await windowManager.destroy();
+        unawaited(_destroyWindow());
         return true;
     }
 
     throw MissingPluginException('Not implemented: ${call.method}');
   }
 
+  Future<void> _destroyWindow() async {
+    await _clearWindowMethodHandler();
+    try {
+      await windowManager.setPreventClose(false);
+    } on Object {
+      // The native window can already be gone during app shutdown.
+    }
+    try {
+      await windowManager.destroy();
+    } on Object {
+      // Ignore stale secondary-window removal during main-process shutdown.
+    }
+  }
+
+  Future<void> _clearWindowMethodHandler() async {
+    try {
+      await widget.windowController.setWindowMethodHandler(null);
+    } on Object {
+      // The compact engine may already be unregistering during app shutdown.
+    }
+  }
+
   Future<void> _show([Object? rawArgs]) async {
     final position = _requestedPosition(rawArgs) ?? _initialRequestedPosition();
+    _logPositioning('show requested', position);
     final shownNatively = await _showNativeWindow(position);
     if (!shownNatively) {
       await _moveNearTrayArea(position);
@@ -111,17 +136,38 @@ class _BusyMaxCompactAgendaAppState
   }
 
   Future<bool> _showNativeWindow(Offset? position) async {
-    try {
-      final result = await _compactAgendaWindowChannel.invokeMethod<bool>(
-        'show',
-        _nativeWindowArguments(position),
-      );
-      return result ?? false;
-    } on MissingPluginException {
-      return false;
-    } on Object {
-      return false;
+    const attempts = 8;
+    const retryDelay = Duration(milliseconds: 60);
+    for (var attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        final result = await _compactAgendaWindowChannel.invokeMethod<bool>(
+          'show',
+          _nativeWindowArguments(position),
+        );
+        final succeeded = result ?? false;
+        _logPositioning(
+          'native show completed native_position_succeeded=$succeeded',
+          position,
+        );
+        return succeeded;
+      } on MissingPluginException {
+        if (attempt == attempts - 1) {
+          _logPositioning('native show unavailable', position, warning: true);
+          return false;
+        }
+      } on Object catch (error) {
+        if (attempt == attempts - 1) {
+          _logPositioning(
+            'native show failed error=$error',
+            position,
+            warning: true,
+          );
+          return false;
+        }
+      }
+      await Future<void>.delayed(retryDelay);
     }
+    return false;
   }
 
   Future<void> _moveNearTrayArea(Offset? requestedPosition) async {
@@ -130,6 +176,7 @@ class _BusyMaxCompactAgendaAppState
       if (position == null) {
         await windowManager.setSize(_compactAgendaWindowSize);
         await windowManager.setAlignment(Alignment.topRight);
+        _logPositioning('window_manager fallback aligned topRight', null);
         return;
       }
       await windowManager.setBounds(
@@ -137,7 +184,13 @@ class _BusyMaxCompactAgendaAppState
         position: position,
         size: _compactAgendaWindowSize,
       );
-    } on Object {
+      _logPositioning('window_manager fallback setBounds succeeded', position);
+    } on Object catch (error) {
+      _logPositioning(
+        'window_manager fallback failed error=$error',
+        requestedPosition,
+        warning: true,
+      );
       // Positioning is best-effort, especially on Wayland.
     }
   }
@@ -186,6 +239,24 @@ class _BusyMaxCompactAgendaAppState
       'width': _compactAgendaWindowSize.width,
       'height': _compactAgendaWindowSize.height,
     };
+  }
+
+  void _logPositioning(String event, Offset? position, {bool warning = false}) {
+    final requested = position == null
+        ? 'requested_x=<none> requested_y=<none>'
+        : 'requested_x=${position.dx.round()} requested_y=${position.dy.round()}';
+    final session = Platform.environment['XDG_SESSION_TYPE'] ?? '<unknown>';
+    final backend = Platform.environment['GDK_BACKEND'] ?? '<unset>';
+    final message =
+        'Compact agenda positioning: event="$event" $requested '
+        'final_width=${_compactAgendaWindowSize.width.round()} '
+        'final_height=${_compactAgendaWindowSize.height.round()} '
+        'session=$session gdk_backend=$backend';
+    if (warning) {
+      _compactAgendaWindowLogger.warning(message);
+    } else {
+      _compactAgendaWindowLogger.fine(message);
+    }
   }
 
   Future<bool> _isFocused() async {

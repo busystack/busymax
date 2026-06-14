@@ -5,6 +5,6 @@ Comment=Calendar and task manager
 Exec=busymax
 Icon=io.busystack.busymax
 Terminal=false
-Categories=Office;Calendar;ProjectManagement;Utility;
+Categories=Office;Calendar;ProjectManagement;
 StartupNotify=true
 StartupWMClass=io.busystack.busymax

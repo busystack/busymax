@@ -11,6 +11,19 @@ import 'compact_agenda_sections.dart';
 
 const compactAgendaInitialDays = 30;
 const compactAgendaPageDays = 30;
+const compactAgendaSqliteBusyRetryDelays = [
+  Duration(milliseconds: 120),
+  Duration(milliseconds: 240),
+  Duration(milliseconds: 480),
+];
+
+typedef CompactAgendaDataLoader =
+    Future<CompactAgendaData> Function(Ref ref, CompactAgendaQuery query);
+typedef CompactAgendaRetryDelay = Future<void> Function(Duration duration);
+
+final compactAgendaDataLoaderProvider = Provider<CompactAgendaDataLoader>(
+  (ref) => loadCompactAgendaDataFromRepositories,
+);
 
 final compactAgendaDataProvider = FutureProvider.autoDispose<CompactAgendaData>(
   (ref) {
@@ -22,10 +35,31 @@ final compactAgendaDataProvider = FutureProvider.autoDispose<CompactAgendaData>(
 
 final compactAgendaDataForQueryProvider = FutureProvider.autoDispose
     .family<CompactAgendaData, CompactAgendaQuery>((ref, query) {
-      return _loadCompactAgendaData(ref, query);
+      return loadCompactAgendaDataWithRetry(ref, query);
     });
 
-Future<CompactAgendaData> _loadCompactAgendaData(
+Future<CompactAgendaData> loadCompactAgendaDataWithRetry(
+  Ref ref,
+  CompactAgendaQuery query, {
+  CompactAgendaDataLoader? loader,
+  List<Duration> retryDelays = compactAgendaSqliteBusyRetryDelays,
+  CompactAgendaRetryDelay delay = _compactAgendaDelay,
+}) async {
+  final CompactAgendaDataLoader load =
+      loader ?? ref.read(compactAgendaDataLoaderProvider);
+  for (var attempt = 0; ; attempt += 1) {
+    try {
+      return await load(ref, query);
+    } on Object catch (error) {
+      if (!_isSqliteBusy(error) || attempt >= retryDelays.length) {
+        rethrow;
+      }
+      await delay(retryDelays[attempt]);
+    }
+  }
+}
+
+Future<CompactAgendaData> loadCompactAgendaDataFromRepositories(
   Ref ref,
   CompactAgendaQuery query,
 ) async {
@@ -201,4 +235,16 @@ class CompactAgendaQuery {
 
   @override
   int get hashCode => Object.hash(futureDays, overdueLimit, noDateLimit);
+}
+
+Future<void> _compactAgendaDelay(Duration duration) {
+  return Future<void>.delayed(duration);
+}
+
+bool _isSqliteBusy(Object error) {
+  final message = error.toString().toLowerCase();
+  return message.contains('database is locked') ||
+      message.contains('sqlite_busy') ||
+      message.contains('sqlite exception(5)') ||
+      message.contains('sqliteexception(5)');
 }
