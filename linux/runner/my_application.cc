@@ -2301,10 +2301,26 @@ static gboolean window_delete_event_cb(GtkWidget* widget,
                                        gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
   if (self->hide_on_close) {
+    g_debug(
+        "BusyMax native hideWindow invocation: source=delete-event "
+        "main_window_null=%s",
+        self->main_window == nullptr ? "true" : "false");
     gtk_widget_hide(widget);
     return TRUE;
   }
   return FALSE;
+}
+
+static void restore_main_window(MyApplication* self) {
+  g_debug("BusyMax native showWindow invoked: main_window_null=%s",
+          self->main_window == nullptr ? "true" : "false");
+  if (self->main_window == nullptr) {
+    return;
+  }
+  gtk_widget_show(GTK_WIDGET(self->main_window));
+  gtk_window_deiconify(self->main_window);
+  gtk_window_present_with_time(self->main_window, GDK_CURRENT_TIME);
+  gtk_window_present(self->main_window);
 }
 
 static void window_method_call_cb(FlMethodChannel* channel,
@@ -2320,17 +2336,18 @@ static void window_method_call_cb(FlMethodChannel* channel,
             : FALSE;
     respond_success(method_call);
   } else if (strcmp(method, "hideWindow") == 0) {
+    g_debug("BusyMax native hideWindow invoked: main_window_null=%s",
+            self->main_window == nullptr ? "true" : "false");
     if (self->main_window != nullptr) {
       gtk_widget_hide(GTK_WIDGET(self->main_window));
     }
     respond_success(method_call);
   } else if (strcmp(method, "showWindow") == 0) {
-    if (self->main_window != nullptr) {
-      gtk_widget_show(GTK_WIDGET(self->main_window));
-      gtk_window_present(self->main_window);
-    }
+    g_debug("BusyMax native showWindow method call received");
+    restore_main_window(self);
     respond_success(method_call);
   } else if (strcmp(method, "quitApp") == 0) {
+    g_debug("BusyMax native quit invocation: method=quitApp");
     self->hide_on_close = FALSE;
     g_application_quit(G_APPLICATION(self));
     respond_success(method_call);
@@ -2546,6 +2563,60 @@ static gboolean compact_agenda_position_arg(FlValue* args,
   return TRUE;
 }
 
+static void log_compact_agenda_geometry(GtkWindow* window,
+                                        gboolean has_position,
+                                        gint x,
+                                        gint y,
+                                        gint width,
+                                        gint height,
+                                        const gchar* native_move_status,
+                                        const gchar* phase) {
+  GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(window));
+  const gchar* backend =
+      display != nullptr ? G_OBJECT_TYPE_NAME(display) : "<unknown>";
+  const gchar* session = g_getenv("XDG_SESSION_TYPE");
+  if (session == nullptr || strlen(session) == 0) {
+    session = "<unknown>";
+  }
+
+  GdkRectangle workarea = {-1, -1, -1, -1};
+  if (display != nullptr) {
+    GdkMonitor* monitor = has_position
+                              ? gdk_display_get_monitor_at_point(display, x, y)
+                              : gdk_display_get_primary_monitor(display);
+    if (monitor != nullptr) {
+      gdk_monitor_get_workarea(monitor, &workarea);
+    }
+  }
+
+  g_debug(
+      "BusyMax compact agenda positioning: phase=%s requested=%s "
+      "requested_x=%d requested_y=%d workarea=%d,%d,%dx%d final_size=%dx%d "
+      "backend=%s session=%s native_move_call_succeeded=%s",
+      phase, has_position ? "true" : "false", has_position ? x : -1,
+      has_position ? y : -1, workarea.x, workarea.y, workarea.width,
+      workarea.height, width, height, backend, session, native_move_status);
+}
+
+static const gchar* move_compact_agenda_window_if_supported(GtkWindow* window,
+                                                            gboolean has_position,
+                                                            gint x,
+                                                            gint y) {
+  if (!has_position) {
+    return "false";
+  }
+
+  GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(window));
+#ifdef GDK_WINDOWING_X11
+  if (display != nullptr && GDK_IS_X11_DISPLAY(display)) {
+    gtk_window_move(window, x, y);
+    return "true";
+  }
+#endif
+
+  return "skipped-non-x11";
+}
+
 static void apply_compact_agenda_geometry(GtkWindow* window, FlValue* args) {
   const gint width = compact_agenda_dimension_arg(
       args, "width", kCompactAgendaWindowWidth, kCompactAgendaWindowMinWidth,
@@ -2555,6 +2626,7 @@ static void apply_compact_agenda_geometry(GtkWindow* window, FlValue* args) {
       kCompactAgendaWindowMaxHeight);
 
   gtk_window_set_position(window, GTK_WIN_POS_NONE);
+  gtk_window_set_gravity(window, GDK_GRAVITY_NORTH_EAST);
   gtk_window_set_default_size(window, width, height);
   gtk_window_resize(window, width, height);
   gtk_widget_set_size_request(GTK_WIDGET(window), width, height);
@@ -2566,10 +2638,13 @@ static void apply_compact_agenda_geometry(GtkWindow* window, FlValue* args) {
 
   gint x = 0;
   gint y = 0;
-  if (compact_agenda_position_arg(args, "x", &x) &&
-      compact_agenda_position_arg(args, "y", &y)) {
-    gtk_window_move(window, x, y);
-  }
+  const gboolean has_position =
+      compact_agenda_position_arg(args, "x", &x) &&
+      compact_agenda_position_arg(args, "y", &y);
+  const gchar* native_move_status =
+      move_compact_agenda_window_if_supported(window, has_position, x, y);
+  log_compact_agenda_geometry(window, has_position, x, y, width, height,
+                              native_move_status, "apply");
 }
 
 static void compact_agenda_window_method_call_cb(FlMethodChannel* channel,
@@ -2671,8 +2746,7 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
   if (self->main_window != nullptr) {
-    gtk_widget_show(GTK_WIDGET(self->main_window));
-    gtk_window_present(self->main_window);
+    restore_main_window(self);
     return;
   }
 
