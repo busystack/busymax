@@ -37,12 +37,12 @@ apps:
       - network
       - network-bind
       - opengl
-      - password-manager-service
       - unity7
       - wayland
       - x11
     environment:
-      GDK_BACKEND: x11
+      GDK_BACKEND: wayland,x11
+      SECRET_BACKEND: file
       XDG_CACHE_HOME: $SNAP_USER_DATA/.cache
       XDG_CONFIG_HOME: $SNAP_USER_DATA/.config
       XDG_DATA_HOME: $SNAP_USER_DATA/.local/share
@@ -55,89 +55,16 @@ slots:
 
 parts:
   busymax:
-    source: .
-    plugin: flutter
-    flutter-channel: stable
-    flutter-target: lib/main.dart
-    build-packages:
-      - clang
-      - cmake
-      - curl
-      - git
-      - libgtk-3-dev
-      - libjsoncpp-dev
-      - liblzma-dev
-      - libsecret-1-dev
-      - ninja-build
-      - pkg-config
-      - python3
-      - unzip
-      - xz-utils
+    plugin: dump
+    source: build/linux/x64/release/bundle
     stage-packages:
       - liblzma5
       - libsecret-1-0
-    override-build: |
-      set +x
-      set -eu
-      set -o pipefail
-
-      : "${GOOGLE_OAUTH_CLIENT_ID:?Set GOOGLE_OAUTH_CLIENT_ID before building the BusyMax beta snap.}"
-      : "${GOOGLE_OAUTH_CLIENT_SECRET:?Set GOOGLE_OAUTH_CLIENT_SECRET before building the BusyMax beta snap.}"
-      : "${MICROSOFT_OAUTH_CLIENT_ID:?Set MICROSOFT_OAUTH_CLIENT_ID before building the BusyMax beta snap.}"
-
-      dart_defines_file="$CRAFT_PART_BUILD/busymax-dart-defines.json"
-      python3 - "$dart_defines_file" <<'PY'
-      import json
-      import os
-      import sys
-
-      keys = [
-          "GOOGLE_OAUTH_CLIENT_ID",
-          "GOOGLE_OAUTH_CLIENT_SECRET",
-          "MICROSOFT_OAUTH_CLIENT_ID",
-      ]
-      with open(sys.argv[1], "w", encoding="utf-8") as file:
-          json.dump({key: os.environ[key] for key in keys}, file)
-      PY
-
-      flutter_dir="$CRAFT_PART_BUILD/flutter-distro"
-      if [ ! -x "$flutter_dir/bin/flutter" ]; then
-        releases_file="$CRAFT_PART_BUILD/flutter-releases-linux.json"
-        curl -fsSL \
-          "${FLUTTER_STORAGE_BASE_URL:-https://storage.googleapis.com}/flutter_infra_release/releases/releases_linux.json" \
-          -o "$releases_file"
-        archive_url="$(python3 - "$releases_file" <<'PY'
-      import json
-      import os
-      import sys
-
-      with open(sys.argv[1], encoding="utf-8") as file:
-          releases = json.load(file)
-
-      stable_hash = releases["current_release"]["stable"]
-      stable = next(
-          release for release in releases["releases"] if release["hash"] == stable_hash
-      )
-      base_url = releases["base_url"]
-      if os.environ.get("FLUTTER_STORAGE_BASE_URL"):
-          base_url = base_url.replace(
-              "https://storage.googleapis.com", os.environ["FLUTTER_STORAGE_BASE_URL"]
-          )
-      print(f"{base_url}/{stable['archive']}")
-      PY
-      )"
-        curl -fL "$archive_url" | tar --no-same-owner -xJ -C "$CRAFT_PART_BUILD"
-        mv "$CRAFT_PART_BUILD/flutter" "$flutter_dir"
-      fi
-      git config --global --add safe.directory "$flutter_dir"
-      export PATH="$flutter_dir/bin:$PATH"
-      export FLUTTER_SUPPRESS_ANALYTICS=true
-
-      flutter --no-version-check config --enable-linux-desktop
-      flutter --no-version-check pub get
-      export CC=/usr/bin/clang
-      export CXX=/usr/bin/clang++
-      flutter --no-version-check build linux --release --dart-define-from-file="$dart_defines_file"
-      rm -f "$dart_defines_file"
-
-      cp -a build/linux/x64/release/bundle/. "$CRAFT_PART_INSTALL/"
+    override-prime: |
+      craftctl default
+      install -Dm644 "$CRAFT_PROJECT_DIR/linux/io.busystack.busymax.desktop" \
+        "$CRAFT_PRIME/share/applications/io.busystack.busymax.desktop"
+      install -Dm644 "$CRAFT_PROJECT_DIR/linux/io.busystack.busymax.metainfo.xml" \
+        "$CRAFT_PRIME/share/metainfo/io.busystack.busymax.metainfo.xml"
+      install -Dm644 "$CRAFT_PROJECT_DIR/assets/branding/busymax-logo.svg" \
+        "$CRAFT_PRIME/share/icons/hicolor/scalable/apps/io.busystack.busymax.svg"
