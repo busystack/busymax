@@ -14,6 +14,7 @@ import '../../../app/busymax_layout.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../features/calendar/data/calendar_repository.dart';
+import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../schedule/schedule_commands.dart';
@@ -1056,7 +1057,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.refreshFailed(redactForLog(error))),
+          content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
         ),
       );
     }
@@ -1171,7 +1172,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.refreshFailed(redactForLog(error))),
+          content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
         ),
       );
     }

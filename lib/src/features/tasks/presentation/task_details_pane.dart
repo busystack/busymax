@@ -9,6 +9,7 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
 import '../../../task_providers/task_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
 import 'task_details_draft.dart';
@@ -195,6 +196,30 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     );
   }
 
+  Future<void> _refreshTask(TasksRepository repository, TaskEntity task) async {
+    try {
+      await repository.refreshTask(task.taskListId, task.id);
+    } on Object catch (error) {
+      if (isMissingOAuthTokenError(error)) {
+        try {
+          await ref
+              .read(authRepositoryProvider)
+              .markReconnectRequired(task.accountId);
+        } on Object {
+          // Keep the original refresh failure visible below.
+        }
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
+        ),
+      );
+    }
+  }
+
   Future<void> _saveDraft(
     TasksRepository repository,
     TaskEntity task,
@@ -246,7 +271,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         account?.provider ?? _providerForAccountId(_effectiveAccountId),
       ),
       onRefresh: () {
-        unawaited(repository.refreshTask(task.taskListId, task.id));
+        unawaited(_refreshTask(repository, task));
       },
       onSave: (draft, patch) => _saveDraft(repository, task, draft, patch),
       onCreateSubtask: (title) {

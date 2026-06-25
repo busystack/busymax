@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
+import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/sync/sync_scheduler.dart';
+import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 
 void main() {
@@ -63,6 +65,38 @@ void main() {
     expect(synced, ['a', 'b']);
     expect(failures.single, contains('a failed'));
   });
+
+  test(
+    'missing OAuth token reports reconnect message and account callback',
+    () async {
+      final synced = <String>[];
+      final authFailures = <String>[];
+      final failures = <String>[];
+
+      await runAllSignedInAccountSync(
+        listSignedInAccounts: () async => [_account('a'), _account('b')],
+        syncAccount: (accountId) async {
+          synced.add(accountId);
+          if (accountId == 'a') {
+            throw const OAuthException(
+              'OAuthMissingToken',
+              'No OAuth token is available for this account.',
+            );
+          }
+        },
+        onAccountSyncFailure: (accountId, error) async {
+          authFailures.add('$accountId:$error');
+        },
+        onSyncFailure: (message) async {
+          failures.add(message);
+        },
+      );
+
+      expect(synced, ['a', 'b']);
+      expect(authFailures.single, contains('a:OAuthMissingToken'));
+      expect(failures.single, accountReconnectRequiredSyncMessage);
+    },
+  );
 
   test('all-account scheduler does not run overlapping syncs', () async {
     var active = 0;

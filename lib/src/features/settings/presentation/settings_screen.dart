@@ -11,12 +11,12 @@ import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
-import '../../../core/logging/redacting_logger.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../task_providers/task_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
+import '../../sync/sync_auth_error.dart';
 import '../../tasks/presentation/tasks_selection_state.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -49,7 +49,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedAccount = ref.watch(selectedAccountProvider);
-    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+    final accounts =
+        ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final settingsController = ref.read(appSettingsControllerProvider.notifier);
@@ -71,6 +72,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               .read(authSessionControllerProvider.notifier)
               .signInWithMicrosoft(),
         ),
+        onReconnect: (account) => _reconnect(ref, account),
         onCreateTaskList: (accountId) =>
             _createTaskList(context, ref, accountId),
         onSignOut: (accountId) => _signOut(context, ref, accountId),
@@ -329,6 +331,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  void _reconnect(WidgetRef ref, AccountEntity account) {
+    switch (account.provider) {
+      case TaskProvider.google:
+        unawaited(ref.read(authSessionControllerProvider.notifier).signIn());
+      case TaskProvider.microsoft:
+        unawaited(
+          ref
+              .read(authSessionControllerProvider.notifier)
+              .signInWithMicrosoft(),
+        );
+    }
+  }
+
   Future<void> _disconnect(
     BuildContext context,
     WidgetRef ref,
@@ -402,7 +417,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } on Object catch (error) {
       if (context.mounted) {
-        _showMessage(context, context.l10n.syncFailed(redactForLog(error)));
+        _showMessage(
+          context,
+          context.l10n.syncFailed(syncFailureMessage(error)),
+        );
       }
     }
   }
@@ -623,6 +641,7 @@ class _AccountManagementSection extends StatelessWidget {
     required this.microsoftConfigured,
     required this.onAddGoogle,
     required this.onAddMicrosoft,
+    required this.onReconnect,
     required this.onCreateTaskList,
     required this.onSignOut,
     required this.onDisconnect,
@@ -634,6 +653,7 @@ class _AccountManagementSection extends StatelessWidget {
   final bool microsoftConfigured;
   final VoidCallback onAddGoogle;
   final VoidCallback onAddMicrosoft;
+  final void Function(AccountEntity account) onReconnect;
   final void Function(String accountId) onCreateTaskList;
   final void Function(String accountId) onSignOut;
   final void Function(String accountId) onDisconnect;
@@ -672,6 +692,7 @@ class _AccountManagementSection extends StatelessWidget {
         for (final account in accounts)
           _AccountManagementCard(
             account: account,
+            onReconnect: () => onReconnect(account),
             onCreateTaskList: () => onCreateTaskList(account.id),
             onSignOut: () => onSignOut(account.id),
             onDisconnect: () => onDisconnect(account.id),
@@ -685,6 +706,7 @@ class _AccountManagementSection extends StatelessWidget {
 class _AccountManagementCard extends StatelessWidget {
   const _AccountManagementCard({
     required this.account,
+    required this.onReconnect,
     required this.onCreateTaskList,
     required this.onSignOut,
     required this.onDisconnect,
@@ -692,6 +714,7 @@ class _AccountManagementCard extends StatelessWidget {
   });
 
   final AccountEntity account;
+  final VoidCallback onReconnect;
   final VoidCallback onCreateTaskList;
   final VoidCallback onSignOut;
   final VoidCallback onDisconnect;
@@ -705,16 +728,28 @@ class _AccountManagementCard extends StatelessWidget {
       description: _accountIdentityLabel(context, account),
       filled: true,
       children: [
-        BusyMaxActionRow(
-          title: l10n.newList,
-          leading: const Icon(YaruIcons.plus),
-          onTap: onCreateTaskList,
-        ),
-        BusyMaxActionRow(
-          title: l10n.signOutThisAccount,
-          leading: const Icon(YaruIcons.log_out),
-          onTap: onSignOut,
-        ),
+        if (account.needsReconnect)
+          BusyMaxActionRow(
+            title: accountReconnectRequiredActionLabel,
+            subtitle: accountReconnectRequiredSyncMessage,
+            leading: Icon(
+              YaruIcons.refresh,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            onTap: onReconnect,
+          )
+        else ...[
+          BusyMaxActionRow(
+            title: l10n.newList,
+            leading: const Icon(YaruIcons.plus),
+            onTap: onCreateTaskList,
+          ),
+          BusyMaxActionRow(
+            title: l10n.signOutThisAccount,
+            leading: const Icon(YaruIcons.log_out),
+            onTap: onSignOut,
+          ),
+        ],
         BusyMaxActionRow(
           title: l10n.disconnectThisAccount,
           leading: const Icon(YaruIcons.insert_link),

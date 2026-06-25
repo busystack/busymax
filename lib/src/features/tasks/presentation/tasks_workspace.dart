@@ -9,10 +9,10 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_layout.dart';
-import '../../../core/logging/redacting_logger.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../sync/sync_auth_error.dart';
 import '../../sync/sync_engine.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../task_lists/presentation/task_lists_sidebar.dart';
@@ -458,7 +458,9 @@ Future<void> _refreshList(BuildContext context, SyncEngine syncEngine) async {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.refreshFailed(redactForLog(error)))),
+      SnackBar(
+        content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
+      ),
     );
   }
 }
@@ -495,7 +497,9 @@ Future<void> _refreshAll(
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.refreshFailed(redactForLog(error)))),
+      SnackBar(
+        content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
+      ),
     );
   }
 }

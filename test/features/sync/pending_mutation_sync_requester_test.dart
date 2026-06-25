@@ -4,10 +4,12 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
+import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
+import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 
 void main() {
   test('multiple rapid requests produce one sync call', () async {
@@ -120,6 +122,36 @@ void main() {
     expect(syncCalls, 1);
     expect(failures.single, contains('sync failed'));
   });
+
+  test(
+    'missing OAuth token calls error hook and reports reconnect message',
+    () async {
+      final errors = <Object>[];
+      final failures = <String>[];
+      final requester = PendingMutationSyncRequester(
+        sync: () async {
+          throw const OAuthException(
+            'OAuthMissingToken',
+            'No OAuth token is available for this account.',
+          );
+        },
+        onSyncError: (error) async {
+          errors.add(error);
+        },
+        onSyncFailure: (message) async {
+          failures.add(message);
+        },
+        debounce: Duration.zero,
+      );
+      addTearDown(requester.dispose);
+
+      requester.request();
+      await _waitFor(() => failures.isNotEmpty);
+
+      expect(errors.single, isA<OAuthException>());
+      expect(failures.single, accountReconnectRequiredSyncMessage);
+    },
+  );
 
   test('created task is replayed through requester-triggered sync', () async {
     final database = AppDatabase(NativeDatabase.memory());
