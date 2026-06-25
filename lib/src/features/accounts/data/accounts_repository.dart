@@ -5,6 +5,10 @@ import 'package:drift/drift.dart';
 import '../../../db/app_database.dart';
 import '../../../task_providers/task_provider.dart';
 
+const accountAuthStateSignedIn = 'signed_in';
+const accountAuthStateSignedOut = 'signed_out';
+const accountAuthStateReauthRequired = 'reauth_required';
+
 class AccountEntity {
   const AccountEntity({
     required this.id,
@@ -45,7 +49,8 @@ class AccountEntity {
   final bool tasksEnabled;
   final String authState;
 
-  bool get isSignedIn => authState == 'signed_in';
+  bool get isSignedIn => authState == accountAuthStateSignedIn;
+  bool get needsReconnect => authState == accountAuthStateReauthRequired;
 
   String get displayLabel {
     final name = displayName?.trim();
@@ -80,7 +85,25 @@ class AccountsRepository {
 
   Stream<List<AccountEntity>> watchAccounts() {
     final query = _database.select(_database.accounts)
-      ..where((row) => row.authState.equals('signed_in'))
+      ..where((row) => row.authState.equals(accountAuthStateSignedIn))
+      ..orderBy([
+        (row) => OrderingTerm.asc(row.provider),
+        (row) => OrderingTerm.asc(row.displayName),
+        (row) => OrderingTerm.asc(row.email),
+      ]);
+    return query.watch().map(
+      (rows) => rows.map(AccountEntity.fromRow).toList(),
+    );
+  }
+
+  Stream<List<AccountEntity>> watchVisibleAccounts() {
+    final query = _database.select(_database.accounts)
+      ..where(
+        (row) => row.authState.isIn([
+          accountAuthStateSignedIn,
+          accountAuthStateReauthRequired,
+        ]),
+      )
       ..orderBy([
         (row) => OrderingTerm.asc(row.provider),
         (row) => OrderingTerm.asc(row.displayName),
@@ -93,7 +116,7 @@ class AccountsRepository {
 
   Future<List<AccountEntity>> listSignedInAccounts() async {
     final query = _database.select(_database.accounts)
-      ..where((row) => row.authState.equals('signed_in'))
+      ..where((row) => row.authState.equals(accountAuthStateSignedIn))
       ..orderBy([
         (row) => OrderingTerm.asc(row.provider),
         (row) => OrderingTerm.asc(row.displayName),
@@ -137,7 +160,7 @@ class AccountsRepository {
       providerMetadataJson: Value(
         providerMetadata == null ? null : jsonEncode(providerMetadata),
       ),
-      authState: const Value('signed_in'),
+      authState: const Value(accountAuthStateSignedIn),
       grantedScopes: Value(grantedScopes),
       updatedAtUtc: Value(now),
     );
@@ -160,7 +183,7 @@ class AccountsRepository {
               providerMetadataJson: Value(
                 providerMetadata == null ? null : jsonEncode(providerMetadata),
               ),
-              authState: const Value('signed_in'),
+              authState: const Value(accountAuthStateSignedIn),
               grantedScopes: Value(grantedScopes),
             ),
           );
@@ -177,7 +200,18 @@ class AccountsRepository {
       _database.accounts,
     )..where((account) => account.id.equals(accountId))).write(
       AccountsCompanion(
-        authState: const Value('signed_out'),
+        authState: const Value(accountAuthStateSignedOut),
+        updatedAtUtc: Value(_now()),
+      ),
+    );
+  }
+
+  Future<void> markReconnectRequired(String accountId) {
+    return (_database.update(
+      _database.accounts,
+    )..where((account) => account.id.equals(accountId))).write(
+      AccountsCompanion(
+        authState: const Value(accountAuthStateReauthRequired),
         updatedAtUtc: Value(_now()),
       ),
     );

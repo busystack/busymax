@@ -8,6 +8,7 @@ import '../app/app_bootstrap.dart';
 import '../app/app_router.dart';
 import '../features/schedule/application/compact_agenda_data.dart';
 import '../features/schedule/application/compact_agenda_snapshot.dart';
+import '../features/sync/sync_auth_error.dart';
 import '../schedule/schedule_commands.dart';
 import 'main_window_command_client.dart';
 
@@ -156,7 +157,16 @@ class _MainWindowCommandBridgeState
       await ref
           .read(calendarSyncEngineForAccountFactoryProvider)(accountId)
           .incrementalSync();
-    } on Object {
+    } on Object catch (error) {
+      if (isMissingOAuthTokenError(error)) {
+        try {
+          await ref
+              .read(authRepositoryProvider)
+              .markReconnectRequired(accountId);
+        } on Object {
+          // Preserve the original sync failure handling below.
+        }
+      }
       // The local pending operation remains queued and a later refresh/sync can
       // retry it.
     }

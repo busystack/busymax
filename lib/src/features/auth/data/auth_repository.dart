@@ -14,6 +14,7 @@ import '../../../google_tasks/oauth/oauth_models.dart';
 import '../../../google_tasks/oauth/oauth_service.dart';
 import '../../../google_tasks/oauth/oauth_token_store.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
+import '../../sync/sync_auth_error.dart';
 import '../../../task_providers/task_provider.dart';
 
 enum AuthSessionStatus {
@@ -143,6 +144,15 @@ class AuthRepository {
     if (targetAccountId != null) {
       await _accountsRepository.markSignedOut(targetAccountId);
     }
+  }
+
+  Future<void> markReconnectRequired(String accountId) async {
+    if (accountId.startsWith('microsoft:')) {
+      await _microsoftOAuth?.signOutAccount(accountId);
+    } else {
+      await _oAuth.signOutAccount(accountId);
+    }
+    await _accountsRepository.markReconnectRequired(accountId);
   }
 
   Future<void> revokeAndSignOut({String? accountId}) async {
@@ -397,11 +407,33 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
   }
 
   void _startSignedInSync(String accountId, bool initial) {
-    unawaited(
-      _onSignedIn(accountId, initial).catchError((Object error, StackTrace _) {
-        _logger.warning('Signed-in sync failed: initial=$initial error=$error');
-      }),
-    );
+    unawaited(_runSignedInSync(accountId, initial));
+  }
+
+  Future<void> _runSignedInSync(String accountId, bool initial) async {
+    try {
+      await _onSignedIn(accountId, initial);
+    } on Object catch (error) {
+      _logger.warning('Signed-in sync failed: initial=$initial error=$error');
+      if (!isMissingOAuthTokenError(error)) {
+        return;
+      }
+      try {
+        await _repository.markReconnectRequired(accountId);
+        state = await _repository.loadSession();
+        final nextAccountId = state.accountId;
+        if (nextAccountId != null &&
+            state.isSignedIn &&
+            nextAccountId != accountId) {
+          _startSignedInSync(nextAccountId, false);
+        }
+      } on Object catch (cleanupError) {
+        _logger.warning(
+          'Failed to mark account reconnect required after missing sync token: '
+          '$cleanupError',
+        );
+      }
+    }
   }
 }
 

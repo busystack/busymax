@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'sync_auth_error.dart';
 import 'sync_engine.dart';
 
 class SyncScheduler {
@@ -34,7 +35,7 @@ class SyncScheduler {
     try {
       await _syncEngine.incrementalSync();
     } on Object catch (error) {
-      await _onSyncFailure?.call(error.toString());
+      await _onSyncFailure?.call(syncFailureMessage(error));
     }
   }
 }

@@ -15,6 +15,7 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../calendar/data/calendar_repository.dart';
+import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../../task_providers/task_provider.dart';
 import 'mini_calendar.dart';
@@ -103,13 +104,7 @@ class _SourceRow extends ConsumerWidget {
           onSelected: (value) {
             switch (value) {
               case 'refresh':
-                unawaited(
-                  ref
-                      .read(calendarSyncEngineForAccountFactoryProvider)(
-                        source.accountId,
-                      )
-                      .incrementalSync(),
-                );
+                unawaited(_refreshCalendarSource(context, ref, source));
               case 'open':
                 unawaited(_openProviderWeb(_calendarWebUri(source)));
               case 'rename':
@@ -486,11 +481,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
           onSelected: (value) {
             switch (value) {
               case 'refresh':
-                unawaited(
-                  ref
-                      .read(syncEngineForAccountFactoryProvider)(account.id)
-                      .incrementalSync(),
-                );
+                unawaited(_refreshTaskListAccount(context, ref, account.id));
               case 'open':
                 unawaited(_openProviderWeb(_taskProviderWebUri(account)));
               case 'rename':
@@ -576,6 +567,63 @@ Uri _taskProviderWebUri(AccountEntity account) {
 
 Future<void> _openProviderWeb(Uri uri) async {
   await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+Future<void> _refreshCalendarSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  try {
+    await ref
+        .read(calendarSyncEngineForAccountFactoryProvider)(source.accountId)
+        .incrementalSync();
+  } on Object catch (error) {
+    if (!context.mounted) {
+      return;
+    }
+    await _handleRefreshFailure(context, ref, source.accountId, error);
+  }
+}
+
+Future<void> _refreshTaskListAccount(
+  BuildContext context,
+  WidgetRef ref,
+  String accountId,
+) async {
+  try {
+    await ref
+        .read(syncEngineForAccountFactoryProvider)(accountId)
+        .incrementalSync();
+  } on Object catch (error) {
+    if (!context.mounted) {
+      return;
+    }
+    await _handleRefreshFailure(context, ref, accountId, error);
+  }
+}
+
+Future<void> _handleRefreshFailure(
+  BuildContext context,
+  WidgetRef ref,
+  String accountId,
+  Object error,
+) async {
+  try {
+    if (isMissingOAuthTokenError(error)) {
+      await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
+    }
+  } on Object {
+    // Keep the original refresh failure visible even if cleanup fails.
+  }
+  if (!context.mounted) {
+    return;
+  }
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
+    ),
+  );
 }
 
 bool _canRenameOrDeleteTaskList(AccountEntity account, TaskListEntity list) {

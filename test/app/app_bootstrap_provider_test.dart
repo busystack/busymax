@@ -153,6 +153,51 @@ void main() {
     expect(state.status, AuthSessionStatus.signedIn);
     expect(state.accountId, 'account-1');
   });
+
+  test(
+    'loaded session marks account reconnect required when startup sync has no token',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      await _seedSignedInGoogleAccount(database);
+      final syncStarted = Completer<void>();
+      final container = _container(
+        database: database,
+        oAuth: _FakeOAuthGateway(),
+        signedInSyncRunner: (accountId, initial) async {
+          if (!syncStarted.isCompleted) {
+            syncStarted.complete();
+          }
+          throw const OAuthException(
+            'OAuthMissingToken',
+            'No OAuth token is available for this account.',
+          );
+        },
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      Object? zoneError;
+      await runZonedGuarded<Future<void>>(
+        () async {
+          container.read(authSessionControllerProvider);
+          await syncStarted.future.timeout(const Duration(seconds: 1));
+          await _flushAsync();
+          await _flushAsync();
+        },
+        (error, _) {
+          zoneError = error;
+        },
+      );
+
+      final state = container.read(authSessionControllerProvider);
+      final account = await database.select(database.accounts).getSingle();
+      expect(zoneError, isNull);
+      expect(state.status, AuthSessionStatus.signedOut);
+      expect(account.authState, accountAuthStateReauthRequired);
+    },
+  );
 }
 
 Future<void> _seedSignedInGoogleAccount(AppDatabase database) {

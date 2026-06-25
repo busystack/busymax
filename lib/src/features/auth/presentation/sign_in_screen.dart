@@ -18,6 +18,7 @@ import '../../../google_tasks/oauth/oauth_token_store.dart';
 import '../../../l10n/l10n.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../sync/sync_auth_error.dart';
 
 enum _OnboardingStep { accounts, preferences }
 
@@ -52,7 +53,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+    final accounts =
+        ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
     final settings = ref.watch(appSettingsControllerProvider);
     final settingsController = ref.read(appSettingsControllerProvider.notifier);
     final config = ref.watch(buildConfigProvider);
@@ -66,7 +68,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final canContinue =
         _signingInProvider == null &&
         switch (_step) {
-          _OnboardingStep.accounts => accounts.isNotEmpty,
+          _OnboardingStep.accounts => accounts.any(
+            (account) => account.isSignedIn,
+          ),
           _OnboardingStep.preferences => true,
         };
     _updateHeaderBar(
@@ -251,7 +255,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       };
       final accountId = signedIn.accountId;
       if (accountId != null) {
-        unawaited(ref.read(signedInSyncRunnerProvider)(accountId, true));
+        unawaited(_runInitialSync(accountId));
       }
     } on Object catch (error) {
       if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
@@ -263,6 +267,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     } finally {
       if (mounted) {
         setState(() => _signingInProvider = null);
+      }
+    }
+  }
+
+  Future<void> _runInitialSync(String accountId) async {
+    try {
+      await ref.read(signedInSyncRunnerProvider)(accountId, true);
+    } on Object catch (error) {
+      if (isMissingOAuthTokenError(error)) {
+        try {
+          await ref
+              .read(authRepositoryProvider)
+              .markReconnectRequired(accountId);
+        } on Object {
+          // Preserve the original sync failure message below.
+        }
+      }
+      if (mounted) {
+        setState(() => _errorMessage = syncFailureMessage(error));
       }
     }
   }
@@ -419,7 +442,7 @@ class _SignedInAccountsSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          context.l10n.signedInAccount,
+          context.l10n.accounts,
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
@@ -440,14 +463,15 @@ class _SignedInAccountRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final secondary = account.secondaryLabel;
+    final needsReconnect = account.needsReconnect;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.xs),
       child: Row(
         children: [
           Icon(
-            YaruIcons.checkmark,
+            needsReconnect ? YaruIcons.warning : YaruIcons.checkmark,
             size: BusyMaxSizes.iconSm,
-            color: colorScheme.primary,
+            color: needsReconnect ? colorScheme.error : colorScheme.primary,
           ),
           const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
@@ -459,7 +483,16 @@ class _SignedInAccountRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (secondary != null)
+                if (needsReconnect)
+                  Text(
+                    accountReconnectRequiredSyncMessage,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: colorScheme.error),
+                  )
+                else if (secondary != null)
                   Text(
                     secondary,
                     maxLines: 1,

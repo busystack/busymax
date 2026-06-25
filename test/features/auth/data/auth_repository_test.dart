@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
@@ -144,6 +145,28 @@ void main() {
     expect(oAuth.signedOutAccountId, 'account-1');
     expect(oAuth.revoked, isFalse);
   });
+
+  test(
+    'markReconnectRequired keeps account row visible but not syncable',
+    () async {
+      await _insertAccount(database, 'google:g', TaskProvider.google);
+      oAuth.activeId = 'google:g';
+
+      await repository.markReconnectRequired('google:g');
+
+      final account = await database.select(database.accounts).getSingle();
+      final accountsRepository = AccountsRepository(database: database);
+      final signedInAccounts = await accountsRepository.listSignedInAccounts();
+      final visibleAccounts = await accountsRepository
+          .watchVisibleAccounts()
+          .first;
+
+      expect(oAuth.signedOutAccountId, 'google:g');
+      expect(account.authState, accountAuthStateReauthRequired);
+      expect(signedInAccounts, isEmpty);
+      expect(visibleAccounts.single.needsReconnect, isTrue);
+    },
+  );
 
   test('signOut Google account does not sign out Microsoft account', () async {
     final microsoftOAuth = _FakeMicrosoftOAuthService();

@@ -101,7 +101,7 @@ void main() {
     expect(account.grantedScopes, googleBusyMaxOAuthScopes.join(' '));
     expect(find.text('Choose system settings'), findsNothing);
     expect(find.byType(ScheduleWorkspace), findsNothing);
-    expect(find.text('Signed in'), findsOneWidget);
+    expect(find.text('Accounts'), findsOneWidget);
     expect(find.text('Albert Busy'), findsOneWidget);
     expect(find.text('albert@example.com'), findsOneWidget);
 
