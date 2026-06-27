@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_surface_colors.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'schedule_event_block.dart';
@@ -28,11 +29,7 @@ class ScheduleTaskChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final color = ScheduleProjection.colorForItem(item, colorScheme.brightness);
-    final background = Color.alphaBlend(
-      color.withValues(alpha: item.completed ? 0.07 : 0.12),
-      colorScheme.surface,
-    );
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final titleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: item.completed
           ? colorScheme.onSurfaceVariant
@@ -77,9 +74,11 @@ class ScheduleTaskChip extends StatelessWidget {
                 vertical: compact ? 1 : 5,
               ),
               decoration: BoxDecoration(
-                color: background,
+                color: surfaceColors.control,
                 borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-                border: Border(left: BorderSide(color: color, width: 3)),
+                border: Border(
+                  left: BorderSide(color: surfaceColors.subtleBorder, width: 3),
+                ),
               ),
               child: showContent
                   ? Row(

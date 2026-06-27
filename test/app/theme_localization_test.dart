@@ -21,55 +21,67 @@ import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import '../test_localized_app.dart';
 
 void main() {
-  test('builds with neutral palette and system accent control states', () {
-    const accentColor = Color.fromARGB(0xFF, 0x0D, 0x6E, 0xFD);
-    const alternateAccentColor = Color.fromARGB(0xFF, 0xC4, 0x2B, 0x1C);
-    final light = buildBusyMaxTheme(
+  test('builds with system accent and tokenized control surfaces', () {
+    final light = _buildBusyMaxTheme(brightness: Brightness.light);
+    final dark = _buildBusyMaxTheme(brightness: Brightness.dark);
+    final alternate = _buildBusyMaxTheme(
       brightness: Brightness.light,
-      accentColor: accentColor,
-    );
-    final dark = buildBusyMaxTheme(
-      brightness: Brightness.dark,
-      accentColor: accentColor,
-    );
-    final alternate = buildBusyMaxTheme(
-      brightness: Brightness.light,
-      accentColor: alternateAccentColor,
+      accentColor: _alternateTestAccentColor,
     );
     final selected = {WidgetState.selected};
 
-    expect(light.colorScheme.primary, accentColor);
-    expect(dark.colorScheme.primary, accentColor);
+    final lightSurfaceColors = light.extension<BusyMaxSurfaceColors>()!;
+
+    expect(light.colorScheme.primary, _testAccentColor);
+    expect(dark.colorScheme.primary, _testAccentColor);
+    expect(light.primaryColor, _testAccentColor);
     expect(light.visualDensity, VisualDensity.compact);
-    expect(light.scaffoldBackgroundColor, isNot(accentColor));
+    expect(light.scaffoldBackgroundColor, isNot(_testAccentColor));
     expect(light.colorScheme.surface, alternate.colorScheme.surface);
     expect(
       light.colorScheme.surfaceContainerHighest,
       alternate.colorScheme.surfaceContainerHighest,
     );
-    expect(light.colorScheme.secondary, alternate.colorScheme.secondary);
-    expect(light.switchTheme.trackColor?.resolve(selected), accentColor);
-    expect(light.checkboxTheme.fillColor?.resolve(selected), accentColor);
-    expect(light.radioTheme.fillColor?.resolve(selected), accentColor);
+    expect(light.colorScheme.secondary, _testAccentColor);
+    expect(alternate.colorScheme.secondary, _alternateTestAccentColor);
+    expect(light.switchTheme.trackColor?.resolve(selected), _testAccentColor);
+    expect(light.radioTheme.fillColor?.resolve(selected), _testAccentColor);
+    expect(light.checkboxTheme.fillColor?.resolve(selected), _testAccentColor);
+    expect(
+      light.colorScheme.primaryContainer,
+      isNot(lightSurfaceColors.controlActive),
+    );
+    expect(
+      light.listTileTheme.selectedTileColor,
+      light.colorScheme.primaryContainer,
+    );
     expect(
       light.textButtonTheme.style?.foregroundColor?.resolve({}),
-      accentColor,
+      _testAccentColor,
+    );
+    expect(
+      light.filledButtonTheme.style?.backgroundColor?.resolve({}),
+      _testAccentColor,
     );
     expect(
       light.segmentedButtonTheme.style?.foregroundColor?.resolve(selected),
-      accentColor,
+      _testAccentColor,
     );
     expect(
       light.segmentedButtonTheme.style?.side?.resolve(selected)?.color,
-      accentColor,
+      _testAccentColor,
     );
-    expect(light.floatingActionButtonTheme.backgroundColor, accentColor);
-    expect(light.progressIndicatorTheme.color, accentColor);
-    expect(light.textSelectionTheme.cursorColor, accentColor);
+    expect(
+      light.segmentedButtonTheme.style?.backgroundColor?.resolve(selected),
+      light.colorScheme.primaryContainer,
+    );
+    expect(light.floatingActionButtonTheme.backgroundColor, _testAccentColor);
+    expect(light.progressIndicatorTheme.color, _testAccentColor);
+    expect(light.textSelectionTheme.cursorColor, _testAccentColor);
 
     final focusedBorder =
         light.inputDecorationTheme.focusedBorder as OutlineInputBorder;
-    expect(focusedBorder.borderSide.color, accentColor);
+    expect(focusedBorder.borderSide.color, _testAccentColor);
 
     final outlinedShape =
         light.outlinedButtonTheme.style?.shape?.resolve({})
@@ -97,19 +109,13 @@ void main() {
     );
     expect(
       light.outlinedButtonTheme.style?.side?.resolve({WidgetState.focused}),
-      BorderSide(color: accentColor),
+      BorderSide(color: _testAccentColor),
     );
   });
 
   test('BusyMax Yaru theme exposes semantic fallback surfaces', () {
-    final light = buildBusyMaxTheme(
-      brightness: Brightness.light,
-      accentColor: const Color(0xFF4A86CF),
-    );
-    final dark = buildBusyMaxTheme(
-      brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
-    );
+    final light = _buildBusyMaxTheme(brightness: Brightness.light);
+    final dark = _buildBusyMaxTheme(brightness: Brightness.dark);
 
     final lightColors = light.extension<BusyMaxSurfaceColors>()!;
     final darkColors = dark.extension<BusyMaxSurfaceColors>()!;
@@ -168,9 +174,8 @@ void main() {
   });
 
   test('BusyMaxSurfaceColors copyWith preserves and overrides fields', () {
-    final base = buildBusyMaxTheme(
+    final base = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
     ).extension<BusyMaxSurfaceColors>()!;
 
     final updated = base.copyWith(
@@ -189,13 +194,11 @@ void main() {
   });
 
   test('BusyMaxSurfaceColors lerp blends semantic fields', () {
-    final start = buildBusyMaxTheme(
+    final start = _buildBusyMaxTheme(
       brightness: Brightness.light,
-      accentColor: const Color(0xFF4A86CF),
     ).extension<BusyMaxSurfaceColors>()!;
-    final end = buildBusyMaxTheme(
+    final end = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
     ).extension<BusyMaxSurfaceColors>()!;
 
     final midpoint = start.lerp(end, 0.5);
@@ -216,10 +219,7 @@ void main() {
       final base = createYaruLightTheme(
         primaryColor: BusyMaxLinuxPalette.light4,
       );
-      final theme = buildBusyMaxTheme(
-        brightness: Brightness.light,
-        accentColor: const Color(0xFF4A86CF),
-      );
+      final theme = _buildBusyMaxTheme(brightness: Brightness.light);
 
       _expectTextThemeMetrics(
         actual: theme.textTheme,
@@ -236,9 +236,8 @@ void main() {
       final base = createYaruLightTheme(
         primaryColor: BusyMaxLinuxPalette.light4,
       );
-      final theme = buildBusyMaxTheme(
+      final theme = _buildBusyMaxTheme(
         brightness: Brightness.light,
-        accentColor: const Color(0xFF4A86CF),
         gtkFontFamily: gtkFamily,
         gtkFontSize: 11,
       );
@@ -258,9 +257,8 @@ void main() {
     const gtkFamily = 'GTK Test Sans';
     const scale = 12 / 11;
     final base = createYaruLightTheme(primaryColor: BusyMaxLinuxPalette.light4);
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.light,
-      accentColor: const Color(0xFF4A86CF),
       gtkFontFamily: gtkFamily,
       gtkFontSize: 12,
     );
@@ -276,9 +274,8 @@ void main() {
   test('BusyMax theme ignores invalid GTK font size', () {
     const gtkFamily = 'GTK Test Sans';
     final base = createYaruLightTheme(primaryColor: BusyMaxLinuxPalette.light4);
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.light,
-      accentColor: const Color(0xFF4A86CF),
       gtkFontFamily: gtkFamily,
       gtkFontSize: double.nan,
     );
@@ -294,9 +291,8 @@ void main() {
     const gtkFamily = 'GTK Test Sans';
     const scale = 12 / 11;
     final base = createYaruLightTheme(primaryColor: BusyMaxLinuxPalette.light4);
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.light,
-      accentColor: const Color(0xFF4A86CF),
       gtkFontFamily: gtkFamily,
       gtkFontSize: 12,
     );
@@ -479,9 +475,8 @@ void main() {
       sidebarBorder: Color(0x33000000),
       shade: Color(0x55000000),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
 
@@ -497,6 +492,24 @@ void main() {
     expect(theme.extension<BusyMaxSurfaceColors>()?.sidebar, gtkColors.sidebar);
   });
 
+  test('BusyMax theme ignores light GTK runtime shade samples', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFFFFFFF),
+      view: Color(0xFFFFFFFF),
+      sidebar: Color(0xFFF2F2F2),
+      shade: Color(0x88FFFFFF),
+    );
+    final theme = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      gtkThemeColors: gtkColors,
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+    expect(colors.shade, busyMaxFallbackSurfaceColors(Brightness.light).shade);
+    expect(theme.popupMenuTheme.shadowColor, colors.shade);
+  });
+
   test('BusyMax theme ignores too-dark GTK popover samples', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
@@ -505,9 +518,8 @@ void main() {
       sidebar: Color(0xFF303030),
       popover: Color(0xFF303030),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
 
@@ -529,9 +541,8 @@ void main() {
       dialog: Color(0xFF241F31),
       popover: Color(0xFF3D3846),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
@@ -554,6 +565,27 @@ void main() {
     expect(colors.popover, const Color(0xFF383838));
   });
 
+  test('BusyMax theme ignores GTK accent control samples', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.dark,
+      control: Color(0x22004A99),
+      controlHover: Color(0x33005BBB),
+      controlActive: Color(0x44006DDD),
+    );
+    final theme = _buildBusyMaxTheme(
+      brightness: Brightness.dark,
+      gtkThemeColors: gtkColors,
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    final fallback = busyMaxFallbackSurfaceColors(Brightness.dark);
+
+    expect(colors.control, fallback.control);
+    expect(colors.controlHover, fallback.controlHover);
+    expect(colors.controlActive, fallback.controlActive);
+    expect(theme.colorScheme.surfaceContainerHigh, fallback.control);
+    expect(theme.colorScheme.surfaceContainerHighest, fallback.controlHover);
+  });
+
   test('BusyMax theme derives sidebar from collapsed GTK colors', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
@@ -561,9 +593,8 @@ void main() {
       view: Color(0xFF3E3E3E),
       sidebar: Color(0xFF3E3E3E),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
 
@@ -587,9 +618,8 @@ void main() {
       sidebar: Color(0xFF242424),
       headerbar: Color(0xFF303030),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
 
@@ -608,9 +638,8 @@ void main() {
       sidebar: Color(0xFF000000),
       headerbar: Color(0xFF000000),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
@@ -629,9 +658,8 @@ void main() {
       sidebar: Color(0xFF101010),
       headerbar: Color(0xFF101010),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
@@ -650,9 +678,8 @@ void main() {
       sidebar: Color(0x33000000),
       headerbar: Color(0x33000000),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
@@ -672,9 +699,8 @@ void main() {
       foreground: Color(0xFF242428),
       mutedForeground: Color(0xFF242428),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.dark,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
@@ -690,9 +716,8 @@ void main() {
       brightness: Brightness.dark,
       window: Color(0xFF202020),
     );
-    final theme = buildBusyMaxTheme(
+    final theme = _buildBusyMaxTheme(
       brightness: Brightness.light,
-      accentColor: const Color(0xFF4A86CF),
       gtkThemeColors: gtkColors,
     );
 
@@ -833,6 +858,8 @@ void main() {
     expect(source, contains('backgroundColor: colors.view'));
     expect(source, contains('sidebarBackgroundColor: colors.sidebar'));
     expect(source, contains('controlHoverColor: colors.controlHover'));
+    expect(source, contains('accentColor: colorScheme.primary'));
+    expect(source, contains('accentForegroundColor: colorScheme.onPrimary'));
     expect(source, contains('menu: l10n.mainMenu'));
     expect(source, contains('settings: l10n.settings'));
     expect(source, contains('aboutBusyMax: l10n.aboutBusyMax'));
@@ -953,6 +980,25 @@ void main() {
 
     expect(find.text('Einstellungen'), findsOneWidget);
   });
+}
+
+const _testAccentColor = Color(0xFF2E7D32);
+const _alternateTestAccentColor = Color(0xFF8A1D61);
+
+ThemeData _buildBusyMaxTheme({
+  required Brightness brightness,
+  Color accentColor = _testAccentColor,
+  String? gtkFontFamily,
+  double? gtkFontSize,
+  GtkThemeColors? gtkThemeColors,
+}) {
+  return buildBusyMaxTheme(
+    brightness: brightness,
+    accentColor: accentColor,
+    gtkFontFamily: gtkFontFamily,
+    gtkFontSize: gtkFontSize,
+    gtkThemeColors: gtkThemeColors,
+  );
 }
 
 class _TextThemeRole {

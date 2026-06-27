@@ -10,6 +10,7 @@ import 'package:yaru/yaru.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
@@ -72,6 +73,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   var _latestCanShowSidebar = false;
+  var _latestAccounts = const <AccountEntity>[];
+  var _latestVisibleSources = const <CalendarSourceEntity>[];
   var _latestItems = const <ScheduleItem>[];
   final _itemAnchorContexts = <String, BuildContext>{};
   ScheduleWorkspaceCommand? _pendingAnchoredCommand;
@@ -154,6 +157,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       visibility.visibleCalendarSourceIds.contains(source.id),
                 )
                 .toList();
+            _latestAccounts = accounts;
+            _latestVisibleSources = visibleSources;
 
             return FutureBuilder<_ScheduleItemsResult>(
               future: _scheduleItems(
@@ -220,6 +225,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onPrevious: _previous,
                         onNext: _next,
                         onModeChanged: _setMode,
+                        canCreate: accounts.isNotEmpty,
+                        onCreate: _openCreateAtSelectedDate,
                         onRefresh: () => unawaited(_refreshAll()),
                       ),
                       const Divider(height: 1),
@@ -353,24 +360,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       );
                     },
                   ),
-                  floatingActionButtonLocation:
-                      FloatingActionButtonLocation.endFloat,
-                  floatingActionButton: FloatingActionButton(
-                    tooltip: context.l10n.create,
-                    onPressed: () => unawaited(
-                      _openCreateChoice(
-                        accounts,
-                        visibleSources,
-                        DateTime(
-                          _selectedDate.year,
-                          _selectedDate.month,
-                          _selectedDate.day,
-                          9,
-                        ),
-                      ),
-                    ),
-                    child: const Icon(YaruIcons.plus),
-                  ),
                 );
               },
             );
@@ -418,10 +407,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _selectedDate,
     );
     final sidebarVisible = showSidebar && !_sidebarCollapsed;
+    final canCreate = accounts.isNotEmpty || visibleSources.isNotEmpty;
     final headerBarState = _HeaderBarStateSnapshot(
       titleRange: titleRange,
       viewMode: _mode,
       canRefresh: accounts.isNotEmpty,
+      canCreate: canCreate,
       searchActive: _searchActive,
       sidebarVisible: sidebarVisible,
       navigationVisible: _mode != ScheduleViewMode.agenda,
@@ -450,6 +441,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       unawaited(service.setViewMode(headerBarState.viewMode));
       unawaited(service.setNavigationVisible(headerBarState.navigationVisible));
       unawaited(service.setCanRefresh(headerBarState.canRefresh));
+      unawaited(service.setCanCreate(headerBarState.canCreate));
       unawaited(service.setSearchActive(headerBarState.searchActive));
       unawaited(service.setSidebarVisible(headerBarState.sidebarVisible));
     });
@@ -494,6 +486,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           setState(() => _searchActive = true);
           _focusSearch();
         }
+      case BusyMaxHeaderBarAction.create:
+        _openCreateAtSelectedDate();
       case BusyMaxHeaderBarAction.refresh:
         unawaited(_refreshAll());
       case BusyMaxHeaderBarAction.settings:
@@ -911,6 +905,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
+  void _openCreateAtSelectedDate() {
+    unawaited(
+      _openCreateChoice(
+        _latestAccounts,
+        _latestVisibleSources,
+        DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 9),
+      ),
+    );
+  }
+
   Future<void> _openNewEvent(
     List<CalendarSourceEntity> sources,
     DateTime start,
@@ -951,6 +955,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         await _exportItem(item);
       case ScheduleItemDetailsAction.edit:
         _editItem(item, sources);
+      case ScheduleItemDetailsAction.delete:
+        await _deleteItem(item);
     }
   }
 
@@ -1095,6 +1101,35 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     _requestCalendarMutationSync(accountId);
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  Future<void> _deleteItem(ScheduleItem item) async {
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: item is CalendarScheduleItem
+          ? context.l10n.deleteEvent
+          : context.l10n.deleteTask,
+      message: item is TaskScheduleItem
+          ? context.l10n.deleteTaskConfirmation(item.title)
+          : 'Delete "${item.title}"?',
+      confirmLabel: context.l10n.delete,
+      destructive: true,
+    );
+    if (!confirmed) {
+      return;
+    }
+    if (item is CalendarScheduleItem) {
+      await _deleteEvent(item.id);
+      return;
+    }
+    if (item is TaskScheduleItem) {
+      await ref
+          .read(tasksRepositoryForAccountProvider(item.accountId))
+          .deleteTask(item.sourceId, item.id);
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -1365,6 +1400,7 @@ class _HeaderBarStateSnapshot {
     required this.titleRange,
     required this.viewMode,
     required this.canRefresh,
+    required this.canCreate,
     required this.searchActive,
     required this.sidebarVisible,
     required this.navigationVisible,
@@ -1373,6 +1409,7 @@ class _HeaderBarStateSnapshot {
   final String titleRange;
   final ScheduleViewMode viewMode;
   final bool canRefresh;
+  final bool canCreate;
   final bool searchActive;
   final bool sidebarVisible;
   final bool navigationVisible;
@@ -1384,6 +1421,7 @@ class _HeaderBarStateSnapshot {
             titleRange == other.titleRange &&
             viewMode == other.viewMode &&
             canRefresh == other.canRefresh &&
+            canCreate == other.canCreate &&
             searchActive == other.searchActive &&
             sidebarVisible == other.sidebarVisible &&
             navigationVisible == other.navigationVisible;
@@ -1394,6 +1432,7 @@ class _HeaderBarStateSnapshot {
     titleRange,
     viewMode,
     canRefresh,
+    canCreate,
     searchActive,
     sidebarVisible,
     navigationVisible,

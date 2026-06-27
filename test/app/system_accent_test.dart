@@ -1,9 +1,9 @@
 import 'dart:async';
 
+import 'package:busymax/src/app/system_accent.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:busymax/src/app/system_accent.dart';
 
 void main() {
   test(
@@ -11,10 +11,7 @@ void main() {
     () async {
       final changes = StreamController<Object?>();
       final emitted = <Color>[];
-      final colors = [
-        const Color.fromARGB(0xFF, 0x0D, 0x6E, 0xFD),
-        const Color.fromARGB(0xFF, 0x31, 0x8A, 0x4C),
-      ];
+      final colors = [const Color(0xFF2E7D32), const Color(0xFF8A1D61)];
       var loadCount = 0;
 
       final container = ProviderContainer(

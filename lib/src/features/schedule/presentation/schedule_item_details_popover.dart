@@ -12,7 +12,7 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'schedule_event_block.dart';
 
-enum ScheduleItemDetailsAction { export, edit }
+enum ScheduleItemDetailsAction { export, edit, delete }
 
 Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
   required BuildContext context,
@@ -177,7 +177,7 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: BusyMaxSpacing.sm),
-                    _PopoverActions(item: item, surfaceColors: surfaceColors),
+                    _PopoverActions(item: item),
                   ],
                 ),
                 const SizedBox(height: BusyMaxSpacing.lg),
@@ -192,23 +192,18 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
 }
 
 class _PopoverActions extends StatelessWidget {
-  const _PopoverActions({required this.item, required this.surfaceColors});
+  const _PopoverActions({required this.item});
 
   final ScheduleItem item;
-  final BusyMaxSurfaceColors surfaceColors;
 
   @override
   Widget build(BuildContext context) {
-    final foreground = surfaceColors.mutedForeground;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         BusyMaxCircularAction(
           icon: Icons.download_outlined,
           tooltip: context.l10n.export,
-          backgroundColor: surfaceColors.control,
-          foregroundColor: foreground,
-          hoverColor: surfaceColors.controlHover,
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.export),
         ),
@@ -216,19 +211,21 @@ class _PopoverActions extends StatelessWidget {
         BusyMaxCircularAction(
           icon: Icons.edit_outlined,
           tooltip: _editLabel(context, item),
-          backgroundColor: surfaceColors.control,
-          foregroundColor: foreground,
-          hoverColor: surfaceColors.controlHover,
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.edit),
         ),
         const SizedBox(width: BusyMaxSpacing.xs),
         BusyMaxCircularAction(
+          icon: Icons.delete_outline,
+          tooltip: context.l10n.delete,
+          destructive: true,
+          onPressed: () =>
+              Navigator.of(context).pop(ScheduleItemDetailsAction.delete),
+        ),
+        const SizedBox(width: BusyMaxSpacing.xs),
+        BusyMaxCircularAction(
           icon: Icons.close,
           tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-          backgroundColor: surfaceColors.control,
-          foregroundColor: foreground,
-          hoverColor: surfaceColors.controlHover,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],

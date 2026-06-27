@@ -125,6 +125,7 @@ struct _MyApplication {
   GtkWidget* view_mode_year_item;
   GtkWidget* view_mode_agenda_item;
   GtkWidget* search_button;
+  GtkWidget* create_button;
   GtkWidget* refresh_button;
   gchar* header_view_mode;
   gboolean hide_on_close;
@@ -521,10 +522,21 @@ static void refresh_header_bar_css(MyApplication* self) {
       "color: %s;"
       "}"
       ".busymax-titlebar.busymax-modal-barrier,"
-      ".busymax-titlebar.busymax-modal-barrier:backdrop,"
+      ".busymax-titlebar.busymax-modal-barrier:backdrop {"
+      "background-color: %s;"
+      "background-image: linear-gradient(%s, %s);"
+      "}"
       ".busymax-titlebar.busymax-modal-barrier .busymax-header-brand,"
       ".busymax-titlebar.busymax-modal-barrier "
-      "headerbar.busymax-flat-headerbar {"
+      ".busymax-header-brand:backdrop {"
+      "background-color: %s;"
+      "background-image: linear-gradient(%s, %s);"
+      "}"
+      ".busymax-titlebar.busymax-modal-barrier "
+      "headerbar.busymax-flat-headerbar,"
+      ".busymax-titlebar.busymax-modal-barrier "
+      "headerbar.busymax-flat-headerbar:backdrop {"
+      "background-color: %s;"
       "background-image: linear-gradient(%s, %s);"
       "}"
       ".busymax-titlebar button.busymax-header-button,"
@@ -696,8 +708,10 @@ static void refresh_header_bar_css(MyApplication* self) {
       window_css_background_color, shade_color, kHeaderWindowRadius,
       background_color, kHeaderWindowRadius, kHeaderWindowRadius,
       kHeaderWindowRadius, sidebar_background_color, kHeaderWindowRadius,
-      foreground_color, foreground_color, modal_barrier_color,
-      modal_barrier_color,
+      foreground_color, foreground_color,
+      background_color, modal_barrier_color, modal_barrier_color,
+      sidebar_background_color, modal_barrier_color, modal_barrier_color,
+      background_color, modal_barrier_color, modal_barrier_color,
       foreground_color, control_color, kHeaderButtonHeight,
       kHeaderButtonHeight, kHeaderButtonHorizontalPadding, kHeaderButtonRadius,
       control_hover_color, control_pressed_color, foreground_disabled_color,
@@ -1271,6 +1285,7 @@ static void set_header_schedule_controls_visible(MyApplication* self,
                      visible && self->header_navigation_visible);
   set_widget_visible(self->header_view_box, visible);
   set_widget_visible(self->search_button, visible);
+  set_widget_visible(self->create_button, visible);
   set_widget_visible(self->refresh_button, visible);
   update_header_title_balance_spacer(self);
 }
@@ -1341,6 +1356,7 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   const gchar* year = fl_lookup_string_arg(args, "year");
   const gchar* agenda = fl_lookup_string_arg(args, "agenda");
   const gchar* search = fl_lookup_string_arg(args, "search");
+  const gchar* create = fl_lookup_string_arg(args, "create");
   const gchar* refresh = fl_lookup_string_arg(args, "refresh");
   const gchar* menu = fl_lookup_string_arg(args, "menu");
   const gchar* previous = fl_lookup_string_arg(args, "previous");
@@ -1354,6 +1370,7 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   set_header_view_mode_labels(self, day, week, month, year, agenda);
   set_widget_tooltip(self->back_button, back);
   set_widget_tooltip(self->search_button, search);
+  set_widget_tooltip(self->create_button, create);
   set_widget_tooltip(self->settings_menu_button, menu);
   set_widget_tooltip(self->refresh_button, refresh);
   set_widget_tooltip(self->previous_button, previous);
@@ -1617,6 +1634,11 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
                      FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(end_box), self->header_view_box, FALSE, FALSE, 0);
 
+  track_widget_pointer(&self->create_button,
+                       create_header_icon_button("list-add-symbolic", ""));
+  connect_header_bar_action(self, self->create_button, "create");
+  gtk_box_pack_start(GTK_BOX(end_box), self->create_button, FALSE, FALSE, 0);
+
   track_widget_pointer(&self->refresh_button,
                        create_header_icon_button("view-refresh-symbolic",
                                                  ""));
@@ -1655,6 +1677,7 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
     set_widget_sensitive(self->refresh_button, fl_method_bool_arg(args));
     respond_success(method_call);
   } else if (strcmp(method, "setCanCreate") == 0) {
+    set_widget_sensitive(self->create_button, fl_method_bool_arg(args));
     respond_success(method_call);
   } else if (strcmp(method, "setLocalizedLabels") == 0) {
     set_header_localized_labels(self, args);
@@ -2915,6 +2938,7 @@ static void my_application_dispose(GObject* object) {
   clear_widget_pointer(&self->view_mode_year_item);
   clear_widget_pointer(&self->view_mode_agenda_item);
   clear_widget_pointer(&self->search_button);
+  clear_widget_pointer(&self->create_button);
   clear_widget_pointer(&self->refresh_button);
   g_clear_pointer(&self->header_bar_window_background_color, g_free);
   g_clear_pointer(&self->header_bar_background_color, g_free);
@@ -3018,6 +3042,7 @@ static void my_application_init(MyApplication* self) {
   self->view_mode_year_item = nullptr;
   self->view_mode_agenda_item = nullptr;
   self->search_button = nullptr;
+  self->create_button = nullptr;
   self->refresh_button = nullptr;
   self->header_view_mode = nullptr;
   self->header_navigation_visible = TRUE;
