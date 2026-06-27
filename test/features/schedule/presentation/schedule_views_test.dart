@@ -1106,7 +1106,8 @@ void main() {
     expect(source, isNot(contains('LogicalKeyboardKey.keyN')));
     expect(source, isNot(contains('LogicalKeyboardKey.keyK')));
     expect(source, isNot(contains('LogicalKeyboardKey.keyP')));
-    expect(source, contains('LogicalKeyboardKey.keyC'));
+    expect(source, contains('LogicalKeyboardKey.keyE'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyC')));
     expect(source, contains('_openNewEvent(_latestVisibleSources'));
     expect(source, contains('LogicalKeyboardKey.keyT'));
     expect(source, contains('_openNewTask(_latestAccounts'));

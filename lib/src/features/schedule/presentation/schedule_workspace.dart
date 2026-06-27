@@ -890,7 +890,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         }
         _previous();
         return true;
-      case LogicalKeyboardKey.keyC:
+      case LogicalKeyboardKey.keyE:
         if (_latestVisibleSources.isEmpty) {
           return false;
         }

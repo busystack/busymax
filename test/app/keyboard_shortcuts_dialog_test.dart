@@ -26,7 +26,7 @@ void main() {
     expect(find.text('Shift+Left'), findsOneWidget);
     expect(find.text('T'), findsOneWidget);
     expect(find.text('Shift+T'), findsOneWidget);
-    expect(find.text('C'), findsOneWidget);
+    expect(find.text('E'), findsOneWidget);
     expect(find.text('1 / D'), findsOneWidget);
     expect(find.text('2 / W'), findsOneWidget);
     expect(find.text('3 / M'), findsOneWidget);

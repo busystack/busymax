@@ -102,7 +102,7 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
                       BusyMaxActionRow(
                         title: l10n.newEvent,
                         leading: const Icon(Icons.event_outlined),
-                        trailing: const _KeyboardShortcutBadge('C'),
+                        trailing: const _KeyboardShortcutBadge('E'),
                       ),
                       BusyMaxActionRow(
                         title: l10n.newTask,
