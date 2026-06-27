@@ -10,6 +10,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
@@ -235,6 +236,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
     if (action == BusyMaxHeaderBarAction.continueSetup) {
       unawaited(_nextStep());
+      return;
+    }
+    if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
+      unawaited(
+        showBusyMaxKeyboardShortcutsDialog(
+          context,
+          headerBarService: ref.read(linuxHeaderBarServiceProvider),
+        ),
+      );
     }
   }
 

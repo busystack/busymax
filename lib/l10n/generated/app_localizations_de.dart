@@ -333,6 +333,75 @@ class AppLocalizationsDe extends AppLocalizations {
   String get mainMenu => 'Hauptmenü';
 
   @override
+  String get keyboardShortcuts => 'Tastenkürzel';
+
+  @override
+  String get shortcutGroupGeneral => 'Allgemein';
+
+  @override
+  String get shortcutKeyboardShortcutsDescription =>
+      'Diese Übersicht der Tastenkürzel anzeigen';
+
+  @override
+  String get shortcutGroupNavigation => 'Navigation';
+
+  @override
+  String get shortcutNextPeriod => 'Nächster Zeitraum';
+
+  @override
+  String get shortcutNextPeriodDescription =>
+      'Nächste Woche in der Wochenansicht, nächster Monat in der Monatsansicht usw.';
+
+  @override
+  String get shortcutPreviousPeriod => 'Vorheriger Zeitraum';
+
+  @override
+  String get shortcutPreviousPeriodDescription =>
+      'Vorherige Woche in der Wochenansicht, vorheriger Monat in der Monatsansicht usw.';
+
+  @override
+  String get shortcutJumpToToday => 'Zu Heute springen';
+
+  @override
+  String get shortcutGroupView => 'Ansicht';
+
+  @override
+  String get shortcutDayView => 'Tagesansicht';
+
+  @override
+  String get shortcutWeekView => 'Wochenansicht';
+
+  @override
+  String get shortcutMonthView => 'Monatsansicht';
+
+  @override
+  String get shortcutYearView => 'Jahresansicht';
+
+  @override
+  String get shortcutAgendaView => 'Agendaansicht';
+
+  @override
+  String get shortcutGroupTaskEditing => 'Aufgabenbearbeitung';
+
+  @override
+  String get shortcutCancelEditing => 'Bearbeitung abbrechen';
+
+  @override
+  String get shortcutCancelEditingDescription =>
+      'Aufgabenbearbeitung oder Aufgabendetails schließen';
+
+  @override
+  String get shortcutGroupCompactAgenda => 'Kompakte Agenda';
+
+  @override
+  String get shortcutRefreshCompactAgendaDescription =>
+      'Das kompakte Agenda-Fenster aktualisieren';
+
+  @override
+  String get shortcutHideCompactAgendaDescription =>
+      'Das kompakte Agenda-Fenster ausblenden';
+
+  @override
   String get aboutBusyMax => 'Über BusyMax';
 
   @override

@@ -720,6 +720,132 @@ abstract class AppLocalizations {
   /// **'Main Menu'**
   String get mainMenu;
 
+  /// No description provided for @keyboardShortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard Shortcuts'**
+  String get keyboardShortcuts;
+
+  /// No description provided for @shortcutGroupGeneral.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get shortcutGroupGeneral;
+
+  /// No description provided for @shortcutKeyboardShortcutsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Show this shortcuts reference'**
+  String get shortcutKeyboardShortcutsDescription;
+
+  /// No description provided for @shortcutGroupNavigation.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation'**
+  String get shortcutGroupNavigation;
+
+  /// No description provided for @shortcutNextPeriod.
+  ///
+  /// In en, this message translates to:
+  /// **'Next period'**
+  String get shortcutNextPeriod;
+
+  /// No description provided for @shortcutNextPeriodDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Next week in week view, next month in month view, and so on'**
+  String get shortcutNextPeriodDescription;
+
+  /// No description provided for @shortcutPreviousPeriod.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous period'**
+  String get shortcutPreviousPeriod;
+
+  /// No description provided for @shortcutPreviousPeriodDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous week in week view, previous month in month view, and so on'**
+  String get shortcutPreviousPeriodDescription;
+
+  /// No description provided for @shortcutJumpToToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to today'**
+  String get shortcutJumpToToday;
+
+  /// No description provided for @shortcutGroupView.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get shortcutGroupView;
+
+  /// No description provided for @shortcutDayView.
+  ///
+  /// In en, this message translates to:
+  /// **'Day view'**
+  String get shortcutDayView;
+
+  /// No description provided for @shortcutWeekView.
+  ///
+  /// In en, this message translates to:
+  /// **'Week view'**
+  String get shortcutWeekView;
+
+  /// No description provided for @shortcutMonthView.
+  ///
+  /// In en, this message translates to:
+  /// **'Month view'**
+  String get shortcutMonthView;
+
+  /// No description provided for @shortcutYearView.
+  ///
+  /// In en, this message translates to:
+  /// **'Year view'**
+  String get shortcutYearView;
+
+  /// No description provided for @shortcutAgendaView.
+  ///
+  /// In en, this message translates to:
+  /// **'Agenda view'**
+  String get shortcutAgendaView;
+
+  /// No description provided for @shortcutGroupTaskEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Task editing'**
+  String get shortcutGroupTaskEditing;
+
+  /// No description provided for @shortcutCancelEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel editing'**
+  String get shortcutCancelEditing;
+
+  /// No description provided for @shortcutCancelEditingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Close task editing or task details'**
+  String get shortcutCancelEditingDescription;
+
+  /// No description provided for @shortcutGroupCompactAgenda.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact agenda'**
+  String get shortcutGroupCompactAgenda;
+
+  /// No description provided for @shortcutRefreshCompactAgendaDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh the compact agenda window'**
+  String get shortcutRefreshCompactAgendaDescription;
+
+  /// No description provided for @shortcutHideCompactAgendaDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide the compact agenda window'**
+  String get shortcutHideCompactAgendaDescription;
+
   /// No description provided for @aboutBusyMax.
   ///
   /// In en, this message translates to:

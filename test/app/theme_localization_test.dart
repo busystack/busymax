@@ -862,6 +862,7 @@ void main() {
     expect(source, contains('accentForegroundColor: colorScheme.onPrimary'));
     expect(source, contains('menu: l10n.mainMenu'));
     expect(source, contains('settings: l10n.settings'));
+    expect(source, contains('keyboardShortcuts: l10n.keyboardShortcuts'));
     expect(source, contains('aboutBusyMax: l10n.aboutBusyMax'));
     expect(source, isNot(contains('menu: materialL10n.moreButtonTooltip')));
     expect(source, isNot(contains('setBackgroundColor(')));

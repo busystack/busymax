@@ -108,6 +108,7 @@ struct _MyApplication {
   GtkWidget* settings_menu_button;
   GtkWidget* settings_menu;
   GtkWidget* settings_item;
+  GtkWidget* keyboard_shortcuts_item;
   GtkWidget* about_item;
   GtkWidget* header_view_box;
   GtkWidget* header_title_label;
@@ -1364,6 +1365,8 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   const gchar* sidebar = fl_lookup_string_arg(args, "sidebar");
   const gchar* back = fl_lookup_string_arg(args, "back");
   const gchar* settings = fl_lookup_string_arg(args, "settings");
+  const gchar* keyboard_shortcuts =
+      fl_lookup_string_arg(args, "keyboardShortcuts");
   const gchar* about_busymax = fl_lookup_string_arg(args, "aboutBusyMax");
 
   set_button_label_and_tooltip(self->today_button, today, today);
@@ -1377,6 +1380,8 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   set_widget_tooltip(self->next_button, next);
   set_widget_tooltip(self->sidebar_collapsed_toggle_button, sidebar);
   set_header_settings_item_label(self->settings_item, settings);
+  set_header_settings_item_label(self->keyboard_shortcuts_item,
+                                 keyboard_shortcuts);
   set_header_settings_item_label(self->about_item, about_busymax);
 }
 
@@ -1432,11 +1437,16 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   track_widget_pointer(&self->settings_item,
                        create_header_settings_item(self, "settings",
                                                    "Settings"));
+  track_widget_pointer(&self->keyboard_shortcuts_item,
+                       create_header_settings_item(self, "keyboardShortcuts",
+                                                   "Keyboard Shortcuts"));
   track_widget_pointer(&self->about_item,
                        create_header_settings_item(self, "aboutBusyMax",
                                                    "About BusyMax"));
   gtk_box_pack_start(GTK_BOX(settings_menu_box), self->settings_item, FALSE,
                      FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(settings_menu_box),
+                     self->keyboard_shortcuts_item, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(settings_menu_box), self->about_item, FALSE,
                      FALSE, 0);
   show_header_popover_content(settings_menu_box);
@@ -2921,6 +2931,7 @@ static void my_application_dispose(GObject* object) {
   clear_widget_pointer(&self->settings_menu_button);
   clear_widget_pointer(&self->settings_menu);
   clear_widget_pointer(&self->settings_item);
+  clear_widget_pointer(&self->keyboard_shortcuts_item);
   clear_widget_pointer(&self->about_item);
   clear_widget_pointer(&self->header_view_box);
   clear_widget_pointer(&self->header_title_label);
@@ -3025,6 +3036,7 @@ static void my_application_init(MyApplication* self) {
   self->settings_menu_button = nullptr;
   self->settings_menu = nullptr;
   self->settings_item = nullptr;
+  self->keyboard_shortcuts_item = nullptr;
   self->about_item = nullptr;
   self->header_view_box = nullptr;
   self->header_title_label = nullptr;

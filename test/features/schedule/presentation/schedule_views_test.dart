@@ -1092,6 +1092,38 @@ void main() {
     expect(source, isNot(contains('BusyMaxHeaderBarAction.openMenu')));
   });
 
+  test('schedule workspace wires navigation and view keyboard shortcuts', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('HardwareKeyboard.instance.addHandler'));
+    expect(source, contains('LogicalKeyboardKey.keyJ'));
+    expect(source, contains('LogicalKeyboardKey.keyN'));
+    expect(source, contains('_next();'));
+    expect(source, contains('LogicalKeyboardKey.keyK'));
+    expect(source, contains('LogicalKeyboardKey.keyP'));
+    expect(source, contains('_previous();'));
+    expect(source, contains('LogicalKeyboardKey.keyT'));
+    expect(source, contains('_goToToday();'));
+    expect(source, contains('LogicalKeyboardKey.digit1'));
+    expect(source, contains('LogicalKeyboardKey.keyD'));
+    expect(source, contains('_setMode(ScheduleViewMode.day)'));
+    expect(source, contains('LogicalKeyboardKey.digit2'));
+    expect(source, contains('LogicalKeyboardKey.keyW'));
+    expect(source, contains('_setMode(ScheduleViewMode.week)'));
+    expect(source, contains('LogicalKeyboardKey.digit3'));
+    expect(source, contains('LogicalKeyboardKey.keyM'));
+    expect(source, contains('_setMode(ScheduleViewMode.month)'));
+    expect(source, contains('LogicalKeyboardKey.digit4'));
+    expect(source, contains('LogicalKeyboardKey.keyY'));
+    expect(source, contains('_setMode(ScheduleViewMode.year)'));
+    expect(source, contains('LogicalKeyboardKey.digit0'));
+    expect(source, contains('LogicalKeyboardKey.keyA'));
+    expect(source, contains('_setMode(ScheduleViewMode.agenda)'));
+    expect(source, contains('focusContext.widget is! EditableText'));
+  });
+
   test('calendar event mutations request immediate account sync', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',

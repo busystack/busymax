@@ -331,6 +331,75 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mainMenu => 'Main Menu';
 
   @override
+  String get keyboardShortcuts => 'Keyboard Shortcuts';
+
+  @override
+  String get shortcutGroupGeneral => 'General';
+
+  @override
+  String get shortcutKeyboardShortcutsDescription =>
+      'Show this shortcuts reference';
+
+  @override
+  String get shortcutGroupNavigation => 'Navigation';
+
+  @override
+  String get shortcutNextPeriod => 'Next period';
+
+  @override
+  String get shortcutNextPeriodDescription =>
+      'Next week in week view, next month in month view, and so on';
+
+  @override
+  String get shortcutPreviousPeriod => 'Previous period';
+
+  @override
+  String get shortcutPreviousPeriodDescription =>
+      'Previous week in week view, previous month in month view, and so on';
+
+  @override
+  String get shortcutJumpToToday => 'Jump to today';
+
+  @override
+  String get shortcutGroupView => 'View';
+
+  @override
+  String get shortcutDayView => 'Day view';
+
+  @override
+  String get shortcutWeekView => 'Week view';
+
+  @override
+  String get shortcutMonthView => 'Month view';
+
+  @override
+  String get shortcutYearView => 'Year view';
+
+  @override
+  String get shortcutAgendaView => 'Agenda view';
+
+  @override
+  String get shortcutGroupTaskEditing => 'Task editing';
+
+  @override
+  String get shortcutCancelEditing => 'Cancel editing';
+
+  @override
+  String get shortcutCancelEditingDescription =>
+      'Close task editing or task details';
+
+  @override
+  String get shortcutGroupCompactAgenda => 'Compact agenda';
+
+  @override
+  String get shortcutRefreshCompactAgendaDescription =>
+      'Refresh the compact agenda window';
+
+  @override
+  String get shortcutHideCompactAgendaDescription =>
+      'Hide the compact agenda window';
+
+  @override
   String get aboutBusyMax => 'About BusyMax';
 
   @override
