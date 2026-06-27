@@ -1284,10 +1284,13 @@ void main() {
     expect(source, contains('required this.onYearSelected'));
     expect(source, contains('required this.onWeekSelected'));
     expect(source, contains('required this.firstWeekday'));
-    expect(
-      source,
-      contains('(first.weekday - firstWeekday) % DateTime.daysPerWeek'),
-    );
+    expect(source, contains('_calendarStartForMonth(first, firstWeekday)'));
+    expect(source, contains('monthWeekdayFromMonday'));
+    expect(source, contains('firstWeekdayFromMonday'));
+    expect(source, contains('_addCalendarDays('));
+    expect(source, contains('row * DateTime.daysPerWeek'));
+    expect(source, contains('_addCalendarDays(weekStart, column)'));
+    expect(source, isNot(contains('weekStart.add(Duration(days: column))')));
     expect(source, contains('final weekNumberExtent = math.min'));
     expect(source, contains('constraints.maxWidth - weekNumberExtent'));
     expect(source, isNot(contains('final calendarWidth =')));
@@ -1412,6 +1415,122 @@ void main() {
     await tester.tap(find.byTooltip('Week 1'));
 
     expect(selectedWeek, DateTime(2026, 1, 4));
+  });
+
+  testWidgets(
+    'mini calendar shows previous month day for Sunday-first Monday starts',
+    (tester) async {
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: MiniCalendar(
+                selectedDate: DateTime(2027, 11, 1),
+                firstWeekday: DateTime.sunday,
+                onSelected: (_) {},
+                onMonthSelected: (_) {},
+                onYearSelected: (_) {},
+                onWeekSelected: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('31'), findsOneWidget);
+      expect(find.byTooltip('Sunday, October 31, 2027'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byTooltip('Sunday, October 31, 2027'),
+          matching: find.text('31'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byTooltip('Sunday, October 31, 2027'),
+          matching: find.text('1'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byTooltip('Monday, November 1, 2027'),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('mini calendar advances dates across DST fallback days', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 11, 1),
+              firstWeekday: DateTime.sunday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.descendant(
+        of: find.byTooltip('Sunday, November 1, 2026'),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byTooltip('Monday, November 2, 2026'),
+        matching: find.text('2'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Monday, November 1, 2026'), findsNothing);
+  });
+
+  testWidgets('mini calendar keeps two-digit days inside narrow cells', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 128,
+            child: MiniCalendar(
+              selectedDate: DateTime(2027, 11, 1),
+              firstWeekday: DateTime.sunday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final sundayCell = tester.getRect(
+      find.byTooltip('Sunday, October 31, 2027'),
+    );
+    final dayLabel = tester.getRect(find.text('31'));
+
+    expect(dayLabel.left, greaterThanOrEqualTo(sundayCell.left - 0.1));
+    expect(dayLabel.right, lessThanOrEqualTo(sundayCell.right + 0.1));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('mini calendar month label selects that month', (tester) async {
