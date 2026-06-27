@@ -90,40 +90,36 @@ class ScheduleProjection {
   }
 
   static Color colorForItem(ScheduleItem item, Brightness brightness) {
-    if (item is CalendarScheduleItem) {
-      return _colorFromHex(item.colorHex) ??
-          deterministicSourceColor(item.sourceId, brightness);
-    }
     if (item is TaskScheduleItem && item.completed) {
       return brightness == Brightness.dark
-          ? const Color(0xff8b949e)
-          : const Color(0xff6e7781);
+          ? const Color(0xff949494)
+          : const Color(0xff808080);
     }
     return brightness == Brightness.dark
-        ? const Color(0xff8db3d9)
-        : const Color(0xff4d7fa8);
+        ? const Color(0xffc8c8c8)
+        : const Color(0xff6b6b6b);
   }
 
   static Color deterministicSourceColor(String seed, Brightness brightness) {
     const lightPalette = <Color>[
-      Color(0xff326b88),
       Color(0xff7b5f1c),
       Color(0xff5e7f3f),
       Color(0xff8f4e5b),
-      Color(0xff546f9f),
       Color(0xff7d6d8f),
-      Color(0xff3f7d72),
       Color(0xff8a633e),
+      Color(0xff6f7041),
+      Color(0xff855c50),
+      Color(0xff707070),
     ];
     const darkPalette = <Color>[
-      Color(0xff81b9d7),
       Color(0xffd4b35f),
       Color(0xffa3c57a),
       Color(0xffd8999f),
-      Color(0xffa8b9e1),
       Color(0xffc5afd5),
-      Color(0xff87c7bc),
       Color(0xffd3a87b),
+      Color(0xffb4bd72),
+      Color(0xffd28f75),
+      Color(0xffc8c8c8),
     ];
     final palette = brightness == Brightness.dark ? darkPalette : lightPalette;
     return palette[seed.hashCode.abs() % palette.length];
@@ -158,16 +154,4 @@ String _dedupeProvider(String provider, String listName) {
     return provider;
   }
   return '$provider · $listName';
-}
-
-Color? _colorFromHex(String? value) {
-  if (value == null || value.isEmpty) {
-    return null;
-  }
-  final hex = value.replaceFirst('#', '');
-  if (hex.length != 6) {
-    return null;
-  }
-  final parsed = int.tryParse(hex, radix: 16);
-  return parsed == null ? null : Color(0xff000000 | parsed);
 }

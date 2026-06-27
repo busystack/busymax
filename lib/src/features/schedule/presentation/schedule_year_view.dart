@@ -95,8 +95,7 @@ class _YearMonthPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BusyMaxSurface(
-      color: BusyMaxSurfaceColors.of(context).control,
+    return BusyMaxGroupedSurface(
       child: Column(
         children: [
           BusyMaxActionRow(
@@ -234,6 +233,7 @@ class _YearDayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     return Tooltip(
       message: DateFormat.yMMMMEEEEd(locale).format(day),
       child: LayoutBuilder(
@@ -253,15 +253,13 @@ class _YearDayCell extends StatelessWidget {
                   (canShowIndicators ? BusyMaxSpacing.xxs : 0),
             ),
           );
-          final textColor = today
-              ? colorScheme.onPrimary
-              : selected
-              ? colorScheme.onPrimaryContainer
+          final textColor = (today || selected)
+              ? surfaceColors.foreground
               : colorScheme.onSurface;
           final markerColor = today
-              ? colorScheme.primary
+              ? surfaceColors.controlActive
               : selected
-              ? colorScheme.primaryContainer
+              ? surfaceColors.controlActive
               : Colors.transparent;
 
           return InkWell(

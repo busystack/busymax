@@ -19,6 +19,7 @@ enum BusyMaxHeaderBarAction {
   viewModeYear,
   viewModeAgenda,
   search,
+  create,
   refresh,
   settings,
   aboutBusyMax,
@@ -34,6 +35,7 @@ class BusyMaxHeaderBarLabels {
     required this.year,
     required this.agenda,
     required this.search,
+    required this.create,
     required this.refresh,
     required this.menu,
     required this.previous,
@@ -51,6 +53,7 @@ class BusyMaxHeaderBarLabels {
   final String year;
   final String agenda;
   final String search;
+  final String create;
   final String refresh;
   final String menu;
   final String previous;
@@ -69,6 +72,7 @@ class BusyMaxHeaderBarLabels {
       'year': year,
       'agenda': agenda,
       'search': search,
+      'create': create,
       'refresh': refresh,
       'menu': menu,
       'previous': previous,
@@ -91,6 +95,7 @@ class BusyMaxHeaderBarLabels {
             year == other.year &&
             agenda == other.agenda &&
             search == other.search &&
+            create == other.create &&
             refresh == other.refresh &&
             menu == other.menu &&
             previous == other.previous &&
@@ -110,6 +115,7 @@ class BusyMaxHeaderBarLabels {
     year,
     agenda,
     search,
+    create,
     refresh,
     menu,
     previous,
@@ -470,6 +476,7 @@ class LinuxHeaderBarService {
       'viewModeYear' => BusyMaxHeaderBarAction.viewModeYear,
       'viewModeAgenda' => BusyMaxHeaderBarAction.viewModeAgenda,
       'search' => BusyMaxHeaderBarAction.search,
+      'create' => BusyMaxHeaderBarAction.create,
       'refresh' => BusyMaxHeaderBarAction.refresh,
       'settings' => BusyMaxHeaderBarAction.settings,
       'aboutBusyMax' => BusyMaxHeaderBarAction.aboutBusyMax,

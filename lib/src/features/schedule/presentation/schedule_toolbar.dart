@@ -17,6 +17,8 @@ class ScheduleToolbar extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onModeChanged,
+    required this.canCreate,
+    required this.onCreate,
     required this.onRefresh,
   });
 
@@ -27,6 +29,8 @@ class ScheduleToolbar extends StatelessWidget {
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final ValueChanged<ScheduleViewMode> onModeChanged;
+  final bool canCreate;
+  final VoidCallback onCreate;
   final VoidCallback onRefresh;
 
   @override
@@ -82,6 +86,11 @@ class ScheduleToolbar extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+          YaruIconButton(
+            tooltip: context.l10n.create,
+            icon: const Icon(YaruIcons.plus),
+            onPressed: canCreate ? onCreate : null,
           ),
           YaruIconButton(
             tooltip: context.l10n.refreshAll,

@@ -11,8 +11,6 @@ import 'busymax_surface_colors.dart';
 export 'busymax_surface_colors.dart';
 
 abstract final class BusyMaxLinuxPalette {
-  static const blueAccent = Color(0xFF4A86CF);
-  static const blue3 = Color(0xFF3584E4);
   static const red3 = Color(0xFFE01B24);
   static const red5 = Color(0xFFA51D2D);
   static const light1 = Color(0xFFFFFFFF);
@@ -63,7 +61,7 @@ class BusyMaxYaruTheme {
       onPrimary: onAccent,
       primaryContainer: accentContainer,
       onPrimaryContainer: contrastColor(accentContainer),
-      secondary: BusyMaxLinuxPalette.blue3,
+      secondary: accentColor,
       error: brightness == Brightness.dark
           ? BusyMaxLinuxPalette.red3
           : BusyMaxLinuxPalette.red5,
@@ -678,7 +676,7 @@ class _BusyMaxResolvedSurfaceColors {
       border: _runtimeColor(runtime.border),
       subtleBorder: _runtimeColor(runtime.subtleBorder),
       sidebarBorder: _runtimeColor(runtime.sidebarBorder),
-      shade: _runtimeColor(runtime.shade),
+      shade: _runtimeShadeColor(runtime.shade),
     );
   }
 }
@@ -688,6 +686,17 @@ Color? _runtimeColor(Color? color) {
     return null;
   }
   return color;
+}
+
+Color? _runtimeShadeColor(Color? color) {
+  final runtime = _runtimeColor(color);
+  if (runtime == null) {
+    return null;
+  }
+  if (runtime.computeLuminance() > 0.35) {
+    return null;
+  }
+  return runtime;
 }
 
 Color? _runtimeReadableColor(
@@ -741,6 +750,9 @@ Color? _runtimeControlColor(Color? color, {required Brightness brightness}) {
   if (runtime == null) {
     return null;
   }
+  if (_isChromaticControlColor(runtime)) {
+    return null;
+  }
   if (brightness == Brightness.dark &&
       runtime.a >= 0.98 &&
       _isTintedDarkSurface(runtime)) {
@@ -780,6 +792,10 @@ bool _isNearBlackSurface(Color color) {
 }
 
 bool _isTintedDarkSurface(Color color) {
+  return _isBlueDominantColor(color);
+}
+
+bool _isBlueDominantColor(Color color) {
   final value = color.toARGB32();
   final red = (value >> 16) & 0xff;
   final green = (value >> 8) & 0xff;
@@ -787,6 +803,16 @@ bool _isTintedDarkSurface(Color color) {
   final maxChannel = math.max(red, math.max(green, blue));
   final minChannel = math.min(red, math.min(green, blue));
   return blue == maxChannel && maxChannel - minChannel >= 10;
+}
+
+bool _isChromaticControlColor(Color color) {
+  final value = color.toARGB32();
+  final red = (value >> 16) & 0xff;
+  final green = (value >> 8) & 0xff;
+  final blue = value & 0xff;
+  final maxChannel = math.max(red, math.max(green, blue));
+  final minChannel = math.min(red, math.min(green, blue));
+  return maxChannel - minChannel >= 10;
 }
 
 Color? _firstDistinctSemanticColor(

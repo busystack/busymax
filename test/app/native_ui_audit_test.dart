@@ -61,6 +61,7 @@ void main() {
         expect(design, contains('class BusyMaxGroupedList'));
         expect(design, contains('class BusyMaxActionRow'));
         expect(design, contains('class BusyMaxComboRow'));
+        expect(design, contains('class _BusyMaxRowTile'));
         expect(design, contains('class BusyMaxSwitchRow'));
         expect(design, contains('class BusyMaxDialogShell'));
         expect(design, contains('class BusyMaxModalEditorSurface'));
@@ -75,7 +76,10 @@ void main() {
         expect(design, contains('BusyMaxSurfaceColors.of(context)'));
         expect(design, contains('surfaceColors.card'));
         expect(design, contains('surfaceColors.control'));
+        expect(design, contains('color: surfaceColors.control'));
+        expect(design, contains('highlightColor: surfaceColors.controlActive'));
         expect(design, isNot(contains('YaruTileList(children: children)')));
+        expect(design, isNot(contains('YaruListTile.square')));
 
         expect(taskDetails, contains('BusyMaxClamp'));
         expect(taskDetails, contains('BusyMaxGroupedList'));
@@ -113,12 +117,21 @@ void main() {
         expect(scheduleAgenda, contains('BusyMaxGroupedList'));
         expect(scheduleAgenda, contains('BusyMaxActionRow'));
         expect(scheduleAgenda, isNot(contains('scheduleAgendaRowBackground')));
+        expect(scheduleAgenda, isNot(contains('surfaceColor:')));
+        expect(
+          scheduleAgenda,
+          isNot(contains('ScheduleProjection.colorForItem')),
+        );
         expect(scheduleAgenda, isNot(contains('class _AgendaDayHeader')));
         expect(scheduleAgenda, isNot(contains('class _AgendaPlainHeader')));
 
         expect(compactAgenda, contains('BusyMaxGroupedList'));
         expect(compactAgenda, contains('BusyMaxActionRow'));
         expect(compactAgenda, isNot(contains('scheduleAgendaRowBackground')));
+        expect(
+          compactAgenda,
+          isNot(contains('ScheduleProjection.colorForItem')),
+        );
 
         expect(dateTimeFields, contains('YaruDateTimeEntry'));
         expect(dateTimeFields, contains('_BusyMaxTimeTextEntry'));
@@ -627,11 +640,11 @@ void main() {
       expect(source, contains('header_bar_muted_foreground_color'));
       expect(source, contains('header_bar_disabled_foreground_color'));
       expect(source, contains('header_bar_control_hover_color'));
-      expect(source, contains('header_bar_accent_color'));
-      expect(source, contains('header_bar_accent_foreground_color'));
       expect(source, contains('header_bar_popover_background_color'));
       expect(source, contains('header_bar_border_color'));
       expect(source, contains('header_bar_shade_color'));
+      expect(source, contains('header_bar_accent_color'));
+      expect(source, contains('header_bar_accent_foreground_color'));
       expect(source, isNot(contains('kHeaderMenuFallbackBackgroundColor')));
       expect(source, isNot(contains('kHeaderMenuFallbackForegroundColor')));
       expect(source, contains('GTK_STYLE_CLASS_FLAT'));
@@ -732,7 +745,13 @@ void main() {
       );
       expect(source, contains('create_header_view_mode_item(self, "year"'));
       expect(source, contains('return "viewModeYear"'));
-      expect(source, isNot(contains('list-add-symbolic')));
+      expect(source, contains('list-add-symbolic'));
+      expect(
+        source,
+        contains(
+          'connect_header_bar_action(self, self->create_button, "create")',
+        ),
+      );
       expect(source, contains('open-menu-symbolic'));
       expect(source, contains('create_header_settings_item'));
       expect(
@@ -745,6 +764,13 @@ void main() {
 
     test('native headerbar colors use semantic Dart payload fields', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final barrierBackgroundStart = source.indexOf(
+        '".busymax-titlebar.busymax-modal-barrier,"',
+      );
+      final barrierBackgroundEnd = source.indexOf(
+        '".busymax-titlebar button.busymax-header-button,"',
+        barrierBackgroundStart,
+      );
       final barrierStart = source.indexOf(
         '".busymax-titlebar.busymax-modal-barrier label,"',
       );
@@ -776,6 +802,23 @@ void main() {
       expect(
         source,
         isNot(contains('gdk_rgba_parse(&background_color, "#00000000")')),
+      );
+      expect(barrierBackgroundStart, isNonNegative);
+      expect(barrierBackgroundEnd, isNonNegative);
+      final barrierBackgroundCss = source.substring(
+        barrierBackgroundStart,
+        barrierBackgroundEnd,
+      );
+      expect(barrierBackgroundCss, contains('"background-color: %s;"'));
+      expect(
+        barrierBackgroundCss,
+        contains('"headerbar.busymax-flat-headerbar:backdrop {"'),
+      );
+      expect(
+        source,
+        contains(
+          'sidebar_background_color, modal_barrier_color, modal_barrier_color',
+        ),
       );
       expect(barrierStart, isNonNegative);
       expect(barrierEnd, isNonNegative);

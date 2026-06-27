@@ -301,7 +301,7 @@ void main() {
     expect(find.textContaining('2026-06-04T07:00:00.0000000'), findsNothing);
   });
 
-  testWidgets('Task Details uses Yaru grouped rows without section blocks', (
+  testWidgets('Task Details uses BusyMax grouped rows without section blocks', (
     tester,
   ) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
@@ -312,6 +312,8 @@ void main() {
     expect(find.byType(YaruTitleBar), findsNothing);
     expect(find.byType(YaruSection), findsNothing);
     expect(find.byType(BusyMaxGroupedList), findsWidgets);
+    expect(find.byType(BusyMaxActionRow), findsWidgets);
+    expect(find.byType(BusyMaxCalendarValueRow), findsWidgets);
     expect(find.byType(YaruListTile), findsWidgets);
   });
 
@@ -669,11 +671,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final deleteRow = tester.widget<YaruListTile>(
+    final deleteRow = tester.widget<BusyMaxActionRow>(
       find
           .ancestor(
             of: find.text('Delete Task'),
-            matching: find.byType(YaruListTile),
+            matching: find.byType(BusyMaxActionRow),
           )
           .first,
     );
@@ -701,7 +703,10 @@ void main() {
     );
 
     final listRow = find
-        .ancestor(of: find.text('List'), matching: find.byType(YaruListTile))
+        .ancestor(
+          of: find.text('List'),
+          matching: find.byType(BusyMaxActionRow),
+        )
         .first;
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer();
@@ -1226,7 +1231,10 @@ String? _firstTextFieldText(WidgetTester tester) {
 
 Future<void> _openRowMenu(WidgetTester tester, String label) async {
   final row = find
-      .ancestor(of: find.text(label).first, matching: find.byType(YaruListTile))
+      .ancestor(
+        of: find.text(label).first,
+        matching: find.byType(BusyMaxCalendarValueRow),
+      )
       .first;
   await tester.ensureVisible(row);
   await tester.pumpAndSettle();

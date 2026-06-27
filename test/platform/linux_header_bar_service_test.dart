@@ -39,6 +39,7 @@ void main() {
         year: 'Year',
         agenda: 'Agenda',
         search: 'Search',
+        create: 'Create',
         refresh: 'Refresh',
         menu: 'Menu',
         previous: 'Previous',
@@ -73,7 +74,7 @@ void main() {
         controlColor: Color.fromRGBO(255, 255, 255, 0.10),
         controlHoverColor: Color.fromRGBO(255, 255, 255, 0.14),
         controlActiveColor: Color.fromRGBO(255, 255, 255, 0.18),
-        accentColor: Color(0xFF4A86CF),
+        accentColor: Color(0xFF2E7D32),
         accentForegroundColor: Color(0xFFFFFFFF),
         popoverBackgroundColor: Color(0xFF36363A),
         borderColor: Color.fromRGBO(0, 0, 6, 0.75),
@@ -106,6 +107,7 @@ void main() {
     expect(calls[2].arguments, 'week');
     expect(calls[5].arguments, containsPair('today', 'Today'));
     expect(calls[5].arguments, containsPair('year', 'Year'));
+    expect(calls[5].arguments, containsPair('create', 'Create'));
     expect(calls[5].arguments, containsPair('menu', 'Menu'));
     expect(calls[5].arguments, containsPair('sidebar', 'Toggle Sidebar'));
     expect(calls[5].arguments, containsPair('back', 'Back'));
@@ -129,7 +131,11 @@ void main() {
       calls.last.arguments,
       containsPair('controlHoverColor', 'rgba(255,255,255,0.14)'),
     );
-    expect(calls.last.arguments, containsPair('accentColor', '#4A86CF'));
+    expect(
+      calls.last.arguments,
+      containsPair('controlActiveColor', 'rgba(255,255,255,0.18)'),
+    );
+    expect(calls.last.arguments, containsPair('accentColor', '#2E7D32'));
     expect(
       calls.last.arguments,
       containsPair('accentForegroundColor', '#FFFFFF'),
@@ -155,12 +161,14 @@ void main() {
     );
     addTearDown(service.dispose);
 
-    final nextAction = service.actions.take(3).toList();
+    final nextAction = service.actions.take(4).toList();
+    await service.handleNativeMethodCall(const MethodCall('create'));
     await service.handleNativeMethodCall(const MethodCall('continueSetup'));
     await service.handleNativeMethodCall(const MethodCall('settings'));
     await service.handleNativeMethodCall(const MethodCall('aboutBusyMax'));
 
     expect(await nextAction, [
+      BusyMaxHeaderBarAction.create,
       BusyMaxHeaderBarAction.continueSetup,
       BusyMaxHeaderBarAction.settings,
       BusyMaxHeaderBarAction.aboutBusyMax,

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_surface_colors.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 
@@ -267,6 +268,7 @@ class _MiniCalendarDayButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final today = _sameDay(day, DateTime.now());
     final currentMonth =
         selectedYear == DateTime.now().year &&
@@ -301,7 +303,9 @@ class _MiniCalendarDayButton extends StatelessWidget {
                   dimension: markerSize,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: highlightToday ? colorScheme.primary : null,
+                      color: highlightToday
+                          ? surfaceColors.controlActive
+                          : null,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -311,7 +315,7 @@ class _MiniCalendarDayButton extends StatelessWidget {
                           '${day.day}',
                           style: TextStyle(
                             color: highlightToday
-                                ? colorScheme.onPrimary
+                                ? surfaceColors.foreground
                                 : day.month == selectedMonth
                                 ? null
                                 : colorScheme.onSurfaceVariant,

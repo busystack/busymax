@@ -56,7 +56,6 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     return SystemThemeBuilder(
       builder: (context, systemColor) {
         final accentColor = ubuntuAccentColor ?? systemColor.accent;
-
         return MaterialApp.router(
           title: 'BusyMax',
           debugShowCheckedModeBanner: false,
@@ -122,6 +121,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       year: l10n.viewYear,
       agenda: l10n.viewAgenda,
       search: materialL10n.searchFieldLabel,
+      create: l10n.create,
       refresh: l10n.refreshAll,
       menu: l10n.mainMenu,
       previous: materialL10n.previousPageTooltip,

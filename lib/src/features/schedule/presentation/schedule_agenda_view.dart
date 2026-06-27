@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
-import '../../../app/busymax_yaru_theme.dart';
+import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
@@ -241,12 +241,7 @@ class _AgendaItemMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isTask = item.kind == ScheduleItemKind.task;
-    final color = isTask
-        ? Theme.of(context).colorScheme.onSurfaceVariant
-        : ScheduleProjection.colorForItem(
-            item,
-            Theme.of(context).colorScheme.brightness,
-          );
+    final color = BusyMaxSurfaceColors.of(context).mutedForeground;
     final icon = isTask ? YaruIcons.task_list : YaruIcons.calendar;
     return Icon(icon, size: BusyMaxSizes.iconSm, color: color);
   }
