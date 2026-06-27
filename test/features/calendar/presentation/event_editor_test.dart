@@ -6,6 +6,7 @@ import 'package:busymax/src/features/calendar/presentation/event_editor_draft.da
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ubuntu_widgets/ubuntu_widgets.dart';
 
@@ -202,6 +203,104 @@ void main() {
     expect(saved?.start?.hour, 0);
     expect(saved?.start?.minute, 0);
     expect(saved?.end?.hour, 10);
+  });
+
+  testWidgets('Ctrl+S saves a dirty event editor', (tester) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField).first, 'Planning');
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+    expect(saved?.title, 'Planning');
+  });
+
+  testWidgets('Delete removes an existing event when not editing text', (
+    tester,
+  ) async {
+    String? deletedEventId;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+            onDelete: (eventId) => deletedEventId = eventId,
+          ),
+        ),
+      ),
+    );
+
+    _focusEditorShortcuts(tester);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+
+    expect(deletedEventId, 'event-1');
+  });
+
+  testWidgets('Backspace in an event text field does not delete the event', (
+    tester,
+  ) async {
+    String? deletedEventId;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+            onDelete: (eventId) => deletedEventId = eventId,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(TextFormField).first);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+
+    expect(deletedEventId, isNull);
   });
 
   test('event draft requires end after start', () {
@@ -850,6 +949,19 @@ Finder _plainTextFinder(String label) {
   return find.byWidgetPredicate(
     (widget) => widget is Text && widget.data == label,
   );
+}
+
+void _focusEditorShortcuts(WidgetTester tester) {
+  final focusFinder = find.descendant(
+    of: find.byType(EventEditor),
+    matching: find.byWidgetPredicate(
+      (widget) =>
+          widget is Focus &&
+          widget.focusNode?.debugLabel == 'Event editor shortcuts',
+    ),
+  );
+  final focusWidget = tester.widget<Focus>(focusFinder);
+  focusWidget.focusNode!.requestFocus();
 }
 
 const _sources = [

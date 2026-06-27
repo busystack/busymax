@@ -335,6 +335,84 @@ class AppLocalizationsEs extends AppLocalizations {
   String get mainMenu => 'Menú principal';
 
   @override
+  String get keyboardShortcuts => 'Atajos de teclado';
+
+  @override
+  String get shortcutGroupGeneral => 'General';
+
+  @override
+  String get shortcutKeyboardShortcutsDescription =>
+      'Mostrar esta referencia de atajos';
+
+  @override
+  String get shortcutGroupNavigation => 'Navegación';
+
+  @override
+  String get shortcutNextPeriod => 'Periodo siguiente';
+
+  @override
+  String get shortcutNextPeriodDescription =>
+      'Semana siguiente en la vista semanal, mes siguiente en la vista mensual, etc.';
+
+  @override
+  String get shortcutPreviousPeriod => 'Periodo anterior';
+
+  @override
+  String get shortcutPreviousPeriodDescription =>
+      'Semana anterior en la vista semanal, mes anterior en la vista mensual, etc.';
+
+  @override
+  String get shortcutJumpToToday => 'Ir a hoy';
+
+  @override
+  String get shortcutGroupView => 'Vista';
+
+  @override
+  String get shortcutDayView => 'Vista de día';
+
+  @override
+  String get shortcutWeekView => 'Vista de semana';
+
+  @override
+  String get shortcutMonthView => 'Vista de mes';
+
+  @override
+  String get shortcutYearView => 'Vista de año';
+
+  @override
+  String get shortcutAgendaView => 'Vista de agenda';
+
+  @override
+  String get shortcutGroupCreateAndEdit => 'Crear y editar';
+
+  @override
+  String get shortcutSaveItem => 'Guardar evento o tarea';
+
+  @override
+  String get shortcutDeleteItem => 'Eliminar evento o tarea';
+
+  @override
+  String get shortcutGroupTaskEditing => 'Edición de tareas';
+
+  @override
+  String get shortcutCancelEditing => 'Cancelar edición';
+
+  @override
+  String get shortcutCancelEditingDescription =>
+      'Cerrar la edición o los detalles de la tarea';
+
+  @override
+  String get shortcutGroupCompactAgenda => 'Agenda compacta';
+
+  @override
+  String get shortcutRefreshCompactAgendaDescription =>
+      'Actualizar la ventana de agenda compacta';
+
+  @override
+  String get shortcutHideCompactAgendaDescription =>
+      'Ocultar la ventana de agenda compacta';
+
+  @override
   String get aboutBusyMax => 'Acerca de BusyMax';
 
   @override

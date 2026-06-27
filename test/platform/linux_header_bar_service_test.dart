@@ -47,6 +47,7 @@ void main() {
         sidebar: 'Toggle Sidebar',
         back: 'Back',
         settings: 'Settings',
+        keyboardShortcuts: 'Keyboard Shortcuts',
         aboutBusyMax: 'About BusyMax',
       ),
     );
@@ -112,6 +113,10 @@ void main() {
     expect(calls[5].arguments, containsPair('sidebar', 'Toggle Sidebar'));
     expect(calls[5].arguments, containsPair('back', 'Back'));
     expect(calls[5].arguments, containsPair('settings', 'Settings'));
+    expect(
+      calls[5].arguments,
+      containsPair('keyboardShortcuts', 'Keyboard Shortcuts'),
+    );
     expect(calls[5].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
     expect(calls[6].arguments, 300);
     expect(calls[9].arguments, false);
@@ -161,16 +166,18 @@ void main() {
     );
     addTearDown(service.dispose);
 
-    final nextAction = service.actions.take(4).toList();
+    final nextAction = service.actions.take(5).toList();
     await service.handleNativeMethodCall(const MethodCall('create'));
     await service.handleNativeMethodCall(const MethodCall('continueSetup'));
     await service.handleNativeMethodCall(const MethodCall('settings'));
+    await service.handleNativeMethodCall(const MethodCall('keyboardShortcuts'));
     await service.handleNativeMethodCall(const MethodCall('aboutBusyMax'));
 
     expect(await nextAction, [
       BusyMaxHeaderBarAction.create,
       BusyMaxHeaderBarAction.continueSetup,
       BusyMaxHeaderBarAction.settings,
+      BusyMaxHeaderBarAction.keyboardShortcuts,
       BusyMaxHeaderBarAction.aboutBusyMax,
     ]);
   });

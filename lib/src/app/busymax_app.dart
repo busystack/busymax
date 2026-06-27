@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:system_theme/system_theme.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
@@ -12,6 +13,7 @@ import '../platform/linux_window_service.dart';
 import '../platform/main_window_command_bridge.dart';
 import 'app_bootstrap.dart';
 import 'app_router.dart';
+import 'busymax_keyboard_shortcuts_dialog.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'busymax_yaru_theme.dart';
 import 'busymax_design.dart';
@@ -93,9 +95,37 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
                 quitBusyMax: l10n.exit,
               ),
             );
-            return MainWindowCommandBridge(
-              child: _BusyMaxWindowCornerClip(
-                child: child ?? const SizedBox.shrink(),
+            return Shortcuts(
+              shortcuts: const {
+                SingleActivator(LogicalKeyboardKey.slash, control: true):
+                    _KeyboardShortcutsIntent(),
+              },
+              child: Actions(
+                actions: {
+                  _KeyboardShortcutsIntent:
+                      CallbackAction<_KeyboardShortcutsIntent>(
+                        onInvoke: (intent) {
+                          final navigatorContext =
+                              rootNavigatorKey.currentContext;
+                          if (navigatorContext != null) {
+                            unawaited(
+                              showBusyMaxKeyboardShortcutsDialog(
+                                navigatorContext,
+                                headerBarService: ref.read(
+                                  linuxHeaderBarServiceProvider,
+                                ),
+                              ),
+                            );
+                          }
+                          return null;
+                        },
+                      ),
+                },
+                child: MainWindowCommandBridge(
+                  child: _BusyMaxWindowCornerClip(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ),
               ),
             );
           },
@@ -129,6 +159,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       sidebar: l10n.toggleSidebar,
       back: materialL10n.backButtonTooltip,
       settings: l10n.settings,
+      keyboardShortcuts: l10n.keyboardShortcuts,
       aboutBusyMax: l10n.aboutBusyMax,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -231,6 +262,10 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     _startMinimizedHandled = true;
     await windowService.hideWindow();
   }
+}
+
+class _KeyboardShortcutsIntent extends Intent {
+  const _KeyboardShortcutsIntent();
 }
 
 class _BusyMaxWindowCornerClip extends StatelessWidget {

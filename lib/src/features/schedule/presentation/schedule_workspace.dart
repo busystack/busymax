@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
@@ -11,6 +12,7 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
+import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
@@ -91,11 +93,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     super.initState();
     _scope = widget.initialScope;
     _applyInitialScope();
+    HardwareKeyboard.instance.addHandler(_handleScheduleShortcutEvent);
     unawaited(_initializeHeaderBar());
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleScheduleShortcutEvent);
     if (_taskDetailsTarget != null) {
       unawaited(
         ref.read(linuxHeaderBarServiceProvider).setModalBarrierVisible(false),
@@ -492,6 +496,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         unawaited(_refreshAll());
       case BusyMaxHeaderBarAction.settings:
         context.go('/settings');
+      case BusyMaxHeaderBarAction.keyboardShortcuts:
+        unawaited(
+          showBusyMaxKeyboardShortcutsDialog(
+            context,
+            headerBarService: ref.read(linuxHeaderBarServiceProvider),
+          ),
+        );
       case BusyMaxHeaderBarAction.aboutBusyMax:
         unawaited(
           showBusyMaxAboutDialog(
@@ -855,6 +866,102 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     });
   }
 
+  bool _handleScheduleShortcutEvent(KeyEvent event) {
+    if (event is! KeyDownEvent || !_canHandleScheduleShortcut()) {
+      return false;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed) {
+      return false;
+    }
+
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowRight:
+        if (!keyboard.isShiftPressed || _mode == ScheduleViewMode.agenda) {
+          return false;
+        }
+        _next();
+        return true;
+      case LogicalKeyboardKey.arrowLeft:
+        if (!keyboard.isShiftPressed || _mode == ScheduleViewMode.agenda) {
+          return false;
+        }
+        _previous();
+        return true;
+      case LogicalKeyboardKey.keyE:
+        if (_latestVisibleSources.isEmpty) {
+          return false;
+        }
+        unawaited(
+          _openNewEvent(_latestVisibleSources, _defaultSelectedDateStart()),
+        );
+        return true;
+      case LogicalKeyboardKey.keyT:
+        if (!keyboard.isShiftPressed) {
+          if (_latestAccounts.isEmpty) {
+            return false;
+          }
+          unawaited(_openNewTask(_latestAccounts, due: _day(_selectedDate)));
+          return true;
+        }
+        _goToToday();
+        return true;
+      case LogicalKeyboardKey.digit1:
+      case LogicalKeyboardKey.numpad1:
+      case LogicalKeyboardKey.keyD:
+        _setMode(ScheduleViewMode.day);
+        return true;
+      case LogicalKeyboardKey.digit2:
+      case LogicalKeyboardKey.numpad2:
+      case LogicalKeyboardKey.keyW:
+        _setMode(ScheduleViewMode.week);
+        return true;
+      case LogicalKeyboardKey.digit3:
+      case LogicalKeyboardKey.numpad3:
+      case LogicalKeyboardKey.keyM:
+        _setMode(ScheduleViewMode.month);
+        return true;
+      case LogicalKeyboardKey.digit4:
+      case LogicalKeyboardKey.numpad4:
+      case LogicalKeyboardKey.keyY:
+        _setMode(ScheduleViewMode.year);
+        return true;
+      case LogicalKeyboardKey.digit0:
+      case LogicalKeyboardKey.numpad0:
+      case LogicalKeyboardKey.keyA:
+        _setMode(ScheduleViewMode.agenda);
+        return true;
+    }
+    return false;
+  }
+
+  DateTime _defaultSelectedDateStart() {
+    return DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      9,
+    );
+  }
+
+  bool _canHandleScheduleShortcut() {
+    if (!mounted || _searchActive || _taskDetailsTarget != null) {
+      return false;
+    }
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      return false;
+    }
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null) {
+      return true;
+    }
+    return focusContext.widget is! EditableText &&
+        focusContext.findAncestorWidgetOfExactType<EditableText>() == null;
+  }
+
   void _loadMoreAgendaDays() {
     if (_mode != ScheduleViewMode.agenda) {
       return;
@@ -910,7 +1017,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _openCreateChoice(
         _latestAccounts,
         _latestVisibleSources,
-        DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 9),
+        _defaultSelectedDateStart(),
       ),
     );
   }

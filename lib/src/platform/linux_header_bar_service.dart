@@ -22,6 +22,7 @@ enum BusyMaxHeaderBarAction {
   create,
   refresh,
   settings,
+  keyboardShortcuts,
   aboutBusyMax,
 }
 
@@ -43,6 +44,7 @@ class BusyMaxHeaderBarLabels {
     required this.sidebar,
     required this.back,
     required this.settings,
+    required this.keyboardShortcuts,
     required this.aboutBusyMax,
   });
 
@@ -61,6 +63,7 @@ class BusyMaxHeaderBarLabels {
   final String sidebar;
   final String back;
   final String settings;
+  final String keyboardShortcuts;
   final String aboutBusyMax;
 
   Map<String, String> toJson() {
@@ -80,6 +83,7 @@ class BusyMaxHeaderBarLabels {
       'sidebar': sidebar,
       'back': back,
       'settings': settings,
+      'keyboardShortcuts': keyboardShortcuts,
       'aboutBusyMax': aboutBusyMax,
     };
   }
@@ -103,6 +107,7 @@ class BusyMaxHeaderBarLabels {
             sidebar == other.sidebar &&
             back == other.back &&
             settings == other.settings &&
+            keyboardShortcuts == other.keyboardShortcuts &&
             aboutBusyMax == other.aboutBusyMax;
   }
 
@@ -123,6 +128,7 @@ class BusyMaxHeaderBarLabels {
     sidebar,
     back,
     settings,
+    keyboardShortcuts,
     aboutBusyMax,
   );
 }
@@ -479,6 +485,7 @@ class LinuxHeaderBarService {
       'create' => BusyMaxHeaderBarAction.create,
       'refresh' => BusyMaxHeaderBarAction.refresh,
       'settings' => BusyMaxHeaderBarAction.settings,
+      'keyboardShortcuts' => BusyMaxHeaderBarAction.keyboardShortcuts,
       'aboutBusyMax' => BusyMaxHeaderBarAction.aboutBusyMax,
       _ => null,
     };

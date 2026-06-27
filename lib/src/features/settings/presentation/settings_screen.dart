@@ -11,6 +11,7 @@ import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
+import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../task_providers/task_provider.dart';
@@ -278,6 +279,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     if (action == BusyMaxHeaderBarAction.settings) {
       setState(() => _page = SettingsPage.accounts);
+      return;
+    }
+    if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
+      unawaited(
+        showBusyMaxKeyboardShortcutsDialog(
+          context,
+          headerBarService: ref.read(linuxHeaderBarServiceProvider),
+        ),
+      );
       return;
     }
     if (action == BusyMaxHeaderBarAction.aboutBusyMax) {
