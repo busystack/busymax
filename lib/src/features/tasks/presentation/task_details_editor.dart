@@ -95,6 +95,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   final _titleController = TextEditingController();
   final _notesController = TextEditingController();
   final _categoryController = TextEditingController();
+  final _shortcutFocusNode = FocusNode(debugLabel: 'Task editor shortcuts');
 
   TaskDetailsDraft? _draft;
   TaskDetailsDraft? _cleanDraftBaseline;
@@ -103,6 +104,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   var _saving = false;
   var _addingCategory = false;
   var _confirmingTaskSwitch = false;
+  var _confirmingDelete = false;
 
   @override
   void initState() {
@@ -134,6 +136,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   @override
   void dispose() {
+    _shortcutFocusNode.dispose();
     _titleController.dispose();
     _notesController.dispose();
     _categoryController.dispose();
@@ -159,9 +162,18 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     ].where((value) => value != null && value.isNotEmpty).join(' · ');
 
     return CallbackShortcuts(
-      bindings: {const SingleActivator(LogicalKeyboardKey.escape): _cancel},
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): _cancel,
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () {
+          if (canSave) {
+            unawaited(_save());
+          }
+        },
+      },
       child: Focus(
         autofocus: true,
+        focusNode: _shortcutFocusNode,
+        onKeyEvent: _handleEditorKeyEvent,
         child: Column(
           children: [
             _TaskDetailsHeader(
@@ -349,6 +361,30 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         ),
       ),
     );
+  }
+
+  KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        !widget.showDeleteAction ||
+        _isEditableTextFocused()) {
+      return KeyEventResult.ignored;
+    }
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.backspace:
+      case LogicalKeyboardKey.delete:
+        unawaited(_deleteTask());
+        return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  bool _isEditableTextFocused() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null) {
+      return false;
+    }
+    return focusContext.widget is EditableText ||
+        focusContext.findAncestorWidgetOfExactType<EditableText>() != null;
   }
 
   bool get _hasAccountSelector {
@@ -676,16 +712,24 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   }
 
   Future<void> _deleteTask() async {
-    final confirmed = await showBusyMaxConfirm(
-      context,
-      title: context.l10n.deleteTask,
-      message: context.l10n.deleteTaskConfirmation(_editingTask.title),
-      confirmLabel: context.l10n.delete,
-      destructive: true,
-      barrierColor: widget.dialogBarrierColor,
-    );
-    if (confirmed) {
-      await widget.onDelete();
+    if (_confirmingDelete) {
+      return;
+    }
+    _confirmingDelete = true;
+    try {
+      final confirmed = await showBusyMaxConfirm(
+        context,
+        title: context.l10n.deleteTask,
+        message: context.l10n.deleteTaskConfirmation(_editingTask.title),
+        confirmLabel: context.l10n.delete,
+        destructive: true,
+        barrierColor: widget.dialogBarrierColor,
+      );
+      if (confirmed) {
+        await widget.onDelete();
+      }
+    } finally {
+      _confirmingDelete = false;
     }
   }
 

@@ -1098,13 +1098,19 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('HardwareKeyboard.instance.addHandler'));
-    expect(source, contains('LogicalKeyboardKey.keyJ'));
-    expect(source, contains('LogicalKeyboardKey.keyN'));
+    expect(source, contains('LogicalKeyboardKey.arrowRight'));
     expect(source, contains('_next();'));
-    expect(source, contains('LogicalKeyboardKey.keyK'));
-    expect(source, contains('LogicalKeyboardKey.keyP'));
+    expect(source, contains('LogicalKeyboardKey.arrowLeft'));
     expect(source, contains('_previous();'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyJ')));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyN')));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyK')));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyP')));
+    expect(source, contains('LogicalKeyboardKey.keyC'));
+    expect(source, contains('_openNewEvent(_latestVisibleSources'));
     expect(source, contains('LogicalKeyboardKey.keyT'));
+    expect(source, contains('_openNewTask(_latestAccounts'));
+    expect(source, contains('keyboard.isShiftPressed'));
     expect(source, contains('_goToToday();'));
     expect(source, contains('LogicalKeyboardKey.digit1'));
     expect(source, contains('LogicalKeyboardKey.keyD'));

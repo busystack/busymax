@@ -154,6 +154,25 @@ void main() {
     expect(repository.patches.single.fields, {'title': 'Renamed task'});
   });
 
+  testWidgets('Ctrl+S saves a dirty task editor', (tester) async {
+    final repository = _FakeTasksRepository();
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      repository: repository,
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'Renamed task');
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(repository.patches, hasLength(1));
+    expect(repository.patches.single.fields, {'title': 'Renamed task'});
+  });
+
   testWidgets('Save closes editor after successful save', (tester) async {
     final repository = _FakeTasksRepository();
     var closed = false;
@@ -680,6 +699,45 @@ void main() {
           .first,
     );
     expect(deleteRow.onTap, isNotNull);
+  });
+
+  testWidgets('Delete prompts and deletes the current task', (tester) async {
+    final repository = _FakeTasksRepository();
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      repository: repository,
+    );
+
+    _focusEditorShortcuts(tester);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
+    await tester.tap(_confirmDialogButton('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(repository.deleteCalls, 1);
+  });
+
+  testWidgets('Backspace in a task text field does not prompt delete', (
+    tester,
+  ) async {
+    final repository = _FakeTasksRepository();
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      repository: repository,
+    );
+
+    await tester.tap(find.byType(TextField).first);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BusyMaxConfirmDialog), findsNothing);
+    expect(repository.deleteCalls, 0);
   });
 
   testWidgets('metadata is not shown in Edit Task', (tester) async {
@@ -1227,6 +1285,19 @@ String? _firstTextFieldText(WidgetTester tester) {
       .widget<TextField>(find.byType(TextField).first)
       .controller
       ?.text;
+}
+
+void _focusEditorShortcuts(WidgetTester tester) {
+  final focusFinder = find.descendant(
+    of: find.byType(TaskDetailsEditor),
+    matching: find.byWidgetPredicate(
+      (widget) =>
+          widget is Focus &&
+          widget.focusNode?.debugLabel == 'Task editor shortcuts',
+    ),
+  );
+  final focusWidget = tester.widget<Focus>(focusFinder);
+  focusWidget.focusNode!.requestFocus();
 }
 
 Future<void> _openRowMenu(WidgetTester tester, String label) async {

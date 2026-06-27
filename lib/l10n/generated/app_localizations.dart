@@ -810,6 +810,24 @@ abstract class AppLocalizations {
   /// **'Agenda view'**
   String get shortcutAgendaView;
 
+  /// No description provided for @shortcutGroupCreateAndEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Create and Edit'**
+  String get shortcutGroupCreateAndEdit;
+
+  /// No description provided for @shortcutSaveItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Save event or task'**
+  String get shortcutSaveItem;
+
+  /// No description provided for @shortcutDeleteItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete event or task'**
+  String get shortcutDeleteItem;
+
   /// No description provided for @shortcutGroupTaskEditing.
   ///
   /// In en, this message translates to:

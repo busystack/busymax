@@ -381,6 +381,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get shortcutAgendaView => 'Agendaansicht';
 
   @override
+  String get shortcutGroupCreateAndEdit => 'Erstellen und Bearbeiten';
+
+  @override
+  String get shortcutSaveItem => 'Termin oder Aufgabe speichern';
+
+  @override
+  String get shortcutDeleteItem => 'Termin oder Aufgabe löschen';
+
+  @override
   String get shortcutGroupTaskEditing => 'Aufgabenbearbeitung';
 
   @override

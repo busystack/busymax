@@ -383,6 +383,15 @@ class AppLocalizationsEs extends AppLocalizations {
   String get shortcutAgendaView => 'Vista de agenda';
 
   @override
+  String get shortcutGroupCreateAndEdit => 'Crear y editar';
+
+  @override
+  String get shortcutSaveItem => 'Guardar evento o tarea';
+
+  @override
+  String get shortcutDeleteItem => 'Eliminar evento o tarea';
+
+  @override
   String get shortcutGroupTaskEditing => 'Edición de tareas';
 
   @override

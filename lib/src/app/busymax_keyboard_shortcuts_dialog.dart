@@ -80,18 +80,58 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
                         title: l10n.shortcutNextPeriod,
                         subtitle: l10n.shortcutNextPeriodDescription,
                         leading: const Icon(Icons.arrow_forward),
-                        trailing: const _KeyboardShortcutBadge('J / N'),
+                        trailing: const _KeyboardShortcutBadge('Shift+Right'),
                       ),
                       BusyMaxActionRow(
                         title: l10n.shortcutPreviousPeriod,
                         subtitle: l10n.shortcutPreviousPeriodDescription,
                         leading: const Icon(Icons.arrow_back),
-                        trailing: const _KeyboardShortcutBadge('K / P'),
+                        trailing: const _KeyboardShortcutBadge('Shift+Left'),
                       ),
                       BusyMaxActionRow(
                         title: l10n.shortcutJumpToToday,
                         leading: const Icon(Icons.today_outlined),
+                        trailing: const _KeyboardShortcutBadge('Shift+T'),
+                      ),
+                    ],
+                  ),
+                  BusyMaxGroupedList(
+                    title: l10n.shortcutGroupCreateAndEdit,
+                    filled: true,
+                    children: [
+                      BusyMaxActionRow(
+                        title: l10n.newEvent,
+                        leading: const Icon(Icons.event_outlined),
+                        trailing: const _KeyboardShortcutBadge('C'),
+                      ),
+                      BusyMaxActionRow(
+                        title: l10n.newTask,
+                        leading: const Icon(Icons.task_alt_outlined),
                         trailing: const _KeyboardShortcutBadge('T'),
+                      ),
+                      BusyMaxActionRow(
+                        title: l10n.shortcutSaveItem,
+                        leading: const Icon(Icons.save_outlined),
+                        trailing: const _KeyboardShortcutBadge('Ctrl+S'),
+                      ),
+                      BusyMaxActionRow(
+                        title: l10n.shortcutDeleteItem,
+                        leading: const Icon(Icons.delete_outline),
+                        trailing: const _KeyboardShortcutBadge(
+                          'Backspace / Delete',
+                        ),
+                      ),
+                    ],
+                  ),
+                  BusyMaxGroupedList(
+                    title: l10n.shortcutGroupTaskEditing,
+                    filled: true,
+                    children: [
+                      BusyMaxActionRow(
+                        title: l10n.shortcutCancelEditing,
+                        subtitle: l10n.shortcutCancelEditingDescription,
+                        leading: const Icon(Icons.close),
+                        trailing: const _KeyboardShortcutBadge('Esc'),
                       ),
                     ],
                   ),
@@ -123,18 +163,6 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
                         title: l10n.shortcutAgendaView,
                         leading: const Icon(Icons.view_agenda_outlined),
                         trailing: const _KeyboardShortcutBadge('0 / A'),
-                      ),
-                    ],
-                  ),
-                  BusyMaxGroupedList(
-                    title: l10n.shortcutGroupTaskEditing,
-                    filled: true,
-                    children: [
-                      BusyMaxActionRow(
-                        title: l10n.shortcutCancelEditing,
-                        subtitle: l10n.shortcutCancelEditingDescription,
-                        leading: const Icon(Icons.close),
-                        trailing: const _KeyboardShortcutBadge('Esc'),
                       ),
                     ],
                   ),

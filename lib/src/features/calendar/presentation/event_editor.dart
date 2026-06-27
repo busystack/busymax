@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
@@ -83,6 +84,7 @@ class EventEditor extends StatefulWidget {
 
 class _EventEditorState extends State<EventEditor> {
   late EventEditorDraft _draft;
+  final _shortcutFocusNode = FocusNode(debugLabel: 'Event editor shortcuts');
   final _guestController = TextEditingController();
   final _categoryController = TextEditingController();
   String? _guestError;
@@ -97,6 +99,7 @@ class _EventEditorState extends State<EventEditor> {
 
   @override
   void dispose() {
+    _shortcutFocusNode.dispose();
     _guestController.dispose();
     _categoryController.dispose();
     super.dispose();
@@ -118,173 +121,228 @@ class _EventEditorState extends State<EventEditor> {
         ? l10n.newEvent
         : l10n.editEvent;
     final canSave = dirty && _draft.canSave;
-    return BusyMaxModalEditorScaffold(
-      title: title,
-      cancelLabel: l10n.cancel,
-      saveLabel: l10n.save,
-      onCancel: widget.onCancel,
-      onSave: canSave ? () => widget.onSave(_draft) : null,
-      children: [
-        BusyMaxGroupedList(
-          filled: true,
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () {
+          if (canSave) {
+            widget.onSave(_draft);
+          }
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        focusNode: _shortcutFocusNode,
+        onKeyEvent: _handleEditorKeyEvent,
+        child: BusyMaxModalEditorScaffold(
+          title: title,
+          cancelLabel: l10n.cancel,
+          saveLabel: l10n.save,
+          onCancel: widget.onCancel,
+          onSave: canSave ? () => widget.onSave(_draft) : null,
           children: [
-            YaruListTile.square(
-              hoverColor: busyMaxEditorRowHoverColor(context),
-              title: TextFormField(
-                initialValue: _draft.title,
-                autofocus: true,
-                decoration: _plainEventFieldDecoration(
-                  context,
-                  labelText: l10n.title,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _draft = _draft.copyWith(title: value);
-                  });
-                },
-              ),
-            ),
-            YaruListTile.square(
-              hoverColor: busyMaxEditorRowHoverColor(context),
-              title: TextFormField(
-                initialValue: _draft.location,
-                decoration: _plainEventFieldDecoration(
-                  context,
-                  labelText: l10n.location,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _draft = _draft.copyWith(location: value);
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-        BusyMaxGroupedList(filled: true, children: [_calendarRow()]),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            BusyMaxTimeModeRow(allDay: _draft.allDay, onChanged: _setAllDay),
-          ],
-        ),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            DesktopDateValueRow(
-              label: l10n.startDate,
-              date: _dateString(_draft.start),
-              onChanged: (value) {
-                _setStart(_withDate(_draft.start, value));
-              },
-              emptyLabel: l10n.noneValue,
-            ),
-            if (!_draft.allDay)
-              DesktopTimeValueRow(
-                label: l10n.startTime,
-                time: _timeString(_draft.start),
-                onChanged: (value) {
-                  _setStart(_withTime(_draft.start, value));
-                },
-                emptyLabel: '--:--',
-                allowEmpty: false,
-              ),
-          ],
-        ),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            DesktopDateValueRow(
-              label: l10n.endDate,
-              date: _dateString(_draft.end),
-              onChanged: (value) {
-                _setEnd(_withDate(_draft.end, value));
-              },
-              emptyLabel: l10n.noneValue,
-            ),
-            if (!_draft.allDay)
-              DesktopTimeValueRow(
-                label: l10n.endTime,
-                time: _timeString(_draft.end),
-                onChanged: (value) {
-                  _setEnd(_withTime(_draft.end, value));
-                },
-                emptyLabel: '--:--',
-                allowEmpty: false,
-              ),
-          ],
-        ),
-        BusyMaxGroupedList(filled: true, children: [_repeatRow(provider)]),
-        BusyMaxGroupedList(
-          title: l10n.reminder,
-          filled: true,
-          children: _reminderRows(provider),
-        ),
-        BusyMaxGroupedList(
-          title: l10n.guests,
-          filled: true,
-          children: _guestRows(),
-        ),
-        if (provider == TaskProvider.microsoft)
-          BusyMaxGroupedList(
-            title: l10n.organizationSection,
-            filled: true,
-            children: [_categoriesRow()],
-          ),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            YaruListTile.square(
-              hoverColor: busyMaxEditorRowHoverColor(context),
-              title: EventDescriptionEditor(
-                provider: provider,
-                text: _draft.description,
-                contentType: _draft.descriptionContentType,
-                html: _draft.descriptionHtml,
-                onChanged: (value) {
-                  setState(() {
-                    _draft = _draft.copyWith(
-                      description: value.text,
-                      descriptionContentType: value.contentType,
-                      descriptionHtml: value.html,
-                    );
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [_availabilityRow(provider)],
-        ),
-        BusyMaxGroupedList(filled: true, children: [_visibilityRow(provider)]),
-        if (_draft.eventId != null && widget.onDelete != null)
-          const SizedBox(height: BusyMaxSpacing.md),
-        if (_draft.eventId != null && widget.onDelete != null)
-          BusyMaxGroupedList(
-            filled: true,
-            children: [
-              BusyMaxActionRow(
-                title: l10n.deleteEvent,
-                titleWidget: Center(
-                  child: Text(
-                    l10n.deleteEvent,
-                    style: _eventEditorProminentActionStyle(
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                YaruListTile.square(
+                  hoverColor: busyMaxEditorRowHoverColor(context),
+                  title: TextFormField(
+                    initialValue: _draft.title,
+                    autofocus: true,
+                    decoration: _plainEventFieldDecoration(
                       context,
-                      color: Theme.of(context).colorScheme.error,
-                      fontWeight: FontWeight.w700,
+                      labelText: l10n.title,
                     ),
+                    onChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(title: value);
+                      });
+                    },
                   ),
                 ),
-                destructive: true,
-                onTap: () => widget.onDelete?.call(_draft.eventId!),
+                YaruListTile.square(
+                  hoverColor: busyMaxEditorRowHoverColor(context),
+                  title: TextFormField(
+                    initialValue: _draft.location,
+                    decoration: _plainEventFieldDecoration(
+                      context,
+                      labelText: l10n.location,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(location: value);
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            BusyMaxGroupedList(filled: true, children: [_calendarRow()]),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                BusyMaxTimeModeRow(
+                  allDay: _draft.allDay,
+                  onChanged: _setAllDay,
+                ),
+              ],
+            ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                DesktopDateValueRow(
+                  label: l10n.startDate,
+                  date: _dateString(_draft.start),
+                  onChanged: (value) {
+                    _setStart(_withDate(_draft.start, value));
+                  },
+                  emptyLabel: l10n.noneValue,
+                ),
+                if (!_draft.allDay)
+                  DesktopTimeValueRow(
+                    label: l10n.startTime,
+                    time: _timeString(_draft.start),
+                    onChanged: (value) {
+                      _setStart(_withTime(_draft.start, value));
+                    },
+                    emptyLabel: '--:--',
+                    allowEmpty: false,
+                  ),
+              ],
+            ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                DesktopDateValueRow(
+                  label: l10n.endDate,
+                  date: _dateString(_draft.end),
+                  onChanged: (value) {
+                    _setEnd(_withDate(_draft.end, value));
+                  },
+                  emptyLabel: l10n.noneValue,
+                ),
+                if (!_draft.allDay)
+                  DesktopTimeValueRow(
+                    label: l10n.endTime,
+                    time: _timeString(_draft.end),
+                    onChanged: (value) {
+                      _setEnd(_withTime(_draft.end, value));
+                    },
+                    emptyLabel: '--:--',
+                    allowEmpty: false,
+                  ),
+              ],
+            ),
+            BusyMaxGroupedList(filled: true, children: [_repeatRow(provider)]),
+            BusyMaxGroupedList(
+              title: l10n.reminder,
+              filled: true,
+              children: _reminderRows(provider),
+            ),
+            BusyMaxGroupedList(
+              title: l10n.guests,
+              filled: true,
+              children: _guestRows(),
+            ),
+            if (provider == TaskProvider.microsoft)
+              BusyMaxGroupedList(
+                title: l10n.organizationSection,
+                filled: true,
+                children: [_categoriesRow()],
               ),
-            ],
-          ),
-        const SizedBox(height: BusyMaxSpacing.lg),
-      ],
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                YaruListTile.square(
+                  hoverColor: busyMaxEditorRowHoverColor(context),
+                  title: EventDescriptionEditor(
+                    provider: provider,
+                    text: _draft.description,
+                    contentType: _draft.descriptionContentType,
+                    html: _draft.descriptionHtml,
+                    onChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(
+                          description: value.text,
+                          descriptionContentType: value.contentType,
+                          descriptionHtml: value.html,
+                        );
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [_availabilityRow(provider)],
+            ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [_visibilityRow(provider)],
+            ),
+            if (_draft.eventId != null && widget.onDelete != null)
+              const SizedBox(height: BusyMaxSpacing.md),
+            if (_draft.eventId != null && widget.onDelete != null)
+              BusyMaxGroupedList(
+                filled: true,
+                children: [
+                  BusyMaxActionRow(
+                    title: l10n.deleteEvent,
+                    titleWidget: Center(
+                      child: Text(
+                        l10n.deleteEvent,
+                        style: _eventEditorProminentActionStyle(
+                          context,
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    destructive: true,
+                    onTap: _deleteCurrentEvent,
+                  ),
+                ],
+              ),
+            const SizedBox(height: BusyMaxSpacing.lg),
+          ],
+        ),
+      ),
     );
+  }
+
+  KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        !_canDeleteWithShortcut ||
+        _isEditableTextFocused()) {
+      return KeyEventResult.ignored;
+    }
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.backspace:
+      case LogicalKeyboardKey.delete:
+        _deleteCurrentEvent();
+        return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  bool get _canDeleteWithShortcut {
+    return _draft.eventId != null && widget.onDelete != null;
+  }
+
+  bool _isEditableTextFocused() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null) {
+      return false;
+    }
+    return focusContext.widget is EditableText ||
+        focusContext.findAncestorWidgetOfExactType<EditableText>() != null;
+  }
+
+  void _deleteCurrentEvent() {
+    final eventId = _draft.eventId;
+    if (eventId != null && widget.onDelete != null) {
+      widget.onDelete!(eventId);
+    }
   }
 
   Widget _repeatRow(BusyProvider provider) {

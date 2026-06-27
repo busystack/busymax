@@ -873,27 +873,39 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     final keyboard = HardwareKeyboard.instance;
     if (keyboard.isControlPressed ||
         keyboard.isAltPressed ||
-        keyboard.isMetaPressed ||
-        keyboard.isShiftPressed) {
+        keyboard.isMetaPressed) {
       return false;
     }
 
     switch (event.logicalKey) {
-      case LogicalKeyboardKey.keyJ:
-      case LogicalKeyboardKey.keyN:
-        if (_mode == ScheduleViewMode.agenda) {
+      case LogicalKeyboardKey.arrowRight:
+        if (!keyboard.isShiftPressed || _mode == ScheduleViewMode.agenda) {
           return false;
         }
         _next();
         return true;
-      case LogicalKeyboardKey.keyK:
-      case LogicalKeyboardKey.keyP:
-        if (_mode == ScheduleViewMode.agenda) {
+      case LogicalKeyboardKey.arrowLeft:
+        if (!keyboard.isShiftPressed || _mode == ScheduleViewMode.agenda) {
           return false;
         }
         _previous();
         return true;
+      case LogicalKeyboardKey.keyC:
+        if (_latestVisibleSources.isEmpty) {
+          return false;
+        }
+        unawaited(
+          _openNewEvent(_latestVisibleSources, _defaultSelectedDateStart()),
+        );
+        return true;
       case LogicalKeyboardKey.keyT:
+        if (!keyboard.isShiftPressed) {
+          if (_latestAccounts.isEmpty) {
+            return false;
+          }
+          unawaited(_openNewTask(_latestAccounts, due: _day(_selectedDate)));
+          return true;
+        }
         _goToToday();
         return true;
       case LogicalKeyboardKey.digit1:
@@ -923,6 +935,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         return true;
     }
     return false;
+  }
+
+  DateTime _defaultSelectedDateStart() {
+    return DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      9,
+    );
   }
 
   bool _canHandleScheduleShortcut() {
@@ -996,7 +1017,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _openCreateChoice(
         _latestAccounts,
         _latestVisibleSources,
-        DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 9),
+        _defaultSelectedDateStart(),
       ),
     );
   }
