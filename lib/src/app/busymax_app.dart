@@ -143,6 +143,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     final modalBarrierColor = Theme.of(
       context,
     ).colorScheme.scrim.withValues(alpha: 0.32);
+    final preferDark = Theme.of(context).brightness == Brightness.dark;
     final labels = BusyMaxHeaderBarLabels(
       today: l10n.today,
       day: l10n.viewDay,
@@ -170,6 +171,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         await service.setSidebarWidth(BusyMaxSizes.sidebarWidth);
         await service.setTheme(
           BusyMaxHeaderBarTheme(
+            preferDark: preferDark,
             windowBackgroundColor: colors.window,
             backgroundColor: colors.view,
             sidebarBackgroundColor: colors.sidebar,

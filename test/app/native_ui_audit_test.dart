@@ -873,6 +873,10 @@ void main() {
 
     test('native GTK theme colors are streamed to Flutter', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final headerBarService = File(
+        'lib/src/platform/linux_header_bar_service.dart',
+      ).readAsStringSync();
+      final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
 
       expect(source, contains('kGtkThemeColorsEventChannel'));
       expect(source, contains('io.busystack.busymax/gtk_theme_colors'));
@@ -890,6 +894,36 @@ void main() {
         source,
         contains('g_clear_object(&self->gtk_theme_colors_event_channel)'),
       );
+      expect(headerBarService, contains('required this.preferDark'));
+      expect(headerBarService, contains("'preferDark': preferDark"));
+      expect(
+        app,
+        contains(
+          'final preferDark = Theme.of(context).brightness == Brightness.dark',
+        ),
+      );
+      expect(app, contains('preferDark: preferDark'));
+      expect(source, contains('static void set_gtk_theme_preference'));
+      expect(
+        source,
+        contains('"gtk-application-prefer-dark-theme", prefer_dark'),
+      );
+      expect(source, contains('available_gtk_theme_fallback(prefer_dark)'));
+      expect(source, contains('g_strcmp0(theme_name, fallback) != 0'));
+      expect(source, contains('available_icon_theme_fallback(prefer_dark)'));
+      expect(
+        source,
+        contains('g_strcmp0(icon_theme_name, icon_fallback) != 0'),
+      );
+      expect(source, contains('gtk_icon_theme_set_custom_theme'));
+      expect(source, contains('fl_lookup_optional_bool_arg'));
+      expect(
+        source,
+        contains('fl_lookup_optional_bool_arg(args, "preferDark"'),
+      );
+      expect(source, contains('set_gtk_theme_preference(prefer_dark);'));
+      expect(source, isNot(contains('prefer_dark_gtk_theme')));
+      expect(source, isNot(contains('set_gtk_theme_preference(TRUE)')));
     });
 
     test('app code does not bypass centralized typography', () {

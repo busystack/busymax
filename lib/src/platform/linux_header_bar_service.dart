@@ -136,6 +136,7 @@ class BusyMaxHeaderBarLabels {
 @immutable
 class BusyMaxHeaderBarTheme {
   const BusyMaxHeaderBarTheme({
+    required this.preferDark,
     required this.windowBackgroundColor,
     required this.backgroundColor,
     required this.sidebarBackgroundColor,
@@ -153,6 +154,7 @@ class BusyMaxHeaderBarTheme {
     required this.modalBarrierColor,
   });
 
+  final bool preferDark;
   final Color windowBackgroundColor;
   final Color backgroundColor;
   final Color sidebarBackgroundColor;
@@ -169,8 +171,9 @@ class BusyMaxHeaderBarTheme {
   final Color shadeColor;
   final Color modalBarrierColor;
 
-  Map<String, String> toJson() {
-    return {
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'preferDark': preferDark,
       'windowBackgroundColor': busyMaxCssColor(windowBackgroundColor),
       'backgroundColor': busyMaxCssColor(backgroundColor),
       'sidebarBackgroundColor': busyMaxCssColor(sidebarBackgroundColor),
@@ -193,6 +196,7 @@ class BusyMaxHeaderBarTheme {
   bool operator ==(Object other) {
     return identical(this, other) ||
         other is BusyMaxHeaderBarTheme &&
+            other.preferDark == preferDark &&
             other.windowBackgroundColor == windowBackgroundColor &&
             other.backgroundColor == backgroundColor &&
             other.sidebarBackgroundColor == sidebarBackgroundColor &&
@@ -212,6 +216,7 @@ class BusyMaxHeaderBarTheme {
 
   @override
   int get hashCode => Object.hash(
+    preferDark,
     windowBackgroundColor,
     backgroundColor,
     sidebarBackgroundColor,

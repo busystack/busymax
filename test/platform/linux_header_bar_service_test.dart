@@ -66,6 +66,7 @@ void main() {
     await service.setModalBarrierVisible(true);
     await service.setTheme(
       const BusyMaxHeaderBarTheme(
+        preferDark: true,
         windowBackgroundColor: Color(0xFF18181B),
         backgroundColor: Color(0xFF1D1D20),
         sidebarBackgroundColor: Color(0xFF2E2E32),
@@ -123,6 +124,7 @@ void main() {
     expect(calls[11].arguments, containsPair('visible', true));
     expect(calls[11].arguments, containsPair('canContinue', true));
     expect(calls[11].arguments, containsPair('continueLabel', 'Continue'));
+    expect(calls.last.arguments, containsPair('preferDark', true));
     expect(calls.last.arguments, containsPair('backgroundColor', '#1D1D20'));
     expect(
       calls.last.arguments,
