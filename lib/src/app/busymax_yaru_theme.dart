@@ -11,6 +11,22 @@ import 'busymax_surface_colors.dart';
 export 'busymax_surface_colors.dart';
 
 abstract final class BusyMaxLinuxPalette {
+  static const blueAccent = Color(0xFF3584E4);
+  static const ubuntuBlueAccent = Color(0xFF0073E5);
+  static const ubuntuTealAccent = Color(0xFF2190A4);
+  static const ubuntuGreenAccent = Color(0xFF3A944A);
+  static const ubuntuYellowAccent = Color(0xFFC88800);
+  static const ubuntuOrangeAccent = Color(0xFFED5B00);
+  static const ubuntuRedAccent = Color(0xFFDA3450);
+  static const ubuntuPinkAccent = Color(0xFFD56199);
+  static const ubuntuPurpleAccent = Color(0xFF7764D8);
+  static const ubuntuSlateAccent = Color(0xFF6F8396);
+  static const ubuntuBrownAccent = Color(0xFF986A44);
+  static const ubuntuMagentaAccent = Color(0xFFB34CB3);
+  static const ubuntuOliveAccent = Color(0xFF4B8501);
+  static const ubuntuPrussianGreenAccent = Color(0xFF308280);
+  static const ubuntuSageAccent = Color(0xFF657B69);
+  static const ubuntuWartyBrownAccent = Color(0xFFB39169);
   static const red3 = Color(0xFFE01B24);
   static const red5 = Color(0xFFA51D2D);
   static const light1 = Color(0xFFFFFFFF);

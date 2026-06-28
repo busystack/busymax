@@ -1,42 +1,176 @@
+import 'dart:io';
+
+import 'package:dbus/dbus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:system_theme/system_theme.dart';
 
-import 'system_accent_change_events.dart';
+import 'busymax_yaru_theme.dart';
 
-typedef SystemAccentLoader = Future<Color> Function();
-typedef SystemAccentChangeEvents = Stream<Object?> Function();
+const busyMaxDefaultAccentColor = BusyMaxLinuxPalette.blueAccent;
 
-final systemAccentLoaderProvider = Provider<SystemAccentLoader>((ref) {
-  return () async {
-    await SystemTheme.accentColor.load();
-    return SystemTheme.accentColor.accent;
-  };
-});
+final initialSystemAccentColorProvider = Provider<Color>(
+  (ref) => busyMaxDefaultAccentColor,
+);
 
-final systemAccentChangeEventsProvider = Provider<SystemAccentChangeEvents>((
-  ref,
-) {
-  return systemAccentChangeEvents;
-});
-
-final systemAccentReloadDelayProvider = Provider<Duration>((ref) {
-  return const Duration(milliseconds: 100);
-});
+final linuxPortalAppearanceProvider = Provider<LinuxPortalAppearance>(
+  (ref) => const LinuxPortalAppearance(),
+);
 
 final ubuntuSystemAccentColorProvider = StreamProvider<Color>((ref) async* {
-  final changeEvents = ref.watch(systemAccentChangeEventsProvider);
-  final loadAccent = ref.watch(systemAccentLoaderProvider);
-  final reloadDelay = ref.watch(systemAccentReloadDelayProvider);
+  final fallback = ref.watch(initialSystemAccentColorProvider);
+  yield fallback;
 
-  await for (final _ in changeEvents()) {
-    if (reloadDelay > Duration.zero) {
-      await Future<void>.delayed(reloadDelay);
-    }
+  if (!Platform.isLinux) {
+    return;
+  }
+
+  final appearance = ref.watch(linuxPortalAppearanceProvider);
+  final initial = await appearance.readAccentColor();
+  if (initial != null && initial != fallback) {
+    yield initial;
+  }
+  yield* appearance.accentColorChanges().distinct();
+});
+
+class LinuxPortalAppearance {
+  const LinuxPortalAppearance();
+
+  static const _portalDestination = 'org.freedesktop.portal.Desktop';
+  static const _portalPath = '/org/freedesktop/portal/desktop';
+  static const _settingsInterface = 'org.freedesktop.portal.Settings';
+  static const _freedesktopAppearance = 'org.freedesktop.appearance';
+  static const _gnomeInterface = 'org.gnome.desktop.interface';
+  static const _accentColor = 'accent-color';
+
+  Future<Color?> readAccentColor() async {
+    final client = DBusClient.session();
     try {
-      yield await loadAccent();
+      final object = _portalObject(client);
+      return await _readFreedesktopAccent(object) ??
+          await _readGnomeAccentName(object);
     } on Object {
-      // Keep the current theme if the platform accent cannot be reloaded.
+      return null;
+    } finally {
+      await client.close();
     }
   }
-});
+
+  Stream<Color> accentColorChanges() async* {
+    final client = DBusClient.session();
+    try {
+      final object = _portalObject(client);
+      final signals = DBusRemoteObjectSignalStream(
+        object: object,
+        interface: _settingsInterface,
+        name: 'SettingChanged',
+        signature: DBusSignature('ssv'),
+      );
+      await for (final signal in signals) {
+        final namespace = signal.values[0].asString();
+        final key = signal.values[1].asString();
+        if (key != _accentColor) {
+          continue;
+        }
+        final value = signal.values[2].asVariant();
+        final color = namespace == _freedesktopAppearance
+            ? colorFromPortalAccentValue(value)
+            : namespace == _gnomeInterface
+            ? colorFromUbuntuAccentNameValue(value)
+            : null;
+        if (color != null) {
+          yield color;
+        }
+      }
+    } on Object {
+      return;
+    } finally {
+      await client.close();
+    }
+  }
+
+  DBusRemoteObject _portalObject(DBusClient client) {
+    return DBusRemoteObject(
+      client,
+      name: _portalDestination,
+      path: DBusObjectPath(_portalPath),
+    );
+  }
+
+  Future<Color?> _readFreedesktopAccent(DBusRemoteObject object) async {
+    final value = await _readSetting(
+      object,
+      _freedesktopAppearance,
+      _accentColor,
+    );
+    return value == null ? null : colorFromPortalAccentValue(value);
+  }
+
+  Future<Color?> _readGnomeAccentName(DBusRemoteObject object) async {
+    final value = await _readSetting(object, _gnomeInterface, _accentColor);
+    return value == null ? null : colorFromUbuntuAccentNameValue(value);
+  }
+
+  Future<DBusValue?> _readSetting(
+    DBusRemoteObject object,
+    String namespace,
+    String key,
+  ) async {
+    final response = await object.callMethod(_settingsInterface, 'Read', [
+      DBusString(namespace),
+      DBusString(key),
+    ], replySignature: DBusSignature('v'));
+    return response.returnValues.single.asVariant();
+  }
+}
+
+Color? colorFromPortalAccentValue(DBusValue value) {
+  final resolved = value.signature == DBusSignature('v')
+      ? value.asVariant()
+      : value;
+  if (resolved.signature != DBusSignature('(ddd)')) {
+    return null;
+  }
+  final channels = resolved.asStruct();
+  if (channels.length != 3) {
+    return null;
+  }
+  final red = _colorChannel(channels[0].asDouble());
+  final green = _colorChannel(channels[1].asDouble());
+  final blue = _colorChannel(channels[2].asDouble());
+  return Color.fromARGB(255, red, green, blue);
+}
+
+Color? colorFromUbuntuAccentNameValue(DBusValue value) {
+  final resolved = value.signature == DBusSignature('v')
+      ? value.asVariant()
+      : value;
+  if (resolved.signature != DBusSignature('s')) {
+    return null;
+  }
+  return ubuntuAccentNameColor(resolved.asString());
+}
+
+Color? ubuntuAccentNameColor(String name) {
+  return switch (name) {
+    'blue' => BusyMaxLinuxPalette.ubuntuBlueAccent,
+    'teal' => BusyMaxLinuxPalette.ubuntuTealAccent,
+    'green' => BusyMaxLinuxPalette.ubuntuGreenAccent,
+    'yellow' => BusyMaxLinuxPalette.ubuntuYellowAccent,
+    'orange' => BusyMaxLinuxPalette.ubuntuOrangeAccent,
+    'red' => BusyMaxLinuxPalette.ubuntuRedAccent,
+    'pink' => BusyMaxLinuxPalette.ubuntuPinkAccent,
+    'purple' => BusyMaxLinuxPalette.ubuntuPurpleAccent,
+    'slate' => BusyMaxLinuxPalette.ubuntuSlateAccent,
+    'brown' => BusyMaxLinuxPalette.ubuntuBrownAccent,
+    'magenta' => BusyMaxLinuxPalette.ubuntuMagentaAccent,
+    'olive' => BusyMaxLinuxPalette.ubuntuOliveAccent,
+    'prussiangreen' => BusyMaxLinuxPalette.ubuntuPrussianGreenAccent,
+    'sage' => BusyMaxLinuxPalette.ubuntuSageAccent,
+    'wartybrown' => BusyMaxLinuxPalette.ubuntuWartyBrownAccent,
+    _ => null,
+  };
+}
+
+int _colorChannel(double value) {
+  return (value.clamp(0, 1) * 255).round();
+}

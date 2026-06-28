@@ -320,6 +320,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           canContinue: false,
           backLabel: '',
           continueLabel: '',
+          force: true,
         );
         await service.setTitleRange(title);
         await service.setCanRefresh(false);

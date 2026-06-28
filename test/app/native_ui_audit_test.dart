@@ -334,6 +334,12 @@ void main() {
 
     test('native headerbar keeps sidebar top branded and aligned', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final signIn = File(
+        'lib/src/features/auth/presentation/sign_in_screen.dart',
+      ).readAsStringSync();
+      final schedule = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
       final headerBarSource = source.substring(
         0,
         source.indexOf('static void install_compact_agenda_window_css'),
@@ -359,6 +365,17 @@ void main() {
       expect(source, contains('onboarding_continue_button'));
       expect(source, contains('"continueSetup"'));
       expect(source, contains('set_header_onboarding_controls'));
+      expect(signIn, contains('await _clearOnboardingHeaderBar();'));
+      expect(signIn, contains('Future<void> _clearOnboardingHeaderBar()'));
+      expect(signIn, contains('var _finishingSetup = false;'));
+      expect(signIn, contains('var _headerBarUpdateGeneration = 0;'));
+      expect(signIn, contains('if (_finishingSetup)'));
+      expect(signIn, contains('generation != _headerBarUpdateGeneration'));
+      expect(signIn, contains('_headerBarUpdateGeneration++;'));
+      expect(signIn, contains('force: true'));
+      expect(schedule, contains('if (service.isAvailable)'));
+      expect(schedule, contains('service.setOnboardingControls('));
+      expect(schedule, contains('force: true'));
       expect(
         source,
         contains(
@@ -876,7 +893,13 @@ void main() {
       final headerBarService = File(
         'lib/src/platform/linux_header_bar_service.dart',
       ).readAsStringSync();
+      final gtkFontService = File(
+        'lib/src/platform/gtk_font_service.dart',
+      ).readAsStringSync();
       final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
+      final compactApp = File(
+        'lib/src/features/schedule/presentation/compact_agenda_app.dart',
+      ).readAsStringSync();
 
       expect(source, contains('kGtkThemeColorsEventChannel'));
       expect(source, contains('io.busystack.busymax/gtk_theme_colors'));
@@ -908,12 +931,28 @@ void main() {
         source,
         contains('"gtk-application-prefer-dark-theme", prefer_dark'),
       );
-      expect(source, contains('available_gtk_theme_fallback(prefer_dark)'));
-      expect(source, contains('g_strcmp0(theme_name, fallback) != 0'));
-      expect(source, contains('available_icon_theme_fallback(prefer_dark)'));
+      expect(source, contains('yaru_theme_name_for_preference'));
+      expect(source, contains('available_gtk_theme_for_preference'));
+      expect(source, contains('available_icon_theme_for_preference'));
+      expect(source, contains('g_str_has_suffix(theme_name, "-dark")'));
+      expect(source, contains('theme_selected_bg_color'));
+      expect(source, contains('set_theme_color(result, "accent"'));
+      expect(gtkFontService, contains('final Color? accent;'));
       expect(
-        source,
-        contains('g_strcmp0(icon_theme_name, icon_fallback) != 0'),
+        gtkFontService,
+        contains("accent: _parseColor(value['accent'] as String?)"),
+      );
+      expect(
+        app,
+        contains(
+          'ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent',
+        ),
+      );
+      expect(
+        compactApp,
+        contains(
+          'ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent',
+        ),
       );
       expect(source, contains('gtk_icon_theme_set_custom_theme'));
       expect(source, contains('fl_lookup_optional_bool_arg'));

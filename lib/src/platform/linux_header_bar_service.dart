@@ -413,6 +413,7 @@ class LinuxHeaderBarService {
     required bool canContinue,
     required String backLabel,
     required String continueLabel,
+    bool force = false,
   }) async {
     if (!_available) {
       return;
@@ -424,7 +425,7 @@ class LinuxHeaderBarService {
       backLabel: backLabel,
       continueLabel: continueLabel,
     );
-    if (_onboardingControls == state) {
+    if (!force && _onboardingControls == state) {
       return;
     }
     _onboardingControls = state;

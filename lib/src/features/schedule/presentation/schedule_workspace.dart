@@ -391,6 +391,18 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _headerBarReady = true;
       _nativeHeaderBarAvailable = service.isAvailable;
     });
+    if (service.isAvailable) {
+      unawaited(
+        service.setOnboardingControls(
+          visible: false,
+          canGoBack: false,
+          canContinue: false,
+          backLabel: '',
+          continueLabel: '',
+          force: true,
+        ),
+      );
+    }
   }
 
   void _updateHeaderBarState(
@@ -439,6 +451,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           canContinue: false,
           backLabel: '',
           continueLabel: '',
+          force: true,
         ),
       );
       unawaited(service.setTitleRange(headerBarState.titleRange));

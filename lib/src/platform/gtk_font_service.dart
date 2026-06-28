@@ -126,6 +126,7 @@ class GtkThemeColors {
     this.control,
     this.controlHover,
     this.controlActive,
+    this.accent,
     this.activeToggle,
     this.foreground,
     this.mutedForeground,
@@ -150,6 +151,7 @@ class GtkThemeColors {
   final Color? control;
   final Color? controlHover;
   final Color? controlActive;
+  final Color? accent;
   final Color? activeToggle;
   final Color? foreground;
   final Color? mutedForeground;
@@ -177,6 +179,7 @@ class GtkThemeColors {
             other.control == control &&
             other.controlHover == controlHover &&
             other.controlActive == controlActive &&
+            other.accent == accent &&
             other.activeToggle == activeToggle &&
             other.foreground == foreground &&
             other.mutedForeground == mutedForeground &&
@@ -203,6 +206,7 @@ class GtkThemeColors {
     control,
     controlHover,
     controlActive,
+    accent,
     activeToggle,
     foreground,
     mutedForeground,
@@ -267,6 +271,7 @@ GtkThemeColors? _parseThemeColors(Object? value) {
     control: _parseColor(value['control'] as String?),
     controlHover: _parseColor(value['controlHover'] as String?),
     controlActive: _parseColor(value['controlActive'] as String?),
+    accent: _parseColor(value['accent'] as String?),
     activeToggle: _parseColor(value['activeToggle'] as String?),
     foreground: _parseColor(value['foreground'] as String?),
     mutedForeground: _parseColor(value['mutedForeground'] as String?),

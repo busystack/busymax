@@ -38,6 +38,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   String? _errorMessage;
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
+  var _finishingSetup = false;
+  var _headerBarUpdateGeneration = 0;
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
 
   @override
@@ -199,21 +201,37 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     required String backLabel,
     required String continueLabel,
   }) {
+    if (_finishingSetup) {
+      return;
+    }
     if (!_headerBarReady && Platform.isLinux) {
       return;
     }
     final title = context.l10n.onboardingSetupTitle;
+    final generation = ++_headerBarUpdateGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+      if (!mounted ||
+          _finishingSetup ||
+          generation != _headerBarUpdateGeneration) {
         return;
       }
       final service = ref.read(linuxHeaderBarServiceProvider);
       unawaited(() async {
         await service.initialize();
+        if (!mounted ||
+            _finishingSetup ||
+            generation != _headerBarUpdateGeneration) {
+          return;
+        }
         await service.setScheduleControlsVisible(false);
         await service.setBackVisible(false);
         await service.setSidebarVisible(false);
         await service.setTitleRange(title);
+        if (!mounted ||
+            _finishingSetup ||
+            generation != _headerBarUpdateGeneration) {
+          return;
+        }
         await service.setOnboardingControls(
           visible: true,
           canGoBack: canGoBack,
@@ -329,10 +347,27 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       return;
     }
 
+    _finishingSetup = true;
+    _headerBarUpdateGeneration++;
+    await _clearOnboardingHeaderBar();
     await ref.read(authSessionControllerProvider.notifier).load();
     if (mounted) {
       context.go('/schedule');
     }
+  }
+
+  Future<void> _clearOnboardingHeaderBar() async {
+    final service = ref.read(linuxHeaderBarServiceProvider);
+    await service.initialize();
+    await service.setOnboardingControls(
+      visible: false,
+      canGoBack: false,
+      canContinue: false,
+      backLabel: '',
+      continueLabel: '',
+      force: true,
+    );
+    await service.setBackVisible(false);
   }
 }
 

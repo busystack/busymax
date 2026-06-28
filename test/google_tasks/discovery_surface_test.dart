@@ -8,7 +8,9 @@ void main() {
   test('implemented method set matches cached discovery document', () {
     final discovery =
         jsonDecode(
-              File('tool/cache/tasks_v1_discovery.json').readAsStringSync(),
+              File(
+                'tools/google_tasks_discovery/cache/tasks_v1_discovery.json',
+              ).readAsStringSync(),
             )
             as Map<String, Object?>;
     final resources = (discovery['resources'] as Map).cast<String, Object?>();

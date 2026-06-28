@@ -184,6 +184,59 @@ void main() {
     ]);
   });
 
+  test(
+    'can force native onboarding controls cleanup past cached state',
+    () async {
+      const channel = MethodChannel('busymax_test/headerbar_onboarding_force');
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            if (call.method == 'initialize') {
+              return true;
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+      addTearDown(service.dispose);
+
+      await service.initialize();
+      await service.setOnboardingControls(
+        visible: false,
+        canGoBack: false,
+        canContinue: false,
+        backLabel: '',
+        continueLabel: '',
+      );
+      await service.setOnboardingControls(
+        visible: false,
+        canGoBack: false,
+        canContinue: false,
+        backLabel: '',
+        continueLabel: '',
+      );
+      await service.setOnboardingControls(
+        visible: false,
+        canGoBack: false,
+        canContinue: false,
+        backLabel: '',
+        continueLabel: '',
+        force: true,
+      );
+
+      final onboardingCalls = calls
+          .where((call) => call.method == 'setOnboardingControls')
+          .toList();
+      expect(onboardingCalls, hasLength(2));
+      expect(onboardingCalls.last.arguments, containsPair('visible', false));
+    },
+  );
+
   test('missing native channel disables service without throwing', () async {
     final service = LinuxHeaderBarService(
       channel: const MethodChannel('busymax_test/headerbar_missing'),

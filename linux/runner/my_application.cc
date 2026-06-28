@@ -213,21 +213,68 @@ static gboolean icon_theme_exists(const gchar* theme_name) {
   return FALSE;
 }
 
-static const gchar* available_gtk_theme_fallback(gboolean prefer_dark) {
-  const gchar* primary = prefer_dark ? "Yaru-dark" : "Yaru";
-  if (gtk_theme_exists(primary)) {
-    return primary;
-  }
-  const gchar* secondary = prefer_dark ? "Adwaita-dark" : "Adwaita";
-  return gtk_theme_exists(secondary) ? secondary : nullptr;
+static gboolean is_yaru_theme_name(const gchar* theme_name) {
+  return theme_name != nullptr && g_str_has_prefix(theme_name, "Yaru") &&
+         (theme_name[4] == '\0' || theme_name[4] == '-');
 }
 
-static const gchar* available_icon_theme_fallback(gboolean prefer_dark) {
+static gchar* yaru_theme_name_for_preference(
+    const gchar* theme_name,
+    gboolean prefer_dark,
+    gboolean (*theme_exists)(const gchar*)) {
+  if (!is_yaru_theme_name(theme_name)) {
+    return nullptr;
+  }
+  const gboolean is_dark = g_str_has_suffix(theme_name, "-dark");
+  if (prefer_dark == is_dark) {
+    return theme_exists(theme_name) ? g_strdup(theme_name) : nullptr;
+  }
+  if (prefer_dark) {
+    g_autofree gchar* dark_name = g_strdup_printf("%s-dark", theme_name);
+    return theme_exists(dark_name) ? g_strdup(dark_name) : nullptr;
+  }
+
+  const gsize suffix_length = strlen("-dark");
+  const gsize theme_length = strlen(theme_name);
+  if (theme_length <= suffix_length) {
+    return nullptr;
+  }
+  g_autofree gchar* light_name =
+      g_strndup(theme_name, theme_length - suffix_length);
+  return theme_exists(light_name) ? g_strdup(light_name) : nullptr;
+}
+
+static gchar* available_gtk_theme_for_preference(const gchar* current_theme,
+                                                 gboolean prefer_dark) {
+  g_autofree gchar* current_variant =
+      yaru_theme_name_for_preference(current_theme, prefer_dark,
+                                     gtk_theme_exists);
+  if (current_variant != nullptr) {
+    return g_strdup(current_variant);
+  }
+
+  const gchar* primary = prefer_dark ? "Yaru-dark" : "Yaru";
+  if (gtk_theme_exists(primary)) {
+    return g_strdup(primary);
+  }
+  const gchar* secondary = prefer_dark ? "Adwaita-dark" : "Adwaita";
+  return gtk_theme_exists(secondary) ? g_strdup(secondary) : nullptr;
+}
+
+static gchar* available_icon_theme_for_preference(const gchar* current_theme,
+                                                  gboolean prefer_dark) {
+  g_autofree gchar* current_variant =
+      yaru_theme_name_for_preference(current_theme, prefer_dark,
+                                     icon_theme_exists);
+  if (current_variant != nullptr) {
+    return g_strdup(current_variant);
+  }
+
   const gchar* primary = prefer_dark ? "Yaru-dark" : "Yaru";
   if (icon_theme_exists(primary)) {
-    return primary;
+    return g_strdup(primary);
   }
-  return icon_theme_exists("Adwaita") ? "Adwaita" : nullptr;
+  return icon_theme_exists("Adwaita") ? g_strdup("Adwaita") : nullptr;
 }
 
 static void set_gtk_theme_preference(gboolean prefer_dark) {
@@ -241,24 +288,25 @@ static void set_gtk_theme_preference(gboolean prefer_dark) {
 
   g_autofree gchar* theme_name = nullptr;
   g_object_get(settings, "gtk-theme-name", &theme_name, nullptr);
-  const gchar* fallback = available_gtk_theme_fallback(prefer_dark);
-  if (fallback != nullptr) {
-    if (!gtk_theme_exists(theme_name) ||
-        g_strcmp0(theme_name, fallback) != 0) {
-      g_object_set(settings, "gtk-theme-name", fallback, nullptr);
+  g_autofree gchar* theme_for_preference =
+      available_gtk_theme_for_preference(theme_name, prefer_dark);
+  if (theme_for_preference != nullptr) {
+    if (g_strcmp0(theme_name, theme_for_preference) != 0) {
+      g_object_set(settings, "gtk-theme-name", theme_for_preference, nullptr);
     }
   }
 
   g_autofree gchar* icon_theme_name = nullptr;
   g_object_get(settings, "gtk-icon-theme-name", &icon_theme_name, nullptr);
-  const gchar* icon_fallback = available_icon_theme_fallback(prefer_dark);
-  if (icon_fallback != nullptr) {
-    if (!icon_theme_exists(icon_theme_name) ||
-        g_strcmp0(icon_theme_name, icon_fallback) != 0) {
-      g_object_set(settings, "gtk-icon-theme-name", icon_fallback, nullptr);
+  g_autofree gchar* icon_theme_for_preference =
+      available_icon_theme_for_preference(icon_theme_name, prefer_dark);
+  if (icon_theme_for_preference != nullptr) {
+    if (g_strcmp0(icon_theme_name, icon_theme_for_preference) != 0) {
+      g_object_set(settings, "gtk-icon-theme-name", icon_theme_for_preference,
+                   nullptr);
       GtkIconTheme* icon_theme = gtk_icon_theme_get_default();
       if (icon_theme != nullptr) {
-        gtk_icon_theme_set_custom_theme(icon_theme, icon_fallback);
+        gtk_icon_theme_set_custom_theme(icon_theme, icon_theme_for_preference);
       }
     }
   }
@@ -2009,6 +2057,7 @@ static FlValue* get_gtk_theme_colors() {
   GdkRGBA control_color = {0, 0, 0, 0};
   GdkRGBA control_hover_color = {0, 0, 0, 0};
   GdkRGBA control_active_color = {0, 0, 0, 0};
+  GdkRGBA accent_color = {0, 0, 0, 0};
   GdkRGBA foreground_color = {0, 0, 0, 0};
   GdkRGBA muted_foreground_color = {0, 0, 0, 0};
   GdkRGBA border_color = {0, 0, 0, 0};
@@ -2030,6 +2079,8 @@ static FlValue* get_gtk_theme_colors() {
   lookup_context_color(window_context, "theme_unfocused_fg_color",
                        &muted_foreground_color);
   lookup_context_color(window_context, "borders", &border_color);
+  lookup_context_color(window_context, "theme_selected_bg_color",
+                       &accent_color);
 
   sample_widget_background(sidebar, GTK_STYLE_CLASS_SIDEBAR,
                            GTK_STATE_FLAG_NORMAL, &sidebar_color);
@@ -2072,6 +2123,7 @@ static FlValue* get_gtk_theme_colors() {
   set_theme_color(result, "control", &control_color);
   set_theme_color(result, "controlHover", &control_hover_color);
   set_theme_color(result, "controlActive", &control_active_color);
+  set_theme_color(result, "accent", &accent_color);
   set_theme_color(result, "activeToggle", &control_active_color);
   set_theme_color(result, "foreground", &foreground_color);
   set_theme_color(result, "mutedForeground", &muted_foreground_color);
