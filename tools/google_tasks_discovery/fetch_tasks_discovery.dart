@@ -4,7 +4,7 @@ import 'dart:io';
 const discoveryUrl =
     'https://www.googleapis.com/discovery/v1/apis/tasks/v1/rest';
 const lockedRevision = '20260602';
-const cachePath = 'tool/cache/tasks_v1_discovery.json';
+const cachePath = 'tools/google_tasks_discovery/cache/tasks_v1_discovery.json';
 const revisionDartPath =
     'lib/src/google_tasks/api/tasks_discovery_revision.dart';
 
