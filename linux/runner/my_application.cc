@@ -166,6 +166,104 @@ static GdkPixbuf* load_application_icon() {
   return load_application_icon_at_size(256);
 }
 
+static gboolean gtk_theme_exists_in_data_dir(const gchar* data_dir,
+                                             const gchar* theme_name) {
+  if (data_dir == nullptr || theme_name == nullptr || theme_name[0] == '\0') {
+    return FALSE;
+  }
+  g_autofree gchar* css_path =
+      g_build_filename(data_dir, "themes", theme_name, "gtk-3.0", "gtk.css",
+                       nullptr);
+  return g_file_test(css_path, G_FILE_TEST_IS_REGULAR);
+}
+
+static gboolean gtk_theme_exists(const gchar* theme_name) {
+  if (gtk_theme_exists_in_data_dir(g_get_user_data_dir(), theme_name)) {
+    return TRUE;
+  }
+  const gchar* const* data_dirs = g_get_system_data_dirs();
+  for (gint i = 0; data_dirs != nullptr && data_dirs[i] != nullptr; ++i) {
+    if (gtk_theme_exists_in_data_dir(data_dirs[i], theme_name)) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+static gboolean icon_theme_exists_in_data_dir(const gchar* data_dir,
+                                              const gchar* theme_name) {
+  if (data_dir == nullptr || theme_name == nullptr || theme_name[0] == '\0') {
+    return FALSE;
+  }
+  g_autofree gchar* index_path =
+      g_build_filename(data_dir, "icons", theme_name, "index.theme", nullptr);
+  return g_file_test(index_path, G_FILE_TEST_IS_REGULAR);
+}
+
+static gboolean icon_theme_exists(const gchar* theme_name) {
+  if (icon_theme_exists_in_data_dir(g_get_user_data_dir(), theme_name)) {
+    return TRUE;
+  }
+  const gchar* const* data_dirs = g_get_system_data_dirs();
+  for (gint i = 0; data_dirs != nullptr && data_dirs[i] != nullptr; ++i) {
+    if (icon_theme_exists_in_data_dir(data_dirs[i], theme_name)) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+static const gchar* available_gtk_theme_fallback(gboolean prefer_dark) {
+  const gchar* primary = prefer_dark ? "Yaru-dark" : "Yaru";
+  if (gtk_theme_exists(primary)) {
+    return primary;
+  }
+  const gchar* secondary = prefer_dark ? "Adwaita-dark" : "Adwaita";
+  return gtk_theme_exists(secondary) ? secondary : nullptr;
+}
+
+static const gchar* available_icon_theme_fallback(gboolean prefer_dark) {
+  const gchar* primary = prefer_dark ? "Yaru-dark" : "Yaru";
+  if (icon_theme_exists(primary)) {
+    return primary;
+  }
+  return icon_theme_exists("Adwaita") ? "Adwaita" : nullptr;
+}
+
+static void set_gtk_theme_preference(gboolean prefer_dark) {
+  GtkSettings* settings = gtk_settings_get_default();
+  if (settings == nullptr) {
+    return;
+  }
+
+  g_object_set(settings, "gtk-application-prefer-dark-theme", prefer_dark,
+               nullptr);
+
+  g_autofree gchar* theme_name = nullptr;
+  g_object_get(settings, "gtk-theme-name", &theme_name, nullptr);
+  const gchar* fallback = available_gtk_theme_fallback(prefer_dark);
+  if (fallback != nullptr) {
+    if (!gtk_theme_exists(theme_name) ||
+        g_strcmp0(theme_name, fallback) != 0) {
+      g_object_set(settings, "gtk-theme-name", fallback, nullptr);
+    }
+  }
+
+  g_autofree gchar* icon_theme_name = nullptr;
+  g_object_get(settings, "gtk-icon-theme-name", &icon_theme_name, nullptr);
+  const gchar* icon_fallback = available_icon_theme_fallback(prefer_dark);
+  if (icon_fallback != nullptr) {
+    if (!icon_theme_exists(icon_theme_name) ||
+        g_strcmp0(icon_theme_name, icon_fallback) != 0) {
+      g_object_set(settings, "gtk-icon-theme-name", icon_fallback, nullptr);
+      GtkIconTheme* icon_theme = gtk_icon_theme_get_default();
+      if (icon_theme != nullptr) {
+        gtk_icon_theme_set_custom_theme(icon_theme, icon_fallback);
+      }
+    }
+  }
+}
+
 static const gchar* fl_lookup_string_arg(FlValue* args, const gchar* key) {
   if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
     return nullptr;
@@ -188,6 +286,20 @@ static gboolean fl_lookup_bool_arg(FlValue* args,
     return fallback;
   }
   return fl_value_get_bool(value);
+}
+
+static gboolean fl_lookup_optional_bool_arg(FlValue* args,
+                                            const gchar* key,
+                                            gboolean* value_out) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  if (value == nullptr || fl_value_get_type(value) != FL_VALUE_TYPE_BOOL) {
+    return FALSE;
+  }
+  *value_out = fl_value_get_bool(value);
+  return TRUE;
 }
 
 static gboolean parse_date(const gchar* value,
@@ -759,6 +871,10 @@ static void set_css_color_field(gchar** target, const gchar* value) {
 static void set_header_bar_theme(MyApplication* self, FlValue* args) {
   if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
     return;
+  }
+  gboolean prefer_dark = FALSE;
+  if (fl_lookup_optional_bool_arg(args, "preferDark", &prefer_dark)) {
+    set_gtk_theme_preference(prefer_dark);
   }
   set_css_color_field(&self->header_bar_window_background_color,
                       fl_lookup_string_arg(args, "windowBackgroundColor"));
