@@ -657,32 +657,26 @@ class _ProviderSignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = BusyMaxPushButton.filled(
-      onPressed: enabled ? onPressed : null,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (loading) ...[
-            const SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: BusyMaxSpacing.sm),
-          ],
-          Flexible(
-            child: Text(
-              loading ? loadingLabel : label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    return Tooltip(
-      message: configured ? tooltip : context.l10n.providerNotConfigured,
-      child: content,
+    final effectiveTooltip = configured
+        ? tooltip
+        : context.l10n.providerNotConfigured;
+    return BusyMaxGroupedList(
+      filled: true,
+      children: [
+        BusyMaxActionRow(
+          title: loading ? loadingLabel : label,
+          leading: const Icon(YaruIcons.plus),
+          trailing: loading
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(YaruIcons.pan_end, size: BusyMaxSizes.iconSm),
+          enabled: enabled,
+          tooltip: effectiveTooltip,
+          onTap: onPressed,
+        ),
+      ],
     );
   }
 }

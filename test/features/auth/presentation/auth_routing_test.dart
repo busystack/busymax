@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
@@ -65,6 +66,22 @@ void main() {
     expect(find.textContaining('sync tasks'), findsNothing);
     expect(find.text('Tasks'), findsNothing);
     await _disposeApp(tester);
+  });
+
+  test('setup provider actions use BusyMax row patterns', () {
+    final source = File(
+      'lib/src/features/auth/presentation/sign_in_screen.dart',
+    ).readAsStringSync();
+    final start = source.indexOf('class _ProviderSignInButton');
+    final end = source.indexOf('class _OnboardingFooter');
+    final providerButton = source.substring(start, end);
+
+    expect(providerButton, contains('BusyMaxGroupedList'));
+    expect(providerButton, contains('BusyMaxActionRow'));
+    expect(providerButton, isNot(contains('BusyMaxPushButton')));
+    expect(providerButton, isNot(contains('FilledButton')));
+    expect(providerButton, isNot(contains('ElevatedButton')));
+    expect(providerButton, isNot(contains('OutlinedButton')));
   });
 
   testWidgets('missing Google permissions shows retry guidance', (
