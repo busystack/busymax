@@ -79,7 +79,10 @@ class NotificationScheduleService {
         await (_database.select(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(accountId) &
-                  row.pendingDelete.equals(false),
+                  row.pendingDelete.equals(false) &
+                  row.serverMissing.equals(false) &
+                  (row.deleted.isNull() | row.deleted.equals(false)) &
+                  (row.hidden.isNull() | row.hidden.equals(false)),
             ))
             .get();
     for (final task in rows) {

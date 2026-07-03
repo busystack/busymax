@@ -229,7 +229,20 @@ class ScheduleRepository {
             ),
           ])
           ..where(_database.tasks.accountId.isIn(accountIds))
-          ..where(_database.tasks.pendingDelete.equals(false));
+          ..where(_database.tasks.pendingDelete.equals(false))
+          ..where(_database.tasks.serverMissing.equals(false))
+          ..where(
+            _database.tasks.deleted.isNull() |
+                _database.tasks.deleted.equals(false),
+          )
+          ..where(
+            _database.tasks.hidden.isNull() |
+                _database.tasks.hidden.equals(false),
+          )
+          ..where(
+            _database.taskLists.id.isNull() |
+                _database.taskLists.serverMissing.equals(false),
+          );
     if (filters.taskListFilterActive) {
       query.where(_database.tasks.taskListId.isIn(filters.taskListIds));
     }
@@ -294,6 +307,19 @@ class ScheduleRepository {
           ])
           ..where(_database.tasks.accountId.isIn(context.accountIds))
           ..where(_database.tasks.pendingDelete.equals(false))
+          ..where(_database.tasks.serverMissing.equals(false))
+          ..where(
+            _database.tasks.deleted.isNull() |
+                _database.tasks.deleted.equals(false),
+          )
+          ..where(
+            _database.tasks.hidden.isNull() |
+                _database.tasks.hidden.equals(false),
+          )
+          ..where(
+            _database.taskLists.id.isNull() |
+                _database.taskLists.serverMissing.equals(false),
+          )
           ..where(databaseFilter)
           ..limit(effectiveLimit + 1);
     if (filters.taskListFilterActive) {

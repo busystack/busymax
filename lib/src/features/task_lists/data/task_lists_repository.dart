@@ -87,7 +87,10 @@ class TaskListsRepository {
 
   Future<List<TaskListEntity>> listTaskLists() async {
     final rows = await _database.taskListsDao.listTaskLists(_accountId);
-    return rows.map(TaskListEntity.fromRow).toList();
+    return rows
+        .where((row) => !row.pendingDelete && !row.serverMissing)
+        .map(TaskListEntity.fromRow)
+        .toList();
   }
 
   Stream<TaskListEntity?> watchTaskList(String id) {
@@ -96,7 +99,8 @@ class TaskListsRepository {
         (row) =>
             row.accountId.equals(_accountId) &
             row.id.equals(id) &
-            row.pendingDelete.equals(false),
+            row.pendingDelete.equals(false) &
+            row.serverMissing.equals(false),
       );
     return query.watchSingleOrNull().map(
       (row) => row == null ? null : TaskListEntity.fromRow(row),

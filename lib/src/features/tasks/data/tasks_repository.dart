@@ -336,7 +336,8 @@ class TasksRepository {
             row.accountId.equals(_accountId) &
             row.taskListId.equals(taskListId) &
             row.id.equals(taskId) &
-            row.pendingDelete.equals(false),
+            row.pendingDelete.equals(false) &
+            row.serverMissing.equals(false),
       );
     return query.watchSingleOrNull().map(
       (row) => row == null ? null : TaskEntity.fromRow(row),
@@ -349,6 +350,7 @@ class TasksRepository {
         (row) =>
             row.accountId.equals(_accountId) &
             row.pendingDelete.equals(false) &
+            row.serverMissing.equals(false) &
             row.categoriesJson.isNotNull(),
       );
     return query.watch().map((rows) {

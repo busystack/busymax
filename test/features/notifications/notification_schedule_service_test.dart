@@ -284,6 +284,22 @@ void main() {
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
 
+  test('server-missing task removes scheduled task reminder', () async {
+    await _insertTaskReminder(database, status: 'needsAction');
+    await service.rebuildUpcomingTaskNotifications('microsoft:m');
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
+
+    await (database.update(database.tasks)
+          ..where((row) => row.accountId.equals('microsoft:m')))
+        .write(const TasksCompanion(serverMissing: Value(true)));
+    await service.rebuildUpcomingTaskNotifications('microsoft:m');
+
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+  });
+
   test(
     'Microsoft UTC task reminder schedules from provider timezone',
     () async {
