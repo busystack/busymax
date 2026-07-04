@@ -1840,7 +1840,7 @@ void main() {
     expect(source, contains('onNext: onNext'));
   });
 
-  test('agenda range starts at selected date and grows while scrolling', () {
+  test('agenda range starts at today and grows while scrolling', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -1861,14 +1861,17 @@ void main() {
       source,
       contains('var _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit'),
     );
-    expect(source, contains('ScheduleViewMode.agenda => ScheduleRange('));
-    expect(source, contains('start: _day(_selectedDate)'));
     expect(
       source,
-      contains(
-        'end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays))',
-      ),
+      contains('ScheduleViewMode.agenda => _agendaRangeFromToday()'),
     );
+    expect(source, contains('ScheduleRange _agendaRangeFromToday()'));
+    expect(source, contains('final start = _day(DateTime.now())'));
+    expect(
+      source,
+      contains('end: start.add(Duration(days: _agendaLoadedDays))'),
+    );
+    expect(source, contains('_selectedDate = _day(DateTime.now())'));
     expect(source, contains('void _loadMoreAgendaDays()'));
     expect(source, contains('_agendaLoadedDays += _agendaPageDays'));
     expect(source, contains('onLoadMore: onAgendaLoadMore'));
@@ -1880,6 +1883,26 @@ void main() {
     expect(source, isNot(contains('subtract(const Duration(days: 30))')));
     expect(source, contains('void _loadMoreAgendaOverdueTasks()'));
     expect(source, contains('void _loadMoreAgendaNoDateTasks()'));
+    expect(source, isNot(contains('start: _day(_selectedDate)')));
+    expect(
+      source,
+      isNot(
+        contains(
+          'end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays))',
+        ),
+      ),
+    );
+  });
+
+  test('explicit date commands open the day view, not agenda', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('void _openCommandDate(DateTime? date)'));
+    expect(source, contains('_mode = ScheduleViewMode.day'));
+    expect(source, contains('_lastSettingsMode = ScheduleViewMode.day'));
+    expect(source, contains('.setScheduleViewMode(ScheduleViewMode.day)'));
   });
 
   test('agenda removes page controls from toolbar and native headerbar', () {

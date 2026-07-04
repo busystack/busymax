@@ -529,11 +529,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   ScheduleRange _range(BuildContext context) {
     final firstWeekday = _firstWeekday(context);
     if (_scope == ScheduleScope.upcoming) {
-      final start = _day(DateTime.now());
-      return ScheduleRange(
-        start: start,
-        end: start.add(Duration(days: _agendaLoadedDays)),
-      );
+      return _agendaRangeFromToday();
     }
     return switch (_mode) {
       ScheduleViewMode.day => ScheduleRange.day(_selectedDate),
@@ -546,11 +542,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         firstWeekday: firstWeekday,
       ),
       ScheduleViewMode.year => ScheduleRange.year(_selectedDate),
-      ScheduleViewMode.agenda => ScheduleRange(
-        start: _day(_selectedDate),
-        end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays)),
-      ),
+      ScheduleViewMode.agenda => _agendaRangeFromToday(),
     };
+  }
+
+  ScheduleRange _agendaRangeFromToday() {
+    final start = _day(DateTime.now());
+    return ScheduleRange(
+      start: start,
+      end: start.add(Duration(days: _agendaLoadedDays)),
+    );
   }
 
   ScheduleRange _rangeForSearchResults(
@@ -751,6 +752,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _selectedDate = _day(DateTime.now());
         _mode = ScheduleViewMode.agenda;
       case ScheduleScope.tasks:
+        _selectedDate = _day(DateTime.now());
         _mode = ScheduleViewMode.agenda;
       case ScheduleScope.all || ScheduleScope.events:
         break;
@@ -769,6 +771,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (previousSettingsMode == null || _mode == previousSettingsMode) {
       if (_mode != ScheduleViewMode.agenda &&
           settingsMode == ScheduleViewMode.agenda) {
+        _selectedDate = _day(DateTime.now());
         _resetAgendaLoadedDays();
       }
       _mode = settingsMode;
@@ -795,6 +798,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _mode = mode;
       _lastSettingsMode = mode;
       if (mode == ScheduleViewMode.agenda) {
+        _selectedDate = _day(DateTime.now());
         _resetAgendaLoadedDays();
       }
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
@@ -1423,14 +1427,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _scope = ScheduleScope.all;
       }
       _selectedDate = _day(date);
-      _mode = ScheduleViewMode.agenda;
-      _lastSettingsMode = ScheduleViewMode.agenda;
-      _resetAgendaLoadedDays();
+      _mode = ScheduleViewMode.day;
+      _lastSettingsMode = ScheduleViewMode.day;
     });
     unawaited(
       ref
           .read(appSettingsControllerProvider.notifier)
-          .setScheduleViewMode(ScheduleViewMode.agenda),
+          .setScheduleViewMode(ScheduleViewMode.day),
     );
   }
 }
