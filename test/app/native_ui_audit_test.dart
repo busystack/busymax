@@ -453,6 +453,13 @@ void main() {
       expect(source, contains('header_bar_sidebar_visible'));
       expect(source, contains('header_sidebar_effective_width'));
       expect(source, contains('update_header_sidebar_brand_geometry'));
+      expect(source, contains('const gint header_bar_left_radius'));
+      expect(
+        source,
+        contains(
+          'header_sidebar_effective_width(self) > 0 ? 0 : kHeaderWindowRadius',
+        ),
+      );
       expect(source, contains('kHeaderMainContentStartInset'));
       expect(
         source,
@@ -516,8 +523,15 @@ void main() {
       expect(source, contains('configure_rounded_window_shape'));
       expect(source, contains('create_rounded_window_region'));
       expect(source, contains('gdk_window_shape_combine_region'));
+      expect(source, contains('rounded_window_size_allocate_cb'));
+      expect(source, contains('"size-allocate"'));
+      expect(source, contains('rounded_window_state_event_cb'));
+      expect(source, contains('"window-state-event"'));
       expect(source, contains('GDK_WINDOW_STATE_MAXIMIZED'));
       expect(source, contains('GDK_WINDOW_STATE_FULLSCREEN'));
+      expect(source, contains('GDK_WINDOW_STATE_TILED'));
+      expect(source, contains('GDK_WINDOW_STATE_RIGHT_TILED'));
+      expect(source, contains('gtk_widget_queue_draw(widget)'));
       expect(source, isNot(contains('kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('-kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('linear-gradient(to right')));

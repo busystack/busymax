@@ -632,6 +632,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       css_color_or(self->header_bar_shade_color, "rgba(0,0,0,0.28)");
   const gchar* modal_barrier_color = css_color_or(
       self->header_bar_modal_barrier_color, "rgba(0,0,0,0.32)");
+  const gint header_bar_left_radius =
+      header_sidebar_effective_width(self) > 0 ? 0 : kHeaderWindowRadius;
   GtkWidget* header_bar = GTK_WIDGET(self->header_bar);
   GtkStyleContext* context = gtk_widget_get_style_context(header_bar);
   gtk_style_context_add_class(context, "busymax-flat-headerbar");
@@ -664,7 +666,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "}"
       "headerbar.busymax-flat-headerbar,"
       "headerbar.busymax-flat-headerbar:backdrop {"
-      "border-top-left-radius: 0;"
+      "border-top-left-radius: %dpx;"
       "border-top-right-radius: %dpx;"
       "padding-left: 0;"
       "}"
@@ -868,8 +870,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       "}",
       window_css_background_color, shade_color, kHeaderWindowRadius,
       background_color, kHeaderWindowRadius, kHeaderWindowRadius,
-      kHeaderWindowRadius, sidebar_background_color, kHeaderWindowRadius,
-      foreground_color, foreground_color,
+      header_bar_left_radius, kHeaderWindowRadius, sidebar_background_color,
+      kHeaderWindowRadius, foreground_color, foreground_color,
       background_color, modal_barrier_color, modal_barrier_color,
       sidebar_background_color, modal_barrier_color, modal_barrier_color,
       background_color, modal_barrier_color, modal_barrier_color,
@@ -2587,6 +2589,14 @@ static gboolean rounded_window_configure_event_cb(GtkWidget* widget,
                                                   GdkEventConfigure* event,
                                                   gpointer user_data);
 
+static void rounded_window_size_allocate_cb(GtkWidget* widget,
+                                            GtkAllocation* allocation,
+                                            gpointer user_data);
+
+static gboolean rounded_window_state_event_cb(GtkWidget* widget,
+                                              GdkEventWindowState* event,
+                                              gpointer user_data);
+
 static gboolean configure_transparent_window_backing(GtkWindow* window) {
   GdkScreen* screen = gtk_window_get_screen(window);
   GdkVisual* visual = gdk_screen_get_rgba_visual(screen);
@@ -2600,8 +2610,13 @@ static gboolean configure_transparent_window_backing(GtkWindow* window) {
                    nullptr);
   g_signal_connect_after(window, "realize", G_CALLBACK(rounded_window_realize_cb),
                          nullptr);
-  g_signal_connect(window, "configure-event",
-                   G_CALLBACK(rounded_window_configure_event_cb), nullptr);
+  g_signal_connect_after(window, "configure-event",
+                         G_CALLBACK(rounded_window_configure_event_cb),
+                         nullptr);
+  g_signal_connect_after(window, "size-allocate",
+                         G_CALLBACK(rounded_window_size_allocate_cb), nullptr);
+  g_signal_connect_after(window, "window-state-event",
+                         G_CALLBACK(rounded_window_state_event_cb), nullptr);
   return TRUE;
 }
 
@@ -2642,6 +2657,27 @@ static cairo_region_t* create_rounded_window_region(gint width,
   return region;
 }
 
+static gboolean rounded_window_state_requires_rectangular_shape(
+    GdkWindowState state) {
+  if ((state & GDK_WINDOW_STATE_MAXIMIZED) != 0 ||
+      (state & GDK_WINDOW_STATE_FULLSCREEN) != 0) {
+    return TRUE;
+  }
+#if GTK_CHECK_VERSION(3, 10, 0)
+  if ((state & GDK_WINDOW_STATE_TILED) != 0) {
+    return TRUE;
+  }
+#endif
+#if GTK_CHECK_VERSION(3, 22, 0)
+  if ((state & (GDK_WINDOW_STATE_TOP_TILED | GDK_WINDOW_STATE_RIGHT_TILED |
+                GDK_WINDOW_STATE_BOTTOM_TILED | GDK_WINDOW_STATE_LEFT_TILED)) !=
+      0) {
+    return TRUE;
+  }
+#endif
+  return FALSE;
+}
+
 static void configure_rounded_window_shape(GtkWidget* widget) {
   if (widget == nullptr || !GTK_IS_WIDGET(widget) ||
       !gtk_widget_get_realized(widget)) {
@@ -2654,9 +2690,9 @@ static void configure_rounded_window_shape(GtkWidget* widget) {
   }
 
   const GdkWindowState state = gdk_window_get_state(window);
-  if ((state & GDK_WINDOW_STATE_MAXIMIZED) != 0 ||
-      (state & GDK_WINDOW_STATE_FULLSCREEN) != 0) {
+  if (rounded_window_state_requires_rectangular_shape(state)) {
     gdk_window_shape_combine_region(window, nullptr, 0, 0);
+    gtk_widget_queue_draw(widget);
     return;
   }
 
@@ -2670,6 +2706,7 @@ static void configure_rounded_window_shape(GtkWidget* widget) {
       create_rounded_window_region(width, height, kHeaderWindowRadius);
   gdk_window_shape_combine_region(window, region, 0, 0);
   cairo_region_destroy(region);
+  gtk_widget_queue_draw(widget);
 }
 
 static void rounded_window_realize_cb(GtkWidget* widget, gpointer user_data) {
@@ -2679,6 +2716,29 @@ static void rounded_window_realize_cb(GtkWidget* widget, gpointer user_data) {
 static gboolean rounded_window_configure_event_cb(GtkWidget* widget,
                                                   GdkEventConfigure* event,
                                                   gpointer user_data) {
+  configure_rounded_window_shape(widget);
+  return FALSE;
+}
+
+static void rounded_window_size_allocate_cb(GtkWidget* widget,
+                                            GtkAllocation* allocation,
+                                            gpointer user_data) {
+  configure_rounded_window_shape(widget);
+}
+
+static gboolean rounded_window_state_event_cb(GtkWidget* widget,
+                                              GdkEventWindowState* event,
+                                              gpointer user_data) {
+  if (event != nullptr &&
+      rounded_window_state_requires_rectangular_shape(
+          event->new_window_state)) {
+    GdkWindow* window = gtk_widget_get_window(widget);
+    if (window != nullptr && GDK_IS_WINDOW(window)) {
+      gdk_window_shape_combine_region(window, nullptr, 0, 0);
+      gtk_widget_queue_draw(widget);
+      return FALSE;
+    }
+  }
   configure_rounded_window_shape(widget);
   return FALSE;
 }
