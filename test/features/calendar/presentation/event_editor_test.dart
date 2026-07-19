@@ -1,9 +1,12 @@
 import 'dart:io';
 
+import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -328,6 +331,174 @@ void main() {
     expect(attendee.displayName, 'Guest');
     expect(attendee.optional, isTrue);
   });
+
+  for (final recurrenceCase in _microsoftRecurrenceCases.entries) {
+    testWidgets(
+      'Microsoft ${recurrenceCase.key} recurrence emits required Graph fields',
+      (tester) async {
+        EventEditorDraft? saved;
+        await tester.pumpWidget(
+          localizedTestApp(
+            child: Scaffold(
+              body: EventEditor(
+                initialDraft: EventEditorDraft.newEvent(
+                  accountId: 'microsoft-account',
+                  sourceId: 'microsoft-source',
+                  providerCalendarId: 'ms-cal-1',
+                  start: DateTime.utc(2026, 6, 10, 9),
+                  end: DateTime.utc(2026, 6, 10, 10),
+                ).copyWith(title: 'Planning'),
+                sources: _microsoftSources,
+                onCancel: () {},
+                onSave: (draft) => saved = draft,
+              ),
+            ),
+          ),
+        );
+
+        final repeatRow = tester.widget<BusyMaxComboRow<String>>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is BusyMaxComboRow<String> && widget.title == 'Repeat',
+          ),
+        );
+        repeatRow.onSelected(recurrenceCase.key);
+        await tester.pump();
+        await tester.tap(_headerButtonFinder('Save'));
+
+        final expectedRecurrence = <String, Object?>{
+          'pattern': recurrenceCase.value,
+          'range': const {'type': 'noEnd', 'startDate': '2026-06-10'},
+        };
+        final body = microsoftEventMutationToJson(
+          CalendarEventMutation(recurrence: saved?.recurrence),
+        );
+
+        expect(saved, isNotNull);
+        expect(body, {'recurrence': expectedRecurrence});
+      },
+    );
+  }
+
+  for (final recurrenceCase in _microsoftReanchoredRecurrenceCases.entries) {
+    testWidgets(
+      'Microsoft ${recurrenceCase.key} recurrence follows a changed start date',
+      (tester) async {
+        EventEditorDraft? saved;
+        await tester.pumpWidget(
+          localizedTestApp(
+            child: Scaffold(
+              body: EventEditor(
+                initialDraft: EventEditorDraft.newEvent(
+                  accountId: 'microsoft-account',
+                  sourceId: 'microsoft-source',
+                  providerCalendarId: 'ms-cal-1',
+                  start: DateTime.utc(2026, 6, 10, 9),
+                  end: DateTime.utc(2026, 6, 10, 10),
+                ).copyWith(title: 'Planning'),
+                sources: _microsoftSources,
+                onCancel: () {},
+                onSave: (draft) => saved = draft,
+              ),
+            ),
+          ),
+        );
+
+        final repeatRow = tester.widget<BusyMaxComboRow<String>>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is BusyMaxComboRow<String> && widget.title == 'Repeat',
+          ),
+        );
+        repeatRow.onSelected(recurrenceCase.key);
+        await tester.pump();
+
+        final startDateRow = tester.widget<DesktopDateValueRow>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is DesktopDateValueRow && widget.label == 'Start date',
+          ),
+        );
+        startDateRow.onChanged('2026-07-11');
+        await tester.pump();
+        await tester.tap(_headerButtonFinder('Save'));
+
+        expect(saved?.recurrence, {
+          'pattern': recurrenceCase.value,
+          'range': const {'type': 'noEnd', 'startDate': '2026-07-11'},
+        });
+      },
+    );
+  }
+
+  testWidgets(
+    'new event converts Google recurrence when Microsoft calendar is selected',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                start: DateTime.utc(2026, 6, 10, 9),
+                end: DateTime.utc(2026, 6, 10, 10),
+              ).copyWith(title: 'Planning'),
+              sources: _mixedProviderSources,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      _comboRow(tester, 'Repeat').onSelected('weekly');
+      await tester.pump();
+      _comboRow(tester, 'Calendar').onSelected('microsoft-source');
+      await tester.pump();
+      await tester.tap(_headerButtonFinder('Save'));
+
+      expect(saved?.recurrence, {
+        'pattern': _microsoftRecurrenceCases['weekly'],
+        'range': const {'type': 'noEnd', 'startDate': '2026-06-10'},
+      });
+    },
+  );
+
+  testWidgets(
+    'new event converts Microsoft recurrence when Google calendar is selected',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'microsoft-account',
+                sourceId: 'microsoft-source',
+                providerCalendarId: 'ms-cal-1',
+                start: DateTime.utc(2026, 6, 10, 9),
+                end: DateTime.utc(2026, 6, 10, 10),
+              ).copyWith(title: 'Planning'),
+              sources: _mixedProviderSources,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      _comboRow(tester, 'Repeat').onSelected('weekly');
+      await tester.pump();
+      _comboRow(tester, 'Calendar').onSelected('source');
+      await tester.pump();
+      await tester.tap(_headerButtonFinder('Save'));
+
+      expect(saved?.recurrence, ['RRULE:FREQ=WEEKLY;INTERVAL=1']);
+    },
+  );
 
   testWidgets('recurring occurrence hides series recurrence control', (
     tester,
@@ -1050,6 +1221,14 @@ Finder _headerButtonFinder(String label) {
       .first;
 }
 
+BusyMaxComboRow<String> _comboRow(WidgetTester tester, String title) {
+  return tester.widget<BusyMaxComboRow<String>>(
+    find.byWidgetPredicate(
+      (widget) => widget is BusyMaxComboRow<String> && widget.title == title,
+    ),
+  );
+}
+
 Finder _timeTextEntryFinder() {
   return find.byWidgetPredicate(
     (widget) => widget is TextFormField && widget.controller != null,
@@ -1120,3 +1299,39 @@ const _microsoftSources = [
     backgroundColor: '#9141ac',
   ),
 ];
+
+const _mixedProviderSources = [..._sources, ..._microsoftSources];
+
+const _microsoftRecurrenceCases = <String, Map<String, Object?>>{
+  'daily': {'type': 'daily', 'interval': 1},
+  'weekly': {
+    'type': 'weekly',
+    'interval': 1,
+    'daysOfWeek': ['wednesday'],
+    'firstDayOfWeek': 'sunday',
+  },
+  'monthly': {'type': 'absoluteMonthly', 'interval': 1, 'dayOfMonth': 10},
+  'yearly': {
+    'type': 'absoluteYearly',
+    'interval': 1,
+    'dayOfMonth': 10,
+    'month': 6,
+  },
+};
+
+const _microsoftReanchoredRecurrenceCases = <String, Map<String, Object?>>{
+  'daily': {'type': 'daily', 'interval': 1},
+  'weekly': {
+    'type': 'weekly',
+    'interval': 1,
+    'daysOfWeek': ['saturday'],
+    'firstDayOfWeek': 'sunday',
+  },
+  'monthly': {'type': 'absoluteMonthly', 'interval': 1, 'dayOfMonth': 11},
+  'yearly': {
+    'type': 'absoluteYearly',
+    'interval': 1,
+    'dayOfMonth': 11,
+    'month': 7,
+  },
+};

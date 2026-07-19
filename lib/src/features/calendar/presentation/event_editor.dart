@@ -193,7 +193,7 @@ class _EventEditorState extends State<EventEditor> {
                   label: l10n.startDate,
                   date: _dateString(_draft.start),
                   onChanged: (value) {
-                    _setStart(_withDate(_draft.start, value));
+                    _setStart(_withDate(_draft.start, value), provider);
                   },
                   emptyLabel: l10n.noneValue,
                 ),
@@ -202,7 +202,7 @@ class _EventEditorState extends State<EventEditor> {
                     label: l10n.startTime,
                     time: _timeString(_draft.start),
                     onChanged: (value) {
-                      _setStart(_withTime(_draft.start, value));
+                      _setStart(_withTime(_draft.start, value), provider);
                     },
                     emptyLabel: '--:--',
                     allowEmpty: false,
@@ -422,6 +422,11 @@ class _EventEditorState extends State<EventEditor> {
       },
       onSelected: (value) {
         final source = sources.firstWhere((source) => source.id == value);
+        final recurrenceType = _recurrenceType(_draft.recurrence);
+        final adjustedRecurrence =
+            _draft.recurrenceChanged && recurrenceType != 'none'
+            ? _recurrenceFor(source.provider, recurrenceType, _draft.start)
+            : null;
         setState(() {
           if (source.provider != TaskProvider.microsoft) {
             _addingCategory = false;
@@ -434,6 +439,7 @@ class _EventEditorState extends State<EventEditor> {
             categories: source.provider == TaskProvider.microsoft
                 ? _draft.categories
                 : const [],
+            recurrence: adjustedRecurrence,
           );
         });
       },
@@ -720,14 +726,22 @@ class _EventEditorState extends State<EventEditor> {
     });
   }
 
-  void _setStart(DateTime start) {
+  void _setStart(DateTime start, BusyProvider provider) {
     final end = _draft.end;
+    final recurrenceType = _recurrenceType(_draft.recurrence);
+    final adjustedRecurrence =
+        provider == TaskProvider.microsoft &&
+            _draft.recurrenceChanged &&
+            recurrenceType != 'none'
+        ? _recurrenceFor(provider, recurrenceType, start)
+        : null;
     setState(() {
       _draft = _draft.copyWith(
         start: start,
         end: end == null || !end.isAfter(start)
             ? _defaultEndFor(start, _draft.allDay)
             : end,
+        recurrence: adjustedRecurrence,
       );
     });
   }
@@ -863,6 +877,7 @@ Object _recurrenceFor(BusyProvider provider, String type, DateTime? start) {
   if (provider == TaskProvider.google) {
     return ['RRULE:FREQ=$freq;INTERVAL=1'];
   }
+  final recurrenceStart = start ?? DateTime.now();
   final patternType = switch (type) {
     'daily' => 'daily',
     'weekly' => 'weekly',
@@ -871,11 +886,33 @@ Object _recurrenceFor(BusyProvider provider, String type, DateTime? start) {
     _ => 'daily',
   };
   return {
-    'pattern': {'type': patternType, 'interval': 1},
-    'range': {
-      'type': 'noEnd',
-      'startDate': encodeDateOnly(start ?? DateTime.now()),
+    'pattern': {
+      'type': patternType,
+      'interval': 1,
+      if (type == 'weekly') ...{
+        'daysOfWeek': [_microsoftDayOfWeek(recurrenceStart.weekday)],
+        'firstDayOfWeek': 'sunday',
+      },
+      if (type == 'monthly') 'dayOfMonth': recurrenceStart.day,
+      if (type == 'yearly') ...{
+        'dayOfMonth': recurrenceStart.day,
+        'month': recurrenceStart.month,
+      },
     },
+    'range': {'type': 'noEnd', 'startDate': encodeDateOnly(recurrenceStart)},
+  };
+}
+
+String _microsoftDayOfWeek(int weekday) {
+  return switch (weekday) {
+    DateTime.monday => 'monday',
+    DateTime.tuesday => 'tuesday',
+    DateTime.wednesday => 'wednesday',
+    DateTime.thursday => 'thursday',
+    DateTime.friday => 'friday',
+    DateTime.saturday => 'saturday',
+    DateTime.sunday => 'sunday',
+    _ => throw ArgumentError.value(weekday, 'weekday'),
   };
 }
 
