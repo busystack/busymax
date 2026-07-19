@@ -42,7 +42,7 @@ class PendingOpsReplayer {
 
     for (final originalOp in ops) {
       final op = await _readOp(originalOp.id);
-      if (op == null) {
+      if (op == null || !_isTaskOp(op)) {
         continue;
       }
       if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
@@ -75,6 +75,10 @@ class PendingOpsReplayer {
     }
 
     return applied;
+  }
+
+  bool _isTaskOp(PendingOp op) {
+    return op.entityType == 'task' || op.entityType == 'task_list';
   }
 
   Future<void> _replay(PendingOp op) async {

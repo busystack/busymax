@@ -179,6 +179,77 @@ void main() {
     );
   });
 
+  test('leaves calendar operations untouched for calendar replay', () async {
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'patch',
+      operationType: 'calendar.patch',
+      entityType: 'calendar',
+      request: {'summary': 'Renamed'},
+    );
+    await _enqueue(
+      database,
+      id: '02',
+      operation: 'create',
+      operationType: 'event.create',
+      entityType: 'event',
+      request: {'title': 'Planning'},
+    );
+    await _enqueue(
+      database,
+      id: '03',
+      operation: 'delete',
+      entityType: 'event',
+      request: const {},
+    );
+
+    final applied = await PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    ).replayDueOps();
+
+    final ops = await database.pendingOpsDao.pendingOpsForReplay(
+      'account',
+      _later,
+    );
+    expect(applied, 0);
+    expect(apiClient.calls, isEmpty);
+    expect(ops, hasLength(3));
+    for (final op in ops) {
+      expect(op.attemptCount, 0);
+      expect(op.nextAttemptAtUtc, equals(null));
+      expect(op.lastErrorCode, equals(null));
+      expect(op.lastErrorMessage, equals(null));
+    }
+  });
+
+  test('unknown task operation is still blocked', () async {
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'frob_task',
+      request: const {},
+    );
+
+    final applied = await PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    ).replayDueOps();
+
+    final op = await database.pendingOpsDao.getOp('01');
+    expect(applied, 0);
+    expect(apiClient.calls, isEmpty);
+    expect(op!.lastErrorCode, 'unknown_operation');
+    expect(op.nextAttemptAtUtc, startsWith('9999-12-31'));
+  });
+
   test(
     'temp ID rewrite preserves request text that merely mentions ID',
     () async {
@@ -820,6 +891,7 @@ Future<void> _enqueue(
   required String operation,
   required Map<String, Object?> request,
   String entityType = 'task',
+  String? operationType,
   String? taskListId,
   String? taskId,
   String? localTempId,
@@ -832,6 +904,7 @@ Future<void> _enqueue(
       accountId: 'account',
       entityType: entityType,
       operation: operation,
+      operationType: Value(operationType),
       taskListId: Value(taskListId),
       taskId: Value(taskId),
       localTempId: Value(localTempId),

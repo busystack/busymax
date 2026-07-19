@@ -126,15 +126,31 @@ class CalendarPendingOpsReplayer {
       ..where(
         (row) =>
             row.accountId.equals(_accountId) &
-            row.provider.equals(TaskProvider.google.storageValue) &
-            row.entityType.equals('event') &
-            row.operationType.equals('event.create') &
-            row.lastErrorCode.equals('GoogleCalendarApiError') &
-            row.lastErrorMessage.like('Missing time zone definition%'),
+            row.nextAttemptAtUtc.isBiggerOrEqualValue('9999-12-31'),
       )
       ..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)]);
     final rows = await query.get();
-    return rows.where((op) => !excludeIds.contains(op.id)).toList();
+    return rows
+        .where(
+          (op) =>
+              !excludeIds.contains(op.id) &&
+              (_wasBlockedByTaskReplay(op) ||
+                  _isMissingTimeZoneCreateFailure(op)),
+        )
+        .toList();
+  }
+
+  bool _wasBlockedByTaskReplay(PendingOp op) {
+    return _isCalendarOp(op) && op.lastErrorCode == 'unknown_operation';
+  }
+
+  bool _isMissingTimeZoneCreateFailure(PendingOp op) {
+    return op.provider == TaskProvider.google.storageValue &&
+        op.entityType == 'event' &&
+        op.operationType == 'event.create' &&
+        op.lastErrorCode == 'GoogleCalendarApiError' &&
+        (op.lastErrorMessage?.startsWith('Missing time zone definition') ??
+            false);
   }
 
   Future<void> _patchCalendar(PendingOp op) async {

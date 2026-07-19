@@ -207,6 +207,44 @@ void main() {
   );
 
   test(
+    'calendar op poisoned by task replay is recovered without operation type',
+    () async {
+      await database.pendingOpsDao.enqueue(
+        PendingOpsCompanion.insert(
+          id: 'op-poisoned',
+          accountId: 'account',
+          provider: const Value('google'),
+          entityType: 'calendar',
+          operation: 'patch',
+          calendarSourceId: const Value('account|google|cal-1'),
+          providerCalendarId: const Value('cal-1'),
+          requestJson: jsonEncode({'summary': 'Renamed'}),
+          createdAtUtc: '2026-06-08T00:00:00.000Z',
+          updatedAtUtc: '2026-06-08T00:00:00.000Z',
+        ),
+      );
+      await database.pendingOpsDao.updateAttempt(
+        id: 'op-poisoned',
+        attemptCount: 1,
+        nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
+        lastErrorCode: 'unknown_operation',
+        lastErrorMessage: 'patch',
+      );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      expect(client.calls, ['updateCalendar:cal-1:Renamed']);
+      expect(await database.pendingOpsDao.getOp('op-poisoned'), equals(null));
+    },
+  );
+
+  test(
     'event patch calls provider updateEvent with provider_event_id',
     () async {
       final eventId = await _insertEvent(
