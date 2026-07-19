@@ -292,7 +292,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
             rangeEnd: rangeEnd,
             pageToken: pageToken,
             syncToken: syncTokenOrDeltaLink,
-            singleEvents: false,
+            singleEvents: true,
           );
           lastPage = page;
           events.addAll(page.events);
@@ -309,7 +309,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
           rangeStart: rangeStart,
           rangeEnd: rangeEnd,
           pageToken: pageToken,
-          singleEvents: false,
+          singleEvents: true,
         );
         lastPage = page;
         events.addAll(page.events);

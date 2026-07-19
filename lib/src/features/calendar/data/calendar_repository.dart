@@ -312,6 +312,7 @@ class CalendarRepository {
     String? microsoftDeltaLink,
     bool full = false,
     String? lastError,
+    String? rawStateJson,
   }) async {
     final id = syncStateId(
       accountId: accountId,
@@ -351,6 +352,7 @@ class CalendarRepository {
               lastFullSyncAt: full ? Value(now) : const Value.absent(),
               lastIncrementalSyncAt: full ? const Value.absent() : Value(now),
               lastError: Value(lastError),
+              rawStateJson: Value(rawStateJson),
             ),
           );
     });
@@ -644,6 +646,38 @@ class CalendarRepository {
         ),
       );
     }
+  }
+
+  Future<void> markGoogleRecurringMastersDeleted({
+    required String accountId,
+    required String providerCalendarId,
+    required Set<String> providerRecurringEventIds,
+  }) async {
+    if (providerRecurringEventIds.isEmpty) {
+      return;
+    }
+    final source = sourceId(
+      accountId: accountId,
+      provider: TaskProvider.google,
+      providerCalendarId: providerCalendarId,
+    );
+    await (_database.update(_database.calendarEvents)..where(
+          (row) =>
+              row.accountId.equals(accountId) &
+              row.calendarSourceId.equals(source) &
+              row.provider.equals(TaskProvider.google.storageValue) &
+              row.providerEventId.isIn(providerRecurringEventIds) &
+              row.providerRecurringEventId.isNull() &
+              row.syncStatus.equals('synced') &
+              row.isDeleted.equals(false),
+        ))
+        .write(
+          CalendarEventsCompanion(
+            isDeleted: const Value(true),
+            syncStatus: const Value('synced'),
+            updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+          ),
+        );
   }
 
   Future<CalendarSyncState?> syncState({

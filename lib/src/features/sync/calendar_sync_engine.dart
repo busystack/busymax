@@ -5,6 +5,10 @@ import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
 import 'calendar_pending_ops_replayer.dart';
 
+// Google sync tokens are bound to their request shape. Bump this marker when
+// changing token-compatible event-list parameters so old cursors are rebased.
+const _googleExpandedEventsSyncState = '{"singleEvents":true,"version":1}';
+
 class CalendarSyncEngine {
   CalendarSyncEngine({
     required AppDatabase database,
@@ -85,9 +89,13 @@ class CalendarSyncEngine {
           : state?.microsoftDeltaLink;
       final supportsIncrementalCursor =
           provider == TaskProvider.google || calendar.primaryCalendar;
+      final syncOptionsMatch =
+          provider != TaskProvider.google ||
+          state?.rawStateJson == _googleExpandedEventsSyncState;
       final tokenOrLink =
           supportsIncrementalCursor &&
               rangeMatches &&
+              syncOptionsMatch &&
               savedCursor?.isNotEmpty == true
           ? savedCursor
           : null;
@@ -137,9 +145,16 @@ class CalendarSyncEngine {
       restartedFromExpiredCursor = true;
     }
     final returnedLocalEventIds = <String>{};
+    final expandedRecurringMasterIds = <String>{};
     while (true) {
       for (final event in page.events) {
         await _repository.upsertEvent(accountId: _accountId, event: event);
+        final recurringMasterId = event.providerRecurringEventId;
+        if (provider == TaskProvider.google &&
+            recurringMasterId != null &&
+            recurringMasterId.isNotEmpty) {
+          expandedRecurringMasterIds.add(recurringMasterId);
+        }
         returnedLocalEventIds.add(
           CalendarRepository.eventId(
             accountId: _accountId,
@@ -174,6 +189,7 @@ class CalendarSyncEngine {
           primaryCalendar: primaryCalendar,
         );
         returnedLocalEventIds.clear();
+        expandedRecurringMasterIds.clear();
         full = true;
         restartedFromExpiredCursor = true;
         continue;
@@ -182,6 +198,14 @@ class CalendarSyncEngine {
       if (provider == TaskProvider.google && page.nextPageTokenOrUrl == next) {
         break;
       }
+    }
+
+    if (provider == TaskProvider.google) {
+      await _repository.markGoogleRecurringMastersDeleted(
+        accountId: _accountId,
+        providerCalendarId: providerCalendarId,
+        providerRecurringEventIds: expandedRecurringMasterIds,
+      );
     }
 
     final sourceId = CalendarRepository.sourceId(
@@ -203,6 +227,9 @@ class CalendarSyncEngine {
           ? page.nextSyncTokenOrDeltaLink
           : null,
       full: full,
+      rawStateJson: provider == TaskProvider.google
+          ? _googleExpandedEventsSyncState
+          : null,
     );
     if (full) {
       await _repository.markMissingEventsDeleted(
