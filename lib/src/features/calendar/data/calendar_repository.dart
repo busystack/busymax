@@ -234,9 +234,15 @@ class CalendarRepository {
         );
   }
 
+  /// Stores a provider event.
+  ///
+  /// Pull syncs must preserve local optimistic state while an event is dirty or
+  /// has an outstanding mutation. Mutation acknowledgements remain
+  /// authoritative so they can transition the row back to `synced`.
   Future<void> upsertEvent({
     required String accountId,
     required CalendarEventDto event,
+    bool preservePendingLocalChanges = false,
   }) async {
     final now = _now().millisecondsSinceEpoch;
     final calendarSourceId = sourceId(
@@ -251,55 +257,84 @@ class CalendarRepository {
       providerEventId: event.providerEventId,
       providerOriginalStartKey: event.providerOriginalStartKey,
     );
-    await _database
-        .into(_database.calendarEvents)
-        .insertOnConflictUpdate(
-          CalendarEventsCompanion.insert(
-            id: id,
-            accountId: accountId,
-            calendarSourceId: calendarSourceId,
-            provider: event.provider.storageValue,
-            providerCalendarId: event.providerCalendarId,
-            providerEventId: event.providerEventId,
-            providerRecurringEventId: Value(event.providerRecurringEventId),
-            providerOriginalStartKey: Value(event.providerOriginalStartKey),
-            etagOrChangeKey: Value(event.etagOrChangeKey),
-            status: Value(event.status),
-            title: event.title,
-            description: Value(event.description),
-            location: Value(event.location),
-            allDay: Value(event.allDay),
-            startDate: Value(event.startDate),
-            startDateTime: Value(event.startDateTime),
-            startTimeZone: Value(event.startTimeZone),
-            endDate: Value(event.endDate),
-            endDateTime: Value(event.endDateTime),
-            endTimeZone: Value(event.endTimeZone),
-            recurrenceJson: Value(_json(event.recurrenceJson)),
-            remindersJson: Value(_json(event.remindersJson)),
-            attendeesJson: Value(_json(event.attendeesJson)),
-            categoriesJson: Value(_json(event.categoriesJson)),
-            organizerJson: Value(_json(event.organizerJson)),
-            creatorJson: Value(_json(event.creatorJson)),
-            colorId: Value(event.colorId),
-            colorHex: Value(event.colorHex),
-            visibility: Value(event.visibility),
-            transparencyOrShowAs: Value(event.transparencyOrShowAs),
-            eventType: Value(event.eventType),
-            webLink: Value(event.webLink),
-            conferenceJson: Value(_json(event.conferenceJson)),
-            attachmentsJson: Value(_json(event.attachmentsJson)),
-            isCancelled: Value(event.isCancelled),
-            isDeleted: Value(event.isDeleted),
-            rawJson: Value(jsonEncode(event.rawJson)),
-            createdAtServer: Value(event.createdAtServer),
-            updatedAtServer: Value(event.updatedAtServer),
-            createdAtLocal: now,
-            updatedAtLocal: now,
-            syncStatus: const Value('synced'),
-            baselineRawJson: Value(jsonEncode(event.rawJson)),
-          ),
-        );
+    final eventRow = CalendarEventsCompanion.insert(
+      id: id,
+      accountId: accountId,
+      calendarSourceId: calendarSourceId,
+      provider: event.provider.storageValue,
+      providerCalendarId: event.providerCalendarId,
+      providerEventId: event.providerEventId,
+      providerRecurringEventId: Value(event.providerRecurringEventId),
+      providerOriginalStartKey: Value(event.providerOriginalStartKey),
+      etagOrChangeKey: Value(event.etagOrChangeKey),
+      status: Value(event.status),
+      title: event.title,
+      description: Value(event.description),
+      location: Value(event.location),
+      allDay: Value(event.allDay),
+      startDate: Value(event.startDate),
+      startDateTime: Value(event.startDateTime),
+      startTimeZone: Value(event.startTimeZone),
+      endDate: Value(event.endDate),
+      endDateTime: Value(event.endDateTime),
+      endTimeZone: Value(event.endTimeZone),
+      recurrenceJson: Value(_json(event.recurrenceJson)),
+      remindersJson: Value(_json(event.remindersJson)),
+      attendeesJson: Value(_json(event.attendeesJson)),
+      categoriesJson: Value(_json(event.categoriesJson)),
+      organizerJson: Value(_json(event.organizerJson)),
+      creatorJson: Value(_json(event.creatorJson)),
+      colorId: Value(event.colorId),
+      colorHex: Value(event.colorHex),
+      visibility: Value(event.visibility),
+      transparencyOrShowAs: Value(event.transparencyOrShowAs),
+      eventType: Value(event.eventType),
+      webLink: Value(event.webLink),
+      conferenceJson: Value(_json(event.conferenceJson)),
+      attachmentsJson: Value(_json(event.attachmentsJson)),
+      isCancelled: Value(event.isCancelled),
+      isDeleted: Value(event.isDeleted),
+      rawJson: Value(jsonEncode(event.rawJson)),
+      createdAtServer: Value(event.createdAtServer),
+      updatedAtServer: Value(event.updatedAtServer),
+      createdAtLocal: now,
+      updatedAtLocal: now,
+      syncStatus: const Value('synced'),
+      baselineRawJson: Value(jsonEncode(event.rawJson)),
+    );
+    if (!preservePendingLocalChanges) {
+      await _database
+          .into(_database.calendarEvents)
+          .insertOnConflictUpdate(eventRow);
+      return;
+    }
+
+    await _database.transaction(() async {
+      final localEvent = await (_database.select(
+        _database.calendarEvents,
+      )..where((row) => row.id.equals(id))).getSingleOrNull();
+      if (localEvent != null) {
+        if (localEvent.syncStatus != 'synced') {
+          return;
+        }
+        final pendingMutation =
+            await (_database.select(_database.pendingOps)
+                  ..where(
+                    (row) =>
+                        row.accountId.equals(accountId) &
+                        row.entityType.equals('event') &
+                        row.eventId.equals(id),
+                  )
+                  ..limit(1))
+                .getSingleOrNull();
+        if (pendingMutation != null) {
+          return;
+        }
+      }
+      await _database
+          .into(_database.calendarEvents)
+          .insertOnConflictUpdate(eventRow);
+    });
   }
 
   Future<void> saveSyncState({

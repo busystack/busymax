@@ -576,6 +576,91 @@ void main() {
     ]);
   });
 
+  test(
+    'transient patch failure does not let pull overwrite the pending edit',
+    () async {
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-event',
+      );
+      await CalendarRepository(database: database).updateLocalEvent(
+        EventEditorDraft.existing(
+          eventId: eventId,
+          accountId: 'account',
+          sourceId: 'account|google|cal-1',
+          providerCalendarId: 'cal-1',
+          title: 'Optimistic planning',
+          allDay: false,
+          start: DateTime.utc(2026, 6, 8, 9),
+          end: DateTime.utc(2026, 6, 8, 10),
+          location: 'Local room',
+        ),
+      );
+      final pendingId =
+          (await database.select(database.pendingOps).getSingle()).id;
+      final optimisticBeforeSync = await (database.select(
+        database.calendarEvents,
+      )..where((table) => table.id.equals(eventId))).getSingle();
+      client.transientUpdateFailures = 1;
+      client.syncEvent = client._event(
+        'provider-event',
+        title: 'Stale provider title',
+        location: 'Remote room',
+        etagOrChangeKey: 'remote-etag',
+        updatedAtServer: '2026-06-08T01:00:00.000Z',
+      );
+
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).fullSync();
+
+      final pendingAfterFailure = await database.pendingOpsDao.getOp(pendingId);
+      final localAfterPull = await (database.select(
+        database.calendarEvents,
+      )..where((table) => table.id.equals(eventId))).getSingle();
+      expect(client.calls, contains('syncEvents:cal-1'));
+      expect(pendingAfterFailure, isNot(equals(null)));
+      expect(pendingAfterFailure!.attemptCount, 1);
+      expect(pendingAfterFailure.nextAttemptAtUtc, isNot(equals(null)));
+      expect(localAfterPull.title, 'Optimistic planning');
+      expect(localAfterPull.location, 'Local room');
+      expect(localAfterPull.syncStatus, 'pending');
+      expect(localAfterPull.rawJson, optimisticBeforeSync.rawJson);
+      expect(
+        localAfterPull.baselineRawJson,
+        optimisticBeforeSync.baselineRawJson,
+      );
+      expect(
+        localAfterPull.updatedAtServer,
+        optimisticBeforeSync.updatedAtServer,
+      );
+      expect(localAfterPull.etagOrChangeKey, equals(null));
+      expect(
+        localAfterPull.updatedAtLocal,
+        optimisticBeforeSync.updatedAtLocal,
+      );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps();
+
+      final localAfterRetry = await (database.select(
+        database.calendarEvents,
+      )..where((table) => table.id.equals(eventId))).getSingle();
+      expect(applied, 1);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(localAfterRetry.title, 'Optimistic planning');
+      expect(localAfterRetry.location, 'Local room');
+      expect(localAfterRetry.syncStatus, 'synced');
+    },
+  );
+
   test('full refresh marks missing synced event deleted', () async {
     final eventId = await _insertEvent(
       database,
@@ -737,6 +822,8 @@ class _FakeCalendarClient implements CloudCalendarClient {
   final createdMutations = <CalendarEventMutation>[];
   final updatedMutations = <CalendarEventMutation>[];
   int _createdCount = 0;
+  int transientUpdateFailures = 0;
+  CalendarEventDto? syncEvent;
   GoogleCalendarApiError? deleteError;
 
   @override
@@ -782,9 +869,18 @@ class _FakeCalendarClient implements CloudCalendarClient {
   }) async {
     calls.add('updateEvent:$calendarId:$eventId:${mutation.title}');
     updatedMutations.add(mutation);
+    if (transientUpdateFailures > 0) {
+      transientUpdateFailures -= 1;
+      throw const GoogleCalendarApiError(
+        statusCode: 500,
+        code: 'backendError',
+        message: 'Temporary provider failure',
+      );
+    }
     return _event(
       eventId,
       title: mutation.title ?? '',
+      location: mutation.location,
       startTimeZone: mutation.startTimeZone,
       endTimeZone: mutation.endTimeZone,
     );
@@ -822,6 +918,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     calls.add('syncEvents:$calendarId');
     return CalendarSyncPageDto(
       events: [
+        if (syncEvent case final event?) event,
         if (_createdCount > 0)
           _event('server-event-$_createdCount', title: 'Planning'),
       ],
@@ -831,6 +928,9 @@ class _FakeCalendarClient implements CloudCalendarClient {
   CalendarEventDto _event(
     String id, {
     required String title,
+    String? location,
+    String? etagOrChangeKey,
+    String updatedAtServer = '2026-06-08T00:00:00.000Z',
     String? startTimeZone,
     String? endTimeZone,
   }) {
@@ -838,16 +938,20 @@ class _FakeCalendarClient implements CloudCalendarClient {
       provider: TaskProvider.google,
       providerCalendarId: 'cal-1',
       providerEventId: id,
+      etagOrChangeKey: etagOrChangeKey,
       title: title,
+      location: location,
       startDateTime: '2026-06-08T09:00:00.000Z',
       startTimeZone: startTimeZone,
       endDateTime: '2026-06-08T10:00:00.000Z',
       endTimeZone: endTimeZone,
-      updatedAtServer: '2026-06-08T00:00:00.000Z',
+      updatedAtServer: updatedAtServer,
       rawJson: {
         'id': id,
         'summary': title,
-        'updated': '2026-06-08T00:00:00.000Z',
+        if (location != null) 'location': location,
+        if (etagOrChangeKey != null) 'etag': etagOrChangeKey,
+        'updated': updatedAtServer,
       },
     );
   }

@@ -148,7 +148,11 @@ class CalendarSyncEngine {
     final expandedRecurringMasterIds = <String>{};
     while (true) {
       for (final event in page.events) {
-        await _repository.upsertEvent(accountId: _accountId, event: event);
+        await _repository.upsertEvent(
+          accountId: _accountId,
+          event: event,
+          preservePendingLocalChanges: true,
+        );
         final recurringMasterId = event.providerRecurringEventId;
         if (provider == TaskProvider.google &&
             recurringMasterId != null &&
