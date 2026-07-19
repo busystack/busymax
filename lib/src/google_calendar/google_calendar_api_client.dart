@@ -278,6 +278,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     String? syncTokenOrDeltaLink,
+    bool primaryCalendar = false,
   }) async {
     try {
       final events = <CalendarEventDto>[];

@@ -313,33 +313,47 @@ class CalendarRepository {
     bool full = false,
     String? lastError,
   }) async {
-    final id = [
-      accountId,
-      provider.storageValue,
-      syncKind,
-      calendarSourceId ?? 'account',
-      rangeStart ?? '',
-      rangeEnd ?? '',
-    ].join('|');
+    final id = syncStateId(
+      accountId: accountId,
+      provider: provider,
+      syncKind: syncKind,
+      calendarSourceId: calendarSourceId,
+    );
     final now = _now().millisecondsSinceEpoch;
-    await _database
-        .into(_database.calendarSyncStates)
-        .insertOnConflictUpdate(
-          CalendarSyncStatesCompanion.insert(
-            id: id,
-            accountId: accountId,
-            calendarSourceId: Value(calendarSourceId),
-            provider: provider.storageValue,
-            syncKind: syncKind,
-            rangeStart: Value(rangeStart),
-            rangeEnd: Value(rangeEnd),
-            googleSyncToken: Value(googleSyncToken),
-            microsoftDeltaLink: Value(microsoftDeltaLink),
-            lastFullSyncAt: full ? Value(now) : const Value.absent(),
-            lastIncrementalSyncAt: full ? const Value.absent() : Value(now),
-            lastError: Value(lastError),
-          ),
-        );
+    await _database.transaction(() async {
+      // Older releases keyed state by exact range bounds. Remove those rows
+      // before inserting the stable scope key; the legacy unique index still
+      // includes the range columns.
+      await (_database.delete(_database.calendarSyncStates)..where((row) {
+            final sameSource = calendarSourceId == null
+                ? row.calendarSourceId.isNull()
+                : row.calendarSourceId.equals(calendarSourceId);
+            return row.accountId.equals(accountId) &
+                row.provider.equals(provider.storageValue) &
+                row.syncKind.equals(syncKind) &
+                sameSource &
+                row.id.equals(id).not();
+          }))
+          .go();
+      await _database
+          .into(_database.calendarSyncStates)
+          .insertOnConflictUpdate(
+            CalendarSyncStatesCompanion.insert(
+              id: id,
+              accountId: accountId,
+              calendarSourceId: Value(calendarSourceId),
+              provider: provider.storageValue,
+              syncKind: syncKind,
+              rangeStart: Value(rangeStart),
+              rangeEnd: Value(rangeEnd),
+              googleSyncToken: Value(googleSyncToken),
+              microsoftDeltaLink: Value(microsoftDeltaLink),
+              lastFullSyncAt: full ? Value(now) : const Value.absent(),
+              lastIncrementalSyncAt: full ? const Value.absent() : Value(now),
+              lastError: Value(lastError),
+            ),
+          );
+    });
   }
 
   Future<void> createLocalEvent(EventEditorDraft draft) async {
@@ -637,20 +651,30 @@ class CalendarRepository {
     required BusyProvider provider,
     required String syncKind,
     String? calendarSourceId,
-    String? rangeStart,
-    String? rangeEnd,
   }) {
-    final id = [
+    final id = syncStateId(
+      accountId: accountId,
+      provider: provider,
+      syncKind: syncKind,
+      calendarSourceId: calendarSourceId,
+    );
+    return (_database.select(
+      _database.calendarSyncStates,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+  }
+
+  static String syncStateId({
+    required String accountId,
+    required BusyProvider provider,
+    required String syncKind,
+    String? calendarSourceId,
+  }) {
+    return [
       accountId,
       provider.storageValue,
       syncKind,
       calendarSourceId ?? 'account',
-      rangeStart ?? '',
-      rangeEnd ?? '',
     ].join('|');
-    return (_database.select(
-      _database.calendarSyncStates,
-    )..where((row) => row.id.equals(id))).getSingleOrNull();
   }
 
   static String sourceId({

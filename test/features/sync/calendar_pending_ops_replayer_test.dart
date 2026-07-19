@@ -693,6 +693,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     String? syncTokenOrDeltaLink,
+    bool primaryCalendar = false,
   }) async {
     calls.add('syncEvents:$calendarId');
     return CalendarSyncPageDto(

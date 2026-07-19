@@ -211,9 +211,24 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     String? syncTokenOrDeltaLink,
+    bool primaryCalendar = false,
   }) async {
-    if (syncTokenOrDeltaLink != null && syncTokenOrDeltaLink.isNotEmpty) {
-      final page = await _collectionPage(Uri.parse(syncTokenOrDeltaLink));
+    try {
+      final hasContinuation =
+          syncTokenOrDeltaLink != null && syncTokenOrDeltaLink.isNotEmpty;
+      final uri = hasContinuation
+          ? Uri.parse(syncTokenOrDeltaLink)
+          : primaryCalendar
+          ? _primaryCalendarViewDeltaUri(
+              rangeStart: rangeStart,
+              rangeEnd: rangeEnd,
+            )
+          : _calendarViewUri(
+              calendarId: calendarId,
+              rangeStart: rangeStart,
+              rangeEnd: rangeEnd,
+            );
+      final page = await _collectionPage(uri);
       return CalendarSyncPageDto(
         events: page.items
             .map((item) => microsoftCalendarEventFromJson(calendarId, item))
@@ -221,46 +236,14 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
         nextPageTokenOrUrl: page.nextLink,
         nextSyncTokenOrDeltaLink: page.deltaLink,
       );
+    } on MicrosoftCalendarApiError catch (error) {
+      if (syncTokenOrDeltaLink != null &&
+          syncTokenOrDeltaLink.isNotEmpty &&
+          error.isInvalidSyncState) {
+        return const CalendarSyncPageDto(events: [], requiresFullSync: true);
+      }
+      rethrow;
     }
-
-    final page = await _collectionPage(
-      _calendarViewUri(
-        calendarId: calendarId,
-        rangeStart: rangeStart,
-        rangeEnd: rangeEnd,
-      ),
-    );
-    return CalendarSyncPageDto(
-      events: page.items
-          .map((item) => microsoftCalendarEventFromJson(calendarId, item))
-          .toList(),
-      nextPageTokenOrUrl: page.nextLink,
-      nextSyncTokenOrDeltaLink: page.deltaLink,
-    );
-  }
-
-  Future<CalendarSyncPageDto> deltaPrimaryCalendarView({
-    required DateTime rangeStart,
-    required DateTime rangeEnd,
-    String? deltaLinkOrNextLink,
-  }) async {
-    final uri = deltaLinkOrNextLink == null
-        ? _uri(
-            '/me/calendarView/delta',
-            query: {
-              'startDateTime': _graphDateTime(rangeStart),
-              'endDateTime': _graphDateTime(rangeEnd),
-            },
-          )
-        : Uri.parse(deltaLinkOrNextLink);
-    final page = await _collectionPage(uri);
-    return CalendarSyncPageDto(
-      events: page.items
-          .map((item) => microsoftCalendarEventFromJson('primary', item))
-          .toList(),
-      nextPageTokenOrUrl: page.nextLink,
-      nextSyncTokenOrDeltaLink: page.deltaLink,
-    );
   }
 
   @override
@@ -285,6 +268,19 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
   }) {
     return _uri(
       '/me/calendars/${_enc(calendarId)}/calendarView',
+      query: {
+        'startDateTime': _graphDateTime(rangeStart),
+        'endDateTime': _graphDateTime(rangeEnd),
+      },
+    );
+  }
+
+  Uri _primaryCalendarViewDeltaUri({
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  }) {
+    return _uri(
+      '/me/calendarView/delta',
       query: {
         'startDateTime': _graphDateTime(rangeStart),
         'endDateTime': _graphDateTime(rangeEnd),
