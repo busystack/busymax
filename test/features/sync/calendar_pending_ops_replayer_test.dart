@@ -164,6 +164,103 @@ void main() {
   );
 
   test(
+    'existing event identity cannot move between accounts or calendars',
+    () async {
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'microsoft-account',
+              provider: const Value('microsoft'),
+              authState: const Value('signed_in'),
+              grantedScopes: const Value(''),
+              createdAtUtc: '2026-06-08T00:00:00.000Z',
+              updatedAtUtc: '2026-06-08T00:00:00.000Z',
+            ),
+          );
+      await CalendarRepository(database: database).upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'cal-2',
+          summary: 'Personal',
+          timeZone: 'America/Vancouver',
+        ),
+      );
+      await CalendarRepository(database: database).upsertSource(
+        accountId: 'microsoft-account',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.microsoft,
+          providerCalendarId: 'ms-cal-1',
+          summary: 'Outlook',
+          timeZone: 'America/Vancouver',
+        ),
+      );
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-event',
+      );
+      final repository = CalendarRepository(database: database);
+      final changedIdentities =
+          <({String accountId, String sourceId, String providerCalendarId})>[
+            (
+              accountId: 'other-account',
+              sourceId: 'account|google|cal-1',
+              providerCalendarId: 'cal-1',
+            ),
+            (
+              accountId: 'account',
+              sourceId: 'account|google|cal-2',
+              providerCalendarId: 'cal-1',
+            ),
+            (
+              accountId: 'account',
+              sourceId: 'account|google|cal-1',
+              providerCalendarId: 'cal-2',
+            ),
+            (
+              accountId: 'account',
+              sourceId: 'account|google|cal-2',
+              providerCalendarId: 'cal-2',
+            ),
+            (
+              accountId: 'microsoft-account',
+              sourceId: 'microsoft-account|microsoft|ms-cal-1',
+              providerCalendarId: 'ms-cal-1',
+            ),
+          ];
+
+      for (final identity in changedIdentities) {
+        await expectLater(
+          repository.updateLocalEvent(
+            EventEditorDraft.existing(
+              eventId: eventId,
+              accountId: identity.accountId,
+              sourceId: identity.sourceId,
+              providerCalendarId: identity.providerCalendarId,
+              title: 'Moved',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+          ),
+          throwsA(isA<UnsupportedError>()),
+        );
+
+        final event = await (database.select(
+          database.calendarEvents,
+        )..where((table) => table.id.equals(eventId))).getSingle();
+        expect(event.accountId, 'account');
+        expect(event.calendarSourceId, 'account|google|cal-1');
+        expect(event.providerCalendarId, 'cal-1');
+        expect(event.title, 'Base');
+        expect(event.syncStatus, 'synced');
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      }
+    },
+  );
+
+  test(
     'blocked Google create with missing time zone is replayed with source zone',
     () async {
       await _enqueueEventOp(

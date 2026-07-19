@@ -467,6 +467,19 @@ class CalendarRepository {
     final existing = await (_database.select(
       _database.calendarEvents,
     )..where((row) => row.id.equals(eventId))).getSingle();
+    final sourceChanged =
+        draft.accountId != existing.accountId ||
+        draft.sourceId != existing.calendarSourceId ||
+        draft.providerCalendarId != existing.providerCalendarId ||
+        source.accountId != existing.accountId ||
+        source.provider != existing.provider ||
+        source.providerCalendarId != existing.providerCalendarId;
+    if (sourceChanged) {
+      throw UnsupportedError(
+        'Moving an existing event to another calendar or account is not '
+        'supported.',
+      );
+    }
     final now = _now().millisecondsSinceEpoch;
     final provider = TaskProviderParsing.fromStorageValue(source.provider);
     final startTimeZone = _effectiveStartTimeZone(

@@ -382,6 +382,77 @@ void main() {
     );
   });
 
+  testWidgets('existing event only exposes its original calendar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _multipleSources,
+            onCancel: () {},
+            onSave: (_) {},
+            onDelete: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final calendarRow = tester.widget<BusyMaxComboRow<String>>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxComboRow<String> && widget.title == 'Calendar',
+      ),
+    );
+
+    expect(calendarRow.selected, 'source');
+    expect(calendarRow.values, ['source']);
+    expect(calendarRow.enabled, isFalse);
+  });
+
+  testWidgets('new event can still select any visible calendar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _multipleSources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final calendarRow = tester.widget<BusyMaxComboRow<String>>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxComboRow<String> && widget.title == 'Calendar',
+      ),
+    );
+
+    expect(calendarRow.values, ['source', 'destination-source']);
+    expect(calendarRow.enabled, isTrue);
+  });
+
   testWidgets('Google event editor saves multiple reminder overrides', (
     tester,
   ) async {
@@ -976,6 +1047,22 @@ const _sources = [
     readOnly: false,
     isDeleted: false,
     backgroundColor: '#3584e4',
+  ),
+];
+
+const _multipleSources = [
+  ..._sources,
+  CalendarSourceEntity(
+    id: 'destination-source',
+    accountId: 'account',
+    provider: TaskProvider.google,
+    providerCalendarId: 'cal-2',
+    summary: 'Personal',
+    selected: true,
+    hidden: false,
+    readOnly: false,
+    isDeleted: false,
+    backgroundColor: '#33d17a',
   ),
 ];
 

@@ -377,7 +377,15 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   Widget _calendarRow() {
-    final sources = widget.sources;
+    final existingSourceId = widget.initialDraft.eventId == null
+        ? null
+        : widget.initialDraft.sourceId;
+    final sources = existingSourceId == null
+        ? widget.sources
+        : [
+            for (final source in widget.sources)
+              if (source.id == existingSourceId) source,
+          ];
     if (sources.isEmpty) {
       return BusyMaxActionRow(
         title: context.l10n.calendar,
@@ -393,6 +401,7 @@ class _EventEditorState extends State<EventEditor> {
       leading: const Icon(YaruIcons.calendar),
       values: [for (final source in sources) source.id],
       selected: selected,
+      enabled: existingSourceId == null,
       labelFor: (value) =>
           sources.firstWhere((source) => source.id == value).summary,
       menuItemBuilder: (context, value) {
