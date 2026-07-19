@@ -1093,6 +1093,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             accountId: item.accountId,
             sourceId: item.sourceId,
             providerCalendarId: item.providerCalendarId,
+            providerRecurringEventId: item.providerRecurringEventId,
             title: item.title,
             allDay: item.allDay,
             start: item.start,
@@ -1103,6 +1104,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             description: item.description,
             descriptionContentType: item.descriptionContentType,
             descriptionHtml: item.descriptionHtml,
+            recurrence: item.recurrence,
+            attendees: [
+              for (final attendee in item.attendees)
+                EventAttendeeDraft.fromJson(attendee),
+            ],
             reminders: _eventRemindersForEdit(
               item.provider,
               item.reminderMinutesBeforeStart,

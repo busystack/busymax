@@ -174,6 +174,7 @@ class ScheduleRepository {
           provider: provider,
           sourceId: event.calendarSourceId,
           providerCalendarId: event.providerCalendarId,
+          providerRecurringEventId: event.providerRecurringEventId,
           title: event.title,
           allDay: event.allDay,
           start: start,
@@ -184,6 +185,8 @@ class ScheduleRepository {
           description: event.description,
           descriptionContentType: descriptionBody.contentType,
           descriptionHtml: descriptionBody.html,
+          recurrence: _jsonValueFromString(event.recurrenceJson),
+          attendees: _jsonMapListFromString(event.attendeesJson),
           categories: _stringListFromJson(event.categoriesJson),
           reminderMinutesBeforeStart: _eventReminderMinutes(
             provider,
@@ -631,6 +634,28 @@ List<String> _stringListFromJson(String? value) {
     return const [];
   }
   return const [];
+}
+
+Object? _jsonValueFromString(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  try {
+    return jsonDecode(value);
+  } on FormatException {
+    return null;
+  }
+}
+
+List<Map<String, Object?>> _jsonMapListFromString(String? value) {
+  final decoded = _jsonValueFromString(value);
+  if (decoded is! List) {
+    return const [];
+  }
+  return [
+    for (final item in decoded)
+      if (item is Map) Map<String, Object?>.from(item),
+  ];
 }
 
 List<int> _eventReminderMinutes(

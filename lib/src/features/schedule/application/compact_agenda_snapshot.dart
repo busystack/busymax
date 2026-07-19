@@ -87,12 +87,15 @@ Map<String, Object?> encodeScheduleItem(ScheduleItem item) {
   return {
     ...common,
     'providerCalendarId': event.providerCalendarId,
+    'providerRecurringEventId': event.providerRecurringEventId,
     'startTimeZone': event.startTimeZone,
     'endTimeZone': event.endTimeZone,
     'location': event.location,
     'description': event.description,
     'descriptionContentType': event.descriptionContentType,
     'descriptionHtml': event.descriptionHtml,
+    'recurrence': event.recurrence,
+    'attendees': event.attendees,
     'colorHex': event.colorHex,
     'reminderMinutesBeforeStart': event.reminderMinutesBeforeStart,
   };
@@ -147,6 +150,7 @@ ScheduleItem decodeScheduleItem(Object? raw) {
     sourceId: common.sourceId,
     providerCalendarId:
         _optionalString(map, 'providerCalendarId') ?? common.sourceId,
+    providerRecurringEventId: _optionalString(map, 'providerRecurringEventId'),
     title: common.title,
     allDay: common.allDay,
     start: common.start,
@@ -157,6 +161,8 @@ ScheduleItem decodeScheduleItem(Object? raw) {
     description: _optionalString(map, 'description'),
     descriptionContentType: _optionalString(map, 'descriptionContentType'),
     descriptionHtml: _optionalString(map, 'descriptionHtml'),
+    recurrence: map['recurrence'],
+    attendees: _mapListValue(map['attendees']),
     colorHex: _optionalString(map, 'colorHex'),
     categories: common.categories,
     reminderMinutesBeforeStart: _intListValue(
@@ -221,6 +227,13 @@ List<int> _intListValue(Object? value) {
       .map((item) => item is int ? item : int.tryParse(item.toString()))
       .nonNulls
       .toList();
+}
+
+List<Map<String, Object?>> _mapListValue(Object? value) {
+  return [
+    for (final item in _listValue(value))
+      if (item is Map) Map<String, Object?>.from(item),
+  ];
 }
 
 String _requiredString(Map<Object?, Object?> map, String key) {

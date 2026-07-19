@@ -337,8 +337,10 @@ class CalendarPendingOpsReplayer {
     Map<String, Object?> remote,
   ) {
     final changed = <String>{};
+    final clearFields = _eventClearFields(request);
     for (final entry in request.entries) {
-      if (entry.value == null) {
+      if (entry.key == calendarEventClearFieldsKey ||
+          (entry.value == null && !clearFields.contains(entry.key))) {
         continue;
       }
       final key = entry.key;
@@ -412,6 +414,7 @@ class CalendarPendingOpsReplayer {
     Map<String, Object?> request, {
     String? fallbackTimeZone,
   }) {
+    final clearFields = _eventClearFields(request);
     final allDay = request['allDay'] == true;
     final start = request['start']?.toString();
     final end = request['end']?.toString();
@@ -440,8 +443,10 @@ class CalendarPendingOpsReplayer {
       endDateTime: allDay ? null : end,
       endTimeZone: endTimeZone,
       recurrence: request['recurrenceJson'],
+      clearRecurrence: clearFields.contains(calendarEventRecurrenceField),
       reminders: request['remindersJson'],
       attendees: request['attendeesJson'],
+      clearAttendees: clearFields.contains(calendarEventAttendeesField),
       colorId: request['colorId']?.toString(),
       visibility:
           request['visibility']?.toString() ??
@@ -455,6 +460,14 @@ class CalendarPendingOpsReplayer {
       hideAttendees: request['hideAttendees'] as bool?,
       allowNewTimeProposals: request['allowNewTimeProposals'] as bool?,
     );
+  }
+
+  Set<String> _eventClearFields(Map<String, Object?> request) {
+    final value = request[calendarEventClearFieldsKey];
+    if (value is! List) {
+      return const {};
+    }
+    return {for (final field in value) field.toString()};
   }
 
   Future<String?> _fallbackTimeZone(

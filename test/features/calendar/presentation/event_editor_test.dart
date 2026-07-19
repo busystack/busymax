@@ -318,6 +318,46 @@ void main() {
     expect(draft.canSave, isFalse);
   });
 
+  test('Microsoft attendee JSON hydrates nested email details', () {
+    final attendee = EventAttendeeDraft.fromJson({
+      'emailAddress': {'address': 'guest@example.com', 'name': 'Guest'},
+      'type': 'optional',
+    });
+
+    expect(attendee.email, 'guest@example.com');
+    expect(attendee.displayName, 'Guest');
+    expect(attendee.optional, isTrue);
+  });
+
+  testWidgets('recurring occurrence hides series recurrence control', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'occurrence-1',
+              providerRecurringEventId: 'series-master',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Weekly planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Repeat'), findsNothing);
+  });
+
   testWidgets('event editor does not show metadata fields', (tester) async {
     await tester.pumpWidget(
       localizedTestApp(

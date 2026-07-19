@@ -232,7 +232,11 @@ class _EventEditorState extends State<EventEditor> {
                   ),
               ],
             ),
-            BusyMaxGroupedList(filled: true, children: [_repeatRow(provider)]),
+            if (_draft.providerRecurringEventId == null)
+              BusyMaxGroupedList(
+                filled: true,
+                children: [_repeatRow(provider)],
+              ),
             BusyMaxGroupedList(
               title: l10n.reminder,
               filled: true,

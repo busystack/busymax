@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_sync_dto.dart';
 import '../../../db/app_database.dart';
 import '../../notifications/notification_schedule_service.dart';
@@ -386,6 +387,7 @@ class CalendarRepository {
       _eventRequest(
         draft,
         provider,
+        isCreate: true,
         startTimeZone: startTimeZone,
         endTimeZone: endTimeZone,
       ),
@@ -480,6 +482,12 @@ class CalendarRepository {
         'supported.',
       );
     }
+    if (draft.recurrenceChanged && existing.providerRecurringEventId != null) {
+      throw UnsupportedError(
+        'Editing a recurring series from an individual occurrence is not '
+        'supported.',
+      );
+    }
     final now = _now().millisecondsSinceEpoch;
     final provider = TaskProviderParsing.fromStorageValue(source.provider);
     final startTimeZone = _effectiveStartTimeZone(
@@ -497,6 +505,7 @@ class CalendarRepository {
       _eventRequest(
         draft,
         provider,
+        isCreate: false,
         startTimeZone: startTimeZone,
         endTimeZone: endTimeZone,
       ),
@@ -524,10 +533,16 @@ class CalendarRepository {
             draft.allDay ? null : draft.end?.toIso8601String(),
           ),
           endTimeZone: Value(endTimeZone),
-          recurrenceJson: Value(_json(draft.recurrence)),
+          recurrenceJson: draft.recurrenceChanged
+              ? Value(_json(draft.recurrence))
+              : const Value.absent(),
           remindersJson: Value(_json(draft.reminders)),
-          attendeesJson: Value(_json(_attendeesJson(draft, provider))),
-          categoriesJson: Value(_json(_categoriesJson(draft, provider))),
+          attendeesJson: draft.attendeesChanged
+              ? Value(_json(_attendeesJson(draft, provider)))
+              : const Value.absent(),
+          categoriesJson: draft.categoriesChanged
+              ? Value(_json(_categoriesJson(draft, provider)))
+              : const Value.absent(),
           colorId: Value(draft.colorId),
           visibility: Value(draft.visibilityOrSensitivity),
           transparencyOrShowAs: Value(draft.showAs),
@@ -754,9 +769,17 @@ String? _json(Object? value) => value == null ? null : jsonEncode(value);
 Map<String, Object?> _eventRequest(
   EventEditorDraft draft,
   BusyProvider provider, {
+  required bool isCreate,
   String? startTimeZone,
   String? endTimeZone,
 }) {
+  final attendees = _attendeesJson(draft, provider);
+  final clearFields = <String>[
+    if (!isCreate && draft.recurrenceChanged && draft.recurrence == null)
+      calendarEventRecurrenceField,
+    if (!isCreate && draft.attendeesChanged && attendees == null)
+      calendarEventAttendeesField,
+  ];
   return {
     'title': draft.title.trim(),
     'description': draft.description,
@@ -768,11 +791,14 @@ Map<String, Object?> _eventRequest(
     'end': draft.end?.toIso8601String(),
     'startTimeZone': startTimeZone,
     'endTimeZone': endTimeZone,
-    'recurrenceJson': draft.recurrence,
+    if (isCreate || draft.recurrenceChanged)
+      calendarEventRecurrenceField: draft.recurrence,
     'remindersJson': draft.reminders,
-    'attendeesJson': _attendeesJson(draft, provider),
+    if (isCreate || draft.attendeesChanged)
+      calendarEventAttendeesField: attendees,
     'colorId': draft.colorId,
-    'categoriesJson': _categoriesJson(draft, provider),
+    if (isCreate || draft.categoriesChanged)
+      'categoriesJson': _categoriesJson(draft, provider),
     'visibility': provider == TaskProvider.google
         ? draft.visibilityOrSensitivity
         : null,
@@ -785,6 +811,7 @@ Map<String, Object?> _eventRequest(
     'responseRequested': draft.responseRequested,
     'hideAttendees': draft.hideAttendees,
     'allowNewTimeProposals': draft.allowNewTimeProposals,
+    if (clearFields.isNotEmpty) calendarEventClearFieldsKey: clearFields,
   };
 }
 

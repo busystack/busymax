@@ -97,7 +97,7 @@ Map<String, Object?> microsoftEventMutationToJson(
   final isAllDay = mutation.allDay == true;
   final startTimeZone = mutation.startTimeZone ?? 'UTC';
   final endTimeZone = mutation.endTimeZone ?? startTimeZone;
-  return _compact({
+  final result = _compact({
     'subject': mutation.title,
     if (_bodyPatch(mutation) != null) 'body': _bodyPatch(mutation),
     if (mutation.location != null)
@@ -111,7 +111,9 @@ Map<String, Object?> microsoftEventMutationToJson(
     if (_endDateTime(mutation) != null)
       'end': {'dateTime': _endDateTime(mutation), 'timeZone': endTimeZone},
     'recurrence': mutation.recurrence,
-    'attendees': mutation.attendees,
+    'attendees': mutation.clearAttendees
+        ? const <Object?>[]
+        : mutation.attendees,
     'categories': mutation.categories,
     'importance': mutation.importance,
     'showAs': mutation.transparencyOrShowAs,
@@ -124,6 +126,10 @@ Map<String, Object?> microsoftEventMutationToJson(
     if (_onlineMeetingProvider(mutation.conference) != null)
       'onlineMeetingProvider': _onlineMeetingProvider(mutation.conference),
   });
+  if (mutation.clearRecurrence) {
+    result['recurrence'] = null;
+  }
+  return result;
 }
 
 Map<String, Object?>? _bodyPatch(CalendarEventMutation mutation) {

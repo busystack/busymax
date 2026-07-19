@@ -158,6 +158,7 @@ void main() {
         provider: TaskProvider.microsoft,
         providerCalendarId: 'calendar',
         providerEventId: 'event',
+        providerRecurringEventId: 'series-master',
         title: 'Planning',
         startDateTime: '2026-06-11T04:20:00.0000000',
         startTimeZone: 'Pacific Standard Time',
@@ -176,6 +177,7 @@ void main() {
 
     expect(items, hasLength(1));
     final event = items.single as CalendarScheduleItem;
+    expect(event.providerRecurringEventId, 'series-master');
     expect(event.start, DateTime(2026, 6, 11, 4, 20));
     expect(event.end, DateTime(2026, 6, 11, 4, 50));
     expect(event.startTimeZone, 'Pacific Standard Time');
@@ -230,6 +232,59 @@ void main() {
       expect(event.endTimeZone, 'America/Vancouver');
     },
   );
+
+  test('calendar event keeps recurrence and attendees for editing', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    final calendarRepository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 9),
+    );
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Weekly planning',
+        startDateTime: '2026-06-11T09:00:00-07:00',
+        startTimeZone: 'America/Vancouver',
+        endDateTime: '2026-06-11T10:00:00-07:00',
+        endTimeZone: 'America/Vancouver',
+        recurrenceJson: ['RRULE:FREQ=WEEKLY'],
+        attendeesJson: [
+          {
+            'email': 'guest@example.com',
+            'displayName': 'Guest',
+            'optional': true,
+          },
+        ],
+      ),
+    );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+
+    final event = items.single as CalendarScheduleItem;
+    expect(event.recurrence, ['RRULE:FREQ=WEEKLY']);
+    expect(event.attendees, [
+      {'email': 'guest@example.com', 'displayName': 'Guest', 'optional': true},
+    ]);
+  });
 
   test(
     'Google calendar event default reminders appear on schedule item',

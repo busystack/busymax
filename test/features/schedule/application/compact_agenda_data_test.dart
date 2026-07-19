@@ -74,6 +74,12 @@ void main() {
     expect(decoded.items, hasLength(2));
     expect(decoded.items[0], isA<CalendarScheduleItem>());
     expect(decoded.items[0].title, 'Planning');
+    final event = decoded.items[0] as CalendarScheduleItem;
+    expect(event.providerRecurringEventId, 'series-master');
+    expect(event.recurrence, ['RRULE:FREQ=WEEKLY']);
+    expect(event.attendees, [
+      {'email': 'guest@example.com'},
+    ]);
     expect(decoded.items[1], isA<TaskScheduleItem>());
     expect(decoded.items[1].title, 'Review notes');
     expect(decoded.hasSignedInAccounts, isTrue);
@@ -119,6 +125,7 @@ CalendarScheduleItem _event(String title, {required DateTime start}) {
     provider: TaskProvider.google,
     sourceId: 'calendar',
     providerCalendarId: 'provider-calendar',
+    providerRecurringEventId: 'series-master',
     title: title,
     allDay: false,
     start: start,
@@ -129,6 +136,10 @@ CalendarScheduleItem _event(String title, {required DateTime start}) {
     description: 'Description',
     descriptionContentType: 'text/plain',
     descriptionHtml: '<p>Description</p>',
+    recurrence: const ['RRULE:FREQ=WEEKLY'],
+    attendees: const [
+      {'email': 'guest@example.com'},
+    ],
     colorHex: '#4477aa',
     categories: const ['Work'],
     reminderMinutesBeforeStart: const [10],

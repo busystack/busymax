@@ -260,6 +260,31 @@ void main() {
     },
   );
 
+  test('recurrence edits cannot target an individual occurrence', () async {
+    final eventId = await _insertEvent(
+      database,
+      providerEventId: 'occurrence-1',
+      providerRecurringEventId: 'series-master',
+    );
+    final draft = EventEditorDraft.existing(
+      eventId: eventId,
+      providerRecurringEventId: 'series-master',
+      accountId: 'account',
+      sourceId: 'account|google|cal-1',
+      providerCalendarId: 'cal-1',
+      title: 'Weekly planning',
+      allDay: false,
+      start: DateTime.utc(2026, 6, 8, 9),
+      end: DateTime.utc(2026, 6, 8, 10),
+    ).copyWith(clearRecurrence: true);
+
+    await expectLater(
+      CalendarRepository(database: database).updateLocalEvent(draft),
+      throwsA(isA<UnsupportedError>()),
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
   test(
     'blocked Google create with missing time zone is replayed with source zone',
     () async {
@@ -642,6 +667,7 @@ Future<void> _insertAccount(AppDatabase database) {
 Future<String> _insertEvent(
   AppDatabase database, {
   required String providerEventId,
+  String? providerRecurringEventId,
   String? startTimeZone,
   String? endTimeZone,
 }) async {
@@ -649,6 +675,7 @@ Future<String> _insertEvent(
     provider: TaskProvider.google,
     providerCalendarId: 'cal-1',
     providerEventId: providerEventId,
+    providerRecurringEventId: providerRecurringEventId,
     title: 'Base',
     startDateTime: '2026-06-08T09:00:00.000Z',
     startTimeZone: startTimeZone,
