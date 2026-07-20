@@ -10,6 +10,10 @@ import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_google_tasks_adapter.dart';
 
 void main() {
   late AppDatabase database;
@@ -804,6 +808,109 @@ void main() {
     expect(op.nextAttemptAtUtc, startsWith('9999-12-31'));
   });
 
+  for (final statusCode in [400, 403, 404]) {
+    test('Microsoft To Do $statusCode errors block operation', () async {
+      final microsoftClient = _ThrowingMicrosoftTodoApiClient(
+        updateTaskError: MicrosoftTodoApiError(
+          statusCode: statusCode,
+          code: 'permanent_error',
+          message: 'Permanent Microsoft Graph error',
+        ),
+      );
+      await _enqueue(
+        database,
+        id: '01',
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: {'title': 'Patched'},
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: _microsoftAdapter(microsoftClient),
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).replayDueOps();
+
+      final op = await database.select(database.pendingOps).getSingle();
+      expect(applied, 0);
+      expect(op.attemptCount, 1);
+      expect(op.lastErrorCode, '$statusCode');
+      expect(op.lastErrorMessage, 'Permanent Microsoft Graph error');
+      expect(op.nextAttemptAtUtc, startsWith('9999-12-31'));
+    });
+  }
+
+  for (final statusCode in [429, 503]) {
+    test('Microsoft To Do $statusCode errors schedule retry', () async {
+      final microsoftClient = _ThrowingMicrosoftTodoApiClient(
+        updateTaskError: MicrosoftTodoApiError(
+          statusCode: statusCode,
+          code: 'transient_error',
+          message: 'Transient Microsoft Graph error',
+        ),
+      );
+      final now = DateTime.utc(2026, 6, 4);
+      await _enqueue(
+        database,
+        id: '01',
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: {'title': 'Patched'},
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: _microsoftAdapter(microsoftClient),
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => now,
+      ).replayDueOps();
+
+      final op = await database.select(database.pendingOps).getSingle();
+      expect(applied, 0);
+      expect(op.attemptCount, 1);
+      expect(op.lastErrorCode, '$statusCode');
+      expect(op.lastErrorMessage, 'Transient Microsoft Graph error');
+      expect(DateTime.parse(op.nextAttemptAtUtc!).isAfter(now), isTrue);
+      expect(op.nextAttemptAtUtc, isNot(startsWith('9999-12-31')));
+    });
+  }
+
+  test('Microsoft To Do 404 delete reconciles as success', () async {
+    final microsoftClient = _ThrowingMicrosoftTodoApiClient(
+      deleteTaskError: const MicrosoftTodoApiError(
+        statusCode: 404,
+        code: 'not_found',
+        message: 'Microsoft To Do task was not found',
+      ),
+    );
+    await database.tasksDao.upsertTask(_task('list-1', 'task-1'));
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'delete_task',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      request: const {},
+    );
+
+    final applied = await PendingOpsReplayer(
+      database: database,
+      apiClient: _microsoftAdapter(microsoftClient),
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    ).replayDueOps();
+
+    expect(applied, 1);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
+  });
+
   test('unsupported provider operation is blocked during replay', () async {
     apiClient.clearCompletedError = const GoogleTasksApiError(
       statusCode: 400,
@@ -832,6 +939,55 @@ void main() {
     expect(op.lastErrorMessage, contains('Clear completed'));
     expect(op.nextAttemptAtUtc, startsWith('9999-12-31'));
   });
+}
+
+MicrosoftTodoGoogleTasksAdapter _microsoftAdapter(
+  MicrosoftTodoApiClient client,
+) {
+  return MicrosoftTodoGoogleTasksAdapter(
+    client: client,
+    defaultTimeZone: 'UTC',
+    nowUtc: () => DateTime.utc(2026, 6, 4),
+  );
+}
+
+class _ThrowingMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
+  _ThrowingMicrosoftTodoApiClient({this.updateTaskError, this.deleteTaskError});
+
+  final MicrosoftTodoApiError? updateTaskError;
+  final MicrosoftTodoApiError? deleteTaskError;
+
+  @override
+  Future<void> deleteTask({
+    required String taskListId,
+    required String taskId,
+  }) async {
+    final error = deleteTaskError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
+  Future<MicrosoftTodoTaskDto> updateTask({
+    required String taskListId,
+    required String taskId,
+    required Map<String, Object?> patch,
+  }) async {
+    final error = updateTaskError;
+    if (error != null) {
+      throw error;
+    }
+    return MicrosoftTodoTaskDto(
+      id: taskId,
+      title: patch['title']?.toString(),
+      categories: const [],
+      rawJson: {'id': taskId, ...patch},
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
