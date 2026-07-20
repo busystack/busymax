@@ -196,9 +196,7 @@ class PendingOpsReplayer {
       taskId: op.taskId!,
       patch: TaskPatch.fields(_request(op)),
     );
-    await _database.tasksDao.upsertTask(
-      taskFromDto(_accountId, op.taskListId!, dto, _now()),
-    );
+    await _applyTaskEditResult(op, dto);
   }
 
   Future<void> _updateTask(PendingOp op) async {
@@ -208,9 +206,54 @@ class PendingOpsReplayer {
       taskId: op.taskId!,
       replacement: TaskPut.fields(_request(op)),
     );
-    await _database.tasksDao.upsertTask(
-      taskFromDto(_accountId, op.taskListId!, dto, _now()),
-    );
+    await _applyTaskEditResult(op, dto);
+  }
+
+  Future<void> _applyTaskEditResult(PendingOp op, TaskDto serverTask) async {
+    await _database.transaction(() async {
+      final hasDependent = await _rebaseDependentTaskEdits(op, serverTask);
+      if (hasDependent) {
+        return;
+      }
+      await _database.tasksDao.upsertTask(
+        taskFromDto(_accountId, op.taskListId!, serverTask, _now()),
+      );
+    });
+  }
+
+  Future<bool> _rebaseDependentTaskEdits(
+    PendingOp completedOp,
+    TaskDto serverTask,
+  ) async {
+    final dependents =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.dependsOnOpId.equals(completedOp.id),
+            ))
+            .get();
+    if (dependents.isEmpty) {
+      return false;
+    }
+
+    final acknowledgedFields = _request(completedOp).keys;
+    for (final dependent in dependents) {
+      final baseline = _jsonObject(dependent.baselineRawJson ?? '{}');
+      // Keep the original timestamp and untouched fields so a provider edit to
+      // a different field is still detected by the dependent operation.
+      for (final field in acknowledgedFields) {
+        baseline[field] = serverTask.rawJson[field];
+      }
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(dependent.id))).write(
+        PendingOpsCompanion(
+          baselineRawJson: Value(jsonEncode(baseline)),
+          updatedAtUtc: Value(_now()),
+        ),
+      );
+    }
+    return true;
   }
 
   Future<void> _deleteTask(PendingOp op) async {

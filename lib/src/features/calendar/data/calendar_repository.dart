@@ -546,6 +546,10 @@ class CalendarRepository {
       ),
     );
     await _database.transaction(() async {
+      final predecessor = await _latestPendingEventEdit(
+        accountId: draft.accountId,
+        eventId: eventId,
+      );
       await (_database.update(
         _database.calendarEvents,
       )..where((row) => row.id.equals(eventId))).write(
@@ -599,6 +603,7 @@ class CalendarRepository {
               calendarSourceId: Value(draft.sourceId),
               providerCalendarId: Value(draft.providerCalendarId),
               eventId: Value(eventId),
+              dependsOnOpId: Value(predecessor?.id),
               requestJson: requestJson,
               baselineUpdatedUtc: Value(existing.updatedAtServer),
               baselineRawJson: Value(existing.baselineRawJson),
@@ -611,6 +616,36 @@ class CalendarRepository {
       draft.accountId,
     );
     await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<PendingOp?> _latestPendingEventEdit({
+    required String accountId,
+    required String eventId,
+  }) async {
+    final query = _database.select(_database.pendingOps)
+      ..where(
+        (row) =>
+            row.accountId.equals(accountId) &
+            row.entityType.equals('event') &
+            row.eventId.equals(eventId) &
+            (row.operationType.equals('event.patch') |
+                (row.operationType.isNull() & row.operation.equals('patch'))),
+      )
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.createdAtUtc),
+        (row) => OrderingTerm.desc(row.updatedAtUtc),
+      ]);
+    final edits = await query.get();
+    final predecessorIds = {
+      for (final edit in edits)
+        if (edit.dependsOnOpId != null) edit.dependsOnOpId!,
+    };
+    for (final edit in edits) {
+      if (!predecessorIds.contains(edit.id)) {
+        return edit;
+      }
+    }
+    return edits.isEmpty ? null : edits.first;
   }
 
   Future<String> deleteLocalEvent(String eventId) async {

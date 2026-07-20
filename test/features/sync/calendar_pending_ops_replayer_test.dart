@@ -404,6 +404,137 @@ void main() {
     },
   );
 
+  test(
+    'back-to-back local event patches replay in order without self-conflict',
+    () async {
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-event',
+      );
+      client
+        ..persistEventUpdates = true
+        ..remoteEvent = client._event('provider-event', title: 'Base');
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 8),
+      );
+
+      for (final title in ['First local title', 'Second local title']) {
+        await repository.updateLocalEvent(
+          EventEditorDraft.existing(
+            eventId: eventId,
+            accountId: 'account',
+            sourceId: 'account|google|cal-1',
+            providerCalendarId: 'cal-1',
+            title: title,
+            allDay: false,
+            start: DateTime.utc(2026, 6, 8, 9),
+            end: DateTime.utc(2026, 6, 8, 10),
+          ),
+        );
+      }
+
+      final queued = await database.pendingOpsDao.pendingOpsForReplay(
+        'account',
+        _later,
+      );
+      expect(queued, hasLength(2));
+      expect(queued.first.dependsOnOpId, equals(null));
+      expect(queued.last.dependsOnOpId, queued.first.id);
+      expect(
+        queued.map((op) => op.baselineUpdatedUtc),
+        everyElement('2026-06-08T00:00:00.000Z'),
+      );
+      expect(
+        queued.map((op) => op.baselineRawJson),
+        everyElement(
+          '{"id":"provider-event","summary":"Base",'
+          '"updated":"2026-06-08T00:00:00.000Z"}',
+        ),
+      );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps();
+
+      expect(applied, 2);
+      expect(client.updatedMutations.map((mutation) => mutation.title), [
+        'First local title',
+        'Second local title',
+      ]);
+      expect(client.remoteEvent!.title, 'Second local title');
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final local = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingle();
+      expect(local.title, 'Second local title');
+      expect(local.syncStatus, 'synced');
+    },
+  );
+
+  test(
+    'earlier local event patch does not hide a later-field remote conflict',
+    () async {
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-event',
+      );
+      client
+        ..persistEventUpdates = true
+        ..remoteEvent = client._event(
+          'provider-event',
+          title: 'Base',
+          location: 'Remote room',
+          updatedAtServer: '2026-06-08T00:05:00.000Z',
+        );
+      await _enqueueEventOp(
+        database,
+        id: 'op-1',
+        operation: 'patch',
+        operationType: 'event.patch',
+        eventId: eventId,
+        request: {'title': 'Local title'},
+        baselineRawJson:
+            '{"id":"provider-event","summary":"Base",'
+            '"location":"Base room",'
+            '"updated":"2026-06-08T00:00:00.000Z"}',
+      );
+      await _enqueueEventOp(
+        database,
+        id: 'op-2',
+        operation: 'patch',
+        operationType: 'event.patch',
+        eventId: eventId,
+        request: {'location': 'Local room'},
+        dependsOnOpId: 'op-1',
+        baselineRawJson:
+            '{"id":"provider-event","summary":"Base",'
+            '"location":"Base room",'
+            '"updated":"2026-06-08T00:00:00.000Z"}',
+      );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      expect(client.updatedMutations.map((mutation) => mutation.title), [
+        'Local title',
+      ]);
+      expect(client.remoteEvent!.title, 'Local title');
+      expect(client.remoteEvent!.location, 'Remote room');
+      final op = await database.pendingOpsDao.getOp('op-2');
+      expect(op!.lastErrorCode, 'conflict');
+      expect(op.lastErrorMessage, contains('location'));
+    },
+  );
+
   test('event delete pending op calls provider deleteEvent', () async {
     final eventId = await _insertEvent(
       database,
@@ -791,7 +922,11 @@ Future<void> _enqueueEventOp(
   required String operationType,
   required String eventId,
   required Map<String, Object?> request,
+  String? dependsOnOpId,
   String? baselineUpdatedUtc = '2026-06-08T00:00:00.000Z',
+  String baselineRawJson =
+      '{"id":"provider-event","summary":"Base",'
+      '"updated":"2026-06-08T00:00:00.000Z"}',
 }) {
   return database.pendingOpsDao.enqueue(
     PendingOpsCompanion.insert(
@@ -804,11 +939,10 @@ Future<void> _enqueueEventOp(
       calendarSourceId: const Value('account|google|cal-1'),
       providerCalendarId: const Value('cal-1'),
       eventId: Value(eventId),
+      dependsOnOpId: Value(dependsOnOpId),
       requestJson: jsonEncode(request),
       baselineUpdatedUtc: Value(baselineUpdatedUtc),
-      baselineRawJson: const Value(
-        '{"id":"provider-event","summary":"Base","updated":"2026-06-08T00:00:00.000Z"}',
-      ),
+      baselineRawJson: Value(baselineRawJson),
       createdAtUtc: '2026-06-08T00:00:00.000Z',
       updatedAtUtc: '2026-06-08T00:00:00.000Z',
     ),
@@ -824,6 +958,9 @@ class _FakeCalendarClient implements CloudCalendarClient {
   int _createdCount = 0;
   int transientUpdateFailures = 0;
   CalendarEventDto? syncEvent;
+  CalendarEventDto? remoteEvent;
+  bool persistEventUpdates = false;
+  int _eventUpdateRevision = 0;
   GoogleCalendarApiError? deleteError;
 
   @override
@@ -877,13 +1014,31 @@ class _FakeCalendarClient implements CloudCalendarClient {
         message: 'Temporary provider failure',
       );
     }
-    return _event(
+    final current = remoteEvent;
+    final event = _event(
       eventId,
-      title: mutation.title ?? '',
-      location: mutation.location,
+      title: persistEventUpdates
+          ? mutation.title ?? current?.title ?? ''
+          : mutation.title ?? '',
+      location: persistEventUpdates
+          ? mutation.location ?? current?.location
+          : mutation.location,
+      updatedAtServer: persistEventUpdates
+          ? DateTime.utc(
+              2026,
+              6,
+              8,
+              0,
+              ++_eventUpdateRevision + 5,
+            ).toIso8601String()
+          : '2026-06-08T00:00:00.000Z',
       startTimeZone: mutation.startTimeZone,
       endTimeZone: mutation.endTimeZone,
     );
+    if (persistEventUpdates) {
+      remoteEvent = event;
+    }
+    return event;
   }
 
   @override
@@ -892,7 +1047,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required String eventId,
   }) async {
     calls.add('getEvent:$calendarId:$eventId');
-    return _event(eventId, title: 'Base');
+    return remoteEvent ?? _event(eventId, title: 'Base');
   }
 
   @override

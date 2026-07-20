@@ -6,6 +6,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
+import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
@@ -382,6 +383,153 @@ void main() {
   });
 
   test(
+    'back-to-back local task patches replay in order without self-conflict',
+    () async {
+      const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+      final baselineRawJson = jsonEncode({
+        'id': 'task-1',
+        'title': 'Base title',
+        'updated': baselineUpdatedUtc,
+      });
+      apiClient
+        ..persistTaskPatches = true
+        ..remoteTask = _taskDto(
+          'task-1',
+          title: 'Base title',
+          updated: DateTime.parse(baselineUpdatedUtc),
+        );
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          title: 'Base title',
+          updatedUtc: baselineUpdatedUtc,
+          rawJson: baselineRawJson,
+        ),
+      );
+      var localEdit = 0;
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++localEdit),
+      );
+
+      await repository.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'title': 'First local title'}),
+      );
+      await repository.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'title': 'Second local title'}),
+      );
+
+      final queued = await database.pendingOpsDao.pendingOpsForReplay(
+        'account',
+        _later,
+      );
+      expect(queued, hasLength(2));
+      expect(queued.first.dependsOnOpId, equals(null));
+      expect(queued.last.dependsOnOpId, queued.first.id);
+      expect(
+        queued.map((op) => op.baselineRawJson),
+        everyElement(baselineRawJson),
+      );
+      expect(
+        queued.map((op) => op.baselineUpdatedUtc),
+        everyElement(baselineUpdatedUtc),
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 2);
+      expect(apiClient.taskPatchFields.map((fields) => fields['title']), [
+        'First local title',
+        'Second local title',
+      ]);
+      expect(apiClient.remoteTask!.title, 'Second local title');
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final local = await database.tasksDao.listTasks('account', 'list-1');
+      expect(local.single.title, 'Second local title');
+      expect(local.single.localDirty, isFalse);
+    },
+  );
+
+  test(
+    'earlier local patch does not hide a genuine conflict on a later field',
+    () async {
+      const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+      final baselineRawJson = jsonEncode({
+        'id': 'task-1',
+        'title': 'Base title',
+        'notes': 'Base notes',
+        'updated': baselineUpdatedUtc,
+      });
+      apiClient.persistTaskPatches = true;
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          title: 'Base title',
+          updatedUtc: baselineUpdatedUtc,
+          rawJson: baselineRawJson,
+        ),
+      );
+      var localEdit = 0;
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++localEdit),
+      );
+      await repository.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'title': 'Local title'}),
+      );
+      await repository.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'notes': 'Local notes'}),
+      );
+      apiClient.remoteTask = _taskDto(
+        'task-1',
+        title: 'Base title',
+        notes: 'Remote notes',
+        updated: DateTime.utc(2026, 6, 4, 0, 5),
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      expect(apiClient.taskPatchFields, [
+        {'title': 'Local title'},
+      ]);
+      expect(apiClient.remoteTask!.title, 'Local title');
+      expect(apiClient.remoteTask!.notes, 'Remote notes');
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.lastErrorCode, 'conflict');
+      expect(pending.lastErrorMessage, contains('notes'));
+      final local = await database.tasksDao.listTasks('account', 'list-1');
+      expect(local.single.title, 'Local title');
+      expect(local.single.notes, 'Local notes');
+      expect(local.single.localDirty, isTrue);
+    },
+  );
+
+  test(
     'conflicting task list delete is blocked before remote mutation',
     () async {
       apiClient.remoteTaskList = _taskListDto(
@@ -694,6 +842,8 @@ class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
   GoogleTasksApiError? clearCompletedError;
   TaskListDto? remoteTaskList;
   TaskDto? remoteTask;
+  bool persistTaskPatches = false;
+  int _taskPatchRevision = 0;
   TasksPageDto remoteTasksPage = const TasksPageDto(items: [], rawJson: {});
 
   @override
@@ -751,7 +901,23 @@ class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
   }) async {
     taskPatchFields.add(patch.fields);
     calls.add('patch_task:$taskId');
-    return _taskDto(taskId, title: patch.fields['title'].toString());
+    final current = remoteTask;
+    final dto = persistTaskPatches
+        ? _taskDto(
+            taskId,
+            title: patch.fields.containsKey('title')
+                ? patch.fields['title']?.toString() ?? ''
+                : current?.title ?? '',
+            notes: patch.fields.containsKey('notes')
+                ? patch.fields['notes']?.toString()
+                : current?.notes,
+            updated: DateTime.utc(2026, 6, 4, 0, ++_taskPatchRevision + 5),
+          )
+        : _taskDto(taskId, title: patch.fields['title'].toString());
+    if (persistTaskPatches) {
+      remoteTask = dto;
+    }
+    return dto;
   }
 
   @override
@@ -937,17 +1103,20 @@ TaskListDto _taskListDto(
 TaskDto _taskDto(
   String id, {
   String title = 'Task',
+  String? notes,
   DateTime? updated,
   String? status,
 }) {
   return TaskDto(
     id: id,
     title: title,
+    notes: notes,
     updated: updated,
     status: status,
     rawJson: {
       'id': id,
       'title': title,
+      if (notes != null) 'notes': notes,
       if (updated != null) 'updated': updated.toIso8601String(),
       if (status != null) 'status': status,
     },
