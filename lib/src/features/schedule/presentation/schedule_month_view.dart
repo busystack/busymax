@@ -329,7 +329,8 @@ List<DateTime> _daysInRange(ScheduleRange range) {
   var cursor = range.start;
   while (cursor.isBefore(range.end)) {
     result.add(cursor);
-    cursor = cursor.add(const Duration(days: 1));
+    // Reconstruct local midnight so DST changes cannot shift or repeat a date.
+    cursor = DateTime(cursor.year, cursor.month, cursor.day + 1);
   }
   return result;
 }
