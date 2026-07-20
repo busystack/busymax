@@ -184,54 +184,99 @@ void main() {
     expect(event.endTimeZone, 'Pacific Standard Time');
   });
 
-  test(
-    'Google timed calendar event keeps provider wall time for editing',
-    () async {
-      final database = AppDatabase(NativeDatabase.memory());
-      addTearDown(database.close);
-      await _insertScheduleAccount(database, provider: TaskProvider.google);
-      final calendarRepository = CalendarRepository(
-        database: database,
-        now: () => DateTime.utc(2026, 6, 9),
-      );
-      await calendarRepository.upsertSource(
-        accountId: 'account',
-        source: const CalendarSourceDto(
-          provider: TaskProvider.google,
-          providerCalendarId: 'calendar',
-          summary: 'Work',
-        ),
-      );
-      await calendarRepository.upsertEvent(
-        accountId: 'account',
-        event: const CalendarEventDto(
-          provider: TaskProvider.google,
-          providerCalendarId: 'calendar',
-          providerEventId: 'event',
-          title: 'Planning',
-          startDateTime: '2026-06-11T05:52:00-07:00',
-          startTimeZone: 'America/Vancouver',
-          endDateTime: '2026-06-11T06:52:00-07:00',
-          endTimeZone: 'America/Vancouver',
-        ),
-      );
+  test('Google RFC3339 offsets convert to local display time', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    final calendarRepository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 9),
+    );
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Planning',
+        startDateTime: '2026-06-11T09:00:00-04:00',
+        startTimeZone: 'America/New_York',
+        endDateTime: '2026-06-11T10:00:00-04:00',
+        endTimeZone: 'America/New_York',
+      ),
+    );
 
-      final items = await ScheduleRepository(database).listItems(
-        range: ScheduleRange.day(DateTime(2026, 6, 11)),
-        filters: const ScheduleFilters(
-          accountIds: {'account'},
-          includeTasks: false,
-        ),
-      );
+    final expectedStart = DateTime.utc(2026, 6, 11, 13).toLocal();
+    final expectedEnd = DateTime.utc(2026, 6, 11, 14).toLocal();
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(expectedStart),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
 
-      expect(items, hasLength(1));
-      final event = items.single as CalendarScheduleItem;
-      expect(event.start, DateTime(2026, 6, 11, 5, 52));
-      expect(event.end, DateTime(2026, 6, 11, 6, 52));
-      expect(event.startTimeZone, 'America/Vancouver');
-      expect(event.endTimeZone, 'America/Vancouver');
-    },
-  );
+    expect(items, hasLength(1));
+    final event = items.single as CalendarScheduleItem;
+    expect(event.start, expectedStart);
+    expect(event.end, expectedEnd);
+    expect(event.editorStart, DateTime(2026, 6, 11, 9));
+    expect(event.editorEnd, DateTime(2026, 6, 11, 10));
+    expect(event.startTimeZone, 'America/New_York');
+    expect(event.endTimeZone, 'America/New_York');
+  });
+
+  test('UTC calendar instants convert to local display time', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    final calendarRepository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 9),
+    );
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Planning',
+        startDateTime: '2026-06-11T13:00:00Z',
+        endDateTime: '2026-06-11T14:00:00Z',
+      ),
+    );
+
+    final expectedStart = DateTime.utc(2026, 6, 11, 13).toLocal();
+    final expectedEnd = DateTime.utc(2026, 6, 11, 14).toLocal();
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(expectedStart),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+
+    expect(items, hasLength(1));
+    final event = items.single as CalendarScheduleItem;
+    expect(event.start, expectedStart);
+    expect(event.end, expectedEnd);
+  });
 
   test('calendar event keeps recurrence and attendees for editing', () async {
     final database = AppDatabase(NativeDatabase.memory());

@@ -30,6 +30,8 @@ class CalendarScheduleItem implements ScheduleItem {
     this.start,
     this.providerRecurringEventId,
     this.end,
+    this.editorStart,
+    this.editorEnd,
     this.startTimeZone,
     this.endTimeZone,
     this.location,
@@ -62,6 +64,12 @@ class CalendarScheduleItem implements ScheduleItem {
   final DateTime? start;
   @override
   final DateTime? end;
+
+  /// Wall time used by the editor while [start] is localized for display.
+  final DateTime? editorStart;
+
+  /// Wall time used by the editor while [end] is localized for display.
+  final DateTime? editorEnd;
   final String? startTimeZone;
   final String? endTimeZone;
   @override

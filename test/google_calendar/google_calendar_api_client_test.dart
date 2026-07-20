@@ -131,8 +131,8 @@ void main() {
         'Weekly planning',
       ]);
       expect(schedule.map((item) => item.start), [
-        DateTime(2026, 7, 14, 9),
-        DateTime(2026, 7, 21, 9),
+        DateTime.parse('2026-07-14T09:00:00-07:00').toLocal(),
+        DateTime.parse('2026-07-21T09:00:00-07:00').toLocal(),
       ]);
     },
   );

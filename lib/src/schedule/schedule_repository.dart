@@ -179,6 +179,12 @@ class ScheduleRepository {
           allDay: event.allDay,
           start: start,
           end: end,
+          editorStart: event.allDay
+              ? null
+              : _parseCalendarEditorDateTime(event.startDateTime),
+          editorEnd: event.allDay
+              ? null
+              : _parseCalendarEditorDateTime(event.endDateTime),
           startTimeZone: event.startTimeZone,
           endTimeZone: event.endTimeZone,
           location: event.location,
@@ -568,14 +574,14 @@ bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
 
 DateTime? _eventStart(CalendarEvent event) {
   if (!event.allDay) {
-    return _parseCalendarDateTime(event.startDateTime);
+    return providerDateTimeAsLocal(event.startDateTime, event.startTimeZone);
   }
   return _parseDate(event.startDate) ?? _parseDate(event.startDateTime);
 }
 
 DateTime? _eventEnd(CalendarEvent event) {
   if (!event.allDay) {
-    return _parseCalendarDateTime(event.endDateTime);
+    return providerDateTimeAsLocal(event.endDateTime, event.endTimeZone);
   }
   return _parseDate(event.endDate) ?? _parseDate(event.endDateTime);
 }
@@ -594,7 +600,7 @@ DateTime? _parseDateTime(String? value) {
   return DateTime.tryParse(value);
 }
 
-DateTime? _parseCalendarDateTime(String? value) {
+DateTime? _parseCalendarEditorDateTime(String? value) {
   if (value == null || value.isEmpty) {
     return null;
   }

@@ -62,7 +62,11 @@ void main() {
   test('compact agenda snapshot round-trips schedule data', () {
     final expected = _agendaData(
       items: [
-        _event('Planning', start: DateTime(2026, 6, 10, 9)),
+        _event(
+          'Planning',
+          start: DateTime(2026, 6, 10, 6),
+          editorStart: DateTime(2026, 6, 10, 9),
+        ),
         _task('Review notes', start: DateTime(2026, 6, 10, 11)),
       ],
     );
@@ -80,6 +84,10 @@ void main() {
     expect(event.attendees, [
       {'email': 'guest@example.com'},
     ]);
+    expect(event.start, DateTime(2026, 6, 10, 6));
+    expect(event.end, DateTime(2026, 6, 10, 7));
+    expect(event.editorStart, DateTime(2026, 6, 10, 9));
+    expect(event.editorEnd, DateTime(2026, 6, 10, 10));
     expect(decoded.items[1], isA<TaskScheduleItem>());
     expect(decoded.items[1].title, 'Review notes');
     expect(decoded.hasSignedInAccounts, isTrue);
@@ -118,7 +126,11 @@ CompactAgendaData _agendaData({List<ScheduleItem>? items}) {
   );
 }
 
-CalendarScheduleItem _event(String title, {required DateTime start}) {
+CalendarScheduleItem _event(
+  String title, {
+  required DateTime start,
+  DateTime? editorStart,
+}) {
   return CalendarScheduleItem(
     id: title,
     accountId: 'account',
@@ -130,6 +142,8 @@ CalendarScheduleItem _event(String title, {required DateTime start}) {
     allDay: false,
     start: start,
     end: start.add(const Duration(hours: 1)),
+    editorStart: editorStart,
+    editorEnd: editorStart?.add(const Duration(hours: 1)),
     startTimeZone: 'America/Vancouver',
     endTimeZone: 'America/Vancouver',
     location: 'Room 1',
