@@ -94,7 +94,6 @@ Map<String, Object?> microsoftCalendarMutationToJson(
 Map<String, Object?> microsoftEventMutationToJson(
   CalendarEventMutation mutation,
 ) {
-  final isAllDay = mutation.allDay == true;
   final startTimeZone = mutation.startTimeZone ?? 'UTC';
   final endTimeZone = mutation.endTimeZone ?? startTimeZone;
   final result = _compact({
@@ -122,7 +121,6 @@ Map<String, Object?> microsoftEventMutationToJson(
     'hideAttendees': mutation.hideAttendees,
     'allowNewTimeProposals': mutation.allowNewTimeProposals,
     if (mutation.reminders is Map) ..._reminderPatch(mutation.reminders!),
-    if (isAllDay && mutation.reminders != null) 'isReminderOn': true,
     if (_onlineMeetingProvider(mutation.conference) != null)
       'onlineMeetingProvider': _onlineMeetingProvider(mutation.conference),
   });
