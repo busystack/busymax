@@ -117,8 +117,11 @@ class CalendarRepository {
     return rows.map(CalendarSourceEntity.fromRow).toList();
   }
 
-  Future<void> setSourceSelected(String sourceId, bool selected) {
-    return (_database.update(
+  Future<void> setSourceSelected(String sourceId, bool selected) async {
+    final source = await (_database.select(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).getSingle();
+    await (_database.update(
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).write(
       CalendarSourcesCompanion(
@@ -126,6 +129,10 @@ class CalendarRepository {
         updatedAtLocal: Value(_now().millisecondsSinceEpoch),
       ),
     );
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      source.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> renameLocalSource(String sourceId, String summary) async {
@@ -195,6 +202,10 @@ class CalendarRepository {
         ),
       );
     });
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      source.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> upsertSource({
@@ -207,31 +218,37 @@ class CalendarRepository {
       provider: source.provider,
       providerCalendarId: source.providerCalendarId,
     );
-    await _database
-        .into(_database.calendarSources)
-        .insertOnConflictUpdate(
-          CalendarSourcesCompanion.insert(
-            id: id,
-            accountId: accountId,
-            provider: source.provider.storageValue,
-            providerCalendarId: source.providerCalendarId,
-            summary: source.summary,
-            description: Value(source.description),
-            primaryCalendar: Value(source.primaryCalendar),
-            selected: Value(source.selected),
-            hidden: Value(source.hidden),
-            readOnly: Value(source.readOnly),
-            backgroundColor: Value(source.backgroundColor),
-            foregroundColor: Value(source.foregroundColor),
-            colorId: Value(source.colorId),
-            timeZone: Value(source.timeZone),
-            accessRole: Value(source.accessRole),
-            isDeleted: Value(source.isDeleted),
-            rawJson: Value(jsonEncode(source.rawJson)),
-            createdAtLocal: now,
-            updatedAtLocal: now,
-          ),
-        );
+    await _database.transaction(() async {
+      final existing = await (_database.select(
+        _database.calendarSources,
+      )..where((row) => row.id.equals(id))).getSingleOrNull();
+      final isDeleted = (existing?.isDeleted ?? false) || source.isDeleted;
+      await _database
+          .into(_database.calendarSources)
+          .insertOnConflictUpdate(
+            CalendarSourcesCompanion.insert(
+              id: id,
+              accountId: accountId,
+              provider: source.provider.storageValue,
+              providerCalendarId: source.providerCalendarId,
+              summary: source.summary,
+              description: Value(source.description),
+              primaryCalendar: Value(source.primaryCalendar),
+              selected: Value(existing?.selected ?? source.selected),
+              hidden: Value(isDeleted || source.hidden),
+              readOnly: Value(source.readOnly),
+              backgroundColor: Value(source.backgroundColor),
+              foregroundColor: Value(source.foregroundColor),
+              colorId: Value(source.colorId),
+              timeZone: Value(source.timeZone),
+              accessRole: Value(source.accessRole),
+              isDeleted: Value(isDeleted),
+              rawJson: Value(jsonEncode(source.rawJson)),
+              createdAtLocal: existing?.createdAtLocal ?? now,
+              updatedAtLocal: now,
+            ),
+          );
+    });
   }
 
   /// Stores a provider event.

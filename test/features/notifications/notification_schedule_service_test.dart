@@ -375,6 +375,30 @@ void main() {
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
 
+  test('deselected calendar removes scheduled event reminder', () async {
+    await _expectSourceUpdateRemovesEventReminder(
+      database: database,
+      service: service,
+      update: const CalendarSourcesCompanion(selected: Value(false)),
+    );
+  });
+
+  test('hidden calendar removes scheduled event reminder', () async {
+    await _expectSourceUpdateRemovesEventReminder(
+      database: database,
+      service: service,
+      update: const CalendarSourcesCompanion(hidden: Value(true)),
+    );
+  });
+
+  test('deleted calendar removes scheduled event reminder', () async {
+    await _expectSourceUpdateRemovesEventReminder(
+      database: database,
+      service: service,
+      update: const CalendarSourcesCompanion(isDeleted: Value(true)),
+    );
+  });
+
   test('completed task removes scheduled task reminder', () async {
     await _insertTaskReminder(database, status: 'needsAction');
     await service.rebuildUpcomingTaskNotifications('microsoft:m');
@@ -481,6 +505,33 @@ Future<void> _upsertEvent(
       rawJson: {'id': 'event-1', 'subject': 'Standup'},
     ),
   );
+}
+
+Future<void> _expectSourceUpdateRemovesEventReminder({
+  required AppDatabase database,
+  required NotificationScheduleService service,
+  required CalendarSourcesCompanion update,
+}) async {
+  await _upsertEvent(
+    database,
+    accountId: 'google:g',
+    provider: TaskProvider.google,
+    remindersJson: {
+      'overrides': [
+        {'method': 'popup', 'minutes': 10},
+      ],
+    },
+  );
+  await service.rebuildUpcomingEventNotifications('google:g');
+  expect(
+    await database.select(database.notificationSchedule).get(),
+    hasLength(1),
+  );
+
+  await database.update(database.calendarSources).write(update);
+  await service.rebuildUpcomingEventNotifications('google:g');
+
+  expect(await database.select(database.notificationSchedule).get(), isEmpty);
 }
 
 Future<void> _insertTaskReminder(

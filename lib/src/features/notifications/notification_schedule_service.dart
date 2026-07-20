@@ -21,9 +21,15 @@ class NotificationScheduleService {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
     final sourcesById = {
-      for (final source in await (_database.select(
-        _database.calendarSources,
-      )..where((row) => row.accountId.equals(accountId))).get())
+      for (final source
+          in await (_database.select(_database.calendarSources)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.selected.equals(true) &
+                    row.hidden.equals(false) &
+                    row.isDeleted.equals(false),
+              ))
+              .get())
         source.id: source,
     };
     final rows =
@@ -35,14 +41,15 @@ class NotificationScheduleService {
             ))
             .get();
     for (final event in rows) {
+      final source = sourcesById[event.calendarSourceId];
+      if (source == null) {
+        continue;
+      }
       final start = _eventStart(event);
       if (start == null) {
         continue;
       }
-      final reminders = _eventReminderMinutes(
-        event,
-        source: sourcesById[event.calendarSourceId],
-      );
+      final reminders = _eventReminderMinutes(event, source: source);
       for (final minutes in reminders) {
         final startUtc = start.toUtc();
         final reminderAt = startUtc.subtract(Duration(minutes: minutes));
