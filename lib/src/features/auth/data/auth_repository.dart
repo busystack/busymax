@@ -319,7 +319,7 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         _startSignedInSync(loaded.accountId!, false);
       }
     } on Object catch (error) {
-      state = AuthSessionState.error(_authErrorMessage(error));
+      state = AuthSessionState.error(authErrorMessage(error));
     }
   }
 
@@ -350,7 +350,7 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         state = const AuthSessionState.signedOut();
         return;
       }
-      state = AuthSessionState.error(_authErrorMessage(error));
+      state = AuthSessionState.error(authErrorMessage(error));
     }
   }
 
@@ -381,7 +381,7 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         state = const AuthSessionState.signedOut();
         return;
       }
-      state = AuthSessionState.error(_authErrorMessage(error));
+      state = AuthSessionState.error(authErrorMessage(error));
     }
   }
 
@@ -437,7 +437,7 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
   }
 }
 
-String _authErrorMessage(Object error) {
+String authErrorMessage(Object error) {
   if (error is OAuthException) {
     if (_isCallbackFailure(error.code)) {
       if (error.message == microsoftSignInCallbackNotReceivedMessage) {
