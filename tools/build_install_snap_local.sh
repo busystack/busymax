@@ -12,7 +12,8 @@ Options:
   --no-run             Install the snap but do not run it.
   --skip-tests         Skip flutter analyze/test.
   --output FILE        Write the packed snap to FILE.
-  --root DIR           Use DIR as the temporary snap root.
+  --root DIR           Use DIR as the temporary snap root. Existing directories
+                       must have been created by this helper.
   --scaffold DIR       Use DIR instead of /snap/<snap-name>/current.
   --snap-name NAME     Override the snap name.
   --binary-name NAME   Override the Linux executable name.
@@ -31,6 +32,94 @@ EOF
 fail() {
   echo "error: $*" >&2
   exit 1
+}
+
+canonical_path() {
+  local label="$1"
+  local path="$2"
+  local canonical
+  [[ -n "${path//[[:space:]]/}" ]] || fail "$label must not be empty"
+  canonical="$(realpath -m -- "$path")" || fail "could not resolve $label: $path"
+  [[ "$canonical" == /* ]] || fail "$label did not resolve to an absolute path: $path"
+  printf '%s\n' "$canonical"
+}
+
+path_is_within() {
+  local path="$1"
+  local parent="$2"
+  [[ "$path" == "$parent" || "$path" == "$parent/"* ]]
+}
+
+validate_path_component() {
+  local label="$1"
+  local value="$2"
+  [[ -n "$value" && "$value" != "." && "$value" != ".." ]] ||
+    fail "$label must be a non-empty file name"
+  [[ "$value" != */* ]] || fail "$label must not contain path separators: $value"
+  [[ "$value" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] ||
+    fail "$label contains unsupported characters: $value"
+}
+
+reject_snap_root_overlap() {
+  local label="$1"
+  local protected="$2"
+  local mode="${3:-ancestor-only}"
+  [[ -n "$protected" ]] || return 0
+
+  if path_is_within "$protected" "$SNAP_ROOT"; then
+    fail "unsafe snap root $SNAP_ROOT: it contains $label $protected"
+  fi
+  if [[ "$mode" == "both" ]] && path_is_within "$SNAP_ROOT" "$protected"; then
+    fail "unsafe snap root $SNAP_ROOT: it is inside $label $protected"
+  fi
+}
+
+validate_snap_root() {
+  SNAP_ROOT="$(canonical_path "snap root" "$SNAP_ROOT")"
+  [[ "$SNAP_ROOT" != "/" ]] || fail "unsafe snap root: /"
+
+  reject_snap_root_overlap "the project" "$PROJECT_ROOT" both
+  reject_snap_root_overlap "the invocation directory" "$INVOCATION_DIR"
+  reject_snap_root_overlap "the temporary directory" "$TEMP_BASE"
+  reject_snap_root_overlap "the snap scaffold" "$CANONICAL_SCAFFOLD" both
+
+  local home_path
+  for home_path in "${PROTECTED_HOME_PATHS[@]}"; do
+    reject_snap_root_overlap "a home directory" "$home_path"
+  done
+
+  if [[ -e "$SNAP_ROOT" || -L "$SNAP_ROOT" ]]; then
+    [[ -d "$SNAP_ROOT" ]] || fail "snap root exists but is not a directory: $SNAP_ROOT"
+    snap_root_has_valid_marker ||
+      fail "refusing to delete unowned snap root: $SNAP_ROOT"
+  fi
+}
+
+snap_root_marker_contents() {
+  printf 'busymax-local-snap-root-v1\nproject=%s\n' "$PROJECT_ROOT"
+}
+
+snap_root_has_valid_marker() {
+  local marker="$SNAP_ROOT/$SNAP_ROOT_MARKER_NAME"
+  [[ -f "$marker" && ! -L "$marker" ]] || return 1
+  [[ "$(cat -- "$marker")" == "$(snap_root_marker_contents)" ]]
+}
+
+write_snap_root_marker() {
+  local current
+  [[ -d "$SNAP_ROOT" ]] || return 0
+  current="$(realpath -m -- "$SNAP_ROOT")" || return 0
+  [[ "$current" == "$SNAP_ROOT" ]] || return 0
+  snap_root_marker_contents > "$SNAP_ROOT/$SNAP_ROOT_MARKER_NAME"
+}
+
+prepare_snap_root() {
+  validate_snap_root
+  if [[ -e "$SNAP_ROOT" || -L "$SNAP_ROOT" ]]; then
+    rm -rf -- "$SNAP_ROOT"
+  fi
+  mkdir -p -- "$SNAP_ROOT"
+  write_snap_root_marker
 }
 
 project_value() {
@@ -52,9 +141,12 @@ snapcraft_value() {
     snap/snapcraft.yaml | head -n 1
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+INVOCATION_DIR="$(pwd -P)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 cd "$PROJECT_ROOT"
+
+SNAP_ROOT_MARKER_NAME=".busymax-local-snap-root"
 
 VERSION_ARG=""
 RUN_AFTER_INSTALL="${RUN_AFTER_INSTALL:-1}"
@@ -135,6 +227,10 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+if [[ ${SNAP_ROOT+x} == x ]]; then
+  [[ -n "${SNAP_ROOT//[[:space:]]/}" ]] || fail "snap root must not be empty"
+fi
+
 PROJECT_NAME="$(project_value name)"
 [[ -n "$PROJECT_NAME" ]] || fail "could not read project name from pubspec.yaml"
 
@@ -152,6 +248,34 @@ SNAP_SCAFFOLD="${SNAP_SCAFFOLD:-/snap/${SNAP_NAME}/current}"
 SNAP_ROOT="${SNAP_ROOT:-/tmp/${SNAP_NAME}-snap-root}"
 OUT="${OUT:-${SNAP_NAME}_${VERSION}_amd64_$(date +%Y%m%d%H%M%S).snap}"
 BUNDLE_DIR="build/linux/x64/release/bundle"
+
+validate_path_component "snap name" "$SNAP_NAME"
+validate_path_component "binary name" "$BINARY_NAME"
+validate_path_component "app id" "$APP_ID"
+
+TEMP_BASE="$(canonical_path "temporary directory" "${TMPDIR:-/tmp}")"
+CANONICAL_SCAFFOLD="$(canonical_path "snap scaffold" "$SNAP_SCAFFOLD")"
+declare -a PROTECTED_HOME_PATHS=()
+if [[ -n "${HOME:-}" ]]; then
+  PROTECTED_HOME_PATHS+=("$(canonical_path "home directory" "$HOME")")
+fi
+if command -v getent >/dev/null 2>&1; then
+  PASSWD_HOME="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6 || true)"
+  if [[ -n "$PASSWD_HOME" ]]; then
+    PROTECTED_HOME_PATHS+=(
+      "$(canonical_path "account home directory" "$PASSWD_HOME")"
+    )
+  fi
+  if [[ -n "${SUDO_USER:-}" ]]; then
+    SUDO_USER_HOME="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"
+    if [[ -n "$SUDO_USER_HOME" ]]; then
+      PROTECTED_HOME_PATHS+=(
+        "$(canonical_path "sudo user home directory" "$SUDO_USER_HOME")"
+      )
+    fi
+  fi
+fi
+validate_snap_root
 
 echo "== ${SNAP_NAME} local snap build =="
 echo "Project:  $PROJECT_ROOT"
@@ -184,15 +308,16 @@ test -d "$SNAP_SCAFFOLD" || {
   exit 1
 }
 
-rm -rf "$SNAP_ROOT"
-mkdir -p "$SNAP_ROOT"
-cp -a "$SNAP_SCAFFOLD/." "$SNAP_ROOT/"
+prepare_snap_root
+trap write_snap_root_marker EXIT
+cp -a -- "$SNAP_SCAFFOLD/." "$SNAP_ROOT/"
+write_snap_root_marker
 
 test -f "$SNAP_ROOT/meta/snap.yaml" || fail "missing $SNAP_ROOT/meta/snap.yaml"
 
 echo "== Replace Flutter payload =="
-rm -rf "$SNAP_ROOT/$BINARY_NAME" "$SNAP_ROOT/data" "$SNAP_ROOT/lib"
-cp -a "$BUNDLE_DIR/." "$SNAP_ROOT/"
+rm -rf -- "$SNAP_ROOT/$BINARY_NAME" "$SNAP_ROOT/data" "$SNAP_ROOT/lib"
+cp -a -- "$BUNDLE_DIR/." "$SNAP_ROOT/"
 
 test -f "$SNAP_ROOT/$BINARY_NAME" || fail "missing staged binary: $SNAP_ROOT/$BINARY_NAME"
 
@@ -359,6 +484,7 @@ grep '^version:' "$SNAP_ROOT/meta/snap.yaml"
 grep -A80 "^  ${SNAP_NAME}:" "$SNAP_ROOT/meta/snap.yaml" | sed -n '/plugs:/,/^[[:space:]]*[[:alpha:]_-].*:/p'
 
 echo "== Pack snap =="
+rm -f -- "$SNAP_ROOT/$SNAP_ROOT_MARKER_NAME"
 snap pack "$SNAP_ROOT" --filename="$OUT"
 
 echo "== Verify packed snap =="
@@ -374,8 +500,11 @@ fi
 ! unsquashfs -cat "$OUT" meta/snap.yaml | grep -q '^[[:space:]]*desktop:'
 
 echo "== Install snap =="
-sudo snap remove --purge "$SNAP_NAME" 2>/dev/null || true
-sudo snap install --dangerous "./$OUT"
+INSTALL_SNAP_PATH="$OUT"
+if [[ "$INSTALL_SNAP_PATH" != /* ]]; then
+  INSTALL_SNAP_PATH="./$INSTALL_SNAP_PATH"
+fi
+sudo snap install --dangerous "$INSTALL_SNAP_PATH"
 
 echo "== Verify installed snap =="
 snap connections "$SNAP_NAME" || true
