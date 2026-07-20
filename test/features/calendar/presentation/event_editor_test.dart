@@ -98,6 +98,47 @@ void main() {
     expect(find.text('Delete Event'), findsNothing);
   });
 
+  testWidgets('converting a same-day timed event uses next-day all-day end', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(_plainTextFinder('All Day'));
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.allDay, isTrue);
+    expect(
+      (saved?.start?.year, saved?.start?.month, saved?.start?.day),
+      (2026, 6, 8),
+    );
+    expect(
+      (saved?.end?.year, saved?.end?.month, saved?.end?.day),
+      (2026, 6, 9),
+    );
+  });
+
   testWidgets('timed event shows separated end date and end time labels', (
     tester,
   ) async {
@@ -319,6 +360,23 @@ void main() {
     );
 
     expect(draft.canSave, isFalse);
+  });
+
+  test('all-day draft requires an exclusive end on a later date', () {
+    final sameDate = EventEditorDraft.existing(
+      eventId: 'event-1',
+      accountId: 'account',
+      sourceId: 'source',
+      providerCalendarId: 'cal-1',
+      title: 'Planning',
+      allDay: true,
+      start: DateTime.utc(2026, 6, 8, 9),
+      end: DateTime.utc(2026, 6, 8, 10),
+    );
+    final nextDate = sameDate.copyWith(end: DateTime.utc(2026, 6, 9, 9));
+
+    expect(sameDate.canSave, isFalse);
+    expect(nextDate.canSave, isTrue);
   });
 
   test('Microsoft attendee JSON hydrates nested email details', () {

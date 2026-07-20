@@ -719,7 +719,7 @@ class _EventEditorState extends State<EventEditor> {
     setState(() {
       _draft = _draft.copyWith(
         allDay: allDay,
-        end: start != null && (end == null || !end.isAfter(start))
+        end: start != null && !_isValidEventEnd(start, end, allDay)
             ? _defaultEndFor(start, allDay)
             : end,
       );
@@ -738,7 +738,7 @@ class _EventEditorState extends State<EventEditor> {
     setState(() {
       _draft = _draft.copyWith(
         start: start,
-        end: end == null || !end.isAfter(start)
+        end: !_isValidEventEnd(start, end, _draft.allDay)
             ? _defaultEndFor(start, _draft.allDay)
             : end,
         recurrence: adjustedRecurrence,
@@ -750,7 +750,7 @@ class _EventEditorState extends State<EventEditor> {
     final start = _draft.start;
     setState(() {
       _draft = _draft.copyWith(
-        end: start != null && !end.isAfter(start)
+        end: start != null && !_isValidEventEnd(start, end, _draft.allDay)
             ? _defaultEndFor(start, _draft.allDay)
             : end,
       );
@@ -839,7 +839,44 @@ DateTime _withTime(DateTime? current, String? time) {
 }
 
 DateTime _defaultEndFor(DateTime start, bool allDay) {
-  return start.add(allDay ? const Duration(days: 1) : const Duration(hours: 1));
+  if (!allDay) {
+    return start.add(const Duration(hours: 1));
+  }
+  return start.isUtc
+      ? DateTime.utc(
+          start.year,
+          start.month,
+          start.day + 1,
+          start.hour,
+          start.minute,
+          start.second,
+          start.millisecond,
+          start.microsecond,
+        )
+      : DateTime(
+          start.year,
+          start.month,
+          start.day + 1,
+          start.hour,
+          start.minute,
+          start.second,
+          start.millisecond,
+          start.microsecond,
+        );
+}
+
+bool _isValidEventEnd(DateTime start, DateTime? end, bool allDay) {
+  if (end == null) {
+    return false;
+  }
+  if (!allDay) {
+    return end.isAfter(start);
+  }
+  return _calendarDate(end).isAfter(_calendarDate(start));
+}
+
+DateTime _calendarDate(DateTime value) {
+  return DateTime.utc(value.year, value.month, value.day);
 }
 
 String _recurrenceType(Object? recurrence) {

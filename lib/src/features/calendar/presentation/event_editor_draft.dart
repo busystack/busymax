@@ -213,11 +213,19 @@ class EventEditorDraft {
   final bool? hideAttendees;
   final bool? allowNewTimeProposals;
 
-  bool get canSave =>
-      title.trim().isNotEmpty &&
-      start != null &&
-      end != null &&
-      end!.isAfter(start!);
+  bool get canSave {
+    final start = this.start;
+    final end = this.end;
+    if (title.trim().isEmpty || start == null || end == null) {
+      return false;
+    }
+    if (!allDay) {
+      return end.isAfter(start);
+    }
+    final startDate = DateTime.utc(start.year, start.month, start.day);
+    final endDate = DateTime.utc(end.year, end.month, end.day);
+    return endDate.isAfter(startDate);
+  }
 
   EventEditorDraft copyWith({
     String? accountId,
