@@ -146,6 +146,41 @@ void main() {
     expect(activatedRow?.sourceType, 'event');
     expect(activatedRow?.sourceId, 'event-1');
   });
+
+  test('does not notify for a signed-out account', () async {
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'google:g',
+            provider: Value(TaskProvider.google.storageValue),
+            authState: const Value('signed_out'),
+            grantedScopes: const Value(''),
+            createdAtUtc: '2026-06-08T00:00:00.000Z',
+            updatedAtUtc: '2026-06-08T00:00:00.000Z',
+          ),
+        );
+    await database
+        .into(database.notificationSchedule)
+        .insert(
+          NotificationScheduleCompanion.insert(
+            id: 'event|google:g|event-1|5',
+            accountId: 'google:g',
+            sourceType: 'event',
+            sourceId: 'event-1',
+            scheduledAtUtc: now.millisecondsSinceEpoch,
+            title: 'Private appointment',
+            body: const Value('Private details'),
+            createdAtLocal: 0,
+            updatedAtLocal: 0,
+          ),
+        );
+
+    await scheduler.checkNow();
+    scheduler.stop();
+
+    expect(backend.notifications, isEmpty);
+  });
 }
 
 Future<void> _waitUntil(

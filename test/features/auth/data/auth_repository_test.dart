@@ -168,6 +168,21 @@ void main() {
     },
   );
 
+  test('markReconnectRequired removes only target notifications', () async {
+    await _insertAccount(database, 'google-a', TaskProvider.google);
+    await _insertAccount(database, 'google-b', TaskProvider.google);
+    await _insertNotification(database, 'google-a');
+    await _insertNotification(database, 'google-b');
+
+    await repository.markReconnectRequired('google-a');
+
+    final notifications = await database
+        .select(database.notificationSchedule)
+        .get();
+    expect(notifications.map((row) => row.accountId), ['google-b']);
+    expect(notifications.single.title, 'Private google-b reminder');
+  });
+
   test('signOut Google account does not sign out Microsoft account', () async {
     final microsoftOAuth = _FakeMicrosoftOAuthService();
     repository = AuthRepository(
@@ -186,6 +201,21 @@ void main() {
     expect(microsoftOAuth.signOutAccountIds, isEmpty);
     expect(_authState(accounts, 'google-a'), 'signed_out');
     expect(_authState(accounts, 'microsoft:m'), 'signed_in');
+  });
+
+  test('signOut removes only the target account notifications', () async {
+    await _insertAccount(database, 'google-a', TaskProvider.google);
+    await _insertAccount(database, 'google-b', TaskProvider.google);
+    await _insertNotification(database, 'google-a');
+    await _insertNotification(database, 'google-b');
+
+    await repository.signOut(accountId: 'google-a');
+
+    final notifications = await database
+        .select(database.notificationSchedule)
+        .get();
+    expect(notifications.map((row) => row.accountId), ['google-b']);
+    expect(notifications.single.title, 'Private google-b reminder');
   });
 
   test('signOut Microsoft account does not sign out Google account', () async {
@@ -237,6 +267,24 @@ void main() {
     expect(oAuth.signedOutAccountId, 'account-1');
   });
 
+  test(
+    'deleteLocalAccountData removes only target account notifications',
+    () async {
+      await _insertAccount(database, 'google-a', TaskProvider.google);
+      await _insertAccount(database, 'google-b', TaskProvider.google);
+      await _insertNotification(database, 'google-a');
+      await _insertNotification(database, 'google-b');
+
+      await repository.deleteLocalAccountData(accountId: 'google-a');
+
+      final notifications = await database
+          .select(database.notificationSchedule)
+          .get();
+      expect(notifications.map((row) => row.accountId), ['google-b']);
+      expect(notifications.single.title, 'Private google-b reminder');
+    },
+  );
+
   test('revoking Google account does not sign out Microsoft account', () async {
     final microsoftOAuth = _FakeMicrosoftOAuthService();
     repository = AuthRepository(
@@ -257,6 +305,21 @@ void main() {
     expect(_authState(accounts, 'google-a'), 'signed_out');
     expect(_authState(accounts, 'google-b'), 'signed_in');
     expect(_authState(accounts, 'microsoft:m'), 'signed_in');
+  });
+
+  test('revoke removes only the target account notifications', () async {
+    await _insertAccount(database, 'google-a', TaskProvider.google);
+    await _insertAccount(database, 'google-b', TaskProvider.google);
+    await _insertNotification(database, 'google-a');
+    await _insertNotification(database, 'google-b');
+
+    await repository.revokeAndSignOut(accountId: 'google-a');
+
+    final notifications = await database
+        .select(database.notificationSchedule)
+        .get();
+    expect(notifications.map((row) => row.accountId), ['google-b']);
+    expect(notifications.single.title, 'Private google-b reminder');
   });
 
   test('revoking Microsoft account does not revoke Google account', () async {
@@ -383,6 +446,24 @@ Future<void> _insertAccount(
           authState: const Value('signed_in'),
           createdAtUtc: '2026-06-04T00:00:00.000Z',
           updatedAtUtc: '2026-06-04T00:00:00.000Z',
+        ),
+      );
+}
+
+Future<void> _insertNotification(AppDatabase database, String accountId) {
+  return database
+      .into(database.notificationSchedule)
+      .insert(
+        NotificationScheduleCompanion.insert(
+          id: 'event|$accountId|event-1|5',
+          accountId: accountId,
+          sourceType: 'event',
+          sourceId: 'event-1',
+          scheduledAtUtc: DateTime.utc(2026, 6, 8, 9).millisecondsSinceEpoch,
+          title: 'Private $accountId reminder',
+          body: const Value('Private reminder details'),
+          createdAtLocal: 0,
+          updatedAtLocal: 0,
         ),
       );
 }

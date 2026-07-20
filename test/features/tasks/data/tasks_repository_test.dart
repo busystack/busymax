@@ -312,6 +312,7 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          authState: const Value('signed_in'),
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),

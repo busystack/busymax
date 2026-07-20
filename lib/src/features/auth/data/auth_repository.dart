@@ -136,34 +136,36 @@ class AuthRepository {
 
   Future<void> signOut({String? accountId}) async {
     final targetAccountId = accountId ?? await _oAuth.activeAccountId;
-    if (targetAccountId?.startsWith('microsoft:') == true) {
-      await _microsoftOAuth?.signOutAccount(targetAccountId!);
-    } else if (targetAccountId != null) {
-      await _oAuth.signOutAccount(targetAccountId);
+    if (targetAccountId == null) {
+      return;
     }
-    if (targetAccountId != null) {
-      await _accountsRepository.markSignedOut(targetAccountId);
+    await _deactivateAccount(targetAccountId, reconnectRequired: false);
+    if (targetAccountId.startsWith('microsoft:')) {
+      await _microsoftOAuth?.signOutAccount(targetAccountId);
+    } else {
+      await _oAuth.signOutAccount(targetAccountId);
     }
   }
 
   Future<void> markReconnectRequired(String accountId) async {
+    await _deactivateAccount(accountId, reconnectRequired: true);
     if (accountId.startsWith('microsoft:')) {
       await _microsoftOAuth?.signOutAccount(accountId);
     } else {
       await _oAuth.signOutAccount(accountId);
     }
-    await _accountsRepository.markReconnectRequired(accountId);
   }
 
   Future<void> revokeAndSignOut({String? accountId}) async {
     final targetAccountId = accountId ?? await _oAuth.activeAccountId;
-    if (targetAccountId?.startsWith('microsoft:') == true) {
-      await _microsoftOAuth?.signOutAccount(targetAccountId!);
-    } else if (targetAccountId != null) {
-      await _oAuth.revokeAndSignOutAccount(targetAccountId);
+    if (targetAccountId == null) {
+      return;
     }
-    if (targetAccountId != null) {
-      await _accountsRepository.markSignedOut(targetAccountId);
+    await _deactivateAccount(targetAccountId, reconnectRequired: false);
+    if (targetAccountId.startsWith('microsoft:')) {
+      await _microsoftOAuth?.signOutAccount(targetAccountId);
+    } else {
+      await _oAuth.revokeAndSignOutAccount(targetAccountId);
     }
   }
 
@@ -173,15 +175,38 @@ class AuthRepository {
       return;
     }
 
+    await _database.transaction(() async {
+      await _deleteScheduledNotifications(targetAccountId);
+      await (_database.delete(
+        _database.accounts,
+      )..where((row) => row.id.equals(targetAccountId))).go();
+    });
+
     if (targetAccountId.startsWith('microsoft:')) {
       await _microsoftOAuth?.signOutAccount(targetAccountId);
     } else {
       await _oAuth.signOutAccount(targetAccountId);
     }
+  }
 
-    await (_database.delete(
-      _database.accounts,
-    )..where((row) => row.id.equals(targetAccountId))).go();
+  Future<void> _deactivateAccount(
+    String accountId, {
+    required bool reconnectRequired,
+  }) {
+    return _database.transaction(() async {
+      if (reconnectRequired) {
+        await _accountsRepository.markReconnectRequired(accountId);
+      } else {
+        await _accountsRepository.markSignedOut(accountId);
+      }
+      await _deleteScheduledNotifications(accountId);
+    });
+  }
+
+  Future<void> _deleteScheduledNotifications(String accountId) {
+    return (_database.delete(
+      _database.notificationSchedule,
+    )..where((row) => row.accountId.equals(accountId))).go();
   }
 
   Future<void> cancelSignIn() async {
@@ -386,12 +411,12 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
   }
 
   Future<void> revokeAndSignOut() async {
-    await _repository.revokeAndSignOut();
+    await _repository.revokeAndSignOut(accountId: state.accountId);
     state = const AuthSessionState.signedOut();
   }
 
   Future<void> signOut() async {
-    await _repository.signOut();
+    await _repository.signOut(accountId: state.accountId);
     state = const AuthSessionState.signedOut();
   }
 

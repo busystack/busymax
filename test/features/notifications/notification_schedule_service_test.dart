@@ -184,8 +184,115 @@ void main() {
     final rows = await database.select(database.notificationSchedule).get();
     expect(
       rows.single.scheduledAtUtc,
-      DateTime.utc(2026, 6, 8, 4, 21, 30).millisecondsSinceEpoch,
+      DateTime.utc(2026, 6, 8, 4, 21).millisecondsSinceEpoch,
     );
+  });
+
+  test('rebuild preserves sent event reminder history', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+    );
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+    final sentAt = DateTime.utc(2026, 6, 8, 8, 50).millisecondsSinceEpoch;
+    await database
+        .update(database.notificationSchedule)
+        .write(NotificationScheduleCompanion(sentAtUtc: Value(sentAt)));
+    service = NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 6, 8, 8, 55),
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    final rows = await database.select(database.notificationSchedule).get();
+    expect(rows, hasLength(1));
+    expect(rows.single.sourceType, 'event');
+    expect(rows.single.sentAtUtc, sentAt);
+  });
+
+  test('rebuild preserves dismissed and snoozed event state', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+    );
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+    final dismissedAt = DateTime.utc(2026, 6, 8, 8, 10).millisecondsSinceEpoch;
+    final snoozedUntil = DateTime.utc(2026, 6, 8, 8, 40).millisecondsSinceEpoch;
+    await database
+        .update(database.notificationSchedule)
+        .write(
+          NotificationScheduleCompanion(
+            dismissedAtUtc: Value(dismissedAt),
+            snoozedUntilUtc: Value(snoozedUntil),
+          ),
+        );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(row.dismissedAtUtc, dismissedAt);
+    expect(row.snoozedUntilUtc, snoozedUntil);
+  });
+
+  test('moving an event resets delivery state for the new reminder', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+    );
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+    await database
+        .update(database.notificationSchedule)
+        .write(
+          NotificationScheduleCompanion(
+            sentAtUtc: Value(
+              DateTime.utc(2026, 6, 8, 8, 50).millisecondsSinceEpoch,
+            ),
+          ),
+        );
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      startDateTime: '2026-06-08T09:45:00.000Z',
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(row.sentAtUtc, null);
+    expect(
+      row.scheduledAtUtc,
+      DateTime.utc(2026, 6, 8, 9, 35).millisecondsSinceEpoch,
+    );
+  });
+
+  test('rebuild cannot recreate reminders for a signed-out account', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: TaskProvider.microsoft,
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+    );
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+    await (database.update(database.accounts)
+          ..where((row) => row.id.equals('microsoft:m')))
+        .write(const AccountsCompanion(authState: Value('signed_out')));
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
 
   test('missed event reminder after event start is not scheduled', () async {
