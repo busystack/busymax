@@ -347,6 +347,8 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   var _loadComplete = false;
   var _disposed = false;
 
+  Future<void> get ready => _loadFuture;
+
   Future<void> setThemeModePreference(BusyMaxThemeModePreference preference) {
     return _mutate(
       (current) => current.copyWith(themeModePreference: preference),

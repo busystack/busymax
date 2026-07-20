@@ -1285,6 +1285,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     await ref
         .read(tasksRepositoryForAccountProvider(draft.accountId))
         .createTask(draft.taskListId, draft.input);
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Map<String, List<String>> _categorySuggestionsByAccount() {
@@ -1314,6 +1317,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     await ref
         .read(tasksRepositoryForAccountProvider(item.accountId))
         .patchTask(item.sourceId, item.id, TaskPatchInput(fields));
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _refreshAll() async {

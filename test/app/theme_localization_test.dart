@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -15,7 +16,9 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/l10n/l10n.dart';
+import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
+import 'package:busymax/src/platform/linux_window_service.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 
 import '../test_localized_app.dart';
@@ -940,6 +943,57 @@ void main() {
     expect(app.localizationsDelegates, contains(AppLocalizations.delegate));
   });
 
+  testWidgets('tray startup waits for persisted start-minimized settings', (
+    tester,
+  ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final store = _DelayedSettingsStore();
+    final windowService = _RecordingWindowService();
+    final trayService = _RecordingTrayService(windowService);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(store),
+          linuxWindowServiceProvider.overrideWithValue(windowService),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory:
+              ({
+                required windowService,
+                required labels,
+                required onOpenAgenda,
+                onBeforeQuit,
+              }) => trayService,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(trayService.startCalls, 0);
+    expect(windowService.hideWindowCalls, 0);
+
+    store.completeLoad(<String, Object?>{
+      'showTrayIcon': true,
+      'runInBackgroundWhenClosed': true,
+      'startMinimizedToTray': true,
+    });
+    await tester.pump();
+    await tester.pump();
+
+    expect(trayService.startCalls, 1);
+    expect(windowService.hideWindowCalls, 1);
+
+    // A rebuild with the same loaded settings must not restart the tray or
+    // hide an already-running window a second time.
+    await tester.pump();
+    expect(trayService.startCalls, 1);
+    expect(windowService.hideWindowCalls, 1);
+  });
+
   test('app sources avoid forbidden hardcoded accent colors', () {
     final disallowedHue = String.fromCharCodes([111, 114, 97, 110, 103, 101]);
     final forbidden = [
@@ -1168,6 +1222,67 @@ class _MemorySettingsStore implements LocalSettingsStore {
     this.json = Map<String, Object?>.from(json);
   }
 }
+
+class _DelayedSettingsStore implements LocalSettingsStore {
+  final _loadCompleter = Completer<Map<String, Object?>>();
+
+  void completeLoad(Map<String, Object?> json) {
+    _loadCompleter.complete(Map<String, Object?>.from(json));
+  }
+
+  @override
+  Future<Map<String, Object?>> load() => _loadCompleter.future;
+
+  @override
+  Future<void> save(Map<String, Object?> json) async {}
+}
+
+class _RecordingWindowService extends LinuxWindowService {
+  var hideWindowCalls = 0;
+
+  @override
+  Future<void> hideWindow() async {
+    hideWindowCalls += 1;
+  }
+
+  @override
+  Future<void> setHideOnClose(bool enabled) async {}
+}
+
+class _RecordingTrayService extends BusyMaxTrayService {
+  _RecordingTrayService(LinuxWindowService windowService)
+    : super(
+        windowService: windowService,
+        labels: const BusyMaxTrayLabels(
+          openBusyMax: 'Open BusyMax',
+          agenda: 'Agenda',
+          quitBusyMax: 'Exit',
+        ),
+        onOpenAgenda: _noop,
+      );
+
+  var startCalls = 0;
+  var _available = false;
+
+  @override
+  bool get available => _available;
+
+  @override
+  Future<void> start() async {
+    startCalls += 1;
+    _available = true;
+  }
+
+  @override
+  Future<void> stop() async {
+    _available = false;
+  }
+
+  @override
+  Future<void> updateLabels(BusyMaxTrayLabels labels) async {}
+}
+
+Future<void> _noop() async {}
 
 const _missingConfig = BuildConfig(
   googleOAuthClientId: '',
