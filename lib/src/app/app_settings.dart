@@ -329,84 +329,111 @@ class JsonFileLocalSettingsStore implements LocalSettingsStore {
   }
 }
 
+typedef _AppSettingsMutation = AppSettings Function(AppSettings current);
+
 class AppSettingsController extends StateNotifier<AppSettings> {
   AppSettingsController(this._store) : super(AppSettings.defaults()) {
-    unawaited(_load());
+    _persistenceState = state;
+    _loadFuture = _load();
+    _writeTail = _loadFuture;
   }
 
   final LocalSettingsStore _store;
+  final List<_AppSettingsMutation> _mutationsDuringLoad =
+      <_AppSettingsMutation>[];
+  late AppSettings _persistenceState;
+  late final Future<void> _loadFuture;
+  late Future<void> _writeTail;
+  var _loadComplete = false;
+  var _disposed = false;
+
+  Future<void> get ready => _loadFuture;
 
   Future<void> setThemeModePreference(BusyMaxThemeModePreference preference) {
-    return _save(state.copyWith(themeModePreference: preference));
+    return _mutate(
+      (current) => current.copyWith(themeModePreference: preference),
+    );
   }
 
   Future<void> setScheduleViewMode(ScheduleViewMode mode) {
-    return _save(state.copyWith(scheduleViewMode: mode));
+    return _mutate((current) => current.copyWith(scheduleViewMode: mode));
   }
 
   Future<void> setScheduleDayStartMinute(int minute) {
-    final start = _minuteOfDay(minute, state.scheduleDayStartMinute);
-    final end = start >= state.scheduleDayEndMinute
-        ? math.min(start + 60, 24 * 60)
-        : state.scheduleDayEndMinute;
-    return _save(
-      state.copyWith(scheduleDayStartMinute: start, scheduleDayEndMinute: end),
-    );
+    return _mutate((current) {
+      final start = _minuteOfDay(minute, current.scheduleDayStartMinute);
+      final end = start >= current.scheduleDayEndMinute
+          ? math.min(start + 60, 24 * 60)
+          : current.scheduleDayEndMinute;
+      return current.copyWith(
+        scheduleDayStartMinute: start,
+        scheduleDayEndMinute: end,
+      );
+    });
   }
 
   Future<void> setScheduleDayEndMinute(int minute) {
-    final end = _minuteOfDay(
-      minute,
-      state.scheduleDayEndMinute,
-      allowEndOfDay: true,
-    );
-    final start = end <= state.scheduleDayStartMinute
-        ? math.max(end - 60, 0)
-        : state.scheduleDayStartMinute;
-    return _save(
-      state.copyWith(scheduleDayStartMinute: start, scheduleDayEndMinute: end),
-    );
+    return _mutate((current) {
+      final end = _minuteOfDay(
+        minute,
+        current.scheduleDayEndMinute,
+        allowEndOfDay: true,
+      );
+      final start = end <= current.scheduleDayStartMinute
+          ? math.max(end - 60, 0)
+          : current.scheduleDayStartMinute;
+      return current.copyWith(
+        scheduleDayStartMinute: start,
+        scheduleDayEndMinute: end,
+      );
+    });
   }
 
   Future<void> setNotifySyncFailures(bool enabled) {
-    return _save(state.copyWith(notifySyncFailures: enabled));
+    return _mutate((current) => current.copyWith(notifySyncFailures: enabled));
   }
 
   Future<void> setNotifyConflicts(bool enabled) {
-    return _save(state.copyWith(notifyConflicts: enabled));
+    return _mutate((current) => current.copyWith(notifyConflicts: enabled));
   }
 
   Future<void> setNotifyDueToday(bool enabled) {
-    return _save(state.copyWith(notifyDueToday: enabled));
+    return _mutate((current) => current.copyWith(notifyDueToday: enabled));
   }
 
   Future<void> setNotifyEventReminders(bool enabled) {
-    return _save(state.copyWith(notifyEventReminders: enabled));
+    return _mutate(
+      (current) => current.copyWith(notifyEventReminders: enabled),
+    );
   }
 
   Future<void> setNotifyTaskReminders(bool enabled) {
-    return _save(state.copyWith(notifyTaskReminders: enabled));
+    return _mutate((current) => current.copyWith(notifyTaskReminders: enabled));
   }
 
   Future<void> setRunInBackgroundWhenClosed(bool enabled) {
-    return _save(state.copyWith(runInBackgroundWhenClosed: enabled));
+    return _mutate(
+      (current) => current.copyWith(runInBackgroundWhenClosed: enabled),
+    );
   }
 
   Future<void> setShowTrayIcon(bool enabled) {
-    return _save(state.copyWith(showTrayIcon: enabled));
+    return _mutate((current) => current.copyWith(showTrayIcon: enabled));
   }
 
   Future<void> setStartMinimizedToTray(bool enabled) {
-    return _save(state.copyWith(startMinimizedToTray: enabled));
+    return _mutate(
+      (current) => current.copyWith(startMinimizedToTray: enabled),
+    );
   }
 
   Future<void> setQuitExitsCompletely(bool enabled) {
-    return _save(state.copyWith(quitExitsCompletely: enabled));
+    return _mutate((current) => current.copyWith(quitExitsCompletely: enabled));
   }
 
   Future<void> setNotificationDetailLevel(NotificationDetailLevel level) {
-    return _save(
-      state.copyWith(
+    return _mutate(
+      (current) => current.copyWith(
         notificationDetailLevel: level,
         detailedNotifications: level != NotificationDetailLevel.private,
       ),
@@ -414,16 +441,18 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   }
 
   Future<void> setQuietHoursEnabled(bool enabled) {
-    return _save(state.copyWith(quietHoursEnabled: enabled));
+    return _mutate((current) => current.copyWith(quietHoursEnabled: enabled));
   }
 
   Future<void> setRedactTaskContentInDiagnostics(bool enabled) {
-    return _save(state.copyWith(redactTaskContentInDiagnostics: enabled));
+    return _mutate(
+      (current) => current.copyWith(redactTaskContentInDiagnostics: enabled),
+    );
   }
 
   Future<void> setDetailedNotifications(bool enabled) {
-    return _save(
-      state.copyWith(
+    return _mutate(
+      (current) => current.copyWith(
         detailedNotifications: enabled,
         notificationDetailLevel: enabled
             ? NotificationDetailLevel.normal
@@ -433,7 +462,9 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   }
 
   Future<void> markDueTodayNotified(String date) {
-    return _save(state.copyWith(lastDueTodayNotificationDate: date));
+    return _mutate(
+      (current) => current.copyWith(lastDueTodayNotificationDate: date),
+    );
   }
 
   Future<void> setTaskListVisibleInSchedule({
@@ -441,26 +472,64 @@ class AppSettingsController extends StateNotifier<AppSettings> {
     required String taskListId,
     required bool visible,
   }) {
-    final next = Map<String, bool>.from(state.taskListScheduleVisibility)
-      ..[_taskListVisibilityKey(accountId, taskListId)] = visible;
-    return _save(state.copyWith(taskListScheduleVisibility: next));
+    return _mutate((current) {
+      final next = Map<String, bool>.from(current.taskListScheduleVisibility)
+        ..[_taskListVisibilityKey(accountId, taskListId)] = visible;
+      return current.copyWith(taskListScheduleVisibility: next);
+    });
   }
 
   Future<void> _load() async {
+    AppSettings loaded;
     try {
-      state = AppSettings.fromJson(await _store.load());
+      loaded = AppSettings.fromJson(await _store.load());
     } on Object {
-      state = AppSettings.defaults();
+      loaded = AppSettings.defaults();
+    }
+
+    _persistenceState = loaded;
+    var merged = loaded;
+    for (final mutation in _mutationsDuringLoad) {
+      merged = mutation(merged);
+    }
+    _mutationsDuringLoad.clear();
+    _loadComplete = true;
+    if (!_disposed) {
+      state = merged;
     }
   }
 
-  Future<void> _save(AppSettings next) async {
+  Future<void> _mutate(_AppSettingsMutation mutation) {
+    final next = mutation(state);
+    if (!_loadComplete) {
+      _mutationsDuringLoad.add(mutation);
+    }
+
+    final previousWrite = _writeTail;
+    final write = _persistAfter(previousWrite, mutation);
+    _writeTail = write;
     state = next;
+    return write;
+  }
+
+  Future<void> _persistAfter(
+    Future<void> previousWrite,
+    _AppSettingsMutation mutation,
+  ) async {
+    await previousWrite;
+    final next = mutation(_persistenceState);
+    _persistenceState = next;
     try {
       await _store.save(next.toJson());
     } on Object {
       // Keep the in-memory preference even when local persistence is unavailable.
     }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
 

@@ -12,12 +12,14 @@ import '../db/app_database.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/auth/data/auth_repository.dart';
+import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
 import '../features/notifications/notification_scheduler.dart';
 import '../features/sync/all_accounts_sync_scheduler.dart';
 import '../features/sync/calendar_sync_engine.dart';
 import '../features/sync/pending_mutation_sync_requester.dart';
 import '../features/sync/pending_op_resolution_service.dart';
+import '../features/sync/sync_auth_error.dart';
 import '../features/sync/sync_engine.dart';
 import '../features/task_lists/data/task_lists_repository.dart';
 import '../features/tasks/data/tasks_repository.dart';
@@ -66,6 +68,16 @@ final baseHttpClientProvider = Provider<http.Client>((ref) {
 
 final retryingHttpClientProvider = Provider<http.Client>((ref) {
   return RetryingHttpClient(inner: ref.watch(baseHttpClientProvider));
+});
+
+final feedbackSubmissionServiceProvider = Provider<FeedbackSubmissionService>((
+  ref,
+) {
+  final config = ref.watch(buildConfigProvider);
+  return FeedbackApiClient(
+    httpClient: ref.watch(baseHttpClientProvider),
+    endpoint: Uri.parse(config.feedbackEndpoint),
+  );
 });
 
 final oAuthTokenStoreProvider = Provider<OAuthTokenStore>((ref) {
@@ -154,6 +166,12 @@ final accountsRepositoryProvider = Provider<AccountsRepository>((ref) {
 
 final accountsStreamProvider = StreamProvider<List<AccountEntity>>((ref) {
   return ref.watch(accountsRepositoryProvider).watchAccounts();
+});
+
+final accountManagementStreamProvider = StreamProvider<List<AccountEntity>>((
+  ref,
+) {
+  return ref.watch(accountsRepositoryProvider).watchVisibleAccounts();
 });
 
 final selectedAccountIdProvider = StateProvider<String?>((ref) => null);
@@ -306,12 +324,21 @@ final signedInSyncRunnerProvider = Provider<SignedInSyncRunner>((ref) {
     final calendarSyncEngine = ref.read(
       calendarSyncEngineForAccountFactoryProvider,
     )(accountId);
-    if (initial) {
-      await syncEngine.fullSync();
-      await calendarSyncEngine.fullSync();
-    } else {
-      await syncEngine.incrementalSync();
-      await calendarSyncEngine.incrementalSync();
+    try {
+      if (initial) {
+        await syncEngine.fullSync();
+        await calendarSyncEngine.fullSync();
+      } else {
+        await syncEngine.incrementalSync();
+        await calendarSyncEngine.incrementalSync();
+      }
+    } on Object catch (error) {
+      await _markAccountReconnectRequiredIfMissingSyncToken(
+        ref,
+        accountId,
+        error,
+      );
+      rethrow;
     }
   };
 });
@@ -337,6 +364,12 @@ final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
       onSyncFailure: ref
           .read(desktopNotificationServiceProvider)
           .notifySyncFailure,
+      onAccountSyncFailure: (accountId, error) =>
+          _markAccountReconnectRequiredIfMissingSyncToken(
+            ref,
+            accountId,
+            error,
+          ),
     );
   };
 });
@@ -474,8 +507,9 @@ final Provider<SyncEngine?> syncEngineProvider = Provider<SyncEngine?>((ref) {
 
 final pendingMutationSyncRequesterProvider =
     Provider<PendingMutationSyncRequester?>((ref) {
+      final accountId = ref.watch(activeAccountProvider);
       final syncEngine = ref.watch(syncEngineProvider);
-      if (syncEngine == null) {
+      if (accountId == null || syncEngine == null) {
         return null;
       }
 
@@ -484,6 +518,11 @@ final pendingMutationSyncRequesterProvider =
         onSyncFailure: ref
             .watch(desktopNotificationServiceProvider)
             .notifySyncFailure,
+        onSyncError: (error) => _markAccountReconnectRequiredIfMissingSyncToken(
+          ref,
+          accountId,
+          error,
+        ),
       );
       ref.onDispose(requester.dispose);
       return requester;
@@ -499,6 +538,11 @@ final pendingMutationSyncRequesterForAccountProvider =
         onSyncFailure: ref
             .watch(desktopNotificationServiceProvider)
             .notifySyncFailure,
+        onSyncError: (error) => _markAccountReconnectRequiredIfMissingSyncToken(
+          ref,
+          accountId,
+          error,
+        ),
       );
       ref.onDispose(requester.dispose);
       return requester;
@@ -538,11 +582,28 @@ final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
     onSyncFailure: ref
         .watch(desktopNotificationServiceProvider)
         .notifySyncFailure,
+    onAccountSyncFailure: (accountId, error) =>
+        _markAccountReconnectRequiredIfMissingSyncToken(ref, accountId, error),
   );
   scheduler.start();
   ref.onDispose(scheduler.stop);
   return scheduler;
 });
+
+Future<void> _markAccountReconnectRequiredIfMissingSyncToken(
+  Ref ref,
+  String accountId,
+  Object error,
+) async {
+  if (!isMissingOAuthTokenError(error)) {
+    return;
+  }
+  try {
+    await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
+  } on Object {
+    // Keep the original sync failure as the reported error.
+  }
+}
 
 final notificationSchedulerProvider = Provider<NotificationScheduler>((ref) {
   final scheduler = NotificationScheduler(

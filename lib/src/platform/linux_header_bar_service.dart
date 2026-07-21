@@ -19,8 +19,10 @@ enum BusyMaxHeaderBarAction {
   viewModeYear,
   viewModeAgenda,
   search,
+  create,
   refresh,
   settings,
+  keyboardShortcuts,
   aboutBusyMax,
 }
 
@@ -34,6 +36,7 @@ class BusyMaxHeaderBarLabels {
     required this.year,
     required this.agenda,
     required this.search,
+    required this.create,
     required this.refresh,
     required this.menu,
     required this.previous,
@@ -41,6 +44,7 @@ class BusyMaxHeaderBarLabels {
     required this.sidebar,
     required this.back,
     required this.settings,
+    required this.keyboardShortcuts,
     required this.aboutBusyMax,
   });
 
@@ -51,6 +55,7 @@ class BusyMaxHeaderBarLabels {
   final String year;
   final String agenda;
   final String search;
+  final String create;
   final String refresh;
   final String menu;
   final String previous;
@@ -58,6 +63,7 @@ class BusyMaxHeaderBarLabels {
   final String sidebar;
   final String back;
   final String settings;
+  final String keyboardShortcuts;
   final String aboutBusyMax;
 
   Map<String, String> toJson() {
@@ -69,6 +75,7 @@ class BusyMaxHeaderBarLabels {
       'year': year,
       'agenda': agenda,
       'search': search,
+      'create': create,
       'refresh': refresh,
       'menu': menu,
       'previous': previous,
@@ -76,6 +83,7 @@ class BusyMaxHeaderBarLabels {
       'sidebar': sidebar,
       'back': back,
       'settings': settings,
+      'keyboardShortcuts': keyboardShortcuts,
       'aboutBusyMax': aboutBusyMax,
     };
   }
@@ -91,6 +99,7 @@ class BusyMaxHeaderBarLabels {
             year == other.year &&
             agenda == other.agenda &&
             search == other.search &&
+            create == other.create &&
             refresh == other.refresh &&
             menu == other.menu &&
             previous == other.previous &&
@@ -98,6 +107,7 @@ class BusyMaxHeaderBarLabels {
             sidebar == other.sidebar &&
             back == other.back &&
             settings == other.settings &&
+            keyboardShortcuts == other.keyboardShortcuts &&
             aboutBusyMax == other.aboutBusyMax;
   }
 
@@ -110,6 +120,7 @@ class BusyMaxHeaderBarLabels {
     year,
     agenda,
     search,
+    create,
     refresh,
     menu,
     previous,
@@ -117,6 +128,7 @@ class BusyMaxHeaderBarLabels {
     sidebar,
     back,
     settings,
+    keyboardShortcuts,
     aboutBusyMax,
   );
 }
@@ -124,6 +136,7 @@ class BusyMaxHeaderBarLabels {
 @immutable
 class BusyMaxHeaderBarTheme {
   const BusyMaxHeaderBarTheme({
+    required this.preferDark,
     required this.windowBackgroundColor,
     required this.backgroundColor,
     required this.sidebarBackgroundColor,
@@ -141,6 +154,7 @@ class BusyMaxHeaderBarTheme {
     required this.modalBarrierColor,
   });
 
+  final bool preferDark;
   final Color windowBackgroundColor;
   final Color backgroundColor;
   final Color sidebarBackgroundColor;
@@ -157,8 +171,9 @@ class BusyMaxHeaderBarTheme {
   final Color shadeColor;
   final Color modalBarrierColor;
 
-  Map<String, String> toJson() {
-    return {
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'preferDark': preferDark,
       'windowBackgroundColor': busyMaxCssColor(windowBackgroundColor),
       'backgroundColor': busyMaxCssColor(backgroundColor),
       'sidebarBackgroundColor': busyMaxCssColor(sidebarBackgroundColor),
@@ -181,6 +196,7 @@ class BusyMaxHeaderBarTheme {
   bool operator ==(Object other) {
     return identical(this, other) ||
         other is BusyMaxHeaderBarTheme &&
+            other.preferDark == preferDark &&
             other.windowBackgroundColor == windowBackgroundColor &&
             other.backgroundColor == backgroundColor &&
             other.sidebarBackgroundColor == sidebarBackgroundColor &&
@@ -200,6 +216,7 @@ class BusyMaxHeaderBarTheme {
 
   @override
   int get hashCode => Object.hash(
+    preferDark,
     windowBackgroundColor,
     backgroundColor,
     sidebarBackgroundColor,
@@ -396,6 +413,7 @@ class LinuxHeaderBarService {
     required bool canContinue,
     required String backLabel,
     required String continueLabel,
+    bool force = false,
   }) async {
     if (!_available) {
       return;
@@ -407,7 +425,7 @@ class LinuxHeaderBarService {
       backLabel: backLabel,
       continueLabel: continueLabel,
     );
-    if (_onboardingControls == state) {
+    if (!force && _onboardingControls == state) {
       return;
     }
     _onboardingControls = state;
@@ -470,8 +488,10 @@ class LinuxHeaderBarService {
       'viewModeYear' => BusyMaxHeaderBarAction.viewModeYear,
       'viewModeAgenda' => BusyMaxHeaderBarAction.viewModeAgenda,
       'search' => BusyMaxHeaderBarAction.search,
+      'create' => BusyMaxHeaderBarAction.create,
       'refresh' => BusyMaxHeaderBarAction.refresh,
       'settings' => BusyMaxHeaderBarAction.settings,
+      'keyboardShortcuts' => BusyMaxHeaderBarAction.keyboardShortcuts,
       'aboutBusyMax' => BusyMaxHeaderBarAction.aboutBusyMax,
       _ => null,
     };

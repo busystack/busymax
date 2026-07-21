@@ -10,7 +10,8 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
         (row) =>
             row.accountId.equals(accountId) &
             row.taskListId.equals(taskListId) &
-            row.pendingDelete.equals(false),
+            row.pendingDelete.equals(false) &
+            row.serverMissing.equals(false),
       )
       ..orderBy([
         (row) => OrderingTerm.asc(row.parent),
@@ -37,7 +38,9 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
           ..where(
             tasks.accountId.isIn(accountIds) &
                 tasks.pendingDelete.equals(false) &
+                tasks.serverMissing.equals(false) &
                 taskLists.pendingDelete.equals(false) &
+                taskLists.serverMissing.equals(false) &
                 accounts.authState.equals('signed_in'),
           )
           ..orderBy([

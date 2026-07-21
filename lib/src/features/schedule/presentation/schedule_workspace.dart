@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
@@ -10,10 +11,13 @@ import 'package:yaru/yaru.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_dialogs.dart';
+import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../features/calendar/data/calendar_repository.dart';
+import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../schedule/schedule_commands.dart';
@@ -71,6 +75,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   var _latestCanShowSidebar = false;
+  var _latestAccounts = const <AccountEntity>[];
+  var _latestVisibleSources = const <CalendarSourceEntity>[];
   var _latestItems = const <ScheduleItem>[];
   final _itemAnchorContexts = <String, BuildContext>{};
   ScheduleWorkspaceCommand? _pendingAnchoredCommand;
@@ -87,11 +93,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     super.initState();
     _scope = widget.initialScope;
     _applyInitialScope();
+    HardwareKeyboard.instance.addHandler(_handleScheduleShortcutEvent);
     unawaited(_initializeHeaderBar());
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleScheduleShortcutEvent);
     if (_taskDetailsTarget != null) {
       unawaited(
         ref.read(linuxHeaderBarServiceProvider).setModalBarrierVisible(false),
@@ -153,6 +161,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       visibility.visibleCalendarSourceIds.contains(source.id),
                 )
                 .toList();
+            _latestAccounts = accounts;
+            _latestVisibleSources = visibleSources;
 
             return FutureBuilder<_ScheduleItemsResult>(
               future: _scheduleItems(
@@ -219,6 +229,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onPrevious: _previous,
                         onNext: _next,
                         onModeChanged: _setMode,
+                        canCreate: accounts.isNotEmpty,
+                        onCreate: _openCreateAtSelectedDate,
                         onRefresh: () => unawaited(_refreshAll()),
                       ),
                       const Divider(height: 1),
@@ -352,24 +364,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       );
                     },
                   ),
-                  floatingActionButtonLocation:
-                      FloatingActionButtonLocation.endFloat,
-                  floatingActionButton: FloatingActionButton(
-                    tooltip: context.l10n.create,
-                    onPressed: () => unawaited(
-                      _openCreateChoice(
-                        accounts,
-                        visibleSources,
-                        DateTime(
-                          _selectedDate.year,
-                          _selectedDate.month,
-                          _selectedDate.day,
-                          9,
-                        ),
-                      ),
-                    ),
-                    child: const Icon(YaruIcons.plus),
-                  ),
                 );
               },
             );
@@ -397,6 +391,18 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _headerBarReady = true;
       _nativeHeaderBarAvailable = service.isAvailable;
     });
+    if (service.isAvailable) {
+      unawaited(
+        service.setOnboardingControls(
+          visible: false,
+          canGoBack: false,
+          canContinue: false,
+          backLabel: '',
+          continueLabel: '',
+          force: true,
+        ),
+      );
+    }
   }
 
   void _updateHeaderBarState(
@@ -417,10 +423,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _selectedDate,
     );
     final sidebarVisible = showSidebar && !_sidebarCollapsed;
+    final canCreate = accounts.isNotEmpty || visibleSources.isNotEmpty;
     final headerBarState = _HeaderBarStateSnapshot(
       titleRange: titleRange,
       viewMode: _mode,
       canRefresh: accounts.isNotEmpty,
+      canCreate: canCreate,
       searchActive: _searchActive,
       sidebarVisible: sidebarVisible,
       navigationVisible: _mode != ScheduleViewMode.agenda,
@@ -443,12 +451,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           canContinue: false,
           backLabel: '',
           continueLabel: '',
+          force: true,
         ),
       );
       unawaited(service.setTitleRange(headerBarState.titleRange));
       unawaited(service.setViewMode(headerBarState.viewMode));
       unawaited(service.setNavigationVisible(headerBarState.navigationVisible));
       unawaited(service.setCanRefresh(headerBarState.canRefresh));
+      unawaited(service.setCanCreate(headerBarState.canCreate));
       unawaited(service.setSearchActive(headerBarState.searchActive));
       unawaited(service.setSidebarVisible(headerBarState.sidebarVisible));
     });
@@ -493,14 +503,26 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           setState(() => _searchActive = true);
           _focusSearch();
         }
+      case BusyMaxHeaderBarAction.create:
+        _openCreateAtSelectedDate();
       case BusyMaxHeaderBarAction.refresh:
         unawaited(_refreshAll());
       case BusyMaxHeaderBarAction.settings:
         context.go('/settings');
+      case BusyMaxHeaderBarAction.keyboardShortcuts:
+        unawaited(
+          showBusyMaxKeyboardShortcutsDialog(
+            context,
+            headerBarService: ref.read(linuxHeaderBarServiceProvider),
+          ),
+        );
       case BusyMaxHeaderBarAction.aboutBusyMax:
         unawaited(
           showBusyMaxAboutDialog(
             context,
+            feedbackSubmissionService: ref.read(
+              feedbackSubmissionServiceProvider,
+            ),
             headerBarService: ref.read(linuxHeaderBarServiceProvider),
           ),
         );
@@ -510,11 +532,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   ScheduleRange _range(BuildContext context) {
     final firstWeekday = _firstWeekday(context);
     if (_scope == ScheduleScope.upcoming) {
-      final start = _day(DateTime.now());
-      return ScheduleRange(
-        start: start,
-        end: start.add(Duration(days: _agendaLoadedDays)),
-      );
+      return _agendaRangeFromToday();
     }
     return switch (_mode) {
       ScheduleViewMode.day => ScheduleRange.day(_selectedDate),
@@ -527,11 +545,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         firstWeekday: firstWeekday,
       ),
       ScheduleViewMode.year => ScheduleRange.year(_selectedDate),
-      ScheduleViewMode.agenda => ScheduleRange(
-        start: _day(_selectedDate),
-        end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays)),
-      ),
+      ScheduleViewMode.agenda => _agendaRangeFromToday(),
     };
+  }
+
+  ScheduleRange _agendaRangeFromToday() {
+    final start = _day(DateTime.now());
+    return ScheduleRange(
+      start: start,
+      end: start.add(Duration(days: _agendaLoadedDays)),
+    );
   }
 
   ScheduleRange _rangeForSearchResults(
@@ -732,6 +755,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _selectedDate = _day(DateTime.now());
         _mode = ScheduleViewMode.agenda;
       case ScheduleScope.tasks:
+        _selectedDate = _day(DateTime.now());
         _mode = ScheduleViewMode.agenda;
       case ScheduleScope.all || ScheduleScope.events:
         break;
@@ -750,6 +774,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (previousSettingsMode == null || _mode == previousSettingsMode) {
       if (_mode != ScheduleViewMode.agenda &&
           settingsMode == ScheduleViewMode.agenda) {
+        _selectedDate = _day(DateTime.now());
         _resetAgendaLoadedDays();
       }
       _mode = settingsMode;
@@ -776,6 +801,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _mode = mode;
       _lastSettingsMode = mode;
       if (mode == ScheduleViewMode.agenda) {
+        _selectedDate = _day(DateTime.now());
         _resetAgendaLoadedDays();
       }
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
@@ -860,6 +886,102 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     });
   }
 
+  bool _handleScheduleShortcutEvent(KeyEvent event) {
+    if (event is! KeyDownEvent || !_canHandleScheduleShortcut()) {
+      return false;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed) {
+      return false;
+    }
+
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowRight:
+        if (!keyboard.isShiftPressed || _mode == ScheduleViewMode.agenda) {
+          return false;
+        }
+        _next();
+        return true;
+      case LogicalKeyboardKey.arrowLeft:
+        if (!keyboard.isShiftPressed || _mode == ScheduleViewMode.agenda) {
+          return false;
+        }
+        _previous();
+        return true;
+      case LogicalKeyboardKey.keyE:
+        if (_latestVisibleSources.isEmpty) {
+          return false;
+        }
+        unawaited(
+          _openNewEvent(_latestVisibleSources, _defaultSelectedDateStart()),
+        );
+        return true;
+      case LogicalKeyboardKey.keyT:
+        if (!keyboard.isShiftPressed) {
+          if (_latestAccounts.isEmpty) {
+            return false;
+          }
+          unawaited(_openNewTask(_latestAccounts, due: _day(_selectedDate)));
+          return true;
+        }
+        _goToToday();
+        return true;
+      case LogicalKeyboardKey.digit1:
+      case LogicalKeyboardKey.numpad1:
+      case LogicalKeyboardKey.keyD:
+        _setMode(ScheduleViewMode.day);
+        return true;
+      case LogicalKeyboardKey.digit2:
+      case LogicalKeyboardKey.numpad2:
+      case LogicalKeyboardKey.keyW:
+        _setMode(ScheduleViewMode.week);
+        return true;
+      case LogicalKeyboardKey.digit3:
+      case LogicalKeyboardKey.numpad3:
+      case LogicalKeyboardKey.keyM:
+        _setMode(ScheduleViewMode.month);
+        return true;
+      case LogicalKeyboardKey.digit4:
+      case LogicalKeyboardKey.numpad4:
+      case LogicalKeyboardKey.keyY:
+        _setMode(ScheduleViewMode.year);
+        return true;
+      case LogicalKeyboardKey.digit0:
+      case LogicalKeyboardKey.numpad0:
+      case LogicalKeyboardKey.keyA:
+        _setMode(ScheduleViewMode.agenda);
+        return true;
+    }
+    return false;
+  }
+
+  DateTime _defaultSelectedDateStart() {
+    return DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      9,
+    );
+  }
+
+  bool _canHandleScheduleShortcut() {
+    if (!mounted || _searchActive || _taskDetailsTarget != null) {
+      return false;
+    }
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      return false;
+    }
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null) {
+      return true;
+    }
+    return focusContext.widget is! EditableText &&
+        focusContext.findAncestorWidgetOfExactType<EditableText>() == null;
+  }
+
   void _loadMoreAgendaDays() {
     if (_mode != ScheduleViewMode.agenda) {
       return;
@@ -910,6 +1032,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
+  void _openCreateAtSelectedDate() {
+    unawaited(
+      _openCreateChoice(
+        _latestAccounts,
+        _latestVisibleSources,
+        _defaultSelectedDateStart(),
+      ),
+    );
+  }
+
   Future<void> _openNewEvent(
     List<CalendarSourceEntity> sources,
     DateTime start,
@@ -950,6 +1082,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         await _exportItem(item);
       case ScheduleItemDetailsAction.edit:
         _editItem(item, sources);
+      case ScheduleItemDetailsAction.delete:
+        await _deleteItem(item);
     }
   }
 
@@ -962,16 +1096,22 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             accountId: item.accountId,
             sourceId: item.sourceId,
             providerCalendarId: item.providerCalendarId,
+            providerRecurringEventId: item.providerRecurringEventId,
             title: item.title,
             allDay: item.allDay,
-            start: item.start,
-            end: item.end,
+            start: item.editorStart ?? item.start,
+            end: item.editorEnd ?? item.end,
             startTimeZone: item.startTimeZone,
             endTimeZone: item.endTimeZone,
             location: item.location,
             description: item.description,
             descriptionContentType: item.descriptionContentType,
             descriptionHtml: item.descriptionHtml,
+            recurrence: item.recurrence,
+            attendees: [
+              for (final attendee in item.attendees)
+                EventAttendeeDraft.fromJson(attendee),
+            ],
             reminders: _eventRemindersForEdit(
               item.provider,
               item.reminderMinutesBeforeStart,
@@ -1056,7 +1196,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.refreshFailed(redactForLog(error))),
+          content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
         ),
       );
     }
@@ -1097,6 +1237,35 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
+  Future<void> _deleteItem(ScheduleItem item) async {
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: item is CalendarScheduleItem
+          ? context.l10n.deleteEvent
+          : context.l10n.deleteTask,
+      message: item is TaskScheduleItem
+          ? context.l10n.deleteTaskConfirmation(item.title)
+          : 'Delete "${item.title}"?',
+      confirmLabel: context.l10n.delete,
+      destructive: true,
+    );
+    if (!confirmed) {
+      return;
+    }
+    if (item is CalendarScheduleItem) {
+      await _deleteEvent(item.id);
+      return;
+    }
+    if (item is TaskScheduleItem) {
+      await ref
+          .read(tasksRepositoryForAccountProvider(item.accountId))
+          .deleteTask(item.sourceId, item.id);
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
   Future<void> _openNewTask(
     List<AccountEntity> accounts, {
     DateTime? due,
@@ -1119,6 +1288,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     await ref
         .read(tasksRepositoryForAccountProvider(draft.accountId))
         .createTask(draft.taskListId, draft.input);
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Map<String, List<String>> _categorySuggestionsByAccount() {
@@ -1148,6 +1320,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     await ref
         .read(tasksRepositoryForAccountProvider(item.accountId))
         .patchTask(item.sourceId, item.id, TaskPatchInput(fields));
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _refreshAll() async {
@@ -1171,7 +1346,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.refreshFailed(redactForLog(error))),
+          content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
         ),
       );
     }
@@ -1267,14 +1442,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _scope = ScheduleScope.all;
       }
       _selectedDate = _day(date);
-      _mode = ScheduleViewMode.agenda;
-      _lastSettingsMode = ScheduleViewMode.agenda;
-      _resetAgendaLoadedDays();
+      _mode = ScheduleViewMode.day;
+      _lastSettingsMode = ScheduleViewMode.day;
     });
     unawaited(
       ref
           .read(appSettingsControllerProvider.notifier)
-          .setScheduleViewMode(ScheduleViewMode.agenda),
+          .setScheduleViewMode(ScheduleViewMode.day),
     );
   }
 }
@@ -1364,6 +1538,7 @@ class _HeaderBarStateSnapshot {
     required this.titleRange,
     required this.viewMode,
     required this.canRefresh,
+    required this.canCreate,
     required this.searchActive,
     required this.sidebarVisible,
     required this.navigationVisible,
@@ -1372,6 +1547,7 @@ class _HeaderBarStateSnapshot {
   final String titleRange;
   final ScheduleViewMode viewMode;
   final bool canRefresh;
+  final bool canCreate;
   final bool searchActive;
   final bool sidebarVisible;
   final bool navigationVisible;
@@ -1383,6 +1559,7 @@ class _HeaderBarStateSnapshot {
             titleRange == other.titleRange &&
             viewMode == other.viewMode &&
             canRefresh == other.canRefresh &&
+            canCreate == other.canCreate &&
             searchActive == other.searchActive &&
             sidebarVisible == other.sidebarVisible &&
             navigationVisible == other.navigationVisible;
@@ -1393,6 +1570,7 @@ class _HeaderBarStateSnapshot {
     titleRange,
     viewMode,
     canRefresh,
+    canCreate,
     searchActive,
     sidebarVisible,
     navigationVisible,

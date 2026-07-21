@@ -14,6 +14,7 @@ import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../l10n/l10n.dart';
 import '../../../task_providers/task_provider.dart';
 import '../../tasks/presentation/tasks_selection_state.dart';
+import '../../sync/sync_auth_error.dart';
 import '../data/task_lists_repository.dart';
 
 class TaskListsSidebar extends ConsumerWidget {
@@ -179,12 +180,27 @@ class TaskListsSidebar extends ConsumerWidget {
     final currentAccountId = ref.read(selectedAccountProvider)?.id;
     if (currentAccountId != accountId) {
       ref.read(selectedAccountIdProvider.notifier).state = accountId;
-      unawaited(ref.read(signedInSyncRunnerProvider)(accountId, false));
+      unawaited(_syncSelectedAccount(ref, accountId));
     }
 
     ref.read(selectedTaskListIdProvider.notifier).state = taskListId;
     ref.read(selectedTaskIdProvider.notifier).state = null;
     ref.read(allTasksModeProvider.notifier).state = false;
+  }
+}
+
+Future<void> _syncSelectedAccount(WidgetRef ref, String accountId) async {
+  try {
+    await ref.read(signedInSyncRunnerProvider)(accountId, false);
+  } on Object catch (error) {
+    if (!isMissingOAuthTokenError(error)) {
+      return;
+    }
+    try {
+      await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
+    } on Object {
+      // The selected-account change should not surface an unhandled sync error.
+    }
   }
 }
 

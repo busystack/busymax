@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
@@ -83,6 +84,7 @@ class EventEditor extends StatefulWidget {
 
 class _EventEditorState extends State<EventEditor> {
   late EventEditorDraft _draft;
+  final _shortcutFocusNode = FocusNode(debugLabel: 'Event editor shortcuts');
   final _guestController = TextEditingController();
   final _categoryController = TextEditingController();
   String? _guestError;
@@ -97,6 +99,7 @@ class _EventEditorState extends State<EventEditor> {
 
   @override
   void dispose() {
+    _shortcutFocusNode.dispose();
     _guestController.dispose();
     _categoryController.dispose();
     super.dispose();
@@ -118,173 +121,232 @@ class _EventEditorState extends State<EventEditor> {
         ? l10n.newEvent
         : l10n.editEvent;
     final canSave = dirty && _draft.canSave;
-    return BusyMaxModalEditorScaffold(
-      title: title,
-      cancelLabel: l10n.cancel,
-      saveLabel: l10n.save,
-      onCancel: widget.onCancel,
-      onSave: canSave ? () => widget.onSave(_draft) : null,
-      children: [
-        BusyMaxGroupedList(
-          filled: true,
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () {
+          if (canSave) {
+            widget.onSave(_draft);
+          }
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        focusNode: _shortcutFocusNode,
+        onKeyEvent: _handleEditorKeyEvent,
+        child: BusyMaxModalEditorScaffold(
+          title: title,
+          cancelLabel: l10n.cancel,
+          saveLabel: l10n.save,
+          onCancel: widget.onCancel,
+          onSave: canSave ? () => widget.onSave(_draft) : null,
           children: [
-            YaruListTile.square(
-              hoverColor: busyMaxEditorRowHoverColor(context),
-              title: TextFormField(
-                initialValue: _draft.title,
-                autofocus: true,
-                decoration: _plainEventFieldDecoration(
-                  context,
-                  labelText: l10n.title,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _draft = _draft.copyWith(title: value);
-                  });
-                },
-              ),
-            ),
-            YaruListTile.square(
-              hoverColor: busyMaxEditorRowHoverColor(context),
-              title: TextFormField(
-                initialValue: _draft.location,
-                decoration: _plainEventFieldDecoration(
-                  context,
-                  labelText: l10n.location,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _draft = _draft.copyWith(location: value);
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-        BusyMaxGroupedList(filled: true, children: [_calendarRow()]),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            BusyMaxTimeModeRow(allDay: _draft.allDay, onChanged: _setAllDay),
-          ],
-        ),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            DesktopDateValueRow(
-              label: l10n.startDate,
-              date: _dateString(_draft.start),
-              onChanged: (value) {
-                _setStart(_withDate(_draft.start, value));
-              },
-              emptyLabel: l10n.noneValue,
-            ),
-            if (!_draft.allDay)
-              DesktopTimeValueRow(
-                label: l10n.startTime,
-                time: _timeString(_draft.start),
-                onChanged: (value) {
-                  _setStart(_withTime(_draft.start, value));
-                },
-                emptyLabel: '--:--',
-                allowEmpty: false,
-              ),
-          ],
-        ),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            DesktopDateValueRow(
-              label: l10n.endDate,
-              date: _dateString(_draft.end),
-              onChanged: (value) {
-                _setEnd(_withDate(_draft.end, value));
-              },
-              emptyLabel: l10n.noneValue,
-            ),
-            if (!_draft.allDay)
-              DesktopTimeValueRow(
-                label: l10n.endTime,
-                time: _timeString(_draft.end),
-                onChanged: (value) {
-                  _setEnd(_withTime(_draft.end, value));
-                },
-                emptyLabel: '--:--',
-                allowEmpty: false,
-              ),
-          ],
-        ),
-        BusyMaxGroupedList(filled: true, children: [_repeatRow(provider)]),
-        BusyMaxGroupedList(
-          title: l10n.reminder,
-          filled: true,
-          children: _reminderRows(provider),
-        ),
-        BusyMaxGroupedList(
-          title: l10n.guests,
-          filled: true,
-          children: _guestRows(),
-        ),
-        if (provider == TaskProvider.microsoft)
-          BusyMaxGroupedList(
-            title: l10n.organizationSection,
-            filled: true,
-            children: [_categoriesRow()],
-          ),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            YaruListTile.square(
-              hoverColor: busyMaxEditorRowHoverColor(context),
-              title: EventDescriptionEditor(
-                provider: provider,
-                text: _draft.description,
-                contentType: _draft.descriptionContentType,
-                html: _draft.descriptionHtml,
-                onChanged: (value) {
-                  setState(() {
-                    _draft = _draft.copyWith(
-                      description: value.text,
-                      descriptionContentType: value.contentType,
-                      descriptionHtml: value.html,
-                    );
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-        BusyMaxGroupedList(
-          filled: true,
-          children: [_availabilityRow(provider)],
-        ),
-        BusyMaxGroupedList(filled: true, children: [_visibilityRow(provider)]),
-        if (_draft.eventId != null && widget.onDelete != null)
-          const SizedBox(height: BusyMaxSpacing.md),
-        if (_draft.eventId != null && widget.onDelete != null)
-          BusyMaxGroupedList(
-            filled: true,
-            children: [
-              BusyMaxActionRow(
-                title: l10n.deleteEvent,
-                titleWidget: Center(
-                  child: Text(
-                    l10n.deleteEvent,
-                    style: _eventEditorProminentActionStyle(
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                YaruListTile.square(
+                  hoverColor: busyMaxEditorRowHoverColor(context),
+                  title: TextFormField(
+                    initialValue: _draft.title,
+                    autofocus: true,
+                    decoration: _plainEventFieldDecoration(
                       context,
-                      color: Theme.of(context).colorScheme.error,
-                      fontWeight: FontWeight.w700,
+                      labelText: l10n.title,
                     ),
+                    onChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(title: value);
+                      });
+                    },
                   ),
                 ),
-                destructive: true,
-                onTap: () => widget.onDelete?.call(_draft.eventId!),
+                YaruListTile.square(
+                  hoverColor: busyMaxEditorRowHoverColor(context),
+                  title: TextFormField(
+                    initialValue: _draft.location,
+                    decoration: _plainEventFieldDecoration(
+                      context,
+                      labelText: l10n.location,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(location: value);
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            BusyMaxGroupedList(filled: true, children: [_calendarRow()]),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                BusyMaxTimeModeRow(
+                  allDay: _draft.allDay,
+                  onChanged: _setAllDay,
+                ),
+              ],
+            ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                DesktopDateValueRow(
+                  label: l10n.startDate,
+                  date: _dateString(_draft.start),
+                  onChanged: (value) {
+                    _setStart(_withDate(_draft.start, value), provider);
+                  },
+                  emptyLabel: l10n.noneValue,
+                ),
+                if (!_draft.allDay)
+                  DesktopTimeValueRow(
+                    label: l10n.startTime,
+                    time: _timeString(_draft.start),
+                    onChanged: (value) {
+                      _setStart(_withTime(_draft.start, value), provider);
+                    },
+                    emptyLabel: '--:--',
+                    allowEmpty: false,
+                  ),
+              ],
+            ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                DesktopDateValueRow(
+                  label: l10n.endDate,
+                  date: _dateString(_draft.end),
+                  onChanged: (value) {
+                    _setEnd(_withDate(_draft.end, value));
+                  },
+                  emptyLabel: l10n.noneValue,
+                ),
+                if (!_draft.allDay)
+                  DesktopTimeValueRow(
+                    label: l10n.endTime,
+                    time: _timeString(_draft.end),
+                    onChanged: (value) {
+                      _setEnd(_withTime(_draft.end, value));
+                    },
+                    emptyLabel: '--:--',
+                    allowEmpty: false,
+                  ),
+              ],
+            ),
+            if (_draft.providerRecurringEventId == null)
+              BusyMaxGroupedList(
+                filled: true,
+                children: [_repeatRow(provider)],
               ),
-            ],
-          ),
-        const SizedBox(height: BusyMaxSpacing.lg),
-      ],
+            BusyMaxGroupedList(
+              title: l10n.reminder,
+              filled: true,
+              children: _reminderRows(provider),
+            ),
+            BusyMaxGroupedList(
+              title: l10n.guests,
+              filled: true,
+              children: _guestRows(),
+            ),
+            if (provider == TaskProvider.microsoft)
+              BusyMaxGroupedList(
+                title: l10n.organizationSection,
+                filled: true,
+                children: [_categoriesRow()],
+              ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                YaruListTile.square(
+                  hoverColor: busyMaxEditorRowHoverColor(context),
+                  title: EventDescriptionEditor(
+                    provider: provider,
+                    text: _draft.description,
+                    contentType: _draft.descriptionContentType,
+                    html: _draft.descriptionHtml,
+                    onChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(
+                          description: value.text,
+                          descriptionContentType: value.contentType,
+                          descriptionHtml: value.html,
+                        );
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [_availabilityRow(provider)],
+            ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [_visibilityRow(provider)],
+            ),
+            if (_draft.eventId != null && widget.onDelete != null)
+              const SizedBox(height: BusyMaxSpacing.md),
+            if (_draft.eventId != null && widget.onDelete != null)
+              BusyMaxGroupedList(
+                filled: true,
+                children: [
+                  BusyMaxActionRow(
+                    title: l10n.deleteEvent,
+                    titleWidget: Center(
+                      child: Text(
+                        l10n.deleteEvent,
+                        style: _eventEditorProminentActionStyle(
+                          context,
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    destructive: true,
+                    onTap: _deleteCurrentEvent,
+                  ),
+                ],
+              ),
+            const SizedBox(height: BusyMaxSpacing.lg),
+          ],
+        ),
+      ),
     );
+  }
+
+  KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        !_canDeleteWithShortcut ||
+        _isEditableTextFocused()) {
+      return KeyEventResult.ignored;
+    }
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.backspace:
+      case LogicalKeyboardKey.delete:
+        _deleteCurrentEvent();
+        return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  bool get _canDeleteWithShortcut {
+    return _draft.eventId != null && widget.onDelete != null;
+  }
+
+  bool _isEditableTextFocused() {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null) {
+      return false;
+    }
+    return focusContext.widget is EditableText ||
+        focusContext.findAncestorWidgetOfExactType<EditableText>() != null;
+  }
+
+  void _deleteCurrentEvent() {
+    final eventId = _draft.eventId;
+    if (eventId != null && widget.onDelete != null) {
+      widget.onDelete!(eventId);
+    }
   }
 
   Widget _repeatRow(BusyProvider provider) {
@@ -319,7 +381,15 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   Widget _calendarRow() {
-    final sources = widget.sources;
+    final existingSourceId = widget.initialDraft.eventId == null
+        ? null
+        : widget.initialDraft.sourceId;
+    final sources = existingSourceId == null
+        ? widget.sources
+        : [
+            for (final source in widget.sources)
+              if (source.id == existingSourceId) source,
+          ];
     if (sources.isEmpty) {
       return BusyMaxActionRow(
         title: context.l10n.calendar,
@@ -335,6 +405,7 @@ class _EventEditorState extends State<EventEditor> {
       leading: const Icon(YaruIcons.calendar),
       values: [for (final source in sources) source.id],
       selected: selected,
+      enabled: existingSourceId == null,
       labelFor: (value) =>
           sources.firstWhere((source) => source.id == value).summary,
       menuItemBuilder: (context, value) {
@@ -351,6 +422,11 @@ class _EventEditorState extends State<EventEditor> {
       },
       onSelected: (value) {
         final source = sources.firstWhere((source) => source.id == value);
+        final recurrenceType = _recurrenceType(_draft.recurrence);
+        final adjustedRecurrence =
+            _draft.recurrenceChanged && recurrenceType != 'none'
+            ? _recurrenceFor(source.provider, recurrenceType, _draft.start)
+            : null;
         setState(() {
           if (source.provider != TaskProvider.microsoft) {
             _addingCategory = false;
@@ -363,6 +439,7 @@ class _EventEditorState extends State<EventEditor> {
             categories: source.provider == TaskProvider.microsoft
                 ? _draft.categories
                 : const [],
+            recurrence: adjustedRecurrence,
           );
         });
       },
@@ -642,21 +719,29 @@ class _EventEditorState extends State<EventEditor> {
     setState(() {
       _draft = _draft.copyWith(
         allDay: allDay,
-        end: start != null && (end == null || !end.isAfter(start))
+        end: start != null && !_isValidEventEnd(start, end, allDay)
             ? _defaultEndFor(start, allDay)
             : end,
       );
     });
   }
 
-  void _setStart(DateTime start) {
+  void _setStart(DateTime start, BusyProvider provider) {
     final end = _draft.end;
+    final recurrenceType = _recurrenceType(_draft.recurrence);
+    final adjustedRecurrence =
+        provider == TaskProvider.microsoft &&
+            _draft.recurrenceChanged &&
+            recurrenceType != 'none'
+        ? _recurrenceFor(provider, recurrenceType, start)
+        : null;
     setState(() {
       _draft = _draft.copyWith(
         start: start,
-        end: end == null || !end.isAfter(start)
+        end: !_isValidEventEnd(start, end, _draft.allDay)
             ? _defaultEndFor(start, _draft.allDay)
             : end,
+        recurrence: adjustedRecurrence,
       );
     });
   }
@@ -665,7 +750,7 @@ class _EventEditorState extends State<EventEditor> {
     final start = _draft.start;
     setState(() {
       _draft = _draft.copyWith(
-        end: start != null && !end.isAfter(start)
+        end: start != null && !_isValidEventEnd(start, end, _draft.allDay)
             ? _defaultEndFor(start, _draft.allDay)
             : end,
       );
@@ -754,7 +839,44 @@ DateTime _withTime(DateTime? current, String? time) {
 }
 
 DateTime _defaultEndFor(DateTime start, bool allDay) {
-  return start.add(allDay ? const Duration(days: 1) : const Duration(hours: 1));
+  if (!allDay) {
+    return start.add(const Duration(hours: 1));
+  }
+  return start.isUtc
+      ? DateTime.utc(
+          start.year,
+          start.month,
+          start.day + 1,
+          start.hour,
+          start.minute,
+          start.second,
+          start.millisecond,
+          start.microsecond,
+        )
+      : DateTime(
+          start.year,
+          start.month,
+          start.day + 1,
+          start.hour,
+          start.minute,
+          start.second,
+          start.millisecond,
+          start.microsecond,
+        );
+}
+
+bool _isValidEventEnd(DateTime start, DateTime? end, bool allDay) {
+  if (end == null) {
+    return false;
+  }
+  if (!allDay) {
+    return end.isAfter(start);
+  }
+  return _calendarDate(end).isAfter(_calendarDate(start));
+}
+
+DateTime _calendarDate(DateTime value) {
+  return DateTime.utc(value.year, value.month, value.day);
 }
 
 String _recurrenceType(Object? recurrence) {
@@ -792,6 +914,7 @@ Object _recurrenceFor(BusyProvider provider, String type, DateTime? start) {
   if (provider == TaskProvider.google) {
     return ['RRULE:FREQ=$freq;INTERVAL=1'];
   }
+  final recurrenceStart = start ?? DateTime.now();
   final patternType = switch (type) {
     'daily' => 'daily',
     'weekly' => 'weekly',
@@ -800,11 +923,33 @@ Object _recurrenceFor(BusyProvider provider, String type, DateTime? start) {
     _ => 'daily',
   };
   return {
-    'pattern': {'type': patternType, 'interval': 1},
-    'range': {
-      'type': 'noEnd',
-      'startDate': encodeDateOnly(start ?? DateTime.now()),
+    'pattern': {
+      'type': patternType,
+      'interval': 1,
+      if (type == 'weekly') ...{
+        'daysOfWeek': [_microsoftDayOfWeek(recurrenceStart.weekday)],
+        'firstDayOfWeek': 'sunday',
+      },
+      if (type == 'monthly') 'dayOfMonth': recurrenceStart.day,
+      if (type == 'yearly') ...{
+        'dayOfMonth': recurrenceStart.day,
+        'month': recurrenceStart.month,
+      },
     },
+    'range': {'type': 'noEnd', 'startDate': encodeDateOnly(recurrenceStart)},
+  };
+}
+
+String _microsoftDayOfWeek(int weekday) {
+  return switch (weekday) {
+    DateTime.monday => 'monday',
+    DateTime.tuesday => 'tuesday',
+    DateTime.wednesday => 'wednesday',
+    DateTime.thursday => 'thursday',
+    DateTime.friday => 'friday',
+    DateTime.saturday => 'saturday',
+    DateTime.sunday => 'sunday',
+    _ => throw ArgumentError.value(weekday, 'weekday'),
   };
 }
 

@@ -278,6 +278,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     String? syncTokenOrDeltaLink,
+    bool primaryCalendar = false,
   }) async {
     try {
       final events = <CalendarEventDto>[];
@@ -291,7 +292,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
             rangeEnd: rangeEnd,
             pageToken: pageToken,
             syncToken: syncTokenOrDeltaLink,
-            singleEvents: false,
+            singleEvents: true,
           );
           lastPage = page;
           events.addAll(page.events);
@@ -308,7 +309,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
           rangeStart: rangeStart,
           rangeEnd: rangeEnd,
           pageToken: pageToken,
-          singleEvents: false,
+          singleEvents: true,
         );
         lastPage = page;
         events.addAll(page.events);

@@ -16,6 +16,10 @@ class CalendarMutation {
   final String? colorId;
 }
 
+const calendarEventClearFieldsKey = '_clearFields';
+const calendarEventRecurrenceField = 'recurrenceJson';
+const calendarEventAttendeesField = 'attendeesJson';
+
 class CalendarEventMutation {
   const CalendarEventMutation({
     this.title,
@@ -31,8 +35,10 @@ class CalendarEventMutation {
     this.endDateTime,
     this.endTimeZone,
     this.recurrence,
+    this.clearRecurrence = false,
     this.reminders,
     this.attendees,
+    this.clearAttendees = false,
     this.colorId,
     this.visibility,
     this.transparencyOrShowAs,
@@ -58,8 +64,10 @@ class CalendarEventMutation {
   final String? endDateTime;
   final String? endTimeZone;
   final Object? recurrence;
+  final bool clearRecurrence;
   final Object? reminders;
   final Object? attendees;
+  final bool clearAttendees;
   final String? colorId;
   final String? visibility;
   final String? transparencyOrShowAs;

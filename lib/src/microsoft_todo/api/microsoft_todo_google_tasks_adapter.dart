@@ -20,20 +20,24 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
 
   @override
   Future<TaskListDto> createTaskList({required String title}) async {
-    final dto = await _client.createTaskList(displayName: title);
+    final dto = await _translateMicrosoftErrors(
+      () => _client.createTaskList(displayName: title),
+    );
     return _taskListDto(dto);
   }
 
   @override
   Future<void> deleteTaskList(String taskListId) {
-    return _client.deleteTaskList(taskListId);
+    return _translateMicrosoftErrors(() => _client.deleteTaskList(taskListId));
   }
 
   @override
   Future<TaskListDto> getTaskList(String taskListId) async {
     var nextLink = null as String?;
     do {
-      final page = await _client.listTaskListsPage(nextLink: nextLink);
+      final page = await _translateMicrosoftErrors(
+        () => _client.listTaskListsPage(nextLink: nextLink),
+      );
       for (final item in page.items) {
         if (item.id == taskListId) {
           return _taskListDto(item);
@@ -54,7 +58,9 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     int maxResults = 1000,
     String? pageToken,
   }) async {
-    final page = await _client.listTaskListsPage(nextLink: pageToken);
+    final page = await _translateMicrosoftErrors(
+      () => _client.listTaskListsPage(nextLink: pageToken),
+    );
     return TaskListsPageDto(
       items: page.items.map(_taskListDto).toList(),
       nextPageToken: page.nextLink,
@@ -79,13 +85,15 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     String taskListId,
     Map<String, Object?> fields,
   ) async {
-    final dto = await _client.updateTaskList(
-      taskListId: taskListId,
-      patch: {
-        if (fields.containsKey('title')) 'displayName': fields['title'],
-        if (fields.containsKey('displayName'))
-          'displayName': fields['displayName'],
-      },
+    final dto = await _translateMicrosoftErrors(
+      () => _client.updateTaskList(
+        taskListId: taskListId,
+        patch: {
+          if (fields.containsKey('title')) 'displayName': fields['title'],
+          if (fields.containsKey('displayName'))
+            'displayName': fields['displayName'],
+        },
+      ),
     );
     return _taskListDto(dto);
   }
@@ -114,9 +122,11 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
             'Nested tasks are not supported by Microsoft To Do sync in this version.',
       );
     }
-    final dto = await _client.createTask(
-      taskListId: taskListId,
-      body: _microsoftTaskPatch(create.fields),
+    final dto = await _translateMicrosoftErrors(
+      () => _client.createTask(
+        taskListId: taskListId,
+        body: _microsoftTaskPatch(create.fields),
+      ),
     );
     return _taskDto(dto);
   }
@@ -126,7 +136,9 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     required String taskListId,
     required String taskId,
   }) {
-    return _client.deleteTask(taskListId: taskListId, taskId: taskId);
+    return _translateMicrosoftErrors(
+      () => _client.deleteTask(taskListId: taskListId, taskId: taskId),
+    );
   }
 
   @override
@@ -134,7 +146,9 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     required String taskListId,
     required String taskId,
   }) async {
-    final dto = await _client.getTask(taskListId: taskListId, taskId: taskId);
+    final dto = await _translateMicrosoftErrors(
+      () => _client.getTask(taskListId: taskListId, taskId: taskId),
+    );
     return _taskDto(dto);
   }
 
@@ -153,9 +167,8 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     DateTime? updatedMin,
     bool showAssigned = false,
   }) async {
-    final page = await _client.listTasksPage(
-      taskListId: taskListId,
-      nextLink: pageToken,
+    final page = await _translateMicrosoftErrors(
+      () => _client.listTasksPage(taskListId: taskListId, nextLink: pageToken),
     );
     return TasksPageDto(
       items: page.items.map(_taskDto).toList(),
@@ -204,27 +217,42 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     Map<String, Object?> fields,
   ) async {
     final patch = _microsoftTaskPatch(fields);
-    try {
-      final dto = await _client.updateTask(
-        taskListId: taskListId,
-        taskId: taskId,
-        patch: patch,
-      );
-      return _taskDto(dto);
-    } on MicrosoftTodoApiError catch (error) {
-      if (error.statusCode == 400 &&
-          patch['completedDateTime'] == null &&
-          patch.containsKey('completedDateTime')) {
-        final retryPatch = Map<String, Object?>.from(patch)
-          ..remove('completedDateTime');
+    return _translateMicrosoftErrors(() async {
+      try {
         final dto = await _client.updateTask(
           taskListId: taskListId,
           taskId: taskId,
-          patch: retryPatch,
+          patch: patch,
         );
         return _taskDto(dto);
+      } on MicrosoftTodoApiError catch (error) {
+        if (error.statusCode == 400 &&
+            patch['completedDateTime'] == null &&
+            patch.containsKey('completedDateTime')) {
+          final retryPatch = Map<String, Object?>.from(patch)
+            ..remove('completedDateTime');
+          final dto = await _client.updateTask(
+            taskListId: taskListId,
+            taskId: taskId,
+            patch: retryPatch,
+          );
+          return _taskDto(dto);
+        }
+        rethrow;
       }
-      rethrow;
+    });
+  }
+
+  Future<T> _translateMicrosoftErrors<T>(Future<T> Function() request) async {
+    try {
+      return await request();
+    } on MicrosoftTodoApiError catch (error) {
+      throw GoogleTasksApiError(
+        statusCode: error.statusCode,
+        code: error.code,
+        message: error.message,
+        rawJson: error.rawJson,
+      );
     }
   }
 

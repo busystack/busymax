@@ -336,7 +336,8 @@ class TasksRepository {
             row.accountId.equals(_accountId) &
             row.taskListId.equals(taskListId) &
             row.id.equals(taskId) &
-            row.pendingDelete.equals(false),
+            row.pendingDelete.equals(false) &
+            row.serverMissing.equals(false),
       );
     return query.watchSingleOrNull().map(
       (row) => row == null ? null : TaskEntity.fromRow(row),
@@ -349,6 +350,7 @@ class TasksRepository {
         (row) =>
             row.accountId.equals(_accountId) &
             row.pendingDelete.equals(false) &
+            row.serverMissing.equals(false) &
             row.categoriesJson.isNotNull(),
       );
     return query.watch().map((rows) {
@@ -407,17 +409,19 @@ class TasksRepository {
     TaskPatchInput input,
   ) async {
     final now = _now();
-    final baseline = await _baselineRow(taskListId, taskId);
-    await _patchLocalTask(taskListId, taskId, input.fields, now);
-    await _enqueue(
-      operation: 'patch_task',
-      taskListId: taskListId,
-      taskId: taskId,
-      request: _remoteTaskFields(input.fields),
-      baselineUpdatedUtc: baseline?.updatedUtc,
-      baselineRawJson: baseline?.rawJson,
-      createdAtUtc: now,
-    );
+    await _database.transaction(() async {
+      final baseline = await _baselineRow(taskListId, taskId);
+      await _patchLocalTask(taskListId, taskId, input.fields, now);
+      await _enqueue(
+        operation: 'patch_task',
+        taskListId: taskListId,
+        taskId: taskId,
+        request: _remoteTaskFields(input.fields),
+        baselineUpdatedUtc: baseline?.updatedUtc,
+        baselineRawJson: baseline?.rawJson,
+        createdAtUtc: now,
+      );
+    });
     await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
@@ -428,17 +432,19 @@ class TasksRepository {
     TaskPutInput input,
   ) async {
     final now = _now();
-    final baseline = await _baselineRow(taskListId, taskId);
-    await _patchLocalTask(taskListId, taskId, input.fields, now);
-    await _enqueue(
-      operation: 'update_task',
-      taskListId: taskListId,
-      taskId: taskId,
-      request: _remoteTaskFields(input.fields),
-      baselineUpdatedUtc: baseline?.updatedUtc,
-      baselineRawJson: baseline?.rawJson,
-      createdAtUtc: now,
-    );
+    await _database.transaction(() async {
+      final baseline = await _baselineRow(taskListId, taskId);
+      await _patchLocalTask(taskListId, taskId, input.fields, now);
+      await _enqueue(
+        operation: 'update_task',
+        taskListId: taskListId,
+        taskId: taskId,
+        request: _remoteTaskFields(input.fields),
+        baselineUpdatedUtc: baseline?.updatedUtc,
+        baselineRawJson: baseline?.rawJson,
+        createdAtUtc: now,
+      );
+    });
     await _rebuildTaskNotifications();
     _onMutationQueued?.call();
   }
@@ -638,23 +644,68 @@ class TasksRepository {
     String? localTempId,
     String? baselineUpdatedUtc,
     String? baselineRawJson,
-  }) {
-    return _database.pendingOpsDao.enqueue(
-      PendingOpsCompanion.insert(
-        id: _uuid.v4(),
-        accountId: _accountId,
-        entityType: 'task',
+  }) async {
+    await _database.transaction(() async {
+      final predecessor = await _latestPendingTaskEdit(
         operation: operation,
-        taskListId: Value(taskListId),
-        taskId: Value(taskId),
-        localTempId: Value(localTempId),
-        requestJson: jsonEncode(request),
-        baselineUpdatedUtc: Value(baselineUpdatedUtc),
-        baselineRawJson: Value(baselineRawJson),
-        createdAtUtc: createdAtUtc,
-        updatedAtUtc: createdAtUtc,
-      ),
-    );
+        taskListId: taskListId,
+        taskId: taskId,
+      );
+      await _database.pendingOpsDao.enqueue(
+        PendingOpsCompanion.insert(
+          id: _uuid.v4(),
+          accountId: _accountId,
+          entityType: 'task',
+          operation: operation,
+          taskListId: Value(taskListId),
+          taskId: Value(taskId),
+          localTempId: Value(localTempId),
+          dependsOnOpId: Value(predecessor?.id),
+          requestJson: jsonEncode(request),
+          baselineUpdatedUtc: Value(baselineUpdatedUtc),
+          baselineRawJson: Value(baselineRawJson),
+          createdAtUtc: createdAtUtc,
+          updatedAtUtc: createdAtUtc,
+        ),
+      );
+    });
+  }
+
+  Future<PendingOp?> _latestPendingTaskEdit({
+    required String operation,
+    required String? taskListId,
+    required String? taskId,
+  }) async {
+    if ((operation != 'patch_task' && operation != 'update_task') ||
+        taskListId == null ||
+        taskId == null) {
+      return null;
+    }
+    final query = _database.select(_database.pendingOps)
+      ..where(
+        (row) =>
+            row.accountId.equals(_accountId) &
+            row.entityType.equals('task') &
+            row.taskListId.equals(taskListId) &
+            row.taskId.equals(taskId) &
+            (row.operation.equals('patch_task') |
+                row.operation.equals('update_task')),
+      )
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.createdAtUtc),
+        (row) => OrderingTerm.desc(row.updatedAtUtc),
+      ]);
+    final edits = await query.get();
+    final predecessorIds = {
+      for (final edit in edits)
+        if (edit.dependsOnOpId != null) edit.dependsOnOpId!,
+    };
+    for (final edit in edits) {
+      if (!predecessorIds.contains(edit.id)) {
+        return edit;
+      }
+    }
+    return edits.isEmpty ? null : edits.first;
   }
 
   Future<Task?> _baselineRow(String taskListId, String taskId) {

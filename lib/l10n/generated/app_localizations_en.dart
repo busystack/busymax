@@ -331,6 +331,84 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mainMenu => 'Main Menu';
 
   @override
+  String get keyboardShortcuts => 'Keyboard Shortcuts';
+
+  @override
+  String get shortcutGroupGeneral => 'General';
+
+  @override
+  String get shortcutKeyboardShortcutsDescription =>
+      'Show this shortcuts reference';
+
+  @override
+  String get shortcutGroupNavigation => 'Navigation';
+
+  @override
+  String get shortcutNextPeriod => 'Next period';
+
+  @override
+  String get shortcutNextPeriodDescription =>
+      'Next week in week view, next month in month view, and so on';
+
+  @override
+  String get shortcutPreviousPeriod => 'Previous period';
+
+  @override
+  String get shortcutPreviousPeriodDescription =>
+      'Previous week in week view, previous month in month view, and so on';
+
+  @override
+  String get shortcutJumpToToday => 'Jump to today';
+
+  @override
+  String get shortcutGroupView => 'View';
+
+  @override
+  String get shortcutDayView => 'Day view';
+
+  @override
+  String get shortcutWeekView => 'Week view';
+
+  @override
+  String get shortcutMonthView => 'Month view';
+
+  @override
+  String get shortcutYearView => 'Year view';
+
+  @override
+  String get shortcutAgendaView => 'Agenda view';
+
+  @override
+  String get shortcutGroupCreateAndEdit => 'Create and Edit';
+
+  @override
+  String get shortcutSaveItem => 'Save event or task';
+
+  @override
+  String get shortcutDeleteItem => 'Delete event or task';
+
+  @override
+  String get shortcutGroupTaskEditing => 'Task editing';
+
+  @override
+  String get shortcutCancelEditing => 'Cancel editing';
+
+  @override
+  String get shortcutCancelEditingDescription =>
+      'Close task editing or task details';
+
+  @override
+  String get shortcutGroupCompactAgenda => 'Compact agenda';
+
+  @override
+  String get shortcutRefreshCompactAgendaDescription =>
+      'Refresh the compact agenda window';
+
+  @override
+  String get shortcutHideCompactAgendaDescription =>
+      'Hide the compact agenda window';
+
+  @override
   String get aboutBusyMax => 'About BusyMax';
 
   @override
@@ -341,6 +419,88 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reportAnIssue => 'Report an issue';
+
+  @override
+  String get sendFeedback => 'Send feedback';
+
+  @override
+  String get feedbackSubmit => 'Submit';
+
+  @override
+  String get feedbackCategory => 'Category';
+
+  @override
+  String get feedbackSelectCategory => 'Select a category';
+
+  @override
+  String get feedbackCategoryProblem => 'Problem or bug';
+
+  @override
+  String get feedbackCategoryFeature => 'Feature request';
+
+  @override
+  String get feedbackCategoryPrivacySecurity => 'Privacy or security concern';
+
+  @override
+  String get feedbackCategoryUsability => 'Usability concern';
+
+  @override
+  String get feedbackCategoryOther => 'Other';
+
+  @override
+  String get feedbackSubject => 'Subject';
+
+  @override
+  String get feedbackDetailedMessage => 'Detailed message';
+
+  @override
+  String get feedbackReplyEmail => 'Reply email (optional)';
+
+  @override
+  String get feedbackIncludeTechnicalDetails => 'Include technical details';
+
+  @override
+  String get feedbackTechnicalDetailsDisclosure =>
+      'Adds only your Linux operating-system version and application locale. No logs, account data, file names, or other diagnostics are included.';
+
+  @override
+  String get feedbackCategoryRequired => 'Select a category.';
+
+  @override
+  String get feedbackSubjectLengthError =>
+      'Subject must be between 3 and 120 characters.';
+
+  @override
+  String get feedbackMessageLengthError =>
+      'Message must be between 10 and 5,000 characters.';
+
+  @override
+  String get feedbackInvalidEmail => 'Enter a valid email address.';
+
+  @override
+  String get feedbackConnectionError =>
+      'Could not connect to BusyStack. Check your connection and try again.';
+
+  @override
+  String get feedbackTimeoutError =>
+      'The request timed out. Your feedback has not been cleared; please try again.';
+
+  @override
+  String get feedbackRateLimitedError =>
+      'Too many feedback submissions have been sent from this network. Please wait and try again.';
+
+  @override
+  String get feedbackRejectedError =>
+      'The server rejected the submission. Review the fields and try again.';
+
+  @override
+  String get feedbackServerError =>
+      'BusyStack could not accept your feedback right now. Your feedback has not been cleared; please try again.';
+
+  @override
+  String feedbackSuccess(String id) {
+    return 'Feedback sent. Reference: $id';
+  }
 
   @override
   String get toggleSidebar => 'Toggle Sidebar';

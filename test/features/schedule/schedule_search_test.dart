@@ -158,6 +158,7 @@ void main() {
         provider: TaskProvider.microsoft,
         providerCalendarId: 'calendar',
         providerEventId: 'event',
+        providerRecurringEventId: 'series-master',
         title: 'Planning',
         startDateTime: '2026-06-11T04:20:00.0000000',
         startTimeZone: 'Pacific Standard Time',
@@ -176,60 +177,159 @@ void main() {
 
     expect(items, hasLength(1));
     final event = items.single as CalendarScheduleItem;
+    expect(event.providerRecurringEventId, 'series-master');
     expect(event.start, DateTime(2026, 6, 11, 4, 20));
     expect(event.end, DateTime(2026, 6, 11, 4, 50));
     expect(event.startTimeZone, 'Pacific Standard Time');
     expect(event.endTimeZone, 'Pacific Standard Time');
   });
 
-  test(
-    'Google timed calendar event keeps provider wall time for editing',
-    () async {
-      final database = AppDatabase(NativeDatabase.memory());
-      addTearDown(database.close);
-      await _insertScheduleAccount(database, provider: TaskProvider.google);
-      final calendarRepository = CalendarRepository(
-        database: database,
-        now: () => DateTime.utc(2026, 6, 9),
-      );
-      await calendarRepository.upsertSource(
-        accountId: 'account',
-        source: const CalendarSourceDto(
-          provider: TaskProvider.google,
-          providerCalendarId: 'calendar',
-          summary: 'Work',
-        ),
-      );
-      await calendarRepository.upsertEvent(
-        accountId: 'account',
-        event: const CalendarEventDto(
-          provider: TaskProvider.google,
-          providerCalendarId: 'calendar',
-          providerEventId: 'event',
-          title: 'Planning',
-          startDateTime: '2026-06-11T05:52:00-07:00',
-          startTimeZone: 'America/Vancouver',
-          endDateTime: '2026-06-11T06:52:00-07:00',
-          endTimeZone: 'America/Vancouver',
-        ),
-      );
+  test('Google RFC3339 offsets convert to local display time', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    final calendarRepository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 9),
+    );
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Planning',
+        startDateTime: '2026-06-11T09:00:00-04:00',
+        startTimeZone: 'America/New_York',
+        endDateTime: '2026-06-11T10:00:00-04:00',
+        endTimeZone: 'America/New_York',
+      ),
+    );
 
-      final items = await ScheduleRepository(database).listItems(
-        range: ScheduleRange.day(DateTime(2026, 6, 11)),
-        filters: const ScheduleFilters(
-          accountIds: {'account'},
-          includeTasks: false,
-        ),
-      );
+    final expectedStart = DateTime.utc(2026, 6, 11, 13).toLocal();
+    final expectedEnd = DateTime.utc(2026, 6, 11, 14).toLocal();
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(expectedStart),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
 
-      expect(items, hasLength(1));
-      final event = items.single as CalendarScheduleItem;
-      expect(event.start, DateTime(2026, 6, 11, 5, 52));
-      expect(event.end, DateTime(2026, 6, 11, 6, 52));
-      expect(event.startTimeZone, 'America/Vancouver');
-      expect(event.endTimeZone, 'America/Vancouver');
-    },
-  );
+    expect(items, hasLength(1));
+    final event = items.single as CalendarScheduleItem;
+    expect(event.start, expectedStart);
+    expect(event.end, expectedEnd);
+    expect(event.editorStart, DateTime(2026, 6, 11, 9));
+    expect(event.editorEnd, DateTime(2026, 6, 11, 10));
+    expect(event.startTimeZone, 'America/New_York');
+    expect(event.endTimeZone, 'America/New_York');
+  });
+
+  test('UTC calendar instants convert to local display time', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    final calendarRepository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 9),
+    );
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Planning',
+        startDateTime: '2026-06-11T13:00:00Z',
+        endDateTime: '2026-06-11T14:00:00Z',
+      ),
+    );
+
+    final expectedStart = DateTime.utc(2026, 6, 11, 13).toLocal();
+    final expectedEnd = DateTime.utc(2026, 6, 11, 14).toLocal();
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(expectedStart),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+
+    expect(items, hasLength(1));
+    final event = items.single as CalendarScheduleItem;
+    expect(event.start, expectedStart);
+    expect(event.end, expectedEnd);
+  });
+
+  test('calendar event keeps recurrence and attendees for editing', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    final calendarRepository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 9),
+    );
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: TaskProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Weekly planning',
+        startDateTime: '2026-06-11T09:00:00-07:00',
+        startTimeZone: 'America/Vancouver',
+        endDateTime: '2026-06-11T10:00:00-07:00',
+        endTimeZone: 'America/Vancouver',
+        recurrenceJson: ['RRULE:FREQ=WEEKLY'],
+        attendeesJson: [
+          {
+            'email': 'guest@example.com',
+            'displayName': 'Guest',
+            'optional': true,
+          },
+        ],
+      ),
+    );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+
+    final event = items.single as CalendarScheduleItem;
+    expect(event.recurrence, ['RRULE:FREQ=WEEKLY']);
+    expect(event.attendees, [
+      {'email': 'guest@example.com', 'displayName': 'Guest', 'optional': true},
+    ]);
+  });
 
   test(
     'Google calendar event default reminders appear on schedule item',
@@ -543,6 +643,87 @@ void main() {
     expect(expandedPage.items, hasLength(10));
     expect(expandedPage.hasMore, isFalse);
   });
+
+  test('repository hides unavailable tasks', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertTaskList(database);
+    await _insertTask(
+      database,
+      id: 'visible-day',
+      title: 'Visible day',
+      dueUtc: '2026-06-12',
+    );
+    await _insertTask(
+      database,
+      id: 'missing-day',
+      title: 'Missing day',
+      dueUtc: '2026-06-12',
+      serverMissing: true,
+    );
+    await _insertTask(
+      database,
+      id: 'deleted-day',
+      title: 'Deleted day',
+      dueUtc: '2026-06-12',
+      deleted: true,
+    );
+    await _insertTask(
+      database,
+      id: 'hidden-day',
+      title: 'Hidden day',
+      dueUtc: '2026-06-12',
+      hidden: true,
+    );
+    await _insertTask(
+      database,
+      id: 'visible-no-date',
+      title: 'Visible no date',
+    );
+    await _insertTask(
+      database,
+      id: 'missing-no-date',
+      title: 'Missing no date',
+      serverMissing: true,
+    );
+    await _insertTask(
+      database,
+      id: 'visible-overdue',
+      title: 'Visible overdue',
+      dueUtc: '2026-06-09',
+    );
+    await _insertTask(
+      database,
+      id: 'missing-overdue',
+      title: 'Missing overdue',
+      dueUtc: '2026-06-09',
+      serverMissing: true,
+    );
+
+    final repository = ScheduleRepository(database);
+    final dayItems = await repository.listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 12)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeCalendarEvents: false,
+        showNoDateTasks: false,
+      ),
+    );
+    final noDateItems = await repository.listNoDateTasks(
+      limit: 10,
+      filters: const ScheduleFilters(accountIds: {'account'}),
+    );
+    final overdueItems = await repository.listOverdueTasks(
+      before: DateTime(2026, 6, 10),
+      limit: 10,
+      filters: const ScheduleFilters(accountIds: {'account'}),
+    );
+
+    expect(dayItems.map((item) => item.title), ['Visible day']);
+    expect(noDateItems.items.map((item) => item.title), ['Visible no date']);
+    expect(overdueItems.items.map((item) => item.title), ['Visible overdue']);
+  });
 }
 
 Future<void> _seedSearchDatabase(AppDatabase database) async {
@@ -604,6 +785,9 @@ Future<void> _insertTask(
   required String id,
   required String title,
   String? dueUtc,
+  bool serverMissing = false,
+  bool? deleted,
+  bool? hidden,
 }) {
   return database
       .into(database.tasks)
@@ -615,6 +799,9 @@ Future<void> _insertTask(
           title: title,
           status: const Value('needsAction'),
           dueUtc: Value(dueUtc),
+          serverMissing: Value(serverMissing),
+          deleted: Value(deleted),
+          hidden: Value(hidden),
           rawJson: '{}',
           createdLocalAtUtc: _now,
           updatedLocalAtUtc: _now,

@@ -61,6 +61,7 @@ void main() {
         expect(design, contains('class BusyMaxGroupedList'));
         expect(design, contains('class BusyMaxActionRow'));
         expect(design, contains('class BusyMaxComboRow'));
+        expect(design, contains('class _BusyMaxRowTile'));
         expect(design, contains('class BusyMaxSwitchRow'));
         expect(design, contains('class BusyMaxDialogShell'));
         expect(design, contains('class BusyMaxModalEditorSurface'));
@@ -75,7 +76,10 @@ void main() {
         expect(design, contains('BusyMaxSurfaceColors.of(context)'));
         expect(design, contains('surfaceColors.card'));
         expect(design, contains('surfaceColors.control'));
+        expect(design, contains('color: surfaceColors.control'));
+        expect(design, contains('highlightColor: surfaceColors.controlActive'));
         expect(design, isNot(contains('YaruTileList(children: children)')));
+        expect(design, isNot(contains('YaruListTile.square')));
 
         expect(taskDetails, contains('BusyMaxClamp'));
         expect(taskDetails, contains('BusyMaxGroupedList'));
@@ -113,12 +117,21 @@ void main() {
         expect(scheduleAgenda, contains('BusyMaxGroupedList'));
         expect(scheduleAgenda, contains('BusyMaxActionRow'));
         expect(scheduleAgenda, isNot(contains('scheduleAgendaRowBackground')));
+        expect(scheduleAgenda, isNot(contains('surfaceColor:')));
+        expect(
+          scheduleAgenda,
+          isNot(contains('ScheduleProjection.colorForItem')),
+        );
         expect(scheduleAgenda, isNot(contains('class _AgendaDayHeader')));
         expect(scheduleAgenda, isNot(contains('class _AgendaPlainHeader')));
 
         expect(compactAgenda, contains('BusyMaxGroupedList'));
         expect(compactAgenda, contains('BusyMaxActionRow'));
         expect(compactAgenda, isNot(contains('scheduleAgendaRowBackground')));
+        expect(
+          compactAgenda,
+          isNot(contains('ScheduleProjection.colorForItem')),
+        );
 
         expect(dateTimeFields, contains('YaruDateTimeEntry'));
         expect(dateTimeFields, contains('_BusyMaxTimeTextEntry'));
@@ -321,6 +334,12 @@ void main() {
 
     test('native headerbar keeps sidebar top branded and aligned', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final signIn = File(
+        'lib/src/features/auth/presentation/sign_in_screen.dart',
+      ).readAsStringSync();
+      final schedule = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
       final headerBarSource = source.substring(
         0,
         source.indexOf('static void install_compact_agenda_window_css'),
@@ -346,6 +365,17 @@ void main() {
       expect(source, contains('onboarding_continue_button'));
       expect(source, contains('"continueSetup"'));
       expect(source, contains('set_header_onboarding_controls'));
+      expect(signIn, contains('await _clearOnboardingHeaderBar();'));
+      expect(signIn, contains('Future<void> _clearOnboardingHeaderBar()'));
+      expect(signIn, contains('var _finishingSetup = false;'));
+      expect(signIn, contains('var _headerBarUpdateGeneration = 0;'));
+      expect(signIn, contains('if (_finishingSetup)'));
+      expect(signIn, contains('generation != _headerBarUpdateGeneration'));
+      expect(signIn, contains('_headerBarUpdateGeneration++;'));
+      expect(signIn, contains('force: true'));
+      expect(schedule, contains('if (service.isAvailable)'));
+      expect(schedule, contains('service.setOnboardingControls('));
+      expect(schedule, contains('force: true'));
       expect(
         source,
         contains(
@@ -423,6 +453,13 @@ void main() {
       expect(source, contains('header_bar_sidebar_visible'));
       expect(source, contains('header_sidebar_effective_width'));
       expect(source, contains('update_header_sidebar_brand_geometry'));
+      expect(source, contains('const gint header_bar_left_radius'));
+      expect(
+        source,
+        contains(
+          'header_sidebar_effective_width(self) > 0 ? 0 : kHeaderWindowRadius',
+        ),
+      );
       expect(source, contains('kHeaderMainContentStartInset'));
       expect(
         source,
@@ -486,8 +523,15 @@ void main() {
       expect(source, contains('configure_rounded_window_shape'));
       expect(source, contains('create_rounded_window_region'));
       expect(source, contains('gdk_window_shape_combine_region'));
+      expect(source, contains('rounded_window_size_allocate_cb'));
+      expect(source, contains('"size-allocate"'));
+      expect(source, contains('rounded_window_state_event_cb'));
+      expect(source, contains('"window-state-event"'));
       expect(source, contains('GDK_WINDOW_STATE_MAXIMIZED'));
       expect(source, contains('GDK_WINDOW_STATE_FULLSCREEN'));
+      expect(source, contains('GDK_WINDOW_STATE_TILED'));
+      expect(source, contains('GDK_WINDOW_STATE_RIGHT_TILED'));
+      expect(source, contains('gtk_widget_queue_draw(widget)'));
       expect(source, isNot(contains('kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('-kHeaderSidebarEdgeCompensation')));
       expect(source, isNot(contains('linear-gradient(to right')));
@@ -627,11 +671,11 @@ void main() {
       expect(source, contains('header_bar_muted_foreground_color'));
       expect(source, contains('header_bar_disabled_foreground_color'));
       expect(source, contains('header_bar_control_hover_color'));
-      expect(source, contains('header_bar_accent_color'));
-      expect(source, contains('header_bar_accent_foreground_color'));
       expect(source, contains('header_bar_popover_background_color'));
       expect(source, contains('header_bar_border_color'));
       expect(source, contains('header_bar_shade_color'));
+      expect(source, contains('header_bar_accent_color'));
+      expect(source, contains('header_bar_accent_foreground_color'));
       expect(source, isNot(contains('kHeaderMenuFallbackBackgroundColor')));
       expect(source, isNot(contains('kHeaderMenuFallbackForegroundColor')));
       expect(source, contains('GTK_STYLE_CLASS_FLAT'));
@@ -732,7 +776,13 @@ void main() {
       );
       expect(source, contains('create_header_view_mode_item(self, "year"'));
       expect(source, contains('return "viewModeYear"'));
-      expect(source, isNot(contains('list-add-symbolic')));
+      expect(source, contains('list-add-symbolic'));
+      expect(
+        source,
+        contains(
+          'connect_header_bar_action(self, self->create_button, "create")',
+        ),
+      );
       expect(source, contains('open-menu-symbolic'));
       expect(source, contains('create_header_settings_item'));
       expect(
@@ -745,6 +795,13 @@ void main() {
 
     test('native headerbar colors use semantic Dart payload fields', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final barrierBackgroundStart = source.indexOf(
+        '".busymax-titlebar.busymax-modal-barrier,"',
+      );
+      final barrierBackgroundEnd = source.indexOf(
+        '".busymax-titlebar button.busymax-header-button,"',
+        barrierBackgroundStart,
+      );
       final barrierStart = source.indexOf(
         '".busymax-titlebar.busymax-modal-barrier label,"',
       );
@@ -776,6 +833,23 @@ void main() {
       expect(
         source,
         isNot(contains('gdk_rgba_parse(&background_color, "#00000000")')),
+      );
+      expect(barrierBackgroundStart, isNonNegative);
+      expect(barrierBackgroundEnd, isNonNegative);
+      final barrierBackgroundCss = source.substring(
+        barrierBackgroundStart,
+        barrierBackgroundEnd,
+      );
+      expect(barrierBackgroundCss, contains('"background-color: %s;"'));
+      expect(
+        barrierBackgroundCss,
+        contains('"headerbar.busymax-flat-headerbar:backdrop {"'),
+      );
+      expect(
+        source,
+        contains(
+          'sidebar_background_color, modal_barrier_color, modal_barrier_color',
+        ),
       );
       expect(barrierStart, isNonNegative);
       expect(barrierEnd, isNonNegative);
@@ -830,6 +904,16 @@ void main() {
 
     test('native GTK theme colors are streamed to Flutter', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final headerBarService = File(
+        'lib/src/platform/linux_header_bar_service.dart',
+      ).readAsStringSync();
+      final gtkFontService = File(
+        'lib/src/platform/gtk_font_service.dart',
+      ).readAsStringSync();
+      final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
+      final compactApp = File(
+        'lib/src/features/schedule/presentation/compact_agenda_app.dart',
+      ).readAsStringSync();
 
       expect(source, contains('kGtkThemeColorsEventChannel'));
       expect(source, contains('io.busystack.busymax/gtk_theme_colors'));
@@ -847,6 +931,52 @@ void main() {
         source,
         contains('g_clear_object(&self->gtk_theme_colors_event_channel)'),
       );
+      expect(headerBarService, contains('required this.preferDark'));
+      expect(headerBarService, contains("'preferDark': preferDark"));
+      expect(
+        app,
+        contains(
+          'final preferDark = Theme.of(context).brightness == Brightness.dark',
+        ),
+      );
+      expect(app, contains('preferDark: preferDark'));
+      expect(source, contains('static void set_gtk_theme_preference'));
+      expect(
+        source,
+        contains('"gtk-application-prefer-dark-theme", prefer_dark'),
+      );
+      expect(source, contains('yaru_theme_name_for_preference'));
+      expect(source, contains('available_gtk_theme_for_preference'));
+      expect(source, contains('available_icon_theme_for_preference'));
+      expect(source, contains('g_str_has_suffix(theme_name, "-dark")'));
+      expect(source, contains('theme_selected_bg_color'));
+      expect(source, contains('set_theme_color(result, "accent"'));
+      expect(gtkFontService, contains('final Color? accent;'));
+      expect(
+        gtkFontService,
+        contains("accent: _parseColor(value['accent'] as String?)"),
+      );
+      expect(
+        app,
+        contains(
+          'ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent',
+        ),
+      );
+      expect(
+        compactApp,
+        contains(
+          'ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent',
+        ),
+      );
+      expect(source, contains('gtk_icon_theme_set_custom_theme'));
+      expect(source, contains('fl_lookup_optional_bool_arg'));
+      expect(
+        source,
+        contains('fl_lookup_optional_bool_arg(args, "preferDark"'),
+      );
+      expect(source, contains('set_gtk_theme_preference(prefer_dark);'));
+      expect(source, isNot(contains('prefer_dark_gtk_theme')));
+      expect(source, isNot(contains('set_gtk_theme_preference(TRUE)')));
     });
 
     test('app code does not bypass centralized typography', () {

@@ -6,12 +6,22 @@ class EventAttendeeDraft {
   });
 
   factory EventAttendeeDraft.fromJson(Map<String, Object?> json) {
+    final emailAddress = switch (json['emailAddress']) {
+      final Map value => value.cast<String, Object?>(),
+      _ => const <String, Object?>{},
+    };
     final email = json['email']?.toString();
-    final address = json['address']?.toString();
+    final address =
+        json['address']?.toString() ?? emailAddress['address']?.toString();
     return EventAttendeeDraft(
       email: (email == null || email.isEmpty) ? address ?? '' : email,
-      displayName: json['displayName']?.toString() ?? json['name']?.toString(),
-      optional: json['optional'] == true,
+      displayName:
+          json['displayName']?.toString() ??
+          json['name']?.toString() ??
+          emailAddress['name']?.toString(),
+      optional:
+          json['optional'] == true ||
+          json['type']?.toString().toLowerCase() == 'optional',
     );
   }
 
@@ -58,6 +68,7 @@ class EventEditorDraft {
     required this.title,
     required this.allDay,
     this.eventId,
+    this.providerRecurringEventId,
     this.start,
     this.end,
     this.startTimeZone,
@@ -67,13 +78,16 @@ class EventEditorDraft {
     this.descriptionContentType,
     this.descriptionHtml,
     this.recurrence,
+    this.recurrenceChanged = false,
     this.reminders,
     this.attendees = const [],
+    this.attendeesChanged = false,
     this.importance,
     this.showAs,
     this.visibilityOrSensitivity,
     this.colorId,
     this.categories = const [],
+    this.categoriesChanged = false,
     this.createConference = false,
     this.conference,
     this.responseRequested,
@@ -109,6 +123,7 @@ class EventEditorDraft {
     DateTime? start,
     DateTime? end,
     String? location,
+    String? providerRecurringEventId,
     String? description,
     String? descriptionContentType,
     String? descriptionHtml,
@@ -133,6 +148,7 @@ class EventEditorDraft {
       accountId: accountId,
       sourceId: sourceId,
       providerCalendarId: providerCalendarId,
+      providerRecurringEventId: providerRecurringEventId,
       title: title,
       allDay: allDay,
       start: start,
@@ -160,6 +176,7 @@ class EventEditorDraft {
   }
 
   final String? eventId;
+  final String? providerRecurringEventId;
   final String accountId;
   final String sourceId;
   final String providerCalendarId;
@@ -174,24 +191,41 @@ class EventEditorDraft {
   final String? descriptionContentType;
   final String? descriptionHtml;
   final Object? recurrence;
+
+  /// True only after the editor deliberately changes the hydrated value.
+  final bool recurrenceChanged;
   final Object? reminders;
   final List<EventAttendeeDraft> attendees;
+
+  /// True only after the editor deliberately changes the hydrated list.
+  final bool attendeesChanged;
   final String? importance;
   final String? showAs;
   final String? visibilityOrSensitivity;
   final String? colorId;
   final List<String> categories;
+
+  /// True only after the editor deliberately changes the hydrated list.
+  final bool categoriesChanged;
   final bool createConference;
   final Object? conference;
   final bool? responseRequested;
   final bool? hideAttendees;
   final bool? allowNewTimeProposals;
 
-  bool get canSave =>
-      title.trim().isNotEmpty &&
-      start != null &&
-      end != null &&
-      end!.isAfter(start!);
+  bool get canSave {
+    final start = this.start;
+    final end = this.end;
+    if (title.trim().isEmpty || start == null || end == null) {
+      return false;
+    }
+    if (!allDay) {
+      return end.isAfter(start);
+    }
+    final startDate = DateTime.utc(start.year, start.month, start.day);
+    final endDate = DateTime.utc(end.year, end.month, end.day);
+    return endDate.isAfter(startDate);
+  }
 
   EventEditorDraft copyWith({
     String? accountId,
@@ -208,13 +242,16 @@ class EventEditorDraft {
     String? descriptionContentType,
     String? descriptionHtml,
     Object? recurrence,
+    bool? recurrenceChanged,
     Object? reminders,
     List<EventAttendeeDraft>? attendees,
+    bool? attendeesChanged,
     String? importance,
     String? showAs,
     String? visibilityOrSensitivity,
     String? colorId,
     List<String>? categories,
+    bool? categoriesChanged,
     bool? createConference,
     Object? conference,
     bool? responseRequested,
@@ -232,6 +269,7 @@ class EventEditorDraft {
   }) {
     return EventEditorDraft(
       eventId: eventId,
+      providerRecurringEventId: providerRecurringEventId,
       accountId: accountId ?? this.accountId,
       sourceId: sourceId ?? this.sourceId,
       providerCalendarId: providerCalendarId ?? this.providerCalendarId,
@@ -250,8 +288,13 @@ class EventEditorDraft {
           ? null
           : descriptionHtml ?? this.descriptionHtml,
       recurrence: clearRecurrence ? null : recurrence ?? this.recurrence,
+      recurrenceChanged:
+          recurrenceChanged ??
+          (this.recurrenceChanged || recurrence != null || clearRecurrence),
       reminders: clearReminders ? null : reminders ?? this.reminders,
       attendees: attendees ?? this.attendees,
+      attendeesChanged:
+          attendeesChanged ?? (this.attendeesChanged || attendees != null),
       importance: clearImportance ? null : importance ?? this.importance,
       showAs: clearShowAs ? null : showAs ?? this.showAs,
       visibilityOrSensitivity: clearVisibilityOrSensitivity
@@ -259,6 +302,8 @@ class EventEditorDraft {
           : visibilityOrSensitivity ?? this.visibilityOrSensitivity,
       colorId: clearColorId ? null : colorId ?? this.colorId,
       categories: categories ?? this.categories,
+      categoriesChanged:
+          categoriesChanged ?? (this.categoriesChanged || categories != null),
       createConference: createConference ?? this.createConference,
       conference: clearConference ? null : conference ?? this.conference,
       responseRequested: responseRequested ?? this.responseRequested,
@@ -272,6 +317,7 @@ class EventEditorDraft {
   bool operator ==(Object other) {
     return other is EventEditorDraft &&
         other.eventId == eventId &&
+        other.providerRecurringEventId == providerRecurringEventId &&
         other.accountId == accountId &&
         other.sourceId == sourceId &&
         other.providerCalendarId == providerCalendarId &&
@@ -286,13 +332,16 @@ class EventEditorDraft {
         other.descriptionContentType == descriptionContentType &&
         other.descriptionHtml == descriptionHtml &&
         other.recurrence == recurrence &&
+        other.recurrenceChanged == recurrenceChanged &&
         other.reminders == reminders &&
         _listEquals(other.attendees, attendees) &&
+        other.attendeesChanged == attendeesChanged &&
         other.importance == importance &&
         other.showAs == showAs &&
         other.visibilityOrSensitivity == visibilityOrSensitivity &&
         other.colorId == colorId &&
         _listEquals(other.categories, categories) &&
+        other.categoriesChanged == categoriesChanged &&
         other.createConference == createConference &&
         other.conference == conference &&
         other.responseRequested == responseRequested &&
@@ -303,6 +352,7 @@ class EventEditorDraft {
   @override
   int get hashCode => Object.hashAll([
     eventId,
+    providerRecurringEventId,
     accountId,
     sourceId,
     providerCalendarId,
@@ -317,13 +367,16 @@ class EventEditorDraft {
     descriptionContentType,
     descriptionHtml,
     recurrence,
+    recurrenceChanged,
     reminders,
     Object.hashAll(attendees),
+    attendeesChanged,
     importance,
     showAs,
     visibilityOrSensitivity,
     colorId,
     Object.hashAll(categories),
+    categoriesChanged,
     createConference,
     conference,
     responseRequested,

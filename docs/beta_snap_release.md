@@ -1,6 +1,6 @@
 # BusyMax Beta Snap Release
 
-BusyMax `0.1.0+1` is a beta release target for public/listed visibility in
+BusyMax `0.1.1` is a beta release target for public/listed visibility in
 Ubuntu App Center and the Snap Store.
 
 ## Build
@@ -22,7 +22,7 @@ required Dart defines. The build fails if that local file is missing.
 For local validation:
 
 ```bash
-sudo snap install --dangerous busymax_0.1.0+1_amd64.snap
+sudo snap install --dangerous busymax_0.1.1_amd64.snap
 ```
 
 For store users after the revision is uploaded and released to beta:

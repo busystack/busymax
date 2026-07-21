@@ -37,6 +37,13 @@ class MicrosoftCalendarApiError implements Exception {
   final String code;
   final String message;
 
+  bool get isInvalidSyncState {
+    final normalizedCode = code.toLowerCase();
+    return statusCode == 410 ||
+        normalizedCode == 'syncstatenotfound' ||
+        normalizedCode == 'resyncrequired';
+  }
+
   @override
   String toString() => '$code: $message';
 }

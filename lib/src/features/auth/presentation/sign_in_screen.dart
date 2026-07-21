@@ -10,6 +10,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
@@ -18,6 +19,7 @@ import '../../../google_tasks/oauth/oauth_token_store.dart';
 import '../../../l10n/l10n.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../sync/sync_auth_error.dart';
 
 enum _OnboardingStep { accounts, preferences }
 
@@ -36,6 +38,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   String? _errorMessage;
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
+  var _finishingSetup = false;
+  var _headerBarUpdateGeneration = 0;
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
 
   @override
@@ -52,7 +56,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+    final accounts =
+        ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
     final settings = ref.watch(appSettingsControllerProvider);
     final settingsController = ref.read(appSettingsControllerProvider.notifier);
     final config = ref.watch(buildConfigProvider);
@@ -66,7 +71,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final canContinue =
         _signingInProvider == null &&
         switch (_step) {
-          _OnboardingStep.accounts => accounts.isNotEmpty,
+          _OnboardingStep.accounts => accounts.any(
+            (account) => account.isSignedIn,
+          ),
           _OnboardingStep.preferences => true,
         };
     _updateHeaderBar(
@@ -194,21 +201,37 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     required String backLabel,
     required String continueLabel,
   }) {
+    if (_finishingSetup) {
+      return;
+    }
     if (!_headerBarReady && Platform.isLinux) {
       return;
     }
     final title = context.l10n.onboardingSetupTitle;
+    final generation = ++_headerBarUpdateGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+      if (!mounted ||
+          _finishingSetup ||
+          generation != _headerBarUpdateGeneration) {
         return;
       }
       final service = ref.read(linuxHeaderBarServiceProvider);
       unawaited(() async {
         await service.initialize();
+        if (!mounted ||
+            _finishingSetup ||
+            generation != _headerBarUpdateGeneration) {
+          return;
+        }
         await service.setScheduleControlsVisible(false);
         await service.setBackVisible(false);
         await service.setSidebarVisible(false);
         await service.setTitleRange(title);
+        if (!mounted ||
+            _finishingSetup ||
+            generation != _headerBarUpdateGeneration) {
+          return;
+        }
         await service.setOnboardingControls(
           visible: true,
           canGoBack: canGoBack,
@@ -231,6 +254,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
     if (action == BusyMaxHeaderBarAction.continueSetup) {
       unawaited(_nextStep());
+      return;
+    }
+    if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
+      unawaited(
+        showBusyMaxKeyboardShortcutsDialog(
+          context,
+          headerBarService: ref.read(linuxHeaderBarServiceProvider),
+        ),
+      );
     }
   }
 
@@ -251,7 +283,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       };
       final accountId = signedIn.accountId;
       if (accountId != null) {
-        unawaited(ref.read(signedInSyncRunnerProvider)(accountId, true));
+        unawaited(_runInitialSync(accountId));
       }
     } on Object catch (error) {
       if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
@@ -263,6 +295,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     } finally {
       if (mounted) {
         setState(() => _signingInProvider = null);
+      }
+    }
+  }
+
+  Future<void> _runInitialSync(String accountId) async {
+    try {
+      await ref.read(signedInSyncRunnerProvider)(accountId, true);
+    } on Object catch (error) {
+      if (isMissingOAuthTokenError(error)) {
+        try {
+          await ref
+              .read(authRepositoryProvider)
+              .markReconnectRequired(accountId);
+        } on Object {
+          // Preserve the original sync failure message below.
+        }
+      }
+      if (mounted) {
+        setState(() => _errorMessage = syncFailureMessage(error));
       }
     }
   }
@@ -296,10 +347,27 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       return;
     }
 
+    _finishingSetup = true;
+    _headerBarUpdateGeneration++;
+    await _clearOnboardingHeaderBar();
     await ref.read(authSessionControllerProvider.notifier).load();
     if (mounted) {
       context.go('/schedule');
     }
+  }
+
+  Future<void> _clearOnboardingHeaderBar() async {
+    final service = ref.read(linuxHeaderBarServiceProvider);
+    await service.initialize();
+    await service.setOnboardingControls(
+      visible: false,
+      canGoBack: false,
+      canContinue: false,
+      backLabel: '',
+      continueLabel: '',
+      force: true,
+    );
+    await service.setBackVisible(false);
   }
 }
 
@@ -419,7 +487,7 @@ class _SignedInAccountsSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          context.l10n.signedInAccount,
+          context.l10n.accounts,
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
@@ -440,14 +508,15 @@ class _SignedInAccountRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final secondary = account.secondaryLabel;
+    final needsReconnect = account.needsReconnect;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.xs),
       child: Row(
         children: [
           Icon(
-            YaruIcons.checkmark,
+            needsReconnect ? YaruIcons.warning : YaruIcons.checkmark,
             size: BusyMaxSizes.iconSm,
-            color: colorScheme.primary,
+            color: needsReconnect ? colorScheme.error : colorScheme.primary,
           ),
           const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
@@ -459,7 +528,16 @@ class _SignedInAccountRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (secondary != null)
+                if (needsReconnect)
+                  Text(
+                    accountReconnectRequiredSyncMessage,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: colorScheme.error),
+                  )
+                else if (secondary != null)
                   Text(
                     secondary,
                     maxLines: 1,
@@ -614,32 +692,26 @@ class _ProviderSignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = BusyMaxPushButton.filled(
-      onPressed: enabled ? onPressed : null,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (loading) ...[
-            const SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: BusyMaxSpacing.sm),
-          ],
-          Flexible(
-            child: Text(
-              loading ? loadingLabel : label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    return Tooltip(
-      message: configured ? tooltip : context.l10n.providerNotConfigured,
-      child: content,
+    final effectiveTooltip = configured
+        ? tooltip
+        : context.l10n.providerNotConfigured;
+    return BusyMaxGroupedList(
+      filled: true,
+      children: [
+        BusyMaxActionRow(
+          title: loading ? loadingLabel : label,
+          leading: const Icon(YaruIcons.plus),
+          trailing: loading
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(YaruIcons.pan_end, size: BusyMaxSizes.iconSm),
+          enabled: enabled,
+          tooltip: effectiveTooltip,
+          onTap: onPressed,
+        ),
+      ],
     );
   }
 }

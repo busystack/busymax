@@ -7,16 +7,25 @@ class RetryingHttpClient extends http.BaseClient {
   RetryingHttpClient({
     required http.Client inner,
     Random? random,
+    Future<void> Function(Duration delay)? delay,
     this.maxRetries = 3,
   }) : _inner = inner,
-       _random = random ?? Random.secure();
+       _random = random ?? Random.secure(),
+       _delay = delay ?? ((duration) => Future<void>.delayed(duration));
 
   final http.Client _inner;
   final Random _random;
+  final Future<void> Function(Duration delay) _delay;
   final int maxRetries;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    // A provider can commit a mutation before returning an error, and the
+    // provider APIs do not share a universal idempotency mechanism.
+    if (!_isSafeMethod(request.method)) {
+      return _inner.send(request);
+    }
+
     final bodyBytes = await request.finalize().toBytes();
 
     for (var attempt = 0; attempt <= maxRetries; attempt += 1) {
@@ -25,7 +34,7 @@ class RetryingHttpClient extends http.BaseClient {
         return response;
       }
       await response.stream.drain<void>();
-      await Future<void>.delayed(_backoff(attempt));
+      await _delay(_backoff(attempt));
     }
 
     throw StateError('Retry loop exited unexpectedly.');
@@ -42,6 +51,13 @@ class RetryingHttpClient extends http.BaseClient {
 
   bool _isRetryable(int statusCode) {
     return statusCode == 429 || statusCode >= 500;
+  }
+
+  bool _isSafeMethod(String method) {
+    return switch (method.toUpperCase()) {
+      'GET' || 'HEAD' || 'OPTIONS' || 'TRACE' => true,
+      _ => false,
+    };
   }
 
   Duration _backoff(int attempt) {

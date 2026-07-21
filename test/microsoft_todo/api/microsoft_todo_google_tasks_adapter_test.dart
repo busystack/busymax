@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_google_tasks_adapter.dart';
 
@@ -135,12 +136,56 @@ void main() {
       });
     },
   );
+
+  test('normalizes Microsoft errors without losing provider details', () async {
+    const rawJson = <String, Object?>{
+      'error': <String, Object?>{
+        'code': 'Authorization_RequestDenied',
+        'message': 'Access denied by policy.',
+      },
+    };
+    final client = _FakeMicrosoftTodoApiClient()
+      ..updateTaskError = const MicrosoftTodoApiError(
+        statusCode: 403,
+        code: 'Authorization_RequestDenied',
+        message: 'Access denied by policy.',
+        rawJson: rawJson,
+      );
+    final adapter = MicrosoftTodoGoogleTasksAdapter(
+      client: client,
+      defaultTimeZone: 'UTC',
+    );
+
+    await expectLater(
+      () => adapter.patchTask(
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        patch: const TaskPatch.fields({'title': 'Updated'}),
+      ),
+      throwsA(
+        isA<GoogleTasksApiError>()
+            .having((error) => error.statusCode, 'statusCode', 403)
+            .having(
+              (error) => error.code,
+              'code',
+              'Authorization_RequestDenied',
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              'Access denied by policy.',
+            )
+            .having((error) => error.rawJson, 'rawJson', rawJson),
+      ),
+    );
+  });
 }
 
 class _FakeMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
   var createdTaskListId = '';
   var createdTaskBody = <String, Object?>{};
   var updatedTaskPatch = <String, Object?>{};
+  MicrosoftTodoApiError? updateTaskError;
 
   @override
   Future<MicrosoftTodoTaskDto> createTask({
@@ -207,6 +252,10 @@ class _FakeMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
     required String taskId,
     required Map<String, Object?> patch,
   }) async {
+    final error = updateTaskError;
+    if (error != null) {
+      throw error;
+    }
     updatedTaskPatch = patch;
     return MicrosoftTodoTaskDto(
       id: taskId,

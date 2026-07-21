@@ -62,7 +62,11 @@ void main() {
   test('compact agenda snapshot round-trips schedule data', () {
     final expected = _agendaData(
       items: [
-        _event('Planning', start: DateTime(2026, 6, 10, 9)),
+        _event(
+          'Planning',
+          start: DateTime(2026, 6, 10, 6),
+          editorStart: DateTime(2026, 6, 10, 9),
+        ),
         _task('Review notes', start: DateTime(2026, 6, 10, 11)),
       ],
     );
@@ -74,6 +78,16 @@ void main() {
     expect(decoded.items, hasLength(2));
     expect(decoded.items[0], isA<CalendarScheduleItem>());
     expect(decoded.items[0].title, 'Planning');
+    final event = decoded.items[0] as CalendarScheduleItem;
+    expect(event.providerRecurringEventId, 'series-master');
+    expect(event.recurrence, ['RRULE:FREQ=WEEKLY']);
+    expect(event.attendees, [
+      {'email': 'guest@example.com'},
+    ]);
+    expect(event.start, DateTime(2026, 6, 10, 6));
+    expect(event.end, DateTime(2026, 6, 10, 7));
+    expect(event.editorStart, DateTime(2026, 6, 10, 9));
+    expect(event.editorEnd, DateTime(2026, 6, 10, 10));
     expect(decoded.items[1], isA<TaskScheduleItem>());
     expect(decoded.items[1].title, 'Review notes');
     expect(decoded.hasSignedInAccounts, isTrue);
@@ -112,23 +126,34 @@ CompactAgendaData _agendaData({List<ScheduleItem>? items}) {
   );
 }
 
-CalendarScheduleItem _event(String title, {required DateTime start}) {
+CalendarScheduleItem _event(
+  String title, {
+  required DateTime start,
+  DateTime? editorStart,
+}) {
   return CalendarScheduleItem(
     id: title,
     accountId: 'account',
     provider: TaskProvider.google,
     sourceId: 'calendar',
     providerCalendarId: 'provider-calendar',
+    providerRecurringEventId: 'series-master',
     title: title,
     allDay: false,
     start: start,
     end: start.add(const Duration(hours: 1)),
+    editorStart: editorStart,
+    editorEnd: editorStart?.add(const Duration(hours: 1)),
     startTimeZone: 'America/Vancouver',
     endTimeZone: 'America/Vancouver',
     location: 'Room 1',
     description: 'Description',
     descriptionContentType: 'text/plain',
     descriptionHtml: '<p>Description</p>',
+    recurrence: const ['RRULE:FREQ=WEEKLY'],
+    attendees: const [
+      {'email': 'guest@example.com'},
+    ],
     colorHex: '#4477aa',
     categories: const ['Work'],
     reminderMinutesBeforeStart: const [10],

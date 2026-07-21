@@ -174,16 +174,25 @@ class ScheduleRepository {
           provider: provider,
           sourceId: event.calendarSourceId,
           providerCalendarId: event.providerCalendarId,
+          providerRecurringEventId: event.providerRecurringEventId,
           title: event.title,
           allDay: event.allDay,
           start: start,
           end: end,
+          editorStart: event.allDay
+              ? null
+              : _parseCalendarEditorDateTime(event.startDateTime),
+          editorEnd: event.allDay
+              ? null
+              : _parseCalendarEditorDateTime(event.endDateTime),
           startTimeZone: event.startTimeZone,
           endTimeZone: event.endTimeZone,
           location: event.location,
           description: event.description,
           descriptionContentType: descriptionBody.contentType,
           descriptionHtml: descriptionBody.html,
+          recurrence: _jsonValueFromString(event.recurrenceJson),
+          attendees: _jsonMapListFromString(event.attendeesJson),
           categories: _stringListFromJson(event.categoriesJson),
           reminderMinutesBeforeStart: _eventReminderMinutes(
             provider,
@@ -229,7 +238,20 @@ class ScheduleRepository {
             ),
           ])
           ..where(_database.tasks.accountId.isIn(accountIds))
-          ..where(_database.tasks.pendingDelete.equals(false));
+          ..where(_database.tasks.pendingDelete.equals(false))
+          ..where(_database.tasks.serverMissing.equals(false))
+          ..where(
+            _database.tasks.deleted.isNull() |
+                _database.tasks.deleted.equals(false),
+          )
+          ..where(
+            _database.tasks.hidden.isNull() |
+                _database.tasks.hidden.equals(false),
+          )
+          ..where(
+            _database.taskLists.id.isNull() |
+                _database.taskLists.serverMissing.equals(false),
+          );
     if (filters.taskListFilterActive) {
       query.where(_database.tasks.taskListId.isIn(filters.taskListIds));
     }
@@ -294,6 +316,19 @@ class ScheduleRepository {
           ])
           ..where(_database.tasks.accountId.isIn(context.accountIds))
           ..where(_database.tasks.pendingDelete.equals(false))
+          ..where(_database.tasks.serverMissing.equals(false))
+          ..where(
+            _database.tasks.deleted.isNull() |
+                _database.tasks.deleted.equals(false),
+          )
+          ..where(
+            _database.tasks.hidden.isNull() |
+                _database.tasks.hidden.equals(false),
+          )
+          ..where(
+            _database.taskLists.id.isNull() |
+                _database.taskLists.serverMissing.equals(false),
+          )
           ..where(databaseFilter)
           ..limit(effectiveLimit + 1);
     if (filters.taskListFilterActive) {
@@ -539,14 +574,14 @@ bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
 
 DateTime? _eventStart(CalendarEvent event) {
   if (!event.allDay) {
-    return _parseCalendarDateTime(event.startDateTime);
+    return providerDateTimeAsLocal(event.startDateTime, event.startTimeZone);
   }
   return _parseDate(event.startDate) ?? _parseDate(event.startDateTime);
 }
 
 DateTime? _eventEnd(CalendarEvent event) {
   if (!event.allDay) {
-    return _parseCalendarDateTime(event.endDateTime);
+    return providerDateTimeAsLocal(event.endDateTime, event.endTimeZone);
   }
   return _parseDate(event.endDate) ?? _parseDate(event.endDateTime);
 }
@@ -565,7 +600,7 @@ DateTime? _parseDateTime(String? value) {
   return DateTime.tryParse(value);
 }
 
-DateTime? _parseCalendarDateTime(String? value) {
+DateTime? _parseCalendarEditorDateTime(String? value) {
   if (value == null || value.isEmpty) {
     return null;
   }
@@ -605,6 +640,28 @@ List<String> _stringListFromJson(String? value) {
     return const [];
   }
   return const [];
+}
+
+Object? _jsonValueFromString(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  try {
+    return jsonDecode(value);
+  } on FormatException {
+    return null;
+  }
+}
+
+List<Map<String, Object?>> _jsonMapListFromString(String? value) {
+  final decoded = _jsonValueFromString(value);
+  if (decoded is! List) {
+    return const [];
+  }
+  return [
+    for (final item in decoded)
+      if (item is Map) Map<String, Object?>.from(item),
+  ];
 }
 
 List<int> _eventReminderMinutes(

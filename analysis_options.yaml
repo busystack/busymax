@@ -3,7 +3,7 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   exclude:
     - build/**
-    - tool/cache/**
+    - tools/google_tasks_discovery/cache/**
 
 linter:
   rules:

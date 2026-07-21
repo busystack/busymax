@@ -14,6 +14,7 @@ import '../../../google_tasks/oauth/oauth_models.dart';
 import '../../../google_tasks/oauth/oauth_service.dart';
 import '../../../google_tasks/oauth/oauth_token_store.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
+import '../../sync/sync_auth_error.dart';
 import '../../../task_providers/task_provider.dart';
 
 enum AuthSessionStatus {
@@ -135,25 +136,36 @@ class AuthRepository {
 
   Future<void> signOut({String? accountId}) async {
     final targetAccountId = accountId ?? await _oAuth.activeAccountId;
-    if (targetAccountId?.startsWith('microsoft:') == true) {
-      await _microsoftOAuth?.signOutAccount(targetAccountId!);
-    } else if (targetAccountId != null) {
+    if (targetAccountId == null) {
+      return;
+    }
+    await _deactivateAccount(targetAccountId, reconnectRequired: false);
+    if (targetAccountId.startsWith('microsoft:')) {
+      await _microsoftOAuth?.signOutAccount(targetAccountId);
+    } else {
       await _oAuth.signOutAccount(targetAccountId);
     }
-    if (targetAccountId != null) {
-      await _accountsRepository.markSignedOut(targetAccountId);
+  }
+
+  Future<void> markReconnectRequired(String accountId) async {
+    await _deactivateAccount(accountId, reconnectRequired: true);
+    if (accountId.startsWith('microsoft:')) {
+      await _microsoftOAuth?.signOutAccount(accountId);
+    } else {
+      await _oAuth.signOutAccount(accountId);
     }
   }
 
   Future<void> revokeAndSignOut({String? accountId}) async {
     final targetAccountId = accountId ?? await _oAuth.activeAccountId;
-    if (targetAccountId?.startsWith('microsoft:') == true) {
-      await _microsoftOAuth?.signOutAccount(targetAccountId!);
-    } else if (targetAccountId != null) {
-      await _oAuth.revokeAndSignOutAccount(targetAccountId);
+    if (targetAccountId == null) {
+      return;
     }
-    if (targetAccountId != null) {
-      await _accountsRepository.markSignedOut(targetAccountId);
+    await _deactivateAccount(targetAccountId, reconnectRequired: false);
+    if (targetAccountId.startsWith('microsoft:')) {
+      await _microsoftOAuth?.signOutAccount(targetAccountId);
+    } else {
+      await _oAuth.revokeAndSignOutAccount(targetAccountId);
     }
   }
 
@@ -163,15 +175,38 @@ class AuthRepository {
       return;
     }
 
+    await _database.transaction(() async {
+      await _deleteScheduledNotifications(targetAccountId);
+      await (_database.delete(
+        _database.accounts,
+      )..where((row) => row.id.equals(targetAccountId))).go();
+    });
+
     if (targetAccountId.startsWith('microsoft:')) {
       await _microsoftOAuth?.signOutAccount(targetAccountId);
     } else {
       await _oAuth.signOutAccount(targetAccountId);
     }
+  }
 
-    await (_database.delete(
-      _database.accounts,
-    )..where((row) => row.id.equals(targetAccountId))).go();
+  Future<void> _deactivateAccount(
+    String accountId, {
+    required bool reconnectRequired,
+  }) {
+    return _database.transaction(() async {
+      if (reconnectRequired) {
+        await _accountsRepository.markReconnectRequired(accountId);
+      } else {
+        await _accountsRepository.markSignedOut(accountId);
+      }
+      await _deleteScheduledNotifications(accountId);
+    });
+  }
+
+  Future<void> _deleteScheduledNotifications(String accountId) {
+    return (_database.delete(
+      _database.notificationSchedule,
+    )..where((row) => row.accountId.equals(accountId))).go();
   }
 
   Future<void> cancelSignIn() async {
@@ -309,7 +344,7 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         _startSignedInSync(loaded.accountId!, false);
       }
     } on Object catch (error) {
-      state = AuthSessionState.error(_authErrorMessage(error));
+      state = AuthSessionState.error(authErrorMessage(error));
     }
   }
 
@@ -340,7 +375,7 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         state = const AuthSessionState.signedOut();
         return;
       }
-      state = AuthSessionState.error(_authErrorMessage(error));
+      state = AuthSessionState.error(authErrorMessage(error));
     }
   }
 
@@ -371,17 +406,17 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         state = const AuthSessionState.signedOut();
         return;
       }
-      state = AuthSessionState.error(_authErrorMessage(error));
+      state = AuthSessionState.error(authErrorMessage(error));
     }
   }
 
   Future<void> revokeAndSignOut() async {
-    await _repository.revokeAndSignOut();
+    await _repository.revokeAndSignOut(accountId: state.accountId);
     state = const AuthSessionState.signedOut();
   }
 
   Future<void> signOut() async {
-    await _repository.signOut();
+    await _repository.signOut(accountId: state.accountId);
     state = const AuthSessionState.signedOut();
   }
 
@@ -397,15 +432,37 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
   }
 
   void _startSignedInSync(String accountId, bool initial) {
-    unawaited(
-      _onSignedIn(accountId, initial).catchError((Object error, StackTrace _) {
-        _logger.warning('Signed-in sync failed: initial=$initial error=$error');
-      }),
-    );
+    unawaited(_runSignedInSync(accountId, initial));
+  }
+
+  Future<void> _runSignedInSync(String accountId, bool initial) async {
+    try {
+      await _onSignedIn(accountId, initial);
+    } on Object catch (error) {
+      _logger.warning('Signed-in sync failed: initial=$initial error=$error');
+      if (!isMissingOAuthTokenError(error)) {
+        return;
+      }
+      try {
+        await _repository.markReconnectRequired(accountId);
+        state = await _repository.loadSession();
+        final nextAccountId = state.accountId;
+        if (nextAccountId != null &&
+            state.isSignedIn &&
+            nextAccountId != accountId) {
+          _startSignedInSync(nextAccountId, false);
+        }
+      } on Object catch (cleanupError) {
+        _logger.warning(
+          'Failed to mark account reconnect required after missing sync token: '
+          '$cleanupError',
+        );
+      }
+    }
   }
 }
 
-String _authErrorMessage(Object error) {
+String authErrorMessage(Object error) {
   if (error is OAuthException) {
     if (_isCallbackFailure(error.code)) {
       if (error.message == microsoftSignInCallbackNotReceivedMessage) {

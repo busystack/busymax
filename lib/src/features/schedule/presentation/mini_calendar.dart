@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_surface_colors.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 
@@ -31,9 +32,7 @@ class MiniCalendar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final first = DateTime(selectedDate.year, selectedDate.month);
-    final start = first.subtract(
-      Duration(days: (first.weekday - firstWeekday) % DateTime.daysPerWeek),
-    );
+    final start = _calendarStartForMonth(first, firstWeekday);
     final groupedItems = ScheduleProjection.groupByDay(items);
     final locale = Localizations.localeOf(context).toLanguageTag();
     return Padding(
@@ -129,8 +128,9 @@ class MiniCalendar extends StatelessWidget {
                       SizedBox(
                         height: dayExtent,
                         child: _MiniCalendarWeekRow(
-                          weekStart: start.add(
-                            Duration(days: row * DateTime.daysPerWeek),
+                          weekStart: _addCalendarDays(
+                            start,
+                            row * DateTime.daysPerWeek,
                           ),
                           weekNumberExtent: weekNumberExtent,
                           selectedMonth: selectedDate.month,
@@ -188,7 +188,7 @@ class _MiniCalendarWeekRow extends StatelessWidget {
         for (var column = 0; column < DateTime.daysPerWeek; column++)
           Expanded(
             child: _MiniCalendarDayButton(
-              day: weekStart.add(Duration(days: column)),
+              day: _addCalendarDays(weekStart, column),
               selectedMonth: selectedMonth,
               selectedYear: selectedYear,
               groupedItems: groupedItems,
@@ -267,6 +267,7 @@ class _MiniCalendarDayButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final today = _sameDay(day, DateTime.now());
     final currentMonth =
         selectedYear == DateTime.now().year &&
@@ -282,14 +283,15 @@ class _MiniCalendarDayButton extends StatelessWidget {
           final canShowIndicators =
               items.isNotEmpty && constraints.maxHeight >= 28;
           final indicatorHeight = canShowIndicators ? 4.0 : 0.0;
+          final availableMarkerExtent = math.min(
+            constraints.maxWidth,
+            constraints.maxHeight -
+                indicatorHeight -
+                (canShowIndicators ? BusyMaxSpacing.xxs : 0),
+          );
           final markerSize = math.min(
             24.0,
-            math.max(
-              18.0,
-              constraints.maxHeight -
-                  indicatorHeight -
-                  (canShowIndicators ? BusyMaxSpacing.xxs : 0),
-            ),
+            math.max(0.0, availableMarkerExtent),
           );
           return InkWell(
             onTap: () => onSelected(day),
@@ -301,7 +303,9 @@ class _MiniCalendarDayButton extends StatelessWidget {
                   dimension: markerSize,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: highlightToday ? colorScheme.primary : null,
+                      color: highlightToday
+                          ? surfaceColors.controlActive
+                          : null,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -311,7 +315,7 @@ class _MiniCalendarDayButton extends StatelessWidget {
                           '${day.day}',
                           style: TextStyle(
                             color: highlightToday
-                                ? colorScheme.onPrimary
+                                ? surfaceColors.foreground
                                 : day.month == selectedMonth
                                 ? null
                                 : colorScheme.onSurfaceVariant,
@@ -394,35 +398,84 @@ class _MiniCalendarStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        YaruIconButton(
-          tooltip: previousTooltip,
-          iconSize: BusyMaxSizes.headerIcon,
-          icon: const Icon(YaruIcons.pan_start),
-          onPressed: onPrevious,
-          style: busyMaxHeaderIconButtonStyle(
-            foregroundColor: colorScheme.onSurfaceVariant,
-            backgroundColor: busyMaxHeaderButtonBackground(context),
-            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-          ),
-        ),
-        const SizedBox(width: BusyMaxSpacing.xs),
-        Expanded(child: _label(context)),
-        const SizedBox(width: BusyMaxSpacing.xs),
-        YaruIconButton(
-          tooltip: nextTooltip,
-          iconSize: BusyMaxSizes.headerIcon,
-          icon: const Icon(YaruIcons.pan_end),
-          onPressed: onNext,
-          style: busyMaxHeaderIconButtonStyle(
-            foregroundColor: colorScheme.onSurfaceVariant,
-            backgroundColor: busyMaxHeaderButtonBackground(context),
-            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth <
+            BusyMaxSizes.headerIconButton * 2 + BusyMaxSpacing.xs * 2;
+        if (compact) {
+          return Row(
+            children: [
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _stepButton(
+                    context,
+                    colorScheme: colorScheme,
+                    tooltip: previousTooltip,
+                    icon: YaruIcons.pan_start,
+                    onPressed: onPrevious,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _stepButton(
+                    context,
+                    colorScheme: colorScheme,
+                    tooltip: nextTooltip,
+                    icon: YaruIcons.pan_end,
+                    onPressed: onNext,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _stepButton(
+              context,
+              colorScheme: colorScheme,
+              tooltip: previousTooltip,
+              icon: YaruIcons.pan_start,
+              onPressed: onPrevious,
+            ),
+            const SizedBox(width: BusyMaxSpacing.xs),
+            Expanded(child: _label(context)),
+            const SizedBox(width: BusyMaxSpacing.xs),
+            _stepButton(
+              context,
+              colorScheme: colorScheme,
+              tooltip: nextTooltip,
+              icon: YaruIcons.pan_end,
+              onPressed: onNext,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _stepButton(
+    BuildContext context, {
+    required ColorScheme colorScheme,
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return YaruIconButton(
+      tooltip: tooltip,
+      iconSize: BusyMaxSizes.headerIcon,
+      icon: Icon(icon),
+      onPressed: onPressed,
+      style: busyMaxHeaderIconButtonStyle(
+        foregroundColor: colorScheme.onSurfaceVariant,
+        backgroundColor: busyMaxHeaderButtonBackground(context),
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
     );
   }
 
@@ -479,6 +532,18 @@ String _monthName(DateTime date) {
 
 bool _sameDay(DateTime a, DateTime b) {
   return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+DateTime _calendarStartForMonth(DateTime first, int firstWeekday) {
+  final monthWeekdayFromMonday = first.weekday - DateTime.monday;
+  final firstWeekdayFromMonday = firstWeekday - DateTime.monday;
+  final leadingDays =
+      (monthWeekdayFromMonday - firstWeekdayFromMonday) % DateTime.daysPerWeek;
+  return _addCalendarDays(first, -leadingDays);
+}
+
+DateTime _addCalendarDays(DateTime date, int days) {
+  return DateTime(date.year, date.month, date.day + days);
 }
 
 int _isoWeekNumber(DateTime date) {

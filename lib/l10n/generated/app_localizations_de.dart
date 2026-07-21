@@ -333,6 +333,84 @@ class AppLocalizationsDe extends AppLocalizations {
   String get mainMenu => 'Hauptmenü';
 
   @override
+  String get keyboardShortcuts => 'Tastenkürzel';
+
+  @override
+  String get shortcutGroupGeneral => 'Allgemein';
+
+  @override
+  String get shortcutKeyboardShortcutsDescription =>
+      'Diese Übersicht der Tastenkürzel anzeigen';
+
+  @override
+  String get shortcutGroupNavigation => 'Navigation';
+
+  @override
+  String get shortcutNextPeriod => 'Nächster Zeitraum';
+
+  @override
+  String get shortcutNextPeriodDescription =>
+      'Nächste Woche in der Wochenansicht, nächster Monat in der Monatsansicht usw.';
+
+  @override
+  String get shortcutPreviousPeriod => 'Vorheriger Zeitraum';
+
+  @override
+  String get shortcutPreviousPeriodDescription =>
+      'Vorherige Woche in der Wochenansicht, vorheriger Monat in der Monatsansicht usw.';
+
+  @override
+  String get shortcutJumpToToday => 'Zu Heute springen';
+
+  @override
+  String get shortcutGroupView => 'Ansicht';
+
+  @override
+  String get shortcutDayView => 'Tagesansicht';
+
+  @override
+  String get shortcutWeekView => 'Wochenansicht';
+
+  @override
+  String get shortcutMonthView => 'Monatsansicht';
+
+  @override
+  String get shortcutYearView => 'Jahresansicht';
+
+  @override
+  String get shortcutAgendaView => 'Agendaansicht';
+
+  @override
+  String get shortcutGroupCreateAndEdit => 'Erstellen und Bearbeiten';
+
+  @override
+  String get shortcutSaveItem => 'Termin oder Aufgabe speichern';
+
+  @override
+  String get shortcutDeleteItem => 'Termin oder Aufgabe löschen';
+
+  @override
+  String get shortcutGroupTaskEditing => 'Aufgabenbearbeitung';
+
+  @override
+  String get shortcutCancelEditing => 'Bearbeitung abbrechen';
+
+  @override
+  String get shortcutCancelEditingDescription =>
+      'Aufgabenbearbeitung oder Aufgabendetails schließen';
+
+  @override
+  String get shortcutGroupCompactAgenda => 'Kompakte Agenda';
+
+  @override
+  String get shortcutRefreshCompactAgendaDescription =>
+      'Das kompakte Agenda-Fenster aktualisieren';
+
+  @override
+  String get shortcutHideCompactAgendaDescription =>
+      'Das kompakte Agenda-Fenster ausblenden';
+
+  @override
   String get aboutBusyMax => 'Über BusyMax';
 
   @override
@@ -343,6 +421,91 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get reportAnIssue => 'Problem melden';
+
+  @override
+  String get sendFeedback => 'Feedback senden';
+
+  @override
+  String get feedbackSubmit => 'Senden';
+
+  @override
+  String get feedbackCategory => 'Kategorie';
+
+  @override
+  String get feedbackSelectCategory => 'Kategorie auswählen';
+
+  @override
+  String get feedbackCategoryProblem => 'Problem oder Fehler';
+
+  @override
+  String get feedbackCategoryFeature => 'Funktionswunsch';
+
+  @override
+  String get feedbackCategoryPrivacySecurity =>
+      'Datenschutz- oder Sicherheitsbedenken';
+
+  @override
+  String get feedbackCategoryUsability =>
+      'Problem mit der Benutzerfreundlichkeit';
+
+  @override
+  String get feedbackCategoryOther => 'Sonstiges';
+
+  @override
+  String get feedbackSubject => 'Betreff';
+
+  @override
+  String get feedbackDetailedMessage => 'Ausführliche Nachricht';
+
+  @override
+  String get feedbackReplyEmail => 'E-Mail-Adresse für Antwort (optional)';
+
+  @override
+  String get feedbackIncludeTechnicalDetails => 'Technische Details hinzufügen';
+
+  @override
+  String get feedbackTechnicalDetailsDisclosure =>
+      'Fügt nur die Version Ihres Linux-Betriebssystems und die Spracheinstellung der Anwendung hinzu. Es werden keine Protokolle, Kontodaten, Dateinamen oder anderen Diagnosedaten hinzugefügt.';
+
+  @override
+  String get feedbackCategoryRequired => 'Wählen Sie eine Kategorie aus.';
+
+  @override
+  String get feedbackSubjectLengthError =>
+      'Der Betreff muss zwischen 3 und 120 Zeichen lang sein.';
+
+  @override
+  String get feedbackMessageLengthError =>
+      'Die Nachricht muss zwischen 10 und 5.000 Zeichen lang sein.';
+
+  @override
+  String get feedbackInvalidEmail =>
+      'Geben Sie eine gültige E-Mail-Adresse ein.';
+
+  @override
+  String get feedbackConnectionError =>
+      'Verbindung zu BusyStack fehlgeschlagen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.';
+
+  @override
+  String get feedbackTimeoutError =>
+      'Die Anfrage hat zu lange gedauert. Ihr Feedback wurde nicht gelöscht; versuchen Sie es erneut.';
+
+  @override
+  String get feedbackRateLimitedError =>
+      'Aus diesem Netzwerk wurden zu viele Feedbackmeldungen gesendet. Warten Sie und versuchen Sie es erneut.';
+
+  @override
+  String get feedbackRejectedError =>
+      'Der Server hat die Übermittlung abgelehnt. Prüfen Sie die Felder und versuchen Sie es erneut.';
+
+  @override
+  String get feedbackServerError =>
+      'BusyStack kann Ihr Feedback derzeit nicht annehmen. Ihr Feedback wurde nicht gelöscht; versuchen Sie es erneut.';
+
+  @override
+  String feedbackSuccess(String id) {
+    return 'Feedback gesendet. Referenz: $id';
+  }
 
   @override
   String get toggleSidebar => 'Seitenleiste umschalten';

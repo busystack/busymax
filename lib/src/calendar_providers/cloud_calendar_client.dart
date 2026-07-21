@@ -55,6 +55,7 @@ abstract interface class CloudCalendarClient {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     String? syncTokenOrDeltaLink,
+    bool primaryCalendar = false,
   });
 
   Future<List<BusySlotDto>> freeBusy({

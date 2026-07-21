@@ -283,7 +283,8 @@ class _BusyMaxCompactAgendaAppState
 
     return SystemThemeBuilder(
       builder: (context, systemColor) {
-        final accentColor = ubuntuAccentColor ?? systemColor.accent;
+        final accentColor =
+            ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent;
         return MaterialApp(
           title: 'BusyMax Agenda',
           debugShowCheckedModeBanner: false,

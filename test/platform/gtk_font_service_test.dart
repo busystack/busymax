@@ -200,6 +200,7 @@ void main() {
             'control': '#1AFFFFFF',
             'controlHover': '#2EFFFFFF',
             'controlActive': '#33FFFFFF',
+            'accent': '#C061CB',
             'activeToggle': '#44FFFFFF',
             'foreground': '#FFFFFF',
             'mutedForeground': '#C0C0C0',
@@ -227,6 +228,7 @@ void main() {
     expect(colors?.popover, const Color(0xFF383838));
     expect(colors?.control, const Color(0x1AFFFFFF));
     expect(colors?.controlActive, const Color(0x33FFFFFF));
+    expect(colors?.accent, const Color(0xFFC061CB));
     expect(colors?.subtleBorder, const Color(0x1AFFFFFF));
   });
 
@@ -250,6 +252,7 @@ void main() {
               eventSink.success(<String, Object?>{
                 'brightness': 'dark',
                 'window': '#202020',
+                'accent': '#C061CB',
               });
             },
           ),
@@ -269,13 +272,16 @@ void main() {
     sink!.success(<String, Object?>{
       'brightness': 'light',
       'window': '#FAFAFB',
+      'accent': '#E95420',
     });
     final values = await valuesFuture;
 
     expect(values[0]?.brightness, Brightness.dark);
     expect(values[0]?.window, const Color(0xFF202020));
+    expect(values[0]?.accent, const Color(0xFFC061CB));
     expect(values[1]?.brightness, Brightness.light);
     expect(values[1]?.window, const Color(0xFFFAFAFB));
+    expect(values[1]?.accent, const Color(0xFFE95420));
   });
 
   test('theme color stream falls back to null on native error', () async {

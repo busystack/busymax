@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
+import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../core/logging/redacting_logger.dart';
@@ -534,6 +535,8 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
           await const MainWindowCommandClient().openScheduleItem(item);
           await windowManager.hide();
         }
+      case ScheduleItemDetailsAction.delete:
+        await _deleteItem(item);
     }
   }
 
@@ -553,6 +556,41 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.l10n.exportFailed(redactForLog(error)))),
       );
+    }
+  }
+
+  Future<void> _deleteItem(ScheduleItem item) async {
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: item is CalendarScheduleItem
+          ? context.l10n.deleteEvent
+          : context.l10n.deleteTask,
+      message: item is TaskScheduleItem
+          ? context.l10n.deleteTaskConfirmation(item.title)
+          : 'Delete "${item.title}"?',
+      confirmLabel: context.l10n.delete,
+      destructive: true,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      if (item is CalendarScheduleItem) {
+        await _deleteEvent(item.id);
+      } else if (item is TaskScheduleItem) {
+        await ref.read(compactAgendaControllerProvider).deleteTask(item);
+      }
+      if (!mounted) {
+        return;
+      }
+      _invalidateAgendaData();
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(redactForLog(error))));
     }
   }
 
@@ -604,16 +642,22 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       accountId: item.accountId,
       sourceId: item.sourceId,
       providerCalendarId: item.providerCalendarId,
+      providerRecurringEventId: item.providerRecurringEventId,
       title: item.title,
       allDay: item.allDay,
-      start: item.start,
-      end: item.end,
+      start: item.editorStart ?? item.start,
+      end: item.editorEnd ?? item.end,
       startTimeZone: item.startTimeZone,
       endTimeZone: item.endTimeZone,
       location: item.location,
       description: item.description,
       descriptionContentType: item.descriptionContentType,
       descriptionHtml: item.descriptionHtml,
+      recurrence: item.recurrence,
+      attendees: [
+        for (final attendee in item.attendees)
+          EventAttendeeDraft.fromJson(attendee),
+      ],
       reminders: _eventRemindersForEdit(
         item.provider,
         item.reminderMinutesBeforeStart,
@@ -1302,12 +1346,7 @@ class _CompactAgendaRowMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isTask = item.kind == ScheduleItemKind.task;
-    final color = isTask
-        ? Theme.of(context).colorScheme.onSurfaceVariant
-        : ScheduleProjection.colorForItem(
-            item,
-            Theme.of(context).colorScheme.brightness,
-          );
+    final color = BusyMaxSurfaceColors.of(context).mutedForeground;
     final icon = isTask ? YaruIcons.task_list : YaruIcons.calendar;
     return Icon(icon, size: BusyMaxSizes.iconSm, color: color);
   }

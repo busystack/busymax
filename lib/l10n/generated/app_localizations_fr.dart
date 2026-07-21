@@ -334,6 +334,84 @@ class AppLocalizationsFr extends AppLocalizations {
   String get mainMenu => 'Menu principal';
 
   @override
+  String get keyboardShortcuts => 'Raccourcis clavier';
+
+  @override
+  String get shortcutGroupGeneral => 'Général';
+
+  @override
+  String get shortcutKeyboardShortcutsDescription =>
+      'Afficher cette liste de raccourcis';
+
+  @override
+  String get shortcutGroupNavigation => 'Navigation';
+
+  @override
+  String get shortcutNextPeriod => 'Période suivante';
+
+  @override
+  String get shortcutNextPeriodDescription =>
+      'Semaine suivante en vue semaine, mois suivant en vue mois, etc.';
+
+  @override
+  String get shortcutPreviousPeriod => 'Période précédente';
+
+  @override
+  String get shortcutPreviousPeriodDescription =>
+      'Semaine précédente en vue semaine, mois précédent en vue mois, etc.';
+
+  @override
+  String get shortcutJumpToToday => 'Aller à aujourd\'hui';
+
+  @override
+  String get shortcutGroupView => 'Affichage';
+
+  @override
+  String get shortcutDayView => 'Vue jour';
+
+  @override
+  String get shortcutWeekView => 'Vue semaine';
+
+  @override
+  String get shortcutMonthView => 'Vue mois';
+
+  @override
+  String get shortcutYearView => 'Vue année';
+
+  @override
+  String get shortcutAgendaView => 'Vue agenda';
+
+  @override
+  String get shortcutGroupCreateAndEdit => 'Créer et modifier';
+
+  @override
+  String get shortcutSaveItem => 'Enregistrer l\'événement ou la tâche';
+
+  @override
+  String get shortcutDeleteItem => 'Supprimer l\'événement ou la tâche';
+
+  @override
+  String get shortcutGroupTaskEditing => 'Modification des tâches';
+
+  @override
+  String get shortcutCancelEditing => 'Annuler la modification';
+
+  @override
+  String get shortcutCancelEditingDescription =>
+      'Fermer la modification ou les détails de la tâche';
+
+  @override
+  String get shortcutGroupCompactAgenda => 'Agenda compact';
+
+  @override
+  String get shortcutRefreshCompactAgendaDescription =>
+      'Actualiser la fenêtre d\'agenda compact';
+
+  @override
+  String get shortcutHideCompactAgendaDescription =>
+      'Masquer la fenêtre d\'agenda compact';
+
+  @override
   String get aboutBusyMax => 'À propos de BusyMax';
 
   @override
@@ -344,6 +422,90 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get reportAnIssue => 'Signaler un problème';
+
+  @override
+  String get sendFeedback => 'Envoyer des commentaires';
+
+  @override
+  String get feedbackSubmit => 'Envoyer';
+
+  @override
+  String get feedbackCategory => 'Catégorie';
+
+  @override
+  String get feedbackSelectCategory => 'Sélectionnez une catégorie';
+
+  @override
+  String get feedbackCategoryProblem => 'Problème ou bug';
+
+  @override
+  String get feedbackCategoryFeature => 'Demande de fonctionnalité';
+
+  @override
+  String get feedbackCategoryPrivacySecurity =>
+      'Problème de confidentialité ou de sécurité';
+
+  @override
+  String get feedbackCategoryUsability => 'Problème d’ergonomie';
+
+  @override
+  String get feedbackCategoryOther => 'Autre';
+
+  @override
+  String get feedbackSubject => 'Objet';
+
+  @override
+  String get feedbackDetailedMessage => 'Message détaillé';
+
+  @override
+  String get feedbackReplyEmail => 'Adresse e-mail de réponse (facultatif)';
+
+  @override
+  String get feedbackIncludeTechnicalDetails =>
+      'Inclure les détails techniques';
+
+  @override
+  String get feedbackTechnicalDetailsDisclosure =>
+      'Ajoute uniquement la version de votre système d’exploitation Linux et la langue de l’application. Aucun journal, aucune donnée de compte, aucun nom de fichier ni autre diagnostic n’est inclus.';
+
+  @override
+  String get feedbackCategoryRequired => 'Sélectionnez une catégorie.';
+
+  @override
+  String get feedbackSubjectLengthError =>
+      'L’objet doit comporter entre 3 et 120 caractères.';
+
+  @override
+  String get feedbackMessageLengthError =>
+      'Le message doit comporter entre 10 et 5 000 caractères.';
+
+  @override
+  String get feedbackInvalidEmail => 'Saisissez une adresse e-mail valide.';
+
+  @override
+  String get feedbackConnectionError =>
+      'Impossible de se connecter à BusyStack. Vérifiez votre connexion et réessayez.';
+
+  @override
+  String get feedbackTimeoutError =>
+      'La demande a expiré. Vos commentaires n’ont pas été effacés ; réessayez.';
+
+  @override
+  String get feedbackRateLimitedError =>
+      'Trop de commentaires ont été envoyés depuis ce réseau. Patientez, puis réessayez.';
+
+  @override
+  String get feedbackRejectedError =>
+      'Le serveur a rejeté l’envoi. Vérifiez les champs, puis réessayez.';
+
+  @override
+  String get feedbackServerError =>
+      'BusyStack ne peut pas accepter vos commentaires pour le moment. Vos commentaires n’ont pas été effacés ; réessayez.';
+
+  @override
+  String feedbackSuccess(String id) {
+    return 'Commentaires envoyés. Référence : $id';
+  }
 
   @override
   String get toggleSidebar => 'Afficher/masquer la barre latérale';

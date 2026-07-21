@@ -8,6 +8,7 @@ class BuildConfig {
     this.microsoftOAuthAuthorityTenant = 'common',
     this.microsoftGraphBaseUrl = 'https://graph.microsoft.com/v1.0',
     this.googleApiBaseUrl = 'https://www.googleapis.com',
+    this.feedbackEndpoint = 'https://busystack.org/api/feedback',
     String? apiBaseUrl,
     required this.oauthAuthorizationEndpoint,
     required this.oauthTokenEndpoint,
@@ -32,6 +33,10 @@ class BuildConfig {
       'GOOGLE_API_BASE_URL',
       defaultValue: 'https://www.googleapis.com',
     ),
+    feedbackEndpoint: String.fromEnvironment(
+      'BUSYSTACK_FEEDBACK_ENDPOINT',
+      defaultValue: 'https://busystack.org/api/feedback',
+    ),
     oauthAuthorizationEndpoint: String.fromEnvironment(
       'GOOGLE_OAUTH_AUTHORIZATION_ENDPOINT',
       defaultValue: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -52,6 +57,7 @@ class BuildConfig {
   final String microsoftOAuthAuthorityTenant;
   final String microsoftGraphBaseUrl;
   final String googleApiBaseUrl;
+  final String feedbackEndpoint;
   final String apiBaseUrl;
   final String oauthAuthorizationEndpoint;
   final String oauthTokenEndpoint;

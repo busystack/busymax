@@ -110,4 +110,31 @@ void main() {
       'content': '<div>Hello <strong>bold</strong></div>',
     });
   });
+
+  test('Microsoft all-day event mutation preserves disabled reminders', () {
+    final body = microsoftEventMutationToJson(
+      const CalendarEventMutation(
+        allDay: true,
+        startDate: '2026-06-10',
+        endDate: '2026-06-11',
+        reminders: {'isReminderOn': false},
+      ),
+    );
+
+    expect(body['isReminderOn'], isFalse);
+  });
+
+  test('Microsoft all-day event mutation preserves enabled reminders', () {
+    final body = microsoftEventMutationToJson(
+      const CalendarEventMutation(
+        allDay: true,
+        startDate: '2026-06-10',
+        endDate: '2026-06-11',
+        reminders: {'isReminderOn': true, 'reminderMinutesBeforeStart': 30},
+      ),
+    );
+
+    expect(body['isReminderOn'], isTrue);
+    expect(body['reminderMinutesBeforeStart'], 30);
+  });
 }

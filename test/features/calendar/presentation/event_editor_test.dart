@@ -1,11 +1,15 @@
 import 'dart:io';
 
+import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ubuntu_widgets/ubuntu_widgets.dart';
 
@@ -92,6 +96,47 @@ void main() {
     expect(_plainTextFinder('Time Slot'), findsOneWidget);
     expect(find.text('No conference'), findsNothing);
     expect(find.text('Delete Event'), findsNothing);
+  });
+
+  testWidgets('converting a same-day timed event uses next-day all-day end', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(_plainTextFinder('All Day'));
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.allDay, isTrue);
+    expect(
+      (saved?.start?.year, saved?.start?.month, saved?.start?.day),
+      (2026, 6, 8),
+    );
+    expect(
+      (saved?.end?.year, saved?.end?.month, saved?.end?.day),
+      (2026, 6, 9),
+    );
   });
 
   testWidgets('timed event shows separated end date and end time labels', (
@@ -204,6 +249,104 @@ void main() {
     expect(saved?.end?.hour, 10);
   });
 
+  testWidgets('Ctrl+S saves a dirty event editor', (tester) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField).first, 'Planning');
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+    expect(saved?.title, 'Planning');
+  });
+
+  testWidgets('Delete removes an existing event when not editing text', (
+    tester,
+  ) async {
+    String? deletedEventId;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+            onDelete: (eventId) => deletedEventId = eventId,
+          ),
+        ),
+      ),
+    );
+
+    _focusEditorShortcuts(tester);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+
+    expect(deletedEventId, 'event-1');
+  });
+
+  testWidgets('Backspace in an event text field does not delete the event', (
+    tester,
+  ) async {
+    String? deletedEventId;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+            onDelete: (eventId) => deletedEventId = eventId,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(TextFormField).first);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+
+    expect(deletedEventId, isNull);
+  });
+
   test('event draft requires end after start', () {
     final draft = EventEditorDraft.existing(
       eventId: 'event-1',
@@ -217,6 +360,231 @@ void main() {
     );
 
     expect(draft.canSave, isFalse);
+  });
+
+  test('all-day draft requires an exclusive end on a later date', () {
+    final sameDate = EventEditorDraft.existing(
+      eventId: 'event-1',
+      accountId: 'account',
+      sourceId: 'source',
+      providerCalendarId: 'cal-1',
+      title: 'Planning',
+      allDay: true,
+      start: DateTime.utc(2026, 6, 8, 9),
+      end: DateTime.utc(2026, 6, 8, 10),
+    );
+    final nextDate = sameDate.copyWith(end: DateTime.utc(2026, 6, 9, 9));
+
+    expect(sameDate.canSave, isFalse);
+    expect(nextDate.canSave, isTrue);
+  });
+
+  test('Microsoft attendee JSON hydrates nested email details', () {
+    final attendee = EventAttendeeDraft.fromJson({
+      'emailAddress': {'address': 'guest@example.com', 'name': 'Guest'},
+      'type': 'optional',
+    });
+
+    expect(attendee.email, 'guest@example.com');
+    expect(attendee.displayName, 'Guest');
+    expect(attendee.optional, isTrue);
+  });
+
+  for (final recurrenceCase in _microsoftRecurrenceCases.entries) {
+    testWidgets(
+      'Microsoft ${recurrenceCase.key} recurrence emits required Graph fields',
+      (tester) async {
+        EventEditorDraft? saved;
+        await tester.pumpWidget(
+          localizedTestApp(
+            child: Scaffold(
+              body: EventEditor(
+                initialDraft: EventEditorDraft.newEvent(
+                  accountId: 'microsoft-account',
+                  sourceId: 'microsoft-source',
+                  providerCalendarId: 'ms-cal-1',
+                  start: DateTime.utc(2026, 6, 10, 9),
+                  end: DateTime.utc(2026, 6, 10, 10),
+                ).copyWith(title: 'Planning'),
+                sources: _microsoftSources,
+                onCancel: () {},
+                onSave: (draft) => saved = draft,
+              ),
+            ),
+          ),
+        );
+
+        final repeatRow = tester.widget<BusyMaxComboRow<String>>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is BusyMaxComboRow<String> && widget.title == 'Repeat',
+          ),
+        );
+        repeatRow.onSelected(recurrenceCase.key);
+        await tester.pump();
+        await tester.tap(_headerButtonFinder('Save'));
+
+        final expectedRecurrence = <String, Object?>{
+          'pattern': recurrenceCase.value,
+          'range': const {'type': 'noEnd', 'startDate': '2026-06-10'},
+        };
+        final body = microsoftEventMutationToJson(
+          CalendarEventMutation(recurrence: saved?.recurrence),
+        );
+
+        expect(saved, isNotNull);
+        expect(body, {'recurrence': expectedRecurrence});
+      },
+    );
+  }
+
+  for (final recurrenceCase in _microsoftReanchoredRecurrenceCases.entries) {
+    testWidgets(
+      'Microsoft ${recurrenceCase.key} recurrence follows a changed start date',
+      (tester) async {
+        EventEditorDraft? saved;
+        await tester.pumpWidget(
+          localizedTestApp(
+            child: Scaffold(
+              body: EventEditor(
+                initialDraft: EventEditorDraft.newEvent(
+                  accountId: 'microsoft-account',
+                  sourceId: 'microsoft-source',
+                  providerCalendarId: 'ms-cal-1',
+                  start: DateTime.utc(2026, 6, 10, 9),
+                  end: DateTime.utc(2026, 6, 10, 10),
+                ).copyWith(title: 'Planning'),
+                sources: _microsoftSources,
+                onCancel: () {},
+                onSave: (draft) => saved = draft,
+              ),
+            ),
+          ),
+        );
+
+        final repeatRow = tester.widget<BusyMaxComboRow<String>>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is BusyMaxComboRow<String> && widget.title == 'Repeat',
+          ),
+        );
+        repeatRow.onSelected(recurrenceCase.key);
+        await tester.pump();
+
+        final startDateRow = tester.widget<DesktopDateValueRow>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is DesktopDateValueRow && widget.label == 'Start date',
+          ),
+        );
+        startDateRow.onChanged('2026-07-11');
+        await tester.pump();
+        await tester.tap(_headerButtonFinder('Save'));
+
+        expect(saved?.recurrence, {
+          'pattern': recurrenceCase.value,
+          'range': const {'type': 'noEnd', 'startDate': '2026-07-11'},
+        });
+      },
+    );
+  }
+
+  testWidgets(
+    'new event converts Google recurrence when Microsoft calendar is selected',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                start: DateTime.utc(2026, 6, 10, 9),
+                end: DateTime.utc(2026, 6, 10, 10),
+              ).copyWith(title: 'Planning'),
+              sources: _mixedProviderSources,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      _comboRow(tester, 'Repeat').onSelected('weekly');
+      await tester.pump();
+      _comboRow(tester, 'Calendar').onSelected('microsoft-source');
+      await tester.pump();
+      await tester.tap(_headerButtonFinder('Save'));
+
+      expect(saved?.recurrence, {
+        'pattern': _microsoftRecurrenceCases['weekly'],
+        'range': const {'type': 'noEnd', 'startDate': '2026-06-10'},
+      });
+    },
+  );
+
+  testWidgets(
+    'new event converts Microsoft recurrence when Google calendar is selected',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'microsoft-account',
+                sourceId: 'microsoft-source',
+                providerCalendarId: 'ms-cal-1',
+                start: DateTime.utc(2026, 6, 10, 9),
+                end: DateTime.utc(2026, 6, 10, 10),
+              ).copyWith(title: 'Planning'),
+              sources: _mixedProviderSources,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      _comboRow(tester, 'Repeat').onSelected('weekly');
+      await tester.pump();
+      _comboRow(tester, 'Calendar').onSelected('source');
+      await tester.pump();
+      await tester.tap(_headerButtonFinder('Save'));
+
+      expect(saved?.recurrence, ['RRULE:FREQ=WEEKLY;INTERVAL=1']);
+    },
+  );
+
+  testWidgets('recurring occurrence hides series recurrence control', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'occurrence-1',
+              providerRecurringEventId: 'series-master',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Weekly planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Repeat'), findsNothing);
   });
 
   testWidgets('event editor does not show metadata fields', (tester) async {
@@ -281,6 +649,77 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('existing event only exposes its original calendar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _multipleSources,
+            onCancel: () {},
+            onSave: (_) {},
+            onDelete: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final calendarRow = tester.widget<BusyMaxComboRow<String>>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxComboRow<String> && widget.title == 'Calendar',
+      ),
+    );
+
+    expect(calendarRow.selected, 'source');
+    expect(calendarRow.values, ['source']);
+    expect(calendarRow.enabled, isFalse);
+  });
+
+  testWidgets('new event can still select any visible calendar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _multipleSources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final calendarRow = tester.widget<BusyMaxComboRow<String>>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxComboRow<String> && widget.title == 'Calendar',
+      ),
+    );
+
+    expect(calendarRow.values, ['source', 'destination-source']);
+    expect(calendarRow.enabled, isTrue);
   });
 
   testWidgets('Google event editor saves multiple reminder overrides', (
@@ -840,6 +1279,14 @@ Finder _headerButtonFinder(String label) {
       .first;
 }
 
+BusyMaxComboRow<String> _comboRow(WidgetTester tester, String title) {
+  return tester.widget<BusyMaxComboRow<String>>(
+    find.byWidgetPredicate(
+      (widget) => widget is BusyMaxComboRow<String> && widget.title == title,
+    ),
+  );
+}
+
 Finder _timeTextEntryFinder() {
   return find.byWidgetPredicate(
     (widget) => widget is TextFormField && widget.controller != null,
@@ -850,6 +1297,19 @@ Finder _plainTextFinder(String label) {
   return find.byWidgetPredicate(
     (widget) => widget is Text && widget.data == label,
   );
+}
+
+void _focusEditorShortcuts(WidgetTester tester) {
+  final focusFinder = find.descendant(
+    of: find.byType(EventEditor),
+    matching: find.byWidgetPredicate(
+      (widget) =>
+          widget is Focus &&
+          widget.focusNode?.debugLabel == 'Event editor shortcuts',
+    ),
+  );
+  final focusWidget = tester.widget<Focus>(focusFinder);
+  focusWidget.focusNode!.requestFocus();
 }
 
 const _sources = [
@@ -867,6 +1327,22 @@ const _sources = [
   ),
 ];
 
+const _multipleSources = [
+  ..._sources,
+  CalendarSourceEntity(
+    id: 'destination-source',
+    accountId: 'account',
+    provider: TaskProvider.google,
+    providerCalendarId: 'cal-2',
+    summary: 'Personal',
+    selected: true,
+    hidden: false,
+    readOnly: false,
+    isDeleted: false,
+    backgroundColor: '#33d17a',
+  ),
+];
+
 const _microsoftSources = [
   CalendarSourceEntity(
     id: 'microsoft-source',
@@ -881,3 +1357,39 @@ const _microsoftSources = [
     backgroundColor: '#9141ac',
   ),
 ];
+
+const _mixedProviderSources = [..._sources, ..._microsoftSources];
+
+const _microsoftRecurrenceCases = <String, Map<String, Object?>>{
+  'daily': {'type': 'daily', 'interval': 1},
+  'weekly': {
+    'type': 'weekly',
+    'interval': 1,
+    'daysOfWeek': ['wednesday'],
+    'firstDayOfWeek': 'sunday',
+  },
+  'monthly': {'type': 'absoluteMonthly', 'interval': 1, 'dayOfMonth': 10},
+  'yearly': {
+    'type': 'absoluteYearly',
+    'interval': 1,
+    'dayOfMonth': 10,
+    'month': 6,
+  },
+};
+
+const _microsoftReanchoredRecurrenceCases = <String, Map<String, Object?>>{
+  'daily': {'type': 'daily', 'interval': 1},
+  'weekly': {
+    'type': 'weekly',
+    'interval': 1,
+    'daysOfWeek': ['saturday'],
+    'firstDayOfWeek': 'sunday',
+  },
+  'monthly': {'type': 'absoluteMonthly', 'interval': 1, 'dayOfMonth': 11},
+  'yearly': {
+    'type': 'absoluteYearly',
+    'interval': 1,
+    'dayOfMonth': 11,
+    'month': 7,
+  },
+};

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,13 +12,17 @@ import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
+import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
+import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/tasks/presentation/tasks_workspace.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/task_providers/task_provider.dart';
 
 void main() {
   late AppDatabase database;
@@ -67,6 +73,22 @@ void main() {
     await _disposeApp(tester);
   });
 
+  test('setup provider actions use BusyMax row patterns', () {
+    final source = File(
+      'lib/src/features/auth/presentation/sign_in_screen.dart',
+    ).readAsStringSync();
+    final start = source.indexOf('class _ProviderSignInButton');
+    final end = source.indexOf('class _OnboardingFooter');
+    final providerButton = source.substring(start, end);
+
+    expect(providerButton, contains('BusyMaxGroupedList'));
+    expect(providerButton, contains('BusyMaxActionRow'));
+    expect(providerButton, isNot(contains('BusyMaxPushButton')));
+    expect(providerButton, isNot(contains('FilledButton')));
+    expect(providerButton, isNot(contains('ElevatedButton')));
+    expect(providerButton, isNot(contains('OutlinedButton')));
+  });
+
   testWidgets('missing Google permissions shows retry guidance', (
     tester,
   ) async {
@@ -101,7 +123,7 @@ void main() {
     expect(account.grantedScopes, googleBusyMaxOAuthScopes.join(' '));
     expect(find.text('Choose system settings'), findsNothing);
     expect(find.byType(ScheduleWorkspace), findsNothing);
-    expect(find.text('Signed in'), findsOneWidget);
+    expect(find.text('Accounts'), findsOneWidget);
     expect(find.text('Albert Busy'), findsOneWidget);
     expect(find.text('albert@example.com'), findsOneWidget);
 
@@ -205,6 +227,201 @@ void main() {
     expect(find.text('Continue'), findsOneWidget);
     await _disposeApp(tester);
   });
+
+  testWidgets(
+    'adding an account keeps Settings open during and after cancellation',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'google:existing',
+        provider: TaskProvider.google,
+      );
+      oAuth.signInCompleter = Completer<OAuthSignInResult>();
+      await _pumpApp(tester, database: database, oAuth: oAuth);
+      await tester.pumpAndSettle();
+      await _openSettings(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+
+      await tester.tap(find.text('Add Google account'));
+      await tester.pump();
+
+      final sessionWhileConnecting = container.read(
+        authSessionControllerProvider,
+      );
+      final settingsStayedOpen = find.byType(SettingsScreen).evaluate().length;
+
+      oAuth.signInCompleter!.completeError(
+        const OAuthException('OAuthSignInCancelled', 'Sign-in cancelled.'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(oAuth.signInCalls, 1);
+      expect(settingsStayedOpen, 1);
+      _expectExistingSessionSignedIn(sessionWhileConnecting, 'google:existing');
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.text('Connect accounts'), findsNothing);
+      _expectExistingSessionSignedIn(
+        container.read(authSessionControllerProvider),
+        'google:existing',
+      );
+      expect(
+        (await database.select(database.accounts).getSingle()).authState,
+        accountAuthStateSignedIn,
+      );
+      await _disposeApp(tester);
+    },
+  );
+
+  testWidgets(
+    'successful account add syncs the new account without replacing session',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'microsoft:existing',
+        provider: TaskProvider.microsoft,
+      );
+      final syncCalls = <({String accountId, bool initial})>[];
+      await _pumpApp(
+        tester,
+        database: database,
+        oAuth: oAuth,
+        onSignedIn: (accountId, initial) async {
+          syncCalls.add((accountId: accountId, initial: initial));
+        },
+      );
+      await tester.pumpAndSettle();
+      syncCalls.clear();
+      await _openSettings(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+
+      await tester.tap(find.text('Add Google account'));
+      await tester.pumpAndSettle();
+
+      expect(oAuth.signInCalls, 1);
+      expect(syncCalls, [(accountId: 'account-1', initial: true)]);
+      _expectExistingSessionSignedIn(
+        container.read(authSessionControllerProvider),
+        'microsoft:existing',
+      );
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.text('Connect accounts'), findsNothing);
+      final accounts = await database.select(database.accounts).get();
+      expect(
+        accounts
+            .where((account) => account.authState == accountAuthStateSignedIn)
+            .map((account) => account.id),
+        containsAll(['microsoft:existing', 'account-1']),
+      );
+      await _disposeApp(tester);
+    },
+  );
+
+  testWidgets(
+    'account add failure stays in Settings and preserves the session',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'microsoft:existing',
+        provider: TaskProvider.microsoft,
+      );
+      oAuth.signInError = const OAuthException(
+        'OAuthCallbackTimeout',
+        'raw timeout',
+      );
+      await _pumpApp(tester, database: database, oAuth: oAuth);
+      await tester.pumpAndSettle();
+      await _openSettings(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+
+      await tester.tap(find.text('Add Google account'));
+      await tester.pumpAndSettle();
+
+      expect(oAuth.signInCalls, 1);
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(
+        find.text(
+          'Google sign-in callback was not received by BusyMax. Try signing '
+          'in again. If the browser opened an old tab, close it and start '
+          'sign-in again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('raw timeout'), findsNothing);
+      _expectExistingSessionSignedIn(
+        container.read(authSessionControllerProvider),
+        'microsoft:existing',
+      );
+      expect(
+        (await database.select(database.accounts).getSingle()).authState,
+        accountAuthStateSignedIn,
+      );
+      await _disposeApp(tester);
+    },
+  );
+
+  testWidgets(
+    'reconnecting an account keeps the existing session and Settings route',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'microsoft:existing',
+        provider: TaskProvider.microsoft,
+      );
+      await _insertAccount(
+        database,
+        id: 'google:reconnect',
+        provider: TaskProvider.google,
+        authState: accountAuthStateReauthRequired,
+      );
+      oAuth.signInCompleter = Completer<OAuthSignInResult>();
+      await _pumpApp(tester, database: database, oAuth: oAuth);
+      await tester.pumpAndSettle();
+      await _openSettings(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+
+      await tester.tap(find.text(accountReconnectRequiredActionLabel));
+      await tester.pump();
+
+      final sessionWhileReconnecting = container.read(
+        authSessionControllerProvider,
+      );
+      final settingsStayedOpen = find.byType(SettingsScreen).evaluate().length;
+
+      oAuth.signInCompleter!.completeError(
+        const OAuthException('OAuthSignInCancelled', 'Sign-in cancelled.'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(oAuth.signInCalls, 1);
+      expect(settingsStayedOpen, 1);
+      _expectExistingSessionSignedIn(
+        sessionWhileReconnecting,
+        'microsoft:existing',
+      );
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.text('Connect accounts'), findsNothing);
+      _expectExistingSessionSignedIn(
+        container.read(authSessionControllerProvider),
+        'microsoft:existing',
+      );
+      final accounts = await database.select(database.accounts).get();
+      expect(
+        accounts
+            .singleWhere((account) => account.id == 'microsoft:existing')
+            .authState,
+        accountAuthStateSignedIn,
+      );
+      await _disposeApp(tester);
+    },
+  );
 }
 
 Future<void> _completeOnboardingWithGoogle(WidgetTester tester) async {
@@ -221,10 +438,47 @@ Future<void> _disposeApp(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 1));
 }
 
+Future<void> _openSettings(WidgetTester tester) async {
+  final schedule = find.byType(ScheduleWorkspace);
+  expect(schedule, findsOneWidget);
+  GoRouter.of(tester.element(schedule)).go('/settings');
+  await tester.pumpAndSettle();
+  expect(find.byType(SettingsScreen), findsOneWidget);
+}
+
+void _expectExistingSessionSignedIn(
+  AuthSessionState session,
+  String accountId,
+) {
+  expect(session.status, AuthSessionStatus.signedIn);
+  expect(session.accountId, accountId);
+}
+
+Future<void> _insertAccount(
+  AppDatabase database, {
+  required String id,
+  required TaskProvider provider,
+  String authState = accountAuthStateSignedIn,
+}) {
+  return database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: id,
+          provider: Value(provider.storageValue),
+          authState: Value(authState),
+          displayName: Value(provider.displayName),
+          createdAtUtc: '2026-06-04T00:00:00.000Z',
+          updatedAtUtc: '2026-06-04T00:00:00.000Z',
+        ),
+      );
+}
+
 Future<void> _pumpApp(
   WidgetTester tester, {
   required AppDatabase database,
   required _FakeOAuthGateway oAuth,
+  SignedInSyncRunner? onSignedIn,
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -239,7 +493,7 @@ Future<void> _pumpApp(
           ),
         ),
         signedInSyncRunnerProvider.overrideWithValue(
-          (accountId, initial) async {},
+          onSignedIn ?? (accountId, initial) async {},
         ),
         syncEngineProvider.overrideWithValue(null),
       ],

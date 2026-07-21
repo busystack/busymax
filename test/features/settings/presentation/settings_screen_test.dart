@@ -10,6 +10,7 @@ import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
+import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/tasks_selection_state.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
@@ -93,6 +94,24 @@ void main() {
     expect(find.text('Disconnect this account'), findsOneWidget);
     expect(find.text('Delete local data for this account'), findsOneWidget);
     expect(find.text('Revoke Google authorization'), findsNothing);
+  });
+
+  testWidgets('Settings shows reconnect-required account state', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_reconnectRequiredGoogleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+
+    expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
+    expect(find.text(accountReconnectRequiredSyncMessage), findsOneWidget);
+    expect(find.text('New list'), findsNothing);
+    expect(find.text('Sign out this account'), findsNothing);
   });
 
   testWidgets('Settings exposes add account actions', (tester) async {
@@ -317,6 +336,9 @@ ProviderContainer _container({
         _FakeAccountsRepository(accounts),
       ),
       accountsStreamProvider.overrideWith((ref) => Stream.value(accounts)),
+      accountManagementStreamProvider.overrideWith(
+        (ref) => Stream.value(accounts),
+      ),
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),
       if (activeAccountIdOverride != _useDefaultActiveAccountId)
         activeAccountProvider.overrideWithValue(activeAccountIdOverride),
@@ -454,6 +476,14 @@ const _microsoftAccount = AccountEntity(
   displayName: 'Microsoft User',
   email: 'microsoft@example.com',
   authState: 'signed_in',
+);
+
+const _reconnectRequiredGoogleAccount = AccountEntity(
+  id: 'google:g',
+  provider: TaskProvider.google,
+  displayName: 'Google User',
+  email: 'google@example.com',
+  authState: accountAuthStateReauthRequired,
 );
 
 const _emptyBuildConfig = BuildConfig(

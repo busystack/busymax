@@ -95,10 +95,11 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final borderColor = busyMaxPanelBorder(context);
     final todayOverlayAlpha = widget.daysShowed == 1 ? 0.0 : 0.035;
     final todayColor = Color.alphaBlend(
-      colorScheme.primary.withValues(alpha: todayOverlayAlpha),
+      surfaceColors.controlActive.withValues(alpha: todayOverlayAlpha),
       colorScheme.surface,
     );
     final showFullDayBar = _hasRenderedFullDayEvents(context, widget);
@@ -246,7 +247,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
           hourColor: colorScheme.onSurfaceVariant,
           halfHourColor: colorScheme.outline,
           quarterHourColor: colorScheme.outlineVariant,
-          currentHourIndicatorColor: colorScheme.primary,
+          currentHourIndicatorColor: surfaceColors.mutedForeground,
           quarterHourMinHeightPerMinute: 100,
           textPainterBuilder: (time, defaultColor) => TextPainter(
             text: TextSpan(
@@ -261,12 +262,12 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         ),
       ),
       currentHourIndicatorParam: icv.CurrentHourIndicatorParam(
-        currentHourIndicatorColor: colorScheme.primary,
+        currentHourIndicatorColor: surfaceColors.mutedForeground,
         currentHourIndicatorCustomPainter: (heightPerMinute, isToday) =>
             icv.TimeIndicatorPainter(
               heightPerMinute,
               isToday,
-              colorScheme.primary,
+              surfaceColors.mutedForeground,
             ),
       ),
       offTimesParam: icv.OffTimesParam(
@@ -481,6 +482,7 @@ class _PlannerDayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     return Container(
       alignment: Alignment.center,
@@ -506,13 +508,15 @@ class _PlannerDayHeader extends StatelessWidget {
             height: 24,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isToday ? colorScheme.primary : null,
+              color: isToday ? surfaceColors.controlActive : null,
               borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
             ),
             child: Text(
               '${day.day}',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: isToday ? colorScheme.onPrimary : colorScheme.onSurface,
+                color: isToday
+                    ? surfaceColors.foreground
+                    : colorScheme.onSurface,
                 fontWeight: FontWeight.w600,
               ),
             ),

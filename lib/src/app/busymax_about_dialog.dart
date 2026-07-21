@@ -5,6 +5,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yaru/yaru.dart';
 
+import '../features/feedback/data/feedback_api_client.dart';
+import '../features/feedback/presentation/feedback_dialog.dart';
 import '../l10n/l10n.dart';
 import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
@@ -14,26 +16,40 @@ const _busyMaxIssuesUri = 'https://github.com/busystack/busymax/issues';
 
 Future<void> showBusyMaxAboutDialog(
   BuildContext context, {
+  required FeedbackSubmissionService feedbackSubmissionService,
   LinuxHeaderBarService? headerBarService,
 }) async {
   final service = headerBarService;
   if (service != null) {
     unawaited(service.setModalBarrierVisible(true));
   }
+  _BusyMaxAboutAction? action;
   try {
-    await showDialog<void>(
+    action = await showDialog<_BusyMaxAboutAction>(
       context: context,
-      builder: (context) => const BusyMaxAboutDialog(),
+      builder: (dialogContext) => BusyMaxAboutDialog(
+        onSendFeedback: () =>
+            Navigator.of(dialogContext).pop(_BusyMaxAboutAction.sendFeedback),
+      ),
     );
   } finally {
     if (service != null) {
       unawaited(service.setModalBarrierVisible(false));
     }
   }
+  if (action == _BusyMaxAboutAction.sendFeedback && context.mounted) {
+    await showBusyMaxFeedbackDialog(
+      context,
+      submissionService: feedbackSubmissionService,
+      headerBarService: headerBarService,
+    );
+  }
 }
 
 class BusyMaxAboutDialog extends StatelessWidget {
-  const BusyMaxAboutDialog({super.key});
+  const BusyMaxAboutDialog({super.key, this.onSendFeedback});
+
+  final VoidCallback? onSendFeedback;
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +114,15 @@ class BusyMaxAboutDialog extends StatelessWidget {
                         ),
                       ),
                       BusyMaxActionRow(
+                        title: l10n.sendFeedback,
+                        leading: const Icon(Icons.feedback_outlined),
+                        trailing: const Icon(
+                          Icons.chevron_right,
+                          size: BusyMaxSizes.iconSm,
+                        ),
+                        onTap: onSendFeedback,
+                      ),
+                      BusyMaxActionRow(
                         title: l10n.reportAnIssue,
                         leading: const Icon(YaruIcons.warning),
                         trailing: const Icon(
@@ -127,6 +152,8 @@ class BusyMaxAboutDialog extends StatelessWidget {
     );
   }
 }
+
+enum _BusyMaxAboutAction { sendFeedback }
 
 class _BusyMaxLogo extends StatelessWidget {
   const _BusyMaxLogo({required this.size});

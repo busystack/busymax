@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
@@ -149,14 +150,12 @@ class _MonthDayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final today = DateUtils.isSameDay(day, DateTime.now());
 
     return Material(
       color: selected
-          ? Color.alphaBlend(
-              colorScheme.primary.withValues(alpha: 0.06),
-              colorScheme.surface,
-            )
+          ? Color.alphaBlend(surfaceColors.control, colorScheme.surface)
           : colorScheme.surface,
       child: InkWell(
         onTap: onSelect,
@@ -295,15 +294,16 @@ class _MonthDayNumber extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     return Container(
       width: 26,
       height: 22,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: selected
-            ? colorScheme.primaryContainer
+            ? surfaceColors.controlActive
             : today
-            ? colorScheme.primary
+            ? surfaceColors.controlActive
             : null,
         borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
       ),
@@ -311,9 +311,9 @@ class _MonthDayNumber extends StatelessWidget {
         '${day.day}',
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: selected
-              ? colorScheme.onPrimaryContainer
+              ? surfaceColors.foreground
               : today
-              ? colorScheme.onPrimary
+              ? surfaceColors.foreground
               : inCurrentMonth
               ? colorScheme.onSurface
               : colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
@@ -329,7 +329,8 @@ List<DateTime> _daysInRange(ScheduleRange range) {
   var cursor = range.start;
   while (cursor.isBefore(range.end)) {
     result.add(cursor);
-    cursor = cursor.add(const Duration(days: 1));
+    // Reconstruct local midnight so DST changes cannot shift or repeat a date.
+    cursor = DateTime(cursor.year, cursor.month, cursor.day + 1);
   }
   return result;
 }

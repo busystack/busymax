@@ -9,10 +9,13 @@ import '../features/schedule/presentation/schedule_workspace.dart';
 import '../schedule/schedule_scope.dart';
 import 'app_bootstrap.dart';
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(authSessionControllerProvider);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: session.status == AuthSessionStatus.loading
         ? '/'
         : session.isSignedIn

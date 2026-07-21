@@ -39,6 +39,7 @@ void main() {
         year: 'Year',
         agenda: 'Agenda',
         search: 'Search',
+        create: 'Create',
         refresh: 'Refresh',
         menu: 'Menu',
         previous: 'Previous',
@@ -46,6 +47,7 @@ void main() {
         sidebar: 'Toggle Sidebar',
         back: 'Back',
         settings: 'Settings',
+        keyboardShortcuts: 'Keyboard Shortcuts',
         aboutBusyMax: 'About BusyMax',
       ),
     );
@@ -64,6 +66,7 @@ void main() {
     await service.setModalBarrierVisible(true);
     await service.setTheme(
       const BusyMaxHeaderBarTheme(
+        preferDark: true,
         windowBackgroundColor: Color(0xFF18181B),
         backgroundColor: Color(0xFF1D1D20),
         sidebarBackgroundColor: Color(0xFF2E2E32),
@@ -73,7 +76,7 @@ void main() {
         controlColor: Color.fromRGBO(255, 255, 255, 0.10),
         controlHoverColor: Color.fromRGBO(255, 255, 255, 0.14),
         controlActiveColor: Color.fromRGBO(255, 255, 255, 0.18),
-        accentColor: Color(0xFF4A86CF),
+        accentColor: Color(0xFF2E7D32),
         accentForegroundColor: Color(0xFFFFFFFF),
         popoverBackgroundColor: Color(0xFF36363A),
         borderColor: Color.fromRGBO(0, 0, 6, 0.75),
@@ -106,16 +109,22 @@ void main() {
     expect(calls[2].arguments, 'week');
     expect(calls[5].arguments, containsPair('today', 'Today'));
     expect(calls[5].arguments, containsPair('year', 'Year'));
+    expect(calls[5].arguments, containsPair('create', 'Create'));
     expect(calls[5].arguments, containsPair('menu', 'Menu'));
     expect(calls[5].arguments, containsPair('sidebar', 'Toggle Sidebar'));
     expect(calls[5].arguments, containsPair('back', 'Back'));
     expect(calls[5].arguments, containsPair('settings', 'Settings'));
+    expect(
+      calls[5].arguments,
+      containsPair('keyboardShortcuts', 'Keyboard Shortcuts'),
+    );
     expect(calls[5].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
     expect(calls[6].arguments, 300);
     expect(calls[9].arguments, false);
     expect(calls[11].arguments, containsPair('visible', true));
     expect(calls[11].arguments, containsPair('canContinue', true));
     expect(calls[11].arguments, containsPair('continueLabel', 'Continue'));
+    expect(calls.last.arguments, containsPair('preferDark', true));
     expect(calls.last.arguments, containsPair('backgroundColor', '#1D1D20'));
     expect(
       calls.last.arguments,
@@ -129,7 +138,11 @@ void main() {
       calls.last.arguments,
       containsPair('controlHoverColor', 'rgba(255,255,255,0.14)'),
     );
-    expect(calls.last.arguments, containsPair('accentColor', '#4A86CF'));
+    expect(
+      calls.last.arguments,
+      containsPair('controlActiveColor', 'rgba(255,255,255,0.18)'),
+    );
+    expect(calls.last.arguments, containsPair('accentColor', '#2E7D32'));
     expect(
       calls.last.arguments,
       containsPair('accentForegroundColor', '#FFFFFF'),
@@ -155,17 +168,74 @@ void main() {
     );
     addTearDown(service.dispose);
 
-    final nextAction = service.actions.take(3).toList();
+    final nextAction = service.actions.take(5).toList();
+    await service.handleNativeMethodCall(const MethodCall('create'));
     await service.handleNativeMethodCall(const MethodCall('continueSetup'));
     await service.handleNativeMethodCall(const MethodCall('settings'));
+    await service.handleNativeMethodCall(const MethodCall('keyboardShortcuts'));
     await service.handleNativeMethodCall(const MethodCall('aboutBusyMax'));
 
     expect(await nextAction, [
+      BusyMaxHeaderBarAction.create,
       BusyMaxHeaderBarAction.continueSetup,
       BusyMaxHeaderBarAction.settings,
+      BusyMaxHeaderBarAction.keyboardShortcuts,
       BusyMaxHeaderBarAction.aboutBusyMax,
     ]);
   });
+
+  test(
+    'can force native onboarding controls cleanup past cached state',
+    () async {
+      const channel = MethodChannel('busymax_test/headerbar_onboarding_force');
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            if (call.method == 'initialize') {
+              return true;
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+      addTearDown(service.dispose);
+
+      await service.initialize();
+      await service.setOnboardingControls(
+        visible: false,
+        canGoBack: false,
+        canContinue: false,
+        backLabel: '',
+        continueLabel: '',
+      );
+      await service.setOnboardingControls(
+        visible: false,
+        canGoBack: false,
+        canContinue: false,
+        backLabel: '',
+        continueLabel: '',
+      );
+      await service.setOnboardingControls(
+        visible: false,
+        canGoBack: false,
+        canContinue: false,
+        backLabel: '',
+        continueLabel: '',
+        force: true,
+      );
+
+      final onboardingCalls = calls
+          .where((call) => call.method == 'setOnboardingControls')
+          .toList();
+      expect(onboardingCalls, hasLength(2));
+      expect(onboardingCalls.last.arguments, containsPair('visible', false));
+    },
+  );
 
   test('missing native channel disables service without throwing', () async {
     final service = LinuxHeaderBarService(

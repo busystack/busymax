@@ -118,9 +118,13 @@ Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
     'location': mutation.location,
     if (start.isNotEmpty) 'start': start,
     if (end.isNotEmpty) 'end': end,
-    'recurrence': mutation.recurrence,
+    'recurrence': mutation.clearRecurrence
+        ? const <Object?>[]
+        : mutation.recurrence,
     'reminders': mutation.reminders,
-    'attendees': mutation.attendees,
+    'attendees': mutation.clearAttendees
+        ? const <Object?>[]
+        : mutation.attendees,
     'colorId': mutation.colorId,
     'visibility': mutation.visibility,
     'transparency': mutation.transparencyOrShowAs,

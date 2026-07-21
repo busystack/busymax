@@ -279,6 +279,9 @@ void main() {
       await database.tasksDao.upsertTask(
         _task(id: 'hidden', position: '1', hidden: const Value(true)),
       );
+      await database.tasksDao.upsertTask(
+        _task(id: 'missing', position: '0', serverMissing: const Value(true)),
+      );
 
       final tree = await repository
           .watchTaskTree('list-1', const TaskViewFilter())
@@ -309,6 +312,7 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          authState: const Value('signed_in'),
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),
@@ -330,6 +334,7 @@ TasksCompanion _task({
   required String id,
   required String position,
   Value<bool?> hidden = const Value.absent(),
+  Value<bool> serverMissing = const Value.absent(),
   Value<String?> status = const Value.absent(),
   Value<String?> updatedUtc = const Value.absent(),
   String rawJson = '{}',
@@ -341,6 +346,7 @@ TasksCompanion _task({
     title: id,
     position: Value(position),
     hidden: hidden,
+    serverMissing: serverMissing,
     status: status,
     updatedUtc: updatedUtc,
     rawJson: rawJson,

@@ -60,6 +60,18 @@ class CompactAgendaController {
     _ref.invalidate(compactAgendaDataForQueryProvider);
   }
 
+  Future<void> deleteTask(TaskScheduleItem item) async {
+    final repository = TasksRepository(
+      database: _ref.read(databaseProvider),
+      accountId: item.accountId,
+    );
+    await repository.deleteTask(item.sourceId, item.id);
+    await _requestTaskSync(item.accountId);
+
+    _ref.invalidate(compactAgendaDataProvider);
+    _ref.invalidate(compactAgendaDataForQueryProvider);
+  }
+
   Future<void> taskMutated(String accountId) async {
     await _requestTaskSync(accountId);
     _ref.invalidate(compactAgendaDataProvider);

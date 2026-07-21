@@ -74,6 +74,155 @@ void main() {
     expect(body, {'subject': 'Edited'});
     expect(body, isNot(contains('onlineMeetingProvider')));
   });
+
+  test(
+    'primary initial sync uses delta view and preserves calendar identity',
+    () async {
+      late http.Request captured;
+      const deltaLink =
+          'https://graph.microsoft.com/v1.0/me/calendarView/delta?'
+          r'$deltatoken=terminal-token';
+      final client = _client((request) {
+        captured = request;
+        return _json({
+          'value': [_eventJson(id: 'event-1', subject: 'Planning')],
+          '@odata.deltaLink': deltaLink,
+        });
+      });
+
+      final page = await client.syncEvents(
+        calendarId: 'actual-calendar-id',
+        rangeStart: DateTime.utc(2026, 6, 10, 8),
+        rangeEnd: DateTime.utc(2026, 6, 11, 8),
+        primaryCalendar: true,
+      );
+
+      expect(captured.method, 'GET');
+      expect(captured.url.path, '/v1.0/me/calendarView/delta');
+      expect(captured.url.queryParameters, {
+        'startDateTime': '2026-06-10T08:00:00.000Z',
+        'endDateTime': '2026-06-11T08:00:00.000Z',
+      });
+      expect(page.events.single.providerCalendarId, 'actual-calendar-id');
+      expect(page.nextSyncTokenOrDeltaLink, deltaLink);
+    },
+  );
+
+  test('non-primary initial sync uses ordinary per-calendar view', () async {
+    late http.Request captured;
+    final client = _client((request) {
+      captured = request;
+      return _json({'value': <Object?>[]});
+    });
+
+    final page = await client.syncEvents(
+      calendarId: 'cal-2',
+      rangeStart: DateTime.utc(2026, 6, 10, 8),
+      rangeEnd: DateTime.utc(2026, 6, 11, 8),
+      primaryCalendar: false,
+    );
+
+    expect(captured.method, 'GET');
+    expect(captured.url.path, '/v1.0/me/calendars/cal-2/calendarView');
+    expect(captured.url.queryParameters, {
+      'startDateTime': '2026-06-10T08:00:00.000Z',
+      'endDateTime': '2026-06-11T08:00:00.000Z',
+    });
+    expect(page.nextSyncTokenOrDeltaLink, isNull);
+  });
+
+  test(
+    'incremental sync follows the saved opaque delta link exactly',
+    () async {
+      const savedDeltaLink =
+          'https://graph.microsoft.com/v1.0/me/calendarView/delta?'
+          r'$deltatoken=opaque%2Btoken%2Fvalue';
+      const nextDeltaLink =
+          'https://graph.microsoft.com/v1.0/me/calendarView/delta?'
+          r'$deltatoken=next-token';
+      late http.Request captured;
+      final client = _client((request) {
+        captured = request;
+        return _json({'value': <Object?>[], '@odata.deltaLink': nextDeltaLink});
+      });
+
+      final page = await client.syncEvents(
+        calendarId: 'actual-calendar-id',
+        rangeStart: DateTime.utc(2030),
+        rangeEnd: DateTime.utc(2031),
+        syncTokenOrDeltaLink: savedDeltaLink,
+        primaryCalendar: true,
+      );
+
+      expect(captured.url.toString(), savedDeltaLink);
+      expect(page.nextSyncTokenOrDeltaLink, nextDeltaLink);
+    },
+  );
+
+  test('delta tombstones map to deleted events', () async {
+    final client = _client(
+      (_) => _json({
+        'value': [
+          {
+            'id': 'event-1',
+            '@removed': {'reason': 'deleted'},
+          },
+        ],
+      }),
+    );
+
+    final page = await client.syncEvents(
+      calendarId: 'actual-calendar-id',
+      rangeStart: DateTime.utc(2026, 6, 10),
+      rangeEnd: DateTime.utc(2026, 6, 11),
+      syncTokenOrDeltaLink:
+          'https://graph.microsoft.com/v1.0/me/calendarView/delta?'
+          r'$deltatoken=current',
+      primaryCalendar: true,
+    );
+
+    expect(page.events.single.providerCalendarId, 'actual-calendar-id');
+    expect(page.events.single.isDeleted, isTrue);
+  });
+
+  test('expired Microsoft delta state requests a full sync', () async {
+    const scenarios = [
+      (statusCode: 410, code: 'ErrorInvalidSyncState'),
+      (statusCode: 400, code: 'syncStateNotFound'),
+    ];
+
+    for (final scenario in scenarios) {
+      final client = _client(
+        (_) => http.Response(
+          jsonEncode({
+            'error': {
+              'code': scenario.code,
+              'message': 'The sync state is no longer valid.',
+            },
+          }),
+          scenario.statusCode,
+          headers: {'Content-Type': 'application/json'},
+        ),
+      );
+
+      final page = await client.syncEvents(
+        calendarId: 'actual-calendar-id',
+        rangeStart: DateTime.utc(2026, 6, 10),
+        rangeEnd: DateTime.utc(2026, 6, 11),
+        syncTokenOrDeltaLink:
+            'https://graph.microsoft.com/v1.0/me/calendarView/delta?'
+            r'$deltatoken=expired',
+        primaryCalendar: true,
+      );
+
+      expect(
+        page.requiresFullSync,
+        isTrue,
+        reason: '${scenario.statusCode}/${scenario.code}',
+      );
+      expect(page.events, isEmpty);
+    }
+  });
 }
 
 MicrosoftCalendarApiClient _client(

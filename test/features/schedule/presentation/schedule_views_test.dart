@@ -357,7 +357,7 @@ void main() {
     expect(selectedItem, isA<CalendarScheduleItem>());
   });
 
-  testWidgets('schedule item details popover offers export and edit', (
+  testWidgets('schedule item details popover offers export, edit, and delete', (
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
@@ -393,14 +393,60 @@ void main() {
     expect(find.text('Design review'), findsOneWidget);
     expect(find.byIcon(Icons.download_outlined), findsOneWidget);
     expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.delete_outline), findsOneWidget);
     expect(find.byIcon(Icons.close), findsOneWidget);
     expect(find.text('Export'), findsNothing);
     expect(find.text('Edit event'), findsNothing);
+    expect(find.text('Delete'), findsNothing);
+
+    final editCenter = tester.getCenter(find.byIcon(Icons.edit_outlined));
+    final deleteCenter = tester.getCenter(find.byIcon(Icons.delete_outline));
+    final closeCenter = tester.getCenter(find.byIcon(Icons.close));
+    expect(editCenter.dx, lessThan(deleteCenter.dx));
+    expect(deleteCenter.dx, lessThan(closeCenter.dx));
 
     await tester.tap(find.byIcon(Icons.download_outlined));
     await tester.pumpAndSettle();
 
     expect(await action, ScheduleItemDetailsAction.export);
+  });
+
+  testWidgets('schedule item details popover delete button returns delete', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final event = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+    Future<ScheduleItemDetailsAction?>? action;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () {
+                  action = showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: event,
+                  );
+                },
+                child: const Text('Open details'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+
+    expect(await action, ScheduleItemDetailsAction.delete);
   });
 
   testWidgets('schedule item details popover shows categories', (tester) async {
@@ -1046,6 +1092,45 @@ void main() {
     expect(source, isNot(contains('BusyMaxHeaderBarAction.openMenu')));
   });
 
+  test('schedule workspace wires navigation and view keyboard shortcuts', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('HardwareKeyboard.instance.addHandler'));
+    expect(source, contains('LogicalKeyboardKey.arrowRight'));
+    expect(source, contains('_next();'));
+    expect(source, contains('LogicalKeyboardKey.arrowLeft'));
+    expect(source, contains('_previous();'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyJ')));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyN')));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyK')));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyP')));
+    expect(source, contains('LogicalKeyboardKey.keyE'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyC')));
+    expect(source, contains('_openNewEvent(_latestVisibleSources'));
+    expect(source, contains('LogicalKeyboardKey.keyT'));
+    expect(source, contains('_openNewTask(_latestAccounts'));
+    expect(source, contains('keyboard.isShiftPressed'));
+    expect(source, contains('_goToToday();'));
+    expect(source, contains('LogicalKeyboardKey.digit1'));
+    expect(source, contains('LogicalKeyboardKey.keyD'));
+    expect(source, contains('_setMode(ScheduleViewMode.day)'));
+    expect(source, contains('LogicalKeyboardKey.digit2'));
+    expect(source, contains('LogicalKeyboardKey.keyW'));
+    expect(source, contains('_setMode(ScheduleViewMode.week)'));
+    expect(source, contains('LogicalKeyboardKey.digit3'));
+    expect(source, contains('LogicalKeyboardKey.keyM'));
+    expect(source, contains('_setMode(ScheduleViewMode.month)'));
+    expect(source, contains('LogicalKeyboardKey.digit4'));
+    expect(source, contains('LogicalKeyboardKey.keyY'));
+    expect(source, contains('_setMode(ScheduleViewMode.year)'));
+    expect(source, contains('LogicalKeyboardKey.digit0'));
+    expect(source, contains('LogicalKeyboardKey.keyA'));
+    expect(source, contains('_setMode(ScheduleViewMode.agenda)'));
+    expect(source, contains('focusContext.widget is! EditableText'));
+  });
+
   test('calendar event mutations request immediate account sync', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
@@ -1067,10 +1152,31 @@ void main() {
     expect(source, contains('showScheduleItemDetailsPopover('));
     expect(source, contains('ScheduleItemDetailsAction.export'));
     expect(source, contains('ScheduleItemDetailsAction.edit'));
+    expect(source, contains('ScheduleItemDetailsAction.delete'));
     expect(source, contains('exportScheduleItemWithSaveDialog(item)'));
     expect(source, isNot(contains('exportScheduleItemToDownloads(item)')));
     expect(source, contains('void _editItem('));
+    expect(source, contains('Future<void> _deleteItem('));
     expect(source, contains('reminders: _eventRemindersForEdit('));
+  });
+
+  test('schedule item details actions use shared button styling', () {
+    final popover = File(
+      'lib/src/features/schedule/presentation/schedule_item_details_popover.dart',
+    ).readAsStringSync();
+    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+
+    expect(popover, contains('BusyMaxCircularAction('));
+    expect(popover, contains('destructive: true'));
+    expect(popover, isNot(contains('backgroundColor:')));
+    expect(popover, isNot(contains('foregroundColor:')));
+    expect(popover, isNot(contains('hoverColor:')));
+    expect(
+      design,
+      contains('final surfaceColors = BusyMaxSurfaceColors.of(context);'),
+    );
+    expect(design, contains('color: surfaceColors.control'));
+    expect(design, contains('color: foregroundColor'));
   });
 
   test(
@@ -1108,6 +1214,34 @@ void main() {
       expect(agenda, isNot(contains('_daysInRange')));
     },
   );
+
+  test('agenda list groups use the shared grouped row surface', () {
+    final agenda = File(
+      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+    ).readAsStringSync();
+    final compactAgenda = File(
+      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
+    ).readAsStringSync();
+    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+
+    expect(agenda, contains('BusyMaxGroupedList('));
+    expect(compactAgenda, contains('BusyMaxGroupedList('));
+    expect(agenda, isNot(contains('surfaceColor:')));
+    expect(compactAgenda, isNot(contains('surfaceColor:')));
+    expect(agenda, isNot(contains('ScheduleProjection.colorForItem')));
+    expect(compactAgenda, isNot(contains('ScheduleProjection.colorForItem')));
+    expect(
+      agenda,
+      contains('BusyMaxSurfaceColors.of(context).mutedForeground'),
+    );
+    expect(
+      compactAgenda,
+      contains('BusyMaxSurfaceColors.of(context).mutedForeground'),
+    );
+    expect(design, isNot(contains('final Color? surfaceColor;')));
+    expect(design, isNot(contains('color: color ?? surfaceColors.control')));
+    expect(design, contains('color: surfaceColors.control'));
+  });
 
   test('sidebar does not render redundant provider group titles', () {
     final sidebar = File(
@@ -1151,10 +1285,13 @@ void main() {
     expect(source, contains('required this.onYearSelected'));
     expect(source, contains('required this.onWeekSelected'));
     expect(source, contains('required this.firstWeekday'));
-    expect(
-      source,
-      contains('(first.weekday - firstWeekday) % DateTime.daysPerWeek'),
-    );
+    expect(source, contains('_calendarStartForMonth(first, firstWeekday)'));
+    expect(source, contains('monthWeekdayFromMonday'));
+    expect(source, contains('firstWeekdayFromMonday'));
+    expect(source, contains('_addCalendarDays('));
+    expect(source, contains('row * DateTime.daysPerWeek'));
+    expect(source, contains('_addCalendarDays(weekStart, column)'));
+    expect(source, isNot(contains('weekStart.add(Duration(days: column))')));
     expect(source, contains('final weekNumberExtent = math.min'));
     expect(source, contains('constraints.maxWidth - weekNumberExtent'));
     expect(source, isNot(contains('final calendarWidth =')));
@@ -1279,6 +1416,122 @@ void main() {
     await tester.tap(find.byTooltip('Week 1'));
 
     expect(selectedWeek, DateTime(2026, 1, 4));
+  });
+
+  testWidgets(
+    'mini calendar shows previous month day for Sunday-first Monday starts',
+    (tester) async {
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: MiniCalendar(
+                selectedDate: DateTime(2027, 11, 1),
+                firstWeekday: DateTime.sunday,
+                onSelected: (_) {},
+                onMonthSelected: (_) {},
+                onYearSelected: (_) {},
+                onWeekSelected: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('31'), findsOneWidget);
+      expect(find.byTooltip('Sunday, October 31, 2027'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byTooltip('Sunday, October 31, 2027'),
+          matching: find.text('31'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byTooltip('Sunday, October 31, 2027'),
+          matching: find.text('1'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byTooltip('Monday, November 1, 2027'),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('mini calendar advances dates across DST fallback days', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 11, 1),
+              firstWeekday: DateTime.sunday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.descendant(
+        of: find.byTooltip('Sunday, November 1, 2026'),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byTooltip('Monday, November 2, 2026'),
+        matching: find.text('2'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Monday, November 1, 2026'), findsNothing);
+  });
+
+  testWidgets('mini calendar keeps two-digit days inside narrow cells', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 128,
+            child: MiniCalendar(
+              selectedDate: DateTime(2027, 11, 1),
+              firstWeekday: DateTime.sunday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final sundayCell = tester.getRect(
+      find.byTooltip('Sunday, October 31, 2027'),
+    );
+    final dayLabel = tester.getRect(find.text('31'));
+
+    expect(dayLabel.left, greaterThanOrEqualTo(sundayCell.left - 0.1));
+    expect(dayLabel.right, lessThanOrEqualTo(sundayCell.right + 0.1));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('mini calendar month label selects that month', (tester) async {
@@ -1408,9 +1661,13 @@ void main() {
     expect(sidebar, isNot(contains('_SourceVisibilityIndicator')));
   });
 
-  test('schedule create action is a bottom-right floating plus button', () {
+  test('schedule create action lives in the headerbar before refresh', () {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+    final headerBar = File('linux/runner/my_application.cc').readAsStringSync();
+    final headerService = File(
+      'lib/src/platform/linux_header_bar_service.dart',
     ).readAsStringSync();
     final sidebar = File(
       'lib/src/features/schedule/presentation/schedule_sidebar.dart',
@@ -1419,14 +1676,40 @@ void main() {
       'lib/src/features/schedule/presentation/schedule_toolbar.dart',
     ).readAsStringSync();
 
-    expect(workspace, contains('floatingActionButtonLocation'));
-    expect(workspace, contains('FloatingActionButtonLocation.endFloat'));
-    expect(workspace, contains('floatingActionButton: FloatingActionButton'));
-    expect(workspace, contains('child: const Icon(YaruIcons.plus)'));
-    expect(workspace, isNot(contains('BusyMaxHeaderBarAction.newItem')));
+    expect(workspace, isNot(contains('floatingActionButtonLocation')));
+    expect(workspace, isNot(contains('FloatingActionButton(')));
+    expect(workspace, contains('BusyMaxHeaderBarAction.create'));
+    expect(workspace, contains('void _openCreateAtSelectedDate()'));
+    expect(headerService, contains('BusyMaxHeaderBarAction.create'));
+    expect(
+      headerService,
+      contains("'create' => BusyMaxHeaderBarAction.create"),
+    );
+    expect(
+      headerBar,
+      contains('create_header_icon_button("list-add-symbolic"'),
+    );
+    expect(
+      headerBar,
+      contains(
+        'connect_header_bar_action(self, self->create_button, "create")',
+      ),
+    );
+    expect(
+      headerBar.indexOf(
+        'gtk_box_pack_start(GTK_BOX(end_box), self->create_button',
+      ),
+      lessThan(
+        headerBar.indexOf(
+          'gtk_box_pack_start(GTK_BOX(end_box), self->refresh_button',
+        ),
+      ),
+    );
     expect(sidebar, isNot(contains('context.l10n.create')));
     expect(sidebar, isNot(contains('PushButton.filled')));
-    expect(toolbar, isNot(contains('BusyMaxMenuButton<String>')));
+    expect(toolbar, contains('tooltip: context.l10n.create'));
+    expect(toolbar, contains('icon: const Icon(YaruIcons.plus)'));
+    expect(toolbar, contains('tooltip: context.l10n.refreshAll'));
   });
 
   test('day and week today tint stays subtle', () {
@@ -1472,6 +1755,34 @@ void main() {
     expect(eventBlock, isNot(contains('details,\n')));
     expect(taskChip, contains('Tooltip'));
     expect(taskChip, isNot(contains('if (!compact)')));
+  });
+
+  test('schedule item chips use neutral surfaces instead of blue tints', () {
+    final eventBlock = File(
+      'lib/src/features/schedule/presentation/schedule_event_block.dart',
+    ).readAsStringSync();
+    final taskChip = File(
+      'lib/src/features/schedule/presentation/schedule_task_chip.dart',
+    ).readAsStringSync();
+    final projection = File(
+      'lib/src/schedule/schedule_projection.dart',
+    ).readAsStringSync();
+
+    expect(eventBlock, contains('color: surfaceColors.control'));
+    expect(eventBlock, contains('color: surfaceColors.subtleBorder'));
+    expect(taskChip, contains('color: surfaceColors.control'));
+    expect(taskChip, contains('color: surfaceColors.subtleBorder'));
+    expect(taskChip, contains('YaruCheckbox('));
+    expect(taskChip, isNot(contains('selectedColor:')));
+    expect(taskChip, isNot(contains('checkmarkColor:')));
+    expect(taskChip, isNot(contains('YaruCheckboxTheme')));
+    expect(eventBlock, isNot(contains('Color.alphaBlend(')));
+    expect(taskChip, isNot(contains('Color.alphaBlend(')));
+    expect(projection, isNot(contains('_colorFromHex(item.colorHex)')));
+    expect(projection, isNot(contains('0xff4d7fa8')));
+    expect(projection, isNot(contains('0xff8db3d9')));
+    expect(projection, isNot(contains('0xff326b88')));
+    expect(projection, isNot(contains('0xff81b9d7')));
   });
 
   test('day and week planner jumps when selected date changes', () {
@@ -1529,7 +1840,7 @@ void main() {
     expect(source, contains('onNext: onNext'));
   });
 
-  test('agenda range starts at selected date and grows while scrolling', () {
+  test('agenda range starts at today and grows while scrolling', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -1550,14 +1861,17 @@ void main() {
       source,
       contains('var _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit'),
     );
-    expect(source, contains('ScheduleViewMode.agenda => ScheduleRange('));
-    expect(source, contains('start: _day(_selectedDate)'));
     expect(
       source,
-      contains(
-        'end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays))',
-      ),
+      contains('ScheduleViewMode.agenda => _agendaRangeFromToday()'),
     );
+    expect(source, contains('ScheduleRange _agendaRangeFromToday()'));
+    expect(source, contains('final start = _day(DateTime.now())'));
+    expect(
+      source,
+      contains('end: start.add(Duration(days: _agendaLoadedDays))'),
+    );
+    expect(source, contains('_selectedDate = _day(DateTime.now())'));
     expect(source, contains('void _loadMoreAgendaDays()'));
     expect(source, contains('_agendaLoadedDays += _agendaPageDays'));
     expect(source, contains('onLoadMore: onAgendaLoadMore'));
@@ -1569,6 +1883,26 @@ void main() {
     expect(source, isNot(contains('subtract(const Duration(days: 30))')));
     expect(source, contains('void _loadMoreAgendaOverdueTasks()'));
     expect(source, contains('void _loadMoreAgendaNoDateTasks()'));
+    expect(source, isNot(contains('start: _day(_selectedDate)')));
+    expect(
+      source,
+      isNot(
+        contains(
+          'end: _day(_selectedDate).add(Duration(days: _agendaLoadedDays))',
+        ),
+      ),
+    );
+  });
+
+  test('explicit date commands open the day view, not agenda', () {
+    final source = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('void _openCommandDate(DateTime? date)'));
+    expect(source, contains('_mode = ScheduleViewMode.day'));
+    expect(source, contains('_lastSettingsMode = ScheduleViewMode.day'));
+    expect(source, contains('.setScheduleViewMode(ScheduleViewMode.day)'));
   });
 
   test('agenda removes page controls from toolbar and native headerbar', () {
@@ -1653,6 +1987,14 @@ void main() {
 
     expect(agenda, contains('isTask ? YaruIcons.task_list'));
     expect(compactAgenda, contains('isTask ? YaruIcons.task_list'));
+    expect(agenda, contains('YaruCheckbox('));
+    expect(compactAgenda, contains('YaruCheckbox('));
+    expect(agenda, isNot(contains('selectedColor:')));
+    expect(compactAgenda, isNot(contains('selectedColor:')));
+    expect(agenda, isNot(contains('checkmarkColor:')));
+    expect(compactAgenda, isNot(contains('checkmarkColor:')));
+    expect(agenda, isNot(contains('YaruCheckboxTheme')));
+    expect(compactAgenda, isNot(contains('YaruCheckboxTheme')));
     expect(agenda, isNot(contains('YaruIcons.checkbox')));
     expect(compactAgenda, isNot(contains('YaruIcons.checkbox')));
   });
@@ -1706,11 +2048,8 @@ void main() {
     expect(yearView, contains('ColoredBox('));
     expect(yearView, contains('color: Theme.of(context).colorScheme.surface'));
     expect(yearView, contains('double _monthPanelHeight(double width)'));
-    expect(yearView, contains('BusyMaxSurface('));
-    expect(
-      yearView,
-      contains('color: BusyMaxSurfaceColors.of(context).control'),
-    );
+    expect(yearView, contains('BusyMaxGroupedSurface('));
+    expect(yearView, isNot(contains('BusyMaxSurfaceColors.of(context).card')));
     expect(yearView, contains('BusyMaxActionRow('));
     expect(yearView, contains('class _YearMonthGrid'));
     expect(yearView, contains('mainAxisExtent: rowHeight'));

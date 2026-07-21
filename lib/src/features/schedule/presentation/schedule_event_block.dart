@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
@@ -25,11 +26,7 @@ class ScheduleEventBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final color = ScheduleProjection.colorForItem(item, colorScheme.brightness);
-    final background = Color.alphaBlend(
-      color.withValues(alpha: compact || item.allDay ? 0.18 : 0.26),
-      colorScheme.surface,
-    );
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final blockHeight = scheduleSafeBlockHeight(height);
     final blockWidth = scheduleSafeBlockWidth(width);
     final dense = compact || blockHeight < 36;
@@ -64,9 +61,11 @@ class ScheduleEventBlock extends StatelessWidget {
                 vertical: verticalPadding,
               ),
               decoration: BoxDecoration(
-                color: background,
+                color: surfaceColors.control,
                 borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-                border: Border(left: BorderSide(color: color, width: 4)),
+                border: Border(
+                  left: BorderSide(color: surfaceColors.subtleBorder, width: 4),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

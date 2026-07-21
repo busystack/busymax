@@ -11,12 +11,15 @@ import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
-import '../../../core/logging/redacting_logger.dart';
+import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
+import '../../../google_tasks/oauth/oauth_models.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../task_providers/task_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../auth/data/auth_repository.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
+import '../../sync/sync_auth_error.dart';
 import '../../tasks/presentation/tasks_selection_state.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -33,6 +36,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
+  TaskProvider? _connectingProvider;
 
   @override
   void initState() {
@@ -49,7 +53,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedAccount = ref.watch(selectedAccountProvider);
-    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+    final accounts =
+        ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final settingsController = ref.read(appSettingsControllerProvider.notifier);
@@ -63,14 +68,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         accounts: _selectedAccountFirst(accounts, selectedAccount?.id),
         googleConfigured: config.hasGoogleOAuthClientId,
         microsoftConfigured: config.hasMicrosoftOAuthClientId,
-        onAddGoogle: () => unawaited(
-          ref.read(authSessionControllerProvider.notifier).signIn(),
-        ),
-        onAddMicrosoft: () => unawaited(
-          ref
-              .read(authSessionControllerProvider.notifier)
-              .signInWithMicrosoft(),
-        ),
+        connectingProvider: _connectingProvider,
+        onAddGoogle: () => unawaited(_connectAccount(TaskProvider.google)),
+        onAddMicrosoft: () =>
+            unawaited(_connectAccount(TaskProvider.microsoft)),
+        onReconnect: (account) => unawaited(_connectAccount(account.provider)),
         onCreateTaskList: (accountId) =>
             _createTaskList(context, ref, accountId),
         onSignOut: (accountId) => _signOut(context, ref, accountId),
@@ -278,10 +280,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       setState(() => _page = SettingsPage.accounts);
       return;
     }
+    if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
+      unawaited(
+        showBusyMaxKeyboardShortcutsDialog(
+          context,
+          headerBarService: ref.read(linuxHeaderBarServiceProvider),
+        ),
+      );
+      return;
+    }
     if (action == BusyMaxHeaderBarAction.aboutBusyMax) {
       unawaited(
         showBusyMaxAboutDialog(
           context,
+          feedbackSubmissionService: ref.read(
+            feedbackSubmissionServiceProvider,
+          ),
           headerBarService: ref.read(linuxHeaderBarServiceProvider),
         ),
       );
@@ -308,6 +322,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           canContinue: false,
           backLabel: '',
           continueLabel: '',
+          force: true,
         );
         await service.setTitleRange(title);
         await service.setCanRefresh(false);
@@ -326,6 +341,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(authRepositoryProvider).signOut(accountId: accountId);
     if (context.mounted) {
       await _afterAccountRemoved(context, ref, accountId);
+    }
+  }
+
+  Future<void> _connectAccount(TaskProvider provider) async {
+    if (_connectingProvider != null) {
+      return;
+    }
+    final repository = ref.read(authRepositoryProvider);
+    final runSync = ref.read(signedInSyncRunnerProvider);
+    setState(() => _connectingProvider = provider);
+    try {
+      final signedIn = switch (provider) {
+        TaskProvider.google => await repository.signIn(),
+        TaskProvider.microsoft => await repository.signInWithMicrosoft(),
+      };
+      final accountId = signedIn.accountId;
+      if (accountId != null) {
+        unawaited(_syncConnectedAccount(runSync, accountId));
+      }
+    } on Object catch (error) {
+      if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
+        return;
+      }
+      if (mounted) {
+        _showMessage(context, _accountConnectionErrorMessage(context, error));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _connectingProvider = null);
+      }
+    }
+  }
+
+  Future<void> _syncConnectedAccount(
+    SignedInSyncRunner runSync,
+    String accountId,
+  ) async {
+    try {
+      await runSync(accountId, true);
+    } on Object catch (error) {
+      if (mounted) {
+        _showMessage(
+          context,
+          context.l10n.syncFailed(syncFailureMessage(error)),
+        );
+      }
     }
   }
 
@@ -402,7 +463,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } on Object catch (error) {
       if (context.mounted) {
-        _showMessage(context, context.l10n.syncFailed(redactForLog(error)));
+        _showMessage(
+          context,
+          context.l10n.syncFailed(syncFailureMessage(error)),
+        );
       }
     }
   }
@@ -621,8 +685,10 @@ class _AccountManagementSection extends StatelessWidget {
     required this.accounts,
     required this.googleConfigured,
     required this.microsoftConfigured,
+    required this.connectingProvider,
     required this.onAddGoogle,
     required this.onAddMicrosoft,
+    required this.onReconnect,
     required this.onCreateTaskList,
     required this.onSignOut,
     required this.onDisconnect,
@@ -632,8 +698,10 @@ class _AccountManagementSection extends StatelessWidget {
   final List<AccountEntity> accounts;
   final bool googleConfigured;
   final bool microsoftConfigured;
+  final TaskProvider? connectingProvider;
   final VoidCallback onAddGoogle;
   final VoidCallback onAddMicrosoft;
+  final void Function(AccountEntity account) onReconnect;
   final void Function(String accountId) onCreateTaskList;
   final void Function(String accountId) onSignOut;
   final void Function(String accountId) onDisconnect;
@@ -642,6 +710,7 @@ class _AccountManagementSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final connecting = connectingProvider != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -651,15 +720,19 @@ class _AccountManagementSection extends StatelessWidget {
           children: [
             if (googleConfigured)
               BusyMaxActionRow(
-                title: l10n.addGoogleAccount,
+                title: connectingProvider == TaskProvider.google
+                    ? l10n.waitingForGoogleSignIn
+                    : l10n.addGoogleAccount,
                 leading: const Icon(YaruIcons.plus),
-                onTap: onAddGoogle,
+                onTap: connecting ? null : onAddGoogle,
               ),
             if (microsoftConfigured)
               BusyMaxActionRow(
-                title: l10n.addMicrosoftAccount,
+                title: connectingProvider == TaskProvider.microsoft
+                    ? l10n.waitingForMicrosoftSignIn
+                    : l10n.addMicrosoftAccount,
                 leading: const Icon(YaruIcons.plus),
-                onTap: onAddMicrosoft,
+                onTap: connecting ? null : onAddMicrosoft,
               ),
             if (accounts.isEmpty)
               BusyMaxActionRow(
@@ -672,6 +745,7 @@ class _AccountManagementSection extends StatelessWidget {
         for (final account in accounts)
           _AccountManagementCard(
             account: account,
+            onReconnect: connecting ? null : () => onReconnect(account),
             onCreateTaskList: () => onCreateTaskList(account.id),
             onSignOut: () => onSignOut(account.id),
             onDisconnect: () => onDisconnect(account.id),
@@ -685,6 +759,7 @@ class _AccountManagementSection extends StatelessWidget {
 class _AccountManagementCard extends StatelessWidget {
   const _AccountManagementCard({
     required this.account,
+    required this.onReconnect,
     required this.onCreateTaskList,
     required this.onSignOut,
     required this.onDisconnect,
@@ -692,6 +767,7 @@ class _AccountManagementCard extends StatelessWidget {
   });
 
   final AccountEntity account;
+  final VoidCallback? onReconnect;
   final VoidCallback onCreateTaskList;
   final VoidCallback onSignOut;
   final VoidCallback onDisconnect;
@@ -705,16 +781,28 @@ class _AccountManagementCard extends StatelessWidget {
       description: _accountIdentityLabel(context, account),
       filled: true,
       children: [
-        BusyMaxActionRow(
-          title: l10n.newList,
-          leading: const Icon(YaruIcons.plus),
-          onTap: onCreateTaskList,
-        ),
-        BusyMaxActionRow(
-          title: l10n.signOutThisAccount,
-          leading: const Icon(YaruIcons.log_out),
-          onTap: onSignOut,
-        ),
+        if (account.needsReconnect)
+          BusyMaxActionRow(
+            title: accountReconnectRequiredActionLabel,
+            subtitle: accountReconnectRequiredSyncMessage,
+            leading: Icon(
+              YaruIcons.refresh,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            onTap: onReconnect,
+          )
+        else ...[
+          BusyMaxActionRow(
+            title: l10n.newList,
+            leading: const Icon(YaruIcons.plus),
+            onTap: onCreateTaskList,
+          ),
+          BusyMaxActionRow(
+            title: l10n.signOutThisAccount,
+            leading: const Icon(YaruIcons.log_out),
+            onTap: onSignOut,
+          ),
+        ],
         BusyMaxActionRow(
           title: l10n.disconnectThisAccount,
           leading: const Icon(YaruIcons.insert_link),
@@ -771,6 +859,13 @@ List<AccountEntity> _selectedAccountFirst(
     ...accounts.where((account) => account.id == selectedAccountId),
     ...accounts.where((account) => account.id != selectedAccountId),
   ];
+}
+
+String _accountConnectionErrorMessage(BuildContext context, Object error) {
+  if (error is OAuthException && error.code == 'OAuthMissingRequiredScope') {
+    return context.l10n.googlePermissionsRequiredRetry;
+  }
+  return authErrorMessage(error);
 }
 
 String _themeModeLabel(

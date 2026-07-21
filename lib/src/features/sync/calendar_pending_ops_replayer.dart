@@ -126,15 +126,31 @@ class CalendarPendingOpsReplayer {
       ..where(
         (row) =>
             row.accountId.equals(_accountId) &
-            row.provider.equals(TaskProvider.google.storageValue) &
-            row.entityType.equals('event') &
-            row.operationType.equals('event.create') &
-            row.lastErrorCode.equals('GoogleCalendarApiError') &
-            row.lastErrorMessage.like('Missing time zone definition%'),
+            row.nextAttemptAtUtc.isBiggerOrEqualValue('9999-12-31'),
       )
       ..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)]);
     final rows = await query.get();
-    return rows.where((op) => !excludeIds.contains(op.id)).toList();
+    return rows
+        .where(
+          (op) =>
+              !excludeIds.contains(op.id) &&
+              (_wasBlockedByTaskReplay(op) ||
+                  _isMissingTimeZoneCreateFailure(op)),
+        )
+        .toList();
+  }
+
+  bool _wasBlockedByTaskReplay(PendingOp op) {
+    return _isCalendarOp(op) && op.lastErrorCode == 'unknown_operation';
+  }
+
+  bool _isMissingTimeZoneCreateFailure(PendingOp op) {
+    return op.provider == TaskProvider.google.storageValue &&
+        op.entityType == 'event' &&
+        op.operationType == 'event.create' &&
+        op.lastErrorCode == 'GoogleCalendarApiError' &&
+        (op.lastErrorMessage?.startsWith('Missing time zone definition') ??
+            false);
   }
 
   Future<void> _patchCalendar(PendingOp op) async {
@@ -179,7 +195,57 @@ class CalendarPendingOpsReplayer {
         fallbackTimeZone: await _fallbackTimeZone(op, local: local),
       ),
     );
-    await _repository.upsertEvent(accountId: _accountId, event: event);
+    await _database.transaction(() async {
+      final hasDependent = await _rebaseDependentEventEdits(op, event);
+      if (hasDependent) {
+        return;
+      }
+      await _repository.upsertEvent(accountId: _accountId, event: event);
+    });
+  }
+
+  Future<bool> _rebaseDependentEventEdits(
+    PendingOp completedOp,
+    CalendarEventDto serverEvent,
+  ) async {
+    final dependents =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.dependsOnOpId.equals(completedOp.id),
+            ))
+            .get();
+    if (dependents.isEmpty) {
+      return false;
+    }
+
+    final acknowledgedFields = _eventMutationFields(_request(completedOp));
+    final serverSnapshot = _semanticSnapshot(
+      _client.provider,
+      serverEvent.rawJson,
+    );
+    for (final dependent in dependents) {
+      final baseline = _eventBaselineSnapshot(
+        _client.provider,
+        dependent.baselineRawJson ?? '{}',
+      );
+      // Keep the original timestamp and untouched fields so a provider edit to
+      // a different field is still detected by the dependent operation.
+      for (final field in acknowledgedFields) {
+        baseline[field] = serverSnapshot[field];
+      }
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(dependent.id))).write(
+        PendingOpsCompanion(
+          baselineRawJson: Value(
+            jsonEncode({_eventSemanticBaselineKey: baseline}),
+          ),
+          updatedAtUtc: Value(_nowUtc().toIso8601String()),
+        ),
+      );
+    }
+    return true;
   }
 
   Future<void> _deleteEvent(PendingOp op) async {
@@ -277,9 +343,9 @@ class CalendarPendingOpsReplayer {
         !currentUpdatedUtc.isAfter(baselineUpdatedUtc)) {
       return;
     }
-    final baseline = _semanticSnapshot(
+    final baseline = _eventBaselineSnapshot(
       _client.provider,
-      _jsonObject(op.baselineRawJson ?? local.baselineRawJson ?? '{}'),
+      op.baselineRawJson ?? local.baselineRawJson ?? '{}',
     );
     final remote = _semanticSnapshot(_client.provider, current.rawJson);
     final changed = _changedSemanticFields(request, baseline, remote);
@@ -321,16 +387,34 @@ class CalendarPendingOpsReplayer {
     Map<String, Object?> remote,
   ) {
     final changed = <String>{};
-    for (final entry in request.entries) {
-      if (entry.value == null) {
-        continue;
-      }
-      final key = entry.key;
+    for (final key in _eventMutationFields(request)) {
       if (!_deepEquals(baseline[key], remote[key])) {
         changed.add(key);
       }
     }
     return changed;
+  }
+
+  Set<String> _eventMutationFields(Map<String, Object?> request) {
+    final clearFields = _eventClearFields(request);
+    return {
+      for (final entry in request.entries)
+        if (entry.key != calendarEventClearFieldsKey &&
+            (entry.value != null || clearFields.contains(entry.key)))
+          entry.key,
+    };
+  }
+
+  Map<String, Object?> _eventBaselineSnapshot(
+    BusyProvider provider,
+    String encodedBaseline,
+  ) {
+    final raw = _jsonObject(encodedBaseline);
+    final semantic = raw[_eventSemanticBaselineKey];
+    if (semantic is Map) {
+      return semantic.cast<String, Object?>();
+    }
+    return _semanticSnapshot(provider, raw);
   }
 
   Map<String, Object?> _semanticSnapshot(
@@ -396,6 +480,7 @@ class CalendarPendingOpsReplayer {
     Map<String, Object?> request, {
     String? fallbackTimeZone,
   }) {
+    final clearFields = _eventClearFields(request);
     final allDay = request['allDay'] == true;
     final start = request['start']?.toString();
     final end = request['end']?.toString();
@@ -424,8 +509,10 @@ class CalendarPendingOpsReplayer {
       endDateTime: allDay ? null : end,
       endTimeZone: endTimeZone,
       recurrence: request['recurrenceJson'],
+      clearRecurrence: clearFields.contains(calendarEventRecurrenceField),
       reminders: request['remindersJson'],
       attendees: request['attendeesJson'],
+      clearAttendees: clearFields.contains(calendarEventAttendeesField),
       colorId: request['colorId']?.toString(),
       visibility:
           request['visibility']?.toString() ??
@@ -439,6 +526,14 @@ class CalendarPendingOpsReplayer {
       hideAttendees: request['hideAttendees'] as bool?,
       allowNewTimeProposals: request['allowNewTimeProposals'] as bool?,
     );
+  }
+
+  Set<String> _eventClearFields(Map<String, Object?> request) {
+    final value = request[calendarEventClearFieldsKey];
+    if (value is! List) {
+      return const {};
+    }
+    return {for (final field in value) field.toString()};
   }
 
   Future<String?> _fallbackTimeZone(
@@ -604,6 +699,8 @@ class CalendarPendingOpsReplayer {
 class _PendingOpBlocked {
   const _PendingOpBlocked();
 }
+
+const _eventSemanticBaselineKey = '__busymaxSemanticBaseline';
 
 Map<String, Object?> _mapValue(Object? value) {
   if (value is Map<String, Object?>) {

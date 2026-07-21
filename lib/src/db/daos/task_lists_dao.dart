@@ -9,7 +9,9 @@ class TaskListsDao extends DatabaseAccessor<AppDatabase>
     final query = select(taskLists)
       ..where(
         (row) =>
-            row.accountId.equals(accountId) & row.pendingDelete.equals(false),
+            row.accountId.equals(accountId) &
+            row.pendingDelete.equals(false) &
+            row.serverMissing.equals(false),
       )
       ..orderBy([(row) => OrderingTerm.asc(row.title)]);
     return query.watch();

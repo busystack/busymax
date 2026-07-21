@@ -101,6 +101,22 @@ void main() {
     expect(ops.single.operation, 'delete_task_list');
     expect(mutationQueuedCalls, 1);
   });
+
+  test('listTaskLists hides pending-delete and server-missing rows', () async {
+    await database.taskListsDao.upsertTaskList(_taskList('visible'));
+    await database.taskListsDao.upsertTaskList(
+      _taskList('pending-delete', pendingDelete: const Value(true)),
+    );
+    await database.taskListsDao.upsertTaskList(
+      _taskList('server-missing', serverMissing: const Value(true)),
+    );
+
+    final lists = await repository.listTaskLists();
+    final watchedLists = await repository.watchTaskLists().first;
+
+    expect(lists.map((list) => list.id), ['visible']);
+    expect(watchedLists.map((list) => list.id), ['visible']);
+  });
 }
 
 TaskListsRepository _repository(
@@ -129,11 +145,17 @@ Future<void> _insertAccount(AppDatabase database) {
 
 const _now = '2026-06-04T00:00:00.000Z';
 
-TaskListsCompanion _taskList(String id) {
+TaskListsCompanion _taskList(
+  String id, {
+  Value<bool> pendingDelete = const Value.absent(),
+  Value<bool> serverMissing = const Value.absent(),
+}) {
   return TaskListsCompanion.insert(
     accountId: 'account',
     id: id,
     title: 'Inbox',
+    pendingDelete: pendingDelete,
+    serverMissing: serverMissing,
     rawJson: '{}',
     createdLocalAtUtc: _now,
     updatedLocalAtUtc: _now,
