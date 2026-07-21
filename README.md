@@ -4,6 +4,10 @@ BusyMax is a Linux desktop calendar and task manager built with Flutter.
 
 It brings calendar events and tasks into a native-feeling Linux desktop interface, with support for `Google Calendar`, `Google Tasks`, `Microsoft Calendar`, and `Microsoft To Do`.
 
+[![busymax](https://snapcraft.io/busymax/badge.svg)](https://snapcraft.io/busymax)
+
+[![Get it from the Snap Store](https://snapcraft.io/en/dark/install.svg)](https://snapcraft.io/busymax)
+
 <p align="center">
   <img src="docs/screenshots/main_window_month.png" alt="BusyMax month view" width="900">
 </p>
