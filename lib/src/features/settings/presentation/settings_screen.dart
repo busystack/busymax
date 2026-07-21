@@ -293,6 +293,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       unawaited(
         showBusyMaxAboutDialog(
           context,
+          feedbackSubmissionService: ref.read(
+            feedbackSubmissionServiceProvider,
+          ),
           headerBarService: ref.read(linuxHeaderBarServiceProvider),
         ),
       );

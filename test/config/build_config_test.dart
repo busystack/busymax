@@ -8,6 +8,7 @@ void main() {
     expect(config.googleOAuthClientSecret, '');
     expect(config.googleApiBaseUrl, 'https://www.googleapis.com');
     expect(config.apiBaseUrl, 'https://www.googleapis.com');
+    expect(config.feedbackEndpoint, 'https://busystack.org/api/feedback');
     expect(
       config.oauthAuthorizationEndpoint,
       'https://accounts.google.com/o/oauth2/v2/auth',

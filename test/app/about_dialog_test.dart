@@ -15,6 +15,7 @@ void main() {
     expect(find.text('BusyMax'), findsOneWidget);
     expect(find.text('ToDo and Calendar'), findsOneWidget);
     expect(find.text('Website'), findsOneWidget);
+    expect(find.text('Send feedback'), findsOneWidget);
     expect(find.text('Report an issue'), findsOneWidget);
     expect(find.byIcon(Icons.close), findsOneWidget);
     expect(find.text('Close'), findsNothing);

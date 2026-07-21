@@ -86,6 +86,35 @@ flutter run -d linux \
   --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
 ```
 
+## Feedback submissions
+
+The native **Send feedback** form in the About dialog sends JSON to
+`POST https://busystack.org/api/feedback`. Every submission contains a new
+submission UUID, the application identifier `busymax`, the application version
+and build number, the `linux` platform identifier, category, subject, message,
+and optional reply email. A successful response has this form:
+
+```json
+{ "id": "server-reference-id" }
+```
+
+The optional technical-details checkbox is off by default. When the user
+explicitly enables it, BusyMax adds only the Linux operating-system version and
+application locale. BusyMax does not attach logs, account or calendar data,
+file names, screenshots, environment variables, or other diagnostics.
+
+For local website development, override the endpoint through the existing
+compile-time configuration mechanism:
+
+```bash
+flutter run -d linux \
+  --dart-define=BUSYSTACK_FEEDBACK_ENDPOINT=http://127.0.0.1:8090/api/feedback
+```
+
+The local Snap helper accepts the same value with
+`--dart-define BUSYSTACK_FEEDBACK_ENDPOINT=http://127.0.0.1:8090/api/feedback`.
+No API, CAPTCHA, or other private server credential is used by the desktop application.
+
 ## Beta snap
 
 See [Beta Snap Release](docs/beta_snap_release.md) for local beta build,

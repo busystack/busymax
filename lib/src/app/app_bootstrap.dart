@@ -12,6 +12,7 @@ import '../db/app_database.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/auth/data/auth_repository.dart';
+import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
 import '../features/notifications/notification_scheduler.dart';
 import '../features/sync/all_accounts_sync_scheduler.dart';
@@ -67,6 +68,16 @@ final baseHttpClientProvider = Provider<http.Client>((ref) {
 
 final retryingHttpClientProvider = Provider<http.Client>((ref) {
   return RetryingHttpClient(inner: ref.watch(baseHttpClientProvider));
+});
+
+final feedbackSubmissionServiceProvider = Provider<FeedbackSubmissionService>((
+  ref,
+) {
+  final config = ref.watch(buildConfigProvider);
+  return FeedbackApiClient(
+    httpClient: ref.watch(baseHttpClientProvider),
+    endpoint: Uri.parse(config.feedbackEndpoint),
+  );
 });
 
 final oAuthTokenStoreProvider = Provider<OAuthTokenStore>((ref) {

@@ -424,6 +424,90 @@ class AppLocalizationsFr extends AppLocalizations {
   String get reportAnIssue => 'Signaler un problème';
 
   @override
+  String get sendFeedback => 'Envoyer des commentaires';
+
+  @override
+  String get feedbackSubmit => 'Envoyer';
+
+  @override
+  String get feedbackCategory => 'Catégorie';
+
+  @override
+  String get feedbackSelectCategory => 'Sélectionnez une catégorie';
+
+  @override
+  String get feedbackCategoryProblem => 'Problème ou bug';
+
+  @override
+  String get feedbackCategoryFeature => 'Demande de fonctionnalité';
+
+  @override
+  String get feedbackCategoryPrivacySecurity =>
+      'Problème de confidentialité ou de sécurité';
+
+  @override
+  String get feedbackCategoryUsability => 'Problème d’ergonomie';
+
+  @override
+  String get feedbackCategoryOther => 'Autre';
+
+  @override
+  String get feedbackSubject => 'Objet';
+
+  @override
+  String get feedbackDetailedMessage => 'Message détaillé';
+
+  @override
+  String get feedbackReplyEmail => 'Adresse e-mail de réponse (facultatif)';
+
+  @override
+  String get feedbackIncludeTechnicalDetails =>
+      'Inclure les détails techniques';
+
+  @override
+  String get feedbackTechnicalDetailsDisclosure =>
+      'Ajoute uniquement la version de votre système d’exploitation Linux et la langue de l’application. Aucun journal, aucune donnée de compte, aucun nom de fichier ni autre diagnostic n’est inclus.';
+
+  @override
+  String get feedbackCategoryRequired => 'Sélectionnez une catégorie.';
+
+  @override
+  String get feedbackSubjectLengthError =>
+      'L’objet doit comporter entre 3 et 120 caractères.';
+
+  @override
+  String get feedbackMessageLengthError =>
+      'Le message doit comporter entre 10 et 5 000 caractères.';
+
+  @override
+  String get feedbackInvalidEmail => 'Saisissez une adresse e-mail valide.';
+
+  @override
+  String get feedbackConnectionError =>
+      'Impossible de se connecter à BusyStack. Vérifiez votre connexion et réessayez.';
+
+  @override
+  String get feedbackTimeoutError =>
+      'La demande a expiré. Vos commentaires n’ont pas été effacés ; réessayez.';
+
+  @override
+  String get feedbackRateLimitedError =>
+      'Trop de commentaires ont été envoyés depuis ce réseau. Patientez, puis réessayez.';
+
+  @override
+  String get feedbackRejectedError =>
+      'Le serveur a rejeté l’envoi. Vérifiez les champs, puis réessayez.';
+
+  @override
+  String get feedbackServerError =>
+      'BusyStack ne peut pas accepter vos commentaires pour le moment. Vos commentaires n’ont pas été effacés ; réessayez.';
+
+  @override
+  String feedbackSuccess(String id) {
+    return 'Commentaires envoyés. Référence : $id';
+  }
+
+  @override
   String get toggleSidebar => 'Afficher/masquer la barre latérale';
 
   @override

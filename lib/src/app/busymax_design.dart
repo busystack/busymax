@@ -2012,6 +2012,7 @@ class BusyMaxEditorHeader extends StatelessWidget {
     required this.onCancel,
     required this.onSave,
     this.saving = false,
+    this.cancelEnabled = true,
   });
 
   final String title;
@@ -2020,6 +2021,7 @@ class BusyMaxEditorHeader extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback? onSave;
   final bool saving;
+  final bool cancelEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -2033,7 +2035,7 @@ class BusyMaxEditorHeader extends StatelessWidget {
       child: Row(
         children: [
           BusyMaxHeaderPushButton.outlined(
-            onPressed: onCancel,
+            onPressed: cancelEnabled ? onCancel : null,
             child: Text(cancelLabel, overflow: TextOverflow.ellipsis),
           ),
           Expanded(
@@ -2149,6 +2151,7 @@ class BusyMaxModalEditorScaffold extends StatelessWidget {
     required this.onSave,
     required this.children,
     this.saving = false,
+    this.cancelEnabled = true,
     this.contentMaxWidth = 640,
   });
 
@@ -2158,6 +2161,7 @@ class BusyMaxModalEditorScaffold extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback? onSave;
   final bool saving;
+  final bool cancelEnabled;
   final double contentMaxWidth;
   final List<Widget> children;
 
@@ -2173,6 +2177,7 @@ class BusyMaxModalEditorScaffold extends StatelessWidget {
           onCancel: onCancel,
           onSave: onSave,
           saving: saving,
+          cancelEnabled: cancelEnabled,
         ),
         const SizedBox(height: BusyMaxSpacing.headerInset),
         Flexible(

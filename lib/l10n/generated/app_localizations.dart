@@ -888,6 +888,150 @@ abstract class AppLocalizations {
   /// **'Report an issue'**
   String get reportAnIssue;
 
+  /// No description provided for @sendFeedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Send feedback'**
+  String get sendFeedback;
+
+  /// No description provided for @feedbackSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get feedbackSubmit;
+
+  /// No description provided for @feedbackCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get feedbackCategory;
+
+  /// No description provided for @feedbackSelectCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a category'**
+  String get feedbackSelectCategory;
+
+  /// No description provided for @feedbackCategoryProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'Problem or bug'**
+  String get feedbackCategoryProblem;
+
+  /// No description provided for @feedbackCategoryFeature.
+  ///
+  /// In en, this message translates to:
+  /// **'Feature request'**
+  String get feedbackCategoryFeature;
+
+  /// No description provided for @feedbackCategoryPrivacySecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy or security concern'**
+  String get feedbackCategoryPrivacySecurity;
+
+  /// No description provided for @feedbackCategoryUsability.
+  ///
+  /// In en, this message translates to:
+  /// **'Usability concern'**
+  String get feedbackCategoryUsability;
+
+  /// No description provided for @feedbackCategoryOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get feedbackCategoryOther;
+
+  /// No description provided for @feedbackSubject.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject'**
+  String get feedbackSubject;
+
+  /// No description provided for @feedbackDetailedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Detailed message'**
+  String get feedbackDetailedMessage;
+
+  /// No description provided for @feedbackReplyEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply email (optional)'**
+  String get feedbackReplyEmail;
+
+  /// No description provided for @feedbackIncludeTechnicalDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Include technical details'**
+  String get feedbackIncludeTechnicalDetails;
+
+  /// No description provided for @feedbackTechnicalDetailsDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds only your Linux operating-system version and application locale. No logs, account data, file names, or other diagnostics are included.'**
+  String get feedbackTechnicalDetailsDisclosure;
+
+  /// No description provided for @feedbackCategoryRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a category.'**
+  String get feedbackCategoryRequired;
+
+  /// No description provided for @feedbackSubjectLengthError.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject must be between 3 and 120 characters.'**
+  String get feedbackSubjectLengthError;
+
+  /// No description provided for @feedbackMessageLengthError.
+  ///
+  /// In en, this message translates to:
+  /// **'Message must be between 10 and 5,000 characters.'**
+  String get feedbackMessageLengthError;
+
+  /// No description provided for @feedbackInvalidEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid email address.'**
+  String get feedbackInvalidEmail;
+
+  /// No description provided for @feedbackConnectionError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not connect to BusyStack. Check your connection and try again.'**
+  String get feedbackConnectionError;
+
+  /// No description provided for @feedbackTimeoutError.
+  ///
+  /// In en, this message translates to:
+  /// **'The request timed out. Your feedback has not been cleared; please try again.'**
+  String get feedbackTimeoutError;
+
+  /// No description provided for @feedbackRateLimitedError.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many feedback submissions have been sent from this network. Please wait and try again.'**
+  String get feedbackRateLimitedError;
+
+  /// No description provided for @feedbackRejectedError.
+  ///
+  /// In en, this message translates to:
+  /// **'The server rejected the submission. Review the fields and try again.'**
+  String get feedbackRejectedError;
+
+  /// No description provided for @feedbackServerError.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyStack could not accept your feedback right now. Your feedback has not been cleared; please try again.'**
+  String get feedbackServerError;
+
+  /// No description provided for @feedbackSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback sent. Reference: {id}'**
+  String feedbackSuccess(String id);
+
   /// No description provided for @toggleSidebar.
   ///
   /// In en, this message translates to:

@@ -423,6 +423,91 @@ class AppLocalizationsDe extends AppLocalizations {
   String get reportAnIssue => 'Problem melden';
 
   @override
+  String get sendFeedback => 'Feedback senden';
+
+  @override
+  String get feedbackSubmit => 'Senden';
+
+  @override
+  String get feedbackCategory => 'Kategorie';
+
+  @override
+  String get feedbackSelectCategory => 'Kategorie auswählen';
+
+  @override
+  String get feedbackCategoryProblem => 'Problem oder Fehler';
+
+  @override
+  String get feedbackCategoryFeature => 'Funktionswunsch';
+
+  @override
+  String get feedbackCategoryPrivacySecurity =>
+      'Datenschutz- oder Sicherheitsbedenken';
+
+  @override
+  String get feedbackCategoryUsability =>
+      'Problem mit der Benutzerfreundlichkeit';
+
+  @override
+  String get feedbackCategoryOther => 'Sonstiges';
+
+  @override
+  String get feedbackSubject => 'Betreff';
+
+  @override
+  String get feedbackDetailedMessage => 'Ausführliche Nachricht';
+
+  @override
+  String get feedbackReplyEmail => 'E-Mail-Adresse für Antwort (optional)';
+
+  @override
+  String get feedbackIncludeTechnicalDetails => 'Technische Details hinzufügen';
+
+  @override
+  String get feedbackTechnicalDetailsDisclosure =>
+      'Fügt nur die Version Ihres Linux-Betriebssystems und die Spracheinstellung der Anwendung hinzu. Es werden keine Protokolle, Kontodaten, Dateinamen oder anderen Diagnosedaten hinzugefügt.';
+
+  @override
+  String get feedbackCategoryRequired => 'Wählen Sie eine Kategorie aus.';
+
+  @override
+  String get feedbackSubjectLengthError =>
+      'Der Betreff muss zwischen 3 und 120 Zeichen lang sein.';
+
+  @override
+  String get feedbackMessageLengthError =>
+      'Die Nachricht muss zwischen 10 und 5.000 Zeichen lang sein.';
+
+  @override
+  String get feedbackInvalidEmail =>
+      'Geben Sie eine gültige E-Mail-Adresse ein.';
+
+  @override
+  String get feedbackConnectionError =>
+      'Verbindung zu BusyStack fehlgeschlagen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.';
+
+  @override
+  String get feedbackTimeoutError =>
+      'Die Anfrage hat zu lange gedauert. Ihr Feedback wurde nicht gelöscht; versuchen Sie es erneut.';
+
+  @override
+  String get feedbackRateLimitedError =>
+      'Aus diesem Netzwerk wurden zu viele Feedbackmeldungen gesendet. Warten Sie und versuchen Sie es erneut.';
+
+  @override
+  String get feedbackRejectedError =>
+      'Der Server hat die Übermittlung abgelehnt. Prüfen Sie die Felder und versuchen Sie es erneut.';
+
+  @override
+  String get feedbackServerError =>
+      'BusyStack kann Ihr Feedback derzeit nicht annehmen. Ihr Feedback wurde nicht gelöscht; versuchen Sie es erneut.';
+
+  @override
+  String feedbackSuccess(String id) {
+    return 'Feedback gesendet. Referenz: $id';
+  }
+
+  @override
   String get toggleSidebar => 'Seitenleiste umschalten';
 
   @override

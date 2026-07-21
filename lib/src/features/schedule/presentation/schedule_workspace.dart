@@ -520,6 +520,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         unawaited(
           showBusyMaxAboutDialog(
             context,
+            feedbackSubmissionService: ref.read(
+              feedbackSubmissionServiceProvider,
+            ),
             headerBarService: ref.read(linuxHeaderBarServiceProvider),
           ),
         );
