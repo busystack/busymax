@@ -59,7 +59,8 @@ Snapcraft writes `busymax_<version>_amd64.snap`. Use the exact path it prints.
 If the app says **This provider is not configured**, the bundle was built
 without valid defines; reconnecting cannot fix it, so rebuild the package.
 
-For a local scaffold smoke build instead:
+For a local scaffold smoke build instead, first quit every running BusyMax
+instance, including its tray process and any development build:
 
 ```bash
 ./tools/build_install_snap_local.sh \
