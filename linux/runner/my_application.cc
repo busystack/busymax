@@ -90,6 +90,7 @@ struct _MyApplication {
   gchar* header_bar_shade_color;
   gchar* header_bar_modal_barrier_color;
   gint header_bar_sidebar_width;
+  gboolean header_bar_can_show_sidebar;
   gboolean header_bar_sidebar_visible;
   gboolean header_bar_modal_barrier_visible;
   GtkWindow* main_window;
@@ -585,7 +586,8 @@ static void set_main_flutter_view_background(MyApplication* self) {
 }
 
 static gint header_sidebar_effective_width(MyApplication* self) {
-  if (!self->header_bar_sidebar_visible) {
+  if (!self->header_bar_can_show_sidebar ||
+      !self->header_bar_sidebar_visible) {
     return 0;
   }
   return self->header_bar_sidebar_width;
@@ -733,6 +735,10 @@ static void refresh_header_bar_css(MyApplication* self) {
       ".busymax-titlebar button.busymax-header-view-mode-button:active {"
       "background-color: %s;"
       "}"
+      ".busymax-titlebar button.busymax-header-button:focus,"
+      ".busymax-titlebar button.busymax-header-view-mode-button:focus {"
+      "box-shadow: inset 0 0 0 2px %s;"
+      "}"
       ".busymax-titlebar button.busymax-header-button:disabled,"
       ".busymax-titlebar button.busymax-header-view-mode-button:disabled {"
       "color: %s;"
@@ -747,6 +753,9 @@ static void refresh_header_bar_css(MyApplication* self) {
       ".busymax-titlebar button.busymax-header-primary-button:checked {"
       "color: %s;"
       "background-color: %s;"
+      "}"
+      ".busymax-titlebar button.busymax-header-primary-button:focus {"
+      "box-shadow: inset 0 0 0 2px %s;"
       "}"
       ".busymax-titlebar button.busymax-header-primary-button:disabled {"
       "color: %s;"
@@ -828,11 +837,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       "}"
       "popover.busymax-header-popover "
       "button.busymax-header-popover-row:focus {"
-      "border-color: transparent;"
-      "outline-color: transparent;"
-      "outline-style: none;"
-      "outline-width: 0;"
-      "box-shadow: none;"
+      "background-color: %s;"
+      "box-shadow: inset 0 0 0 2px %s;"
       "}"
       "popover.busymax-header-popover "
       "button.busymax-header-popover-row:active,"
@@ -877,15 +883,17 @@ static void refresh_header_bar_css(MyApplication* self) {
       background_color, modal_barrier_color, modal_barrier_color,
       foreground_color, control_color, kHeaderButtonHeight,
       kHeaderButtonHeight, kHeaderButtonHorizontalPadding, kHeaderButtonRadius,
-      control_hover_color, control_pressed_color, foreground_disabled_color,
+      control_hover_color, control_pressed_color, accent_color,
+      foreground_disabled_color,
       accent_foreground_color, accent_color, accent_foreground_color,
-      accent_color, foreground_disabled_color,
+      accent_color, accent_foreground_color, foreground_disabled_color,
       control_hover_color, control_hover_color, foreground_disabled_color,
       kHeaderButtonHeight,
       popover_background_color, foreground_color, foreground_color,
       border_color, shade_color, kHeaderButtonHeight,
       kHeaderButtonHorizontalPadding, kHeaderButtonRadius,
-      control_hover_color, foreground_color, muted_foreground_color,
+      control_hover_color, control_hover_color, accent_color, foreground_color,
+      muted_foreground_color,
       kHeaderButtonRadius, shade_color, kHeaderTooltipVerticalPadding,
       kHeaderTooltipHorizontalPadding, kHeaderButtonRadius);
 
@@ -1404,6 +1412,13 @@ static void set_header_view_mode_labels(MyApplication* self,
   update_header_view_mode_label(self);
 }
 
+static void set_header_title(MyApplication* self, const gchar* title) {
+  if (self->header_title_label != nullptr &&
+      GTK_IS_LABEL(self->header_title_label) && title != nullptr) {
+    gtk_label_set_text(GTK_LABEL(self->header_title_label), title);
+  }
+}
+
 static void set_header_view_mode(MyApplication* self, const gchar* mode) {
   if (header_view_mode_action(mode) == nullptr) {
     return;
@@ -1439,39 +1454,44 @@ static void update_header_title_box_geometry(MyApplication* self) {
   gtk_widget_set_size_request(self->header_title_box, width, -1);
 }
 
+static void update_header_control_visibility(MyApplication* self) {
+  const gboolean schedule_controls_visible =
+      self->header_schedule_controls_visible;
+  set_widget_visible(self->header_start_box,
+                     schedule_controls_visible || self->header_back_visible);
+  set_widget_visible(self->back_button, self->header_back_visible);
+  set_widget_visible(self->sidebar_collapsed_toggle_button,
+                     schedule_controls_visible &&
+                         self->header_bar_can_show_sidebar);
+  set_widget_visible(self->today_button, schedule_controls_visible);
+  set_widget_visible(self->previous_button,
+                     schedule_controls_visible &&
+                         self->header_navigation_visible);
+  set_widget_visible(self->next_button,
+                     schedule_controls_visible &&
+                         self->header_navigation_visible);
+  set_widget_visible(self->header_view_box, schedule_controls_visible);
+  set_widget_visible(self->search_button, schedule_controls_visible);
+  set_widget_visible(self->create_button, schedule_controls_visible);
+  set_widget_visible(self->refresh_button, schedule_controls_visible);
+  update_header_title_balance_spacer(self);
+}
+
 static void set_header_schedule_controls_visible(MyApplication* self,
                                                  gboolean visible) {
   self->header_schedule_controls_visible = visible;
-  set_widget_visible(self->header_start_box,
-                     visible || self->header_back_visible);
-  set_widget_visible(self->sidebar_collapsed_toggle_button, visible);
-  set_widget_visible(self->today_button, visible);
-  set_widget_visible(self->previous_button,
-                     visible && self->header_navigation_visible);
-  set_widget_visible(self->next_button,
-                     visible && self->header_navigation_visible);
-  set_widget_visible(self->header_view_box, visible);
-  set_widget_visible(self->search_button, visible);
-  set_widget_visible(self->create_button, visible);
-  set_widget_visible(self->refresh_button, visible);
-  update_header_title_balance_spacer(self);
+  update_header_control_visibility(self);
 }
 
 static void set_header_navigation_visible(MyApplication* self,
                                           gboolean visible) {
   self->header_navigation_visible = visible;
-  set_widget_visible(self->previous_button,
-                     self->header_schedule_controls_visible && visible);
-  set_widget_visible(self->next_button,
-                     self->header_schedule_controls_visible && visible);
+  update_header_control_visibility(self);
 }
 
 static void set_header_back_visible(MyApplication* self, gboolean visible) {
   self->header_back_visible = visible;
-  set_widget_visible(self->back_button, visible);
-  set_widget_visible(self->header_start_box,
-                     visible || self->header_schedule_controls_visible);
-  update_header_title_balance_spacer(self);
+  update_header_control_visibility(self);
 }
 
 static void set_header_onboarding_controls(MyApplication* self, FlValue* args) {
@@ -1499,9 +1519,15 @@ static void set_header_onboarding_controls(MyApplication* self, FlValue* args) {
 
 static void set_header_sidebar_visible(MyApplication* self, gboolean visible) {
   self->header_bar_sidebar_visible = visible;
-  set_widget_visible(self->sidebar_collapsed_toggle_button,
-                     self->header_schedule_controls_visible);
   set_toggle_button_active(self, self->sidebar_collapsed_toggle_button, visible);
+  update_header_sidebar_brand_geometry(self);
+  refresh_header_bar_css(self);
+}
+
+static void set_header_can_show_sidebar(MyApplication* self,
+                                        gboolean can_show_sidebar) {
+  self->header_bar_can_show_sidebar = can_show_sidebar;
+  update_header_control_visibility(self);
   update_header_sidebar_brand_geometry(self);
   refresh_header_bar_css(self);
 }
@@ -1513,6 +1539,51 @@ static void set_header_sidebar_width(MyApplication* self, gdouble width) {
   self->header_bar_sidebar_width = static_cast<gint>(width);
   update_header_sidebar_brand_geometry(self);
   refresh_header_bar_css(self);
+}
+
+static void set_header_bar_state(MyApplication* self, FlValue* args) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return;
+  }
+
+  set_header_title(self, fl_lookup_string_arg(args, "title"));
+  set_header_view_mode(self, fl_lookup_string_arg(args, "viewMode"));
+
+  gboolean value = FALSE;
+  if (fl_lookup_optional_bool_arg(args, "canRefresh", &value)) {
+    set_widget_sensitive(self->refresh_button, value);
+  }
+  if (fl_lookup_optional_bool_arg(args, "canCreate", &value)) {
+    set_widget_sensitive(self->create_button, value);
+  }
+  if (fl_lookup_optional_bool_arg(args, "searchActive", &value)) {
+    set_toggle_button_active(self, self->search_button, value);
+  }
+
+  const gint previous_sidebar_width = header_sidebar_effective_width(self);
+  if (fl_lookup_optional_bool_arg(args, "canShowSidebar", &value)) {
+    self->header_bar_can_show_sidebar = value;
+  }
+  if (fl_lookup_optional_bool_arg(args, "sidebarVisible", &value)) {
+    self->header_bar_sidebar_visible = value;
+    set_toggle_button_active(self, self->sidebar_collapsed_toggle_button, value);
+  }
+  if (fl_lookup_optional_bool_arg(args, "navigationVisible", &value)) {
+    self->header_navigation_visible = value;
+  }
+  if (fl_lookup_optional_bool_arg(args, "scheduleControlsVisible", &value)) {
+    self->header_schedule_controls_visible = value;
+  }
+  if (fl_lookup_optional_bool_arg(args, "backVisible", &value)) {
+    self->header_back_visible = value;
+  }
+
+  update_header_control_visibility(self);
+  const gint sidebar_width = header_sidebar_effective_width(self);
+  if (sidebar_width != previous_sidebar_width) {
+    update_header_sidebar_brand_geometry(self);
+    refresh_header_bar_css(self);
+  }
 }
 
 static void set_header_localized_labels(MyApplication* self, FlValue* args) {
@@ -1839,12 +1910,11 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
   FlValue* args = fl_method_call_get_args(method_call);
   if (strcmp(method, "initialize") == 0) {
     respond_bool(method_call, has_header_bar(self));
+  } else if (strcmp(method, "setState") == 0) {
+    set_header_bar_state(self, args);
+    respond_success(method_call);
   } else if (strcmp(method, "setTitleRange") == 0) {
-    const gchar* value = fl_method_string_arg(args);
-    if (self->header_title_label != nullptr &&
-        GTK_IS_LABEL(self->header_title_label) && value != nullptr) {
-      gtk_label_set_text(GTK_LABEL(self->header_title_label), value);
-    }
+    set_header_title(self, fl_method_string_arg(args));
     respond_success(method_call);
   } else if (strcmp(method, "setViewMode") == 0) {
     set_header_view_mode(self, fl_method_string_arg(args));
@@ -1864,8 +1934,17 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
   } else if (strcmp(method, "setSearchActive") == 0) {
     set_toggle_button_active(self, self->search_button, fl_method_bool_arg(args));
     respond_success(method_call);
+  } else if (strcmp(method, "setCanShowSidebar") == 0) {
+    set_header_can_show_sidebar(self, fl_method_bool_arg(args));
+    respond_success(method_call);
   } else if (strcmp(method, "setSidebarVisible") == 0) {
-    set_header_sidebar_visible(self, fl_method_bool_arg(args));
+    const gboolean visible = fl_method_bool_arg(args);
+    if (visible) {
+      // Preserve the behavior of the legacy method, where making the sidebar
+      // visible also made its native toggle available.
+      set_header_can_show_sidebar(self, TRUE);
+    }
+    set_header_sidebar_visible(self, visible);
     respond_success(method_call);
   } else if (strcmp(method, "setNavigationVisible") == 0) {
     set_header_navigation_visible(self, fl_method_bool_arg(args));
@@ -2081,6 +2160,7 @@ static FlValue* get_gtk_theme_colors() {
   lookup_context_color(window_context, "theme_unfocused_fg_color",
                        &muted_foreground_color);
   lookup_context_color(window_context, "borders", &border_color);
+  lookup_context_color(window_context, "wm_shadow", &shade_color);
   lookup_context_color(window_context, "theme_selected_bg_color",
                        &accent_color);
 
@@ -2105,8 +2185,6 @@ static FlValue* get_gtk_theme_colors() {
     subtle_border_color.alpha *= 0.56;
     sidebar_border_color = border_color;
     sidebar_border_color.alpha *= 0.72;
-    shade_color = border_color;
-    shade_color.alpha *= 0.72;
   }
 
   FlValue* result = fl_value_new_map();
@@ -3246,6 +3324,7 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_shade_color = nullptr;
   self->header_bar_modal_barrier_color = nullptr;
   self->header_bar_sidebar_width = 300;
+  self->header_bar_can_show_sidebar = TRUE;
   self->header_bar_sidebar_visible = TRUE;
   self->header_bar_modal_barrier_visible = FALSE;
   self->main_window = nullptr;
