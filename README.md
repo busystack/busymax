@@ -119,7 +119,8 @@ The local Snap helper accepts the same value with
 `--dart-define BUSYSTACK_FEEDBACK_ENDPOINT=http://127.0.0.1:8090/api/feedback`.
 No API, CAPTCHA, or other private server credential is used by the desktop application.
 
-## Beta snap
+## Build and publish the Snap
 
-See [Beta Snap Release](docs/beta_snap_release.md) for local beta build,
-install, and validation notes.
+See [Snap Build and Beta Release](docs/beta_snap_release.md) for OAuth build
+configuration, canonical Snapcraft packaging, local installation, artifact
+verification, Store review, and beta release instructions.

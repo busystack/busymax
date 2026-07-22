@@ -1,80 +1,179 @@
-# BusyMax Beta Snap Release
+# BusyMax Snap Build and Beta Release
 
-BusyMax `0.1.1` is a beta release target for public/listed visibility in
-Ubuntu App Center and the Snap Store.
+`snap/snapcraft.yaml` packages an existing Flutter Linux bundle. It does not
+run `flutter build` or read `.snap-local/busymax-dart-defines.json`, so the
+OAuth-enabled Flutter build must run first.
 
-## Build
+## Prepare
 
-The snap build requires OAuth configuration at build time. Do not commit real
-values.
+Required: Linux amd64, the Flutter Linux toolchain, snapd, Snapcraft with LXD,
+`unsquashfs` from `squashfs-tools`, and BusyMax Store access for publishing.
+
+Check that the package versions match:
+
+```bash
+grep -nE '^version:|<release version=' \
+  pubspec.yaml snap/snapcraft.yaml linux/io.busystack.busymax.metainfo.xml
+```
+
+`pubspec.yaml`, `snap/snapcraft.yaml`, and the newest metainfo release must
+match. Older metainfo entries are history. Change these source files instead
+of overriding the helper version, which would not change Flutter's embedded
+version.
+
+Create the ignored OAuth file:
 
 ```bash
 mkdir -p .snap-local
 $EDITOR .snap-local/busymax-dart-defines.json
+chmod 600 .snap-local/busymax-dart-defines.json
+```
+
+```json
+{
+  "GOOGLE_OAUTH_CLIENT_ID": "your-google-client-id",
+  "GOOGLE_OAUTH_CLIENT_SECRET": "your-google-client-secret",
+  "MICROSOFT_OAUTH_CLIENT_ID": "your-microsoft-client-id"
+}
+```
+
+See [Google Setup](google_setup.md) and
+[Microsoft Setup](microsoft_setup.md). These values are embedded in the Snap
+and can be extracted, so use only native Desktop/public-client credentials.
+Never use server credentials or commit the JSON or generated `.snap` files.
+
+## Build
+
+From the repository root:
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter build linux --release \
+  --dart-define-from-file=.snap-local/busymax-dart-defines.json
 snapcraft pack --use-lxd
 ```
 
-The ignored `.snap-local/busymax-dart-defines.json` file must contain the
-required Dart defines. The build fails if that local file is missing.
+Snapcraft writes `busymax_<version>_amd64.snap`. Use the exact path it prints.
+If the app says **This provider is not configured**, the bundle was built
+without valid defines; reconnecting cannot fix it, so rebuild the package.
 
-## Install The Beta
-
-For local validation:
+For a local scaffold smoke build instead:
 
 ```bash
-sudo snap install --dangerous busymax_0.1.1_amd64.snap
+./tools/build_install_snap_local.sh \
+  --dart-define-from-file .snap-local/busymax-dart-defines.json
 ```
 
-For store users after the revision is uploaded and released to beta:
+The helper requires `/snap/busymax/current` or `--scaffold DIR`, repacks and
+installs the local payload, and is not the canonical Store build above. Leave
+`--root` at its safe default. It does not remove or purge app data. Its
+`Defines: 1` output only confirms that one file argument was passed, not that
+the required values are present. Use `--skip-tests` only for a repeat build of
+the same commit after its tests passed; `--no-run` still installs the package.
+
+## Verify Locally
+
+Set the exact artifact path:
+
+```bash
+SNAP_FILE=./busymax_RELEASE_VERSION_amd64.snap
+```
+
+Check its metadata and save its checksum:
+
+```bash
+unsquashfs -cat "$SNAP_FILE" meta/snap.yaml |
+  sed -n '/^name:/p;/^version:/p;/^grade:/p;/^confinement:/p'
+sha256sum "$SNAP_FILE"
+```
+
+Check the top-level launchers:
+
+```bash
+unsquashfs -ll "$SNAP_FILE" |
+  sed -nE 's#^.*squashfs-root/meta/gui/([^/]+\.desktop)$#\1#p'
+```
+
+The output must contain exactly `busymax.desktop`.
+`share/applications/io.busystack.busymax.desktop` is an expected internal file,
+not a second top-level launcher.
+
+Close BusyMax and its tray process, then install and launch the local package:
+
+```bash
+sudo snap install --dangerous "$SNAP_FILE"
+snap connections busymax
+snap run busymax
+```
+
+`--dangerous` bypasses Store signature checks, not strict confinement.
+
+Before upload, verify:
+
+- Desktop search shows one BusyMax launcher; both main and Agenda windows open.
+- Google and Microsoft sign-in complete successfully.
+- Tasks and events can be created, edited, completed, and deleted; a task
+  created in Agenda appears immediately without manual refresh.
+- Accounts, settings, and data survive restart.
+- Notifications and tray actions, including Agenda and Quit, work.
+
+## Upload To Beta
+
+Authenticate if needed, then upload once with the beta release target:
+
+```bash
+snapcraft login
+snapcraft whoami
+snapcraft upload --release=beta "$SNAP_FILE"
+snapcraft revisions busymax --arch amd64
+snapcraft status busymax --arch amd64
+```
+
+Save the numeric Store revision printed for the verified checksum. It is an
+immutable upload identifier, separate from the app version. Do not re-upload
+the artifact because review or release is pending.
+
+The `busymax-dbus` session D-Bus slot may trigger manual review. If an older
+revision blocks the new one, reject it only when it is obsolete; otherwise
+wait or contact the
+[Store reviewers](https://forum.snapcraft.io/c/store-requests/19). A
+`resource-not-ready` or inconsistent-state error means nothing was released.
+Check the [publisher dashboard](https://dashboard.snapcraft.io/) and retry only
+after review clears.
+
+If manual review completes but the revision was not automatically released,
+release the exact reviewed revision:
+
+```bash
+snapcraft release busymax STORE_REVISION beta
+snapcraft status busymax --arch amd64
+```
+
+The recipe currently has `grade: devel`, so only `beta` and `edge` are allowed.
+Candidate or stable requires `grade: stable`, a rebuild, a new upload, and the
+same verification.
+
+## Verify The Store Revision
+
+Prefer a separate test machine. For a fresh install:
 
 ```bash
 sudo snap install busymax --beta
+snap info busymax
+snap run busymax
 ```
 
-## Scope
+For an existing Store-tracking install:
 
-- Snap confinement is strict.
-- The tray/status-notifier feature and background-on-close behavior are enabled
-  by default for the beta. Users can disable them in settings.
-- Tray support currently uses a vendored patched `xdg_status_notifier_item`
-  StatusNotifierItem/DBusMenu dependency under `third_party`.
-- The tray menu is intentionally simple: Open BusyMax, Agenda, and Quit.
-- The tray Agenda action opens the compact Agenda utility window. On GNOME
-  Wayland this window is a normal top-level utility window and may be placed by
-  Mutter instead of under the tray icon. Under X11/XWayland, BusyMax requests a
-  top-right position when the backend supports absolute movement.
-- Settings, task data, and token metadata are stored inside the snap user data
-  sandbox. Normal app restarts preserve data. Removing the snap removes user
-  data unless snapd creates and restores a snapshot.
-- OAuth uses the system browser and a local loopback callback listener.
-- OAuth tokens use the XDG Secret portal in the snap to retrieve a
-  per-application encryption secret, then store only AES-GCM ciphertext under
-  `XDG_DATA_HOME`. BusyMax must not require the `password-manager-service`
-  interface.
+```bash
+sudo snap refresh busymax --channel=beta
+snap info busymax
+```
 
-## Validation Matrix
+Repeat the local smoke checks against the Store-delivered revision.
 
-Record the exact desktop environments tested before upload:
-
-- Ubuntu GNOME on Wayland: pending local installed-snap validation.
-- Ubuntu GNOME on X11/XWayland: pending local installed-snap validation.
-
-Required smoke checks before upload:
-
-- Launch from terminal and desktop launcher.
-- Google and Microsoft sign-in open in the browser and complete the loopback
-  callback.
-- Secure token storage survives app restart.
-- `grep -R` over snap user data does not show plaintext OAuth tokens.
-- Settings and task data survive app restart.
-- Notifications appear through the desktop notification service.
-- Tray icon appears, the menu opens, Open BusyMax restores the existing main
-  window, Agenda opens the compact Agenda window, and Quit exits cleanly.
-- Compact Agenda data loads through the main-window bridge without opening a
-  second migrating SQLite connection.
-
-## Reporting Bugs
-
-Report beta issues at https://github.com/busystack/busymax/issues.
-
-Source code is available at https://github.com/busystack/busymax.
+Official references: [build environments](https://documentation.ubuntu.com/snapcraft/stable/reference/build-environment-options/),
+[upload](https://documentation.ubuntu.com/snapcraft/stable/reference/commands/upload/),
+and [revision management](https://documentation.ubuntu.com/snapcraft/stable/how-to/publishing/manage-revisions-and-releases/).
