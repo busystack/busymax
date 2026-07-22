@@ -1,29 +1,20 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
+import 'busymax_dialogs.dart';
+import 'busymax_shortcuts.dart';
 
 Future<void> showBusyMaxKeyboardShortcutsDialog(
   BuildContext context, {
   LinuxHeaderBarService? headerBarService,
 }) async {
-  final service = headerBarService;
-  if (service != null) {
-    unawaited(service.setModalBarrierVisible(true));
-  }
-  try {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => const BusyMaxKeyboardShortcutsDialog(),
-    );
-  } finally {
-    if (service != null) {
-      unawaited(service.setModalBarrierVisible(false));
-    }
-  }
+  await showBusyMaxModalDialog<void>(
+    context,
+    headerBarService: headerBarService,
+    builder: (context) => const BusyMaxKeyboardShortcutsDialog(),
+  );
 }
 
 class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
@@ -68,7 +59,25 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
                         title: l10n.keyboardShortcuts,
                         subtitle: l10n.shortcutKeyboardShortcutsDescription,
                         leading: const Icon(Icons.keyboard_alt_outlined),
-                        trailing: const _KeyboardShortcutBadge('Ctrl+/'),
+                        trailing: const _KeyboardShortcutBadge(
+                          BusyMaxShortcutLabels.keyboardShortcuts,
+                        ),
+                      ),
+                      BusyMaxActionRow(
+                        title: l10n.settings,
+                        leading: const Icon(Icons.settings_outlined),
+                        trailing: const _KeyboardShortcutBadge(
+                          BusyMaxShortcutLabels.settings,
+                        ),
+                      ),
+                      BusyMaxActionRow(
+                        title: MaterialLocalizations.of(
+                          context,
+                        ).searchFieldLabel,
+                        leading: const Icon(Icons.search),
+                        trailing: const _KeyboardShortcutBadge(
+                          BusyMaxShortcutLabels.search,
+                        ),
                       ),
                     ],
                   ),
@@ -99,6 +108,13 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
                     title: l10n.shortcutGroupCreateAndEdit,
                     filled: true,
                     children: [
+                      BusyMaxActionRow(
+                        title: l10n.create,
+                        leading: const Icon(Icons.add),
+                        trailing: const _KeyboardShortcutBadge(
+                          BusyMaxShortcutLabels.create,
+                        ),
+                      ),
                       BusyMaxActionRow(
                         title: l10n.newEvent,
                         leading: const Icon(Icons.event_outlined),

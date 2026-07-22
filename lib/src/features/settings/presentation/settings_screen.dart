@@ -12,6 +12,7 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
+import '../../../app/busymax_layout.dart';
 import '../../../google_tasks/oauth/oauth_models.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
@@ -61,7 +62,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final themeController = ref.read(busyMaxThemeControllerProvider);
     final l10n = context.l10n;
     final title = _settingsPageLabel(context, _page);
-    _updateSettingsHeaderBar(context, title);
 
     final pageBody = switch (_page) {
       SettingsPage.accounts => _AccountManagementSection(
@@ -116,19 +116,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 : () => _fullSync(context, ref, accounts),
           ),
           BusyMaxSwitchRow(
-            title: 'Run in background when window is closed',
+            title: l10n.runInBackgroundWhenClosed,
             value: settings.runInBackgroundWhenClosed,
             onChanged: settingsController.setRunInBackgroundWhenClosed,
             leading: const Icon(YaruIcons.window),
           ),
           BusyMaxSwitchRow(
-            title: 'Show tray icon',
+            title: l10n.showTrayIcon,
             value: settings.showTrayIcon,
             onChanged: settingsController.setShowTrayIcon,
             leading: const Icon(YaruIcons.pin),
           ),
           BusyMaxSwitchRow(
-            title: 'Start minimized to tray',
+            title: l10n.startMinimizedToTray,
             value: settings.startMinimizedToTray,
             onChanged: settingsController.setStartMinimizedToTray,
             leading: const Icon(YaruIcons.window_minimize),
@@ -153,13 +153,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         filled: true,
         children: [
           BusyMaxSwitchRow(
-            title: 'Event reminders',
+            title: l10n.eventReminders,
             value: settings.notifyEventReminders,
             onChanged: settingsController.setNotifyEventReminders,
             leading: const Icon(YaruIcons.calendar_day),
           ),
           BusyMaxSwitchRow(
-            title: 'Task reminders',
+            title: l10n.taskReminders,
             value: settings.notifyTaskReminders,
             onChanged: settingsController.setNotifyTaskReminders,
             leading: const Icon(YaruIcons.checkmark),
@@ -183,15 +183,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             leading: const Icon(YaruIcons.warning),
           ),
           BusyMaxComboRow<NotificationDetailLevel>(
-            title: 'Notification detail level',
+            title: l10n.notificationDetailLevel,
             leading: const Icon(YaruIcons.eye),
             values: NotificationDetailLevel.values,
             selected: settings.notificationDetailLevel,
-            labelFor: _notificationDetailLabel,
+            labelFor: (value) => _notificationDetailLabel(context, value),
             onSelected: settingsController.setNotificationDetailLevel,
           ),
           BusyMaxSwitchRow(
-            title: 'Quiet hours',
+            title: l10n.quietHours,
             value: settings.quietHoursEnabled,
             onChanged: settingsController.setQuietHoursEnabled,
             leading: const Icon(YaruIcons.clear_night),
@@ -220,33 +220,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     };
 
     return Scaffold(
-      body: Row(
-        children: [
-          SizedBox(
-            width: BusyMaxSizes.sidebarWidth,
-            child: _SettingsSidebar(
-              selected: _page,
-              onSelected: (page) => setState(() => _page = page),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_showFallbackHeader)
-                  _SettingsFallbackHeader(title: title, onBack: _goBack),
-                Expanded(
-                  child: BusyMaxClamp(
-                    maxWidth: 760,
-                    margin: EdgeInsets.zero,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                    child: pageBody,
+      backgroundColor: BusyMaxSurfaceColors.of(context).view,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final showSidebar = BusyMaxLayoutRules.showSettingsSidebar(
+            constraints.maxWidth,
+          );
+          _updateSettingsHeaderBar(
+            context,
+            title,
+            settings: settings,
+            showSidebar: showSidebar,
+          );
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_showFallbackHeader)
+                _SettingsFallbackHeader(title: title, onBack: _goBack),
+              if (!showSidebar)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    BusyMaxSpacing.lg,
+                    BusyMaxSpacing.md,
+                    BusyMaxSpacing.lg,
+                    0,
+                  ),
+                  child: _SettingsPageSelector(
+                    selected: _page,
+                    onSelected: (page) => setState(() => _page = page),
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
+              Expanded(
+                child: BusyMaxClamp(
+                  maxWidth: 760,
+                  margin: EdgeInsets.zero,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  child: pageBody,
+                ),
+              ),
+            ],
+          );
+          if (!showSidebar) {
+            return content;
+          }
+          return Row(
+            children: [
+              SizedBox(
+                width: BusyMaxSizes.sidebarWidth,
+                child: _SettingsSidebar(
+                  selected: _page,
+                  onSelected: (page) => setState(() => _page = page),
+                ),
+              ),
+              Expanded(child: content),
+            ],
+          );
+        },
       ),
     );
   }
@@ -269,6 +298,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _headerBarReady = true;
       _nativeHeaderBarAvailable = service.isAvailable;
     });
+    if (service.isAvailable) {
+      unawaited(
+        service.setOnboardingControls(
+          visible: false,
+          canGoBack: false,
+          canContinue: false,
+          backLabel: '',
+          continueLabel: '',
+          force: true,
+        ),
+      );
+    }
   }
 
   void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
@@ -306,30 +347,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     context.go('/schedule');
   }
 
-  void _updateSettingsHeaderBar(BuildContext context, String title) {
+  void _updateSettingsHeaderBar(
+    BuildContext context,
+    String title, {
+    required AppSettings settings,
+    required bool showSidebar,
+  }) {
+    if (!_nativeHeaderBarAvailable) {
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
       final service = ref.read(linuxHeaderBarServiceProvider);
-      unawaited(() async {
-        await service.initialize();
-        await service.setScheduleControlsVisible(false);
-        await service.setBackVisible(true);
-        await service.setOnboardingControls(
-          visible: false,
-          canGoBack: false,
-          canContinue: false,
-          backLabel: '',
-          continueLabel: '',
-          force: true,
-        );
-        await service.setTitleRange(title);
-        await service.setCanRefresh(false);
-        await service.setCanCreate(false);
-        await service.setSearchActive(false);
-        await service.setSidebarVisible(true);
-      }());
+      unawaited(
+        service.updateState(
+          BusyMaxHeaderBarState(
+            title: title,
+            viewMode: settings.scheduleViewMode,
+            canRefresh: false,
+            canCreate: false,
+            searchActive: false,
+            canShowSidebar: showSidebar,
+            sidebarVisible: showSidebar,
+            navigationVisible: false,
+            scheduleControlsVisible: false,
+            backVisible: true,
+          ),
+        ),
+      );
     });
   }
 
@@ -414,6 +461,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       message: context.l10n.deleteLocalDataConfirmation,
       confirmLabel: context.l10n.delete,
       destructive: true,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!context.mounted || !confirmed) {
       return;
@@ -434,7 +482,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     WidgetRef ref,
     String accountId,
   ) async {
-    final title = await _taskListTitleDialog(context);
+    final title = await _taskListTitleDialog(
+      context,
+      ref.read(linuxHeaderBarServiceProvider),
+    );
     if (title == null || title.trim().isEmpty) {
       return;
     }
@@ -501,6 +552,58 @@ class _SettingsSidebar extends StatelessWidget {
               onTap: () => onSelected(page),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _SettingsPageSelector extends StatelessWidget {
+  const _SettingsPageSelector({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final SettingsPage selected;
+  final ValueChanged<SettingsPage> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const ValueKey('settings-page-selector'),
+      width: double.infinity,
+      child: BusyMaxMenuButton<SettingsPage>(
+        tooltip: _settingsPageLabel(context, selected),
+        minMenuWidth: BusyMaxSizes.sidebarWidth,
+        menuPosition: null,
+        entries: [
+          for (final page in SettingsPage.values)
+            BusyMaxMenuEntry(
+              value: page,
+              label: _settingsPageLabel(context, page),
+              icon: _settingsPageIcon(page),
+              checked: page == selected,
+            ),
+        ],
+        onSelected: onSelected,
+        triggerBuilder: (context, onPressed) {
+          return BusyMaxPushButton.outlined(
+            onPressed: onPressed,
+            child: Row(
+              children: [
+                Icon(_settingsPageIcon(selected)),
+                const SizedBox(width: BusyMaxSpacing.sm),
+                Expanded(
+                  child: Text(
+                    _settingsPageLabel(context, selected),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(YaruIcons.pan_down),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -671,12 +774,16 @@ String _timeOfDayLabel(BuildContext context, int minute) {
   );
 }
 
-Future<String?> _taskListTitleDialog(BuildContext context) {
+Future<String?> _taskListTitleDialog(
+  BuildContext context,
+  LinuxHeaderBarService headerBarService,
+) {
   return showBusyMaxTextPrompt(
     context,
     title: context.l10n.newList,
     label: context.l10n.title,
     actionLabel: context.l10n.create,
+    headerBarService: headerBarService,
   );
 }
 
@@ -880,10 +987,14 @@ String _themeModeLabel(
   };
 }
 
-String _notificationDetailLabel(NotificationDetailLevel level) {
+String _notificationDetailLabel(
+  BuildContext context,
+  NotificationDetailLevel level,
+) {
+  final l10n = context.l10n;
   return switch (level) {
-    NotificationDetailLevel.private => 'Private',
-    NotificationDetailLevel.normal => 'Normal',
+    NotificationDetailLevel.private => l10n.notificationDetailPrivate,
+    NotificationDetailLevel.normal => l10n.notificationDetailNormal,
   };
 }
 

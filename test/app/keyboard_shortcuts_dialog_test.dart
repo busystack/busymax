@@ -22,6 +22,9 @@ void main() {
     expect(find.text('Task editing'), findsOneWidget);
     expect(find.text('Compact agenda'), findsOneWidget);
     expect(find.text('Ctrl+/'), findsOneWidget);
+    expect(find.text('Ctrl+,'), findsOneWidget);
+    expect(find.text('Ctrl+F'), findsOneWidget);
+    expect(find.text('Ctrl+N'), findsOneWidget);
     expect(find.text('Shift+Right'), findsOneWidget);
     expect(find.text('Shift+Left'), findsOneWidget);
     expect(find.text('T'), findsOneWidget);
@@ -45,10 +48,15 @@ void main() {
     final service = File(
       'lib/src/platform/linux_header_bar_service.dart',
     ).readAsStringSync();
+    final shortcuts = File(
+      'lib/src/app/busymax_shortcuts.dart',
+    ).readAsStringSync();
     final native = File('linux/runner/my_application.cc').readAsStringSync();
 
     expect(app, contains('keyboardShortcuts: l10n.keyboardShortcuts'));
-    expect(app, contains('LogicalKeyboardKey.slash'));
+    expect(app, contains('BusyMaxShortcutActivators.keyboardShortcuts'));
+    expect(shortcuts, contains('LogicalKeyboardKey.slash'));
+    expect(shortcuts, contains('LogicalKeyboardKey.comma'));
     expect(service, contains('keyboardShortcuts'));
     expect(native, contains('"Keyboard Shortcuts"'));
     expect(native, contains('"keyboardShortcuts"'));

@@ -667,11 +667,12 @@ class _AllDayResizeHandle extends StatelessWidget {
   Widget build(BuildContext context) {
     final surfaceColors = BusyMaxSurfaceColors.of(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final resizeLabel = context.l10n.resizeAllDayPanel;
     return Tooltip(
-      message: 'Resize all-day panel',
+      message: resizeLabel,
       child: Semantics(
         button: true,
-        label: 'Resize all-day panel',
+        label: resizeLabel,
         child: MouseRegion(
           cursor: SystemMouseCursors.resizeUpDown,
           child: GestureDetector(
@@ -848,7 +849,7 @@ class _ScheduleIcvEvent {
         else
           entries.first.event.copyWith(
             title: entries.first.item.title,
-            description: '${entries.length} items',
+            description: context.l10n.scheduleItemCount(entries.length),
             data: _ScheduleSlotGroup([for (final entry in entries) entry.item]),
             eventType: _ScheduleSlotGroup,
           ),

@@ -1,9 +1,47 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
+import 'busymax_shortcuts.dart';
+
+const _modalShortcuts = <ShortcutActivator, Intent>{
+  BusyMaxShortcutActivators.keyboardShortcuts:
+      DoNothingAndStopPropagationIntent(),
+  BusyMaxShortcutActivators.settings: DoNothingAndStopPropagationIntent(),
+};
+
+final _modalDepths = Map<LinuxHeaderBarService, int>.identity();
+
+Future<T?> showBusyMaxModalDialog<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  LinuxHeaderBarService? headerBarService,
+  Color? barrierColor,
+  bool barrierDismissible = true,
+}) async {
+  final previousFocus = FocusManager.instance.primaryFocus;
+  await acquireBusyMaxModalBarrier(headerBarService);
+  if (!context.mounted) {
+    await releaseBusyMaxModalBarrier(headerBarService);
+    return null;
+  }
+
+  try {
+    return await showDialog<T>(
+      context: context,
+      barrierColor: barrierColor ?? busyMaxModalBarrierColor(context),
+      barrierDismissible: barrierDismissible,
+      traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
+      builder: (dialogContext) =>
+          Shortcuts(shortcuts: _modalShortcuts, child: builder(dialogContext)),
+    );
+  } finally {
+    await releaseBusyMaxModalBarrier(headerBarService);
+    if (previousFocus?.context != null && previousFocus!.canRequestFocus) {
+      previousFocus.requestFocus();
+    }
+  }
+}
 
 Future<T?> showBusyMaxModalEditorDialog<T>(
   BuildContext context, {
@@ -12,33 +50,28 @@ Future<T?> showBusyMaxModalEditorDialog<T>(
   double maxWidth = BusyMaxSizes.compactDetailsWidth,
   double? maxHeight = 760,
 }) async {
-  final service = headerBarService;
-  if (service != null) {
-    unawaited(service.setModalBarrierVisible(true));
-  }
-  try {
-    return await showDialog<T>(
-      context: context,
-      barrierColor: busyMaxModalBarrierColor(context),
-      builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          insetPadding: const EdgeInsets.all(BusyMaxSpacing.lg),
-          child: BusyMaxModalEditorSurface(
-            maxWidth: maxWidth,
-            maxHeight: maxHeight,
-            child: builder(dialogContext),
-          ),
-        );
-      },
-    );
-  } finally {
-    if (service != null) {
-      unawaited(service.setModalBarrierVisible(false));
-    }
-  }
+  return showBusyMaxModalDialog<T>(
+    context,
+    headerBarService: headerBarService,
+    builder: (dialogContext) {
+      final reduceMotion = MediaQuery.disableAnimationsOf(dialogContext);
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.all(BusyMaxSpacing.lg),
+        insetAnimationDuration: reduceMotion
+            ? Duration.zero
+            : BusyMaxMotion.dialogInsets,
+        insetAnimationCurve: BusyMaxMotion.dialogInsetsCurve,
+        child: BusyMaxModalEditorSurface(
+          maxWidth: maxWidth,
+          maxHeight: maxHeight,
+          child: builder(dialogContext),
+        ),
+      );
+    },
+  );
 }
 
 Future<String?> showBusyMaxTextPrompt(
@@ -49,11 +82,13 @@ Future<String?> showBusyMaxTextPrompt(
   String? initialValue,
   String? message,
   Color? barrierColor,
-}) {
-  return showDialog<String>(
-    context: context,
+  LinuxHeaderBarService? headerBarService,
+}) async {
+  return showBusyMaxModalDialog<String>(
+    context,
+    headerBarService: headerBarService,
     barrierColor: barrierColor,
-    builder: (context) => BusyMaxPromptDialog(
+    builder: (dialogContext) => BusyMaxPromptDialog(
       title: title,
       label: label,
       actionLabel: actionLabel,
@@ -70,11 +105,13 @@ Future<bool> showBusyMaxConfirm(
   required String confirmLabel,
   bool destructive = false,
   Color? barrierColor,
+  LinuxHeaderBarService? headerBarService,
 }) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
+  final confirmed = await showBusyMaxModalDialog<bool>(
+    context,
+    headerBarService: headerBarService,
     barrierColor: barrierColor,
-    builder: (context) => BusyMaxConfirmDialog(
+    builder: (dialogContext) => BusyMaxConfirmDialog(
       title: title,
       message: message,
       confirmLabel: confirmLabel,
@@ -82,4 +119,33 @@ Future<bool> showBusyMaxConfirm(
     ),
   );
   return confirmed == true;
+}
+
+/// Acquires a reference-counted native header-bar modal barrier.
+///
+/// Every call must be paired with [releaseBusyMaxModalBarrier]. In-page modal
+/// surfaces should use this pair; route dialogs acquire it automatically.
+Future<void> acquireBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
+  if (service == null) {
+    return;
+  }
+  final depth = _modalDepths[service] ?? 0;
+  _modalDepths[service] = depth + 1;
+  if (depth == 0) {
+    await service.setModalBarrierVisible(true);
+  }
+}
+
+/// Releases a barrier acquired by [acquireBusyMaxModalBarrier].
+Future<void> releaseBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
+  if (service == null) {
+    return;
+  }
+  final depth = _modalDepths[service] ?? 0;
+  if (depth <= 1) {
+    _modalDepths.remove(service);
+    await service.setModalBarrierVisible(false);
+    return;
+  }
+  _modalDepths[service] = depth - 1;
 }

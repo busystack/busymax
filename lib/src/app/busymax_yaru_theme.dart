@@ -254,6 +254,7 @@ class BusyMaxYaruTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       primaryColor: accentColor,
+      shadowColor: colorScheme.shadow,
       scaffoldBackgroundColor: colors.window,
       canvasColor: colors.window,
       cardColor: colors.card,
@@ -397,7 +398,7 @@ class BusyMaxYaruTheme {
         color: colors.popover,
         surfaceTintColor: colors.popover,
         elevation: BusyMaxElevation.popover,
-        shadowColor: colors.shade,
+        shadowColor: colorScheme.shadow,
         menuPadding: const EdgeInsets.symmetric(vertical: 4),
         iconColor: colors.mutedForeground,
         iconSize: 16,
@@ -642,6 +643,14 @@ class _BusyMaxResolvedSurfaceColors {
       runtime.headerbarFlat,
       brightness: brightness,
     );
+    final runtimeCard = _runtimeSurfaceColor(
+      runtime.card,
+      brightness: brightness,
+    );
+    final runtimePopover = _runtimeElevatedSurfaceColor(
+      runtime.popover,
+      brightness: brightness,
+    );
     final view = runtimeView ?? fallback.view;
     final sidebar =
         _firstDistinctSemanticColor(
@@ -649,7 +658,11 @@ class _BusyMaxResolvedSurfaceColors {
           from: [view, window],
         ) ??
         _derivedSidebarColor(brightness, view);
-    final readableBackgrounds = [window, view, sidebar];
+    final groupedSurface =
+        runtimePopover ??
+        runtimeCard ??
+        (brightness == Brightness.light ? view : fallback.groupedSurface);
+    final readableBackgrounds = [window, view, sidebar, groupedSurface];
 
     return fallback.copyWith(
       window: window,
@@ -658,12 +671,10 @@ class _BusyMaxResolvedSurfaceColors {
       secondarySidebar: runtimeSecondarySidebar,
       headerbar: runtimeHeaderbar,
       headerbarFlat: runtimeHeaderbarFlat ?? view,
-      card: _runtimeSurfaceColor(runtime.card, brightness: brightness),
+      card: runtimeCard,
+      groupedSurface: groupedSurface,
       dialog: _runtimeSurfaceColor(runtime.dialog, brightness: brightness),
-      popover: _runtimeElevatedSurfaceColor(
-        runtime.popover,
-        brightness: brightness,
-      ),
+      popover: runtimePopover,
       control: _runtimeControlColor(runtime.control, brightness: brightness),
       controlHover: _runtimeControlColor(
         runtime.controlHover,

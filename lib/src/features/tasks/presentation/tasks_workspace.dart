@@ -57,7 +57,7 @@ class _TasksWorkspaceState extends ConsumerState<TasksWorkspace> {
   @override
   void dispose() {
     if (_detailsTarget != null) {
-      unawaited(_headerBarService.setModalBarrierVisible(false));
+      unawaited(releaseBusyMaxModalBarrier(_headerBarService));
     }
     super.dispose();
   }
@@ -170,7 +170,7 @@ class _TasksWorkspaceState extends ConsumerState<TasksWorkspace> {
       );
       _detailsDirty = false;
     });
-    unawaited(_headerBarService.setModalBarrierVisible(true));
+    unawaited(acquireBusyMaxModalBarrier(_headerBarService));
   }
 
   void _openTaskDetails(
@@ -190,7 +190,7 @@ class _TasksWorkspaceState extends ConsumerState<TasksWorkspace> {
       );
       _detailsDirty = false;
     });
-    unawaited(_headerBarService.setModalBarrierVisible(true));
+    unawaited(acquireBusyMaxModalBarrier(_headerBarService));
   }
 
   void _closeTaskDetails() {
@@ -201,7 +201,7 @@ class _TasksWorkspaceState extends ConsumerState<TasksWorkspace> {
       _detailsTarget = null;
       _detailsDirty = false;
     });
-    unawaited(_headerBarService.setModalBarrierVisible(false));
+    unawaited(releaseBusyMaxModalBarrier(_headerBarService));
   }
 
   Future<void> _requestCloseTaskDetails(BuildContext context) async {
@@ -215,6 +215,7 @@ class _TasksWorkspaceState extends ConsumerState<TasksWorkspace> {
         message: context.l10n.discardChangesConfirmation,
         confirmLabel: context.l10n.discard,
         destructive: true,
+        headerBarService: _headerBarService,
       );
       if (!discard || !mounted) {
         return;

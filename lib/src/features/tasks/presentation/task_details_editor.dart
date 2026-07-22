@@ -9,6 +9,7 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
+import '../../../platform/linux_header_bar_service.dart';
 import '../../../task_providers/task_provider.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
@@ -48,6 +49,7 @@ class TaskDetailsEditor extends StatefulWidget {
     this.confirmTaskSwitch = true,
     this.useNativeDatePicker = true,
     this.dialogBarrierColor,
+    this.headerBarService,
     this.canSaveDraft,
   });
 
@@ -85,6 +87,7 @@ class TaskDetailsEditor extends StatefulWidget {
   final bool confirmTaskSwitch;
   final bool useNativeDatePicker;
   final Color? dialogBarrierColor;
+  final LinuxHeaderBarService? headerBarService;
   final bool Function(TaskDetailsDraft draft)? canSaveDraft;
 
   @override
@@ -663,6 +666,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         confirmLabel: context.l10n.discard,
         destructive: true,
         barrierColor: widget.dialogBarrierColor,
+        headerBarService: widget.headerBarService,
       );
       if (!discard || !mounted) {
         return;
@@ -685,6 +689,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       confirmLabel: context.l10n.discard,
       destructive: true,
       barrierColor: widget.dialogBarrierColor,
+      headerBarService: widget.headerBarService,
     );
     if (!mounted) {
       return;
@@ -704,6 +709,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       label: context.l10n.title,
       actionLabel: context.l10n.create,
       barrierColor: widget.dialogBarrierColor,
+      headerBarService: widget.headerBarService,
     );
     if (title == null || title.trim().isEmpty) {
       return;
@@ -724,6 +730,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         confirmLabel: context.l10n.delete,
         destructive: true,
         barrierColor: widget.dialogBarrierColor,
+        headerBarService: widget.headerBarService,
       );
       if (confirmed) {
         await widget.onDelete();

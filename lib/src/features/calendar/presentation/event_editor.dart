@@ -462,7 +462,7 @@ class _EventEditorState extends State<EventEditor> {
           leading: const Icon(Icons.notifications_outlined),
           values: _reminderValuesFor(minutes[index]),
           selected: minutes[index],
-          labelFor: _reminderLabel,
+          labelFor: (value) => _reminderLabel(context, value),
           onSelected: (value) {
             _setReminderMinutes(provider, [
               ...minutes.take(index),
@@ -629,9 +629,11 @@ class _EventEditorState extends State<EventEditor> {
       leading: const Icon(Icons.work_outline),
       values: values,
       selected: selected,
-      labelFor: _availabilityLabel,
-      selectedBuilder: (context, value) =>
-          _eventEditorSelectedValue(context, _availabilityLabel(value)),
+      labelFor: (value) => _availabilityLabel(context, value),
+      selectedBuilder: (context, value) => _eventEditorSelectedValue(
+        context,
+        _availabilityLabel(context, value),
+      ),
       onSelected: (value) {
         setState(() {
           _draft = _draft.copyWith(showAs: value);
@@ -652,9 +654,9 @@ class _EventEditorState extends State<EventEditor> {
       leading: const Icon(Icons.visibility_outlined),
       values: values,
       selected: selected,
-      labelFor: _titleCase,
+      labelFor: (value) => _visibilityLabel(context, value),
       selectedBuilder: (context, value) =>
-          _eventEditorSelectedValue(context, _titleCase(value)),
+          _eventEditorSelectedValue(context, _visibilityLabel(context, value)),
       onSelected: (value) {
         setState(() {
           _draft = _draft.copyWith(visibilityOrSensitivity: value);
@@ -666,7 +668,7 @@ class _EventEditorState extends State<EventEditor> {
   void _addGuest() {
     final email = _guestController.text.trim();
     if (!_looksLikeEmail(email)) {
-      setState(() => _guestError = 'Enter a valid email address');
+      setState(() => _guestError = context.l10n.feedbackInvalidEmail);
       return;
     }
     if (_draft.attendees.any((attendee) => attendee.email == email)) {
@@ -1028,32 +1030,41 @@ int _nextReminderMinute(List<int> existing) {
   return _eventReminderMinuteOptions.first;
 }
 
-String _reminderLabel(int minutes) {
-  return switch (minutes) {
-    5 => '5 minutes before',
-    10 => '10 minutes before',
-    30 => '30 minutes before',
-    60 => '1 hour before',
-    1440 => '1 day before',
-    _ => '$minutes minutes before',
-  };
-}
-
-String _availabilityLabel(String value) {
-  return switch (value) {
-    'opaque' => 'Busy',
-    'transparent' => 'Free',
-    'oof' => 'Out of office',
-    'workingElsewhere' => 'Working elsewhere',
-    _ => _titleCase(value),
-  };
-}
-
-String _titleCase(String value) {
-  if (value.isEmpty) {
-    return value;
+String _reminderLabel(BuildContext context, int minutes) {
+  final l10n = context.l10n;
+  const minutesPerDay = Duration.minutesPerHour * Duration.hoursPerDay;
+  if (minutes % minutesPerDay == 0) {
+    return l10n.reminderDaysBefore(minutes ~/ minutesPerDay);
   }
-  return value[0].toUpperCase() + value.substring(1);
+  if (minutes % Duration.minutesPerHour == 0) {
+    return l10n.reminderHoursBefore(minutes ~/ Duration.minutesPerHour);
+  }
+  return l10n.reminderMinutesBefore(minutes);
+}
+
+String _availabilityLabel(BuildContext context, String value) {
+  final l10n = context.l10n;
+  return switch (value) {
+    'opaque' || 'busy' => l10n.busy,
+    'transparent' || 'free' => l10n.availabilityFree,
+    'tentative' => l10n.availabilityTentative,
+    'oof' => l10n.availabilityOutOfOffice,
+    'workingElsewhere' => l10n.availabilityWorkingElsewhere,
+    _ => value,
+  };
+}
+
+String _visibilityLabel(BuildContext context, String value) {
+  final l10n = context.l10n;
+  return switch (value) {
+    'default' => l10n.visibilityDefault,
+    'public' => l10n.visibilityPublic,
+    'private' => l10n.visibilityPrivate,
+    'confidential' => l10n.visibilityConfidential,
+    'normal' => l10n.sensitivityNormal,
+    'personal' => l10n.sensitivityPersonal,
+    _ => value,
+  };
 }
 
 bool _looksLikeEmail(String value) {

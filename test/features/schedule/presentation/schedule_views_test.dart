@@ -12,7 +12,9 @@ import 'package:busymax/src/features/schedule/presentation/schedule_month_view.d
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 
@@ -128,6 +130,73 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Design review'), findsOneWidget);
+  });
+
+  testWidgets('event block is semantically labeled and keyboard-activatable', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final item = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+    var activationCount = 0;
+    Offset? activationPosition = Offset.zero;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        alwaysUse24HourFormat: true,
+        child: Scaffold(
+          body: Center(
+            child: ScheduleEventBlock(
+              item: item,
+              width: 180,
+              height: 54,
+              onTap: (_, [globalPosition]) {
+                activationCount += 1;
+                activationPosition = globalPosition;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final eventSemantics = find.descendant(
+      of: find.byType(ScheduleEventBlock),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label?.startsWith('Design review') == true,
+      ),
+    );
+    expect(eventSemantics, findsOneWidget);
+    final semantics = tester.widget<Semantics>(eventSemantics);
+    expect(semantics.properties.button, isTrue);
+    expect(semantics.properties.enabled, isTrue);
+    expect(semantics.properties.label, contains('09:00-10:00'));
+    expect(semantics.properties.label, contains('Work'));
+    expect(semantics.properties.onTap, isNotNull);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    final focusedSurface = find.descendant(
+      of: find.byType(ScheduleEventBlock),
+      matching: find.byWidgetPredicate((widget) {
+        if (widget is! Container || widget.decoration is! BoxDecoration) {
+          return false;
+        }
+        final border = (widget.decoration! as BoxDecoration).border;
+        return border is Border && border.top.width == 2;
+      }),
+    );
+    expect(focusedSurface, findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+
+    expect(activationCount, 2);
+    expect(activationPosition, isNull);
   });
 
   testWidgets('same-slot day items render in a horizontal strip', (
@@ -334,6 +403,7 @@ void main() {
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
     ScheduleItem? selectedItem;
+    Offset? pointerPosition;
     final event = _itemsFor(
       selectedDate,
     ).whereType<CalendarScheduleItem>().first;
@@ -345,7 +415,10 @@ void main() {
             child: ScheduleItemChip(
               item: event,
               height: 34,
-              onTap: (_, [_]) => selectedItem = event,
+              onTap: (_, [globalPosition]) {
+                selectedItem = event;
+                pointerPosition = globalPosition;
+              },
             ),
           ),
         ),
@@ -355,6 +428,21 @@ void main() {
     await tester.tap(find.byType(ScheduleEventBlock).first);
 
     expect(selectedItem, isA<CalendarScheduleItem>());
+    expect(pointerPosition, isNotNull);
+
+    selectedItem = null;
+    pointerPosition = null;
+    final center = tester.getCenter(find.byType(ScheduleEventBlock).first);
+    final secondaryClick = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await secondaryClick.addPointer(location: center);
+    await secondaryClick.down(center);
+    await secondaryClick.up();
+
+    expect(selectedItem, isA<CalendarScheduleItem>());
+    expect(pointerPosition, center);
   });
 
   testWidgets('schedule item details popover offers export, edit, and delete', (
@@ -398,6 +486,19 @@ void main() {
     expect(find.text('Export'), findsNothing);
     expect(find.text('Edit event'), findsNothing);
     expect(find.text('Delete'), findsNothing);
+
+    final popoverSurfaceFinder = find.byWidgetPredicate(
+      (widget) =>
+          widget is PhysicalShape &&
+          widget.elevation == BusyMaxElevation.tooltip,
+    );
+    final popoverSurface = tester.widget<PhysicalShape>(popoverSurfaceFinder);
+    final popoverContext = tester.element(popoverSurfaceFinder);
+    expect(
+      popoverSurface.shadowColor,
+      Theme.of(popoverContext).colorScheme.shadow,
+    );
+    expect(popoverSurface.shadowColor.a, 1);
 
     final editCenter = tester.getCenter(find.byIcon(Icons.edit_outlined));
     final deleteCenter = tester.getCenter(find.byIcon(Icons.delete_outline));
@@ -1066,8 +1167,9 @@ void main() {
     expect(source, contains('linuxHeaderBarServiceProvider'));
     expect(source, contains('final showFallbackHeader'));
     expect(source, contains('if (showFallbackHeader)'));
-    expect(source, contains('setTitleRange(headerBarState.titleRange)'));
-    expect(source, contains('setViewMode(headerBarState.viewMode)'));
+    expect(source, contains('final headerBarState = BusyMaxHeaderBarState('));
+    expect(source, contains('service.updateState(headerBarState)'));
+    expect(source, contains('onMenuSelected: _handleFallbackToolbarMenu'));
   });
 
   test('native headerbar actions are wired to schedule commands', () {
@@ -1098,6 +1200,9 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('HardwareKeyboard.instance.addHandler'));
+    expect(source, contains('route != null && !route.isCurrent'));
+    expect(source, contains('BusyMaxShortcutActivators.search.accepts'));
+    expect(source, contains('BusyMaxShortcutActivators.create.accepts'));
     expect(source, contains('LogicalKeyboardKey.arrowRight'));
     expect(source, contains('_next();'));
     expect(source, contains('LogicalKeyboardKey.arrowLeft'));
@@ -1240,7 +1345,10 @@ void main() {
     );
     expect(design, isNot(contains('final Color? surfaceColor;')));
     expect(design, isNot(contains('color: color ?? surfaceColors.control')));
-    expect(design, contains('color: surfaceColors.control'));
+    expect(design, contains('color: surfaceColors.groupedSurface'));
+    expect(design, contains('BusyMaxShadow.physicalColor(context)'));
+    expect(design, isNot(contains('lightSurfaceShadowMinimum')));
+    expect(design, isNot(contains('class _BusyMaxRowTile')));
   });
 
   test('sidebar does not render redundant provider group titles', () {
@@ -1317,28 +1425,30 @@ void main() {
     );
     expect(source, isNot(contains('GridView.builder')));
     expect(source, contains('const SizedBox(width: BusyMaxSpacing.xs)'));
-    expect(source, contains('label: _monthName(selectedDate)'));
+    expect(
+      source,
+      contains('label: DateFormat.MMMM(locale).format(selectedDate)'),
+    );
     expect(source, contains('BusyMaxSpacing.headerInset'));
     expect(
       source,
       isNot(contains('padding: const EdgeInsets.all(BusyMaxSpacing.md)')),
     );
-    expect(source, contains("labelTooltip: 'Open month'"));
+    expect(source, contains('labelTooltip: l10n.openMonthView'));
     expect(source, contains('onMonthSelected(first)'));
     expect(source, contains('busyMaxHeaderTextButtonStyle'));
     expect(source, contains("label: '\${selectedDate.year}'"));
-    expect(source, contains("labelTooltip: 'Open year'"));
+    expect(source, contains('labelTooltip: l10n.openYearView'));
     expect(source, contains('onYearSelected('));
-    expect(source, contains('String _monthName(DateTime date)'));
-    expect(source, contains('return months[date.month - 1];'));
+    expect(source, isNot(contains('String _monthName(DateTime date)')));
     expect(
       source,
       isNot(contains("return '\${months[date.month - 1]} \${date.year}';")),
     );
-    expect(source, contains("'Previous month'"));
-    expect(source, contains("'Next month'"));
-    expect(source, contains("'Previous year'"));
-    expect(source, contains("'Next year'"));
+    expect(source, contains('previousTooltip: l10n.previousMonth'));
+    expect(source, contains('nextTooltip: l10n.nextMonth'));
+    expect(source, contains('previousTooltip: l10n.previousYear'));
+    expect(source, contains('nextTooltip: l10n.nextYear'));
     expect(source, contains('selectedDate.year - 1'));
     expect(source, contains('selectedDate.year + 1'));
     expect(source, contains('busyMaxHeaderIconButtonStyle'));
@@ -1348,7 +1458,7 @@ void main() {
     expect(source, contains('_isoWeekNumber'));
     expect(source, contains('DateTime.daysPerWeek'));
     expect(source, contains('TextButton('));
-    expect(source, contains("message: 'Week \$weekNumber'"));
+    expect(source, contains('context.l10n.weekNumberTooltip(weekNumber)'));
     expect(source, contains('onSelected(weekStart)'));
     expect(source, contains('BoxShape.circle'));
     expect(source, contains('customBorder: const CircleBorder()'));
@@ -1555,7 +1665,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Open month'));
+    await tester.tap(find.byTooltip('Open month view'));
 
     expect(selectedMonth, DateTime(2026, 5));
   });
@@ -1581,7 +1691,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Open year'));
+    await tester.tap(find.byTooltip('Open year view'));
 
     expect(selectedYear, DateTime(2026));
   });
@@ -1769,7 +1879,7 @@ void main() {
     ).readAsStringSync();
 
     expect(eventBlock, contains('color: surfaceColors.control'));
-    expect(eventBlock, contains('color: surfaceColors.subtleBorder'));
+    expect(eventBlock, contains('surfaceColors.subtleBorder'));
     expect(taskChip, contains('color: surfaceColors.control'));
     expect(taskChip, contains('color: surfaceColors.subtleBorder'));
     expect(taskChip, contains('YaruCheckbox('));
@@ -1932,13 +2042,10 @@ void main() {
       workspace,
       contains('navigationVisible: _mode != ScheduleViewMode.agenda'),
     );
-    expect(
-      workspace,
-      contains(
-        'service.setNavigationVisible(headerBarState.navigationVisible)',
-      ),
-    );
+    expect(workspace, contains('service.updateState(headerBarState)'));
+    expect(headerService, contains('class BusyMaxHeaderBarState'));
     expect(headerService, contains('Future<void> setNavigationVisible'));
+    expect(nativeRunner, contains('set_header_bar_state'));
     expect(nativeRunner, contains('set_header_navigation_visible'));
     expect(nativeRunner, contains('setNavigationVisible'));
   });

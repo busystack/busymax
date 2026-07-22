@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
+import '../../../platform/linux_header_bar_service.dart';
 
 enum ScheduleCreateChoice { event, task }
 
 Future<ScheduleCreateChoice?> showScheduleCreateMenu({
   required BuildContext context,
+  LinuxHeaderBarService? headerBarService,
 }) {
-  return showDialog<ScheduleCreateChoice>(
-    context: context,
-    builder: (context) {
+  return showBusyMaxModalDialog<ScheduleCreateChoice>(
+    context,
+    headerBarService: headerBarService,
+    builder: (dialogContext) {
       return Dialog(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
@@ -21,20 +25,22 @@ Future<ScheduleCreateChoice?> showScheduleCreateMenu({
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  context.l10n.createChoiceTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  dialogContext.l10n.createChoiceTitle,
+                  style: Theme.of(dialogContext).textTheme.titleMedium,
                 ),
                 const SizedBox(height: BusyMaxSpacing.md),
                 BusyMaxPushButton.outlined(
-                  onPressed: () =>
-                      Navigator.of(context).pop(ScheduleCreateChoice.event),
-                  child: Text(context.l10n.createEventAtTime),
+                  onPressed: () => Navigator.of(
+                    dialogContext,
+                  ).pop(ScheduleCreateChoice.event),
+                  child: Text(dialogContext.l10n.createEventAtTime),
                 ),
                 const SizedBox(height: BusyMaxSpacing.sm),
                 BusyMaxPushButton.outlined(
-                  onPressed: () =>
-                      Navigator.of(context).pop(ScheduleCreateChoice.task),
-                  child: Text(context.l10n.createTaskAtDate),
+                  onPressed: () => Navigator.of(
+                    dialogContext,
+                  ).pop(ScheduleCreateChoice.task),
+                  child: Text(dialogContext.l10n.createTaskAtDate),
                 ),
               ],
             ),

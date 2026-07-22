@@ -10,6 +10,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
     required this.headerbar,
     required this.headerbarFlat,
     required this.card,
+    required this.groupedSurface,
     required this.dialog,
     required this.popover,
     required this.control,
@@ -33,6 +34,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
   final Color headerbar;
   final Color headerbarFlat;
   final Color card;
+  final Color groupedSurface;
   final Color dialog;
   final Color popover;
   final Color control;
@@ -63,6 +65,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
     Color? headerbar,
     Color? headerbarFlat,
     Color? card,
+    Color? groupedSurface,
     Color? dialog,
     Color? popover,
     Color? control,
@@ -86,6 +89,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
       headerbar: headerbar ?? this.headerbar,
       headerbarFlat: headerbarFlat ?? this.headerbarFlat,
       card: card ?? this.card,
+      groupedSurface: groupedSurface ?? this.groupedSurface,
       dialog: dialog ?? this.dialog,
       popover: popover ?? this.popover,
       control: control ?? this.control,
@@ -120,6 +124,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
       headerbar: Color.lerp(headerbar, other.headerbar, t)!,
       headerbarFlat: Color.lerp(headerbarFlat, other.headerbarFlat, t)!,
       card: Color.lerp(card, other.card, t)!,
+      groupedSurface: Color.lerp(groupedSurface, other.groupedSurface, t)!,
       dialog: Color.lerp(dialog, other.dialog, t)!,
       popover: Color.lerp(popover, other.popover, t)!,
       control: Color.lerp(control, other.control, t)!,
@@ -152,6 +157,7 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       headerbar: Color(0xFFFFFFFF),
       headerbarFlat: Color(0xFFFFFFFF),
       card: Color(0xFFFFFFFF),
+      groupedSurface: Color(0xFFFFFFFF),
       dialog: Color(0xFFFAFAFB),
       popover: Color(0xFFFFFFFF),
       control: Color.fromRGBO(0, 0, 0, 0.06),
@@ -175,6 +181,7 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       headerbar: Color(0xFF2E2E32),
       headerbarFlat: Color(0xFF1D1D20),
       card: Color(0xFF222226),
+      groupedSurface: Color(0xFF383838),
       dialog: Color(0xFF222226),
       popover: Color(0xFF383838),
       control: Color.fromRGBO(255, 255, 255, 0.10),

@@ -1311,7 +1311,6 @@ class _CompactAgendaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
-    Offset? pointerDownPosition;
     return AnimatedOpacity(
       opacity: mutating ? 0.48 : 1,
       duration: const Duration(milliseconds: 120),
@@ -1331,8 +1330,8 @@ class _CompactAgendaRow extends StatelessWidget {
                       ),
               ),
         enabled: !mutating,
-        onPointerDown: (position) => pointerDownPosition = position,
-        onTap: () => unawaited(onOpenItem(context, item, pointerDownPosition)),
+        onActivated: (rowContext, globalPosition) =>
+            unawaited(onOpenItem(rowContext, item, globalPosition)),
       ),
     );
   }

@@ -217,16 +217,20 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       }
       final service = ref.read(linuxHeaderBarServiceProvider);
       unawaited(() async {
-        await service.initialize();
-        if (!mounted ||
-            _finishingSetup ||
-            generation != _headerBarUpdateGeneration) {
-          return;
-        }
-        await service.setScheduleControlsVisible(false);
-        await service.setBackVisible(false);
-        await service.setSidebarVisible(false);
-        await service.setTitleRange(title);
+        await service.updateState(
+          BusyMaxHeaderBarState(
+            title: title,
+            viewMode: ref.read(appSettingsControllerProvider).scheduleViewMode,
+            canRefresh: false,
+            canCreate: false,
+            searchActive: false,
+            canShowSidebar: false,
+            sidebarVisible: false,
+            navigationVisible: false,
+            scheduleControlsVisible: false,
+            backVisible: false,
+          ),
+        );
         if (!mounted ||
             _finishingSetup ||
             generation != _headerBarUpdateGeneration) {
@@ -239,10 +243,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           backLabel: backLabel,
           continueLabel: continueLabel,
         );
-        await service.setCanRefresh(false);
-        await service.setCanCreate(false);
-        await service.setSearchActive(false);
-        await service.setModalBarrierVisible(false);
       }());
     });
   }
@@ -587,13 +587,13 @@ class _PreferencesOnboardingStep extends StatelessWidget {
               onSelected: settingsController.setThemeModePreference,
             ),
             BusyMaxSwitchRow(
-              title: 'Run in background when window is closed',
+              title: l10n.runInBackgroundWhenClosed,
               value: settings.runInBackgroundWhenClosed,
               onChanged: settingsController.setRunInBackgroundWhenClosed,
               leading: const Icon(YaruIcons.window),
             ),
             BusyMaxSwitchRow(
-              title: 'Show tray icon',
+              title: l10n.showTrayIcon,
               value: settings.showTrayIcon,
               onChanged: settingsController.setShowTrayIcon,
               leading: const Icon(YaruIcons.pin),
@@ -605,13 +605,13 @@ class _PreferencesOnboardingStep extends StatelessWidget {
           filled: true,
           children: [
             BusyMaxSwitchRow(
-              title: 'Event reminders',
+              title: l10n.eventReminders,
               value: settings.notifyEventReminders,
               onChanged: settingsController.setNotifyEventReminders,
               leading: const Icon(YaruIcons.calendar_day),
             ),
             BusyMaxSwitchRow(
-              title: 'Task reminders',
+              title: l10n.taskReminders,
               value: settings.notifyTaskReminders,
               onChanged: settingsController.setNotifyTaskReminders,
               leading: const Icon(YaruIcons.checkmark),

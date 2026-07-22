@@ -102,8 +102,8 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
             child: Row(
               children: [
                 _FormatButton(
-                  label: 'B',
-                  tooltip: 'Bold',
+                  label: context.l10n.formatBoldShortLabel,
+                  tooltip: context.l10n.formatBoldTooltip,
                   active: _controller.selectionHasStyle(
                     CalendarDescriptionInlineStyle.bold,
                   ),
@@ -112,8 +112,8 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
                 ),
                 const SizedBox(width: BusyMaxSpacing.xs),
                 _FormatButton(
-                  label: 'I',
-                  tooltip: 'Italic',
+                  label: context.l10n.formatItalicShortLabel,
+                  tooltip: context.l10n.formatItalicTooltip,
                   active: _controller.selectionHasStyle(
                     CalendarDescriptionInlineStyle.italic,
                   ),
@@ -123,8 +123,8 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
                 ),
                 const SizedBox(width: BusyMaxSpacing.xs),
                 _FormatButton(
-                  label: 'U',
-                  tooltip: 'Underline',
+                  label: context.l10n.formatUnderlineShortLabel,
+                  tooltip: context.l10n.formatUnderlineTooltip,
                   active: _controller.selectionHasStyle(
                     CalendarDescriptionInlineStyle.underline,
                   ),

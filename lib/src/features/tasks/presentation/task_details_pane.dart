@@ -290,6 +290,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       onTaskSwitchCancelled: widget.onTaskSwitchCancelled,
       onDirtyChanged: _setEditorDirty,
       dialogBarrierColor: widget.dialogBarrierColor,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
   }
 

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:system_theme/system_theme.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
@@ -14,6 +13,7 @@ import '../platform/main_window_command_bridge.dart';
 import 'app_bootstrap.dart';
 import 'app_router.dart';
 import 'busymax_keyboard_shortcuts_dialog.dart';
+import 'busymax_shortcuts.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'busymax_yaru_theme.dart';
 import 'busymax_design.dart';
@@ -124,8 +124,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
             );
             return Shortcuts(
               shortcuts: const {
-                SingleActivator(LogicalKeyboardKey.slash, control: true):
+                BusyMaxShortcutActivators.keyboardShortcuts:
                     _KeyboardShortcutsIntent(),
+                BusyMaxShortcutActivators.settings: _OpenSettingsIntent(),
               },
               child: Actions(
                 actions: {
@@ -147,6 +148,12 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
                           return null;
                         },
                       ),
+                  _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
+                    onInvoke: (intent) {
+                      router.go('/settings');
+                      return null;
+                    },
+                  ),
                 },
                 child: MainWindowCommandBridge(
                   child: _BusyMaxWindowCornerClip(
@@ -167,9 +174,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final materialL10n = MaterialLocalizations.of(context);
-    final modalBarrierColor = Theme.of(
-      context,
-    ).colorScheme.scrim.withValues(alpha: 0.32);
+    final modalBarrierColor = busyMaxModalBarrierColor(context);
     final preferDark = Theme.of(context).brightness == Brightness.dark;
     final labels = BusyMaxHeaderBarLabels(
       today: l10n.today,
@@ -335,6 +340,10 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
 
 class _KeyboardShortcutsIntent extends Intent {
   const _KeyboardShortcutsIntent();
+}
+
+class _OpenSettingsIntent extends Intent {
+  const _OpenSettingsIntent();
 }
 
 class _BusyMaxWindowCornerClip extends StatelessWidget {

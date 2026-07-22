@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:flutter/services.dart';
@@ -159,6 +161,129 @@ void main() {
       busyMaxCssColor(const Color.fromRGBO(0, 0, 6, 0.38)),
       'rgba(0,0,6,0.38)',
     );
+  });
+
+  test(
+    'sends complete header state atomically and diffs equal state',
+    () async {
+      const channel = MethodChannel('busymax_test/headerbar_atomic_state');
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            return call.method == 'initialize' ? true : null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+      addTearDown(service.dispose);
+      const state = BusyMaxHeaderBarState(
+        title: 'July 2026',
+        viewMode: ScheduleViewMode.month,
+        canRefresh: true,
+        canCreate: false,
+        searchActive: true,
+        canShowSidebar: false,
+        sidebarVisible: false,
+        navigationVisible: true,
+        scheduleControlsVisible: true,
+        backVisible: false,
+      );
+
+      await service.initialize();
+      await service.updateState(state);
+      await service.updateState(state.copyWith());
+      await service.updateState(state.copyWith(title: 'August 2026'));
+
+      expect(calls.map((call) => call.method), [
+        'initialize',
+        'setState',
+        'setState',
+      ]);
+      expect(calls[1].arguments, <String, Object>{
+        'schemaVersion': BusyMaxHeaderBarState.schemaVersion,
+        'title': 'July 2026',
+        'viewMode': 'month',
+        'canRefresh': true,
+        'canCreate': false,
+        'searchActive': true,
+        'canShowSidebar': false,
+        'sidebarVisible': false,
+        'navigationVisible': true,
+        'scheduleControlsVisible': true,
+        'backVisible': false,
+      });
+      expect(calls[2].arguments, containsPair('title', 'August 2026'));
+    },
+  );
+
+  test('legacy changes invalidate the cached atomic state', () async {
+    const channel = MethodChannel('busymax_test/headerbar_state_compatibility');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'initialize' ? true : null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+    addTearDown(service.dispose);
+    const state = BusyMaxHeaderBarState(
+      title: 'Schedule',
+      viewMode: ScheduleViewMode.week,
+      canRefresh: true,
+      canCreate: true,
+      searchActive: false,
+      canShowSidebar: true,
+      sidebarVisible: true,
+      navigationVisible: true,
+      scheduleControlsVisible: true,
+      backVisible: false,
+    );
+
+    await service.initialize();
+    await service.updateState(state);
+    await service.setCanShowSidebar(false);
+    await service.setSidebarVisible(true);
+    await service.updateState(state);
+
+    expect(calls.map((call) => call.method), [
+      'initialize',
+      'setState',
+      'setCanShowSidebar',
+      'setSidebarVisible',
+      'setState',
+    ]);
+  });
+
+  test('native header controls keep visible keyboard focus indicators', () {
+    final source = File('linux/runner/my_application.cc').readAsStringSync();
+
+    expect(source, contains('button.busymax-header-view-mode-button:focus {"'));
+    expect(source, contains('button.busymax-header-popover-row:focus {"'));
+    expect(source, contains('"box-shadow: inset 0 0 0 2px %s;"'));
+  });
+
+  test('native sidebar availability is separate from expanded state', () {
+    final source = File('linux/runner/my_application.cc').readAsStringSync();
+
+    expect(source, contains('gboolean header_bar_can_show_sidebar;'));
+    expect(source, contains('"canShowSidebar"'));
+    expect(
+      source,
+      contains(
+        'schedule_controls_visible &&\n'
+        '                         self->header_bar_can_show_sidebar',
+      ),
+    );
+    expect(source, contains('strcmp(method, "setState") == 0'));
   });
 
   test('native headerbar methods emit Dart actions', () async {

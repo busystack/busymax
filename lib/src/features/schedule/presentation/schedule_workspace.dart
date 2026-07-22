@@ -14,6 +14,7 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
+import '../../../app/busymax_shortcuts.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../features/calendar/data/calendar_repository.dart';
@@ -39,6 +40,7 @@ import '../../tasks/presentation/task_details_pane.dart';
 import 'schedule_agenda_view.dart';
 import 'schedule_create_menu.dart';
 import 'schedule_day_week_view.dart';
+import 'schedule_empty_states.dart';
 import 'schedule_item_details_popover.dart';
 import 'schedule_item_exporter.dart';
 import 'schedule_item_selection.dart';
@@ -86,7 +88,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _agendaOverdueTaskLimit = _agendaInitialTaskBucketLimit;
   var _agendaNoDateTaskLimit = _agendaInitialTaskBucketLimit;
   ScheduleViewMode? _lastSettingsMode;
-  _HeaderBarStateSnapshot? _lastHeaderBarState;
 
   @override
   void initState() {
@@ -102,7 +103,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     HardwareKeyboard.instance.removeHandler(_handleScheduleShortcutEvent);
     if (_taskDetailsTarget != null) {
       unawaited(
-        ref.read(linuxHeaderBarServiceProvider).setModalBarrierVisible(false),
+        releaseBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider)),
       );
     }
     unawaited(_headerBarActions?.cancel());
@@ -130,6 +131,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     final accounts = accountsState.valueOrNull ?? const [];
     final accountsLoading =
         accountsState.isLoading && accountsState.valueOrNull == null;
+    final accountsUnavailable =
+        accountsState.hasError && accountsState.valueOrNull == null;
     final accountIds = accounts.map((account) => account.id).toList();
     final sourcesStream = ref
         .watch(calendarRepositoryProvider)
@@ -141,6 +144,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         final sourcesLoading =
             sourcesSnapshot.connectionState == ConnectionState.waiting &&
             !sourcesSnapshot.hasData;
+        final sourcesUnavailable =
+            sourcesSnapshot.hasError && !sourcesSnapshot.hasData;
         final sources = sourcesSnapshot.data ?? const <CalendarSourceEntity>[];
         return FutureBuilder<List<TaskListEntity>>(
           future: _taskListsForAccounts(accounts),
@@ -148,6 +153,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             final taskListsLoading =
                 listsSnapshot.connectionState == ConnectionState.waiting &&
                 !listsSnapshot.hasData;
+            final taskListsUnavailable =
+                listsSnapshot.hasError && !listsSnapshot.hasData;
             final taskLists = listsSnapshot.data ?? const <TaskListEntity>[];
             final visibility = ScheduleSourceVisibility.fromSources(
               calendarSources: sources,
@@ -182,6 +189,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     sourcesLoading ||
                     taskListsLoading ||
                     itemsLoading;
+                final scheduleUnavailable =
+                    accountsUnavailable ||
+                    sourcesUnavailable ||
+                    taskListsUnavailable ||
+                    (snapshot.hasError && !snapshot.hasData);
                 final scopedItems = ScheduleProjection.filterByScope(
                   snapshot.data?.items ?? const <ScheduleItem>[],
                   _scope,
@@ -218,6 +230,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     : _mode;
                 _consumePendingCommand(visibleSources, accounts);
                 final showFallbackHeader = _showFlutterHeaderFallback;
+                final canShowFallbackSidebar = BusyMaxLayoutRules.showSidebar(
+                  MediaQuery.sizeOf(context).width,
+                );
                 final main = Column(
                   children: [
                     if (showFallbackHeader) ...[
@@ -229,9 +244,21 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onPrevious: _previous,
                         onNext: _next,
                         onModeChanged: _setMode,
-                        canCreate: accounts.isNotEmpty,
+                        canCreate:
+                            accounts.isNotEmpty || visibleSources.isNotEmpty,
                         onCreate: _openCreateAtSelectedDate,
                         onRefresh: () => unawaited(_refreshAll()),
+                        canRefresh: accounts.isNotEmpty,
+                        canShowSidebar: canShowFallbackSidebar,
+                        sidebarVisible:
+                            canShowFallbackSidebar && !_sidebarCollapsed,
+                        onToggleSidebar: () => _handleHeaderBarAction(
+                          BusyMaxHeaderBarAction.sidebarToggle,
+                        ),
+                        onSearch: () => _handleHeaderBarAction(
+                          BusyMaxHeaderBarAction.search,
+                        ),
+                        onMenuSelected: _handleFallbackToolbarMenu,
                       ),
                       const Divider(height: 1),
                     ],
@@ -248,6 +275,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     Expanded(
                       child: _ScheduleBody(
                         isLoading: scheduleLoading,
+                        isUnavailable: scheduleUnavailable,
                         mode: displayMode,
                         range: displayRange,
                         selectedDate: searchHasQuery
@@ -259,7 +287,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         hasAnySources:
                             visibility.hasCalendarSources ||
                             visibility.hasTaskLists,
+                        hasAccounts: accounts.isNotEmpty,
                         items: items,
+                        onOpenSettings: () => context.go('/settings'),
+                        onRetry: _retrySchedule,
+                        onRefresh: accounts.isEmpty
+                            ? null
+                            : () => unawaited(_refreshAll()),
                         onDaySelected: _setDate,
                         onYearDaySelected: _openDay,
                         onMonthSelected: _setMonth,
@@ -424,44 +458,38 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
     final sidebarVisible = showSidebar && !_sidebarCollapsed;
     final canCreate = accounts.isNotEmpty || visibleSources.isNotEmpty;
-    final headerBarState = _HeaderBarStateSnapshot(
-      titleRange: titleRange,
+    final headerBarState = BusyMaxHeaderBarState(
+      title: titleRange,
       viewMode: _mode,
       canRefresh: accounts.isNotEmpty,
       canCreate: canCreate,
       searchActive: _searchActive,
+      canShowSidebar: showSidebar,
       sidebarVisible: sidebarVisible,
       navigationVisible: _mode != ScheduleViewMode.agenda,
+      scheduleControlsVisible: true,
+      backVisible: false,
     );
-    if (_lastHeaderBarState == headerBarState) {
-      return;
-    }
-    _lastHeaderBarState = headerBarState;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
       final service = ref.read(linuxHeaderBarServiceProvider);
-      unawaited(service.setScheduleControlsVisible(true));
-      unawaited(service.setBackVisible(false));
-      unawaited(
-        service.setOnboardingControls(
-          visible: false,
-          canGoBack: false,
-          canContinue: false,
-          backLabel: '',
-          continueLabel: '',
-          force: true,
-        ),
-      );
-      unawaited(service.setTitleRange(headerBarState.titleRange));
-      unawaited(service.setViewMode(headerBarState.viewMode));
-      unawaited(service.setNavigationVisible(headerBarState.navigationVisible));
-      unawaited(service.setCanRefresh(headerBarState.canRefresh));
-      unawaited(service.setCanCreate(headerBarState.canCreate));
-      unawaited(service.setSearchActive(headerBarState.searchActive));
-      unawaited(service.setSidebarVisible(headerBarState.sidebarVisible));
+      unawaited(service.updateState(headerBarState));
     });
+  }
+
+  void _handleFallbackToolbarMenu(ScheduleToolbarMenuAction action) {
+    switch (action) {
+      case ScheduleToolbarMenuAction.refresh:
+        _handleHeaderBarAction(BusyMaxHeaderBarAction.refresh);
+      case ScheduleToolbarMenuAction.settings:
+        _handleHeaderBarAction(BusyMaxHeaderBarAction.settings);
+      case ScheduleToolbarMenuAction.keyboardShortcuts:
+        _handleHeaderBarAction(BusyMaxHeaderBarAction.keyboardShortcuts);
+      case ScheduleToolbarMenuAction.about:
+        _handleHeaderBarAction(BusyMaxHeaderBarAction.aboutBusyMax);
+    }
   }
 
   void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
@@ -887,10 +915,29 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   bool _handleScheduleShortcutEvent(KeyEvent event) {
-    if (event is! KeyDownEvent || !_canHandleScheduleShortcut()) {
+    if (event is! KeyDownEvent || !_canHandleRouteShortcut()) {
       return false;
     }
     final keyboard = HardwareKeyboard.instance;
+    if (BusyMaxShortcutActivators.search.accepts(event, keyboard)) {
+      if (!_searchActive) {
+        setState(() => _searchActive = true);
+      }
+      _focusSearch();
+      return true;
+    }
+    if (BusyMaxShortcutActivators.create.accepts(event, keyboard)) {
+      _openCreateAtSelectedDate();
+      return true;
+    }
+    if (_searchActive &&
+        BusyMaxShortcutActivators.dismiss.accepts(event, keyboard)) {
+      _closeSearch();
+      return true;
+    }
+    if (!_canHandleScheduleShortcut()) {
+      return false;
+    }
     if (keyboard.isControlPressed ||
         keyboard.isAltPressed ||
         keyboard.isMetaPressed) {
@@ -967,11 +1014,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   bool _canHandleScheduleShortcut() {
-    if (!mounted || _searchActive || _taskDetailsTarget != null) {
-      return false;
-    }
-    final route = ModalRoute.of(context);
-    if (route != null && !route.isCurrent) {
+    if (!_canHandleRouteShortcut() || _searchActive) {
       return false;
     }
     final focusContext = FocusManager.instance.primaryFocus?.context;
@@ -980,6 +1023,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     return focusContext.widget is! EditableText &&
         focusContext.findAncestorWidgetOfExactType<EditableText>() == null;
+  }
+
+  bool _canHandleRouteShortcut() {
+    if (!mounted || _taskDetailsTarget != null) {
+      return false;
+    }
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      return false;
+    }
+    return true;
   }
 
   void _loadMoreAgendaDays() {
@@ -1020,7 +1074,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     List<CalendarSourceEntity> sources,
     DateTime start,
   ) async {
-    final choice = await showScheduleCreateMenu(context: context);
+    final choice = await showScheduleCreateMenu(
+      context: context,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+    );
     if (!mounted || choice == null) {
       return;
     }
@@ -1159,7 +1216,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       );
     });
     unawaited(
-      ref.read(linuxHeaderBarServiceProvider).setModalBarrierVisible(true),
+      acquireBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider)),
     );
   }
 
@@ -1169,7 +1226,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     setState(() => _taskDetailsTarget = null);
     unawaited(
-      ref.read(linuxHeaderBarServiceProvider).setModalBarrierVisible(false),
+      releaseBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider)),
     );
   }
 
@@ -1245,9 +1302,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           : context.l10n.deleteTask,
       message: item is TaskScheduleItem
           ? context.l10n.deleteTaskConfirmation(item.title)
-          : 'Delete "${item.title}"?',
+          : context.l10n.deleteCalendarConfirmation(item.title),
       confirmLabel: context.l10n.delete,
       destructive: true,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!confirmed) {
       return;
@@ -1350,6 +1408,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         ),
       );
     }
+  }
+
+  void _retrySchedule() {
+    ref.invalidate(accountsStreamProvider);
+    setState(() {});
   }
 
   void _consumePendingCommand(
@@ -1532,51 +1595,6 @@ class _ScheduleSearchField extends StatelessWidget {
   }
 }
 
-@immutable
-class _HeaderBarStateSnapshot {
-  const _HeaderBarStateSnapshot({
-    required this.titleRange,
-    required this.viewMode,
-    required this.canRefresh,
-    required this.canCreate,
-    required this.searchActive,
-    required this.sidebarVisible,
-    required this.navigationVisible,
-  });
-
-  final String titleRange;
-  final ScheduleViewMode viewMode;
-  final bool canRefresh;
-  final bool canCreate;
-  final bool searchActive;
-  final bool sidebarVisible;
-  final bool navigationVisible;
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        other is _HeaderBarStateSnapshot &&
-            titleRange == other.titleRange &&
-            viewMode == other.viewMode &&
-            canRefresh == other.canRefresh &&
-            canCreate == other.canCreate &&
-            searchActive == other.searchActive &&
-            sidebarVisible == other.sidebarVisible &&
-            navigationVisible == other.navigationVisible;
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    titleRange,
-    viewMode,
-    canRefresh,
-    canCreate,
-    searchActive,
-    sidebarVisible,
-    navigationVisible,
-  );
-}
-
 class _ScheduleItemsResult {
   const _ScheduleItemsResult({
     required this.items,
@@ -1592,6 +1610,7 @@ class _ScheduleItemsResult {
 class _ScheduleBody extends StatelessWidget {
   const _ScheduleBody({
     required this.isLoading,
+    required this.isUnavailable,
     required this.mode,
     required this.range,
     required this.selectedDate,
@@ -1599,7 +1618,11 @@ class _ScheduleBody extends StatelessWidget {
     required this.dayStartMinute,
     required this.dayEndMinute,
     required this.hasAnySources,
+    required this.hasAccounts,
     required this.items,
+    required this.onOpenSettings,
+    required this.onRetry,
+    required this.onRefresh,
     required this.onDaySelected,
     required this.onYearDaySelected,
     required this.onMonthSelected,
@@ -1620,6 +1643,7 @@ class _ScheduleBody extends StatelessWidget {
   });
 
   final bool isLoading;
+  final bool isUnavailable;
   final ScheduleViewMode mode;
   final ScheduleRange range;
   final DateTime selectedDate;
@@ -1627,7 +1651,11 @@ class _ScheduleBody extends StatelessWidget {
   final int dayStartMinute;
   final int dayEndMinute;
   final bool hasAnySources;
+  final bool hasAccounts;
   final List<ScheduleItem> items;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onRetry;
+  final VoidCallback? onRefresh;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onYearDaySelected;
   final ValueChanged<DateTime> onMonthSelected;
@@ -1649,11 +1677,18 @@ class _ScheduleBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isUnavailable) {
+      return ScheduleUnavailableState(onRetry: onRetry);
+    }
     if (isLoading) {
-      return const SizedBox.expand();
+      return const ScheduleLoadingState();
     }
     if (!hasAnySources) {
-      return const SizedBox.expand();
+      return ScheduleNoSourcesState(
+        hasAccounts: hasAccounts,
+        onOpenSettings: onOpenSettings,
+        onRefresh: onRefresh,
+      );
     }
     return switch (mode) {
       ScheduleViewMode.day => ScheduleDayWeekView(

@@ -235,6 +235,117 @@ class BusyMaxHeaderBarTheme {
   );
 }
 
+/// The complete, screen-owned presentation state of the native header bar.
+///
+/// Configuration that is shared across screens, such as localized labels,
+/// theme colors, and sidebar width, is intentionally managed separately.
+@immutable
+class BusyMaxHeaderBarState {
+  const BusyMaxHeaderBarState({
+    required this.title,
+    required this.viewMode,
+    required this.canRefresh,
+    required this.canCreate,
+    required this.searchActive,
+    required this.canShowSidebar,
+    required this.sidebarVisible,
+    required this.navigationVisible,
+    required this.scheduleControlsVisible,
+    required this.backVisible,
+  });
+
+  static const int schemaVersion = 1;
+
+  final String title;
+  final ScheduleViewMode viewMode;
+  final bool canRefresh;
+  final bool canCreate;
+  final bool searchActive;
+
+  /// Whether the current layout can present a sidebar.
+  ///
+  /// This is distinct from [sidebarVisible], which represents the user's
+  /// current expanded/collapsed choice when a sidebar can be presented.
+  final bool canShowSidebar;
+  final bool sidebarVisible;
+  final bool navigationVisible;
+  final bool scheduleControlsVisible;
+  final bool backVisible;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'schemaVersion': schemaVersion,
+      'title': title,
+      'viewMode': viewMode.name,
+      'canRefresh': canRefresh,
+      'canCreate': canCreate,
+      'searchActive': searchActive,
+      'canShowSidebar': canShowSidebar,
+      'sidebarVisible': sidebarVisible,
+      'navigationVisible': navigationVisible,
+      'scheduleControlsVisible': scheduleControlsVisible,
+      'backVisible': backVisible,
+    };
+  }
+
+  BusyMaxHeaderBarState copyWith({
+    String? title,
+    ScheduleViewMode? viewMode,
+    bool? canRefresh,
+    bool? canCreate,
+    bool? searchActive,
+    bool? canShowSidebar,
+    bool? sidebarVisible,
+    bool? navigationVisible,
+    bool? scheduleControlsVisible,
+    bool? backVisible,
+  }) {
+    return BusyMaxHeaderBarState(
+      title: title ?? this.title,
+      viewMode: viewMode ?? this.viewMode,
+      canRefresh: canRefresh ?? this.canRefresh,
+      canCreate: canCreate ?? this.canCreate,
+      searchActive: searchActive ?? this.searchActive,
+      canShowSidebar: canShowSidebar ?? this.canShowSidebar,
+      sidebarVisible: sidebarVisible ?? this.sidebarVisible,
+      navigationVisible: navigationVisible ?? this.navigationVisible,
+      scheduleControlsVisible:
+          scheduleControlsVisible ?? this.scheduleControlsVisible,
+      backVisible: backVisible ?? this.backVisible,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is BusyMaxHeaderBarState &&
+            title == other.title &&
+            viewMode == other.viewMode &&
+            canRefresh == other.canRefresh &&
+            canCreate == other.canCreate &&
+            searchActive == other.searchActive &&
+            canShowSidebar == other.canShowSidebar &&
+            sidebarVisible == other.sidebarVisible &&
+            navigationVisible == other.navigationVisible &&
+            scheduleControlsVisible == other.scheduleControlsVisible &&
+            backVisible == other.backVisible;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    title,
+    viewMode,
+    canRefresh,
+    canCreate,
+    searchActive,
+    canShowSidebar,
+    sidebarVisible,
+    navigationVisible,
+    scheduleControlsVisible,
+    backVisible,
+  );
+}
+
 class LinuxHeaderBarService {
   LinuxHeaderBarService({
     MethodChannel channel = const MethodChannel(
@@ -255,6 +366,7 @@ class LinuxHeaderBarService {
   bool? _canRefresh;
   bool? _canCreate;
   bool? _searchActive;
+  bool? _canShowSidebar;
   bool? _sidebarVisible;
   bool? _navigationVisible;
   bool? _scheduleControlsVisible;
@@ -264,6 +376,7 @@ class LinuxHeaderBarService {
   double? _sidebarWidth;
   BusyMaxHeaderBarLabels? _labels;
   BusyMaxHeaderBarTheme? _theme;
+  BusyMaxHeaderBarState? _state;
 
   bool get isAvailable => _available;
 
@@ -286,6 +399,34 @@ class LinuxHeaderBarService {
     }
   }
 
+  /// Applies all screen-owned header state in one native transaction.
+  ///
+  /// Equal state is not sent twice. Set [force] when the native widgets may
+  /// have been recreated independently of this service instance.
+  Future<void> updateState(
+    BusyMaxHeaderBarState state, {
+    bool force = false,
+  }) async {
+    if (!_available) {
+      return;
+    }
+    if (!force && _state == state) {
+      return;
+    }
+    _state = state;
+    _titleRange = state.title;
+    _viewMode = state.viewMode;
+    _canRefresh = state.canRefresh;
+    _canCreate = state.canCreate;
+    _searchActive = state.searchActive;
+    _canShowSidebar = state.canShowSidebar;
+    _sidebarVisible = state.sidebarVisible;
+    _navigationVisible = state.navigationVisible;
+    _scheduleControlsVisible = state.scheduleControlsVisible;
+    _backVisible = state.backVisible;
+    await _invokeIfAvailable('setState', state.toJson());
+  }
+
   Future<void> setTitleRange(String value) async {
     if (!_available) {
       return;
@@ -293,6 +434,7 @@ class LinuxHeaderBarService {
     if (_titleRange == value) {
       return;
     }
+    _state = null;
     _titleRange = value;
     await _invokeIfAvailable('setTitleRange', value);
   }
@@ -304,6 +446,7 @@ class LinuxHeaderBarService {
     if (_viewMode == mode) {
       return;
     }
+    _state = null;
     _viewMode = mode;
     await _invokeIfAvailable('setViewMode', mode.name);
   }
@@ -315,6 +458,7 @@ class LinuxHeaderBarService {
     if (_canRefresh == value) {
       return;
     }
+    _state = null;
     _canRefresh = value;
     await _invokeIfAvailable('setCanRefresh', value);
   }
@@ -326,6 +470,7 @@ class LinuxHeaderBarService {
     if (_canCreate == value) {
       return;
     }
+    _state = null;
     _canCreate = value;
     await _invokeIfAvailable('setCanCreate', value);
   }
@@ -359,16 +504,40 @@ class LinuxHeaderBarService {
     if (_searchActive == value) {
       return;
     }
+    _state = null;
     _searchActive = value;
     await _invokeIfAvailable('setSearchActive', value);
+  }
+
+  /// Sets whether the current layout can present a sidebar.
+  ///
+  /// Prefer [updateState] for screen transitions. This compatibility method
+  /// exists for callers that have not migrated to the atomic state contract.
+  Future<void> setCanShowSidebar(bool value) async {
+    if (!_available) {
+      return;
+    }
+    if (_canShowSidebar == value) {
+      return;
+    }
+    _state = null;
+    _canShowSidebar = value;
+    await _invokeIfAvailable('setCanShowSidebar', value);
   }
 
   Future<void> setSidebarVisible(bool value) async {
     if (!_available) {
       return;
     }
-    if (_sidebarVisible == value) {
+    final restoresSidebarAvailability = value && _canShowSidebar == false;
+    if (_sidebarVisible == value && !restoresSidebarAvailability) {
       return;
+    }
+    _state = null;
+    if (value) {
+      // Preserve the legacy contract: requesting a visible sidebar also makes
+      // its native toggle available. Atomic callers should set both fields.
+      _canShowSidebar = true;
     }
     _sidebarVisible = value;
     await _invokeIfAvailable('setSidebarVisible', value);
@@ -381,6 +550,7 @@ class LinuxHeaderBarService {
     if (_navigationVisible == value) {
       return;
     }
+    _state = null;
     _navigationVisible = value;
     await _invokeIfAvailable('setNavigationVisible', value);
   }
@@ -392,6 +562,7 @@ class LinuxHeaderBarService {
     if (_scheduleControlsVisible == value) {
       return;
     }
+    _state = null;
     _scheduleControlsVisible = value;
     await _invokeIfAvailable('setScheduleControlsVisible', value);
   }
@@ -403,6 +574,7 @@ class LinuxHeaderBarService {
     if (_backVisible == value) {
       return;
     }
+    _state = null;
     _backVisible = value;
     await _invokeIfAvailable('setBackVisible', value);
   }

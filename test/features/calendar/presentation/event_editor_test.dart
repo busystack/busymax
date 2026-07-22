@@ -1028,7 +1028,7 @@ void main() {
     expect(dialogs, contains('setModalBarrierVisible(true)'));
     expect(
       dialogs,
-      contains('barrierColor: busyMaxModalBarrierColor(context)'),
+      contains('barrierColor ?? busyMaxModalBarrierColor(context)'),
     );
     expect(dialogs, contains('BusyMaxModalEditorSurface'));
     expect(workspace, contains('showBusyMaxEventEditorDialog'));

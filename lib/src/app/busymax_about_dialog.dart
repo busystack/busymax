@@ -10,6 +10,7 @@ import '../features/feedback/presentation/feedback_dialog.dart';
 import '../l10n/l10n.dart';
 import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
+import 'busymax_dialogs.dart';
 
 const _busyMaxWebsiteUri = 'https://github.com/busystack/busymax';
 const _busyMaxIssuesUri = 'https://github.com/busystack/busymax/issues';
@@ -19,24 +20,14 @@ Future<void> showBusyMaxAboutDialog(
   required FeedbackSubmissionService feedbackSubmissionService,
   LinuxHeaderBarService? headerBarService,
 }) async {
-  final service = headerBarService;
-  if (service != null) {
-    unawaited(service.setModalBarrierVisible(true));
-  }
-  _BusyMaxAboutAction? action;
-  try {
-    action = await showDialog<_BusyMaxAboutAction>(
-      context: context,
-      builder: (dialogContext) => BusyMaxAboutDialog(
-        onSendFeedback: () =>
-            Navigator.of(dialogContext).pop(_BusyMaxAboutAction.sendFeedback),
-      ),
-    );
-  } finally {
-    if (service != null) {
-      unawaited(service.setModalBarrierVisible(false));
-    }
-  }
+  final action = await showBusyMaxModalDialog<_BusyMaxAboutAction>(
+    context,
+    headerBarService: headerBarService,
+    builder: (dialogContext) => BusyMaxAboutDialog(
+      onSendFeedback: () =>
+          Navigator.of(dialogContext).pop(_BusyMaxAboutAction.sendFeedback),
+    ),
+  );
   if (action == _BusyMaxAboutAction.sendFeedback && context.mounted) {
     await showBusyMaxFeedbackDialog(
       context,

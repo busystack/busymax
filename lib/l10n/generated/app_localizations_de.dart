@@ -143,6 +143,27 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noEventsOrTasks => 'Keine Termine oder Aufgaben';
 
   @override
+  String get scheduleLoading => 'Zeitplan wird geladen...';
+
+  @override
+  String get scheduleUnavailable => 'Zeitplan nicht verfügbar';
+
+  @override
+  String get scheduleNoSources =>
+      'Keine sichtbaren Kalender oder Aufgabenlisten';
+
+  @override
+  String get scheduleNoSourcesDescription =>
+      'Wählen Sie in den Einstellungen aus, was angezeigt werden soll, und aktualisieren Sie anschließend.';
+
+  @override
+  String get scheduleSignInRequired => 'Konto verbinden';
+
+  @override
+  String get scheduleSignInDescription =>
+      'Melden Sie sich an, um Kalender und Aufgaben zu synchronisieren.';
+
+  @override
   String get trayAgendaLoading => 'Agenda wird geladen...';
 
   @override
@@ -311,6 +332,87 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get providerCalendar => 'Anbieterkalender';
+
+  @override
+  String get formatBoldShortLabel => 'F';
+
+  @override
+  String get formatBoldTooltip => 'Fett';
+
+  @override
+  String get formatItalicShortLabel => 'K';
+
+  @override
+  String get formatItalicTooltip => 'Kursiv';
+
+  @override
+  String get formatUnderlineShortLabel => 'U';
+
+  @override
+  String get formatUnderlineTooltip => 'Unterstrichen';
+
+  @override
+  String reminderMinutesBefore(int minutes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      minutes,
+      locale: localeName,
+      other: '$minutes Minuten vorher',
+      one: '1 Minute vorher',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderHoursBefore(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: '$hours Stunden vorher',
+      one: '1 Stunde vorher',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderDaysBefore(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days Tage vorher',
+      one: '1 Tag vorher',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get availabilityFree => 'Frei';
+
+  @override
+  String get availabilityTentative => 'Mit Vorbehalt';
+
+  @override
+  String get availabilityOutOfOffice => 'Abwesend';
+
+  @override
+  String get availabilityWorkingElsewhere => 'An einem anderen Ort';
+
+  @override
+  String get visibilityDefault => 'Standard';
+
+  @override
+  String get visibilityPublic => 'Öffentlich';
+
+  @override
+  String get visibilityPrivate => 'Privat';
+
+  @override
+  String get visibilityConfidential => 'Vertraulich';
+
+  @override
+  String get sensitivityNormal => 'Normal';
+
+  @override
+  String get sensitivityPersonal => 'Persönlich';
 
   @override
   String get tasks => 'Aufgaben';
@@ -912,6 +1014,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get manualFullSync => 'Manuelle vollständige Synchronisierung';
 
   @override
+  String get runInBackgroundWhenClosed =>
+      'Nach dem Schließen des Fensters weiter ausführen';
+
+  @override
+  String get showTrayIcon => 'Symbol im Benachrichtigungsbereich anzeigen';
+
+  @override
+  String get startMinimizedToTray =>
+      'Minimiert im Benachrichtigungsbereich starten';
+
+  @override
   String get syncComplete => 'Synchronisierung abgeschlossen.';
 
   @override
@@ -928,6 +1041,24 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get notifyDueToday => 'Benachrichtigungen für heute fällige Aufgaben';
+
+  @override
+  String get eventReminders => 'Terminerinnerungen';
+
+  @override
+  String get taskReminders => 'Aufgabenerinnerungen';
+
+  @override
+  String get notificationDetailLevel => 'Detailgrad der Benachrichtigungen';
+
+  @override
+  String get notificationDetailPrivate => 'Privat';
+
+  @override
+  String get notificationDetailNormal => 'Normal';
+
+  @override
+  String get quietHours => 'Ruhezeiten';
 
   @override
   String get notifications => 'Benachrichtigungen';
@@ -1085,4 +1216,50 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationDetailsHidden =>
       'Details werden durch Datenschutzeinstellungen ausgeblendet.';
+
+  @override
+  String get previousMonth => 'Vorheriger Monat';
+
+  @override
+  String get nextMonth => 'Nächster Monat';
+
+  @override
+  String get openMonthView => 'Monatsansicht öffnen';
+
+  @override
+  String get previousYear => 'Vorheriges Jahr';
+
+  @override
+  String get nextYear => 'Nächstes Jahr';
+
+  @override
+  String get openYearView => 'Jahresansicht öffnen';
+
+  @override
+  String weekNumberTooltip(int number) {
+    return 'Woche $number';
+  }
+
+  @override
+  String get resizeAllDayPanel =>
+      'Ganztägigen Bereich vergrößern oder verkleinern';
+
+  @override
+  String scheduleItemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Einträge',
+      one: '1 Eintrag',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get readOnlyCalendar => 'Dieser Kalender ist schreibgeschützt.';
+
+  @override
+  String deleteCalendarConfirmation(String title) {
+    return '\"$title\" löschen?';
+  }
 }

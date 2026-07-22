@@ -6,6 +6,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_surface_colors.dart';
+import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 
@@ -31,6 +32,7 @@ class MiniCalendar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final first = DateTime(selectedDate.year, selectedDate.month);
     final start = _calendarStartForMonth(first, firstWeekday);
     final groupedItems = ScheduleProjection.groupByDay(items);
@@ -49,16 +51,16 @@ class MiniCalendar extends StatelessWidget {
             children: [
               Expanded(
                 child: _MiniCalendarStepper(
-                  label: _monthName(selectedDate),
-                  previousTooltip: 'Previous month',
-                  nextTooltip: 'Next month',
+                  label: DateFormat.MMMM(locale).format(selectedDate),
+                  previousTooltip: l10n.previousMonth,
+                  nextTooltip: l10n.nextMonth,
                   onPrevious: () => onSelected(
                     DateTime(selectedDate.year, selectedDate.month - 1),
                   ),
                   onNext: () => onSelected(
                     DateTime(selectedDate.year, selectedDate.month + 1),
                   ),
-                  labelTooltip: 'Open month',
+                  labelTooltip: l10n.openMonthView,
                   onLabelPressed: () => onMonthSelected(first),
                 ),
               ),
@@ -66,15 +68,15 @@ class MiniCalendar extends StatelessWidget {
               Expanded(
                 child: _MiniCalendarStepper(
                   label: '${selectedDate.year}',
-                  previousTooltip: 'Previous year',
-                  nextTooltip: 'Next year',
+                  previousTooltip: l10n.previousYear,
+                  nextTooltip: l10n.nextYear,
                   onPrevious: () => onSelected(
                     DateTime(selectedDate.year - 1, selectedDate.month),
                   ),
                   onNext: () => onSelected(
                     DateTime(selectedDate.year + 1, selectedDate.month),
                   ),
-                  labelTooltip: 'Open year',
+                  labelTooltip: l10n.openYearView,
                   onLabelPressed: () =>
                       onYearSelected(DateTime(selectedDate.year)),
                 ),
@@ -216,7 +218,7 @@ class _MiniCalendarWeekNumberButton extends StatelessWidget {
     final weekNumber = _isoWeekNumber(weekStart);
     return Center(
       child: Tooltip(
-        message: 'Week $weekNumber',
+        message: context.l10n.weekNumberTooltip(weekNumber),
         child: TextButton(
           onPressed: () => onSelected(weekStart),
           style:
@@ -510,24 +512,6 @@ class _MiniCalendarStepper extends StatelessWidget {
       ),
     );
   }
-}
-
-String _monthName(DateTime date) {
-  const months = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-  return months[date.month - 1];
 }
 
 bool _sameDay(DateTime a, DateTime b) {

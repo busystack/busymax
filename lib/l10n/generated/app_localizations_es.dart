@@ -145,6 +145,27 @@ class AppLocalizationsEs extends AppLocalizations {
   String get noEventsOrTasks => 'No hay eventos ni tareas';
 
   @override
+  String get scheduleLoading => 'Cargando la agenda...';
+
+  @override
+  String get scheduleUnavailable => 'Agenda no disponible';
+
+  @override
+  String get scheduleNoSources =>
+      'No hay calendarios ni listas de tareas visibles';
+
+  @override
+  String get scheduleNoSourcesDescription =>
+      'Elige qué mostrar en Ajustes y, después, actualiza.';
+
+  @override
+  String get scheduleSignInRequired => 'Conectar una cuenta';
+
+  @override
+  String get scheduleSignInDescription =>
+      'Inicia sesión para sincronizar calendarios y tareas.';
+
+  @override
   String get trayAgendaLoading => 'Cargando agenda...';
 
   @override
@@ -313,6 +334,87 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get providerCalendar => 'Calendario del proveedor';
+
+  @override
+  String get formatBoldShortLabel => 'N';
+
+  @override
+  String get formatBoldTooltip => 'Negrita';
+
+  @override
+  String get formatItalicShortLabel => 'C';
+
+  @override
+  String get formatItalicTooltip => 'Cursiva';
+
+  @override
+  String get formatUnderlineShortLabel => 'S';
+
+  @override
+  String get formatUnderlineTooltip => 'Subrayado';
+
+  @override
+  String reminderMinutesBefore(int minutes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      minutes,
+      locale: localeName,
+      other: '$minutes minutos antes',
+      one: '1 minuto antes',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderHoursBefore(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: '$hours horas antes',
+      one: '1 hora antes',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderDaysBefore(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days días antes',
+      one: '1 día antes',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get availabilityFree => 'Libre';
+
+  @override
+  String get availabilityTentative => 'Provisional';
+
+  @override
+  String get availabilityOutOfOffice => 'Fuera de la oficina';
+
+  @override
+  String get availabilityWorkingElsewhere => 'Trabajando en otro lugar';
+
+  @override
+  String get visibilityDefault => 'Predeterminada';
+
+  @override
+  String get visibilityPublic => 'Pública';
+
+  @override
+  String get visibilityPrivate => 'Privada';
+
+  @override
+  String get visibilityConfidential => 'Confidencial';
+
+  @override
+  String get sensitivityNormal => 'Normal';
+
+  @override
+  String get sensitivityPersonal => 'Personal';
 
   @override
   String get tasks => 'Tareas';
@@ -911,6 +1013,17 @@ class AppLocalizationsEs extends AppLocalizations {
   String get manualFullSync => 'Sincronización completa manual';
 
   @override
+  String get runInBackgroundWhenClosed =>
+      'Seguir ejecutándose al cerrar la ventana';
+
+  @override
+  String get showTrayIcon => 'Mostrar el icono en la bandeja del sistema';
+
+  @override
+  String get startMinimizedToTray =>
+      'Iniciar minimizado en la bandeja del sistema';
+
+  @override
   String get syncComplete => 'Sincronización completa.';
 
   @override
@@ -927,6 +1040,25 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get notifyDueToday => 'Notificaciones de tareas para hoy';
+
+  @override
+  String get eventReminders => 'Recordatorios de eventos';
+
+  @override
+  String get taskReminders => 'Recordatorios de tareas';
+
+  @override
+  String get notificationDetailLevel =>
+      'Nivel de detalle de las notificaciones';
+
+  @override
+  String get notificationDetailPrivate => 'Privado';
+
+  @override
+  String get notificationDetailNormal => 'Normal';
+
+  @override
+  String get quietHours => 'Horario silencioso';
 
   @override
   String get notifications => 'Notificaciones';
@@ -1085,4 +1217,49 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get notificationDetailsHidden =>
       'Los detalles están ocultos por la configuración de privacidad.';
+
+  @override
+  String get previousMonth => 'Mes anterior';
+
+  @override
+  String get nextMonth => 'Mes siguiente';
+
+  @override
+  String get openMonthView => 'Abrir la vista mensual';
+
+  @override
+  String get previousYear => 'Año anterior';
+
+  @override
+  String get nextYear => 'Año siguiente';
+
+  @override
+  String get openYearView => 'Abrir la vista anual';
+
+  @override
+  String weekNumberTooltip(int number) {
+    return 'Semana $number';
+  }
+
+  @override
+  String get resizeAllDayPanel => 'Cambiar el tamaño del panel de todo el día';
+
+  @override
+  String scheduleItemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count elementos',
+      one: '1 elemento',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get readOnlyCalendar => 'Este calendario es de solo lectura.';
+
+  @override
+  String deleteCalendarConfirmation(String title) {
+    return '¿Eliminar \"$title\"?';
+  }
 }

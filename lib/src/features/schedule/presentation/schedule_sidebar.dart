@@ -129,14 +129,14 @@ class _SourceRow extends ConsumerWidget {
               label: context.l10n.rename,
               icon: Icons.edit_outlined,
               enabled: !source.readOnly,
-              tooltip: source.readOnly ? 'Read-only calendar.' : null,
+              tooltip: source.readOnly ? context.l10n.readOnlyCalendar : null,
             ),
             BusyMaxMenuEntry(
               value: 'delete',
               label: context.l10n.delete,
               icon: YaruIcons.trash,
               enabled: !source.readOnly,
-              tooltip: source.readOnly ? 'Read-only calendar.' : null,
+              tooltip: source.readOnly ? context.l10n.readOnlyCalendar : null,
               destructive: true,
             ),
           ],
@@ -456,7 +456,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
       list.accountId,
       list.id,
     );
-    final title = _taskListLabel(account, list);
+    final title = _taskListLabel(context, account, list);
     return _CompactSourceRow(
       title: title,
       leading: _SourceDot(
@@ -527,10 +527,14 @@ class _TaskListScheduleRow extends ConsumerWidget {
   }
 }
 
-String _taskListLabel(AccountEntity account, TaskListEntity list) {
+String _taskListLabel(
+  BuildContext context,
+  AccountEntity account,
+  TaskListEntity list,
+) {
   final provider = account.provider == BusyProvider.google
-      ? 'Google Tasks'
-      : 'Microsoft To Do';
+      ? context.l10n.googleTasksProvider
+      : context.l10n.microsoftTodoProvider;
   final title = list.title.trim();
   if (title.isEmpty ||
       title.toLowerCase() == provider.toLowerCase() ||
@@ -644,6 +648,7 @@ Future<void> _renameCalendar(
     label: context.l10n.title,
     actionLabel: context.l10n.rename,
     initialValue: source.summary,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (title == null || title.trim().isEmpty || title.trim() == source.summary) {
     return;
@@ -661,9 +666,10 @@ Future<void> _deleteCalendar(
   final confirmed = await showBusyMaxConfirm(
     context,
     title: context.l10n.delete,
-    message: 'Delete "${source.summary}"?',
+    message: context.l10n.deleteCalendarConfirmation(source.summary),
     confirmLabel: context.l10n.delete,
     destructive: true,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;
@@ -682,6 +688,7 @@ Future<void> _renameTaskList(
     label: context.l10n.title,
     actionLabel: context.l10n.rename,
     initialValue: list.title,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (title == null || title.trim().isEmpty || title.trim() == list.title) {
     return;
@@ -702,6 +709,7 @@ Future<void> _deleteTaskList(
     message: context.l10n.deleteListConfirmation(list.title),
     confirmLabel: context.l10n.delete,
     destructive: true,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;

@@ -38,9 +38,16 @@ void main() {
         'lib/src/app/busymax_about_dialog.dart',
       ).readAsStringSync();
       final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final dialogs = File(
+        'lib/src/app/busymax_dialogs.dart',
+      ).readAsStringSync();
 
-      expect(source, contains('setModalBarrierVisible(true)'));
-      expect(source, contains('setModalBarrierVisible(false)'));
+      expect(source, contains('showBusyMaxModalDialog'));
+      expect(source, contains('headerBarService: headerBarService'));
+      expect(dialogs, contains('acquireBusyMaxModalBarrier'));
+      expect(dialogs, contains('releaseBusyMaxModalBarrier'));
+      expect(dialogs, contains('setModalBarrierVisible(true)'));
+      expect(dialogs, contains('setModalBarrierVisible(false)'));
       expect(source, isNot(contains('barrierColor: Colors.transparent')));
       expect(source, contains('BusyMaxDialogCloseButton'));
       expect(design, contains('CircleBorder()'));

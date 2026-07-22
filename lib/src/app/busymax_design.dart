@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:ubuntu_widgets/ubuntu_widgets.dart';
 import 'package:yaru/yaru.dart';
@@ -58,6 +61,15 @@ abstract final class BusyMaxElevation {
   static const double window = 12;
 }
 
+abstract final class BusyMaxAlpha {
+  static const double modalBarrier = 0.32;
+}
+
+abstract final class BusyMaxMotion {
+  static const Duration dialogInsets = Duration(milliseconds: 160);
+  static const Curve dialogInsetsCurve = Curves.easeOutCubic;
+}
+
 abstract final class BusyMaxShadow {
   static const double floatingBlur = 24;
   static const Offset floatingOffset = Offset(0, 8);
@@ -73,8 +85,11 @@ abstract final class BusyMaxShadow {
     return BusyMaxSurfaceColors.of(context).shade;
   }
 
-  static Color tooltipColor(BuildContext context) {
-    return _scaleAlpha(floatingColor(context), 1.45);
+  /// Flutter's physical-elevation renderer applies its own ambient and spot
+  /// opacity. It therefore needs the theme's unattenuated semantic shadow,
+  /// unlike [BoxShadow], which consumes the GTK shade alpha directly.
+  static Color physicalColor(BuildContext context) {
+    return Theme.of(context).colorScheme.shadow;
   }
 
   static List<BoxShadow> floatingShadows(Color color) {
@@ -179,7 +194,7 @@ class BusyMaxPopoverSurface extends StatelessWidget {
       ),
       color: color,
       elevation: BusyMaxElevation.tooltip,
-      shadowColor: BusyMaxShadow.tooltipColor(context),
+      shadowColor: BusyMaxShadow.physicalColor(context),
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: EdgeInsets.only(
@@ -427,7 +442,7 @@ MenuStyle busyMaxDropdownMenuStyle(BuildContext context, {double? minWidth}) {
       popupTheme.color ?? colorScheme.surfaceContainerHigh,
     ),
     surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-    shadowColor: WidgetStatePropertyAll(BusyMaxShadow.floatingColor(context)),
+    shadowColor: WidgetStatePropertyAll(BusyMaxShadow.physicalColor(context)),
     elevation: const WidgetStatePropertyAll(BusyMaxElevation.popover),
     padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 4)),
     shape: WidgetStatePropertyAll(
@@ -668,7 +683,9 @@ Color busyMaxEditorRowHoverColor(BuildContext context) {
 }
 
 Color busyMaxModalBarrierColor(BuildContext context) {
-  return Theme.of(context).colorScheme.scrim.withValues(alpha: 0.32);
+  return Theme.of(
+    context,
+  ).colorScheme.scrim.withValues(alpha: BusyMaxAlpha.modalBarrier);
 }
 
 Color busyMaxPanelBorder(BuildContext context) {
@@ -782,12 +799,14 @@ class BusyMaxSurface extends StatelessWidget {
     required this.child,
     this.filled = true,
     this.color,
+    this.side = BorderSide.none,
     this.clipBehavior = Clip.antiAlias,
   });
 
   final Widget child;
   final bool filled;
   final Color? color;
+  final BorderSide side;
   final Clip clipBehavior;
 
   @override
@@ -797,9 +816,9 @@ class BusyMaxSurface extends StatelessWidget {
     return Material(
       color: filled ? color ?? surfaceColors.card : Colors.transparent,
       elevation: filled ? BusyMaxElevation.surface : 0,
-      shadowColor: BusyMaxShadow.floatingColor(context),
+      shadowColor: BusyMaxShadow.physicalColor(context),
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: borderRadius),
+      shape: RoundedRectangleBorder(borderRadius: borderRadius, side: side),
       clipBehavior: clipBehavior,
       child: child,
     );
@@ -818,14 +837,10 @@ class BusyMaxGroupedSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(BusyMaxRadius.md);
     final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return Material(
-      color: surfaceColors.control,
-      elevation: BusyMaxElevation.surface,
-      shadowColor: BusyMaxShadow.floatingColor(context),
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: borderRadius),
+    return BusyMaxSurface(
+      color: surfaceColors.groupedSurface,
+      side: BorderSide(color: surfaceColors.subtleBorder),
       clipBehavior: clipBehavior,
       child: child,
     );
@@ -861,101 +876,10 @@ class _BusyMaxGroupedListSurface extends StatelessWidget {
   }
 }
 
-class _BusyMaxRowTile extends StatelessWidget {
-  const _BusyMaxRowTile({
-    this.title,
-    this.titleText,
-    this.subtitle,
-    this.leading,
-    this.trailing,
-    this.onTap,
-    this.enabled = true,
-    this.autofocus = false,
-    this.hoverColor,
-  }) : assert((title != null) ^ (titleText != null));
+typedef BusyMaxRowActivationCallback =
+    void Function(BuildContext context, Offset? globalPosition);
 
-  final Widget? title;
-  final String? titleText;
-  final Widget? subtitle;
-  final Widget? leading;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-  final bool enabled;
-  final bool autofocus;
-  final Color? hoverColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    final effectiveHoverColor =
-        hoverColor ?? busyMaxEditorRowHoverColor(context);
-    final titleWidget = DefaultTextStyle.merge(
-      style: theme.textTheme.labelLarge?.copyWith(
-        color: enabled ? null : theme.disabledColor,
-      ),
-      child: title ?? Text(titleText!),
-    );
-    final subtitleWidget = subtitle != null
-        ? DefaultTextStyle.merge(
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: enabled ? null : theme.disabledColor,
-            ),
-            child: subtitle!,
-          )
-        : null;
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 54),
-      child: Material(
-        color: surfaceColors.control,
-        surfaceTintColor: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          autofocus: autofocus,
-          hoverColor: effectiveHoverColor,
-          focusColor: surfaceColors.controlHover,
-          highlightColor: surfaceColors.controlActive,
-          splashColor: Colors.transparent,
-          splashFactory: NoSplash.splashFactory,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: BusyMaxSpacing.md,
-              vertical: BusyMaxSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                if (leading != null) ...[
-                  leading!,
-                  const SizedBox(width: BusyMaxSpacing.md),
-                ],
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      titleWidget,
-                      if (subtitleWidget != null) ...[
-                        subtitleWidget,
-                        const SizedBox(height: 1),
-                      ],
-                    ],
-                  ),
-                ),
-                if (trailing != null) ...[
-                  const SizedBox(width: BusyMaxSpacing.md),
-                  trailing!,
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class BusyMaxActionRow extends StatelessWidget {
+class BusyMaxActionRow extends StatefulWidget {
   const BusyMaxActionRow({
     super.key,
     required this.title,
@@ -965,13 +889,13 @@ class BusyMaxActionRow extends StatelessWidget {
     this.leading,
     this.trailing,
     this.onTap,
-    this.onPointerDown,
+    this.onActivated,
     this.enabled = true,
     this.tooltip,
     this.destructive = false,
     this.autofocus = false,
     this.hoverColor,
-  });
+  }) : assert(onTap == null || onActivated == null);
 
   final String title;
   final String? subtitle;
@@ -980,7 +904,7 @@ class BusyMaxActionRow extends StatelessWidget {
   final Widget? leading;
   final Widget? trailing;
   final VoidCallback? onTap;
-  final ValueChanged<Offset>? onPointerDown;
+  final BusyMaxRowActivationCallback? onActivated;
   final bool enabled;
   final String? tooltip;
   final bool destructive;
@@ -988,48 +912,114 @@ class BusyMaxActionRow extends StatelessWidget {
   final Color? hoverColor;
 
   @override
+  State<BusyMaxActionRow> createState() => _BusyMaxActionRowState();
+}
+
+class _BusyMaxActionRowState extends State<BusyMaxActionRow> {
+  int? _primaryPointer;
+  Offset? _pointerDownPosition;
+
+  @override
+  void didUpdateWidget(covariant BusyMaxActionRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled || widget.onActivated == null) {
+      _clearPointer();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final titleStyle = destructive ? TextStyle(color: colorScheme.error) : null;
-    final row = _BusyMaxRowTile(
-      leading: leading,
+    final titleStyle = widget.destructive
+        ? TextStyle(color: colorScheme.error)
+        : null;
+    final interactive =
+        widget.enabled && (widget.onTap != null || widget.onActivated != null);
+    final row = YaruListTile.square(
+      leading: widget.leading,
       title:
-          titleWidget ??
+          widget.titleWidget ??
           Text(
-            title,
+            widget.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: titleStyle,
           ),
       subtitle:
-          subtitleWidget ??
-          (subtitle == null || subtitle!.isEmpty
+          widget.subtitleWidget ??
+          (widget.subtitle == null || widget.subtitle!.isEmpty
               ? null
-              : Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis)),
-      trailing: trailing,
-      enabled: enabled,
-      autofocus: autofocus,
-      hoverColor: hoverColor,
-      onTap: enabled ? onTap : null,
+              : Text(
+                  widget.subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                )),
+      trailing: widget.trailing,
+      enabled: widget.enabled,
+      autofocus: widget.autofocus,
+      hoverColor: widget.hoverColor,
+      onTap: interactive ? _activate : null,
     );
 
-    final trackedRow = onPointerDown == null
+    final trackedRow = widget.onActivated == null
         ? row
         : Listener(
-            onPointerDown: enabled
-                ? (event) => onPointerDown!(event.position)
-                : null,
+            onPointerDown: widget.enabled ? _handlePointerDown : null,
+            onPointerUp: widget.enabled ? _handlePointerUp : null,
+            onPointerCancel: widget.enabled ? _handlePointerCancel : null,
             child: row,
           );
 
-    if (enabled || tooltip == null) {
+    if (widget.enabled || widget.tooltip == null) {
       return trackedRow;
     }
 
     return Tooltip(
-      message: tooltip!,
+      message: widget.tooltip!,
       child: Opacity(opacity: 0.6, child: IgnorePointer(child: trackedRow)),
     );
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (event.buttons != kPrimaryButton) {
+      return;
+    }
+    _primaryPointer = event.pointer;
+    _pointerDownPosition = event.position;
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (_primaryPointer != event.pointer) {
+      return;
+    }
+    final pointer = event.pointer;
+    scheduleMicrotask(() {
+      if (mounted && _primaryPointer == pointer) {
+        _clearPointer();
+      }
+    });
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (_primaryPointer == event.pointer) {
+      _clearPointer();
+    }
+  }
+
+  void _activate() {
+    final onActivated = widget.onActivated;
+    if (onActivated == null) {
+      widget.onTap?.call();
+      return;
+    }
+    final globalPosition = _pointerDownPosition;
+    _clearPointer();
+    onActivated(context, globalPosition);
+  }
+
+  void _clearPointer() {
+    _primaryPointer = null;
+    _pointerDownPosition = null;
   }
 }
 
@@ -1409,7 +1399,7 @@ class _BusyMaxCategoryAutocompleteOptions extends StatelessWidget {
           child: Material(
             color: popupTheme.color ?? colorScheme.surfaceContainerHigh,
             elevation: BusyMaxElevation.popover,
-            shadowColor: BusyMaxShadow.floatingColor(context),
+            shadowColor: BusyMaxShadow.physicalColor(context),
             surfaceTintColor: Colors.transparent,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
@@ -1521,7 +1511,7 @@ class BusyMaxCalendarValueRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final row = _BusyMaxRowTile(
+    final row = YaruListTile.square(
       leading: leading,
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1629,7 +1619,7 @@ class BusyMaxComboRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final row = _BusyMaxRowTile(
+    final row = YaruListTile.square(
       leading: leading,
       titleText: title,
       subtitle: subtitle == null ? null : Text(subtitle!),
@@ -1664,14 +1654,32 @@ class BusyMaxComboRow<T> extends StatelessWidget {
       enabled: enabled,
     );
 
-    if (enabled || tooltip == null) {
+    if (enabled) {
       return row;
     }
 
-    return Tooltip(
-      message: tooltip!,
-      child: Opacity(opacity: 0.6, child: IgnorePointer(child: row)),
+    final disabledRow = Semantics(
+      container: true,
+      button: true,
+      enabled: false,
+      label: subtitle == null || subtitle!.isEmpty
+          ? title
+          : '$title, $subtitle',
+      value: labelFor(selected),
+      child: ExcludeSemantics(
+        child: Opacity(
+          opacity: 0.6,
+          child: ExcludeFocus(child: IgnorePointer(child: row)),
+        ),
+      ),
     );
+    return tooltip == null
+        ? disabledRow
+        : Tooltip(
+            message: tooltip!,
+            excludeFromSemantics: true,
+            child: disabledRow,
+          );
   }
 }
 
@@ -1695,14 +1703,13 @@ class BusyMaxSwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MergeSemantics(
-      child: YaruSwitchListTile(
-        value: value,
-        onChanged: enabled ? onChanged : null,
-        secondary: leading,
-        title: Text(title),
-        subtitle: subtitle == null ? null : Text(subtitle!),
-      ),
+    return YaruSwitchListTile(
+      value: value,
+      onChanged: enabled ? onChanged : null,
+      secondary: leading,
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      shape: const RoundedRectangleBorder(),
     );
   }
 }
@@ -1727,6 +1734,9 @@ class BusyMaxMenuEntry<T> {
   final bool destructive;
 }
 
+typedef BusyMaxMenuTriggerBuilder =
+    Widget Function(BuildContext context, VoidCallback onPressed);
+
 class BusyMaxMenuButton<T> extends StatefulWidget {
   const BusyMaxMenuButton({
     super.key,
@@ -1735,6 +1745,8 @@ class BusyMaxMenuButton<T> extends StatefulWidget {
     required this.onSelected,
     this.icon = const Icon(YaruIcons.view_more),
     this.minMenuWidth = 180,
+    this.menuPosition = const Offset(0, BusyMaxSizes.headerIconButton),
+    this.triggerBuilder,
   });
 
   final String tooltip;
@@ -1742,6 +1754,8 @@ class BusyMaxMenuButton<T> extends StatefulWidget {
   final List<BusyMaxMenuEntry<T>> entries;
   final ValueChanged<T> onSelected;
   final double minMenuWidth;
+  final Offset? menuPosition;
+  final BusyMaxMenuTriggerBuilder? triggerBuilder;
 
   @override
   State<BusyMaxMenuButton<T>> createState() => _BusyMaxMenuButtonState<T>();
@@ -1758,6 +1772,10 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
       crossAxisUnconstrained: false,
       style: busyMaxDropdownMenuStyle(context, minWidth: widget.minMenuWidth),
       builder: (context, controller, child) {
+        final triggerBuilder = widget.triggerBuilder;
+        if (triggerBuilder != null) {
+          return triggerBuilder(context, () => _toggleMenu(controller));
+        }
         return YaruIconButton(
           tooltip: widget.tooltip,
           iconSize: BusyMaxSizes.headerIcon,
@@ -1768,15 +1786,7 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
             ),
             child: widget.icon,
           ),
-          onPressed: () {
-            if (controller.isOpen) {
-              controller.close();
-              return;
-            }
-            controller.open(
-              position: const Offset(0, BusyMaxSizes.headerIconButton),
-            );
-          },
+          onPressed: () => _toggleMenu(controller),
           style: busyMaxHeaderIconButtonStyle(
             foregroundColor: colorScheme.onSurfaceVariant,
             backgroundColor: busyMaxSubtleButtonBackground(context),
@@ -1795,6 +1805,19 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
           ),
       ],
     );
+  }
+
+  void _toggleMenu(MenuController controller) {
+    if (controller.isOpen) {
+      controller.close();
+      return;
+    }
+    final position = widget.menuPosition;
+    if (position == null) {
+      controller.open();
+    } else {
+      controller.open(position: position);
+    }
   }
 }
 
@@ -2381,15 +2404,11 @@ class BusyMaxDialogShell extends StatelessWidget {
               if (actions.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.all(BusyMaxSpacing.lg),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      for (final action in actions) ...[
-                        action,
-                        if (action != actions.last)
-                          const SizedBox(width: BusyMaxSpacing.sm),
-                      ],
-                    ],
+                  child: OverflowBar(
+                    alignment: MainAxisAlignment.end,
+                    spacing: BusyMaxSpacing.sm,
+                    overflowSpacing: BusyMaxSpacing.sm,
+                    children: actions,
                   ),
                 ),
             ],

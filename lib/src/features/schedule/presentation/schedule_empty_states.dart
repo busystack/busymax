@@ -3,6 +3,94 @@ import 'package:flutter/material.dart';
 import '../../../app/busymax_design.dart';
 import '../../../l10n/l10n.dart';
 
+class ScheduleLoadingState extends StatelessWidget {
+  const ScheduleLoadingState({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = context.l10n.scheduleLoading;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: label,
+      child: ExcludeSemantics(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: BusyMaxSpacing.lg),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ScheduleNoSourcesState extends StatelessWidget {
+  const ScheduleNoSourcesState({
+    super.key,
+    required this.hasAccounts,
+    required this.onOpenSettings,
+    this.onRefresh,
+  });
+
+  final bool hasAccounts;
+  final VoidCallback onOpenSettings;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxEmptyState(
+      icon: Icons.calendar_month_outlined,
+      title: hasAccounts
+          ? context.l10n.scheduleNoSources
+          : context.l10n.scheduleSignInRequired,
+      message: hasAccounts
+          ? context.l10n.scheduleNoSourcesDescription
+          : context.l10n.scheduleSignInDescription,
+      actions: [
+        BusyMaxPushButton.filled(
+          onPressed: onOpenSettings,
+          child: Text(context.l10n.settings),
+        ),
+        if (onRefresh != null)
+          BusyMaxPushButton.outlined(
+            onPressed: onRefresh,
+            child: Text(context.l10n.trayAgendaRefresh),
+          ),
+      ],
+    );
+  }
+}
+
+class ScheduleUnavailableState extends StatelessWidget {
+  const ScheduleUnavailableState({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxEmptyState(
+      icon: Icons.sync_problem_outlined,
+      title: context.l10n.scheduleUnavailable,
+      actions: [
+        BusyMaxPushButton.filled(
+          onPressed: onRetry,
+          child: Text(context.l10n.retry),
+        ),
+      ],
+    );
+  }
+}
+
 class ScheduleEmptyState extends StatelessWidget {
   const ScheduleEmptyState({
     super.key,

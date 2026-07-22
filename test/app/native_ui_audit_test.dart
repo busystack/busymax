@@ -61,25 +61,21 @@ void main() {
         expect(design, contains('class BusyMaxGroupedList'));
         expect(design, contains('class BusyMaxActionRow'));
         expect(design, contains('class BusyMaxComboRow'));
-        expect(design, contains('class _BusyMaxRowTile'));
+        expect(design, contains('class BusyMaxGroupedSurface'));
         expect(design, contains('class BusyMaxSwitchRow'));
         expect(design, contains('class BusyMaxDialogShell'));
         expect(design, contains('class BusyMaxModalEditorSurface'));
         expect(design, contains('Color busyMaxModalBarrierColor'));
         expect(design, contains('abstract final class BusyMaxElevation'));
-        expect(design, contains('elevation: BusyMaxElevation.surface'));
-        expect(
-          design,
-          contains('shadowColor: BusyMaxShadow.floatingColor(context)'),
-        );
+        expect(design, contains('BusyMaxShadow.physicalColor(context)'));
+        expect(design, isNot(contains('lightSurfaceShadowMinimum')));
         expect(design, contains('final bool filled;'));
         expect(design, contains('BusyMaxSurfaceColors.of(context)'));
         expect(design, contains('surfaceColors.card'));
+        expect(design, contains('surfaceColors.groupedSurface'));
         expect(design, contains('surfaceColors.control'));
-        expect(design, contains('color: surfaceColors.control'));
-        expect(design, contains('highlightColor: surfaceColors.controlActive'));
-        expect(design, isNot(contains('YaruTileList(children: children)')));
-        expect(design, isNot(contains('YaruListTile.square')));
+        expect(design, contains('YaruListTile.square('));
+        expect(design, isNot(contains('class _BusyMaxRowTile')));
 
         expect(taskDetails, contains('BusyMaxClamp'));
         expect(taskDetails, contains('BusyMaxGroupedList'));
@@ -108,8 +104,11 @@ void main() {
         expect(settings, isNot(contains('SettingsPage.appearance')));
         expect(settings, isNot(contains('SettingsPage.localization')));
         expect(settings, isNot(contains('l10n.themeFamily')));
-        expect(settings, contains('setBackVisible(true)'));
-        expect(settings, contains('setSidebarVisible(true)'));
+        expect(settings, contains('service.updateState('));
+        expect(settings, contains('BusyMaxHeaderBarState('));
+        expect(settings, contains('backVisible: true'));
+        expect(settings, contains('canShowSidebar: showSidebar'));
+        expect(settings, contains('sidebarVisible: showSidebar'));
         expect(newTaskDialog, contains('showBusyMaxModalEditorDialog'));
         expect(newTaskDialog, contains('TaskDetailsEditor'));
         expect(newTaskDialog, isNot(contains('BusyMaxDialogShell')));
@@ -740,6 +739,11 @@ void main() {
       expect(source, contains('lookup_context_color'));
       expect(source, contains('theme_bg_color'));
       expect(source, contains('theme_base_color'));
+      expect(
+        source,
+        contains('lookup_context_color(window_context, "wm_shadow"'),
+      );
+      expect(source, isNot(contains('shade_color = border_color')));
       expect(source, contains('GTK_STYLE_CLASS_SIDEBAR'));
       expect(source, contains('GTK_STYLE_CLASS_VIEW'));
       expect(source, contains('gtk_style_context_get_property'));

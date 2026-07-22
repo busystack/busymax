@@ -68,6 +68,12 @@ class ScheduleTaskChip extends StatelessWidget {
             onTap: onTap == null
                 ? null
                 : () => onTap!(context, pointerDownPosition),
+            onSecondaryTapDown: onTap == null
+                ? null
+                : (details) => pointerDownPosition = details.globalPosition,
+            onSecondaryTap: onTap == null
+                ? null
+                : () => onTap!(context, pointerDownPosition),
             child: Container(
               padding: EdgeInsets.symmetric(
                 horizontal: horizontalPadding,

@@ -159,6 +159,7 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
               showDeleteAction: false,
               confirmTaskSwitch: false,
               useNativeDatePicker: widget.useNativeDatePicker,
+              headerBarService: ref.read(linuxHeaderBarServiceProvider),
               categorySuggestions: categorySuggestions,
               canSaveDraft: (draft) => draft.taskListId.isNotEmpty,
               onDraftChanged: (draft) {

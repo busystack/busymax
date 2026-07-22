@@ -127,12 +127,14 @@ void main() {
     expect(lightColors.view, const Color(0xFFFFFFFF));
     expect(lightColors.sidebar, const Color(0xFFEBEBED));
     expect(lightColors.card, const Color(0xFFFFFFFF));
+    expect(lightColors.groupedSurface, const Color(0xFFFFFFFF));
     expect(lightColors.dialog, const Color(0xFFFAFAFB));
     expect(lightColors.popover, const Color(0xFFFFFFFF));
     expect(darkColors.window, const Color(0xFF1D1D20));
     expect(darkColors.view, const Color(0xFF1D1D20));
     expect(darkColors.sidebar, const Color(0xFF2E2E32));
     expect(darkColors.card, const Color(0xFF222226));
+    expect(darkColors.groupedSurface, const Color(0xFF383838));
     expect(darkColors.dialog, const Color(0xFF222226));
     expect(darkColors.popover, const Color(0xFF383838));
     expect(darkColors.view, isNot(const Color(0xFF3E3E3E)));
@@ -184,12 +186,14 @@ void main() {
     final updated = base.copyWith(
       window: const Color(0xFF010203),
       sidebar: const Color(0xFF040506),
+      groupedSurface: const Color(0xFF060708),
       disabledForeground: const Color(0xFF070809),
       shade: const Color(0xFF0A0B0C),
     );
 
     expect(updated.window, const Color(0xFF010203));
     expect(updated.sidebar, const Color(0xFF040506));
+    expect(updated.groupedSurface, const Color(0xFF060708));
     expect(updated.disabledForeground, const Color(0xFF070809));
     expect(updated.shade, const Color(0xFF0A0B0C));
     expect(updated.view, base.view);
@@ -208,6 +212,10 @@ void main() {
 
     expect(midpoint.window, Color.lerp(start.window, end.window, 0.5));
     expect(midpoint.sidebar, Color.lerp(start.sidebar, end.sidebar, 0.5));
+    expect(
+      midpoint.groupedSurface,
+      Color.lerp(start.groupedSurface, end.groupedSurface, 0.5),
+    );
     expect(midpoint.dialog, Color.lerp(start.dialog, end.dialog, 0.5));
     expect(
       midpoint.disabledForeground,
@@ -492,7 +500,9 @@ void main() {
     expect(theme.colorScheme.onSurfaceVariant, gtkColors.mutedForeground);
     expect(theme.dialogTheme.backgroundColor, gtkColors.dialog);
     expect(theme.popupMenuTheme.color, gtkColors.popover);
-    expect(theme.extension<BusyMaxSurfaceColors>()?.sidebar, gtkColors.sidebar);
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    expect(colors.sidebar, gtkColors.sidebar);
+    expect(colors.groupedSurface, gtkColors.popover);
   });
 
   test('BusyMax theme ignores light GTK runtime shade samples', () {
@@ -510,7 +520,10 @@ void main() {
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
 
     expect(colors.shade, busyMaxFallbackSurfaceColors(Brightness.light).shade);
-    expect(theme.popupMenuTheme.shadowColor, colors.shade);
+    expect(colors.groupedSurface, gtkColors.view);
+    expect(theme.shadowColor, theme.colorScheme.shadow);
+    expect(theme.popupMenuTheme.shadowColor, theme.colorScheme.shadow);
+    expect(theme.popupMenuTheme.shadowColor, isNot(colors.shade));
   });
 
   test('BusyMax theme ignores too-dark GTK popover samples', () {
@@ -526,11 +539,11 @@ void main() {
       gtkThemeColors: gtkColors,
     );
 
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
     expect(theme.popupMenuTheme.color, const Color(0xFF383838));
-    expect(
-      theme.extension<BusyMaxSurfaceColors>()?.popover,
-      const Color(0xFF383838),
-    );
+    expect(colors.popover, const Color(0xFF383838));
+    expect(colors.groupedSurface, const Color(0xFF383838));
   });
 
   test('BusyMax theme ignores blue purple GTK dark surface samples', () {
@@ -566,6 +579,7 @@ void main() {
     expect(colors.control, const Color.fromRGBO(255, 255, 255, 0.10));
     expect(colors.controlHover, const Color.fromRGBO(255, 255, 255, 0.14));
     expect(colors.popover, const Color(0xFF383838));
+    expect(colors.groupedSurface, const Color(0xFF383838));
   });
 
   test('BusyMax theme ignores GTK accent control samples', () {
@@ -906,7 +920,9 @@ void main() {
     expect(shellSource, contains('filled: false'));
     expect(shellSource, isNot(contains('filled: true')));
     expect(source, contains('final title = context.l10n.onboardingSetupTitle'));
-    expect(source, contains('setTitleRange(title)'));
+    expect(source, contains('service.updateState('));
+    expect(source, contains('BusyMaxHeaderBarState('));
+    expect(source, contains('title: title'));
     expect(source, isNot(contains('class _OnboardingHeader')));
     expect(source, isNot(contains('class _OnboardingProgressDots')));
     expect(source, isNot(contains('Border(top: BorderSide')));

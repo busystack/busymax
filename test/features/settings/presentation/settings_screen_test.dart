@@ -6,11 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
+import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/tasks_selection_state.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
@@ -139,7 +141,7 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await _pumpSettings(tester, container);
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
 
     expect(find.text('Add Google account'), findsOneWidget);
     expect(find.text('Theme'), findsNothing);
@@ -162,6 +164,43 @@ void main() {
     expect(find.text('Manual full sync'), findsOneWidget);
     expect(find.text('Theme family'), findsNothing);
     expect(find.text('Add Google account'), findsNothing);
+  });
+
+  testWidgets('Settings content uses the native view surface', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      buildConfig: _configuredBuildConfig,
+      activeAccountIdOverride: null,
+    );
+    addTearDown(container.dispose);
+
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFF0F1F2),
+      view: Color(0xFFFFFFFF),
+      sidebar: Color(0xFFE5E6E7),
+    );
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: BusyMaxLinuxPalette.ubuntuOrangeAccent,
+      gtkThemeColors: gtkColors,
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: localizedTestApp(
+          child: Theme(data: theme, child: const SettingsScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, gtkColors.view);
+    expect(scaffold.backgroundColor, isNot(gtkColors.window));
   });
 
   test('Settings sidebar items have native-feeling side padding', () {
@@ -190,7 +229,7 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await _pumpSettings(tester, container);
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
 
     await tester.tap(find.text('Diagnostics'));
     await tester.pumpAndSettle();
@@ -202,6 +241,32 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
+  });
+
+  testWidgets('Settings uses single-pane navigation at narrow widths', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      buildConfig: _configuredBuildConfig,
+      activeAccountIdOverride: null,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(640, 700));
+
+    expect(find.text('Accounts'), findsWidgets);
+    expect(find.text('Schedule'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('settings-page-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Schedule'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Day starts at'), findsOneWidget);
+    expect(find.text('Day ends at'), findsOneWidget);
   });
 
   test('Schedule display hours persist and keep a valid range', () async {
@@ -356,8 +421,15 @@ const _useDefaultActiveAccountId = '__busymax_default_active_account__';
 
 Future<void> _pumpSettings(
   WidgetTester tester,
-  ProviderContainer container,
-) async {
+  ProviderContainer container, {
+  Size? logicalSize,
+}) async {
+  if (logicalSize != null) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = logicalSize;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+  }
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,

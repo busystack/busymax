@@ -204,7 +204,6 @@ class _AgendaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
-    Offset? pointerDownPosition;
     final onAnchorAvailable = this.onAnchorAvailable;
     if (onAnchorAvailable != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -227,8 +226,7 @@ class _AgendaRow extends StatelessWidget {
                   ? null
                   : (value) => onTaskCompletionChanged!(value ?? false),
             ),
-      onPointerDown: (position) => pointerDownPosition = position,
-      onTap: () => onTap(context, pointerDownPosition),
+      onActivated: onTap,
     );
   }
 }
