@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 
 .snap-local/
+
+# Local Snap packages contain compiled build-time configuration.
+/*.snap

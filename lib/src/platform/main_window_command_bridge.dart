@@ -12,6 +12,17 @@ import '../features/sync/sync_auth_error.dart';
 import '../schedule/schedule_commands.dart';
 import 'main_window_command_client.dart';
 
+Future<Map<String, Object?>> loadFreshCompactAgendaSnapshot(
+  WidgetRef ref,
+  Object? rawArgs,
+) async {
+  final query = decodeCompactAgendaQuery(rawArgs);
+  final data = await ref.refresh(
+    compactAgendaDataForQueryProvider(query).future,
+  );
+  return encodeCompactAgendaData(data);
+}
+
 class MainWindowCommandBridge extends ConsumerStatefulWidget {
   const MainWindowCommandBridge({super.key, required this.child});
 
@@ -117,11 +128,7 @@ class _MainWindowCommandBridgeState
   }
 
   Future<Map<String, Object?>> _compactAgendaSnapshot(Object? rawArgs) async {
-    final query = decodeCompactAgendaQuery(rawArgs);
-    final data = await ref.read(
-      compactAgendaDataForQueryProvider(query).future,
-    );
-    return encodeCompactAgendaData(data);
+    return loadFreshCompactAgendaSnapshot(ref, rawArgs);
   }
 
   Future<bool> _requestTaskSync(Object? rawArgs) async {

@@ -25,6 +25,43 @@ void main() {
       );
     });
 
+    test('replaces duplicate launchers with one canonical launcher', () async {
+      final fixture = await _LocalSnapFixture.create();
+      addTearDown(fixture.dispose);
+
+      final result = await fixture.run(
+        arguments: <String>['--root', fixture.validRoot.path],
+      );
+
+      expect(
+        result.exitCode,
+        0,
+        reason: _processFailure(result, fixture.commandLogContents),
+      );
+      final launchers = Directory('${fixture.validRoot.path}/meta/gui')
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.desktop'))
+          .toList();
+      expect(launchers, hasLength(1));
+      expect(launchers.single.uri.pathSegments.last, 'busymax_test.desktop');
+      expect(
+        launchers.single.readAsStringSync(),
+        contains('Exec=busymax_test'),
+      );
+      expect(
+        launchers.single.readAsStringSync(),
+        contains(r'Icon=${SNAP}/meta/gui/icon.svg'),
+      );
+      expect(
+        File(
+          '${fixture.validRoot.path}/share/applications/'
+          'com.example.busymax_test.desktop',
+        ).existsSync(),
+        isTrue,
+      );
+    });
+
     test('accepts and can reuse an owned temporary staging root', () async {
       final fixture = await _LocalSnapFixture.create();
       addTearDown(fixture.dispose);
@@ -306,9 +343,22 @@ final class _LocalSnapFixture {
       '${project.path}/snap/snapcraft.yaml',
       'name: busymax_test\n'
           'version: 1.2.3\n'
+          'icon: assets/test-icon.svg\n'
           'apps:\n'
           '  busymax_test:\n'
           '    command: busymax_test\n',
+    );
+    _writeFile(
+      '${project.path}/assets/test-icon.svg',
+      '<svg xmlns="http://www.w3.org/2000/svg"/>\n',
+    );
+    _writeFile(
+      '${project.path}/linux/com.example.busymax_test.desktop',
+      '[Desktop Entry]\n'
+          'Name=BusyMax Test\n'
+          'Exec=busymax_test\n'
+          'Icon=com.example.busymax_test\n'
+          'Type=Application\n',
     );
     _writeFile(
       '${project.path}/build/linux/x64/release/bundle/busymax_test',
@@ -321,6 +371,18 @@ final class _LocalSnapFixture {
           'apps:\n'
           '  busymax_test:\n'
           '    command: busymax_test\n',
+    );
+    _writeFile(
+      '${scaffold.path}/meta/gui/busymax_test.desktop',
+      '[Desktop Entry]\nName=BusyMax Test\nExec=busymax_test\n',
+    );
+    _writeFile(
+      '${scaffold.path}/meta/gui/com.example.busymax_test.desktop',
+      '[Desktop Entry]\nName=BusyMax Test\nExec=busymax_test\n',
+    );
+    _writeFile(
+      '${scaffold.path}/meta/gui/obsolete.desktop',
+      '[Desktop Entry]\nName=Obsolete BusyMax\nExec=busymax_test\n',
     );
 
     await _writeExecutable('${fakeBin.path}/flutter', r'''#!/usr/bin/env bash
@@ -373,6 +435,7 @@ set -euo pipefail
 printf 'unsquashfs\t%s\n' "$*" >> "$COMMAND_LOG"
 if [[ " $* " == *' -ll '* ]]; then
   echo 'squashfs-root/busymax_test'
+  echo 'squashfs-root/meta/gui/busymax_test.desktop'
 else
   echo 'version: 1.2.3'
 fi

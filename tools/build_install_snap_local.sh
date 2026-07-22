@@ -328,6 +328,9 @@ METAINFO_SOURCE="linux/${APP_ID}.metainfo.xml"
 if [[ -f "$DESKTOP_SOURCE" ]]; then
   install -Dm644 "$DESKTOP_SOURCE" \
     "$SNAP_ROOT/share/applications/${APP_ID}.desktop"
+  mkdir -p "$SNAP_ROOT/meta/gui"
+  find "$SNAP_ROOT/meta/gui" -mindepth 1 -maxdepth 1 \
+    \( -type f -o -type l \) -name '*.desktop' -exec rm -f -- {} +
 else
   echo "No desktop file found at $DESKTOP_SOURCE"
 fi
@@ -340,9 +343,8 @@ if [[ -n "$ICON_SOURCE" && -f "$ICON_SOURCE" ]]; then
     "$SNAP_ROOT/share/icons/hicolor/scalable/apps/${APP_ID}.${ICON_EXT}"
 
   if [[ -f "$DESKTOP_SOURCE" ]]; then
-    mkdir -p "$SNAP_ROOT/meta/gui"
-    sed "s#^Icon=.*#Icon=\${SNAP}/meta/gui/${APP_ID}.${ICON_EXT}#" \
-      "$DESKTOP_SOURCE" > "$SNAP_ROOT/meta/gui/${APP_ID}.desktop"
+    sed "s#^Icon=.*#Icon=\${SNAP}/meta/gui/icon.${ICON_EXT}#" \
+      "$DESKTOP_SOURCE" > "$SNAP_ROOT/meta/gui/${SNAP_NAME}.desktop"
   fi
 else
   echo "No icon file found from snapcraft icon: ${ICON_SOURCE:-<unset>}"
@@ -352,6 +354,13 @@ if [[ -f "$METAINFO_SOURCE" ]]; then
   install -Dm644 "$METAINFO_SOURCE" \
     "$SNAP_ROOT/share/metainfo/${APP_ID}.metainfo.xml"
 fi
+
+STAGED_DESKTOP_MANIFEST="$(
+  find "$SNAP_ROOT/meta/gui" -mindepth 1 -maxdepth 1 \
+    -type f -name '*.desktop' -printf '%f\n' | LC_ALL=C sort
+)"
+[[ "$STAGED_DESKTOP_MANIFEST" == "${SNAP_NAME}.desktop" ]] ||
+  fail "expected exactly one staged launcher: ${SNAP_NAME}.desktop"
 
 echo "== Patch staged snap metadata =="
 python3 - "$SNAP_ROOT/meta/snap.yaml" "snap/snapcraft.yaml" "$VERSION" "$SNAP_NAME" <<'PY'
@@ -490,6 +499,13 @@ snap pack "$SNAP_ROOT" --filename="$OUT"
 echo "== Verify packed snap =="
 unsquashfs -cat "$OUT" meta/snap.yaml | grep '^version:'
 unsquashfs -ll "$OUT" | grep -F "$BINARY_NAME"
+PACKED_DESKTOP_MANIFEST="$(
+  unsquashfs -ll "$OUT" |
+    sed -nE 's#^.*squashfs-root/meta/gui/([^/]+\.desktop)$#\1#p' |
+    LC_ALL=C sort
+)"
+[[ "$PACKED_DESKTOP_MANIFEST" == "${SNAP_NAME}.desktop" ]] ||
+  fail "expected exactly one packed launcher: ${SNAP_NAME}.desktop"
 if [[ -d "$BUNDLE_DIR/lib" ]]; then
   while IFS= read -r plugin; do
     name="$(basename "$plugin")"
