@@ -357,20 +357,11 @@ class LinuxHeaderBarService {
 
   final MethodChannel _channel;
   final bool _isLinux;
-  final _actions = StreamController<BusyMaxHeaderBarAction>.broadcast();
+  final _sessions = <LinuxHeaderBarSession>[];
 
-  bool _initialized = false;
+  Future<void>? _initialization;
   bool _available = false;
-  String? _titleRange;
-  ScheduleViewMode? _viewMode;
-  bool? _canRefresh;
-  bool? _canCreate;
-  bool? _searchActive;
-  bool? _canShowSidebar;
-  bool? _sidebarVisible;
-  bool? _navigationVisible;
-  bool? _scheduleControlsVisible;
-  bool? _backVisible;
+  bool _disposed = false;
   _BusyMaxOnboardingControlsState? _onboardingControls;
   bool? _modalBarrierVisible;
   double? _sidebarWidth;
@@ -380,30 +371,52 @@ class LinuxHeaderBarService {
 
   bool get isAvailable => _available;
 
-  Stream<BusyMaxHeaderBarAction> get actions => _actions.stream;
+  /// Returns a route-owned session for native header state and actions.
+  ///
+  /// Claiming a new session immediately supersedes the previous one. This is
+  /// important during route transitions, when the outgoing screen remains
+  /// mounted and can still receive asynchronous rebuilds.
+  LinuxHeaderBarSession claimSession() {
+    if (_disposed) {
+      throw StateError('Cannot claim a session from a disposed service.');
+    }
+    final session = LinuxHeaderBarSession._(this);
+    _sessions.add(session);
+    return session;
+  }
 
-  Future<void> initialize() async {
-    if (_initialized) {
+  /// Initializes the native bridge once and shares the in-flight result.
+  Future<void> initialize() {
+    return _initialization ??= _initialize();
+  }
+
+  Future<void> _initialize() async {
+    if (_disposed) {
       return;
     }
-    _initialized = true;
     _channel.setMethodCallHandler(handleNativeMethodCall);
     if (!_isLinux) {
       _available = false;
       return;
     }
     try {
-      _available = await _channel.invokeMethod<bool>('initialize') ?? false;
+      final available =
+          await _channel.invokeMethod<bool>('initialize') ?? false;
+      if (!_disposed) {
+        _available = available;
+      }
     } on MissingPluginException {
-      _available = false;
+      if (!_disposed) {
+        _available = false;
+      }
     }
   }
 
   /// Applies all screen-owned header state in one native transaction.
   ///
-  /// Equal state is not sent twice. Set [force] when the native widgets may
-  /// have been recreated independently of this service instance.
-  Future<void> updateState(
+  /// Equal state is not sent twice. Session ownership is checked before this
+  /// method is called so inactive routes cannot mutate the native-state cache.
+  Future<void> _applyState(
     BusyMaxHeaderBarState state, {
     bool force = false,
   }) async {
@@ -414,65 +427,7 @@ class LinuxHeaderBarService {
       return;
     }
     _state = state;
-    _titleRange = state.title;
-    _viewMode = state.viewMode;
-    _canRefresh = state.canRefresh;
-    _canCreate = state.canCreate;
-    _searchActive = state.searchActive;
-    _canShowSidebar = state.canShowSidebar;
-    _sidebarVisible = state.sidebarVisible;
-    _navigationVisible = state.navigationVisible;
-    _scheduleControlsVisible = state.scheduleControlsVisible;
-    _backVisible = state.backVisible;
     await _invokeIfAvailable('setState', state.toJson());
-  }
-
-  Future<void> setTitleRange(String value) async {
-    if (!_available) {
-      return;
-    }
-    if (_titleRange == value) {
-      return;
-    }
-    _state = null;
-    _titleRange = value;
-    await _invokeIfAvailable('setTitleRange', value);
-  }
-
-  Future<void> setViewMode(ScheduleViewMode mode) async {
-    if (!_available) {
-      return;
-    }
-    if (_viewMode == mode) {
-      return;
-    }
-    _state = null;
-    _viewMode = mode;
-    await _invokeIfAvailable('setViewMode', mode.name);
-  }
-
-  Future<void> setCanRefresh(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_canRefresh == value) {
-      return;
-    }
-    _state = null;
-    _canRefresh = value;
-    await _invokeIfAvailable('setCanRefresh', value);
-  }
-
-  Future<void> setCanCreate(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_canCreate == value) {
-      return;
-    }
-    _state = null;
-    _canCreate = value;
-    await _invokeIfAvailable('setCanCreate', value);
   }
 
   Future<void> setLocalizedLabels(BusyMaxHeaderBarLabels labels) async {
@@ -497,89 +452,7 @@ class LinuxHeaderBarService {
     await _invokeIfAvailable('setSidebarWidth', value);
   }
 
-  Future<void> setSearchActive(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_searchActive == value) {
-      return;
-    }
-    _state = null;
-    _searchActive = value;
-    await _invokeIfAvailable('setSearchActive', value);
-  }
-
-  /// Sets whether the current layout can present a sidebar.
-  ///
-  /// Prefer [updateState] for screen transitions. This compatibility method
-  /// exists for callers that have not migrated to the atomic state contract.
-  Future<void> setCanShowSidebar(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_canShowSidebar == value) {
-      return;
-    }
-    _state = null;
-    _canShowSidebar = value;
-    await _invokeIfAvailable('setCanShowSidebar', value);
-  }
-
-  Future<void> setSidebarVisible(bool value) async {
-    if (!_available) {
-      return;
-    }
-    final restoresSidebarAvailability = value && _canShowSidebar == false;
-    if (_sidebarVisible == value && !restoresSidebarAvailability) {
-      return;
-    }
-    _state = null;
-    if (value) {
-      // Preserve the legacy contract: requesting a visible sidebar also makes
-      // its native toggle available. Atomic callers should set both fields.
-      _canShowSidebar = true;
-    }
-    _sidebarVisible = value;
-    await _invokeIfAvailable('setSidebarVisible', value);
-  }
-
-  Future<void> setNavigationVisible(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_navigationVisible == value) {
-      return;
-    }
-    _state = null;
-    _navigationVisible = value;
-    await _invokeIfAvailable('setNavigationVisible', value);
-  }
-
-  Future<void> setScheduleControlsVisible(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_scheduleControlsVisible == value) {
-      return;
-    }
-    _state = null;
-    _scheduleControlsVisible = value;
-    await _invokeIfAvailable('setScheduleControlsVisible', value);
-  }
-
-  Future<void> setBackVisible(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_backVisible == value) {
-      return;
-    }
-    _state = null;
-    _backVisible = value;
-    await _invokeIfAvailable('setBackVisible', value);
-  }
-
-  Future<void> setOnboardingControls({
+  Future<void> _setOnboardingControls({
     required bool visible,
     required bool canGoBack,
     required bool canContinue,
@@ -602,6 +475,25 @@ class LinuxHeaderBarService {
     }
     _onboardingControls = state;
     await _invokeIfAvailable('setOnboardingControls', state.toJson());
+  }
+
+  LinuxHeaderBarSession? get _activeSession {
+    return _sessions.isEmpty ? null : _sessions.last;
+  }
+
+  bool _isCurrentSession(LinuxHeaderBarSession session) {
+    return identical(_activeSession, session);
+  }
+
+  void _releaseSession(LinuxHeaderBarSession session) {
+    final wasActive = _isCurrentSession(session);
+    _sessions.remove(session);
+    if (wasActive) {
+      final activeSession = _activeSession;
+      if (activeSession != null) {
+        unawaited(activeSession._restore());
+      }
+    }
   }
 
   Future<void> setModalBarrierVisible(bool value) async {
@@ -629,14 +521,14 @@ class LinuxHeaderBarService {
   @visibleForTesting
   Future<dynamic> handleNativeMethodCall(MethodCall call) async {
     final action = _actionForMethod(call.method);
-    if (action != null && !_actions.isClosed) {
-      _actions.add(action);
+    if (action != null) {
+      _activeSession?._dispatch(action);
     }
     return null;
   }
 
   Future<void> _invokeIfAvailable(String method, Object? arguments) async {
-    if (!_available) {
+    if (_disposed || !_available) {
       return;
     }
     try {
@@ -670,7 +562,138 @@ class LinuxHeaderBarService {
   }
 
   void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    _available = false;
+    for (final session in _sessions.toList()) {
+      session._disposeFromService();
+    }
+    _sessions.clear();
     _channel.setMethodCallHandler(null);
+  }
+}
+
+/// Exclusive route-level access to native header state and actions.
+///
+/// Global concerns such as theme, labels, and modal barriers remain on
+/// [LinuxHeaderBarService]. Route presentation state goes through this session
+/// so that a transitioning-out screen cannot overwrite its successor.
+class LinuxHeaderBarSession {
+  LinuxHeaderBarSession._(this._service);
+
+  final LinuxHeaderBarService _service;
+  final _actions = StreamController<BusyMaxHeaderBarAction>.broadcast();
+  bool _disposed = false;
+  BusyMaxHeaderBarState? _state;
+  int _stateRevision = 0;
+  _BusyMaxOnboardingControlsState? _onboardingControls;
+  int _onboardingRevision = 0;
+
+  bool get isCurrent => !_disposed && _service._isCurrentSession(this);
+
+  bool get isAvailable => !_disposed && _service.isAvailable;
+
+  Stream<BusyMaxHeaderBarAction> get actions => _actions.stream;
+
+  Future<void> initialize() => _service.initialize();
+
+  Future<void> updateState(
+    BusyMaxHeaderBarState state, {
+    bool force = false,
+  }) async {
+    if (_disposed) {
+      return;
+    }
+    _state = state;
+    final revision = ++_stateRevision;
+    await initialize();
+    if (!isCurrent || revision != _stateRevision) {
+      return;
+    }
+    await _service._applyState(state, force: force);
+  }
+
+  Future<void> setOnboardingControls({
+    required bool visible,
+    required bool canGoBack,
+    required bool canContinue,
+    required String backLabel,
+    required String continueLabel,
+    bool force = false,
+  }) async {
+    if (_disposed) {
+      return;
+    }
+    final state = _BusyMaxOnboardingControlsState(
+      visible: visible,
+      canGoBack: canGoBack,
+      canContinue: canContinue,
+      backLabel: backLabel,
+      continueLabel: continueLabel,
+    );
+    _onboardingControls = state;
+    final revision = ++_onboardingRevision;
+    await initialize();
+    if (!isCurrent || revision != _onboardingRevision) {
+      return;
+    }
+    await _service._setOnboardingControls(
+      visible: state.visible,
+      canGoBack: state.canGoBack,
+      canContinue: state.canContinue,
+      backLabel: state.backLabel,
+      continueLabel: state.continueLabel,
+      force: force,
+    );
+  }
+
+  Future<void> _restore() async {
+    await initialize();
+    if (!isCurrent) {
+      return;
+    }
+    final state = _state;
+    if (state != null) {
+      await _service._applyState(state, force: true);
+    }
+    if (!isCurrent) {
+      return;
+    }
+    final onboardingControls = _onboardingControls;
+    if (onboardingControls != null) {
+      await _service._setOnboardingControls(
+        visible: onboardingControls.visible,
+        canGoBack: onboardingControls.canGoBack,
+        canContinue: onboardingControls.canContinue,
+        backLabel: onboardingControls.backLabel,
+        continueLabel: onboardingControls.continueLabel,
+        force: true,
+      );
+    }
+  }
+
+  void _dispatch(BusyMaxHeaderBarAction action) {
+    if (isCurrent && !_actions.isClosed) {
+      _actions.add(action);
+    }
+  }
+
+  void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    _service._releaseSession(this);
+    unawaited(_actions.close());
+  }
+
+  void _disposeFromService() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
     unawaited(_actions.close());
   }
 }

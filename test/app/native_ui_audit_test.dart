@@ -104,7 +104,8 @@ void main() {
         expect(settings, isNot(contains('SettingsPage.appearance')));
         expect(settings, isNot(contains('SettingsPage.localization')));
         expect(settings, isNot(contains('l10n.themeFamily')));
-        expect(settings, contains('service.updateState('));
+        expect(settings, contains('.claimSession()'));
+        expect(settings, contains('_headerBarSession.updateState('));
         expect(settings, contains('BusyMaxHeaderBarState('));
         expect(settings, contains('backVisible: true'));
         expect(settings, contains('canShowSidebar: showSidebar'));
@@ -372,8 +373,8 @@ void main() {
       expect(signIn, contains('generation != _headerBarUpdateGeneration'));
       expect(signIn, contains('_headerBarUpdateGeneration++;'));
       expect(signIn, contains('force: true'));
-      expect(schedule, contains('if (service.isAvailable)'));
-      expect(schedule, contains('service.setOnboardingControls('));
+      expect(schedule, contains('if (_headerBarSession.isAvailable)'));
+      expect(schedule, contains('_headerBarSession.setOnboardingControls('));
       expect(schedule, contains('force: true'));
       expect(
         source,

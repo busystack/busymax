@@ -920,7 +920,8 @@ void main() {
     expect(shellSource, contains('filled: false'));
     expect(shellSource, isNot(contains('filled: true')));
     expect(source, contains('final title = context.l10n.onboardingSetupTitle'));
-    expect(source, contains('service.updateState('));
+    expect(source, contains('.claimSession()'));
+    expect(source, contains('_headerBarSession.updateState('));
     expect(source, contains('BusyMaxHeaderBarState('));
     expect(source, contains('title: title'));
     expect(source, isNot(contains('class _OnboardingHeader')));

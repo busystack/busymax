@@ -22,6 +22,7 @@ import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 
 void main() {
@@ -496,6 +497,11 @@ Future<void> _pumpApp(
           onSignedIn ?? (accountId, initial) async {},
         ),
         syncEngineProvider.overrideWithValue(null),
+        linuxHeaderBarServiceProvider.overrideWith((ref) {
+          final service = LinuxHeaderBarService(isLinux: false);
+          ref.onDispose(service.dispose);
+          return service;
+        }),
       ],
       child: const BusyMaxApp(),
     ),

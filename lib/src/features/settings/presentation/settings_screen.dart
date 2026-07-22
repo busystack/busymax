@@ -34,6 +34,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late var _page = widget.initialPage;
+  late final LinuxHeaderBarSession _headerBarSession;
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
@@ -42,11 +43,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
+    _headerBarActions = _headerBarSession.actions.listen(
+      _handleHeaderBarAction,
+    );
     unawaited(_initializeHeaderBar());
   }
 
   @override
   void dispose() {
+    _headerBarSession.dispose();
     unawaited(_headerBarActions?.cancel());
     super.dispose();
   }
@@ -288,19 +294,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _initializeHeaderBar() async {
-    final service = ref.read(linuxHeaderBarServiceProvider);
-    _headerBarActions = service.actions.listen(_handleHeaderBarAction);
-    await service.initialize();
+    await _headerBarSession.initialize();
     if (!mounted) {
       return;
     }
     setState(() {
       _headerBarReady = true;
-      _nativeHeaderBarAvailable = service.isAvailable;
+      _nativeHeaderBarAvailable = _headerBarSession.isAvailable;
     });
-    if (service.isAvailable) {
+    if (_headerBarSession.isAvailable) {
       unawaited(
-        service.setOnboardingControls(
+        _headerBarSession.setOnboardingControls(
           visible: false,
           canGoBack: false,
           canContinue: false,
@@ -313,6 +317,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
+    if (!_headerBarSession.isCurrent) {
+      return;
+    }
     if (action == BusyMaxHeaderBarAction.back) {
       _goBack();
       return;
@@ -360,9 +367,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (!mounted) {
         return;
       }
-      final service = ref.read(linuxHeaderBarServiceProvider);
       unawaited(
-        service.updateState(
+        _headerBarSession.updateState(
           BusyMaxHeaderBarState(
             title: title,
             viewMode: settings.scheduleViewMode,

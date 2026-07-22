@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
@@ -5,10 +6,36 @@ import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+const _scheduleHeaderState = BusyMaxHeaderBarState(
+  title: 'July 2026',
+  viewMode: ScheduleViewMode.month,
+  canRefresh: true,
+  canCreate: true,
+  searchActive: false,
+  canShowSidebar: true,
+  sidebarVisible: true,
+  navigationVisible: true,
+  scheduleControlsVisible: true,
+  backVisible: false,
+);
+
+const _settingsHeaderState = BusyMaxHeaderBarState(
+  title: 'Settings',
+  viewMode: ScheduleViewMode.month,
+  canRefresh: false,
+  canCreate: false,
+  searchActive: false,
+  canShowSidebar: true,
+  sidebarVisible: true,
+  navigationVisible: false,
+  scheduleControlsVisible: false,
+  backVisible: true,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('sends schedule range and state updates to native headerbar', () async {
+  test('sends application-wide state to the native headerbar', () async {
     const channel = MethodChannel('busymax_test/headerbar_updates');
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -26,12 +53,10 @@ void main() {
 
     final service = LinuxHeaderBarService(channel: channel, isLinux: true);
     addTearDown(service.dispose);
+    final session = service.claimSession();
+    addTearDown(session.dispose);
 
     await service.initialize();
-    await service.setTitleRange('Jun 7-13, 2026');
-    await service.setViewMode(ScheduleViewMode.week);
-    await service.setCanRefresh(true);
-    await service.setCanCreate(true);
     await service.setLocalizedLabels(
       const BusyMaxHeaderBarLabels(
         today: 'Today',
@@ -54,11 +79,7 @@ void main() {
       ),
     );
     await service.setSidebarWidth(300);
-    await service.setSearchActive(false);
-    await service.setSidebarVisible(true);
-    await service.setNavigationVisible(false);
-    await service.setBackVisible(false);
-    await service.setOnboardingControls(
+    await session.setOnboardingControls(
       visible: true,
       canGoBack: false,
       canContinue: true,
@@ -92,40 +113,29 @@ void main() {
       calls.map((call) => call.method),
       containsAllInOrder([
         'initialize',
-        'setTitleRange',
-        'setViewMode',
-        'setCanRefresh',
-        'setCanCreate',
         'setLocalizedLabels',
         'setSidebarWidth',
-        'setSearchActive',
-        'setSidebarVisible',
-        'setNavigationVisible',
-        'setBackVisible',
         'setOnboardingControls',
         'setModalBarrierVisible',
         'setTheme',
       ]),
     );
-    expect(calls[1].arguments, 'Jun 7-13, 2026');
-    expect(calls[2].arguments, 'week');
-    expect(calls[5].arguments, containsPair('today', 'Today'));
-    expect(calls[5].arguments, containsPair('year', 'Year'));
-    expect(calls[5].arguments, containsPair('create', 'Create'));
-    expect(calls[5].arguments, containsPair('menu', 'Menu'));
-    expect(calls[5].arguments, containsPair('sidebar', 'Toggle Sidebar'));
-    expect(calls[5].arguments, containsPair('back', 'Back'));
-    expect(calls[5].arguments, containsPair('settings', 'Settings'));
+    expect(calls[1].arguments, containsPair('today', 'Today'));
+    expect(calls[1].arguments, containsPair('year', 'Year'));
+    expect(calls[1].arguments, containsPair('create', 'Create'));
+    expect(calls[1].arguments, containsPair('menu', 'Menu'));
+    expect(calls[1].arguments, containsPair('sidebar', 'Toggle Sidebar'));
+    expect(calls[1].arguments, containsPair('back', 'Back'));
+    expect(calls[1].arguments, containsPair('settings', 'Settings'));
     expect(
-      calls[5].arguments,
+      calls[1].arguments,
       containsPair('keyboardShortcuts', 'Keyboard Shortcuts'),
     );
-    expect(calls[5].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
-    expect(calls[6].arguments, 300);
-    expect(calls[9].arguments, false);
-    expect(calls[11].arguments, containsPair('visible', true));
-    expect(calls[11].arguments, containsPair('canContinue', true));
-    expect(calls[11].arguments, containsPair('continueLabel', 'Continue'));
+    expect(calls[1].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
+    expect(calls[2].arguments, 300);
+    expect(calls[3].arguments, containsPair('visible', true));
+    expect(calls[3].arguments, containsPair('canContinue', true));
+    expect(calls[3].arguments, containsPair('continueLabel', 'Continue'));
     expect(calls.last.arguments, containsPair('preferDark', true));
     expect(calls.last.arguments, containsPair('backgroundColor', '#1D1D20'));
     expect(
@@ -180,6 +190,8 @@ void main() {
 
       final service = LinuxHeaderBarService(channel: channel, isLinux: true);
       addTearDown(service.dispose);
+      final session = service.claimSession();
+      addTearDown(session.dispose);
       const state = BusyMaxHeaderBarState(
         title: 'July 2026',
         viewMode: ScheduleViewMode.month,
@@ -194,9 +206,9 @@ void main() {
       );
 
       await service.initialize();
-      await service.updateState(state);
-      await service.updateState(state.copyWith());
-      await service.updateState(state.copyWith(title: 'August 2026'));
+      await session.updateState(state);
+      await session.updateState(state.copyWith());
+      await session.updateState(state.copyWith(title: 'August 2026'));
 
       expect(calls.map((call) => call.method), [
         'initialize',
@@ -220,8 +232,44 @@ void main() {
     },
   );
 
-  test('legacy changes invalidate the cached atomic state', () async {
-    const channel = MethodChannel('busymax_test/headerbar_state_compatibility');
+  test('shares in-flight initialization before applying state', () async {
+    const channel = MethodChannel('busymax_test/headerbar_shared_initialize');
+    final calls = <MethodCall>[];
+    final initialization = Completer<bool>();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          if (call.method == 'initialize') {
+            return initialization.future;
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+    addTearDown(service.dispose);
+    final session = service.claimSession();
+    addTearDown(session.dispose);
+
+    final firstInitialization = service.initialize();
+    final stateUpdate = session.updateState(_settingsHeaderState);
+    await pumpEventQueue(times: 1);
+
+    expect(calls.where((call) => call.method == 'initialize'), hasLength(1));
+    expect(calls.where((call) => call.method == 'setState'), isEmpty);
+
+    initialization.complete(true);
+    await Future.wait([firstInitialization, stateUpdate]);
+
+    expect(calls.where((call) => call.method == 'setState'), hasLength(1));
+    expect(service.isAvailable, isTrue);
+  });
+
+  test('only the active route session can publish header state', () async {
+    const channel = MethodChannel('busymax_test/headerbar_route_ownership');
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
@@ -235,32 +283,116 @@ void main() {
 
     final service = LinuxHeaderBarService(channel: channel, isLinux: true);
     addTearDown(service.dispose);
-    const state = BusyMaxHeaderBarState(
-      title: 'Schedule',
-      viewMode: ScheduleViewMode.week,
-      canRefresh: true,
-      canCreate: true,
-      searchActive: false,
-      canShowSidebar: true,
-      sidebarVisible: true,
-      navigationVisible: true,
-      scheduleControlsVisible: true,
-      backVisible: false,
+    final scheduleSession = service.claimSession();
+    addTearDown(scheduleSession.dispose);
+    await scheduleSession.updateState(_scheduleHeaderState);
+
+    final settingsSession = service.claimSession();
+    addTearDown(settingsSession.dispose);
+    await settingsSession.updateState(_settingsHeaderState);
+
+    await scheduleSession.updateState(
+      _scheduleHeaderState.copyWith(title: 'Stale schedule update'),
+      force: true,
+    );
+    scheduleSession.dispose();
+    await settingsSession.updateState(_settingsHeaderState.copyWith());
+    await settingsSession.updateState(
+      _settingsHeaderState.copyWith(title: 'Preferences'),
     );
 
-    await service.initialize();
-    await service.updateState(state);
-    await service.setCanShowSidebar(false);
-    await service.setSidebarVisible(true);
-    await service.updateState(state);
+    final stateCalls = calls
+        .where((call) => call.method == 'setState')
+        .toList();
+    expect(stateCalls, hasLength(3));
+    expect(stateCalls[0].arguments, containsPair('title', 'July 2026'));
+    expect(stateCalls[1].arguments, containsPair('title', 'Settings'));
+    expect(stateCalls[2].arguments, containsPair('title', 'Preferences'));
+    expect(
+      stateCalls.skip(1).map((call) => call.arguments),
+      everyElement(containsPair('backVisible', true)),
+    );
+  });
 
-    expect(calls.map((call) => call.method), [
-      'initialize',
-      'setState',
-      'setCanShowSidebar',
-      'setSidebarVisible',
-      'setState',
-    ]);
+  test('closing the active session restores the covered route', () async {
+    const channel = MethodChannel('busymax_test/headerbar_route_restore');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'initialize' ? true : null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+    addTearDown(service.dispose);
+    final scheduleSession = service.claimSession();
+    addTearDown(scheduleSession.dispose);
+    await scheduleSession.updateState(_scheduleHeaderState);
+
+    final settingsSession = service.claimSession();
+    addTearDown(settingsSession.dispose);
+    await settingsSession.updateState(_settingsHeaderState);
+    await scheduleSession.updateState(
+      _scheduleHeaderState.copyWith(title: 'Updated schedule'),
+    );
+
+    expect(scheduleSession.isAvailable, isTrue);
+    settingsSession.dispose();
+    await pumpEventQueue();
+
+    final stateCalls = calls
+        .where((call) => call.method == 'setState')
+        .toList();
+    expect(stateCalls, hasLength(3));
+    expect(
+      stateCalls.last.arguments,
+      containsPair('title', 'Updated schedule'),
+    );
+    expect(stateCalls.last.arguments, containsPair('backVisible', false));
+    expect(
+      stateCalls.last.arguments,
+      containsPair('scheduleControlsVisible', true),
+    );
+  });
+
+  test('native actions belong exclusively to the active session', () async {
+    final service = LinuxHeaderBarService(
+      channel: const MethodChannel('busymax_test/headerbar_owned_actions'),
+      isLinux: false,
+    );
+    addTearDown(service.dispose);
+    final scheduleSession = service.claimSession();
+    addTearDown(scheduleSession.dispose);
+    final scheduleActions = <BusyMaxHeaderBarAction>[];
+    final scheduleSubscription = scheduleSession.actions.listen(
+      scheduleActions.add,
+    );
+    addTearDown(scheduleSubscription.cancel);
+
+    final settingsSession = service.claimSession();
+    addTearDown(settingsSession.dispose);
+    final settingsActions = <BusyMaxHeaderBarAction>[];
+    final settingsSubscription = settingsSession.actions.listen(
+      settingsActions.add,
+    );
+    addTearDown(settingsSubscription.cancel);
+
+    await service.handleNativeMethodCall(const MethodCall('aboutBusyMax'));
+    await pumpEventQueue();
+
+    expect(scheduleActions, isEmpty);
+    expect(settingsActions, [BusyMaxHeaderBarAction.aboutBusyMax]);
+
+    settingsSession.dispose();
+    await service.handleNativeMethodCall(const MethodCall('back'));
+    await pumpEventQueue();
+
+    expect(scheduleActions, [BusyMaxHeaderBarAction.back]);
+    expect(settingsActions, [BusyMaxHeaderBarAction.aboutBusyMax]);
   });
 
   test('native header controls keep visible keyboard focus indicators', () {
@@ -292,8 +424,10 @@ void main() {
       isLinux: false,
     );
     addTearDown(service.dispose);
+    final session = service.claimSession();
+    addTearDown(session.dispose);
 
-    final nextAction = service.actions.take(5).toList();
+    final nextAction = session.actions.take(5).toList();
     await service.handleNativeMethodCall(const MethodCall('create'));
     await service.handleNativeMethodCall(const MethodCall('continueSetup'));
     await service.handleNativeMethodCall(const MethodCall('settings'));
@@ -329,23 +463,25 @@ void main() {
 
       final service = LinuxHeaderBarService(channel: channel, isLinux: true);
       addTearDown(service.dispose);
+      final session = service.claimSession();
+      addTearDown(session.dispose);
 
       await service.initialize();
-      await service.setOnboardingControls(
+      await session.setOnboardingControls(
         visible: false,
         canGoBack: false,
         canContinue: false,
         backLabel: '',
         continueLabel: '',
       );
-      await service.setOnboardingControls(
+      await session.setOnboardingControls(
         visible: false,
         canGoBack: false,
         canContinue: false,
         backLabel: '',
         continueLabel: '',
       );
-      await service.setOnboardingControls(
+      await session.setOnboardingControls(
         visible: false,
         canGoBack: false,
         canContinue: false,
@@ -370,7 +506,6 @@ void main() {
     addTearDown(service.dispose);
 
     await service.initialize();
-    await service.setTitleRange('Settings');
 
     expect(service.isAvailable, isFalse);
   });

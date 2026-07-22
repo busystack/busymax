@@ -1168,7 +1168,8 @@ void main() {
     expect(source, contains('final showFallbackHeader'));
     expect(source, contains('if (showFallbackHeader)'));
     expect(source, contains('final headerBarState = BusyMaxHeaderBarState('));
-    expect(source, contains('service.updateState(headerBarState)'));
+    expect(source, contains('.claimSession()'));
+    expect(source, contains('_headerBarSession.updateState(headerBarState)'));
     expect(source, contains('onMenuSelected: _handleFallbackToolbarMenu'));
   });
 
@@ -2042,9 +2043,13 @@ void main() {
       workspace,
       contains('navigationVisible: _mode != ScheduleViewMode.agenda'),
     );
-    expect(workspace, contains('service.updateState(headerBarState)'));
+    expect(
+      workspace,
+      contains('_headerBarSession.updateState(headerBarState)'),
+    );
     expect(headerService, contains('class BusyMaxHeaderBarState'));
-    expect(headerService, contains('Future<void> setNavigationVisible'));
+    expect(headerService, contains('class LinuxHeaderBarSession'));
+    expect(headerService, contains('Future<void> updateState('));
     expect(nativeRunner, contains('set_header_bar_state'));
     expect(nativeRunner, contains('set_header_navigation_visible'));
     expect(nativeRunner, contains('setNavigationVisible'));

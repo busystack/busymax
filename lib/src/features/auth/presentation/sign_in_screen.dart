@@ -40,16 +40,22 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   var _nativeHeaderBarAvailable = false;
   var _finishingSetup = false;
   var _headerBarUpdateGeneration = 0;
+  late final LinuxHeaderBarSession _headerBarSession;
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
 
   @override
   void initState() {
     super.initState();
+    _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
+    _headerBarActions = _headerBarSession.actions.listen(
+      _handleHeaderBarAction,
+    );
     unawaited(_initializeHeaderBar());
   }
 
   @override
   void dispose() {
+    _headerBarSession.dispose();
     unawaited(_headerBarActions?.cancel());
     super.dispose();
   }
@@ -176,15 +182,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _initializeHeaderBar() async {
-    final service = ref.read(linuxHeaderBarServiceProvider);
-    await service.initialize();
+    await _headerBarSession.initialize();
     if (!mounted) {
       return;
     }
-    _headerBarActions = service.actions.listen(_handleHeaderBarAction);
     setState(() {
       _headerBarReady = true;
-      _nativeHeaderBarAvailable = service.isAvailable;
+      _nativeHeaderBarAvailable = _headerBarSession.isAvailable;
     });
   }
 
@@ -215,9 +219,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           generation != _headerBarUpdateGeneration) {
         return;
       }
-      final service = ref.read(linuxHeaderBarServiceProvider);
       unawaited(() async {
-        await service.updateState(
+        await _headerBarSession.updateState(
           BusyMaxHeaderBarState(
             title: title,
             viewMode: ref.read(appSettingsControllerProvider).scheduleViewMode,
@@ -236,7 +239,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             generation != _headerBarUpdateGeneration) {
           return;
         }
-        await service.setOnboardingControls(
+        await _headerBarSession.setOnboardingControls(
           visible: true,
           canGoBack: canGoBack,
           canContinue: canContinue,
@@ -248,6 +251,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
+    if (!_headerBarSession.isCurrent) {
+      return;
+    }
     if (action == BusyMaxHeaderBarAction.back) {
       _previousStep();
       return;
@@ -357,9 +363,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _clearOnboardingHeaderBar() async {
-    final service = ref.read(linuxHeaderBarServiceProvider);
-    await service.initialize();
-    await service.setOnboardingControls(
+    await _headerBarSession.initialize();
+    await _headerBarSession.setOnboardingControls(
       visible: false,
       canGoBack: false,
       canContinue: false,
@@ -367,7 +372,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       continueLabel: '',
       force: true,
     );
-    await service.setBackVisible(false);
   }
 }
 

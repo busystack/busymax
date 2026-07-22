@@ -68,6 +68,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _mode = ScheduleViewMode.week;
   late ScheduleScope _scope;
   _TaskDetailsTarget? _taskDetailsTarget;
+  late final LinuxHeaderBarSession _headerBarSession;
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
@@ -95,12 +96,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     _scope = widget.initialScope;
     _applyInitialScope();
     HardwareKeyboard.instance.addHandler(_handleScheduleShortcutEvent);
+    _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
+    _headerBarActions = _headerBarSession.actions.listen(
+      _handleHeaderBarAction,
+    );
     unawaited(_initializeHeaderBar());
   }
 
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleScheduleShortcutEvent);
+    _headerBarSession.dispose();
     if (_taskDetailsTarget != null) {
       unawaited(
         releaseBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider)),
@@ -415,19 +421,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   Future<void> _initializeHeaderBar() async {
-    final service = ref.read(linuxHeaderBarServiceProvider);
-    await service.initialize();
+    await _headerBarSession.initialize();
     if (!mounted) {
       return;
     }
-    _headerBarActions = service.actions.listen(_handleHeaderBarAction);
     setState(() {
       _headerBarReady = true;
-      _nativeHeaderBarAvailable = service.isAvailable;
+      _nativeHeaderBarAvailable = _headerBarSession.isAvailable;
     });
-    if (service.isAvailable) {
+    if (_headerBarSession.isAvailable) {
       unawaited(
-        service.setOnboardingControls(
+        _headerBarSession.setOnboardingControls(
           visible: false,
           canGoBack: false,
           canContinue: false,
@@ -474,8 +478,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       if (!mounted) {
         return;
       }
-      final service = ref.read(linuxHeaderBarServiceProvider);
-      unawaited(service.updateState(headerBarState));
+      unawaited(_headerBarSession.updateState(headerBarState));
     });
   }
 
@@ -493,6 +496,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
+    if (!_headerBarSession.isCurrent) {
+      return;
+    }
     switch (action) {
       case BusyMaxHeaderBarAction.back:
       case BusyMaxHeaderBarAction.continueSetup:
