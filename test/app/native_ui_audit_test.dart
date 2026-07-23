@@ -905,7 +905,7 @@ void main() {
       expect(source, contains('kDefaultWindowBackgroundColor[] = "#2C2C2C"'));
       expect(
         source,
-        contains('kDefaultHeaderBarBackgroundColor[] = "#393939"'),
+        contains('kDefaultHeaderBarBackgroundColor[] = "#1D1D20"'),
       );
       expect(
         source,

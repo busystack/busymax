@@ -59,7 +59,7 @@ constexpr gint kCompactAgendaWindowMaxWidth =
 constexpr gint kCompactAgendaWindowMaxHeight =
     840 + kCompactAgendaWindowShadowMargin * 2;
 constexpr char kDefaultWindowBackgroundColor[] = "#2C2C2C";
-constexpr char kDefaultHeaderBarBackgroundColor[] = "#393939";
+constexpr char kDefaultHeaderBarBackgroundColor[] = "#1D1D20";
 constexpr char kDefaultHeaderBarSidebarBackgroundColor[] = "#393939";
 
 struct _MyApplication {

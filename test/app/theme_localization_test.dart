@@ -1175,8 +1175,8 @@ void main() {
     );
     expect(source, contains('await service.setTheme('));
     expect(source, contains('windowBackgroundColor: colors.window'));
-    expect(source, contains('backgroundColor: colors.headerbar'));
-    expect(source, isNot(contains('backgroundColor: colors.view')));
+    expect(source, contains('backgroundColor: colors.headerbarFlat'));
+    expect(source, isNot(contains('backgroundColor: colors.headerbar,')));
     expect(source, contains('sidebarBackgroundColor: colors.sidebar'));
     expect(source, contains('controlHoverColor: colors.controlHover'));
     expect(source, contains('accentColor: colorScheme.primary'));

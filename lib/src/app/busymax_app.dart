@@ -227,7 +227,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           BusyMaxHeaderBarTheme(
             preferDark: preferDark,
             windowBackgroundColor: colors.window,
-            backgroundColor: colors.headerbar,
+            // This header is deliberately borderless and visually continuous
+            // with the main pane, so it uses the flat header role.
+            backgroundColor: colors.headerbarFlat,
             sidebarBackgroundColor: colors.sidebar,
             foregroundColor: colors.foreground,
             mutedForegroundColor: colors.mutedForeground,
