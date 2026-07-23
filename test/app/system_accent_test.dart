@@ -2,6 +2,7 @@ import 'package:busymax/src/app/system_accent.dart';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaru/theme.dart';
 
 void main() {
   test('reads RGB portal accent color values', () {
@@ -24,6 +25,7 @@ void main() {
       colorFromUbuntuAccentNameValue(const DBusString('purple')),
       const Color(0xff7764d8),
     );
+    expect(ubuntuAccentNameColor('orange'), YaruColors.orange);
     expect(colorFromUbuntuAccentNameValue(const DBusString('unknown')), isNull);
   });
 }

@@ -276,13 +276,15 @@ void main() {
             'controlHover': '#2EFFFFFF',
             'controlActive': '#33FFFFFF',
             'accent': '#C061CB',
+            'accentForeground': '#FFFFFFFF',
             'activeToggle': '#44FFFFFF',
             'foreground': '#FFFFFF',
             'mutedForeground': '#C0C0C0',
             'disabledForeground': '#61FFFFFF',
             'disabledControl': '#0FFFFFFF',
             'border': '#99000000',
-            'subtleBorder': '#1AFFFFFF',
+            'divider': '#1AFFFFFF',
+            'floatingBorder': '#24000000',
             'sidebarBorder': '#33000000',
             'shade': '#55000000',
           };
@@ -304,7 +306,9 @@ void main() {
     expect(colors?.control, const Color(0x1AFFFFFF));
     expect(colors?.controlActive, const Color(0x33FFFFFF));
     expect(colors?.accent, const Color(0xFFC061CB));
-    expect(colors?.subtleBorder, const Color(0x1AFFFFFF));
+    expect(colors?.accentForeground, const Color(0xFFFFFFFF));
+    expect(colors?.divider, const Color(0x1AFFFFFF));
+    expect(colors?.floatingBorder, const Color(0x24000000));
   });
 
   test('missing native GTK theme color channel falls back to null', () async {

@@ -2282,7 +2282,7 @@ void main() {
     expect(eventBlock, contains('color: surfaceColors.control'));
     expect(eventBlock, contains('sourceAccent'));
     expect(taskChip, contains('color: surfaceColors.control'));
-    expect(taskChip, contains('color: surfaceColors.subtleBorder'));
+    expect(taskChip, contains('color: surfaceColors.divider'));
     expect(taskChip, contains('YaruCheckbox('));
     expect(taskChip, isNot(contains('selectedColor:')));
     expect(taskChip, isNot(contains('checkmarkColor:')));

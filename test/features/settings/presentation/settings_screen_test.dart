@@ -297,7 +297,7 @@ void main() {
     );
     final theme = BusyMaxYaruTheme.build(
       brightness: Brightness.light,
-      accentColor: BusyMaxLinuxPalette.ubuntuOrangeAccent,
+      accentColor: YaruColors.orange,
       gtkThemeColors: gtkColors,
     );
 

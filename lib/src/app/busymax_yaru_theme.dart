@@ -11,22 +11,6 @@ export 'busymax_surface_colors.dart';
 const _minimumRaisedSurfaceContrast = 1.08;
 
 abstract final class BusyMaxLinuxPalette {
-  static const blueAccent = Color(0xFF3584E4);
-  static const ubuntuBlueAccent = Color(0xFF0073E5);
-  static const ubuntuTealAccent = Color(0xFF2190A4);
-  static const ubuntuGreenAccent = Color(0xFF3A944A);
-  static const ubuntuYellowAccent = Color(0xFFC88800);
-  static const ubuntuOrangeAccent = Color(0xFFED5B00);
-  static const ubuntuRedAccent = Color(0xFFDA3450);
-  static const ubuntuPinkAccent = Color(0xFFD56199);
-  static const ubuntuPurpleAccent = Color(0xFF7764D8);
-  static const ubuntuSlateAccent = Color(0xFF6F8396);
-  static const ubuntuBrownAccent = Color(0xFF986A44);
-  static const ubuntuMagentaAccent = Color(0xFFB34CB3);
-  static const ubuntuOliveAccent = Color(0xFF4B8501);
-  static const ubuntuPrussianGreenAccent = Color(0xFF308280);
-  static const ubuntuSageAccent = Color(0xFF657B69);
-  static const ubuntuWartyBrownAccent = Color(0xFFB39169);
   static const red3 = Color(0xFFE01B24);
   static const red5 = Color(0xFFA51D2D);
   static const light2 = Color(0xFFF6F5F4);
@@ -59,7 +43,16 @@ class BusyMaxYaruTheme {
     final colors = highContrast
         ? _highContrastSurfaceColors(brightness)
         : resolvedColors;
-    final onAccent = contrastColor(accentColor);
+    final sampledAccentForeground =
+        gtkThemeColors?.brightness == brightness &&
+            gtkThemeColors?.accent == accentColor
+        ? gtkThemeColors?.accentForeground
+        : null;
+    final onAccent =
+        sampledAccentForeground != null &&
+            _contrastRatio(sampledAccentForeground, accentColor) >= 4.5
+        ? sampledAccentForeground
+        : contrastColor(accentColor);
     final accentContainer = Color.alphaBlend(
       accentColor.withValues(
         alpha: brightness == Brightness.dark ? 0.24 : 0.14,
@@ -87,7 +80,7 @@ class BusyMaxYaruTheme {
       surfaceContainerHigh: colors.control,
       surfaceContainerHighest: colors.controlHover,
       outline: colors.border,
-      outlineVariant: colors.subtleBorder,
+      outlineVariant: colors.divider,
       scrim: BusyMaxLinuxPalette.dark5,
     );
     final normalizer = _TextStyleNormalizer(
@@ -196,7 +189,7 @@ class BusyMaxYaruTheme {
           if (extension is! BusyMaxSurfaceColors) extension,
         colors,
       ],
-      dividerColor: colors.subtleBorder,
+      dividerColor: colors.divider,
       appBarTheme: base.appBarTheme.copyWith(
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -506,7 +499,8 @@ BusyMaxSurfaceColors _highContrastSurfaceColors(Brightness brightness) {
     disabledForeground: layer(0.55),
     disabledControl: layer(0.06),
     border: foreground,
-    subtleBorder: foreground,
+    divider: foreground,
+    floatingBorder: foreground,
     sidebarBorder: foreground,
     shade: Colors.black,
   );
@@ -714,6 +708,11 @@ class _BusyMaxResolvedSurfaceColors {
       sidebar: sidebar,
       fallback: fallback.sidebarBorder,
     );
+    // Inset separators and floating-surface outlines are distinct native
+    // roles. Resolve each GTK sample directly rather than evaluating a shared
+    // color against an unrelated card surface.
+    final runtimeDivider = _runtimeColor(runtime.divider);
+    final runtimeFloatingBorder = _runtimeColor(runtime.floatingBorder);
     final readableBackgrounds = [
       window,
       view,
@@ -760,7 +759,8 @@ class _BusyMaxResolvedSurfaceColors {
       disabledForeground: disabledForeground,
       disabledControl: _runtimeOverlayColor(runtime.disabledControl),
       border: _runtimeColor(runtime.border),
-      subtleBorder: _runtimeColor(runtime.subtleBorder),
+      divider: runtimeDivider,
+      floatingBorder: runtimeFloatingBorder,
       sidebarBorder: sidebarBorder,
       shade: _runtimeShadeColor(runtime.shade, over: popover),
     );

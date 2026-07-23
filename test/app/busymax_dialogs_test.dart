@@ -3,6 +3,7 @@ import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/app/busymax_shortcuts.dart';
 import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +13,81 @@ import '../test_localized_app.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(nativeDialogChannel, (_) async => null);
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(nativeDialogChannel, null);
+  });
+
+  testWidgets('confirmation uses the native host when available', (
+    tester,
+  ) async {
+    const channel = MethodChannel('busymax_test/native_confirmation');
+    const headerChannel = MethodChannel(
+      'busymax_test/native_confirmation_header',
+    );
+    final calls = <MethodCall>[];
+    final headerCalls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return true;
+        });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(headerChannel, (call) async {
+          headerCalls.add(call);
+          return call.method == 'initialize' ? true : null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(headerChannel, null);
+    });
+    final headerBarService = LinuxHeaderBarService(
+      channel: headerChannel,
+      isLinux: true,
+    );
+    addTearDown(headerBarService.dispose);
+    await headerBarService.initialize();
+
+    late BuildContext hostContext;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Builder(
+          builder: (context) {
+            hostContext = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    final result = showBusyMaxConfirm(
+      hostContext,
+      title: 'Discard changes?',
+      message: 'Unsaved changes will be lost.',
+      confirmLabel: 'Discard',
+      destructive: true,
+      headerBarService: headerBarService,
+      nativeDialogService: const NativeDialogService(channel: channel),
+    );
+    await tester.pump();
+
+    expect(await result, isTrue);
+    expect(find.byType(BusyMaxConfirmDialog), findsNothing);
+    expect(calls.single.method, 'confirm');
+    expect(
+      headerCalls.where((call) => call.method == 'setModalBarrierVisible'),
+      isEmpty,
+    );
+  });
 
   testWidgets('modal coordinator synchronizes the native barrier', (
     tester,

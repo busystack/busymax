@@ -338,7 +338,6 @@ class _EventEditorState extends State<EventEditor> {
         message: context.l10n.discardChangesConfirmation,
         confirmLabel: context.l10n.discard,
         destructive: true,
-        barrierColor: Colors.transparent,
         headerBarService: widget.headerBarService,
       );
       if (discard && mounted) {

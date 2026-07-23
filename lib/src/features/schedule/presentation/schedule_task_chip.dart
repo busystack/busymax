@@ -83,7 +83,7 @@ class ScheduleTaskChip extends StatelessWidget {
                 color: surfaceColors.control,
                 borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
                 border: Border(
-                  left: BorderSide(color: surfaceColors.subtleBorder, width: 3),
+                  left: BorderSide(color: surfaceColors.divider, width: 3),
                 ),
               ),
               child: showContent

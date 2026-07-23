@@ -321,6 +321,7 @@ void main() {
         runner,
         contains('register_native_date_time_picker_for_subwindow'),
       );
+      expect(runner, contains('register_native_dialogs_for_subwindow'));
       expect(runner, contains('window#busymax-compact-agenda-window'));
       expect(runner, contains('gtk_window_get_titlebar(window)'));
       expect(runner, contains('gtk_widget_hide(titlebar)'));
@@ -973,6 +974,43 @@ void main() {
       expect(source, isNot(contains('"openMenu"')));
     });
 
+    test('Linux confirmations are native GTK dialogs with a Yaru fallback', () {
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final dialogs = File(
+        'lib/src/app/busymax_dialogs.dart',
+      ).readAsStringSync();
+      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final confirmStart = design.indexOf('class BusyMaxConfirmDialog');
+      final confirmBody = design.substring(confirmStart);
+
+      expect(runner, contains('"busymax/native_dialogs"'));
+      expect(runner, contains('gtk_message_dialog_new('));
+      expect(runner, contains('GTK_DIALOG_DESTROY_WITH_PARENT'));
+      expect(runner, contains('GTK_STYLE_CLASS_DESTRUCTIVE_ACTION'));
+      expect(runner, contains('GTK_STYLE_CLASS_SUGGESTED_ACTION'));
+      expect(
+        runner,
+        contains(
+          'gtk_dialog_set_default_response(GTK_DIALOG(dialog), '
+          'GTK_RESPONSE_CANCEL)',
+        ),
+      );
+      expect(runner, contains('register_native_dialogs(self, view, window)'));
+      expect(
+        runner,
+        contains('register_native_dialogs_for_subwindow(view, window)'),
+      );
+      expect(runner, contains('g_object_add_weak_pointer'));
+      expect(runner, contains('native_dialog_handler_data_free'));
+      expect(
+        runner,
+        isNot(contains('native_dialog_method_call_cb, g_object_ref(window)')),
+      );
+      expect(dialogs, contains('NativeDialogService nativeDialogService'));
+      expect(confirmBody, contains('return AlertDialog('));
+      expect(confirmBody, isNot(contains('return BusyMaxDialogShell(')));
+    });
+
     test('native headerbar CSS is limited to semantic surfaces', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
       final headerCssStart = source.indexOf(
@@ -1163,20 +1201,29 @@ void main() {
       expect(source, isNot(contains('gtk_icon_theme_set_custom_theme')));
       expect(source, contains('theme_selected_bg_color'));
       expect(source, contains('set_theme_color(result, "accent"'));
+      expect(source, contains('set_theme_color(result, "accentForeground"'));
+      expect(source, contains('set_theme_color(result, "divider"'));
+      expect(source, contains('set_theme_color(result, "floatingBorder"'));
+      expect(source, contains('gtk_separator_new(GTK_ORIENTATION_HORIZONTAL)'));
+      expect(source, contains('sample_widget_background(separator'));
+      expect(source, isNot(contains('divider_color.alpha *=')));
+      expect(source, contains('GTK_STYLE_CLASS_DIM_LABEL'));
+      expect(source, contains('"opacity", &opacity'));
       expect(source, contains('"setGtkThemePreference"'));
       expect(source, contains('set_gtk_theme_preference(fl_method_bool_arg'));
       expect(gtkFontService, contains('final Color? accent;'));
       expect(gtkFontService, contains("accent: _parseColor(value['accent'])"));
+      expect(gtkFontService, contains('final Color? accentForeground;'));
       expect(
         app,
         contains(
-          'ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent',
+          'gtkThemeColors?.accent ?? ubuntuAccentColor ?? systemColor.accent',
         ),
       );
       expect(
         compactApp,
         contains(
-          'ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent',
+          'gtkThemeColors?.accent ?? ubuntuAccentColor ?? systemColor.accent',
         ),
       );
       expect(source, contains('fl_lookup_optional_bool_arg'));
@@ -1239,7 +1286,7 @@ void main() {
         'ButtonStyle busyMaxDropdownMenuItemStyle',
       );
       final itemEnd = source.indexOf(
-        'ButtonStyle busyMaxPushButtonStyle',
+        "/// BusyMax's cross-platform fallback for a native desktop search entry.",
         itemStart,
       );
       final menuBody = source.substring(menuStart, itemStart);
@@ -1277,7 +1324,14 @@ void main() {
         for (var index = 0; index < lines.length; index++) {
           final line = lines[index];
           final location = '${file.path}:${index + 1}';
-          expect(line, isNot(contains('AlertDialog')), reason: location);
+          final isSharedConfirmationFallback =
+              file.path.endsWith('lib/src/app/busymax_design.dart') &&
+              line.contains('return AlertDialog(');
+          expect(
+            line.contains('AlertDialog'),
+            isSharedConfirmationFallback,
+            reason: location,
+          );
           expect(
             line,
             isNot(contains('DropdownButtonFormField')),

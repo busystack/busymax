@@ -17,6 +17,7 @@
 constexpr char kApplicationDisplayName[] = "BusyMax";
 constexpr char kNativeDateTimePickerChannel[] =
     "busymax/native_date_time_picker";
+constexpr char kNativeDialogChannel[] = "busymax/native_dialogs";
 constexpr char kWindowChannel[] = "io.busystack.busymax/window";
 constexpr char kHeaderBarChannel[] = "io.busystack.busymax/headerbar";
 constexpr char kGtkSettingsChannel[] = "io.busystack.busymax/gtk_settings";
@@ -61,6 +62,7 @@ struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
   FlMethodChannel* native_date_time_picker_channel;
+  FlMethodChannel* native_dialog_channel;
   FlMethodChannel* window_channel;
   FlMethodChannel* header_bar_channel;
   FlMethodChannel* gtk_settings_channel;
@@ -345,6 +347,113 @@ static void register_native_date_time_picker_for_subwindow(FlView* view,
 static void respond_bool(FlMethodCall* method_call, gboolean value) {
   g_autoptr(FlValue) result = fl_value_new_bool(value);
   fl_method_call_respond_success(method_call, result, nullptr);
+}
+
+static void handle_native_confirmation(FlMethodCall* method_call,
+                                       FlValue* args,
+                                       GtkWindow* parent) {
+  const gchar* title = fl_lookup_string_arg(args, "title");
+  const gchar* message = fl_lookup_string_arg(args, "message");
+  const gchar* cancel_label = fl_lookup_string_arg(args, "cancelLabel");
+  const gchar* confirm_label = fl_lookup_string_arg(args, "confirmLabel");
+  const gboolean destructive =
+      fl_lookup_bool_arg(args, "destructive", FALSE);
+
+  GtkWidget* dialog = gtk_message_dialog_new(
+      parent,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT),
+      destructive ? GTK_MESSAGE_WARNING : GTK_MESSAGE_QUESTION,
+      GTK_BUTTONS_NONE, "%s", title != nullptr ? title : "");
+  if (message != nullptr && message[0] != '\0') {
+    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s",
+                                             message);
+  }
+  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+
+  GtkWidget* cancel_button = gtk_dialog_add_button(
+      GTK_DIALOG(dialog), cancel_label != nullptr ? cancel_label : "_Cancel",
+      GTK_RESPONSE_CANCEL);
+  GtkWidget* confirm_button = gtk_dialog_add_button(
+      GTK_DIALOG(dialog), confirm_label != nullptr ? confirm_label : "_OK",
+      GTK_RESPONSE_ACCEPT);
+  GtkStyleContext* confirm_context =
+      gtk_widget_get_style_context(confirm_button);
+  gtk_style_context_add_class(
+      confirm_context, destructive ? GTK_STYLE_CLASS_DESTRUCTIVE_ACTION
+                                   : GTK_STYLE_CLASS_SUGGESTED_ACTION);
+
+  // Confirmation dialogs default to the safe action. GTK still owns focus
+  // rendering, keyboard behavior, button order, typography, and accent use.
+  gtk_widget_set_can_default(cancel_button, TRUE);
+  gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_CANCEL);
+  gtk_widget_grab_focus(cancel_button);
+
+  gtk_widget_show_all(dialog);
+  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+  respond_bool(method_call, response == GTK_RESPONSE_ACCEPT);
+  gtk_widget_destroy(dialog);
+}
+
+struct NativeDialogHandlerData {
+  GtkWindow* window;
+};
+
+static void native_dialog_handler_data_free(gpointer user_data) {
+  auto* data = static_cast<NativeDialogHandlerData*>(user_data);
+  if (data->window != nullptr) {
+    g_object_remove_weak_pointer(
+        G_OBJECT(data->window),
+        reinterpret_cast<gpointer*>(&data->window));
+  }
+  g_free(data);
+}
+
+static void native_dialog_method_call_cb(FlMethodChannel* channel,
+                                         FlMethodCall* method_call,
+                                         gpointer user_data) {
+  auto* data = static_cast<NativeDialogHandlerData*>(user_data);
+  GtkWindow* parent = data->window;
+  if (parent == nullptr) {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+    return;
+  }
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (strcmp(method, "confirm") == 0) {
+    handle_native_confirmation(method_call, fl_method_call_get_args(method_call),
+                               parent);
+  } else {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+  }
+}
+
+static FlMethodChannel* create_native_dialog_channel(FlView* view,
+                                                     GtkWindow* window) {
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  FlMethodChannel* channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      kNativeDialogChannel, FL_METHOD_CODEC(codec));
+  auto* data = g_new0(NativeDialogHandlerData, 1);
+  data->window = window;
+  g_object_add_weak_pointer(G_OBJECT(window),
+                            reinterpret_cast<gpointer*>(&data->window));
+  fl_method_channel_set_method_call_handler(
+      channel, native_dialog_method_call_cb, data,
+      native_dialog_handler_data_free);
+  return channel;
+}
+
+static void register_native_dialogs(MyApplication* self,
+                                    FlView* view,
+                                    GtkWindow* window) {
+  self->native_dialog_channel = create_native_dialog_channel(view, window);
+}
+
+static void register_native_dialogs_for_subwindow(FlView* view,
+                                                  GtkWindow* window) {
+  FlMethodChannel* channel = create_native_dialog_channel(view, window);
+  g_object_set_data_full(G_OBJECT(window), "busymax-native-dialogs", channel,
+                         g_object_unref);
 }
 
 static void respond_success(FlMethodCall* method_call) {
@@ -1897,6 +2006,32 @@ static gboolean sample_widget_background(GtkWidget* widget,
   return color_is_visible(color);
 }
 
+static gboolean sample_widget_border_color(GtkWidget* widget,
+                                           const gchar* style_class,
+                                           GtkStateFlags state,
+                                           GdkRGBA* color) {
+  if (widget == nullptr || color == nullptr) {
+    return FALSE;
+  }
+  GtkStyleContext* context = gtk_widget_get_style_context(widget);
+  if (context == nullptr) {
+    return FALSE;
+  }
+  if (style_class != nullptr) {
+    gtk_style_context_add_class(context, style_class);
+  }
+  gtk_style_context_set_state(context, state);
+  GValue value = G_VALUE_INIT;
+  gtk_style_context_get_property(context, "border-color", state, &value);
+  const GdkRGBA* border =
+      static_cast<const GdkRGBA*>(g_value_get_boxed(&value));
+  if (border != nullptr) {
+    *color = *border;
+  }
+  g_value_unset(&value);
+  return color_is_visible(color);
+}
+
 static gboolean sample_widget_color(GtkWidget* widget,
                                     const gchar* style_class,
                                     GtkStateFlags state,
@@ -1913,6 +2048,24 @@ static gboolean sample_widget_color(GtkWidget* widget,
   }
   gtk_style_context_set_state(context, state);
   gtk_style_context_get_color(context, state, color);
+  return color_is_visible(color);
+}
+
+static gboolean sample_widget_color_with_opacity(
+    GtkWidget* widget,
+    const gchar* style_class,
+    GtkStateFlags state,
+    GdkRGBA* color) {
+  if (!sample_widget_color(widget, style_class, state, color)) {
+    return FALSE;
+  }
+  GtkStyleContext* context = gtk_widget_get_style_context(widget);
+  gdouble opacity = 1.0;
+  gtk_style_context_get(context, state, "opacity", &opacity, nullptr);
+  if (!std::isfinite(opacity)) {
+    opacity = 1.0;
+  }
+  color->alpha *= CLAMP(opacity, 0.0, 1.0);
   return color_is_visible(color);
 }
 
@@ -1935,6 +2088,8 @@ static FlValue* get_gtk_theme_colors() {
   GtkWidget* dialog = gtk_dialog_new();
   GtkWidget* popover = gtk_popover_new(nullptr);
   GtkWidget* control = gtk_button_new();
+  GtkWidget* separator = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+  GtkWidget* dim_label = gtk_label_new(nullptr);
 
   GdkRGBA window_color = {0, 0, 0, 0};
   GdkRGBA view_color = {0, 0, 0, 0};
@@ -1948,10 +2103,12 @@ static FlValue* get_gtk_theme_colors() {
   GdkRGBA control_hover_color = {0, 0, 0, 0};
   GdkRGBA control_active_color = {0, 0, 0, 0};
   GdkRGBA accent_color = {0, 0, 0, 0};
+  GdkRGBA accent_foreground_color = {0, 0, 0, 0};
   GdkRGBA foreground_color = {0, 0, 0, 0};
   GdkRGBA muted_foreground_color = {0, 0, 0, 0};
   GdkRGBA border_color = {0, 0, 0, 0};
-  GdkRGBA subtle_border_color = {0, 0, 0, 0};
+  GdkRGBA divider_color = {0, 0, 0, 0};
+  GdkRGBA floating_border_color = {0, 0, 0, 0};
   GdkRGBA sidebar_border_color = {0, 0, 0, 0};
   GdkRGBA shade_color = {0, 0, 0, 0};
 
@@ -1970,8 +2127,9 @@ static FlValue* get_gtk_theme_colors() {
                            &foreground_color) ||
       sample_widget_color(window, GTK_STYLE_CLASS_BACKGROUND,
                           GTK_STATE_FLAG_NORMAL, &foreground_color);
-  lookup_context_color(window_context, "theme_unfocused_fg_color",
-                       &muted_foreground_color);
+  sample_widget_color_with_opacity(
+      dim_label, GTK_STYLE_CLASS_DIM_LABEL, GTK_STATE_FLAG_NORMAL,
+      &muted_foreground_color);
   lookup_context_color(window_context, "borders", &border_color);
   lookup_context_color(window_context, "sidebar_border_color",
                        &sidebar_border_color);
@@ -1980,6 +2138,10 @@ static FlValue* get_gtk_theme_colors() {
   lookup_context_color(window_context, "accent_bg_color", &accent_color) ||
       lookup_context_color(window_context, "theme_selected_bg_color",
                            &accent_color);
+  lookup_context_color(window_context, "accent_fg_color",
+                       &accent_foreground_color) ||
+      lookup_context_color(window_context, "theme_selected_fg_color",
+                           &accent_foreground_color);
 
   // Prefer public semantic roles. Classic GTK 3 themes often expose only
   // widget-class styling, so retain those samples as compatibility input;
@@ -2005,6 +2167,10 @@ static FlValue* get_gtk_theme_colors() {
   lookup_context_color(window_context, "popover_bg_color", &popover_color) ||
       sample_widget_background(popover, GTK_STYLE_CLASS_BACKGROUND,
                                GTK_STATE_FLAG_NORMAL, &popover_color);
+  sample_widget_border_color(popover, GTK_STYLE_CLASS_BACKGROUND,
+                             GTK_STATE_FLAG_NORMAL, &floating_border_color);
+  sample_widget_background(separator, GTK_STYLE_CLASS_SEPARATOR,
+                           GTK_STATE_FLAG_NORMAL, &divider_color);
 
   sample_widget_background(control, nullptr, GTK_STATE_FLAG_NORMAL,
                            &control_color);
@@ -2012,11 +2178,6 @@ static FlValue* get_gtk_theme_colors() {
                            &control_hover_color);
   sample_widget_background(control, nullptr, GTK_STATE_FLAG_ACTIVE,
                            &control_active_color);
-
-  if (color_is_visible(&border_color)) {
-    subtle_border_color = border_color;
-    subtle_border_color.alpha *= 0.56;
-  }
 
   FlValue* result = fl_value_new_map();
   fl_value_set_string_take(
@@ -2034,14 +2195,18 @@ static FlValue* get_gtk_theme_colors() {
   set_theme_color(result, "controlHover", &control_hover_color);
   set_theme_color(result, "controlActive", &control_active_color);
   set_theme_color(result, "accent", &accent_color);
+  set_theme_color(result, "accentForeground", &accent_foreground_color);
   set_theme_color(result, "activeToggle", &control_active_color);
   set_theme_color(result, "foreground", &foreground_color);
   set_theme_color(result, "mutedForeground", &muted_foreground_color);
   set_theme_color(result, "border", &border_color);
-  set_theme_color(result, "subtleBorder", &subtle_border_color);
+  set_theme_color(result, "divider", &divider_color);
+  set_theme_color(result, "floatingBorder", &floating_border_color);
   set_theme_color(result, "sidebarBorder", &sidebar_border_color);
   set_theme_color(result, "shade", &shade_color);
 
+  gtk_widget_destroy(dim_label);
+  gtk_widget_destroy(separator);
   gtk_widget_destroy(control);
   gtk_widget_destroy(popover);
   gtk_widget_destroy(dialog);
@@ -2738,6 +2903,7 @@ static void configure_compact_agenda_subwindow(FlPluginRegistry* registry) {
   register_compact_agenda_window_channel(view, window);
   register_compact_gtk_settings_channel(view, window);
   register_native_date_time_picker_for_subwindow(view, window);
+  register_native_dialogs_for_subwindow(view, window);
 }
 
 // Called when first Flutter frame received.
@@ -2806,6 +2972,7 @@ static void my_application_activate(GApplication* application) {
         fl_register_plugins(registry);
       });
   register_native_date_time_picker(self, view, window);
+  register_native_dialogs(self, view, window);
   register_window_channel(self, view);
   register_header_bar_channel(self, view);
   register_gtk_settings_channel(self, view);
@@ -2858,6 +3025,7 @@ static void my_application_dispose(GObject* object) {
     g_clear_object(&self->header_bar_css_provider);
   }
   g_clear_object(&self->native_date_time_picker_channel);
+  g_clear_object(&self->native_dialog_channel);
   g_clear_object(&self->window_channel);
   g_clear_object(&self->header_bar_channel);
   g_clear_object(&self->gtk_settings_channel);
@@ -2938,6 +3106,7 @@ static void my_application_class_init(MyApplicationClass* klass) {
 
 static void my_application_init(MyApplication* self) {
   self->native_date_time_picker_channel = nullptr;
+  self->native_dialog_channel = nullptr;
   self->window_channel = nullptr;
   self->header_bar_channel = nullptr;
   self->gtk_settings_channel = nullptr;

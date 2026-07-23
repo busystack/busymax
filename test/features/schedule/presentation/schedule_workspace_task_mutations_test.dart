@@ -6,6 +6,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_workspace.da
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:drift/drift.dart';
@@ -17,7 +18,19 @@ import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+
 void main() {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
+  });
+
   testWidgets('creating a task from Schedule refreshes the visible items', (
     tester,
   ) async {

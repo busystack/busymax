@@ -51,7 +51,8 @@ void main() {
       expect(surfaces.mutedForeground, surfaces.foreground);
       expect(surfaces.disabledForeground, isNot(surfaces.foreground));
       expect(surfaces.border, surfaces.foreground);
-      expect(surfaces.subtleBorder, surfaces.foreground);
+      expect(surfaces.divider, surfaces.foreground);
+      expect(surfaces.floatingBorder, surfaces.foreground);
       expect(surfaces.sidebarBorder, surfaces.foreground);
       expect(theme.colorScheme.outline, surfaces.foreground);
       expect(theme.colorScheme.outlineVariant, surfaces.foreground);

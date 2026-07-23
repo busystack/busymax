@@ -121,15 +121,6 @@ void main() {
             as RoundedRectangleBorder;
     expect(outlinedShape.borderRadius, BorderRadius.circular(BusyMaxRadius.sm));
 
-    final pushButtonStyle = busyMaxPushButtonStyle(null);
-    expect(
-      pushButtonStyle.minimumSize?.resolve({}),
-      BusyMaxSizes.pushButtonSize,
-    );
-    expect(
-      pushButtonStyle.fixedSize?.resolve({}),
-      const Size.fromHeight(BusyMaxSizes.pushButtonHeight),
-    );
     expect(
       light.outlinedButtonTheme.style?.side?.resolve({}),
       yaruBase.outlinedButtonTheme.style?.side?.resolve({}),
@@ -223,19 +214,11 @@ void main() {
       onPressed: () {},
       child: const Text('Suggested'),
     );
-    final headerStandard = BusyMaxHeaderPushButton.standard(
-      onPressed: () {},
-      child: const Text('Cancel'),
-    );
-    final headerSuggested = BusyMaxHeaderPushButton.suggested(
-      onPressed: () {},
-      child: const Text('Save'),
-    );
 
     expect(standard, isA<FilledButton>());
     expect(suggested, isA<ElevatedButton>());
-    expect(headerStandard, isA<FilledButton>());
-    expect(headerSuggested, isA<ElevatedButton>());
+    expect(standard.style, isNull);
+    expect(suggested.style, isNull);
   });
 
   test('BusyMax Yaru theme exposes semantic fallback surfaces', () {
@@ -636,7 +619,8 @@ void main() {
       disabledForeground: Color(0x61FFFFFF),
       disabledControl: Color(0x0FFFFFFF),
       border: Color(0x66000000),
-      subtleBorder: Color(0x1AFFFFFF),
+      divider: Color(0x1AFFFFFF),
+      floatingBorder: Color(0x24000000),
       sidebarBorder: Color(0x33000000),
       shade: Color(0x55000000),
     );
@@ -657,6 +641,27 @@ void main() {
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
     expect(colors.sidebar, gtkColors.sidebar);
     expect(colors.groupedSurface, gtkColors.card);
+  });
+
+  test('BusyMax theme uses GTK accent foreground when it is readable', () {
+    const accent = Color(0xFF006B50);
+    const accentForeground = Color(0xFFF5FFF9);
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      accent: accent,
+      accentForeground: accentForeground,
+    );
+    final theme = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      accentColor: accent,
+      gtkThemeColors: gtkColors,
+    );
+
+    expect(theme.colorScheme.onPrimary, accentForeground);
+    expect(
+      theme.elevatedButtonTheme.style?.foregroundColor?.resolve({}),
+      accentForeground,
+    );
   });
 
   test('BusyMax theme ignores light GTK runtime shade samples', () {
@@ -861,6 +866,23 @@ void main() {
       colors.sidebarBorder,
       busyMaxFallbackSurfaceColors(Brightness.dark).sidebarBorder,
     );
+  });
+
+  test('BusyMax keeps native divider and floating outline roles separate', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.dark,
+      window: Color(0xFF2C2C2C),
+      card: Color(0xFF3D3D3D),
+      divider: Color.fromRGBO(0, 0, 6, 0.56),
+      floatingBorder: Color.fromRGBO(255, 255, 255, 0.14),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.dark,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+
+    expect(colors.divider, gtkColors.divider);
+    expect(colors.floatingBorder, gtkColors.floatingBorder);
   });
 
   test('BusyMax theme preserves chromatic GTK dark surface samples', () {
@@ -1079,9 +1101,14 @@ void main() {
       gtkThemeColors: gtkColors,
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    final fallback = busyMaxFallbackSurfaceColors(Brightness.dark);
 
-    expect(colors.foreground, const Color(0xFFFFFFFF));
-    expect(colors.mutedForeground, const Color.fromRGBO(255, 255, 255, 0.70));
+    expect(colors.foreground, fallback.foreground);
+    expect(colors.mutedForeground, fallback.mutedForeground);
+    expect(
+      colors.mutedForeground.a,
+      closeTo(colors.foreground.a * 0.55, 0.001),
+    );
     expect(theme.colorScheme.onSurface, colors.foreground);
     expect(theme.colorScheme.onSurfaceVariant, colors.mutedForeground);
   });
@@ -1381,7 +1408,7 @@ void main() {
     expect(windowService.hideWindowCalls, 1);
   });
 
-  test('app sources avoid forbidden hardcoded accent colors', () {
+  test('production sources avoid forbidden hardcoded accent colors', () {
     final disallowedHue = String.fromCharCodes([111, 114, 97, 110, 103, 101]);
     final forbidden = [
       '0xFF0D6E'
@@ -1391,20 +1418,21 @@ void main() {
       'Colors.'
           'red',
       'Colors.$disallowedHue',
-      'YaruVariant.$disallowedHue',
     ];
     final matches = <String>[];
+    const centralizedAccentMapping = 'lib/src/app/system_accent.dart';
 
-    for (final root in [Directory('lib'), Directory('test')]) {
-      for (final entry in root.listSync(recursive: true)) {
-        if (entry is! File) {
-          continue;
-        }
-        final text = utf8.decode(entry.readAsBytesSync(), allowMalformed: true);
-        for (final token in forbidden) {
-          if (text.contains(token)) {
-            matches.add('${entry.path}: $token');
-          }
+    for (final entry in Directory('lib').listSync(recursive: true)) {
+      if (entry is! File) {
+        continue;
+      }
+      final text = utf8.decode(entry.readAsBytesSync(), allowMalformed: true);
+      final fileForbidden = entry.path == centralizedAccentMapping
+          ? forbidden
+          : [...forbidden, 'YaruVariant.', 'YaruColors.'];
+      for (final token in fileForbidden) {
+        if (text.contains(token)) {
+          matches.add('${entry.path}: $token');
         }
       }
     }

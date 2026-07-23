@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/l10n.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_header_bar_provider.dart';
+import '../platform/native_dialog_service.dart';
 import 'busymax_design.dart';
 import 'busymax_shortcuts.dart';
 
@@ -39,28 +41,54 @@ Future<T?> showBusyMaxModalDialog<T>(
 }) async {
   final effectiveHeaderBarService =
       headerBarService ?? _headerBarServiceFrom(context);
+  return _coordinateBusyMaxModal<T>(
+    context,
+    headerBarService: effectiveHeaderBarService,
+    showSurface: () => _showBusyMaxFlutterDialog<T>(
+      context,
+      builder: builder,
+      barrierColor: barrierColor,
+      barrierDismissible: barrierDismissible,
+    ),
+  );
+}
+
+Future<T?> _coordinateBusyMaxModal<T>(
+  BuildContext context, {
+  required LinuxHeaderBarService? headerBarService,
+  required Future<T?> Function() showSurface,
+}) async {
   final previousFocus = FocusManager.instance.primaryFocus;
-  await acquireBusyMaxModalBarrier(effectiveHeaderBarService);
+  await acquireBusyMaxModalBarrier(headerBarService);
   if (!context.mounted) {
-    await releaseBusyMaxModalBarrier(effectiveHeaderBarService);
+    await releaseBusyMaxModalBarrier(headerBarService);
     return null;
   }
 
   try {
-    return await showDialog<T>(
-      context: context,
-      barrierColor: barrierColor ?? busyMaxModalBarrierColor(context),
-      barrierDismissible: barrierDismissible,
-      traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
-      builder: (dialogContext) =>
-          BusyMaxModalShortcutBoundary(child: builder(dialogContext)),
-    );
+    return await showSurface();
   } finally {
-    await releaseBusyMaxModalBarrier(effectiveHeaderBarService);
+    await releaseBusyMaxModalBarrier(headerBarService);
     if (previousFocus?.context != null && previousFocus!.canRequestFocus) {
       previousFocus.requestFocus();
     }
   }
+}
+
+Future<T?> _showBusyMaxFlutterDialog<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  Color? barrierColor,
+  bool barrierDismissible = true,
+}) {
+  return showDialog<T>(
+    context: context,
+    barrierColor: barrierColor ?? busyMaxModalBarrierColor(context),
+    barrierDismissible: barrierDismissible,
+    traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
+    builder: (dialogContext) =>
+        BusyMaxModalShortcutBoundary(child: builder(dialogContext)),
+  );
 }
 
 Future<T?> showBusyMaxModalEditorDialog<T>(
@@ -128,7 +156,25 @@ Future<bool> showBusyMaxConfirm(
   bool destructive = false,
   Color? barrierColor,
   LinuxHeaderBarService? headerBarService,
+  NativeDialogService nativeDialogService = const NativeDialogService(),
 }) async {
+  final nativeResult = await nativeDialogService.confirm(
+    title: title,
+    message: message,
+    cancelLabel: context.l10n.cancel,
+    confirmLabel: confirmLabel,
+    destructive: destructive,
+  );
+  if (nativeResult.available) {
+    // GTK owns parent modality for its transient dialog. Adding BusyMax's
+    // Flutter/header-bar barrier here would dim only part of the native window
+    // and duplicate the platform's input blocking.
+    return nativeResult.confirmed;
+  }
+  if (!context.mounted) {
+    return false;
+  }
+
   final confirmed = await showBusyMaxModalDialog<bool>(
     context,
     headerBarService: headerBarService,

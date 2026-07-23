@@ -28,9 +28,14 @@ void main() {
               body: BusyMaxGroupedList(
                 filled: true,
                 children: [
-                  BusyMaxActionRow(title: 'Calendar', onTap: () {}),
+                  BusyMaxActionRow(
+                    title: 'Calendar',
+                    subtitle: 'Personal account',
+                    onTap: () {},
+                  ),
                   const BusyMaxSwitchRow(
                     title: 'Notifications',
+                    subtitle: 'Sync changes automatically',
                     value: true,
                     onChanged: _ignoreBool,
                   ),
@@ -55,7 +60,7 @@ void main() {
         expect(materialSurface.elevation, BusyMaxElevation.card);
         expect(materialSurface.shadowColor, theme.colorScheme.shadow);
         final shape = materialSurface.shape! as RoundedRectangleBorder;
-        expect(shape.side.color, colors.subtleBorder);
+        expect(shape.side, BorderSide.none);
         expect(
           find.descendant(
             of: groupedSurface,
@@ -71,9 +76,81 @@ void main() {
           materialLayers.where((material) => material.color == colors.control),
           isEmpty,
         );
+        expect(
+          DefaultTextStyle.of(
+            tester.element(find.text('Personal account')),
+          ).style.color,
+          colors.mutedForeground,
+        );
+        expect(
+          DefaultTextStyle.of(
+            tester.element(find.text('Sync changes automatically')),
+          ).style.color,
+          colors.mutedForeground,
+        );
       },
     );
   }
+
+  testWidgets('disabled grouped subtitles use the semantic disabled role', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: const Scaffold(
+          body: BusyMaxActionRow(
+            title: 'Calendar',
+            subtitle: 'Account unavailable',
+            enabled: false,
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      DefaultTextStyle.of(
+        tester.element(find.text('Account unavailable')),
+      ).style.color,
+      colors.disabledForeground,
+    );
+  });
+
+  testWidgets('grouped cards add a semantic outline in high contrast', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+      highContrast: true,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: const MediaQuery(
+          data: MediaQueryData(highContrast: true),
+          child: BusyMaxGroupedSurface(child: SizedBox(height: 48)),
+        ),
+      ),
+    );
+
+    final materialSurface = tester.widget<Material>(
+      find.descendant(
+        of: find.byType(BusyMaxGroupedSurface),
+        matching: find.byType(Material),
+      ),
+    );
+    final shape = materialSurface.shape! as RoundedRectangleBorder;
+    expect(shape.side.color, theme.colorScheme.outline);
+    expect(shape.side.width, BusyMaxStroke.outline);
+  });
 
   for (final brightness in Brightness.values) {
     testWidgets('rows use the subtle Yaru $brightness hover role', (
@@ -619,7 +696,7 @@ void main() {
       final modalShape = modalMaterial.shape! as RoundedRectangleBorder;
       expect(modalMaterial.elevation, BusyMaxElevation.window);
       expect(modalMaterial.shadowColor, theme.colorScheme.shadow);
-      expect(modalShape.side.color, colors.subtleBorder);
+      expect(modalShape.side.color, colors.floatingBorder);
       expect(modalShape.side.width, BusyMaxStroke.outline);
 
       final physicalShape = tester.widget<PhysicalShape>(
@@ -704,6 +781,12 @@ void main() {
     expect(control.isSelected, [isTrue, isFalse]);
     final theme = Theme.of(tester.element(find.byType(ToggleButtons)));
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    expect(
+      DefaultTextStyle.of(
+        tester.element(find.text('Use dates only or set specific times.')),
+      ).style.color,
+      colors.mutedForeground,
+    );
     expect(theme.toggleButtonsTheme.fillColor, colors.controlActive);
     expect(theme.toggleButtonsTheme.fillColor, isNot(accentColor));
     expect(theme.toggleButtonsTheme.selectedColor, colors.foreground);

@@ -36,11 +36,6 @@ abstract final class BusyMaxSizes {
   static const double detailsWidth = 700;
   static const double compactDetailsWidth = 700;
   static const double toolbarHeight = kYaruTitleBarHeight;
-  static const double pushButtonHeight = kYaruButtonHeight;
-  static final Size pushButtonSize = Size(
-    kPushButtonSize.width,
-    pushButtonHeight,
-  );
   static const double sidebarRowHeight = 36;
   static const double taskRowMinHeight = 48;
   static const double iconSm = 16;
@@ -206,7 +201,7 @@ class BusyMaxPopoverSurface extends StatelessWidget {
       child: CustomPaint(
         foregroundPainter: _BusyMaxPopoverOutlinePainter(
           clipper: clipper,
-          color: BusyMaxSurfaceColors.of(context).subtleBorder,
+          color: BusyMaxSurfaceColors.of(context).floatingBorder,
         ),
         child: Padding(
           padding: EdgeInsets.only(
@@ -407,28 +402,6 @@ ButtonStyle busyMaxDropdownMenuItemStyle(BuildContext context) {
   return Theme.of(context).menuButtonTheme.style ?? const ButtonStyle();
 }
 
-ButtonStyle busyMaxPushButtonStyle(ButtonStyle? style) {
-  return ButtonStyle(
-    fixedSize: const WidgetStatePropertyAll(
-      Size.fromHeight(BusyMaxSizes.pushButtonHeight),
-    ),
-    minimumSize: WidgetStatePropertyAll(BusyMaxSizes.pushButtonSize),
-  ).merge(style);
-}
-
-ButtonStyle busyMaxHeaderPushButtonStyle(ButtonStyle? style) {
-  return ButtonStyle(
-    minimumSize: const WidgetStatePropertyAll(
-      Size(BusyMaxSizes.headerIconButton, BusyMaxSizes.headerIconButton),
-    ),
-    padding: const WidgetStatePropertyAll(
-      EdgeInsets.symmetric(horizontal: BusyMaxSpacing.xl),
-    ),
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    shape: WidgetStatePropertyAll(busyMaxHeaderButtonShape()),
-  ).merge(style);
-}
-
 /// BusyMax's cross-platform fallback for a native desktop search entry.
 ///
 /// Linux header bars use `GtkSearchEntry`. Flutter-owned layouts delegate
@@ -554,7 +527,7 @@ abstract final class BusyMaxPushButton {
       onLongPress: onLongPress,
       onHover: onHover,
       onFocusChange: onFocusChange,
-      style: busyMaxPushButtonStyle(style),
+      style: style,
       focusNode: focusNode,
       autofocus: autofocus,
       clipBehavior: clipBehavior,
@@ -584,7 +557,7 @@ abstract final class BusyMaxPushButton {
       onLongPress: onLongPress,
       onHover: onHover,
       onFocusChange: onFocusChange,
-      style: busyMaxPushButtonStyle(style),
+      style: style,
       focusNode: focusNode,
       autofocus: autofocus,
       clipBehavior: clipBehavior,
@@ -619,70 +592,10 @@ abstract final class BusyMaxPushButton {
       onLongPress: onLongPress,
       onHover: onHover,
       onFocusChange: onFocusChange,
-      style: busyMaxPushButtonStyle(
-        ElevatedButton.styleFrom(
-          backgroundColor: colorScheme.error,
-          foregroundColor: colorScheme.onError,
-        ).merge(style),
-      ),
-      focusNode: focusNode,
-      autofocus: autofocus,
-      clipBehavior: clipBehavior,
-      statesController: statesController,
-      child: child,
-    );
-  }
-}
-
-abstract final class BusyMaxHeaderPushButton {
-  static PushButton standard({
-    required Widget child,
-    required VoidCallback? onPressed,
-    VoidCallback? onLongPress,
-    ValueChanged<bool>? onHover,
-    ValueChanged<bool>? onFocusChange,
-    ButtonStyle? style,
-    FocusNode? focusNode,
-    bool autofocus = false,
-    Clip clipBehavior = Clip.none,
-    WidgetStatesController? statesController,
-    Key? key,
-  }) {
-    return PushButton.filled(
-      key: key,
-      onPressed: onPressed,
-      onLongPress: onLongPress,
-      onHover: onHover,
-      onFocusChange: onFocusChange,
-      style: busyMaxHeaderPushButtonStyle(style),
-      focusNode: focusNode,
-      autofocus: autofocus,
-      clipBehavior: clipBehavior,
-      statesController: statesController,
-      child: child,
-    );
-  }
-
-  static PushButton suggested({
-    required Widget child,
-    required VoidCallback? onPressed,
-    VoidCallback? onLongPress,
-    ValueChanged<bool>? onHover,
-    ValueChanged<bool>? onFocusChange,
-    ButtonStyle? style,
-    FocusNode? focusNode,
-    bool autofocus = false,
-    Clip clipBehavior = Clip.none,
-    WidgetStatesController? statesController,
-    Key? key,
-  }) {
-    return PushButton.elevated(
-      key: key,
-      onPressed: onPressed,
-      onLongPress: onLongPress,
-      onHover: onHover,
-      onFocusChange: onFocusChange,
-      style: busyMaxHeaderPushButtonStyle(style),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colorScheme.error,
+        foregroundColor: colorScheme.onError,
+      ).merge(style),
       focusNode: focusNode,
       autofocus: autofocus,
       clipBehavior: clipBehavior,
@@ -726,6 +639,20 @@ TextStyle? busyMaxSectionHeaderStyle(BuildContext context) {
   final theme = Theme.of(context);
   return theme.textTheme.titleSmall?.copyWith(
     color: theme.colorScheme.onSurfaceVariant,
+  );
+}
+
+Widget _busyMaxGroupedRowSubtitle(
+  BuildContext context,
+  Widget child, {
+  bool enabled = true,
+}) {
+  final colors = BusyMaxSurfaceColors.of(context);
+  return DefaultTextStyle.merge(
+    style: TextStyle(
+      color: enabled ? colors.mutedForeground : colors.disabledForeground,
+    ),
+    child: child,
   );
 }
 
@@ -868,9 +795,12 @@ class BusyMaxGroupedSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surfaceColors = BusyMaxSurfaceColors.of(context);
+    final highContrast = MediaQuery.highContrastOf(context);
     return BusyMaxSurface(
       color: surfaceColors.groupedSurface,
-      side: BorderSide(color: surfaceColors.subtleBorder),
+      side: highContrast
+          ? BorderSide(color: Theme.of(context).colorScheme.outline)
+          : BorderSide.none,
       clipBehavior: clipBehavior,
       child: child,
     );
@@ -1000,7 +930,7 @@ class _BusyMaxGroupedListSurface extends StatelessWidget {
         for (var index = 0; index < children.length; index++) ...[
           children[index],
           if (index < children.length - 1)
-            Divider(height: 1, thickness: 1, color: surfaceColors.subtleBorder),
+            Divider(height: 1, thickness: 1, color: surfaceColors.divider),
         ],
       ],
     );
@@ -1068,6 +998,15 @@ class _BusyMaxActionRowState extends State<BusyMaxActionRow> {
     final titleStyle = widget.destructive
         ? TextStyle(color: colorScheme.error)
         : null;
+    final subtitle =
+        widget.subtitleWidget ??
+        (widget.subtitle == null || widget.subtitle!.isEmpty
+            ? null
+            : Text(
+                widget.subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ));
     final interactive =
         widget.enabled && (widget.onTap != null || widget.onActivated != null);
     final row = YaruListTile.square(
@@ -1080,15 +1019,13 @@ class _BusyMaxActionRowState extends State<BusyMaxActionRow> {
             overflow: TextOverflow.ellipsis,
             style: titleStyle,
           ),
-      subtitle:
-          widget.subtitleWidget ??
-          (widget.subtitle == null || widget.subtitle!.isEmpty
-              ? null
-              : Text(
-                  widget.subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                )),
+      subtitle: subtitle == null
+          ? null
+          : _busyMaxGroupedRowSubtitle(
+              context,
+              subtitle,
+              enabled: widget.enabled,
+            ),
       trailing: widget.trailing,
       enabled: widget.enabled,
       autofocus: widget.autofocus,
@@ -1460,7 +1397,11 @@ class BusyMaxCalendarValueRow extends StatelessWidget {
     final row = YaruListTile.square(
       leading: leading,
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: _busyMaxGroupedRowSubtitle(
+        context,
+        Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+        enabled: enabled,
+      ),
       trailing: trailingIcons.isEmpty
           ? null
           : Row(
@@ -1583,6 +1524,13 @@ class BusyMaxComboRow<T> extends StatelessWidget {
             : subtitle == null
             ? null
             : Text(subtitle!);
+        final styledSubtitle = subtitleWidget == null
+            ? null
+            : _busyMaxGroupedRowSubtitle(
+                context,
+                subtitleWidget,
+                enabled: enabled,
+              );
         final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
         final actionAllowance = trailingAction == null
             ? 0.0
@@ -1659,7 +1607,7 @@ class BusyMaxComboRow<T> extends StatelessWidget {
                   YaruListTile.square(
                     leading: leading,
                     titleText: title,
-                    subtitle: subtitleWidget,
+                    subtitle: styledSubtitle,
                     enabled: enabled,
                   ),
                   Padding(
@@ -1676,7 +1624,7 @@ class BusyMaxComboRow<T> extends StatelessWidget {
             : YaruListTile.square(
                 leading: leading,
                 titleText: title,
-                subtitle: subtitleWidget,
+                subtitle: styledSubtitle,
                 trailing: trailing,
                 enabled: enabled,
               );
@@ -1751,7 +1699,13 @@ class BusyMaxSwitchRow extends StatelessWidget {
       onChanged: enabled ? onChanged : null,
       secondary: leading,
       title: Text(title),
-      subtitle: subtitle == null ? null : Text(subtitle!),
+      subtitle: subtitle == null
+          ? null
+          : _busyMaxGroupedRowSubtitle(
+              context,
+              Text(subtitle!),
+              enabled: enabled,
+            ),
       shape: const RoundedRectangleBorder(),
       hoverColor: busyMaxRowHoverColor(context),
     );
@@ -2294,7 +2248,7 @@ class BusyMaxEditorHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          BusyMaxHeaderPushButton.standard(
+          BusyMaxPushButton.standard(
             onPressed: cancelEnabled ? onCancel : null,
             child: Text(cancelLabel, overflow: TextOverflow.ellipsis),
           ),
@@ -2307,7 +2261,7 @@ class BusyMaxEditorHeader extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-          BusyMaxHeaderPushButton.suggested(
+          BusyMaxPushButton.suggested(
             onPressed: onSave,
             child: saving
                 ? const SizedBox.square(
@@ -2361,7 +2315,10 @@ class BusyMaxTimeModeRow extends StatelessWidget {
             textScale > 1.2;
         final label = YaruListTile.square(
           title: Text(l10n.timeMode),
-          subtitle: Text(l10n.timeModeDescription),
+          subtitle: _busyMaxGroupedRowSubtitle(
+            context,
+            Text(l10n.timeModeDescription),
+          ),
           trailing: stackSelector ? null : selector,
         );
         if (!stackSelector) {
@@ -2498,7 +2455,7 @@ class BusyMaxModalEditorSurface extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BusyMaxRadius.lg),
           side: BorderSide(
-            color: surfaceColors.subtleBorder,
+            color: surfaceColors.floatingBorder,
             width: BusyMaxStroke.outline,
           ),
         ),
@@ -2675,9 +2632,10 @@ class BusyMaxConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BusyMaxDialogShell(
-      title: title,
-      maxWidth: 460,
+    return AlertDialog(
+      titlePadding: EdgeInsets.zero,
+      title: YaruDialogTitleBar(title: Text(title), centerTitle: true),
+      content: Text(message),
       actions: [
         BusyMaxPushButton.standard(
           onPressed: () => Navigator.of(context).pop(false),
@@ -2695,7 +2653,6 @@ class BusyMaxConfirmDialog extends StatelessWidget {
             child: Text(confirmLabel),
           ),
       ],
-      children: [Text(message)],
     );
   }
 }

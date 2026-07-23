@@ -181,7 +181,7 @@ class _FormatButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: SizedBox.square(
-        dimension: BusyMaxSizes.pushButtonHeight,
+        dimension: BusyMaxSizes.headerIconButton,
         child: YaruIconButton(
           tooltip: tooltip,
           onPressed: onPressed,

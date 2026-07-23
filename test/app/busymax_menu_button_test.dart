@@ -13,7 +13,7 @@ void main() {
     String? selected;
     final theme = BusyMaxYaruTheme.build(
       brightness: Brightness.dark,
-      accentColor: BusyMaxLinuxPalette.ubuntuOrangeAccent,
+      accentColor: YaruColors.orange,
     );
 
     await tester.pumpWidget(

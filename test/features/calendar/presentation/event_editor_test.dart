@@ -7,6 +7,7 @@ import 'package:busymax/src/features/calendar/presentation/event_editor_draft.da
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,8 +17,22 @@ import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+
 void main() {
-  testWidgets('header buttons use compact headerbar sizing', (tester) async {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
+  });
+
+  testWidgets('editor actions use standard desktop push-button sizing', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       localizedTestApp(
         child: Scaffold(
@@ -47,11 +62,11 @@ void main() {
     );
     expect(
       tester.getSize(_headerButtonFinder('Cancel')).height,
-      BusyMaxSizes.headerIconButton,
+      inInclusiveRange(kPushButtonSize.height, kMinInteractiveDimension),
     );
     expect(
       tester.getSize(_headerButtonFinder('Save')).height,
-      BusyMaxSizes.headerIconButton,
+      inInclusiveRange(kPushButtonSize.height, kMinInteractiveDimension),
     );
     expect(
       find.ancestor(
@@ -1145,12 +1160,9 @@ void main() {
     expect(design, contains('class BusyMaxModalEditorScaffold'));
     expect(design, contains('BusyMaxEditorHeader('));
     expect(design, contains('SingleChildScrollView'));
-    expect(design, contains('BusyMaxHeaderPushButton.standard'));
-    expect(design, contains('BusyMaxHeaderPushButton.suggested'));
-    expect(
-      design,
-      contains('EdgeInsets.symmetric(horizontal: BusyMaxSpacing.xl)'),
-    );
+    expect(design, contains('BusyMaxPushButton.standard'));
+    expect(design, contains('BusyMaxPushButton.suggested'));
+    expect(design, isNot(contains('BusyMaxHeaderPushButton')));
     expect(design, contains('textAlign: TextAlign.center'));
     expect(design, contains('textTheme.titleMedium'));
     expect(editor, isNot(contains('BusyMaxDialogCloseButton')));

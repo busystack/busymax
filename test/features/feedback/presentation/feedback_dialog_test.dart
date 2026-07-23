@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/feedback/presentation/feedback_dialog.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,7 +11,19 @@ import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+
 void main() {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
+  });
+
   testWidgets('shows required-field validation without sending', (
     tester,
   ) async {

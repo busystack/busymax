@@ -3,30 +3,20 @@ import 'dart:io';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'busymax_yaru_theme.dart';
-
-const busyMaxDefaultAccentColor = BusyMaxLinuxPalette.blueAccent;
-
-final initialSystemAccentColorProvider = Provider<Color>(
-  (ref) => busyMaxDefaultAccentColor,
-);
+import 'package:yaru/theme.dart';
 
 final linuxPortalAppearanceProvider = Provider<LinuxPortalAppearance>(
   (ref) => const LinuxPortalAppearance(),
 );
 
 final ubuntuSystemAccentColorProvider = StreamProvider<Color>((ref) async* {
-  final fallback = ref.watch(initialSystemAccentColorProvider);
-  yield fallback;
-
   if (!Platform.isLinux) {
     return;
   }
 
   final appearance = ref.watch(linuxPortalAppearanceProvider);
   final initial = await appearance.readAccentColor();
-  if (initial != null && initial != fallback) {
+  if (initial != null) {
     yield initial;
   }
   yield* appearance.accentColorChanges().distinct();
@@ -152,21 +142,21 @@ Color? colorFromUbuntuAccentNameValue(DBusValue value) {
 
 Color? ubuntuAccentNameColor(String name) {
   return switch (name) {
-    'blue' => BusyMaxLinuxPalette.ubuntuBlueAccent,
-    'teal' => BusyMaxLinuxPalette.ubuntuTealAccent,
-    'green' => BusyMaxLinuxPalette.ubuntuGreenAccent,
-    'yellow' => BusyMaxLinuxPalette.ubuntuYellowAccent,
-    'orange' => BusyMaxLinuxPalette.ubuntuOrangeAccent,
-    'red' => BusyMaxLinuxPalette.ubuntuRedAccent,
-    'pink' => BusyMaxLinuxPalette.ubuntuPinkAccent,
-    'purple' => BusyMaxLinuxPalette.ubuntuPurpleAccent,
-    'slate' => BusyMaxLinuxPalette.ubuntuSlateAccent,
-    'brown' => BusyMaxLinuxPalette.ubuntuBrownAccent,
-    'magenta' => BusyMaxLinuxPalette.ubuntuMagentaAccent,
-    'olive' => BusyMaxLinuxPalette.ubuntuOliveAccent,
-    'prussiangreen' => BusyMaxLinuxPalette.ubuntuPrussianGreenAccent,
-    'sage' => BusyMaxLinuxPalette.ubuntuSageAccent,
-    'wartybrown' => BusyMaxLinuxPalette.ubuntuWartyBrownAccent,
+    'blue' => YaruVariant.blue.color,
+    'teal' => YaruVariant.adwaitaTeal.color,
+    'green' => YaruVariant.adwaitaGreen.color,
+    'yellow' => YaruVariant.adwaitaYellow.color,
+    'orange' => YaruVariant.orange.color,
+    'red' => YaruVariant.red.color,
+    'pink' => YaruVariant.magenta.color,
+    'purple' => YaruVariant.purple.color,
+    'slate' => YaruVariant.adwaitaSlate.color,
+    'brown' => YaruVariant.wartyBrown.color,
+    'magenta' => YaruVariant.magenta.color,
+    'olive' => YaruVariant.olive.color,
+    'prussiangreen' => YaruVariant.prussianGreen.color,
+    'sage' => YaruVariant.sage.color,
+    'wartybrown' => YaruVariant.wartyBrown.color,
     _ => null,
   };
 }

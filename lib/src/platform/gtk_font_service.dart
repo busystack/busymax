@@ -154,13 +154,15 @@ class GtkThemeColors {
     this.controlHover,
     this.controlActive,
     this.accent,
+    this.accentForeground,
     this.activeToggle,
     this.foreground,
     this.mutedForeground,
     this.disabledForeground,
     this.disabledControl,
     this.border,
-    this.subtleBorder,
+    this.divider,
+    this.floatingBorder,
     this.sidebarBorder,
     this.shade,
   });
@@ -179,13 +181,15 @@ class GtkThemeColors {
   final Color? controlHover;
   final Color? controlActive;
   final Color? accent;
+  final Color? accentForeground;
   final Color? activeToggle;
   final Color? foreground;
   final Color? mutedForeground;
   final Color? disabledForeground;
   final Color? disabledControl;
   final Color? border;
-  final Color? subtleBorder;
+  final Color? divider;
+  final Color? floatingBorder;
   final Color? sidebarBorder;
   final Color? shade;
 
@@ -207,13 +211,15 @@ class GtkThemeColors {
             other.controlHover == controlHover &&
             other.controlActive == controlActive &&
             other.accent == accent &&
+            other.accentForeground == accentForeground &&
             other.activeToggle == activeToggle &&
             other.foreground == foreground &&
             other.mutedForeground == mutedForeground &&
             other.disabledForeground == disabledForeground &&
             other.disabledControl == disabledControl &&
             other.border == border &&
-            other.subtleBorder == subtleBorder &&
+            other.divider == divider &&
+            other.floatingBorder == floatingBorder &&
             other.sidebarBorder == sidebarBorder &&
             other.shade == shade;
   }
@@ -234,13 +240,15 @@ class GtkThemeColors {
     controlHover,
     controlActive,
     accent,
+    accentForeground,
     activeToggle,
     foreground,
     mutedForeground,
     disabledForeground,
     disabledControl,
     border,
-    subtleBorder,
+    divider,
+    floatingBorder,
     sidebarBorder,
     shade,
   ]);
@@ -320,13 +328,15 @@ GtkThemeColors? _parseThemeColors(Object? value) {
     controlHover: _parseColor(value['controlHover']),
     controlActive: _parseColor(value['controlActive']),
     accent: _parseColor(value['accent']),
+    accentForeground: _parseColor(value['accentForeground']),
     activeToggle: _parseColor(value['activeToggle']),
     foreground: _parseColor(value['foreground']),
     mutedForeground: _parseColor(value['mutedForeground']),
     disabledForeground: _parseColor(value['disabledForeground']),
     disabledControl: _parseColor(value['disabledControl']),
     border: _parseColor(value['border']),
-    subtleBorder: _parseColor(value['subtleBorder']),
+    divider: _parseColor(value['divider']),
+    floatingBorder: _parseColor(value['floatingBorder']),
     sidebarBorder: _parseColor(value['sidebarBorder']),
     shade: _parseColor(value['shade']),
   );

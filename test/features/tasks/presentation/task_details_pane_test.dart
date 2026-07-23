@@ -14,6 +14,7 @@ import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:ubuntu_widgets/ubuntu_widgets.dart';
 import 'package:yaru/yaru.dart';
@@ -21,13 +22,21 @@ import 'package:yaru/yaru.dart';
 import '../../../test_localized_app.dart';
 
 const _nativePickerChannel = MethodChannel(nativeDateTimePickerChannelName);
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 
 void main() {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+  });
+
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativePickerChannel, (_) async {
           throw MissingPluginException();
         });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
   });
 
   testWidgets('Task Details header shows Cancel and Save', (tester) async {
@@ -39,7 +48,7 @@ void main() {
     expect(find.text('Save'), findsOneWidget);
   });
 
-  testWidgets('Cancel and Save are compact PushButtons', (tester) async {
+  testWidgets('Cancel and Save are desktop PushButtons', (tester) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
     expect(
@@ -58,7 +67,9 @@ void main() {
     );
   });
 
-  testWidgets('header buttons use compact headerbar sizing', (tester) async {
+  testWidgets('editor actions use standard desktop push-button sizing', (
+    tester,
+  ) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
     expect(
@@ -71,11 +82,11 @@ void main() {
     );
     expect(
       tester.getSize(_headerButtonFinder(tester, 'Cancel')).height,
-      BusyMaxSizes.headerIconButton,
+      inInclusiveRange(kPushButtonSize.height, kMinInteractiveDimension),
     );
     expect(
       tester.getSize(_headerButtonFinder(tester, 'Save')).height,
-      BusyMaxSizes.headerIconButton,
+      inInclusiveRange(kPushButtonSize.height, kMinInteractiveDimension),
     );
   });
 

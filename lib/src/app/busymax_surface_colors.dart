@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const _dimLabelOpacity = 0.55;
+
 @immutable
 class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
   const BusyMaxSurfaceColors({
@@ -22,7 +24,8 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
     required this.disabledForeground,
     required this.disabledControl,
     required this.border,
-    required this.subtleBorder,
+    required this.divider,
+    required this.floatingBorder,
     required this.sidebarBorder,
     required this.shade,
   });
@@ -46,7 +49,8 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
   final Color disabledForeground;
   final Color disabledControl;
   final Color border;
-  final Color subtleBorder;
+  final Color divider;
+  final Color floatingBorder;
   final Color sidebarBorder;
   final Color shade;
 
@@ -77,7 +81,8 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
     Color? disabledForeground,
     Color? disabledControl,
     Color? border,
-    Color? subtleBorder,
+    Color? divider,
+    Color? floatingBorder,
     Color? sidebarBorder,
     Color? shade,
   }) {
@@ -101,7 +106,8 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
       disabledForeground: disabledForeground ?? this.disabledForeground,
       disabledControl: disabledControl ?? this.disabledControl,
       border: border ?? this.border,
-      subtleBorder: subtleBorder ?? this.subtleBorder,
+      divider: divider ?? this.divider,
+      floatingBorder: floatingBorder ?? this.floatingBorder,
       sidebarBorder: sidebarBorder ?? this.sidebarBorder,
       shade: shade ?? this.shade,
     );
@@ -140,7 +146,8 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
       )!,
       disabledControl: Color.lerp(disabledControl, other.disabledControl, t)!,
       border: Color.lerp(border, other.border, t)!,
-      subtleBorder: Color.lerp(subtleBorder, other.subtleBorder, t)!,
+      divider: Color.lerp(divider, other.divider, t)!,
+      floatingBorder: Color.lerp(floatingBorder, other.floatingBorder, t)!,
       sidebarBorder: Color.lerp(sidebarBorder, other.sidebarBorder, t)!,
       shade: Color.lerp(shade, other.shade, t)!,
     );
@@ -148,8 +155,16 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
 }
 
 BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
+  final foreground = switch (brightness) {
+    Brightness.light => const Color.fromRGBO(0, 0, 6, 0.80),
+    Brightness.dark => const Color(0xFFF6F5F4),
+  };
+  final mutedForeground = foreground.withValues(
+    alpha: foreground.a * _dimLabelOpacity,
+  );
+
   return switch (brightness) {
-    Brightness.light => const BusyMaxSurfaceColors(
+    Brightness.light => BusyMaxSurfaceColors(
       window: Color(0xFFFAFAFB),
       view: Color(0xFFFFFFFF),
       sidebar: Color(0xFFEBEBED),
@@ -164,16 +179,17 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       controlHover: Color.fromRGBO(0, 0, 0, 0.10),
       controlActive: Color.fromRGBO(0, 0, 0, 0.16),
       activeToggle: Color(0xFFFFFFFF),
-      foreground: Color.fromRGBO(0, 0, 6, 0.80),
-      mutedForeground: Color.fromRGBO(0, 0, 6, 0.56),
+      foreground: foreground,
+      mutedForeground: mutedForeground,
       disabledForeground: Color.fromRGBO(0, 0, 6, 0.38),
       disabledControl: Color.fromRGBO(0, 0, 0, 0.04),
       border: Color.fromRGBO(0, 0, 6, 0.18),
-      subtleBorder: Color.fromRGBO(0, 0, 6, 0.10),
+      divider: Color.fromRGBO(0, 0, 6, 0.10),
+      floatingBorder: Color.fromRGBO(0, 0, 6, 0.10),
       sidebarBorder: Color.fromRGBO(0, 0, 6, 0.07),
       shade: Color.fromRGBO(0, 0, 6, 0.07),
     ),
-    Brightness.dark => const BusyMaxSurfaceColors(
+    Brightness.dark => BusyMaxSurfaceColors(
       // Current Yaru/libadwaita semantic surface ladder. These values are the
       // fallback when GTK 3 cannot expose a compatible role; flat or recessed
       // legacy `.sidebar` and `popover.background` samples must not replace
@@ -192,12 +208,13 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       controlHover: Color.fromRGBO(255, 255, 255, 0.14),
       controlActive: Color.fromRGBO(255, 255, 255, 0.18),
       activeToggle: Color.fromRGBO(255, 255, 255, 0.20),
-      foreground: Color(0xFFFFFFFF),
-      mutedForeground: Color.fromRGBO(255, 255, 255, 0.70),
+      foreground: foreground,
+      mutedForeground: mutedForeground,
       disabledForeground: Color.fromRGBO(255, 255, 255, 0.38),
       disabledControl: Color.fromRGBO(255, 255, 255, 0.06),
       border: Color.fromRGBO(0, 0, 6, 0.75),
-      subtleBorder: Color.fromRGBO(255, 255, 255, 0.10),
+      divider: Color.fromRGBO(255, 255, 255, 0.10),
+      floatingBorder: Color.fromRGBO(255, 255, 255, 0.10),
       sidebarBorder: Color.fromRGBO(255, 255, 255, 0.10),
       shade: Color.fromRGBO(0, 0, 6, 0.25),
     ),

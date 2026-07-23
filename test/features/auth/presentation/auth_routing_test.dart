@@ -22,8 +22,11 @@ import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
+
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 
 void main() {
   late AppDatabase database;
@@ -32,9 +35,13 @@ void main() {
   setUp(() {
     database = AppDatabase(NativeDatabase.memory());
     oAuth = _FakeOAuthGateway();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
   });
 
   tearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
     await database.close();
   });
 
