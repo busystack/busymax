@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -206,9 +207,10 @@ void main() {
     expect(scaffold.backgroundColor, isNot(gtkColors.window));
   });
 
-  testWidgets('Settings uses Yaru navigation with selected semantics', (
+  testWidgets('Settings uses Yaru master-detail rows with selected semantics', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
@@ -218,29 +220,61 @@ void main() {
 
     await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
 
-    expect(find.byType(YaruNavigationRail), findsOneWidget);
+    expect(find.byType(BusyMaxSidebarNavigation), findsOneWidget);
+    expect(
+      find.byType(YaruMasterTile),
+      findsNWidgets(SettingsPage.values.length),
+    );
+    expect(find.byType(YaruNavigationRail), findsNothing);
     expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
-    final accountsSemantics = tester.widget<Semantics>(
+    final accountsTile = tester.widget<BusyMaxSidebarNavigationTile>(
       find.byKey(const ValueKey('settings-navigation-accounts')),
     );
-    final scheduleSemantics = tester.widget<Semantics>(
+    final scheduleTile = tester.widget<BusyMaxSidebarNavigationTile>(
       find.byKey(const ValueKey('settings-navigation-schedule')),
     );
-    expect(accountsSemantics.properties.selected, isTrue);
-    expect(scheduleSemantics.properties.selected, isFalse);
+    expect(accountsTile.selected, isTrue);
+    expect(scheduleTile.selected, isFalse);
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey('settings-navigation-accounts')),
+          )
+          .flagsCollection
+          .isSelected,
+      ui.Tristate.isTrue,
+    );
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey('settings-navigation-schedule')),
+          )
+          .flagsCollection
+          .isSelected,
+      ui.Tristate.isFalse,
+    );
 
     await tester.tap(find.text('Schedule'));
     await tester.pumpAndSettle();
 
     expect(
       tester
-          .widget<Semantics>(
+          .widget<BusyMaxSidebarNavigationTile>(
             find.byKey(const ValueKey('settings-navigation-schedule')),
           )
-          .properties
           .selected,
       isTrue,
     );
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey('settings-navigation-schedule')),
+          )
+          .flagsCollection
+          .isSelected,
+      ui.Tristate.isTrue,
+    );
+    semantics.dispose();
   });
 
   testWidgets('Diagnostics stays inside Settings shell', (tester) async {

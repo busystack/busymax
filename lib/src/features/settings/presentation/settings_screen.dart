@@ -606,37 +606,18 @@ class _SettingsSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sidebarColor = BusyMaxSurfaceColors.of(context).sidebar;
     return BusyMaxSidebarSurface(
-      child: YaruNavigationPageTheme(
-        data: YaruNavigationPageThemeData(
-          sideBarColor: sidebarColor,
-          railPadding: const EdgeInsets.symmetric(
-            horizontal: BusyMaxSpacing.xs,
-            vertical: BusyMaxSpacing.md,
-          ),
-        ),
-        child: YaruNavigationRail(
-          length: SettingsPage.values.length,
-          selectedIndex: SettingsPage.values.indexOf(selected),
-          onDestinationSelected: (index) =>
-              onSelected(SettingsPage.values[index]),
-          itemBuilder: (context, index, isSelected) {
-            final page = SettingsPage.values[index];
-            return Semantics(
+      child: BusyMaxSidebarNavigation(
+        children: [
+          for (final page in SettingsPage.values)
+            BusyMaxSidebarNavigationTile(
               key: ValueKey('settings-navigation-${page.name}'),
-              container: true,
-              selected: isSelected,
-              child: YaruNavigationRailItem(
-                style: YaruNavigationRailStyle.labelledExtended,
-                width: BusyMaxSizes.sidebarWidth - 2 * BusyMaxSpacing.xs,
-                extendedSelectedIndicator: true,
-                icon: Icon(_settingsPageIcon(page)),
-                label: Text(_settingsPageLabel(context, page)),
-              ),
-            );
-          },
-        ),
+              selected: page == selected,
+              leading: Icon(_settingsPageIcon(page)),
+              title: Text(_settingsPageLabel(context, page)),
+              onTap: () => onSelected(page),
+            ),
+        ],
       ),
     );
   }

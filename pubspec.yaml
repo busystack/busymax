@@ -40,7 +40,7 @@ dependencies:
   uuid: ^4.5.0
   window_manager: ^0.5.1
   xdg_status_notifier_item: ^0.0.1
-  yaru: ^10.1.0
+  yaru: ^10.2.0
 
 dev_dependencies:
   flutter_test:

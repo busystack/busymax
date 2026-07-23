@@ -173,6 +173,71 @@ void main() {
     expect(border.end.width, BusyMaxStroke.outline);
   });
 
+  testWidgets(
+    'sidebar navigation delegates native geometry and states to Yaru',
+    (tester) async {
+      var selectedSchedule = false;
+      await tester.pumpWidget(
+        _testApp(
+          SizedBox(
+            width: BusyMaxSizes.sidebarWidth,
+            height: 200,
+            child: BusyMaxSidebarSurface(
+              child: BusyMaxSidebarNavigation(
+                children: [
+                  BusyMaxSidebarNavigationTile(
+                    selected: true,
+                    leading: const Icon(YaruIcons.user),
+                    title: const Text('Accounts'),
+                    onTap: () {},
+                  ),
+                  BusyMaxSidebarNavigationTile(
+                    selected: false,
+                    leading: const Icon(YaruIcons.calendar_day),
+                    title: const Text('Schedule'),
+                    onTap: () => selectedSchedule = true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(YaruMasterTile), findsNWidgets(2));
+      expect(find.byType(YaruNavigationRailItem), findsNothing);
+
+      final firstTile = find.byType(YaruMasterTile).first;
+      final localContext = tester.element(firstTile);
+      final localTheme = Theme.of(localContext);
+      final colors = BusyMaxSurfaceColors.of(localContext);
+      final listTileTheme = localTheme.listTileTheme;
+      final parentTheme = Theme.of(
+        tester.element(find.byType(BusyMaxSidebarNavigation)),
+      );
+
+      expect(tester.widget<YaruMasterTile>(firstTile).selected, isTrue);
+      expect(tester.getSize(firstTile).height, BusyMaxSizes.sidebarRowHeight);
+      expect(
+        listTileTheme.selectedTileColor,
+        Color.alphaBlend(colors.control, colors.sidebar),
+      );
+      expect(listTileTheme.selectedColor, colors.foreground);
+      expect(listTileTheme.iconColor, colors.mutedForeground);
+      expect(listTileTheme.titleTextStyle, localTheme.textTheme.bodyMedium);
+      expect(listTileTheme.minTileHeight, BusyMaxSizes.sidebarRowHeight);
+      expect(listTileTheme.horizontalTitleGap, BusyMaxSpacing.sm);
+      expect(listTileTheme.minLeadingWidth, BusyMaxSizes.iconSm);
+      expect(localTheme.hoverColor, parentTheme.hoverColor);
+      expect(localTheme.focusColor, parentTheme.focusColor);
+      expect(localTheme.highlightColor, parentTheme.highlightColor);
+
+      await tester.tap(find.text('Schedule'));
+      await tester.pump();
+      expect(selectedSchedule, isTrue);
+    },
+  );
+
   test('all primary sidebars reuse the shared boundary surface', () {
     for (final path in [
       'lib/src/features/schedule/presentation/schedule_sidebar.dart',

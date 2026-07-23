@@ -951,6 +951,85 @@ class BusyMaxSidebarSurface extends StatelessWidget {
   }
 }
 
+/// A GTK-style navigation list for a persistent desktop sidebar.
+///
+/// The list delegates row interaction, focus handling, and selection geometry
+/// to Yaru's master-detail controls while mapping their visual states to
+/// BusyMax's semantic surface roles.
+class BusyMaxSidebarNavigation extends StatelessWidget {
+  const BusyMaxSidebarNavigation({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BusyMaxSurfaceColors.of(context);
+    final masterDetailTheme = YaruMasterDetailTheme.of(context);
+
+    return Theme(
+      data: theme.copyWith(
+        listTileTheme: theme.listTileTheme.copyWith(
+          selectedColor: colors.foreground,
+          selectedTileColor: Color.alphaBlend(colors.control, colors.sidebar),
+          tileColor: Colors.transparent,
+          iconColor: colors.mutedForeground,
+          textColor: colors.foreground,
+          titleTextStyle: theme.textTheme.bodyMedium,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: BusyMaxSpacing.sm,
+          ),
+          horizontalTitleGap: BusyMaxSpacing.sm,
+          minVerticalPadding: 0,
+          minLeadingWidth: BusyMaxSizes.iconSm,
+          minTileHeight: BusyMaxSizes.sidebarRowHeight,
+          visualDensity: VisualDensity.standard,
+          titleAlignment: ListTileTitleAlignment.center,
+        ),
+      ),
+      child: ListView.separated(
+        padding:
+            masterDetailTheme.listPadding ??
+            const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
+        itemCount: children.length,
+        itemBuilder: (context, index) => children[index],
+        separatorBuilder: (context, index) => SizedBox(
+          height: masterDetailTheme.tileSpacing ?? BusyMaxSpacing.xxs,
+        ),
+      ),
+    );
+  }
+}
+
+/// A selectable row for [BusyMaxSidebarNavigation].
+class BusyMaxSidebarNavigationTile extends StatelessWidget {
+  const BusyMaxSidebarNavigationTile({
+    super.key,
+    required this.selected,
+    required this.leading,
+    required this.title,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final Widget leading;
+  final Widget title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return YaruMasterTile(
+      selected: selected,
+      leading: IconTheme.merge(
+        data: const IconThemeData(size: BusyMaxSizes.iconSm),
+        child: leading,
+      ),
+      title: title,
+      onTap: onTap,
+    );
+  }
+}
+
 class _BusyMaxGroupedListSurface extends StatelessWidget {
   const _BusyMaxGroupedListSurface({
     required this.filled,
