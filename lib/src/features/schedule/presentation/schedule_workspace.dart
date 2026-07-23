@@ -14,6 +14,7 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../app/busymax_shortcuts.dart';
+import '../../../app/busymax_surface_colors.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../features/calendar/data/calendar_repository.dart';
@@ -163,6 +164,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   static const _agendaPageDays = 30;
   static const _agendaInitialTaskBucketLimit = 8;
   static const _agendaTaskBucketPageSize = 8;
+  static const _pointerAnchorLifetime = Duration(seconds: 1);
 
   var _selectedDate = DateTime.now();
   var _mode = ScheduleViewMode.week;
@@ -185,7 +187,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _latestCanCreateTask = false;
   var _latestItems = const <ScheduleItem>[];
   final _itemAnchorContexts = <String, BuildContext>{};
-  final _createMenuController = MenuController();
+  final _createMenuController = BusyMaxMenuController();
+  final _pointerAnchorClock = Stopwatch()..start();
+  Offset? _recentSchedulePointerPosition;
+  Duration? _recentSchedulePointerTime;
   ScheduleWorkspaceCommand? _pendingAnchoredCommand;
   List<CalendarSourceEntity> _pendingAnchoredSources =
       const <CalendarSourceEntity>[];
@@ -447,95 +452,102 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                           const Divider(height: 1),
                         ],
                         Expanded(
-                          child: _ScheduleBody(
-                            isLoading: scheduleLoading,
-                            isUnavailable: scheduleUnavailable,
-                            mode: displayMode,
-                            range: displayRange,
-                            selectedDate: searchHasQuery
-                                ? displayRange.start
-                                : _selectedDate,
-                            firstWeekday: _firstWeekday(context),
-                            dayStartMinute: settings.scheduleDayStartMinute,
-                            dayEndMinute: settings.scheduleDayEndMinute,
-                            hasAnySources:
-                                visibility.hasCalendarSources ||
-                                visibility.hasTaskLists,
-                            hasAccounts: accounts.isNotEmpty,
-                            items: items,
-                            onOpenSettings: () =>
-                                unawaited(context.push<void>('/settings')),
-                            onRetry: _retrySchedule,
-                            onRefresh: accounts.isEmpty
-                                ? null
-                                : () => unawaited(_refreshAll()),
-                            onDaySelected: _setDate,
-                            onYearDaySelected: _openDay,
-                            onMonthSelected: _setMonth,
-                            onEmptySlot: (start) => unawaited(
-                              _openCreateChoice(
-                                accounts,
-                                visibleSources,
-                                start,
-                                canCreateTask: canCreateTask,
-                              ),
-                            ),
-                            onCreateAtDay: (day) => unawaited(
-                              _openCreateChoice(
-                                accounts,
-                                visibleSources,
-                                DateTime(day.year, day.month, day.day, 9),
-                                canCreateTask: canCreateTask,
-                              ),
-                            ),
-                            onNewEvent: () => unawaited(
-                              _openNewEvent(visibleSources, _selectedDate),
-                            ),
-                            onNewTask: () => unawaited(_openNewTask(accounts)),
-                            onPrevious: _previous,
-                            onNext: _next,
-                            onAgendaLoadMore:
-                                !searchHasQuery &&
-                                    _mode == ScheduleViewMode.agenda
-                                ? _loadMoreAgendaDays
-                                : null,
-                            hasMoreAgendaOverdueTasks:
-                                !searchHasQuery &&
-                                _mode == ScheduleViewMode.agenda &&
-                                (snapshot.data?.hasMoreOverdueTasks ?? false),
-                            hasMoreAgendaNoDateTasks:
-                                !searchHasQuery &&
-                                _mode == ScheduleViewMode.agenda &&
-                                (snapshot.data?.hasMoreNoDateTasks ?? false),
-                            onAgendaLoadMoreOverdue:
-                                !searchHasQuery &&
-                                    _mode == ScheduleViewMode.agenda
-                                ? _loadMoreAgendaOverdueTasks
-                                : null,
-                            onAgendaLoadMoreNoDate:
-                                !searchHasQuery &&
-                                    _mode == ScheduleViewMode.agenda
-                                ? _loadMoreAgendaNoDateTasks
-                                : null,
-                            onItemSelected: (context, item, [globalPosition]) =>
-                                unawaited(
-                                  _openItem(
-                                    context,
-                                    item,
-                                    visibleSources,
-                                    globalPosition: globalPosition,
-                                  ),
+                          child: Listener(
+                            behavior: HitTestBehavior.translucent,
+                            onPointerDown: _recordSchedulePointer,
+                            child: _ScheduleBody(
+                              isLoading: scheduleLoading,
+                              isUnavailable: scheduleUnavailable,
+                              mode: displayMode,
+                              range: displayRange,
+                              selectedDate: searchHasQuery
+                                  ? displayRange.start
+                                  : _selectedDate,
+                              firstWeekday: _firstWeekday(context),
+                              dayStartMinute: settings.scheduleDayStartMinute,
+                              dayEndMinute: settings.scheduleDayEndMinute,
+                              hasAnySources:
+                                  visibility.hasCalendarSources ||
+                                  visibility.hasTaskLists,
+                              hasAccounts: accounts.isNotEmpty,
+                              items: items,
+                              onOpenSettings: () =>
+                                  unawaited(context.push<void>('/settings')),
+                              onRetry: _retrySchedule,
+                              onRefresh: accounts.isEmpty
+                                  ? null
+                                  : () => unawaited(_refreshAll()),
+                              onDaySelected: _setDate,
+                              onYearDaySelected: _openDay,
+                              onMonthSelected: _setMonth,
+                              onEmptySlot: (start) => unawaited(
+                                _openCreateChoice(
+                                  accounts,
+                                  visibleSources,
+                                  start,
+                                  canCreateTask: canCreateTask,
                                 ),
-                            onItemAnchorAvailable: _handleItemAnchorAvailable,
-                            onTaskCompletionChanged: _setTaskCompleted,
-                            canCreateEvent: writableSources.isNotEmpty,
-                            canCreateTask: canCreateTask,
-                            searchActive: searchHasQuery,
+                              ),
+                              onCreateAtDay: (day) => unawaited(
+                                _openCreateChoice(
+                                  accounts,
+                                  visibleSources,
+                                  DateTime(day.year, day.month, day.day, 9),
+                                  canCreateTask: canCreateTask,
+                                ),
+                              ),
+                              onNewEvent: () => unawaited(
+                                _openNewEvent(visibleSources, _selectedDate),
+                              ),
+                              onNewTask: () =>
+                                  unawaited(_openNewTask(accounts)),
+                              onPrevious: _previous,
+                              onNext: _next,
+                              onAgendaLoadMore:
+                                  !searchHasQuery &&
+                                      _mode == ScheduleViewMode.agenda
+                                  ? _loadMoreAgendaDays
+                                  : null,
+                              hasMoreAgendaOverdueTasks:
+                                  !searchHasQuery &&
+                                  _mode == ScheduleViewMode.agenda &&
+                                  (snapshot.data?.hasMoreOverdueTasks ?? false),
+                              hasMoreAgendaNoDateTasks:
+                                  !searchHasQuery &&
+                                  _mode == ScheduleViewMode.agenda &&
+                                  (snapshot.data?.hasMoreNoDateTasks ?? false),
+                              onAgendaLoadMoreOverdue:
+                                  !searchHasQuery &&
+                                      _mode == ScheduleViewMode.agenda
+                                  ? _loadMoreAgendaOverdueTasks
+                                  : null,
+                              onAgendaLoadMoreNoDate:
+                                  !searchHasQuery &&
+                                      _mode == ScheduleViewMode.agenda
+                                  ? _loadMoreAgendaNoDateTasks
+                                  : null,
+                              onItemSelected:
+                                  (context, item, [globalPosition]) =>
+                                      unawaited(
+                                        _openItem(
+                                          context,
+                                          item,
+                                          visibleSources,
+                                          globalPosition: globalPosition,
+                                        ),
+                                      ),
+                              onItemAnchorAvailable: _handleItemAnchorAvailable,
+                              onTaskCompletionChanged: _setTaskCompleted,
+                              canCreateEvent: writableSources.isNotEmpty,
+                              canCreateTask: canCreateTask,
+                              searchActive: searchHasQuery,
+                            ),
                           ),
                         ),
                       ],
                     );
                     return Scaffold(
+                      backgroundColor: BusyMaxSurfaceColors.of(context).view,
                       body: LayoutBuilder(
                         builder: (context, constraints) {
                           final showSidebar = BusyMaxLayoutRules.showSidebar(
@@ -1350,24 +1362,84 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     required bool canCreateTask,
   }) async {
     final writableSources = writableCalendarSources(sources);
-    if (writableSources.isEmpty && !canCreateTask) {
+    final anchorPoint = _takeRecentSchedulePointerPosition();
+    final canCreateEvent = writableSources.isNotEmpty;
+    if (!canCreateEvent && !canCreateTask) {
+      return;
+    }
+    final directChoice = singleAvailableScheduleCreateChoice(
+      canCreateEvent: canCreateEvent,
+      canCreateTask: canCreateTask,
+    );
+    if (directChoice != null) {
+      await _openScheduleCreateChoice(
+        directChoice,
+        accounts: accounts,
+        writableSources: writableSources,
+        start: start,
+      );
       return;
     }
     final choice = await showScheduleCreateMenu(
       context: context,
-      canCreateEvent: writableSources.isNotEmpty,
-      canCreateTask: canCreateTask,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      anchorContext: _createChoiceAnchorContext(),
+      anchorPoint: anchorPoint,
     );
     if (!mounted || choice == null) {
       return;
     }
+    await _openScheduleCreateChoice(
+      choice,
+      accounts: accounts,
+      writableSources: writableSources,
+      start: start,
+    );
+  }
+
+  Future<void> _openScheduleCreateChoice(
+    ScheduleCreateChoice choice, {
+    required List<AccountEntity> accounts,
+    required List<CalendarSourceEntity> writableSources,
+    required DateTime start,
+  }) async {
     switch (choice) {
       case ScheduleCreateChoice.event:
-        unawaited(_openNewEvent(writableSources, start));
+        await _openNewEvent(writableSources, start);
       case ScheduleCreateChoice.task:
         await _openNewTask(accounts, due: _day(start));
     }
+  }
+
+  void _recordSchedulePointer(PointerDownEvent event) {
+    _recentSchedulePointerPosition = event.position;
+    _recentSchedulePointerTime = _pointerAnchorClock.elapsed;
+  }
+
+  Offset? _takeRecentSchedulePointerPosition() {
+    final position = _recentSchedulePointerPosition;
+    final recordedAt = _recentSchedulePointerTime;
+    _recentSchedulePointerPosition = null;
+    _recentSchedulePointerTime = null;
+    if (HardwareKeyboard.instance.logicalKeysPressed.isNotEmpty ||
+        position == null ||
+        recordedAt == null) {
+      return null;
+    }
+    final age = _pointerAnchorClock.elapsed - recordedAt;
+    return age <= _pointerAnchorLifetime ? position : null;
+  }
+
+  BuildContext _createChoiceAnchorContext() {
+    final focusedContext = FocusManager.instance.primaryFocus?.context;
+    if (focusedContext == null ||
+        !focusedContext.mounted ||
+        ModalRoute.of(focusedContext) != ModalRoute.of(context)) {
+      return context;
+    }
+    final renderObject = focusedContext.findRenderObject();
+    return renderObject is RenderBox && renderObject.hasSize
+        ? focusedContext
+        : context;
   }
 
   void _openCreateAtSelectedDate() {
@@ -1376,7 +1448,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     if (_showFlutterHeaderFallback) {
-      _createMenuController.open();
+      _createMenuController.openForKeyboard();
     }
   }
 
@@ -1790,8 +1862,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   Future<void> _syncCalendarMutation(String accountId) async {
     try {
       await ref
-          .read(calendarSyncEngineForAccountFactoryProvider)(accountId)
-          .incrementalSync();
+          .read(accountSyncOperationsProvider)
+          .syncCalendar(accountId, full: false);
     } on Object catch (error) {
       if (!mounted) {
         return;

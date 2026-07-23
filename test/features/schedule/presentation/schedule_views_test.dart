@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_surface_colors.dart';
@@ -11,6 +12,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_item_details
 import 'package:busymax/src/features/schedule/presentation/schedule_item_exporter.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
@@ -371,6 +373,92 @@ void main() {
     expect(find.byType(icv.EventsMonths), findsNothing);
     expect(find.text('Design review'), findsOneWidget);
     expect(find.text('Submit report'), findsOneWidget);
+  });
+
+  testWidgets('month and year days share accessible date semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final selectedDate = DateTime(2026, 1, 15);
+    DateTime? activatedDay;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDaySelected: (day) => activatedDay = day,
+              onCreateAtDay: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    var selectedDay = find.text('15');
+    var selectedNode = tester.getSemantics(selectedDay);
+    expect(selectedNode.flagsCollection.isSelected, ui.Tristate.isTrue);
+    expect(selectedNode.label, contains('January 15, 2026'));
+    var selectedMarker = tester.widget<Container>(
+      find.byKey(
+        ValueKey('month-day-marker-${selectedDate.toIso8601String()}'),
+      ),
+    );
+    expect(
+      (selectedMarker.decoration! as BoxDecoration).color,
+      Theme.of(tester.element(selectedDay)).colorScheme.primary,
+    );
+    tester.semantics.tap(
+      find.semantics.byPredicate((node) => node.id == selectedNode.id),
+    );
+    await tester.pump();
+    expect(activatedDay, selectedDate);
+
+    activatedDay = null;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleYearView(
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDaySelected: (day) => activatedDay = day,
+              onMonthSelected: (_) {},
+              onCreateAtDay: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    selectedDay = find.text('15').first;
+    selectedNode = tester.getSemantics(selectedDay);
+    expect(selectedNode.flagsCollection.isSelected, ui.Tristate.isTrue);
+    expect(selectedNode.label, contains('January 15, 2026'));
+    selectedMarker = tester.widget<Container>(
+      find.byKey(ValueKey('year-day-marker-${selectedDate.toIso8601String()}')),
+    );
+    expect(
+      (selectedMarker.decoration! as BoxDecoration).color,
+      Theme.of(tester.element(selectedDay)).colorScheme.primary,
+    );
+    tester.semantics.tap(
+      find.semantics.byPredicate((node) => node.id == selectedNode.id),
+    );
+    await tester.pump();
+    expect(activatedDay, selectedDate);
+    semantics.dispose();
   });
 
   testWidgets('month view avoids overflow in very short cells', (tester) async {
@@ -1504,7 +1592,7 @@ void main() {
     expect(source, contains('_requestCalendarMutationSync(draft.accountId)'));
     expect(source, contains('.deleteLocalEvent(eventId)'));
     expect(source, contains('_requestCalendarMutationSync(accountId)'));
-    expect(source, contains('calendarSyncEngineForAccountFactoryProvider'));
+    expect(source, contains('accountSyncOperationsProvider'));
     expect(source, isNot(contains('signedInSyncRunnerProvider)(accountId')));
   });
 
@@ -1542,23 +1630,17 @@ void main() {
     expect(more, isNot(contains('Dialog(')));
   });
 
-  test('schedule item details actions use shared button styling', () {
+  test('schedule item details actions use Yaru icon buttons', () {
     final popover = File(
       'lib/src/features/schedule/presentation/schedule_item_details_popover.dart',
     ).readAsStringSync();
-    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
-    expect(popover, contains('BusyMaxCircularAction('));
-    expect(popover, contains('destructive: true'));
+    expect(popover, contains('YaruIconButton('));
+    expect(popover, isNot(contains('BusyMaxCircularAction(')));
+    expect(popover, contains('color: Theme.of(context).colorScheme.error'));
     expect(popover, isNot(contains('backgroundColor:')));
     expect(popover, isNot(contains('foregroundColor:')));
     expect(popover, isNot(contains('hoverColor:')));
-    expect(
-      design,
-      contains('final surfaceColors = BusyMaxSurfaceColors.of(context);'),
-    );
-    expect(design, contains('color: surfaceColors.control'));
-    expect(design, contains('color: foregroundColor'));
   });
 
   test(
@@ -1685,7 +1767,6 @@ void main() {
     );
     expect(source, contains('DateFormat.E('));
     expect(source, contains('_weekdays(firstWeekday)'));
-    expect(source, contains('DateFormat.yMMMMEEEEd(locale)'));
     expect(source, contains('ScheduleProjection.colorForItem'));
     expect(source, contains('height: dayExtent'));
     expect(source, contains('width: double.infinity'));
@@ -1735,17 +1816,52 @@ void main() {
     expect(source, contains('BoxShape.circle'));
     expect(source, contains('customBorder: const CircleBorder()'));
     expect(source, contains('final markerSize = math.min'));
-    expect(source, contains('final highlightToday = today && currentMonth'));
-    expect(source, contains('color: highlightToday'));
-    expect(source, contains('selectedYear == DateTime.now().year'));
-    expect(source, contains('selectedMonth == DateTime.now().month'));
     expect(
       source,
-      isNot(contains('final selected = _sameDay(day, selectedDate)')),
+      contains('final highlightToday = today && displayingCurrentMonth'),
     );
+    expect(source, contains('color: selected'));
+    expect(source, contains('selectedDate.year == DateTime.now().year'));
+    expect(source, contains('selectedDate.month == DateTime.now().month'));
+    expect(source, contains('final selected = _sameDay(day, selectedDate)'));
     expect(source, isNot(contains('YaruIcons.arrow_left')));
     expect(source, isNot(contains('YaruIcons.arrow_right')));
     expect(source, isNot(contains('BorderRadius.circular(BusyMaxRadius.sm)')));
+  });
+
+  testWidgets('mini calendar exposes and activates the selected day', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    DateTime? activatedDay;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.monday,
+              onSelected: (day) => activatedDay = day,
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selectedDay = find.text('15');
+    final selectedSemantics = tester.getSemantics(selectedDay);
+    expect(selectedSemantics.flagsCollection.isSelected, ui.Tristate.isTrue);
+    expect(selectedSemantics.label, contains('January 15, 2026'));
+
+    await tester.tap(selectedDay);
+    expect(activatedDay, DateTime(2026, 1, 15));
+    semantics.dispose();
   });
 
   testWidgets('mini calendar week number selects that week', (tester) async {
@@ -2063,6 +2179,7 @@ void main() {
     expect(workspace, contains('BusyMaxHeaderBarAction.createEvent'));
     expect(workspace, contains('BusyMaxHeaderBarAction.createTask'));
     expect(workspace, contains('void _openCreateAtSelectedDate()'));
+    expect(workspace, contains('_createMenuController.openForKeyboard()'));
     expect(
       headerService,
       isNot(contains("'create' => BusyMaxHeaderBarAction.create")),

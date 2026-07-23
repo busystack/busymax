@@ -62,6 +62,28 @@ class AuthSessionState {
   bool get isSignedIn => status == AuthSessionStatus.signedIn;
 }
 
+enum AccountAuthorizationRevocationStatus { notRequested, succeeded, failed }
+
+@immutable
+class AccountRemovalResult {
+  const AccountRemovalResult({
+    required this.authorizationRevocationStatus,
+    this.alreadyRemoved = false,
+  });
+
+  const AccountRemovalResult.alreadyRemoved()
+    : authorizationRevocationStatus =
+          AccountAuthorizationRevocationStatus.notRequested,
+      alreadyRemoved = true;
+
+  final AccountAuthorizationRevocationStatus authorizationRevocationStatus;
+  final bool alreadyRemoved;
+
+  bool get authorizationRevocationFailed =>
+      authorizationRevocationStatus ==
+      AccountAuthorizationRevocationStatus.failed;
+}
+
 class AuthRepository {
   AuthRepository({
     required OAuthGateway oAuth,
@@ -80,6 +102,7 @@ class AuthRepository {
   final AppDatabase _database;
   final AccountsRepository _accountsRepository;
   final MicrosoftOAuthService? _microsoftOAuth;
+  final RedactingLogger _logger = RedactingLogger(Logger('AuthRepository'));
 
   Future<AuthSessionState> loadSession() async {
     final accounts = await _accountsRepository.listSignedInAccounts();
@@ -94,7 +117,10 @@ class AuthRepository {
     final result = await _oAuth.signIn();
     final missingScopes = _missingRequiredGoogleApiScopes(result.tokenSet);
     if (missingScopes.isNotEmpty) {
-      await _oAuth.revokeAndSignOutAccount(result.accountId);
+      await _bestEffortInsufficientScopeCleanup(
+        'Google',
+        () => _oAuth.revokeAndSignOutAccount(result.accountId),
+      );
       throw OAuthException(
         'OAuthMissingRequiredScope',
         _googleMissingScopesMessage(missingScopes),
@@ -115,7 +141,10 @@ class AuthRepository {
     }
     final result = await microsoftOAuth.signIn();
     if (!_hasRequiredMicrosoftScopes(result.tokenSet)) {
-      await microsoftOAuth.signOutAccount(result.accountId);
+      await _bestEffortInsufficientScopeCleanup(
+        'Microsoft',
+        () => microsoftOAuth.signOutAccount(result.accountId),
+      );
       throw const OAuthException(
         'MicrosoftOAuthMissingRequiredScope',
         'Required Microsoft To Do permission was not granted.',
@@ -134,73 +163,70 @@ class AuthRepository {
     return AuthSessionState.signedIn(result.accountId);
   }
 
-  Future<void> signOut({String? accountId}) async {
-    final targetAccountId = accountId ?? await _oAuth.activeAccountId;
-    if (targetAccountId == null) {
-      return;
-    }
-    await _deactivateAccount(targetAccountId, reconnectRequired: false);
-    if (targetAccountId.startsWith('microsoft:')) {
-      await _microsoftOAuth?.signOutAccount(targetAccountId);
-    } else {
-      await _oAuth.signOutAccount(targetAccountId);
+  Future<void> _bestEffortInsufficientScopeCleanup(
+    String provider,
+    Future<void> Function() cleanup,
+  ) async {
+    try {
+      await cleanup();
+    } on Object catch (error) {
+      _logger.warning(
+        '$provider authorization cleanup failed after insufficient '
+        'permissions: $error',
+      );
     }
   }
 
   Future<void> markReconnectRequired(String accountId) async {
-    await _deactivateAccount(accountId, reconnectRequired: true);
-    if (accountId.startsWith('microsoft:')) {
-      await _microsoftOAuth?.signOutAccount(accountId);
-    } else {
-      await _oAuth.signOutAccount(accountId);
-    }
-  }
-
-  Future<void> revokeAndSignOut({String? accountId}) async {
-    final targetAccountId = accountId ?? await _oAuth.activeAccountId;
-    if (targetAccountId == null) {
+    final account = await _accountsRepository.accountById(accountId);
+    if (account == null) {
       return;
     }
-    await _deactivateAccount(targetAccountId, reconnectRequired: false);
-    if (targetAccountId.startsWith('microsoft:')) {
-      await _microsoftOAuth?.signOutAccount(targetAccountId);
-    } else {
-      await _oAuth.revokeAndSignOutAccount(targetAccountId);
-    }
-  }
-
-  Future<void> deleteLocalAccountData({String? accountId}) async {
-    final targetAccountId = accountId ?? await _oAuth.activeAccountId;
-    if (targetAccountId == null) {
-      return;
-    }
-
     await _database.transaction(() async {
-      await _deleteScheduledNotifications(targetAccountId);
-      await (_database.delete(
-        _database.accounts,
-      )..where((row) => row.id.equals(targetAccountId))).go();
-    });
-
-    if (targetAccountId.startsWith('microsoft:')) {
-      await _microsoftOAuth?.signOutAccount(targetAccountId);
-    } else {
-      await _oAuth.signOutAccount(targetAccountId);
-    }
-  }
-
-  Future<void> _deactivateAccount(
-    String accountId, {
-    required bool reconnectRequired,
-  }) {
-    return _database.transaction(() async {
-      if (reconnectRequired) {
-        await _accountsRepository.markReconnectRequired(accountId);
-      } else {
-        await _accountsRepository.markSignedOut(accountId);
-      }
+      await _accountsRepository.markReconnectRequired(accountId);
       await _deleteScheduledNotifications(accountId);
     });
+    switch (account.provider) {
+      case TaskProvider.microsoft:
+        await _microsoftOAuth?.signOutAccount(accountId);
+      case TaskProvider.google:
+        await _oAuth.clearLocalSession(accountId: accountId);
+    }
+  }
+
+  Future<AccountRemovalResult> removeAccount({
+    required String accountId,
+    bool revokeAuthorization = false,
+  }) async {
+    final account = await _accountsRepository.accountById(accountId);
+    if (account == null) {
+      return const AccountRemovalResult.alreadyRemoved();
+    }
+
+    var revocationStatus = AccountAuthorizationRevocationStatus.notRequested;
+    if (revokeAuthorization && account.provider == TaskProvider.google) {
+      try {
+        await _oAuth.revokeAuthorization(accountId);
+        revocationStatus = AccountAuthorizationRevocationStatus.succeeded;
+      } on Object catch (error) {
+        _logger.warning(
+          'Google authorization revocation failed during account removal: '
+          '$error',
+        );
+        revocationStatus = AccountAuthorizationRevocationStatus.failed;
+      }
+    }
+
+    if (account.provider == TaskProvider.microsoft) {
+      await _microsoftOAuth?.signOutAccount(accountId);
+    } else {
+      await _oAuth.clearLocalSession(accountId: accountId);
+    }
+    await _accountsRepository.deleteAccount(accountId);
+
+    return AccountRemovalResult(
+      authorizationRevocationStatus: revocationStatus,
+    );
   }
 
   Future<void> _deleteScheduledNotifications(String accountId) {
@@ -408,21 +434,6 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
       }
       state = AuthSessionState.error(authErrorMessage(error));
     }
-  }
-
-  Future<void> revokeAndSignOut() async {
-    await _repository.revokeAndSignOut(accountId: state.accountId);
-    state = const AuthSessionState.signedOut();
-  }
-
-  Future<void> signOut() async {
-    await _repository.signOut(accountId: state.accountId);
-    state = const AuthSessionState.signedOut();
-  }
-
-  Future<void> deleteLocalAccountData() async {
-    await _repository.deleteLocalAccountData(accountId: state.accountId);
-    state = const AuthSessionState.signedOut();
   }
 
   Future<void> cancelSignIn() async {

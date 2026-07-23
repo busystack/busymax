@@ -8,6 +8,7 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import 'calendar_day_semantics.dart';
 
 class ScheduleYearView extends StatelessWidget {
   const ScheduleYearView({
@@ -194,7 +195,6 @@ class _YearMonthGrid extends StatelessWidget {
                   final key = ScheduleProjection.day(day);
                   return _YearDayCell(
                     day: day,
-                    locale: locale,
                     selected: DateUtils.isSameDay(day, selectedDate),
                     today: DateUtils.isSameDay(day, DateTime.now()),
                     items: groupedItems[key] ?? const [],
@@ -214,7 +214,6 @@ class _YearMonthGrid extends StatelessWidget {
 class _YearDayCell extends StatelessWidget {
   const _YearDayCell({
     required this.day,
-    required this.locale,
     required this.selected,
     required this.today,
     required this.items,
@@ -223,7 +222,6 @@ class _YearDayCell extends StatelessWidget {
   });
 
   final DateTime day;
-  final String locale;
   final bool selected;
   final bool today;
   final List<ScheduleItem> items;
@@ -234,8 +232,10 @@ class _YearDayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return Tooltip(
-      message: DateFormat.yMMMMEEEEd(locale).format(day),
+    return BusyMaxCalendarDaySemantics(
+      day: day,
+      selected: selected,
+      onTap: onSelected,
       child: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxHeight <= 0) {
@@ -253,12 +253,14 @@ class _YearDayCell extends StatelessWidget {
                   (canShowIndicators ? BusyMaxSpacing.xxs : 0),
             ),
           );
-          final textColor = (today || selected)
+          final textColor = selected
+              ? colorScheme.onPrimary
+              : today
               ? surfaceColors.foreground
               : colorScheme.onSurface;
-          final markerColor = today
-              ? surfaceColors.controlActive
-              : selected
+          final markerColor = selected
+              ? colorScheme.primary
+              : today
               ? surfaceColors.controlActive
               : Colors.transparent;
 
@@ -266,10 +268,12 @@ class _YearDayCell extends StatelessWidget {
             borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
             onTap: onSelected,
             onDoubleTap: onCreate,
+            excludeFromSemantics: true,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
+                  key: ValueKey('year-day-marker-${day.toIso8601String()}'),
                   width: markerSize,
                   height: markerSize,
                   alignment: Alignment.center,

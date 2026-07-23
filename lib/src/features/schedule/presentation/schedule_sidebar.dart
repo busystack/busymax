@@ -579,8 +579,8 @@ Future<void> _refreshCalendarSource(
 ) async {
   try {
     await ref
-        .read(calendarSyncEngineForAccountFactoryProvider)(source.accountId)
-        .incrementalSync();
+        .read(accountSyncOperationsProvider)
+        .syncCalendar(source.accountId, full: false);
   } on Object catch (error) {
     if (!context.mounted) {
       return;
@@ -596,8 +596,8 @@ Future<void> _refreshTaskListAccount(
 ) async {
   try {
     await ref
-        .read(syncEngineForAccountFactoryProvider)(accountId)
-        .incrementalSync();
+        .read(accountSyncOperationsProvider)
+        .syncTasks(accountId, full: false);
   } on Object catch (error) {
     if (!context.mounted) {
       return;

@@ -7,6 +7,7 @@ import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
 import '../platform/busymax_tray_service.dart';
 import '../platform/gtk_font_service.dart';
+import '../platform/linux_header_bar_configuration_synchronizer.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_window_service.dart';
 import '../platform/main_window_command_bridge.dart';
@@ -44,15 +45,22 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   bool? _lastTrayEnabled;
   bool _startMinimizedHandled = false;
   bool _settingsReady = false;
+  late final BusyMaxHeaderBarConfigurationSynchronizer
+  _headerBarConfigurationSynchronizer;
 
   @override
   void initState() {
     super.initState();
+    _headerBarConfigurationSynchronizer =
+        BusyMaxHeaderBarConfigurationSynchronizer(
+          ref.read(linuxHeaderBarServiceProvider),
+        );
     unawaited(_waitForSettings());
   }
 
   @override
   void dispose() {
+    _headerBarConfigurationSynchronizer.dispose();
     final tray = _trayService;
     if (tray != null) {
       unawaited(tray.stop());
@@ -130,7 +138,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
             final l10n = AppLocalizations.of(context);
-            _configureNativeHeaderBarTheme(context, ref);
+            _configureNativeHeaderBarTheme(context);
             _configureBackgroundServices(
               ref,
               settings,
@@ -176,7 +184,8 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
                   ),
                 },
                 child: MainWindowCommandBridge(
-                  child: _BusyMaxWindowCornerClip(
+                  child: ColoredBox(
+                    color: BusyMaxSurfaceColors.of(context).window,
                     child: child ?? const SizedBox.shrink(),
                   ),
                 ),
@@ -189,9 +198,8 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     );
   }
 
-  void _configureNativeHeaderBarTheme(BuildContext context, WidgetRef ref) {
+  void _configureNativeHeaderBarTheme(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final materialL10n = MaterialLocalizations.of(context);
     final modalBarrierColor = busyMaxModalBarrierColor(context);
@@ -217,37 +225,23 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       keyboardShortcuts: l10n.keyboardShortcuts,
       aboutBusyMax: l10n.aboutBusyMax,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final service = ref.read(linuxHeaderBarServiceProvider);
-      unawaited(() async {
-        await service.initialize();
-        await service.setLocalizedLabels(labels);
-        await service.setSidebarWidth(BusyMaxSizes.sidebarWidth);
-        await service.setTheme(
-          BusyMaxHeaderBarTheme(
-            preferDark: preferDark,
-            windowBackgroundColor: colors.window,
-            // This header is deliberately borderless and visually continuous
-            // with the main pane, so it uses the flat header role.
-            backgroundColor: colors.headerbarFlat,
-            sidebarBackgroundColor: colors.sidebar,
-            foregroundColor: colors.foreground,
-            mutedForegroundColor: colors.mutedForeground,
-            disabledForegroundColor: colors.disabledForeground,
-            controlColor: colors.control,
-            controlHoverColor: colors.controlHover,
-            controlActiveColor: colors.controlActive,
-            accentColor: colorScheme.primary,
-            accentForegroundColor: colorScheme.onPrimary,
-            popoverBackgroundColor: colors.popover,
-            borderColor: colors.border,
-            sidebarBorderColor: colors.sidebarBorder,
-            shadeColor: colors.shade,
-            modalBarrierColor: modalBarrierColor,
-          ),
-        );
-      }());
-    });
+    _headerBarConfigurationSynchronizer.schedule(
+      BusyMaxHeaderBarConfiguration(
+        labels: labels,
+        sidebarWidth: BusyMaxSizes.sidebarWidth,
+        theme: BusyMaxHeaderBarTheme(
+          preferDark: preferDark,
+          windowBackgroundColor: colors.window,
+          // This header is deliberately borderless and visually continuous
+          // with the main pane, so it uses the flat header role.
+          backgroundColor: colors.headerbarFlat,
+          sidebarBackgroundColor: colors.sidebar,
+          foregroundColor: colors.foreground,
+          sidebarBorderColor: colors.sidebarBorder,
+          modalBarrierColor: modalBarrierColor,
+        ),
+      ),
+    );
   }
 
   void _configureBackgroundServices(
@@ -260,6 +254,15 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     }
 
     final windowService = ref.read(linuxWindowServiceProvider);
+    if (ref.read(buildConfigProvider).useFakeProviderData) {
+      _lastTrayEnabled = false;
+      _setHideOnClose(windowService, false);
+      final tray = _trayService;
+      if (tray != null) {
+        unawaited(tray.stop());
+      }
+      return;
+    }
 
     final trayEnabled =
         settings.showTrayIcon ||
@@ -369,24 +372,4 @@ class _KeyboardShortcutsIntent extends Intent {
 
 class _OpenSettingsIntent extends Intent {
   const _OpenSettingsIntent();
-}
-
-class _BusyMaxWindowCornerClip extends StatelessWidget {
-  const _BusyMaxWindowCornerClip({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(
-        bottom: Radius.circular(BusyMaxRadius.window),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ColoredBox(
-        color: BusyMaxSurfaceColors.of(context).window,
-        child: child,
-      ),
-    );
-  }
 }

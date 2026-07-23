@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logging/logging.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_about_dialog.dart';
@@ -13,6 +14,7 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
+import '../../../core/logging/redacting_logger.dart';
 import '../../../google_tasks/oauth/oauth_models.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
@@ -22,7 +24,9 @@ import '../../auth/data/auth_repository.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
-import '../../tasks/presentation/tasks_selection_state.dart';
+import 'account_removal_dialog.dart';
+
+final _settingsLogger = RedactingLogger(Logger('SettingsScreen'));
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key, this.initialPage = SettingsPage.accounts});
@@ -40,6 +44,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
   TaskProvider? _connectingProvider;
+  final _removingAccountIds = <String>{};
 
   @override
   void initState() {
@@ -90,10 +95,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onReconnect: (account) => unawaited(_connectAccount(account.provider)),
         onCreateTaskList: (accountId) =>
             _createTaskList(context, ref, accountId),
-        onSignOut: (accountId) => _signOut(context, ref, accountId),
-        onDisconnect: (accountId) => _disconnect(context, ref, accountId),
-        onDeleteLocalData: (accountId) =>
-            _deleteLocalData(context, ref, accountId),
+        removingAccountIds: _removingAccountIds,
+        onRemoveAccount: (account) =>
+            unawaited(_removeAccount(context, ref, account)),
       ),
       SettingsPage.schedule => BusyMaxGroupedList(
         title: l10n.scheduleDisplaySettings,
@@ -449,17 +453,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
-  Future<void> _signOut(
-    BuildContext context,
-    WidgetRef ref,
-    String accountId,
-  ) async {
-    await ref.read(authRepositoryProvider).signOut(accountId: accountId);
-    if (context.mounted) {
-      await _afterAccountRemoved(context, ref, accountId);
-    }
-  }
-
   Future<void> _connectAccount(TaskProvider provider) async {
     if (_connectingProvider != null) {
       return;
@@ -506,42 +499,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _disconnect(
+  Future<void> _removeAccount(
     BuildContext context,
     WidgetRef ref,
-    String accountId,
+    AccountEntity account,
   ) async {
-    await ref
-        .read(authRepositoryProvider)
-        .revokeAndSignOut(accountId: accountId);
-    if (context.mounted) {
-      await _afterAccountRemoved(context, ref, accountId);
-    }
-  }
-
-  Future<void> _deleteLocalData(
-    BuildContext context,
-    WidgetRef ref,
-    String accountId,
-  ) async {
-    final confirmed = await showBusyMaxConfirm(
-      context,
-      title: context.l10n.deleteLocalData,
-      message: context.l10n.deleteLocalDataConfirmation,
-      confirmLabel: context.l10n.delete,
-      destructive: true,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
-    );
-    if (!context.mounted || !confirmed) {
+    if (_removingAccountIds.contains(account.id)) {
       return;
     }
 
-    if (context.mounted) {
-      await ref
+    final options = await showBusyMaxAccountRemovalDialog(
+      context,
+      accountLabel: account.displayLabel,
+      canRevokeGoogleAuthorization:
+          account.provider == TaskProvider.google && account.isSignedIn,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+    );
+    if (!context.mounted || options == null) {
+      return;
+    }
+
+    setState(() => _removingAccountIds.add(account.id));
+    try {
+      final result = await ref
           .read(authRepositoryProvider)
-          .deleteLocalAccountData(accountId: accountId);
+          .removeAccount(
+            accountId: account.id,
+            revokeAuthorization: options.revokeGoogleAuthorization,
+          );
       if (context.mounted) {
-        await _afterAccountRemoved(context, ref, accountId);
+        if (result.authorizationRevocationFailed) {
+          _showMessage(context, context.l10n.accountRemovedGoogleRevokeFailed);
+        }
+        await _afterAccountRemoved(context, ref, account.id);
+      }
+    } on Object catch (error) {
+      _settingsLogger.warning('Account removal failed: $error');
+      if (context.mounted) {
+        _showMessage(context, context.l10n.removeAccountFailed);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _removingAccountIds.remove(account.id));
       }
     }
   }
@@ -805,9 +804,8 @@ class _AccountManagementSection extends StatelessWidget {
     required this.onAddMicrosoft,
     required this.onReconnect,
     required this.onCreateTaskList,
-    required this.onSignOut,
-    required this.onDisconnect,
-    required this.onDeleteLocalData,
+    required this.removingAccountIds,
+    required this.onRemoveAccount,
   });
 
   final List<AccountEntity> accounts;
@@ -818,9 +816,8 @@ class _AccountManagementSection extends StatelessWidget {
   final VoidCallback onAddMicrosoft;
   final void Function(AccountEntity account) onReconnect;
   final void Function(String accountId) onCreateTaskList;
-  final void Function(String accountId) onSignOut;
-  final void Function(String accountId) onDisconnect;
-  final void Function(String accountId) onDeleteLocalData;
+  final Set<String> removingAccountIds;
+  final void Function(AccountEntity account) onRemoveAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -860,11 +857,12 @@ class _AccountManagementSection extends StatelessWidget {
         for (final account in accounts)
           _AccountManagementCard(
             account: account,
-            onReconnect: connecting ? null : () => onReconnect(account),
+            removing: removingAccountIds.contains(account.id),
+            onReconnect: connecting || removingAccountIds.contains(account.id)
+                ? null
+                : () => onReconnect(account),
             onCreateTaskList: () => onCreateTaskList(account.id),
-            onSignOut: () => onSignOut(account.id),
-            onDisconnect: () => onDisconnect(account.id),
-            onDeleteLocalData: () => onDeleteLocalData(account.id),
+            onRemoveAccount: () => onRemoveAccount(account),
           ),
       ],
     );
@@ -874,19 +872,17 @@ class _AccountManagementSection extends StatelessWidget {
 class _AccountManagementCard extends StatelessWidget {
   const _AccountManagementCard({
     required this.account,
+    required this.removing,
     required this.onReconnect,
     required this.onCreateTaskList,
-    required this.onSignOut,
-    required this.onDisconnect,
-    required this.onDeleteLocalData,
+    required this.onRemoveAccount,
   });
 
   final AccountEntity account;
+  final bool removing;
   final VoidCallback? onReconnect;
   final VoidCallback onCreateTaskList;
-  final VoidCallback onSignOut;
-  final VoidCallback onDisconnect;
-  final VoidCallback onDeleteLocalData;
+  final VoidCallback onRemoveAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -910,27 +906,18 @@ class _AccountManagementCard extends StatelessWidget {
           BusyMaxActionRow(
             title: l10n.newList,
             leading: const Icon(YaruIcons.plus),
-            onTap: onCreateTaskList,
-          ),
-          BusyMaxActionRow(
-            title: l10n.signOutThisAccount,
-            leading: const Icon(YaruIcons.log_out),
-            onTap: onSignOut,
+            onTap: removing ? null : onCreateTaskList,
           ),
         ],
         BusyMaxActionRow(
-          title: l10n.disconnectThisAccount,
-          leading: const Icon(YaruIcons.insert_link),
-          onTap: onDisconnect,
-        ),
-        BusyMaxActionRow(
-          title: l10n.deleteLocalDataForThisAccount,
+          title: removing ? l10n.removingAccount : l10n.removeAccount,
+          subtitle: l10n.removeAccountDescription,
           leading: Icon(
             YaruIcons.trash,
             color: Theme.of(context).colorScheme.error,
           ),
           destructive: true,
-          onTap: onDeleteLocalData,
+          onTap: removing ? null : onRemoveAccount,
         ),
       ],
     );
@@ -942,10 +929,6 @@ Future<void> _afterAccountRemoved(
   WidgetRef ref,
   String removedAccountId,
 ) async {
-  ref.read(selectedTaskListIdProvider.notifier).state = null;
-  ref.read(selectedTaskIdProvider.notifier).state = null;
-  ref.read(allTasksModeProvider.notifier).state = true;
-
   final accounts = await ref
       .read(accountsRepositoryProvider)
       .listSignedInAccounts();

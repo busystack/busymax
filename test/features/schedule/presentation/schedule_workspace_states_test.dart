@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_empty_states.dart';
@@ -25,6 +26,11 @@ void main() {
 
     expect(find.byType(ScheduleLoadingState), findsOneWidget);
     expect(find.text('Loading schedule...'), findsOneWidget);
+    final loadingContext = tester.element(find.byType(ScheduleLoadingState));
+    expect(
+      tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+      BusyMaxSurfaceColors.of(loadingContext).view,
+    );
   });
 
   testWidgets('schedule errors are generic and retry the data pipeline', (

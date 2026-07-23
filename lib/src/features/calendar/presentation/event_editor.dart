@@ -91,7 +91,6 @@ class _EventEditorState extends State<EventEditor> {
   late EventEditorDraft _draft;
   final _shortcutFocusNode = FocusNode(debugLabel: 'Event editor shortcuts');
   final _guestController = TextEditingController();
-  final _categoryController = TextEditingController();
   String? _guestError;
   var _addingGuest = false;
   var _addingCategory = false;
@@ -107,7 +106,6 @@ class _EventEditorState extends State<EventEditor> {
   void dispose() {
     _shortcutFocusNode.dispose();
     _guestController.dispose();
-    _categoryController.dispose();
     super.dispose();
   }
 
@@ -467,7 +465,6 @@ class _EventEditorState extends State<EventEditor> {
         setState(() {
           if (source.provider != TaskProvider.microsoft) {
             _addingCategory = false;
-            _categoryController.clear();
           }
           _draft = _draft.copyWith(
             accountId: source.accountId,
@@ -634,7 +631,6 @@ class _EventEditorState extends State<EventEditor> {
           widget.categorySuggestionsByAccount[_draft.accountId] ??
           const <String>[],
       adding: _addingCategory,
-      controller: _categoryController,
       inputKey: const Key('event-category-input'),
       onAddPressed: () {
         setState(() {
@@ -643,7 +639,6 @@ class _EventEditorState extends State<EventEditor> {
       },
       onSubmitted: _addCategory,
       onCancelAdding: () {
-        _categoryController.clear();
         setState(() {
           _addingCategory = false;
         });
@@ -731,10 +726,12 @@ class _EventEditorState extends State<EventEditor> {
 
   void _addCategory(String value) {
     final category = value.trim();
-    if (category.isEmpty || _draft.categories.contains(category)) {
+    if (category.isEmpty ||
+        _draft.categories.any(
+          (existing) => existing.toLowerCase() == category.toLowerCase(),
+        )) {
       return;
     }
-    _categoryController.clear();
     setState(() {
       _addingCategory = false;
       _draft = _draft.copyWith(categories: [..._draft.categories, category]);

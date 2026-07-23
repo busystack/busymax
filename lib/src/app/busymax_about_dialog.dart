@@ -132,7 +132,8 @@ class BusyMaxAboutDialog extends StatelessWidget {
             PositionedDirectional(
               top: BusyMaxSpacing.sm,
               end: BusyMaxSpacing.sm,
-              child: BusyMaxDialogCloseButton(
+              child: YaruIconButton(
+                icon: const Icon(Icons.close, size: BusyMaxSizes.iconSm),
                 tooltip: l10n.close,
                 onPressed: () => Navigator.of(context).pop(),
               ),

@@ -120,29 +120,32 @@ class _PopoverActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = <Widget>[
-      BusyMaxCircularAction(
-        icon: Icons.download_outlined,
+      YaruIconButton(
+        icon: const Icon(Icons.download_outlined, size: BusyMaxSizes.iconSm),
         tooltip: context.l10n.export,
         onPressed: () =>
             Navigator.of(context).pop(ScheduleItemDetailsAction.export),
       ),
       if (item.capabilities.canEdit)
-        BusyMaxCircularAction(
-          icon: Icons.edit_outlined,
+        YaruIconButton(
+          icon: const Icon(Icons.edit_outlined, size: BusyMaxSizes.iconSm),
           tooltip: _editLabel(context, item),
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.edit),
         ),
       if (item.capabilities.canDelete)
-        BusyMaxCircularAction(
-          icon: Icons.delete_outline,
+        YaruIconButton(
+          icon: Icon(
+            Icons.delete_outline,
+            size: BusyMaxSizes.iconSm,
+            color: Theme.of(context).colorScheme.error,
+          ),
           tooltip: context.l10n.delete,
-          destructive: true,
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.delete),
         ),
-      BusyMaxCircularAction(
-        icon: Icons.close,
+      YaruIconButton(
+        icon: const Icon(Icons.close, size: BusyMaxSizes.iconSm),
         tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
         onPressed: () => Navigator.of(context).pop(),
       ),

@@ -1266,29 +1266,65 @@ abstract class AppLocalizations {
   /// **'Signed in'**
   String get signedInAccount;
 
-  /// No description provided for @signOutThisAccount.
+  /// No description provided for @removeAccount.
   ///
   /// In en, this message translates to:
-  /// **'Sign out this account'**
-  String get signOutThisAccount;
+  /// **'Remove account…'**
+  String get removeAccount;
 
-  /// No description provided for @revokeThisAccount.
+  /// No description provided for @removingAccount.
   ///
   /// In en, this message translates to:
-  /// **'Revoke this account'**
-  String get revokeThisAccount;
+  /// **'Removing account…'**
+  String get removingAccount;
 
-  /// No description provided for @disconnectThisAccount.
+  /// No description provided for @removeAccountDescription.
   ///
   /// In en, this message translates to:
-  /// **'Disconnect this account'**
-  String get disconnectThisAccount;
+  /// **'Stop syncing and remove this account’s data from this device.'**
+  String get removeAccountDescription;
 
-  /// No description provided for @deleteLocalDataForThisAccount.
+  /// No description provided for @removeAccountTitle.
   ///
   /// In en, this message translates to:
-  /// **'Delete local data for this account'**
-  String get deleteLocalDataForThisAccount;
+  /// **'Remove {account} from BusyMax?'**
+  String removeAccountTitle(String account);
+
+  /// No description provided for @removeAccountConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Nothing will be deleted from Google or Microsoft.'**
+  String get removeAccountConfirmation;
+
+  /// No description provided for @revokeGoogleAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Also revoke BusyMax’s access to this Google Account'**
+  String get revokeGoogleAccess;
+
+  /// No description provided for @revokeGoogleAccessDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'You will need to grant access again before reconnecting.'**
+  String get revokeGoogleAccessDescription;
+
+  /// No description provided for @removeAccountAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove account'**
+  String get removeAccountAction;
+
+  /// No description provided for @removeAccountFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not finish removing the account. Try again.'**
+  String get removeAccountFailed;
+
+  /// No description provided for @accountRemovedGoogleRevokeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The account was removed from this device, but BusyMax could not revoke Google access. You can revoke it from your Google Account.'**
+  String get accountRemovedGoogleRevokeFailed;
 
   /// No description provided for @newList.
   ///
@@ -1511,36 +1547,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{date} · {time}'**
   String dateTimeDisplay(String date, String time);
-
-  /// No description provided for @searchTasks.
-  ///
-  /// In en, this message translates to:
-  /// **'Search tasks'**
-  String get searchTasks;
-
-  /// No description provided for @advancedFilters.
-  ///
-  /// In en, this message translates to:
-  /// **'Advanced filters'**
-  String get advancedFilters;
-
-  /// No description provided for @showCompleted.
-  ///
-  /// In en, this message translates to:
-  /// **'Show completed'**
-  String get showCompleted;
-
-  /// No description provided for @showHidden.
-  ///
-  /// In en, this message translates to:
-  /// **'Show hidden'**
-  String get showHidden;
-
-  /// No description provided for @showAssigned.
-  ///
-  /// In en, this message translates to:
-  /// **'Show assigned'**
-  String get showAssigned;
 
   /// No description provided for @taskDetails.
   ///
@@ -1937,30 +1943,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Account'**
   String get account;
-
-  /// No description provided for @signOut.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign out'**
-  String get signOut;
-
-  /// No description provided for @revokeGoogleAuthorization.
-  ///
-  /// In en, this message translates to:
-  /// **'Revoke Google authorization'**
-  String get revokeGoogleAuthorization;
-
-  /// No description provided for @deleteLocalData.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete local data'**
-  String get deleteLocalData;
-
-  /// No description provided for @deleteLocalDataConfirmation.
-  ///
-  /// In en, this message translates to:
-  /// **'This removes the local account, synced tasks, and pending offline changes from this device.'**
-  String get deleteLocalDataConfirmation;
 
   /// No description provided for @sync.
   ///

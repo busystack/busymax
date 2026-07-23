@@ -70,8 +70,8 @@ void main() {
       expect(elevatedShape.side, isNot(BorderSide.none));
       expect(elevatedShape.side.color, surfaces.border);
 
-      final popupShape = theme.popupMenuTheme.shape! as RoundedRectangleBorder;
-      expect(popupShape.side.color, surfaces.border);
+      final popupShape = theme.popupMenuTheme.shape! as OutlineInputBorder;
+      expect(popupShape.borderSide.color, surfaces.border);
 
       final tooltipDecoration = theme.tooltipTheme.decoration! as BoxDecoration;
       expect(tooltipDecoration.border, isNotNull);

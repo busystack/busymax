@@ -17,7 +17,6 @@ import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
-import 'package:busymax/src/features/tasks/presentation/tasks_workspace.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
@@ -153,13 +152,11 @@ void main() {
     await _completeOnboardingWithGoogle(tester);
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
-    expect(find.byType(TasksWorkspace), findsNothing);
 
     GoRouter.of(tester.element(find.byType(ScheduleWorkspace))).go('/tasks');
     await tester.pumpAndSettle();
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
-    expect(find.byType(TasksWorkspace), findsNothing);
 
     final accountId = (await database.select(database.accounts).getSingle()).id;
     await database.taskListsDao.upsertTaskList(
@@ -630,18 +627,6 @@ class _FakeOAuthGateway implements OAuthGateway {
   Future<OAuthTokenSet> refreshActiveToken() async => nextTokenSet;
 
   @override
-  Future<void> signOutAccount(String accountId) async {
-    if (activeId == accountId) {
-      activeId = null;
-    }
-  }
-
-  @override
-  Future<void> signOut() async {
-    activeId = null;
-  }
-
-  @override
   Future<void> revokeAndSignOutAccount(String accountId) async {
     if (activeId == accountId) {
       activeId = null;
@@ -649,9 +634,7 @@ class _FakeOAuthGateway implements OAuthGateway {
   }
 
   @override
-  Future<void> revokeAndSignOut() async {
-    activeId = null;
-  }
+  Future<void> revokeAuthorization(String accountId) async {}
 
   @override
   Future<void> clearLocalSession({String? accountId}) async {

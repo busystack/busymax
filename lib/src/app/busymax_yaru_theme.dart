@@ -90,61 +90,30 @@ class BusyMaxYaruTheme {
       outlineVariant: colors.subtleBorder,
       scrim: BusyMaxLinuxPalette.dark5,
     );
-    final inputBorder = OutlineInputBorder(
-      borderSide: BorderSide(color: colors.border),
-      borderRadius: BorderRadius.circular(6),
-    );
-    final focusedInputBorder = OutlineInputBorder(
-      borderSide: BorderSide(color: accentColor, width: 2),
-      borderRadius: BorderRadius.circular(6),
-    );
     final normalizer = _TextStyleNormalizer(
       gtkFontFamily: gtkFontFamily,
       gtkFontSize: gtkFontSize,
     );
     final textTheme = _busyMaxTextTheme(
       base.textTheme,
-      brightness: brightness,
       colors: colors,
       normalizer: normalizer,
     );
-    final inputDecorationTheme = base.inputDecorationTheme.copyWith(
-      filled: true,
-      fillColor: colors.control,
-      border: inputBorder,
-      enabledBorder: inputBorder,
-      focusedBorder: focusedInputBorder,
-      focusedErrorBorder: inputBorder.copyWith(
-        borderSide: BorderSide(color: colorScheme.error, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      labelStyle: normalizer.apply(
-        base.inputDecorationTheme.labelStyle,
-        fallback: textTheme.bodyMedium,
-      ),
-      floatingLabelStyle: normalizer.apply(
-        base.inputDecorationTheme.floatingLabelStyle,
-        fallback: textTheme.bodyMedium,
-        color: accentColor,
-      ),
-      hintStyle: normalizer.apply(
-        base.inputDecorationTheme.hintStyle,
-        fallback: textTheme.bodyMedium,
-        color: colors.mutedForeground,
-      ),
-      helperStyle: normalizer.apply(
-        base.inputDecorationTheme.helperStyle,
-        fallback: textTheme.bodySmall,
-      ),
-      errorStyle: normalizer.apply(
-        base.inputDecorationTheme.errorStyle,
-        fallback: textTheme.bodySmall,
-        color: colorScheme.error,
-      ),
-      counterStyle: normalizer.apply(
-        base.inputDecorationTheme.counterStyle,
-        fallback: textTheme.bodySmall,
-      ),
+    final inputDecorationTheme = _semanticInputDecorationTheme(
+      base.inputDecorationTheme,
+      colors: colors,
+      accentColor: accentColor,
+      errorColor: colorScheme.error,
+      normalizer: normalizer,
+      textTheme: textTheme,
+    );
+    final dropdownInputDecorationTheme = _semanticInputDecorationTheme(
+      base.dropdownMenuTheme.inputDecorationTheme ?? base.inputDecorationTheme,
+      colors: colors,
+      accentColor: accentColor,
+      errorColor: colorScheme.error,
+      normalizer: normalizer,
+      textTheme: textTheme,
     );
     final outlinedButtonStyle = _semanticButtonStyle(
       base.outlinedButtonTheme.style,
@@ -202,10 +171,6 @@ class BusyMaxYaruTheme {
       borderColor: colors.border,
       selectedBorderColor: colors.border,
       disabledBorderColor: colors.disabledForeground,
-      hoverColor: colors.controlHover,
-      highlightColor: colors.controlActive,
-      splashColor: colors.controlHover,
-      focusColor: colors.controlActive,
     );
     final menuStyle = _semanticMenuSurfaceStyle(
       base.menuTheme.style,
@@ -250,10 +215,12 @@ class BusyMaxYaruTheme {
       dialogTheme: base.dialogTheme.copyWith(
         backgroundColor: colors.dialog,
         surfaceTintColor: colors.dialog,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: colors.border),
-        ),
+        shape: highContrast
+            ? _withOutlineSide(
+                base.dialogTheme.shape,
+                BorderSide(color: colors.border),
+              )
+            : base.dialogTheme.shape,
         titleTextStyle: normalizer.apply(
           base.dialogTheme.titleTextStyle,
           fallback: textTheme.titleLarge,
@@ -327,8 +294,7 @@ class BusyMaxYaruTheme {
           return colors.border;
         }),
       ),
-      checkboxTheme: CheckboxThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+      checkboxTheme: base.checkboxTheme.copyWith(
         fillColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.disabled)) {
             return colors.disabledControl;
@@ -366,12 +332,12 @@ class BusyMaxYaruTheme {
           fallback: textTheme.bodyMedium,
           color: colors.foreground,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: highContrast
-              ? BorderSide(color: colors.border)
-              : BorderSide.none,
-        ),
+        shape: highContrast
+            ? _withOutlineSide(
+                base.popupMenuTheme.shape,
+                BorderSide(color: colors.border),
+              )
+            : base.popupMenuTheme.shape,
       ),
       menuTheme: MenuThemeData(
         style: menuStyle,
@@ -430,7 +396,7 @@ class BusyMaxYaruTheme {
           base.dropdownMenuTheme.textStyle,
           fallback: textTheme.bodyMedium,
         ),
-        inputDecorationTheme: inputDecorationTheme,
+        inputDecorationTheme: dropdownInputDecorationTheme,
         menuStyle: dropdownMenuStyle,
       ),
       tabBarTheme: base.tabBarTheme.copyWith(
@@ -483,12 +449,9 @@ class BusyMaxYaruTheme {
 
   static TextTheme _busyMaxTextTheme(
     TextTheme base, {
-    required Brightness brightness,
     required BusyMaxSurfaceColors colors,
     required _TextStyleNormalizer normalizer,
   }) {
-    assert(brightness == Brightness.light || brightness == Brightness.dark);
-
     TextStyle? apply(TextStyle? style, {Color? color}) =>
         normalizer.apply(style, color: color);
 
@@ -501,13 +464,13 @@ class BusyMaxYaruTheme {
       headlineSmall: apply(base.headlineSmall, color: colors.foreground),
       titleLarge: apply(base.titleLarge, color: colors.foreground),
       titleMedium: apply(base.titleMedium, color: colors.foreground),
-      titleSmall: apply(base.titleSmall, color: colors.mutedForeground),
+      titleSmall: apply(base.titleSmall, color: colors.foreground),
       bodyLarge: apply(base.bodyLarge, color: colors.foreground),
       bodyMedium: apply(base.bodyMedium, color: colors.foreground),
-      bodySmall: apply(base.bodySmall, color: colors.mutedForeground),
-      labelLarge: apply(base.labelLarge, color: colors.mutedForeground),
-      labelMedium: apply(base.labelMedium, color: colors.mutedForeground),
-      labelSmall: apply(base.labelSmall, color: colors.mutedForeground),
+      bodySmall: apply(base.bodySmall, color: colors.foreground),
+      labelLarge: apply(base.labelLarge, color: colors.foreground),
+      labelMedium: apply(base.labelMedium, color: colors.foreground),
+      labelSmall: apply(base.labelSmall, color: colors.foreground),
     );
   }
 }
@@ -960,6 +923,76 @@ WidgetStateProperty<TextStyle?> _normalizeTextStyleProperty(
   return WidgetStateProperty.resolveWith((states) {
     return normalizer.apply(property?.resolve(states), fallback: fallback);
   });
+}
+
+/// Applies semantic colors and GTK typography while retaining the input
+/// geometry supplied by Yaru, including component-specific constraints.
+InputDecorationThemeData _semanticInputDecorationTheme(
+  InputDecorationThemeData base, {
+  required BusyMaxSurfaceColors colors,
+  required Color accentColor,
+  required Color errorColor,
+  required _TextStyleNormalizer normalizer,
+  required TextTheme textTheme,
+}) {
+  final disabledBorderColor = colors.border.withValues(
+    alpha: colors.border.a * 0.6,
+  );
+
+  InputBorder? borderWithColor(InputBorder? border, Color color) {
+    return border?.copyWith(
+      borderSide: border.borderSide.copyWith(color: color),
+    );
+  }
+
+  return base.copyWith(
+    border: borderWithColor(base.border, colors.border),
+    enabledBorder: borderWithColor(base.enabledBorder, colors.border),
+    focusedBorder: borderWithColor(base.focusedBorder, accentColor),
+    errorBorder: borderWithColor(base.errorBorder, errorColor),
+    focusedErrorBorder: borderWithColor(base.focusedErrorBorder, errorColor),
+    disabledBorder: borderWithColor(base.disabledBorder, disabledBorderColor),
+    activeIndicatorBorder: base.activeIndicatorBorder?.copyWith(
+      color: accentColor,
+    ),
+    outlineBorder: base.outlineBorder?.copyWith(color: colors.border),
+    iconColor: colors.foreground,
+    labelStyle: normalizer.apply(
+      base.labelStyle,
+      fallback: textTheme.bodyMedium,
+    ),
+    floatingLabelStyle: normalizer.apply(
+      base.floatingLabelStyle,
+      fallback: textTheme.bodyMedium,
+      color: accentColor,
+    ),
+    hintStyle: normalizer.apply(
+      base.hintStyle,
+      fallback: textTheme.bodyMedium,
+      color: colors.mutedForeground,
+    ),
+    helperStyle: normalizer.apply(
+      base.helperStyle,
+      fallback: textTheme.bodySmall,
+    ),
+    errorStyle: normalizer.apply(
+      base.errorStyle,
+      fallback: textTheme.bodySmall,
+      color: errorColor,
+    ),
+    counterStyle: normalizer.apply(
+      base.counterStyle,
+      fallback: textTheme.bodySmall,
+    ),
+  );
+}
+
+ShapeBorder? _withOutlineSide(ShapeBorder? shape, BorderSide side) {
+  return switch (shape) {
+    final InputBorder input => input.copyWith(borderSide: side),
+    final OutlinedBorder outlined => outlined.copyWith(side: side),
+    _ => shape,
+  };
 }
 
 /// Applies only the semantic floating-surface roles and retains Yaru's menu

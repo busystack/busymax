@@ -100,17 +100,7 @@ void main() {
         backgroundColor: Color(0xFF1D1D20),
         sidebarBackgroundColor: Color(0xFF2E2E32),
         foregroundColor: Color(0xFFFFFFFF),
-        mutedForegroundColor: Color.fromRGBO(255, 255, 255, 0.70),
-        disabledForegroundColor: Color.fromRGBO(255, 255, 255, 0.38),
-        controlColor: Color.fromRGBO(255, 255, 255, 0.10),
-        controlHoverColor: Color.fromRGBO(255, 255, 255, 0.14),
-        controlActiveColor: Color.fromRGBO(255, 255, 255, 0.18),
-        accentColor: Color(0xFF2E7D32),
-        accentForegroundColor: Color(0xFFFFFFFF),
-        popoverBackgroundColor: Color(0xFF36363A),
-        borderColor: Color.fromRGBO(0, 0, 6, 0.75),
         sidebarBorderColor: Color.fromRGBO(0, 0, 6, 0.75),
-        shadeColor: Color.fromRGBO(0, 0, 6, 0.25),
         modalBarrierColor: Color.fromRGBO(0, 0, 0, 0.32),
       ),
     );
@@ -145,32 +135,17 @@ void main() {
     expect(calls[3].arguments, containsPair('visible', true));
     expect(calls[3].arguments, containsPair('canContinue', true));
     expect(calls[3].arguments, containsPair('continueLabel', 'Continue'));
-    expect(calls.last.arguments, containsPair('preferDark', true));
-    expect(calls.last.arguments, containsPair('backgroundColor', '#1D1D20'));
     expect(
       calls.last.arguments,
-      containsPair('windowBackgroundColor', '#18181B'),
-    );
-    expect(
-      calls.last.arguments,
-      containsPair('sidebarBackgroundColor', '#2E2E32'),
-    );
-    expect(
-      calls.last.arguments,
-      containsPair('controlHoverColor', 'rgba(255,255,255,0.14)'),
-    );
-    expect(
-      calls.last.arguments,
-      containsPair('controlActiveColor', 'rgba(255,255,255,0.18)'),
-    );
-    expect(calls.last.arguments, containsPair('accentColor', '#2E7D32'));
-    expect(
-      calls.last.arguments,
-      containsPair('accentForegroundColor', '#FFFFFF'),
-    );
-    expect(
-      calls.last.arguments,
-      containsPair('sidebarBorderColor', 'rgba(0,0,6,0.75)'),
+      equals({
+        'preferDark': true,
+        'windowBackgroundColor': '#18181B',
+        'backgroundColor': '#1D1D20',
+        'sidebarBackgroundColor': '#2E2E32',
+        'foregroundColor': '#FFFFFF',
+        'sidebarBorderColor': 'rgba(0,0,6,0.75)',
+        'modalBarrierColor': 'rgba(0,0,0,0.32)',
+      }),
     );
   });
 
@@ -601,11 +576,21 @@ void main() {
   test('native header menus delegate row focus modality to GTK', () {
     final source = File('linux/runner/my_application.cc').readAsStringSync();
 
-    expect(source, contains('button.busymax-header-view-mode-button:focus {"'));
-    expect(source, contains('"box-shadow: inset 0 0 0 2px %s;"'));
+    expect(source, contains('gtk_menu_button_new()'));
     expect(source, contains('gtk_menu_button_set_menu_model'));
     expect(source, contains('g_menu_item_set_action_and_target'));
     expect(source, contains('g_simple_action_new_stateful'));
+    expect(source, contains('GTK_STYLE_CLASS_FLAT'));
+    expect(source, contains('GTK_STYLE_CLASS_SUGGESTED_ACTION'));
+    expect(
+      source,
+      isNot(contains('button.busymax-header-view-mode-button:focus {"')),
+    );
+    expect(source, isNot(contains('"box-shadow: inset 0 0 0 2px %s;"')));
+    expect(source, isNot(contains('outline-style: none')));
+    expect(source, isNot(contains('transition: none')));
+    expect(source, isNot(contains('popover.busymax-header-popover')));
+    expect(source, isNot(contains('tooltip.background')));
     expect(source, isNot(contains('button.busymax-header-popover-row')));
     expect(source, isNot(contains('busymax-keyboard-focus')));
     expect(source, isNot(contains('gtk_window_get_focus_visible')));

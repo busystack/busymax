@@ -654,17 +654,42 @@ class AppLocalizationsDe extends AppLocalizations {
   String get signedInAccount => 'Angemeldet';
 
   @override
-  String get signOutThisAccount => 'Dieses Konto abmelden';
+  String get removeAccount => 'Konto entfernen…';
 
   @override
-  String get revokeThisAccount => 'Dieses Konto widerrufen';
+  String get removingAccount => 'Konto wird entfernt…';
 
   @override
-  String get disconnectThisAccount => 'Dieses Konto trennen';
+  String get removeAccountDescription =>
+      'Synchronisierung beenden und die Daten dieses Kontos von diesem Gerät entfernen.';
 
   @override
-  String get deleteLocalDataForThisAccount =>
-      'Lokale Daten für dieses Konto löschen';
+  String removeAccountTitle(String account) {
+    return '$account aus BusyMax entfernen?';
+  }
+
+  @override
+  String get removeAccountConfirmation =>
+      'Dadurch werden zwischengespeicherte Aufgaben, Kalender, Termine, Erinnerungen und ausstehende Offline-Änderungen von diesem Gerät gelöscht. Nicht synchronisierte Änderungen gehen verloren. Bei Google oder Microsoft wird nichts gelöscht.';
+
+  @override
+  String get revokeGoogleAccess =>
+      'BusyMax-Zugriff auf dieses Google-Konto ebenfalls widerrufen';
+
+  @override
+  String get revokeGoogleAccessDescription =>
+      'Vor einer erneuten Verbindung müssen Sie den Zugriff wieder gewähren.';
+
+  @override
+  String get removeAccountAction => 'Konto entfernen';
+
+  @override
+  String get removeAccountFailed =>
+      'Das Konto konnte nicht vollständig entfernt werden. Versuchen Sie es erneut.';
+
+  @override
+  String get accountRemovedGoogleRevokeFailed =>
+      'Das Konto wurde von diesem Gerät entfernt, aber BusyMax konnte den Google-Zugriff nicht widerrufen. Sie können ihn in Ihrem Google-Konto widerrufen.';
 
   @override
   String get newList => 'Neue Liste';
@@ -792,21 +817,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String dateTimeDisplay(String date, String time) {
     return '$date, $time';
   }
-
-  @override
-  String get searchTasks => 'Aufgaben suchen';
-
-  @override
-  String get advancedFilters => 'Erweiterte Filter';
-
-  @override
-  String get showCompleted => 'Erledigte anzeigen';
-
-  @override
-  String get showHidden => 'Ausgeblendete anzeigen';
-
-  @override
-  String get showAssigned => 'Zugewiesene anzeigen';
 
   @override
   String get taskDetails => 'Aufgabendetails';
@@ -1010,19 +1020,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get account => 'Konto';
-
-  @override
-  String get signOut => 'Abmelden';
-
-  @override
-  String get revokeGoogleAuthorization => 'Google-Autorisierung widerrufen';
-
-  @override
-  String get deleteLocalData => 'Lokale Daten löschen';
-
-  @override
-  String get deleteLocalDataConfirmation =>
-      'Dies entfernt das lokale Konto, synchronisierte Aufgaben und ausstehende Offline-Änderungen von diesem Gerät.';
 
   @override
   String get sync => 'Synchronisierung';

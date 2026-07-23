@@ -15,6 +15,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
 import '../features/notifications/notification_scheduler.dart';
+import '../features/sync/account_sync_operations.dart';
 import '../features/sync/all_accounts_sync_scheduler.dart';
 import '../features/sync/calendar_sync_engine.dart';
 import '../features/sync/pending_mutation_sync_requester.dart';
@@ -100,6 +101,10 @@ final applicationOAuthServiceProvider = Provider<OAuthService>((ref) {
 
 final oAuthServiceProvider = applicationOAuthServiceProvider;
 
+final applicationOAuthGatewayProvider = Provider<OAuthGateway>(
+  (ref) => ref.watch(applicationOAuthServiceProvider),
+);
+
 final microsoftOAuthServiceProvider = Provider<MicrosoftOAuthService>((ref) {
   return MicrosoftOAuthService(
     config: ref.watch(buildConfigProvider),
@@ -108,6 +113,11 @@ final microsoftOAuthServiceProvider = Provider<MicrosoftOAuthService>((ref) {
     loopbackFlow: OAuthLoopbackFlow(),
   );
 });
+
+final applicationMicrosoftOAuthServiceProvider =
+    Provider<MicrosoftOAuthService?>(
+      (ref) => ref.watch(microsoftOAuthServiceProvider),
+    );
 
 final authenticatedHttpClientProvider = Provider<http.Client>((ref) {
   return AuthenticatedHttpClient(
@@ -147,10 +157,10 @@ final compactAgendaWindowServiceProvider = Provider<CompactAgendaWindowService>(
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
-    oAuth: ref.watch(applicationOAuthServiceProvider),
+    oAuth: ref.watch(applicationOAuthGatewayProvider),
     database: ref.watch(databaseProvider),
     accountsRepository: ref.watch(accountsRepositoryProvider),
-    microsoftOAuth: ref.watch(microsoftOAuthServiceProvider),
+    microsoftOAuth: ref.watch(applicationMicrosoftOAuthServiceProvider),
   );
 });
 
@@ -264,22 +274,49 @@ final microsoftAsGoogleTasksApiClientForAccountProvider =
       );
     });
 
-typedef SyncEngineForAccountFactory = SyncEngine Function(String accountId);
+final taskRemoteApiClientForAccountProvider =
+    Provider.family<GoogleTasksApiClient?, String>((ref, accountId) {
+      final accounts = ref.watch(accountsStreamProvider).valueOrNull;
+      AccountEntity? account;
+      for (final candidate in accounts ?? const <AccountEntity>[]) {
+        if (candidate.id == accountId) {
+          account = candidate;
+          break;
+        }
+      }
+      if (account == null) {
+        return null;
+      }
+      return switch (account.provider) {
+        TaskProvider.microsoft => ref.watch(
+          microsoftAsGoogleTasksApiClientForAccountProvider(accountId),
+        ),
+        TaskProvider.google => ref.watch(
+          googleTasksApiClientForAccountProvider(accountId),
+        ),
+      };
+    });
+
+typedef SyncEngineForAccountFactory =
+    SyncEngine Function(String accountId, TaskProvider provider);
 
 final syncEngineForAccountFactoryProvider =
     Provider<SyncEngineForAccountFactory>((ref) {
-      return (accountId) {
-        final apiClient = accountId.startsWith('microsoft:')
-            ? ref.read(
-                microsoftAsGoogleTasksApiClientForAccountProvider(accountId),
-              )
-            : ref.read(googleTasksApiClientForAccountProvider(accountId));
+      return (accountId, provider) {
+        final apiClient = switch (provider) {
+          TaskProvider.microsoft => ref.read(
+            microsoftAsGoogleTasksApiClientForAccountProvider(accountId),
+          ),
+          TaskProvider.google => ref.read(
+            googleTasksApiClientForAccountProvider(accountId),
+          ),
+        };
 
         return SyncEngine(
           database: ref.read(databaseProvider),
           apiClient: apiClient,
           accountId: accountId,
-          fullRefreshOnly: accountId.startsWith('microsoft:'),
+          fullRefreshOnly: provider == TaskProvider.microsoft,
           onConflictBlocked: ref
               .read(desktopNotificationServiceProvider)
               .notifyConflict,
@@ -288,14 +325,19 @@ final syncEngineForAccountFactoryProvider =
     });
 
 typedef CalendarSyncEngineForAccountFactory =
-    CalendarSyncEngine Function(String accountId);
+    CalendarSyncEngine Function(String accountId, TaskProvider provider);
 
 final calendarSyncEngineForAccountFactoryProvider =
     Provider<CalendarSyncEngineForAccountFactory>((ref) {
-      return (accountId) {
-        final client = accountId.startsWith('microsoft:')
-            ? ref.read(microsoftCalendarApiClientForAccountProvider(accountId))
-            : ref.read(googleCalendarApiClientForAccountProvider(accountId));
+      return (accountId, provider) {
+        final client = switch (provider) {
+          TaskProvider.microsoft => ref.read(
+            microsoftCalendarApiClientForAccountProvider(accountId),
+          ),
+          TaskProvider.google => ref.read(
+            googleCalendarApiClientForAccountProvider(accountId),
+          ),
+        };
         return CalendarSyncEngine(
           database: ref.read(databaseProvider),
           client: client,
@@ -309,23 +351,54 @@ final calendarSyncEngineForAccountFactoryProvider =
       };
     });
 
+final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
+  final accountsRepository = ref.watch(accountsRepositoryProvider);
+
+  Future<TaskProvider> providerForAccount(String accountId) async {
+    final account = await accountsRepository.accountById(accountId);
+    if (account == null) {
+      throw StateError('Account $accountId is unavailable.');
+    }
+    return account.provider;
+  }
+
+  return DelegatingAccountSyncOperations(
+    syncTasks: (accountId, {required full}) async {
+      final provider = await providerForAccount(accountId);
+      final engine = ref.read(syncEngineForAccountFactoryProvider)(
+        accountId,
+        provider,
+      );
+      if (full) {
+        await engine.fullSync();
+      } else {
+        await engine.incrementalSync();
+      }
+    },
+    syncCalendar: (accountId, {required full}) async {
+      final provider = await providerForAccount(accountId);
+      final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
+        accountId,
+        provider,
+      );
+      if (full) {
+        await engine.fullSync();
+      } else {
+        await engine.incrementalSync();
+      }
+    },
+  );
+});
+
 typedef SignedInSyncRunner =
     Future<void> Function(String accountId, bool initial);
 
 final signedInSyncRunnerProvider = Provider<SignedInSyncRunner>((ref) {
   return (accountId, initial) async {
-    final syncEngine = ref.read(syncEngineForAccountFactoryProvider)(accountId);
-    final calendarSyncEngine = ref.read(
-      calendarSyncEngineForAccountFactoryProvider,
-    )(accountId);
     try {
-      if (initial) {
-        await syncEngine.fullSync();
-        await calendarSyncEngine.fullSync();
-      } else {
-        await syncEngine.incrementalSync();
-        await calendarSyncEngine.incrementalSync();
-      }
+      await ref
+          .read(accountSyncOperationsProvider)
+          .syncAccount(accountId, full: initial);
     } on Object catch (error) {
       await _markAccountReconnectRequiredIfMissingSyncToken(
         ref,
@@ -342,11 +415,8 @@ typedef AllAccountsSyncRunner = Future<void> Function();
 final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
   Future<void> syncAccount(String accountId) async {
     await ref
-        .read(syncEngineForAccountFactoryProvider)(accountId)
-        .incrementalSync();
-    await ref
-        .read(calendarSyncEngineForAccountFactoryProvider)(accountId)
-        .incrementalSync();
+        .read(accountSyncOperationsProvider)
+        .syncAccount(accountId, full: false);
   }
 
   return () {
@@ -406,20 +476,7 @@ final googleTasksApiClientProvider = Provider<GoogleTasksApiClient?>((ref) {
   if (accountId == null) {
     return null;
   }
-  final selectedAccount = ref.watch(selectedAccountProvider);
-  final provider =
-      selectedAccount?.provider ??
-      (accountId.startsWith('microsoft:')
-          ? TaskProvider.microsoft
-          : TaskProvider.google);
-  return switch (provider) {
-    TaskProvider.microsoft => ref.watch(
-      microsoftAsGoogleTasksApiClientForAccountProvider(accountId),
-    ),
-    TaskProvider.google => ref.watch(
-      googleTasksApiClientForAccountProvider(accountId),
-    ),
-  };
+  return ref.watch(taskRemoteApiClientForAccountProvider(accountId));
 });
 
 final taskListsRepositoryProvider = Provider<TaskListsRepository?>((ref) {
@@ -460,15 +517,10 @@ final tasksRepositoryProvider = Provider<TasksRepository?>((ref) {
 
 final tasksRepositoryForAccountProvider =
     Provider.family<TasksRepository, String>((ref, accountId) {
-      final apiClient = accountId.startsWith('microsoft:')
-          ? ref.watch(
-              microsoftAsGoogleTasksApiClientForAccountProvider(accountId),
-            )
-          : ref.watch(googleTasksApiClientForAccountProvider(accountId));
       return TasksRepository(
         database: ref.watch(databaseProvider),
         accountId: accountId,
-        apiClient: apiClient,
+        apiClient: ref.watch(taskRemoteApiClientForAccountProvider(accountId)),
         onMutationQueued: ref
             .watch(pendingMutationSyncRequesterForAccountProvider(accountId))
             .request,
@@ -480,19 +532,15 @@ final tasksRepositoryForAccountProvider =
 final Provider<SyncEngine?> syncEngineProvider = Provider<SyncEngine?>((ref) {
   final accountId = ref.watch(activeAccountProvider);
   final apiClient = ref.watch(googleTasksApiClientProvider);
-  if (accountId == null || apiClient == null) {
+  final account = ref.watch(selectedAccountProvider);
+  if (accountId == null || apiClient == null || account?.id != accountId) {
     return null;
   }
-  final provider =
-      ref.watch(selectedAccountProvider)?.provider ??
-      (accountId.startsWith('microsoft:')
-          ? TaskProvider.microsoft
-          : TaskProvider.google);
   return SyncEngine(
     database: ref.watch(databaseProvider),
     apiClient: apiClient,
     accountId: accountId,
-    fullRefreshOnly: provider == TaskProvider.microsoft,
+    fullRefreshOnly: account!.provider == TaskProvider.microsoft,
     onConflictBlocked: ref
         .watch(desktopNotificationServiceProvider)
         .notifyConflict,
@@ -502,13 +550,14 @@ final Provider<SyncEngine?> syncEngineProvider = Provider<SyncEngine?>((ref) {
 final pendingMutationSyncRequesterProvider =
     Provider<PendingMutationSyncRequester?>((ref) {
       final accountId = ref.watch(activeAccountProvider);
-      final syncEngine = ref.watch(syncEngineProvider);
-      if (accountId == null || syncEngine == null) {
+      if (accountId == null) {
         return null;
       }
 
       final requester = PendingMutationSyncRequester(
-        sync: syncEngine.incrementalSync,
+        sync: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncTasks(accountId, full: false),
         onSyncFailure: ref
             .watch(desktopNotificationServiceProvider)
             .notifySyncFailure,
@@ -524,11 +573,10 @@ final pendingMutationSyncRequesterProvider =
 
 final pendingMutationSyncRequesterForAccountProvider =
     Provider.family<PendingMutationSyncRequester, String>((ref, accountId) {
-      final syncEngine = ref.watch(syncEngineForAccountFactoryProvider)(
-        accountId,
-      );
       final requester = PendingMutationSyncRequester(
-        sync: syncEngine.incrementalSync,
+        sync: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncTasks(accountId, full: false),
         onSyncFailure: ref
             .watch(desktopNotificationServiceProvider)
             .notifySyncFailure,
@@ -561,11 +609,8 @@ final pendingOpResolutionServiceProvider =
 final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
   Future<void> syncAccount(String accountId) async {
     await ref
-        .read(syncEngineForAccountFactoryProvider)(accountId)
-        .incrementalSync();
-    await ref
-        .read(calendarSyncEngineForAccountFactoryProvider)(accountId)
-        .incrementalSync();
+        .read(accountSyncOperationsProvider)
+        .syncAccount(accountId, full: false);
   }
 
   final scheduler = AllAccountsSyncScheduler(

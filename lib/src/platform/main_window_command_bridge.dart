@@ -162,8 +162,8 @@ class _MainWindowCommandBridgeState
   Future<void> _syncCalendarAccount(String accountId) async {
     try {
       await ref
-          .read(calendarSyncEngineForAccountFactoryProvider)(accountId)
-          .incrementalSync();
+          .read(accountSyncOperationsProvider)
+          .syncCalendar(accountId, full: false);
     } on Object catch (error) {
       if (isMissingOAuthTokenError(error)) {
         try {

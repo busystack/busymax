@@ -31,31 +31,22 @@ void main() {
     expect(source, isNot(contains('https://github.com/albertgee/busymax')));
   });
 
-  test(
-    'about dialog uses native headerbar dimming and circular close button',
-    () {
-      final source = File(
-        'lib/src/app/busymax_about_dialog.dart',
-      ).readAsStringSync();
-      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
-      final dialogs = File(
-        'lib/src/app/busymax_dialogs.dart',
-      ).readAsStringSync();
+  test('about dialog uses native headerbar dimming and Yaru close button', () {
+    final source = File(
+      'lib/src/app/busymax_about_dialog.dart',
+    ).readAsStringSync();
+    final dialogs = File('lib/src/app/busymax_dialogs.dart').readAsStringSync();
 
-      expect(source, contains('showBusyMaxModalDialog'));
-      expect(source, contains('headerBarService: headerBarService'));
-      expect(dialogs, contains('acquireBusyMaxModalBarrier'));
-      expect(dialogs, contains('releaseBusyMaxModalBarrier'));
-      expect(dialogs, contains('setModalBarrierVisible(true)'));
-      expect(dialogs, contains('setModalBarrierVisible(false)'));
-      expect(source, isNot(contains('barrierColor: Colors.transparent')));
-      expect(source, contains('BusyMaxDialogCloseButton'));
-      expect(design, contains('CircleBorder()'));
-      expect(design, contains('color: surfaceColors.control'));
-      expect(design, contains('BusyMaxSizes.aboutCloseButton'));
-      expect(design, contains('BusyMaxSizes.iconSm'));
-    },
-  );
+    expect(source, contains('showBusyMaxModalDialog'));
+    expect(source, contains('headerBarService: headerBarService'));
+    expect(dialogs, contains('acquireBusyMaxModalBarrier'));
+    expect(dialogs, contains('releaseBusyMaxModalBarrier'));
+    expect(dialogs, contains('setModalBarrierVisible(true)'));
+    expect(dialogs, contains('setModalBarrierVisible(false)'));
+    expect(source, isNot(contains('barrierColor: Colors.transparent')));
+    expect(source, contains('YaruIconButton('));
+    expect(source, isNot(contains('BusyMaxDialogCloseButton')));
+  });
 
   test('about logo renders the PNG asset, not the launcher SVG', () {
     final source = File(

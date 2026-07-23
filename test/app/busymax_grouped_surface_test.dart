@@ -241,7 +241,6 @@ void main() {
   test('all primary sidebars reuse the shared boundary surface', () {
     for (final path in [
       'lib/src/features/schedule/presentation/schedule_sidebar.dart',
-      'lib/src/features/task_lists/presentation/task_lists_sidebar.dart',
       'lib/src/features/settings/presentation/settings_screen.dart',
     ]) {
       final source = File(path).readAsStringSync();
@@ -374,6 +373,120 @@ void main() {
     expect(disabledSemantics.properties.button, isTrue);
     expect(disabledSemantics.properties.enabled, isFalse);
     expect(disabledSemantics.properties.value, 'Personal');
+  });
+
+  testWidgets(
+    'combo row uses Yaru geometry and does not focus items on pointer open',
+    (tester) async {
+      final selections = <int>[];
+      await tester.pumpWidget(
+        _testApp(
+          Directionality(
+            textDirection: TextDirection.rtl,
+            child: BusyMaxComboRow<int>(
+              title: 'Calendar',
+              values: const [1, 2],
+              selected: 1,
+              labelFor: (value) => 'Calendar $value',
+              menuItemBuilder: (context, value) =>
+                  Text('Choice $value', key: ValueKey('choice-$value')),
+              selectedBuilder: (context, value) =>
+                  Text('Selected $value', key: ValueKey('selected-$value')),
+              onSelected: selections.add,
+            ),
+          ),
+        ),
+      );
+
+      final triggerFinder = find.descendant(
+        of: find.byType(BusyMaxComboRow<int>),
+        matching: find.byType(OutlinedButton),
+      );
+      final trigger = tester.widget<OutlinedButton>(triggerFinder);
+      expect(trigger.style, isNull);
+
+      final selectedRect = tester.getRect(
+        find.byKey(const ValueKey('selected-1')),
+      );
+      final arrowRect = tester.getRect(
+        find.descendant(
+          of: triggerFinder,
+          matching: find.byIcon(YaruIcons.pan_down),
+        ),
+      );
+      expect(arrowRect.right, lessThanOrEqualTo(selectedRect.left));
+
+      await tester.tap(triggerFinder);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('choice-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('choice-2')), findsOneWidget);
+      expect(
+        tester.getRect(find.byKey(const ValueKey('choice-1'))).top,
+        greaterThanOrEqualTo(tester.getRect(triggerFinder).bottom),
+      );
+      final menuItems = tester.widgetList<MenuItemButton>(
+        find.byType(MenuItemButton),
+      );
+      expect(menuItems, hasLength(2));
+      expect(
+        menuItems.every((item) => item.focusNode?.hasFocus == false),
+        isTrue,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('choice-2')));
+      await tester.pumpAndSettle();
+      expect(selections, [2]);
+    },
+  );
+
+  testWidgets('combo row supports keyboard activation and menu navigation', (
+    tester,
+  ) async {
+    final selections = <String>[];
+    await tester.pumpWidget(
+      _testApp(
+        BusyMaxComboRow<String>(
+          title: 'Calendar',
+          values: const ['Personal', 'Work'],
+          selected: 'Personal',
+          labelFor: (value) => value,
+          onSelected: selections.add,
+        ),
+      ),
+    );
+
+    final triggerFinder = find.descendant(
+      of: find.byType(BusyMaxComboRow<String>),
+      matching: find.byType(OutlinedButton),
+    );
+    tester.widget<OutlinedButton>(triggerFinder).focusNode!.requestFocus();
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    var menuItems = tester
+        .widgetList<MenuItemButton>(find.byType(MenuItemButton))
+        .toList();
+    expect(menuItems, hasLength(2));
+    expect(
+      tester.getRect(find.text('Personal').last).top,
+      greaterThanOrEqualTo(tester.getRect(triggerFinder).bottom),
+    );
+    expect(menuItems.first.focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    menuItems = tester
+        .widgetList<MenuItemButton>(find.byType(MenuItemButton))
+        .toList();
+    expect(menuItems.last.focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(selections, ['Work']);
+    expect(find.byType(MenuItemButton), findsNothing);
   });
 
   testWidgets('combo row accepts unbounded horizontal constraints', (

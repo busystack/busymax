@@ -97,7 +97,6 @@ class TaskDetailsEditor extends StatefulWidget {
 class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   final _titleController = TextEditingController();
   final _notesController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _shortcutFocusNode = FocusNode(debugLabel: 'Task editor shortcuts');
 
   TaskDetailsDraft? _draft;
@@ -142,7 +141,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     _shortcutFocusNode.dispose();
     _titleController.dispose();
     _notesController.dispose();
-    _categoryController.dispose();
     super.dispose();
   }
 
@@ -580,7 +578,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       categories: draft.categories,
       suggestions: widget.categorySuggestions,
       adding: _addingCategory,
-      controller: _categoryController,
       inputKey: const Key('task-category-input'),
       onAddPressed: () {
         setState(() {
@@ -589,7 +586,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       },
       onSubmitted: (value) => _addCategory(draft, value),
       onCancelAdding: () {
-        _categoryController.clear();
         setState(() {
           _addingCategory = false;
         });
@@ -601,10 +597,12 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   void _addCategory(TaskDetailsDraft draft, String value) {
     final currentDraft = _draft ?? draft;
     final category = value.trim();
-    if (category.isEmpty || currentDraft.categories.contains(category)) {
+    if (category.isEmpty ||
+        currentDraft.categories.any(
+          (existing) => existing.toLowerCase() == category.toLowerCase(),
+        )) {
       return;
     }
-    _categoryController.clear();
     setState(() {
       _addingCategory = false;
     });

@@ -1,3 +1,4 @@
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
@@ -187,61 +188,134 @@ void main() {
     expect(tasks, 1);
   });
 
-  testWidgets('external controller opens the fallback create menu', (
+  testWidgets(
+    'keyboard controller opens and focuses the fallback create menu',
+    (tester) async {
+      final controller = BusyMaxMenuController();
+
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: SizedBox(
+              width: 1000,
+              child: ScheduleToolbar(
+                mode: ScheduleViewMode.week,
+                range: ScheduleRange.week(DateTime(2026, 7, 22)),
+                selectedDate: DateTime(2026, 7, 22),
+                onToday: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onModeChanged: (_) {},
+                canCreateEvent: true,
+                canCreateTask: true,
+                onCreateEvent: () {},
+                onCreateTask: () {},
+                onRefresh: () {},
+                createMenuController: controller,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(controller.openForKeyboard(), isTrue);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Event'), findsOneWidget);
+      expect(find.text('Task'), findsOneWidget);
+
+      final trigger = tester.widget<YaruIconButton>(
+        find.ancestor(
+          of: find.byTooltip('Create'),
+          matching: find.byType(YaruIconButton),
+        ),
+      );
+      final anchor = tester.widget<MenuAnchor>(
+        find.ancestor(
+          of: find.byTooltip('Create'),
+          matching: find.byType(MenuAnchor),
+        ),
+      );
+      expect(trigger.focusNode, isNotNull);
+      expect(anchor.childFocusNode, same(trigger.focusNode));
+      final menuItems = tester
+          .widgetList<MenuItemButton>(find.byType(MenuItemButton))
+          .toList();
+      expect(menuItems.first.focusNode?.hasFocus, isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Event'), findsNothing);
+      expect(find.text('Task'), findsNothing);
+    },
+  );
+
+  testWidgets('keyboard controller follows a responsive toolbar replacement', (
     tester,
   ) async {
-    final controller = MenuController();
+    final controller = BusyMaxMenuController();
+    final nestToolbar = ValueNotifier(false);
+    addTearDown(nestToolbar.dispose);
+
+    Widget buildToolbar() {
+      return ScheduleToolbar(
+        mode: ScheduleViewMode.week,
+        range: ScheduleRange.week(DateTime(2026, 7, 22)),
+        selectedDate: DateTime(2026, 7, 22),
+        onToday: () {},
+        onPrevious: () {},
+        onNext: () {},
+        onModeChanged: (_) {},
+        canCreateEvent: true,
+        canCreateTask: true,
+        onCreateEvent: () {},
+        onCreateTask: () {},
+        onRefresh: () {},
+        createMenuController: controller,
+      );
+    }
 
     await tester.pumpWidget(
       localizedTestApp(
         child: Scaffold(
           body: SizedBox(
             width: 1000,
-            child: ScheduleToolbar(
-              mode: ScheduleViewMode.week,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
-              selectedDate: DateTime(2026, 7, 22),
-              onToday: () {},
-              onPrevious: () {},
-              onNext: () {},
-              onModeChanged: (_) {},
-              canCreateEvent: true,
-              canCreateTask: true,
-              onCreateEvent: () {},
-              onCreateTask: () {},
-              onRefresh: () {},
-              createMenuController: controller,
+            child: ValueListenableBuilder(
+              valueListenable: nestToolbar,
+              builder: (context, nested, child) {
+                final toolbar = buildToolbar();
+                return nested
+                    ? Row(children: [Expanded(child: toolbar)])
+                    : toolbar;
+              },
             ),
           ),
         ),
       ),
     );
+    expect(controller.isAttached, isTrue);
 
-    controller.open();
+    nestToolbar.value = true;
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(controller.isAttached, isTrue);
+    expect(controller.openForKeyboard(), isTrue);
     await tester.pumpAndSettle();
 
     expect(find.text('Event'), findsOneWidget);
     expect(find.text('Task'), findsOneWidget);
+    final menuItems = tester
+        .widgetList<MenuItemButton>(find.byType(MenuItemButton))
+        .toList();
+    expect(menuItems.first.focusNode?.hasFocus, isTrue);
 
-    final trigger = tester.widget<YaruIconButton>(
-      find.ancestor(
-        of: find.byTooltip('Create'),
-        matching: find.byType(YaruIconButton),
-      ),
-    );
-    final anchor = tester.widget<MenuAnchor>(
-      find.ancestor(
-        of: find.byTooltip('Create'),
-        matching: find.byType(MenuAnchor),
-      ),
-    );
-    expect(trigger.focusNode, isNotNull);
-    expect(anchor.childFocusNode, same(trigger.focusNode));
-
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    controller.close();
     await tester.pumpAndSettle();
-    expect(find.text('Event'), findsNothing);
-    expect(find.text('Task'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    expect(controller.isAttached, isFalse);
+    expect(controller.openForKeyboard(), isFalse);
   });
 
   testWidgets('create trigger disables when no creation kind is available', (

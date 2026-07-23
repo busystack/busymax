@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:system_theme/system_theme.dart';
+import 'package:yaru/constants.dart';
 import 'package:yaru/theme.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
@@ -93,15 +94,19 @@ void main() {
     );
     expect(
       light.toggleButtonsTheme.highlightColor,
-      lightSurfaceColors.controlActive,
+      yaruBase.toggleButtonsTheme.highlightColor,
     );
     expect(
       light.toggleButtonsTheme.splashColor,
-      lightSurfaceColors.controlHover,
+      yaruBase.toggleButtonsTheme.splashColor,
     );
     expect(
       light.toggleButtonsTheme.focusColor,
-      lightSurfaceColors.controlActive,
+      yaruBase.toggleButtonsTheme.focusColor,
+    );
+    expect(
+      light.toggleButtonsTheme.hoverColor,
+      yaruBase.toggleButtonsTheme.hoverColor,
     );
     expect(light.floatingActionButtonTheme.backgroundColor, _testAccentColor);
     expect(light.progressIndicatorTheme.color, _testAccentColor);
@@ -145,6 +150,67 @@ void main() {
           pair.$2?.overlayColor?.resolve(states),
         );
       }
+    }
+  });
+
+  test('semantic theme retains Yaru component geometry and interactions', () {
+    final theme = _buildBusyMaxTheme(brightness: Brightness.light);
+    final base = createYaruLightTheme(primaryColor: _testAccentColor);
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+    expect(theme.inputDecorationTheme.filled, base.inputDecorationTheme.filled);
+    expect(
+      theme.inputDecorationTheme.fillColor,
+      base.inputDecorationTheme.fillColor,
+    );
+    expect(
+      theme.inputDecorationTheme.contentPadding,
+      base.inputDecorationTheme.contentPadding,
+    );
+    final inputShape =
+        theme.inputDecorationTheme.enabledBorder as OutlineInputBorder;
+    final baseInputShape =
+        base.inputDecorationTheme.enabledBorder as OutlineInputBorder;
+    expect(inputShape.borderRadius, baseInputShape.borderRadius);
+    expect(inputShape.borderSide.width, baseInputShape.borderSide.width);
+    expect(
+      inputShape.borderSide.strokeAlign,
+      baseInputShape.borderSide.strokeAlign,
+    );
+    expect(inputShape.borderSide.color, colors.border);
+
+    expect(
+      theme.dropdownMenuTheme.inputDecorationTheme?.constraints,
+      base.dropdownMenuTheme.inputDecorationTheme?.constraints,
+    );
+
+    final dialogShape = theme.dialogTheme.shape! as RoundedRectangleBorder;
+    final baseDialogShape = base.dialogTheme.shape! as RoundedRectangleBorder;
+    expect(dialogShape.borderRadius, baseDialogShape.borderRadius);
+    expect(dialogShape.borderRadius, BorderRadius.circular(kYaruWindowRadius));
+    expect(dialogShape.side, baseDialogShape.side);
+    expect(BusyMaxRadius.window, kYaruWindowRadius);
+
+    final checkboxShape = theme.checkboxTheme.shape! as RoundedRectangleBorder;
+    final baseCheckboxShape =
+        base.checkboxTheme.shape! as RoundedRectangleBorder;
+    expect(checkboxShape.borderRadius, baseCheckboxShape.borderRadius);
+    expect(checkboxShape.borderRadius, BorderRadius.circular(kYaruCheckRadius));
+
+    final popupShape = theme.popupMenuTheme.shape! as OutlineInputBorder;
+    final basePopupShape = base.popupMenuTheme.shape! as OutlineInputBorder;
+    expect(popupShape.borderRadius, basePopupShape.borderRadius);
+    expect(popupShape.borderSide, basePopupShape.borderSide);
+
+    for (final style in [
+      theme.textTheme.titleSmall,
+      theme.textTheme.bodySmall,
+      theme.textTheme.labelLarge,
+      theme.textTheme.labelMedium,
+      theme.textTheme.labelSmall,
+    ]) {
+      expect(style?.color, colors.foreground);
+      expect(style?.color, isNot(colors.mutedForeground));
     }
   });
 
@@ -1168,19 +1234,26 @@ void main() {
 
   test('native headerbar receives semantic surface colors', () {
     final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
+    final synchronizer = File(
+      'lib/src/platform/linux_header_bar_configuration_synchronizer.dart',
+    ).readAsStringSync();
 
     expect(
       source,
       contains('final colors = BusyMaxSurfaceColors.of(context);'),
     );
-    expect(source, contains('await service.setTheme('));
+    expect(source, contains('_headerBarConfigurationSynchronizer.schedule('));
+    expect(synchronizer, contains('await service.setTheme('));
     expect(source, contains('windowBackgroundColor: colors.window'));
     expect(source, contains('backgroundColor: colors.headerbarFlat'));
     expect(source, isNot(contains('backgroundColor: colors.headerbar,')));
     expect(source, contains('sidebarBackgroundColor: colors.sidebar'));
-    expect(source, contains('controlHoverColor: colors.controlHover'));
-    expect(source, contains('accentColor: colorScheme.primary'));
-    expect(source, contains('accentForegroundColor: colorScheme.onPrimary'));
+    expect(source, contains('foregroundColor: colors.foreground'));
+    expect(source, contains('sidebarBorderColor: colors.sidebarBorder'));
+    expect(source, contains('modalBarrierColor: modalBarrierColor'));
+    expect(source, isNot(contains('controlHoverColor: colors.controlHover')));
+    expect(source, isNot(contains('popoverBackgroundColor: colors.popover')));
+    expect(source, isNot(contains('accentColor: colorScheme.primary')));
     expect(source, contains('menu: l10n.mainMenu'));
     expect(source, contains('settings: l10n.settings'));
     expect(source, contains('keyboardShortcuts: l10n.keyboardShortcuts'));
@@ -1190,21 +1263,13 @@ void main() {
     expect(source, isNot(contains('setSidebarBackgroundColor(')));
   });
 
-  test(
-    'root window wrapper clips bottom corners over matching native backing',
-    () {
-      final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
+  test('root window uses semantic backing while GTK owns window geometry', () {
+    final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
 
-      expect(source, contains('ClipRRect('));
-      expect(source, contains('bottom: Radius.circular(BusyMaxRadius.window)'));
-      expect(source, contains('clipBehavior: Clip.antiAlias'));
-      expect(source, isNot(contains('Clip.antiAliasWithSaveLayer')));
-      expect(
-        source,
-        contains('color: BusyMaxSurfaceColors.of(context).window'),
-      );
-    },
-  );
+    expect(source, isNot(contains('_BusyMaxWindowCornerClip')));
+    expect(source, isNot(contains('ClipRRect(')));
+    expect(source, contains('color: BusyMaxSurfaceColors.of(context).window'));
+  });
 
   test('signed-out onboarding background matches main content surface', () {
     final source = File(

@@ -9,6 +9,7 @@ import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import 'calendar_day_semantics.dart';
 
 class MiniCalendar extends StatelessWidget {
   const MiniCalendar({
@@ -135,10 +136,8 @@ class MiniCalendar extends StatelessWidget {
                             row * DateTime.daysPerWeek,
                           ),
                           weekNumberExtent: weekNumberExtent,
-                          selectedMonth: selectedDate.month,
-                          selectedYear: selectedDate.year,
+                          selectedDate: selectedDate,
                           groupedItems: groupedItems,
-                          locale: locale,
                           onDaySelected: onSelected,
                           onWeekSelected: onWeekSelected,
                         ),
@@ -158,20 +157,16 @@ class _MiniCalendarWeekRow extends StatelessWidget {
   const _MiniCalendarWeekRow({
     required this.weekStart,
     required this.weekNumberExtent,
-    required this.selectedMonth,
-    required this.selectedYear,
+    required this.selectedDate,
     required this.groupedItems,
-    required this.locale,
     required this.onDaySelected,
     required this.onWeekSelected,
   });
 
   final DateTime weekStart;
   final double weekNumberExtent;
-  final int selectedMonth;
-  final int selectedYear;
+  final DateTime selectedDate;
   final Map<DateTime, List<ScheduleItem>> groupedItems;
-  final String locale;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onWeekSelected;
 
@@ -191,10 +186,8 @@ class _MiniCalendarWeekRow extends StatelessWidget {
           Expanded(
             child: _MiniCalendarDayButton(
               day: _addCalendarDays(weekStart, column),
-              selectedMonth: selectedMonth,
-              selectedYear: selectedYear,
+              selectedDate: selectedDate,
               groupedItems: groupedItems,
-              locale: locale,
               onSelected: onDaySelected,
             ),
           ),
@@ -252,34 +245,35 @@ class _MiniCalendarWeekNumberButton extends StatelessWidget {
 class _MiniCalendarDayButton extends StatelessWidget {
   const _MiniCalendarDayButton({
     required this.day,
-    required this.selectedMonth,
-    required this.selectedYear,
+    required this.selectedDate,
     required this.groupedItems,
-    required this.locale,
     required this.onSelected,
   });
 
   final DateTime day;
-  final int selectedMonth;
-  final int selectedYear;
+  final DateTime selectedDate;
   final Map<DateTime, List<ScheduleItem>> groupedItems;
-  final String locale;
   final ValueChanged<DateTime> onSelected;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
+    final selected = _sameDay(day, selectedDate);
     final today = _sameDay(day, DateTime.now());
-    final currentMonth =
-        selectedYear == DateTime.now().year &&
-        selectedMonth == DateTime.now().month;
-    final highlightToday = today && currentMonth;
+    final inDisplayedMonth =
+        day.year == selectedDate.year && day.month == selectedDate.month;
+    final displayingCurrentMonth =
+        selectedDate.year == DateTime.now().year &&
+        selectedDate.month == DateTime.now().month;
+    final highlightToday = today && displayingCurrentMonth;
     final items =
         groupedItems[ScheduleProjection.day(day)] ?? const <ScheduleItem>[];
 
-    return Tooltip(
-      message: DateFormat.yMMMMEEEEd(locale).format(day),
+    return BusyMaxCalendarDaySemantics(
+      day: day,
+      selected: selected,
+      onTap: () => onSelected(day),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final canShowIndicators =
@@ -297,6 +291,7 @@ class _MiniCalendarDayButton extends StatelessWidget {
           );
           return InkWell(
             onTap: () => onSelected(day),
+            excludeFromSemantics: true,
             customBorder: const CircleBorder(),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -305,7 +300,9 @@ class _MiniCalendarDayButton extends StatelessWidget {
                   dimension: markerSize,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: highlightToday
+                      color: selected
+                          ? colorScheme.primary
+                          : highlightToday
                           ? surfaceColors.controlActive
                           : null,
                       shape: BoxShape.circle,
@@ -316,12 +313,16 @@ class _MiniCalendarDayButton extends StatelessWidget {
                         child: Text(
                           '${day.day}',
                           style: TextStyle(
-                            color: highlightToday
+                            color: selected
+                                ? colorScheme.onPrimary
+                                : highlightToday
                                 ? surfaceColors.foreground
-                                : day.month == selectedMonth
+                                : inDisplayedMonth
                                 ? null
                                 : colorScheme.onSurfaceVariant,
-                            fontWeight: highlightToday ? FontWeight.w600 : null,
+                            fontWeight: selected || highlightToday
+                                ? FontWeight.w600
+                                : null,
                           ),
                         ),
                       ),

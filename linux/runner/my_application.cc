@@ -1,7 +1,6 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
-#include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <pango/pango.h>
 #include <cmath>
@@ -28,8 +27,6 @@ constexpr char kCompactAgendaWindowChannel[] =
     "io.busystack.busymax/compact_agenda_window";
 constexpr gint64 kHeaderBarStateSchemaVersion = 3;
 constexpr gint kHeaderButtonHeight = 34;
-constexpr gint kHeaderButtonRadius = 8;
-constexpr gint kHeaderButtonHorizontalPadding = 8;
 constexpr gint kHeaderButtonSpacing = 6;
 constexpr gint kHeaderWindowControlsBalanceWidth =
     kHeaderButtonHeight * 3 + kHeaderButtonSpacing * 2;
@@ -38,9 +35,6 @@ constexpr gint kHeaderOnboardingContentWidth = 480;
 constexpr gint kHeaderOnboardingSideWidth = 120;
 constexpr gint kHeaderSidebarContentInset = kHeaderButtonSpacing;
 constexpr gint kHeaderMainContentStartInset = kHeaderSidebarContentInset;
-constexpr gint kHeaderTooltipVerticalPadding = 5;
-constexpr gint kHeaderTooltipHorizontalPadding = 8;
-constexpr gint kHeaderWindowRadius = 8;
 constexpr gint kMainWindowDefaultWidth = 1280;
 constexpr gint kMainWindowDefaultHeight = 720;
 constexpr gint kCompactAgendaPanelWidth = 420;
@@ -82,16 +76,6 @@ struct _MyApplication {
   gchar* header_bar_sidebar_background_color;
   gchar* header_bar_sidebar_border_color;
   gchar* header_bar_foreground_color;
-  gchar* header_bar_muted_foreground_color;
-  gchar* header_bar_disabled_foreground_color;
-  gchar* header_bar_control_color;
-  gchar* header_bar_control_hover_color;
-  gchar* header_bar_control_active_color;
-  gchar* header_bar_accent_color;
-  gchar* header_bar_accent_foreground_color;
-  gchar* header_bar_popover_background_color;
-  gchar* header_bar_border_color;
-  gchar* header_bar_shade_color;
   gchar* header_bar_modal_barrier_color;
   gint header_bar_sidebar_width;
   gboolean header_bar_can_show_sidebar;
@@ -151,7 +135,6 @@ struct _MyApplication {
   gboolean header_navigation_visible;
   gboolean header_back_visible;
   gboolean header_onboarding_controls_visible;
-  gboolean main_window_transparent_backing;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -461,21 +444,7 @@ static void set_flutter_view_background_color(MyApplication* self,
   fl_view_set_background_color(FL_VIEW(self->flutter_view), &background_color);
 }
 
-static void set_flutter_view_background_transparent(MyApplication* self) {
-  if (self->flutter_view == nullptr || !FL_IS_VIEW(self->flutter_view)) {
-    return;
-  }
-
-  GdkRGBA transparent = {0, 0, 0, 0};
-  fl_view_set_background_color(FL_VIEW(self->flutter_view), &transparent);
-}
-
 static void set_main_flutter_view_background(MyApplication* self) {
-  if (self->main_window_transparent_backing) {
-    set_flutter_view_background_transparent(self);
-    return;
-  }
-
   set_flutter_view_background_color(
       self, css_color_or(self->header_bar_window_background_color,
                          self->header_bar_background_color));
@@ -498,9 +467,6 @@ static void refresh_header_bar_css(MyApplication* self) {
   const gchar* background_color = self->header_bar_background_color;
   const gchar* window_background_color =
       css_color_or(self->header_bar_window_background_color, background_color);
-  const gchar* window_css_background_color =
-      self->main_window_transparent_backing ? "transparent"
-                                            : window_background_color;
   const gchar* sidebar_background_color =
       is_css_color_token(self->header_bar_sidebar_background_color)
           ? self->header_bar_sidebar_background_color
@@ -509,29 +475,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       self->header_bar_sidebar_border_color, "rgba(255,255,255,0.10)");
   const gchar* foreground_color = css_color_or(
       self->header_bar_foreground_color, "rgba(255,255,255,0.86)");
-  const gchar* foreground_disabled_color =
-      css_color_or(self->header_bar_disabled_foreground_color,
-                   "rgba(255,255,255,0.38)");
-  const gchar* control_color =
-      css_color_or(self->header_bar_control_color, "rgba(255,255,255,0.10)");
-  const gchar* control_hover_color = css_color_or(
-      self->header_bar_control_hover_color, "rgba(255,255,255,0.14)");
-  const gchar* control_pressed_color = css_color_or(
-      self->header_bar_control_active_color, "rgba(255,255,255,0.18)");
-  const gchar* accent_color =
-      css_color_or(self->header_bar_accent_color, control_pressed_color);
-  const gchar* accent_foreground_color =
-      css_color_or(self->header_bar_accent_foreground_color, foreground_color);
-  const gchar* popover_background_color = css_color_or(
-      self->header_bar_popover_background_color, background_color);
-  const gchar* border_color =
-      css_color_or(self->header_bar_border_color, "rgba(255,255,255,0.10)");
-  const gchar* shade_color =
-      css_color_or(self->header_bar_shade_color, "rgba(0,0,0,0.28)");
   const gchar* modal_barrier_color = css_color_or(
       self->header_bar_modal_barrier_color, "rgba(0,0,0,0.32)");
-  const gint header_bar_left_radius =
-      header_sidebar_effective_width(self) > 0 ? 0 : kHeaderWindowRadius;
   GtkWidget* header_bar = GTK_WIDGET(self->header_bar);
   GtkStyleContext* context = gtk_widget_get_style_context(header_bar);
   gtk_style_context_add_class(context, "busymax-flat-headerbar");
@@ -542,40 +487,25 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}"
-      "window#busymax-window decoration,"
-      "window#busymax-window decoration:backdrop {"
-      "background-color: transparent;"
-      "background-image: none;"
-      "border: none;"
-      "box-shadow: 0 3px 18px 2px %s;"
-      "outline: none;"
-      "border-radius: %dpx;"
-      "}"
       ".busymax-titlebar,"
       ".busymax-titlebar:backdrop,"
       "headerbar.busymax-flat-headerbar,"
       "headerbar.busymax-flat-headerbar:backdrop {"
       "background-color: %s;"
       "background-image: none;"
+      "color: %s;"
       "border: none;"
       "box-shadow: none;"
-      "border-top-left-radius: %dpx;"
-      "border-top-right-radius: %dpx;"
       "}"
       "headerbar.busymax-flat-headerbar,"
       "headerbar.busymax-flat-headerbar:backdrop {"
-      "border-top-left-radius: %dpx;"
-      "border-top-right-radius: %dpx;"
       "padding-left: 0;"
       "}"
       ".busymax-titlebar .busymax-header-brand {"
       "background-color: %s;"
       "background-image: none;"
-      "border: none;"
+      "color: %s;"
       "border-right: 1px solid %s;"
-      "box-shadow: none;"
-      "border-top-left-radius: %dpx;"
-      "border-top-right-radius: 0;"
       "}"
       ".busymax-titlebar .busymax-header-brand label {"
       "color: %s;"
@@ -600,153 +530,13 @@ static void refresh_header_bar_css(MyApplication* self) {
       "headerbar.busymax-flat-headerbar:backdrop {"
       "background-color: %s;"
       "background-image: linear-gradient(%s, %s);"
-      "}"
-      ".busymax-titlebar button.busymax-header-button,"
-      ".busymax-titlebar button.busymax-header-view-mode-button {"
-      "color: %s;"
-      "background-color: %s;"
-      "background-image: none;"
-      "border: none;"
-      "border-width: 0;"
-      "border-color: transparent;"
-      "border-image: none;"
-      "outline-color: transparent;"
-      "outline-style: none;"
-      "outline-width: 0;"
-      "box-shadow: none;"
-      "text-shadow: none;"
-      "-gtk-icon-shadow: none;"
-      "transition: none;"
-      "min-height: %dpx;"
-      "min-width: %dpx;"
-      "padding: 0 %dpx;"
-      "border-radius: %dpx;"
-      "}"
-      ".busymax-titlebar button.busymax-header-button:hover,"
-      ".busymax-titlebar button.busymax-header-view-mode-button:hover {"
-      "background-color: %s;"
-      "}"
-      ".busymax-titlebar button.busymax-header-button:active,"
-      ".busymax-titlebar button.busymax-header-button:checked,"
-      ".busymax-titlebar button.busymax-header-view-mode-button:checked,"
-      ".busymax-titlebar button.busymax-header-view-mode-button:active {"
-      "background-color: %s;"
-      "}"
-      ".busymax-titlebar button.busymax-header-button:focus,"
-      ".busymax-titlebar button.busymax-header-view-mode-button:focus {"
-      "box-shadow: inset 0 0 0 2px %s;"
-      "}"
-      ".busymax-titlebar button.busymax-header-button:disabled,"
-      ".busymax-titlebar button.busymax-header-view-mode-button:disabled {"
-      "color: %s;"
-      "background-color: transparent;"
-      "}"
-      ".busymax-titlebar button.busymax-header-primary-button {"
-      "color: %s;"
-      "background-color: %s;"
-      "}"
-      ".busymax-titlebar button.busymax-header-primary-button:hover,"
-      ".busymax-titlebar button.busymax-header-primary-button:active,"
-      ".busymax-titlebar button.busymax-header-primary-button:checked {"
-      "color: %s;"
-      "background-color: %s;"
-      "}"
-      ".busymax-titlebar button.busymax-header-primary-button:focus {"
-      "box-shadow: inset 0 0 0 2px %s;"
-      "}"
-      ".busymax-titlebar button.busymax-header-primary-button:disabled {"
-      "color: %s;"
-      "background-color: transparent;"
-      "}"
-      ".busymax-titlebar .busymax-header-brand "
-      "button.busymax-brand-action-button,"
-      ".busymax-titlebar .busymax-header-brand "
-      "button.busymax-brand-action-button:checked,"
-      ".busymax-titlebar .busymax-header-brand "
-      "button.busymax-brand-action-button:active {"
-      "background-color: transparent;"
-      "}"
-      ".busymax-titlebar .busymax-header-brand "
-      "button.busymax-brand-action-button:hover {"
-      "background-color: %s;"
-      "}"
-      ".busymax-titlebar button.busymax-header-button.busymax-sidebar-toggle,"
-      ".busymax-titlebar button.busymax-header-button.busymax-sidebar-toggle:checked,"
-      ".busymax-titlebar button.busymax-header-button.busymax-sidebar-toggle:active {"
-      "background-color: transparent;"
-      "}"
-      ".busymax-titlebar button.busymax-header-button.busymax-sidebar-toggle:hover {"
-      "background-color: %s;"
-      "}"
-      ".busymax-titlebar.busymax-modal-barrier label,"
-      ".busymax-titlebar.busymax-modal-barrier button,"
-      ".busymax-titlebar.busymax-modal-barrier button image {"
-      "color: %s;"
-      "text-shadow: none;"
-      "-gtk-icon-shadow: none;"
-      "}"
-      ".busymax-titlebar button.busymax-header-icon-button {"
-      "min-width: %dpx;"
-      "padding-left: 0;"
-      "padding-right: 0;"
-      "}"
-      "popover.busymax-header-popover,"
-      "popover.background.busymax-header-popover,"
-      ".busymax-header-popover.background,"
-      "popover.busymax-header-popover:backdrop,"
-      "popover.background.busymax-header-popover:backdrop,"
-      ".busymax-header-popover.background:backdrop,"
-      "popover.background.busymax-header-popover > contents,"
-      ".busymax-header-popover.background > contents,"
-      "popover.background.busymax-header-popover arrow,"
-      ".busymax-header-popover.background arrow {"
-      "background-color: %s;"
-      "color: %s;"
-      "}"
-      "popover.busymax-header-popover > contents,"
-      ".busymax-header-popover.background > contents {"
-      "border: 1px solid %s;"
-      "box-shadow: 0 6px 18px %s;"
-      "}"
-      "tooltip,"
-      "tooltip.background {"
-      "margin: 0;"
-      "padding: 0;"
-      "min-height: 0;"
-      "border-radius: %dpx;"
-      "box-shadow: 0 5px 18px 2px %s;"
-      "}"
-      "tooltip > box,"
-      "tooltip.background > box {"
-      "margin: 0;"
-      "padding: 0;"
-      "min-height: 0;"
-      "}"
-      "tooltip label {"
-      "margin: 0;"
-      "padding: %dpx %dpx;"
-      "min-height: 0;"
-      "border-radius: %dpx;"
       "}",
-      window_css_background_color, shade_color, kHeaderWindowRadius,
-      background_color, kHeaderWindowRadius, kHeaderWindowRadius,
-      header_bar_left_radius, kHeaderWindowRadius, sidebar_background_color,
-      sidebar_border_color, kHeaderWindowRadius, foreground_color,
-      foreground_color,
+      window_background_color, background_color, foreground_color,
+      sidebar_background_color, foreground_color, sidebar_border_color,
+      foreground_color, foreground_color,
       background_color, modal_barrier_color, modal_barrier_color,
       sidebar_background_color, modal_barrier_color, modal_barrier_color,
-      background_color, modal_barrier_color, modal_barrier_color,
-      foreground_color, control_color, kHeaderButtonHeight,
-      kHeaderButtonHeight, kHeaderButtonHorizontalPadding, kHeaderButtonRadius,
-      control_hover_color, control_pressed_color, accent_color,
-      foreground_disabled_color,
-      accent_foreground_color, accent_color, accent_foreground_color,
-      accent_color, accent_foreground_color, foreground_disabled_color,
-      control_hover_color, control_hover_color, foreground_disabled_color,
-      kHeaderButtonHeight,
-      popover_background_color, foreground_color, border_color, shade_color,
-      kHeaderButtonRadius, shade_color, kHeaderTooltipVerticalPadding,
-      kHeaderTooltipHorizontalPadding, kHeaderButtonRadius);
+      background_color, modal_barrier_color, modal_barrier_color);
 
   g_autoptr(GError) error = nullptr;
   GtkCssProvider* provider = gtk_css_provider_new();
@@ -795,26 +585,6 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
                       fl_lookup_string_arg(args, "sidebarBorderColor"));
   set_css_color_field(&self->header_bar_foreground_color,
                       fl_lookup_string_arg(args, "foregroundColor"));
-  set_css_color_field(&self->header_bar_muted_foreground_color,
-                      fl_lookup_string_arg(args, "mutedForegroundColor"));
-  set_css_color_field(&self->header_bar_disabled_foreground_color,
-                      fl_lookup_string_arg(args, "disabledForegroundColor"));
-  set_css_color_field(&self->header_bar_control_color,
-                      fl_lookup_string_arg(args, "controlColor"));
-  set_css_color_field(&self->header_bar_control_hover_color,
-                      fl_lookup_string_arg(args, "controlHoverColor"));
-  set_css_color_field(&self->header_bar_control_active_color,
-                      fl_lookup_string_arg(args, "controlActiveColor"));
-  set_css_color_field(&self->header_bar_accent_color,
-                      fl_lookup_string_arg(args, "accentColor"));
-  set_css_color_field(&self->header_bar_accent_foreground_color,
-                      fl_lookup_string_arg(args, "accentForegroundColor"));
-  set_css_color_field(&self->header_bar_popover_background_color,
-                      fl_lookup_string_arg(args, "popoverBackgroundColor"));
-  set_css_color_field(&self->header_bar_border_color,
-                      fl_lookup_string_arg(args, "borderColor"));
-  set_css_color_field(&self->header_bar_shade_color,
-                      fl_lookup_string_arg(args, "shadeColor"));
   set_css_color_field(&self->header_bar_modal_barrier_color,
                       fl_lookup_string_arg(args, "modalBarrierColor"));
   set_main_flutter_view_background(self);
@@ -1077,8 +847,6 @@ static void set_header_menu_button_model(GtkWidget* button,
   }
   track_widget_pointer(tracked_popover, GTK_WIDGET(popover));
   gtk_popover_set_position(popover, GTK_POS_BOTTOM);
-  gtk_style_context_add_class(gtk_widget_get_style_context(GTK_WIDGET(popover)),
-                              "busymax-header-popover");
 }
 
 static void append_header_view_mode_item(GMenu* menu,
@@ -1209,8 +977,6 @@ static void initialize_header_menu_actions(MyApplication* self) {
 }
 
 static void make_header_icon_button_square(GtkWidget* button) {
-  gtk_style_context_add_class(gtk_widget_get_style_context(button),
-                              "busymax-header-icon-button");
   gtk_widget_set_size_request(button, kHeaderButtonHeight,
                               kHeaderButtonHeight);
   gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
@@ -1226,8 +992,6 @@ static GtkWidget* create_header_icon_button(const gchar* icon_name,
   gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
   gtk_style_context_add_class(gtk_widget_get_style_context(button),
                               GTK_STYLE_CLASS_FLAT);
-  gtk_style_context_add_class(gtk_widget_get_style_context(button),
-                              "busymax-header-button");
   make_header_icon_button_square(button);
   return button;
 }
@@ -1241,8 +1005,6 @@ static GtkWidget* create_header_toggle_icon_button(const gchar* icon_name,
   gtk_widget_set_tooltip_text(button, tooltip);
   gtk_style_context_add_class(gtk_widget_get_style_context(button),
                               GTK_STYLE_CLASS_FLAT);
-  gtk_style_context_add_class(gtk_widget_get_style_context(button),
-                              "busymax-header-button");
   make_header_icon_button_square(button);
   return button;
 }
@@ -1255,8 +1017,6 @@ static GtkWidget* create_header_text_button(const gchar* label,
   gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
   gtk_style_context_add_class(gtk_widget_get_style_context(button),
                               GTK_STYLE_CLASS_FLAT);
-  gtk_style_context_add_class(gtk_widget_get_style_context(button),
-                              "busymax-header-button");
   return button;
 }
 
@@ -1490,6 +1250,8 @@ static void update_header_control_visibility(MyApplication* self) {
   set_widget_visible(self->search_button, schedule_controls_visible);
   set_widget_visible(self->create_button, schedule_controls_visible);
   set_widget_visible(self->refresh_button, schedule_controls_visible);
+  set_widget_visible(self->settings_menu_button,
+                     schedule_controls_visible || self->header_back_visible);
   update_header_title_balance_spacer(self);
 }
 
@@ -1692,10 +1454,6 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   track_widget_pointer(
       &self->search_button,
       create_header_toggle_icon_button("system-search-symbolic", ""));
-  gtk_style_context_add_class(gtk_widget_get_style_context(self->search_button),
-                              "busymax-brand-action-button");
-  gtk_widget_set_margin_start(self->search_button,
-                              kHeaderSidebarContentInset);
   connect_header_bar_action(self, self->search_button, "search");
 
   GtkWidget* brand_center_box =
@@ -1723,23 +1481,13 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   gtk_style_context_add_class(
       gtk_widget_get_style_context(self->settings_menu_button),
       GTK_STYLE_CLASS_FLAT);
-  gtk_style_context_add_class(
-      gtk_widget_get_style_context(self->settings_menu_button),
-      "busymax-header-button");
-  gtk_style_context_add_class(
-      gtk_widget_get_style_context(self->settings_menu_button),
-      "busymax-brand-action-button");
   make_header_icon_button_square(self->settings_menu_button);
   gtk_widget_set_margin_end(self->settings_menu_button,
                             kHeaderSidebarContentInset);
   rebuild_header_settings_menu_model(self);
 
   gtk_box_pack_start(GTK_BOX(self->header_sidebar_brand_box),
-                     self->search_button, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(self->header_sidebar_brand_box),
                      brand_center_box, TRUE, TRUE, 0);
-  gtk_box_pack_end(GTK_BOX(self->header_sidebar_brand_box),
-                   self->settings_menu_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(self->titlebar_box),
                      self->header_sidebar_brand_box, FALSE, FALSE, 0);
 
@@ -1760,9 +1508,6 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   track_widget_pointer(
       &self->sidebar_collapsed_toggle_button,
       create_header_toggle_icon_button("sidebar-show-symbolic", ""));
-  gtk_style_context_add_class(
-      gtk_widget_get_style_context(self->sidebar_collapsed_toggle_button),
-      "busymax-sidebar-toggle");
   track_widget_pointer(&self->today_button,
                        create_header_text_button("", ""));
   track_widget_pointer(&self->previous_button,
@@ -1861,7 +1606,7 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
                        create_header_text_button("Continue", "Continue"));
   gtk_style_context_add_class(
       gtk_widget_get_style_context(self->onboarding_continue_button),
-      "busymax-header-primary-button");
+      GTK_STYLE_CLASS_SUGGESTED_ACTION);
   connect_header_bar_action(self, self->onboarding_continue_button,
                             "continueSetup");
   gtk_widget_set_visible(self->onboarding_continue_button, FALSE);
@@ -1886,8 +1631,6 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   gtk_button_set_relief(GTK_BUTTON(self->view_mode_button), GTK_RELIEF_NONE);
   gtk_style_context_add_class(gtk_widget_get_style_context(self->view_mode_button),
                               GTK_STYLE_CLASS_FLAT);
-  gtk_style_context_add_class(gtk_widget_get_style_context(self->view_mode_button),
-                              "busymax-header-view-mode-button");
 
   GtkWidget* view_mode_button_box =
       gtk_box_new(GTK_ORIENTATION_HORIZONTAL, kHeaderButtonSpacing);
@@ -1907,6 +1650,7 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   gtk_box_pack_start(GTK_BOX(self->header_view_box), self->view_mode_button,
                      FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(end_box), self->header_view_box, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(end_box), self->search_button, FALSE, FALSE, 0);
 
   track_widget_pointer(&self->create_button, gtk_menu_button_new());
   gtk_button_set_relief(GTK_BUTTON(self->create_button), GTK_RELIEF_NONE);
@@ -1915,8 +1659,6 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
       gtk_image_new_from_icon_name("list-add-symbolic", GTK_ICON_SIZE_MENU));
   gtk_style_context_add_class(gtk_widget_get_style_context(self->create_button),
                               GTK_STYLE_CLASS_FLAT);
-  gtk_style_context_add_class(gtk_widget_get_style_context(self->create_button),
-                              "busymax-header-button");
   make_header_icon_button_square(self->create_button);
   rebuild_header_create_menu_model(self);
   gtk_box_pack_start(GTK_BOX(end_box), self->create_button, FALSE, FALSE, 0);
@@ -1926,6 +1668,8 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
                                                  ""));
   connect_header_bar_action(self, self->refresh_button, "refresh");
   gtk_box_pack_start(GTK_BOX(end_box), self->refresh_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(end_box), self->settings_menu_button, FALSE, FALSE,
+                     0);
   gtk_header_bar_pack_end(header_bar, end_box);
 
   set_header_view_mode(self, "week");
@@ -2736,176 +2480,6 @@ static void register_window_channel(MyApplication* self, FlView* view) {
       self->window_channel, window_method_call_cb, self, nullptr);
 }
 
-static gboolean clear_transparent_window_cb(GtkWidget* widget,
-                                            cairo_t* cr,
-                                            gpointer user_data) {
-  cairo_save(cr);
-  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_paint(cr);
-  cairo_restore(cr);
-  return FALSE;
-}
-
-static void rounded_window_realize_cb(GtkWidget* widget, gpointer user_data);
-
-static gboolean rounded_window_configure_event_cb(GtkWidget* widget,
-                                                  GdkEventConfigure* event,
-                                                  gpointer user_data);
-
-static void rounded_window_size_allocate_cb(GtkWidget* widget,
-                                            GtkAllocation* allocation,
-                                            gpointer user_data);
-
-static gboolean rounded_window_state_event_cb(GtkWidget* widget,
-                                              GdkEventWindowState* event,
-                                              gpointer user_data);
-
-static gboolean configure_transparent_window_backing(GtkWindow* window) {
-  GdkScreen* screen = gtk_window_get_screen(window);
-  GdkVisual* visual = gdk_screen_get_rgba_visual(screen);
-  if (visual == nullptr) {
-    return FALSE;
-  }
-
-  gtk_widget_set_visual(GTK_WIDGET(window), visual);
-  gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
-  g_signal_connect(window, "draw", G_CALLBACK(clear_transparent_window_cb),
-                   nullptr);
-  g_signal_connect_after(window, "realize", G_CALLBACK(rounded_window_realize_cb),
-                         nullptr);
-  g_signal_connect_after(window, "configure-event",
-                         G_CALLBACK(rounded_window_configure_event_cb),
-                         nullptr);
-  g_signal_connect_after(window, "size-allocate",
-                         G_CALLBACK(rounded_window_size_allocate_cb), nullptr);
-  g_signal_connect_after(window, "window-state-event",
-                         G_CALLBACK(rounded_window_state_event_cb), nullptr);
-  return TRUE;
-}
-
-static cairo_region_t* create_rounded_window_region(gint width,
-                                                    gint height,
-                                                    gint radius) {
-  cairo_region_t* region = cairo_region_create();
-  if (width <= 0 || height <= 0) {
-    return region;
-  }
-
-  if (radius <= 0 || width < radius * 2 || height < radius * 2) {
-    const cairo_rectangle_int_t rect = {0, 0, width, height};
-    cairo_region_union_rectangle(region, &rect);
-    return region;
-  }
-
-  const gdouble radius_squared = radius * radius;
-  for (gint y = 0; y < height; y++) {
-    gint inset = 0;
-    if (y < radius) {
-      const gdouble dy = radius - y - 1;
-      inset = radius - static_cast<gint>(std::sqrt(radius_squared - dy * dy));
-    } else if (y >= height - radius) {
-      const gdouble dy = y - (height - radius);
-      inset = radius - static_cast<gint>(std::sqrt(radius_squared - dy * dy));
-    }
-
-    const gint row_width = width - inset * 2;
-    if (row_width <= 0) {
-      continue;
-    }
-
-    const cairo_rectangle_int_t row = {inset, y, row_width, 1};
-    cairo_region_union_rectangle(region, &row);
-  }
-
-  return region;
-}
-
-static gboolean rounded_window_state_requires_rectangular_shape(
-    GdkWindowState state) {
-  if ((state & GDK_WINDOW_STATE_MAXIMIZED) != 0 ||
-      (state & GDK_WINDOW_STATE_FULLSCREEN) != 0) {
-    return TRUE;
-  }
-#if GTK_CHECK_VERSION(3, 10, 0)
-  if ((state & GDK_WINDOW_STATE_TILED) != 0) {
-    return TRUE;
-  }
-#endif
-#if GTK_CHECK_VERSION(3, 22, 0)
-  if ((state & (GDK_WINDOW_STATE_TOP_TILED | GDK_WINDOW_STATE_RIGHT_TILED |
-                GDK_WINDOW_STATE_BOTTOM_TILED | GDK_WINDOW_STATE_LEFT_TILED)) !=
-      0) {
-    return TRUE;
-  }
-#endif
-  return FALSE;
-}
-
-static void configure_rounded_window_shape(GtkWidget* widget) {
-  if (widget == nullptr || !GTK_IS_WIDGET(widget) ||
-      !gtk_widget_get_realized(widget)) {
-    return;
-  }
-
-  GdkWindow* window = gtk_widget_get_window(widget);
-  if (window == nullptr || !GDK_IS_WINDOW(window)) {
-    return;
-  }
-
-  const GdkWindowState state = gdk_window_get_state(window);
-  if (rounded_window_state_requires_rectangular_shape(state)) {
-    gdk_window_shape_combine_region(window, nullptr, 0, 0);
-    gtk_widget_queue_draw(widget);
-    return;
-  }
-
-  const gint width = gtk_widget_get_allocated_width(widget);
-  const gint height = gtk_widget_get_allocated_height(widget);
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-
-  cairo_region_t* region =
-      create_rounded_window_region(width, height, kHeaderWindowRadius);
-  gdk_window_shape_combine_region(window, region, 0, 0);
-  cairo_region_destroy(region);
-  gtk_widget_queue_draw(widget);
-}
-
-static void rounded_window_realize_cb(GtkWidget* widget, gpointer user_data) {
-  configure_rounded_window_shape(widget);
-}
-
-static gboolean rounded_window_configure_event_cb(GtkWidget* widget,
-                                                  GdkEventConfigure* event,
-                                                  gpointer user_data) {
-  configure_rounded_window_shape(widget);
-  return FALSE;
-}
-
-static void rounded_window_size_allocate_cb(GtkWidget* widget,
-                                            GtkAllocation* allocation,
-                                            gpointer user_data) {
-  configure_rounded_window_shape(widget);
-}
-
-static gboolean rounded_window_state_event_cb(GtkWidget* widget,
-                                              GdkEventWindowState* event,
-                                              gpointer user_data) {
-  if (event != nullptr &&
-      rounded_window_state_requires_rectangular_shape(
-          event->new_window_state)) {
-    GdkWindow* window = gtk_widget_get_window(widget);
-    if (window != nullptr && GDK_IS_WINDOW(window)) {
-      gdk_window_shape_combine_region(window, nullptr, 0, 0);
-      gtk_widget_queue_draw(widget);
-      return FALSE;
-    }
-  }
-  configure_rounded_window_shape(widget);
-  return FALSE;
-}
-
 static void install_compact_agenda_window_css(GtkWindow* window) {
   static const gchar* css =
       "window#busymax-compact-agenda-window,"
@@ -3178,8 +2752,6 @@ static void my_application_activate(GApplication* application) {
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   self->main_window = window;
   gtk_widget_set_name(GTK_WIDGET(window), "busymax-window");
-  self->main_window_transparent_backing =
-      configure_transparent_window_backing(window);
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -3351,16 +2923,6 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_bar_sidebar_background_color, g_free);
   g_clear_pointer(&self->header_bar_sidebar_border_color, g_free);
   g_clear_pointer(&self->header_bar_foreground_color, g_free);
-  g_clear_pointer(&self->header_bar_muted_foreground_color, g_free);
-  g_clear_pointer(&self->header_bar_disabled_foreground_color, g_free);
-  g_clear_pointer(&self->header_bar_control_color, g_free);
-  g_clear_pointer(&self->header_bar_control_hover_color, g_free);
-  g_clear_pointer(&self->header_bar_control_active_color, g_free);
-  g_clear_pointer(&self->header_bar_accent_color, g_free);
-  g_clear_pointer(&self->header_bar_accent_foreground_color, g_free);
-  g_clear_pointer(&self->header_bar_popover_background_color, g_free);
-  g_clear_pointer(&self->header_bar_border_color, g_free);
-  g_clear_pointer(&self->header_bar_shade_color, g_free);
   g_clear_pointer(&self->header_bar_modal_barrier_color, g_free);
   g_clear_pointer(&self->header_view_mode, g_free);
   g_clear_pointer(&self->header_day_label, g_free);
@@ -3404,7 +2966,6 @@ static void my_application_init(MyApplication* self) {
   self->header_schedule_controls_visible = TRUE;
   self->header_back_visible = FALSE;
   self->header_onboarding_controls_visible = FALSE;
-  self->main_window_transparent_backing = FALSE;
   self->header_bar_css_provider = nullptr;
   self->header_bar_window_background_color =
       g_strdup(kDefaultWindowBackgroundColor);
@@ -3414,16 +2975,6 @@ static void my_application_init(MyApplication* self) {
       g_strdup(kDefaultHeaderBarSidebarBackgroundColor);
   self->header_bar_sidebar_border_color = nullptr;
   self->header_bar_foreground_color = nullptr;
-  self->header_bar_muted_foreground_color = nullptr;
-  self->header_bar_disabled_foreground_color = nullptr;
-  self->header_bar_control_color = nullptr;
-  self->header_bar_control_hover_color = nullptr;
-  self->header_bar_control_active_color = nullptr;
-  self->header_bar_accent_color = nullptr;
-  self->header_bar_accent_foreground_color = nullptr;
-  self->header_bar_popover_background_color = nullptr;
-  self->header_bar_border_color = nullptr;
-  self->header_bar_shade_color = nullptr;
   self->header_bar_modal_barrier_color = nullptr;
   self->header_bar_sidebar_width = 300;
   self->header_bar_can_show_sidebar = TRUE;

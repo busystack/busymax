@@ -539,6 +539,88 @@ void main() {
     expect(find.text('Google Tasks'), findsWidgets);
   });
 
+  testWidgets(
+    'opaque Microsoft account id waits for and preserves stored provider',
+    (tester) async {
+      final accounts = StreamController<List<AccountEntity>>();
+      addTearDown(accounts.close);
+      const accountId = 'opaque-account-id';
+
+      await _pumpDetails(
+        tester,
+        microsoftTaskProviderCapabilities,
+        accountIdOverride: accountId,
+        accountsStream: accounts.stream,
+      );
+
+      expect(find.byType(TaskDetailsEditor), findsNothing);
+
+      accounts.add([
+        const AccountEntity(
+          id: accountId,
+          provider: TaskProvider.microsoft,
+          authState: 'signed_in',
+          displayName: 'Microsoft User',
+          email: 'microsoft@example.com',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start'), findsOneWidget);
+      expect(find.text('Reminder'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).first, 'Unsaved task');
+      await tester.pump();
+      accounts.add(const []);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unsaved task'), findsOneWidget);
+      expect(find.text('Start'), findsOneWidget);
+      expect(find.text('Reminder'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'account stream errors preserve the pane and definitive removal closes it',
+    (tester) async {
+      final accounts = StreamController<List<AccountEntity>>();
+      addTearDown(accounts.close);
+      const accountId = 'opaque-account-id';
+      var closeCalls = 0;
+
+      await _pumpDetails(
+        tester,
+        microsoftTaskProviderCapabilities,
+        accountIdOverride: accountId,
+        accountsStream: accounts.stream,
+        onClose: () => closeCalls += 1,
+      );
+
+      expect(closeCalls, 0);
+      accounts.add([
+        const AccountEntity(
+          id: accountId,
+          provider: TaskProvider.microsoft,
+          authState: 'signed_in',
+          displayName: 'Microsoft User',
+          email: 'microsoft@example.com',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskDetailsEditor), findsOneWidget);
+
+      accounts.addError(StateError('temporary account stream failure'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskDetailsEditor), findsOneWidget);
+      expect(closeCalls, 0);
+
+      accounts.add(const []);
+      await tester.pumpAndSettle();
+      expect(closeCalls, 1);
+      expect(find.byType(TaskDetailsEditor), findsNothing);
+    },
+  );
+
   testWidgets('unsupported provider text is not rendered for Google', (
     tester,
   ) async {
@@ -577,10 +659,12 @@ void main() {
       repository: repository,
     );
 
-    expect(find.text('Home'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'Home'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, 'Add category'), findsOneWidget);
 
     await tester.tap(find.text('Add category'));
     await tester.pump();
+    expect(find.byType(YaruAutocomplete<String>), findsOneWidget);
     await tester.enterText(
       find.byKey(const Key('task-category-input')),
       'Work',
@@ -602,9 +686,11 @@ void main() {
     expect(repository.patches.single.fields['categories'], ['Work']);
   });
 
-  testWidgets('Microsoft category suggestions can be selected', (tester) async {
+  testWidgets('Microsoft category suggestions use Yaru autocomplete', (
+    tester,
+  ) async {
     final repository = _FakeTasksRepository(
-      categorySuggestions: const ['Home', 'Work'],
+      categorySuggestions: const ['Home', 'Work', 'Workshop'],
     );
     await _pumpDetails(
       tester,
@@ -618,18 +704,23 @@ void main() {
     await tester.pumpAndSettle();
     final input = find.byKey(const Key('task-category-input'));
     final field = tester.widget<TextField>(input);
-    expect(field.decoration?.border, InputBorder.none);
-    expect(field.decoration?.focusedBorder, InputBorder.none);
+    expect(find.byType(YaruAutocomplete<String>), findsOneWidget);
+    expect(field.decoration?.border, isNull);
+    expect(field.decoration?.focusedBorder, isNull);
     expect(
       tester.getTopLeft(find.text('Work').last).dy,
       greaterThanOrEqualTo(tester.getBottomLeft(input).dy - 1),
     );
-    await tester.tap(find.text('Work').last);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(repository.patches.single.fields['categories'], ['Home', 'Work']);
+    expect(repository.patches.single.fields['categories'], [
+      'Home',
+      'Workshop',
+    ]);
   });
 
   testWidgets('Due group appears before separate Start group', (tester) async {
@@ -874,10 +965,10 @@ void main() {
         alwaysUse24HourFormat: false,
       );
 
-      expect(_timeTextEntryFinder(), findsNothing);
+      expect(_timeEntryFinder(), findsNothing);
       await _openRowMenu(tester, 'Due time');
 
-      expect(_timeTextEntryFinder(), findsOneWidget);
+      expect(_timeEntryFinder(), findsOneWidget);
 
       expect(tester.takeException(), isNull);
       expect(calls, isEmpty);
@@ -985,18 +1076,18 @@ void main() {
     expect(repository.patches, isEmpty);
   });
 
-  testWidgets('time entries do not show redundant internal input label', (
+  testWidgets('time entries suppress the redundant floating label cleanly', (
     tester,
   ) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
     await _openRowMenu(tester, 'Due time');
 
-    final entryContext = tester.element(_timeTextEntryFinder().first);
+    final entryContext = tester.element(_timeEntryFinder().first);
     final decorationTheme = Theme.of(entryContext).inputDecorationTheme;
 
     expect(decorationTheme.floatingLabelBehavior, FloatingLabelBehavior.never);
-    expect(decorationTheme.labelStyle?.fontSize, 0);
-    expect(decorationTheme.floatingLabelStyle?.fontSize, 0);
+    expect(decorationTheme.labelStyle?.fontSize, isNot(0));
+    expect(decorationTheme.floatingLabelStyle?.fontSize, isNot(0));
   });
 
   testWidgets(
@@ -1004,6 +1095,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         localizedTestApp(
+          alwaysUse24HourFormat: true,
           child: Scaffold(
             body: DesktopTimeField(
               label: 'Due time',
@@ -1016,9 +1108,19 @@ void main() {
 
       expect(find.text('Due time'), findsWidgets);
       expect(find.text('None'), findsNothing);
-      final entry = tester.widget<TextFormField>(_timeTextEntryFinder());
-      expect(entry.controller?.text, isEmpty);
-      expect(find.text('--:--'), findsOneWidget);
+      final entry = tester.widget<YaruTimeEntry>(_timeEntryFinder());
+      expect(entry.controller?.timeOfDay, isNull);
+
+      await tester.tap(_timeEntryFinder());
+      await tester.pump();
+
+      final textEntry = tester.widget<TextFormField>(
+        find.descendant(
+          of: _timeEntryFinder(),
+          matching: find.byType(TextFormField),
+        ),
+      );
+      expect(textEntry.controller?.text, '--:--');
     },
   );
 
@@ -1026,6 +1128,7 @@ void main() {
     String? changed;
     await tester.pumpWidget(
       localizedTestApp(
+        alwaysUse24HourFormat: true,
         child: Scaffold(
           body: DesktopTimeField(
             label: 'Due time',
@@ -1036,17 +1139,20 @@ void main() {
       ),
     );
 
-    await tester.enterText(_timeTextEntryFinder(), '00:00');
-    await tester.pump();
+    await tester.tap(find.byIcon(YaruIcons.edit_clear));
+    await _enterTime(tester, hour: '00', minute: '00');
 
     expect(changed, '00:00');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('time field formats compact numeric input', (tester) async {
+  testWidgets('time field uses segmented hour and minute entry', (
+    tester,
+  ) async {
     String? changed;
     await tester.pumpWidget(
       localizedTestApp(
+        alwaysUse24HourFormat: true,
         child: Scaffold(
           body: DesktopTimeField(
             label: 'Due time',
@@ -1057,11 +1163,10 @@ void main() {
       ),
     );
 
-    await tester.enterText(_timeTextEntryFinder(), '0517');
-    await tester.pump();
+    await _enterTime(tester, hour: '05', minute: '17');
 
-    final entry = tester.widget<TextFormField>(_timeTextEntryFinder());
-    expect(entry.controller?.text, '05:17');
+    final entry = tester.widget<YaruTimeEntry>(_timeEntryFinder());
+    expect(entry.controller?.timeOfDay, const TimeOfDay(hour: 5, minute: 17));
     expect(changed, '05:17');
     expect(tester.takeException(), isNull);
   });
@@ -1135,6 +1240,7 @@ Future<void> _pumpDetails(
   bool includeAccountIdentity = true,
   String? displayName,
   String? email,
+  Stream<List<AccountEntity>>? accountsStream,
 }) async {
   final accountId =
       accountIdOverride ??
@@ -1172,15 +1278,16 @@ Future<void> _pumpDetails(
         selectedAccountCapabilitiesProvider.overrideWithValue(capabilities),
         localTimeZoneProvider.overrideWithValue('UTC'),
         accountsStreamProvider.overrideWith((ref) {
-          return Stream.value([
-            AccountEntity(
-              id: accountId,
-              provider: provider,
-              authState: 'signed_in',
-              displayName: accountDisplayName,
-              email: accountEmail,
-            ),
-          ]);
+          return accountsStream ??
+              Stream.value([
+                AccountEntity(
+                  id: accountId,
+                  provider: provider,
+                  authState: 'signed_in',
+                  displayName: accountDisplayName,
+                  email: accountEmail,
+                ),
+              ]);
         }),
         tasksRepositoryForAccountProvider.overrideWith((ref, requestedId) {
           expect(requestedId, accountId);
@@ -1312,10 +1419,19 @@ Future<void> _openRowMenu(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
-Finder _timeTextEntryFinder() {
-  return find.byWidgetPredicate(
-    (widget) => widget is TextFormField && widget.controller != null,
-  );
+Finder _timeEntryFinder() => find.byType(YaruTimeEntry);
+
+Future<void> _enterTime(
+  WidgetTester tester, {
+  required String hour,
+  required String minute,
+}) async {
+  final entry = _timeEntryFinder();
+  await tester.tap(entry);
+  await tester.enterText(entry, hour);
+  await tester.pump();
+  await tester.enterText(entry, minute);
+  await tester.pump();
 }
 
 class _FakeTasksRepository implements TasksRepository {

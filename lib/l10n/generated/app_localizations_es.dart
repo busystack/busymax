@@ -654,17 +654,42 @@ class AppLocalizationsEs extends AppLocalizations {
   String get signedInAccount => 'Sesión iniciada';
 
   @override
-  String get signOutThisAccount => 'Cerrar sesión de esta cuenta';
+  String get removeAccount => 'Eliminar cuenta…';
 
   @override
-  String get revokeThisAccount => 'Revocar esta cuenta';
+  String get removingAccount => 'Eliminando cuenta…';
 
   @override
-  String get disconnectThisAccount => 'Desconectar esta cuenta';
+  String get removeAccountDescription =>
+      'Detener la sincronización y eliminar de este dispositivo los datos de esta cuenta.';
 
   @override
-  String get deleteLocalDataForThisAccount =>
-      'Eliminar datos locales de esta cuenta';
+  String removeAccountTitle(String account) {
+    return '¿Eliminar $account de BusyMax?';
+  }
+
+  @override
+  String get removeAccountConfirmation =>
+      'Esto elimina de este dispositivo las tareas, los calendarios, los eventos, los recordatorios y los cambios sin conexión pendientes almacenados en caché. Los cambios no sincronizados se perderán. No se eliminará nada de Google ni Microsoft.';
+
+  @override
+  String get revokeGoogleAccess =>
+      'Revocar también el acceso de BusyMax a esta cuenta de Google';
+
+  @override
+  String get revokeGoogleAccessDescription =>
+      'Tendrás que volver a conceder acceso antes de reconectar la cuenta.';
+
+  @override
+  String get removeAccountAction => 'Eliminar cuenta';
+
+  @override
+  String get removeAccountFailed =>
+      'No se pudo terminar de eliminar la cuenta. Inténtalo de nuevo.';
+
+  @override
+  String get accountRemovedGoogleRevokeFailed =>
+      'La cuenta se eliminó de este dispositivo, pero BusyMax no pudo revocar el acceso de Google. Puedes revocarlo desde tu cuenta de Google.';
 
   @override
   String get newList => 'Nueva lista';
@@ -791,21 +816,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String dateTimeDisplay(String date, String time) {
     return '$date, $time';
   }
-
-  @override
-  String get searchTasks => 'Buscar tareas';
-
-  @override
-  String get advancedFilters => 'Filtros avanzados';
-
-  @override
-  String get showCompleted => 'Mostrar completadas';
-
-  @override
-  String get showHidden => 'Mostrar ocultas';
-
-  @override
-  String get showAssigned => 'Mostrar asignadas';
 
   @override
   String get taskDetails => 'Detalles de la tarea';
@@ -1008,19 +1018,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get account => 'Cuenta';
-
-  @override
-  String get signOut => 'Cerrar sesión';
-
-  @override
-  String get revokeGoogleAuthorization => 'Revocar autorización de Google';
-
-  @override
-  String get deleteLocalData => 'Eliminar datos locales';
-
-  @override
-  String get deleteLocalDataConfirmation =>
-      'Esto elimina de este dispositivo la cuenta local, las tareas sincronizadas y los cambios sin conexión pendientes.';
 
   @override
   String get sync => 'Sincronización';

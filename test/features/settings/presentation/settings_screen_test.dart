@@ -18,7 +18,6 @@ import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
-import 'package:busymax/src/features/tasks/presentation/tasks_selection_state.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
@@ -26,7 +25,9 @@ import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
-  testWidgets('Settings sign out passes selected account id', (tester) async {
+  testWidgets('Settings removes the selected Microsoft account', (
+    tester,
+  ) async {
     final auth = _FakeAuthRepository();
     final container = _container(
       selectedAccountId: 'microsoft:m',
@@ -37,16 +38,18 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    await tester.tap(find.text('Sign out this account').first);
+    await _openAccountRemovalDialog(tester);
+    expect(find.byKey(const Key('revoke-google-authorization')), findsNothing);
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
     await tester.pumpAndSettle();
 
-    expect(auth.signOutAccountIds, ['microsoft:m']);
+    expect(auth.removalCalls, [
+      const _AccountRemovalCall('microsoft:m', revokeAuthorization: false),
+    ]);
     expect(container.read(selectedAccountIdProvider), 'google:g');
-    expect(container.read(selectedTaskListIdProvider), isNull);
-    expect(container.read(selectedTaskIdProvider), isNull);
   });
 
-  testWidgets('Settings disconnect passes selected account id', (tester) async {
+  testWidgets('Settings keeps Google revocation opt-in', (tester) async {
     final auth = _FakeAuthRepository();
     final container = _container(
       selectedAccountId: 'google:g',
@@ -57,14 +60,22 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    await tester.tap(find.text('Disconnect this account').first);
+    await _openAccountRemovalDialog(tester);
+    final revoke = find.byKey(const Key('revoke-google-authorization'));
+    expect(revoke, findsOneWidget);
+    expect(tester.widget<YaruCheckboxListTile>(revoke).value, isFalse);
+    await tester.tap(revoke);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
     await tester.pumpAndSettle();
 
-    expect(auth.revokedAccountIds, ['google:g']);
+    expect(auth.removalCalls, [
+      const _AccountRemovalCall('google:g', revokeAuthorization: true),
+    ]);
     expect(container.read(selectedAccountIdProvider), 'microsoft:m');
   });
 
-  testWidgets('Settings delete local data passes selected account id', (
+  testWidgets('Settings cancels account removal without mutation', (
     tester,
   ) async {
     final auth = _FakeAuthRepository();
@@ -77,16 +88,17 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    await tester.tap(find.text('Delete local data for this account').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete').last);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    expect(auth.deletedAccountIds, ['google:g']);
-    expect(container.read(selectedAccountIdProvider), 'microsoft:m');
+    expect(auth.removalCalls, isEmpty);
+    expect(container.read(selectedAccountIdProvider), 'google:g');
   });
 
-  testWidgets('Settings labels are provider-neutral', (tester) async {
+  testWidgets('Settings exposes one clear account-removal action', (
+    tester,
+  ) async {
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
@@ -96,10 +108,104 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    expect(find.text('Sign out this account'), findsOneWidget);
-    expect(find.text('Disconnect this account'), findsOneWidget);
-    expect(find.text('Delete local data for this account'), findsOneWidget);
-    expect(find.text('Revoke Google authorization'), findsNothing);
+    expect(find.text('Remove account…'), findsOneWidget);
+    expect(
+      find.text(
+        'Stop syncing and remove this account’s data from this device.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Sign out this account'), findsNothing);
+    expect(find.text('Disconnect this account'), findsNothing);
+    expect(find.text('Delete local data for this account'), findsNothing);
+  });
+
+  testWidgets('Settings reports a local account-removal failure in place', (
+    tester,
+  ) async {
+    final auth = _FakeAuthRepository()
+      ..removeError = StateError('local cleanup failed');
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: auth,
+      accounts: const [_googleAccount, _microsoftAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
+    await tester.pumpAndSettle();
+
+    expect(container.read(selectedAccountIdProvider), 'google:g');
+    expect(
+      find.text('Could not finish removing the account. Try again.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Settings prevents duplicate account-removal submission', (
+    tester,
+  ) async {
+    final removal = Completer<AccountRemovalResult>();
+    final auth = _FakeAuthRepository()..removalCompleter = removal;
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: auth,
+      accounts: const [_googleAccount, _microsoftAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
+    await tester.pump();
+
+    expect(auth.removalCalls, hasLength(1));
+    expect(find.text('Removing account…'), findsOneWidget);
+    await tester.tap(find.text('Removing account…'), warnIfMissed: false);
+    await tester.pump();
+    expect(auth.removalCalls, hasLength(1));
+
+    removal.complete(
+      const AccountRemovalResult(
+        authorizationRevocationStatus:
+            AccountAuthorizationRevocationStatus.notRequested,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(container.read(selectedAccountIdProvider), 'microsoft:m');
+  });
+
+  testWidgets('Settings reports partial Google revocation failure', (
+    tester,
+  ) async {
+    final auth = _FakeAuthRepository()
+      ..removalResult = const AccountRemovalResult(
+        authorizationRevocationStatus:
+            AccountAuthorizationRevocationStatus.failed,
+      );
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: auth,
+      accounts: const [_googleAccount, _microsoftAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.byKey(const Key('revoke-google-authorization')));
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'The account was removed from this device, but BusyMax could not '
+        'revoke Google access. You can revoke it from your Google Account.',
+      ),
+      findsOneWidget,
+    );
+    expect(container.read(selectedAccountIdProvider), 'microsoft:m');
   });
 
   testWidgets('Settings shows reconnect-required account state', (
@@ -117,7 +223,10 @@ void main() {
     expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
     expect(find.text(accountReconnectRequiredSyncMessage), findsOneWidget);
     expect(find.text('New list'), findsNothing);
-    expect(find.text('Sign out this account'), findsNothing);
+    expect(find.text('Remove account…'), findsOneWidget);
+
+    await _openAccountRemovalDialog(tester);
+    expect(find.byKey(const Key('revoke-google-authorization')), findsNothing);
   });
 
   testWidgets('Settings exposes add account actions', (tester) async {
@@ -520,13 +629,22 @@ void main() {
 
     await _pumpRoutedSettings(tester, container);
 
-    await tester.tap(find.text('Sign out this account').first);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
     await tester.pumpAndSettle();
 
-    expect(auth.signOutAccountIds, ['google:g']);
+    expect(auth.removalCalls, [
+      const _AccountRemovalCall('google:g', revokeAuthorization: false),
+    ]);
     expect(container.read(selectedAccountIdProvider), isNull);
     expect(find.text('sign in route'), findsOneWidget);
   });
+}
+
+Future<void> _openAccountRemovalDialog(WidgetTester tester) async {
+  await tester.tap(find.text('Remove account…').first);
+  await tester.pumpAndSettle();
+  expect(find.textContaining('from BusyMax?'), findsOneWidget);
 }
 
 ProviderContainer _container({
@@ -629,27 +747,52 @@ Future<GoRouter> _pumpRoutedSettings(
 }
 
 class _FakeAuthRepository implements AuthRepository {
-  final signOutAccountIds = <String>[];
-  final revokedAccountIds = <String>[];
-  final deletedAccountIds = <String>[];
+  final removalCalls = <_AccountRemovalCall>[];
+  AccountRemovalResult removalResult = const AccountRemovalResult(
+    authorizationRevocationStatus:
+        AccountAuthorizationRevocationStatus.notRequested,
+  );
+  Completer<AccountRemovalResult>? removalCompleter;
+  Object? removeError;
 
   @override
-  Future<void> signOut({String? accountId}) async {
-    signOutAccountIds.add(accountId ?? '');
-  }
-
-  @override
-  Future<void> revokeAndSignOut({String? accountId}) async {
-    revokedAccountIds.add(accountId ?? '');
-  }
-
-  @override
-  Future<void> deleteLocalAccountData({String? accountId}) async {
-    deletedAccountIds.add(accountId ?? '');
+  Future<AccountRemovalResult> removeAccount({
+    required String accountId,
+    bool revokeAuthorization = false,
+  }) async {
+    removalCalls.add(
+      _AccountRemovalCall(accountId, revokeAuthorization: revokeAuthorization),
+    );
+    final error = removeError;
+    if (error != null) {
+      throw error;
+    }
+    final completer = removalCompleter;
+    return completer == null ? removalResult : completer.future;
   }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _AccountRemovalCall {
+  const _AccountRemovalCall(
+    this.accountId, {
+    required this.revokeAuthorization,
+  });
+
+  final String accountId;
+  final bool revokeAuthorization;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _AccountRemovalCall &&
+        other.accountId == accountId &&
+        other.revokeAuthorization == revokeAuthorization;
+  }
+
+  @override
+  int get hashCode => Object.hash(accountId, revokeAuthorization);
 }
 
 class _FakeAccountsRepository implements AccountsRepository {

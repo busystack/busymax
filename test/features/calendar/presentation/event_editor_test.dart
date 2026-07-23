@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ubuntu_widgets/ubuntu_widgets.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
@@ -194,27 +195,37 @@ void main() {
     await tester.tap(find.text('Start time'));
     await tester.pumpAndSettle();
 
-    final fieldFinder = _timeTextEntryFinder();
-    final entry = tester.widget<TextFormField>(fieldFinder);
-    expect(entry.controller?.text, '09:00');
-    expect(
-      tester
-          .widgetList<EditableText>(find.byType(EditableText))
-          .any((entry) => entry.controller.text.contains('09:00')),
-      isTrue,
-    );
+    final fieldFinder = _timeEntryFinder();
+    final entry = tester.widget<YaruTimeEntry>(fieldFinder);
+    expect(entry.controller?.timeOfDay, const TimeOfDay(hour: 9, minute: 0));
 
-    await tester.enterText(fieldFinder, '');
+    await tester.tap(find.byIcon(YaruIcons.edit_clear));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(tester.widget<TextFormField>(fieldFinder).controller?.text, isEmpty);
+    expect(entry.controller?.timeOfDay, isNull);
+    expect(
+      tester
+          .widget<PushButton>(
+            find
+                .ancestor(
+                  of: find.text('OK'),
+                  matching: find.byWidgetPredicate(
+                    (widget) => widget is PushButton,
+                  ),
+                )
+                .first,
+          )
+          .onPressed,
+      isNull,
+    );
   });
 
   testWidgets('event time popup accepts midnight input', (tester) async {
     EventEditorDraft? saved;
     await tester.pumpWidget(
       localizedTestApp(
+        alwaysUse24HourFormat: true,
         child: Scaffold(
           body: EventEditor(
             initialDraft: EventEditorDraft.newEvent(
@@ -235,7 +246,8 @@ void main() {
     await tester.ensureVisible(find.text('Start time'));
     await tester.tap(find.text('Start time'));
     await tester.pumpAndSettle();
-    await tester.enterText(_timeTextEntryFinder(), '00');
+    await tester.tap(find.byIcon(YaruIcons.edit_clear));
+    await _enterTime(tester, hour: '00', minute: '00');
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
 
@@ -907,10 +919,60 @@ void main() {
     expect(find.text('5 minutes before'), findsOneWidget);
   });
 
-  testWidgets('Microsoft event categories can be selected from suggestions', (
+  testWidgets(
+    'Microsoft event categories use Yaru autocomplete keyboard selection',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'microsoft-account',
+                sourceId: 'microsoft-source',
+                providerCalendarId: 'ms-cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+                categories: const ['Home'],
+              ),
+              sources: _microsoftSources,
+              categorySuggestionsByAccount: const {
+                'microsoft-account': ['Home', 'Work'],
+              },
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      await tester.ensureVisible(find.text('Add category'));
+      expect(find.text('Home'), findsOneWidget);
+
+      await tester.tap(find.text('Add category'));
+      await tester.pumpAndSettle();
+      expect(find.byType(YaruAutocomplete<String>), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('event-category-input')),
+        'work',
+      );
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      await tester.tap(_headerButtonFinder('Save'));
+
+      expect(saved?.categories, ['Home', 'Work']);
+    },
+  );
+
+  testWidgets('Escape cancels category entry without closing event editor', (
     tester,
   ) async {
-    EventEditorDraft? saved;
+    var editorCancelled = false;
     await tester.pumpWidget(
       localizedTestApp(
         child: Scaffold(
@@ -924,31 +986,33 @@ void main() {
               allDay: false,
               start: DateTime.utc(2026, 6, 8, 9),
               end: DateTime.utc(2026, 6, 8, 10),
-              categories: const ['Home'],
             ),
             sources: _microsoftSources,
-            categorySuggestionsByAccount: const {
-              'microsoft-account': ['Home', 'Work'],
-            },
-            onCancel: () {},
-            onSave: (draft) => saved = draft,
+            onCancel: () => editorCancelled = true,
+            onSave: (_) {},
           ),
         ),
       ),
     );
 
     await tester.ensureVisible(find.text('Add category'));
-    expect(find.text('Home'), findsOneWidget);
-
     await tester.tap(find.text('Add category'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('event-category-input')), 'wo');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Work').last);
-    await tester.pumpAndSettle();
-    await tester.tap(_headerButtonFinder('Save'));
+    expect(find.byKey(const Key('event-category-input')), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('event-category-input')))
+          .focusNode
+          ?.hasFocus,
+      isTrue,
+    );
 
-    expect(saved?.categories, ['Home', 'Work']);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('event-category-input')), findsNothing);
+    expect(find.widgetWithText(ActionChip, 'Add category'), findsOneWidget);
+    expect(editorCancelled, isFalse);
   });
 
   testWidgets('Google event editor does not show categories', (tester) async {
@@ -1275,28 +1339,32 @@ void main() {
     expect(editor, contains('l10n.deleteEvent'));
   });
 
-  testWidgets('combo dropdown trigger is transparent in all states', (
+  testWidgets('combo dropdown trigger inherits themed Yaru geometry', (
     tester,
   ) async {
-    late BuildContext capturedContext;
     await tester.pumpWidget(
       localizedTestApp(
-        child: Builder(
-          builder: (context) {
-            capturedContext = context;
-            return const SizedBox.shrink();
-          },
+        child: SizedBox(
+          width: 480,
+          child: BusyMaxComboRow<String>(
+            title: 'Calendar',
+            values: const ['Personal', 'Work'],
+            selected: 'Personal',
+            labelFor: (value) => value,
+            onSelected: (_) {},
+          ),
         ),
       ),
     );
 
-    final background = busyMaxDropdownButtonStyle(
-      capturedContext,
-    ).backgroundColor!;
-
-    expect(background.resolve(const {}), Colors.transparent);
-    expect(background.resolve({WidgetState.hovered}), Colors.transparent);
-    expect(background.resolve({WidgetState.pressed}), Colors.transparent);
+    expect(find.byType(BusyMaxMenuButton<String>), findsOneWidget);
+    final trigger = tester.widget<OutlinedButton>(
+      find.descendant(
+        of: find.byType(BusyMaxComboRow<String>),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    expect(trigger.style, isNull);
   });
 }
 
@@ -1319,10 +1387,19 @@ BusyMaxComboRow<String> _comboRow(WidgetTester tester, String title) {
   );
 }
 
-Finder _timeTextEntryFinder() {
-  return find.byWidgetPredicate(
-    (widget) => widget is TextFormField && widget.controller != null,
-  );
+Finder _timeEntryFinder() => find.byType(YaruTimeEntry);
+
+Future<void> _enterTime(
+  WidgetTester tester, {
+  required String hour,
+  required String minute,
+}) async {
+  final entry = _timeEntryFinder();
+  await tester.tap(entry);
+  await tester.enterText(entry, hour);
+  await tester.pump();
+  await tester.enterText(entry, minute);
+  await tester.pump();
 }
 
 Finder _plainTextFinder(String label) {

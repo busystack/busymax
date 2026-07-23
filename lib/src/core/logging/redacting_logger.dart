@@ -7,6 +7,9 @@ final _sensitivePatterns = <RegExp>[
   RegExp(r'Bearer\s+[A-Za-z0-9._~+/=-]+', caseSensitive: false),
   RegExp(r'(^|[?&\s])access_token=[^&\s]+', caseSensitive: false),
   RegExp(r'(^|[?&\s])refresh_token=[^&\s]+', caseSensitive: false),
+  // RFC 7009 uses the generic `token` field. Restrict this pattern to URL
+  // query syntax so ordinary prose such as "token=value" remains readable.
+  RegExp(r'([?&])token=[^&\s]+', caseSensitive: false),
   RegExp(r'(^|[?&\s])client_secret=[^&\s]+', caseSensitive: false),
   RegExp(r'"client_secret"\s*:\s*"[^"]*"', caseSensitive: false),
   RegExp(r'client_secret\s*:\s*[^,\n\s]+', caseSensitive: false),

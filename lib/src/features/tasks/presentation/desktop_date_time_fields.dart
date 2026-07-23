@@ -195,7 +195,7 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
 
   @override
   Widget build(BuildContext context) {
-    final dateEntry = _withoutInternalDateTimeEntryLabel(
+    final dateEntry = _withoutFloatingEntryLabel(
       context,
       YaruDateTimeEntry(
         controller: _controller,
@@ -360,7 +360,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
         ),
       ],
       children: [
-        _withoutInternalDateTimeEntryLabel(
+        _withoutFloatingEntryLabel(
           context,
           YaruDateTimeEntry(
             controller: _controller,
@@ -482,46 +482,29 @@ class _DesktopTimeValueDialog extends StatefulWidget {
 }
 
 class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
-  late final TextEditingController _controller;
-  final _focusNode = FocusNode();
+  late final YaruTimeEntryController _controller;
+  final _formKey = GlobalKey<FormState>();
   TimeOfDay? _selected;
-  var _invalid = false;
 
   @override
   void initState() {
     super.initState();
     _selected = parseTimeOfDay(widget.time);
-    _controller = TextEditingController(
-      text: _selected == null ? '' : encodeTimeOfDay(_selected!),
-    );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _focusNode.requestFocus();
-        _controller.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: _controller.text.length,
-        );
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
+    _controller = YaruTimeEntryController(timeOfDay: _selected);
   }
 
   @override
   Widget build(BuildContext context) {
-    final timeEntry = _BusyMaxTimeTextEntry(
+    final timeEntry = _BusyMaxTimeEntry(
       controller: _controller,
-      focusNode: _focusNode,
       label: widget.label,
-      errorText: _invalid
-          ? MaterialLocalizations.of(context).invalidTimeLabel
-          : null,
-      onChanged: _setSelectedTimeText,
+      acceptEmpty: widget.allowEmpty,
+      autofocus: true,
+      onChanged: (time) {
+        setState(() {
+          _selected = time;
+        });
+      },
       onSubmitted: (_) => _submit(),
     );
     return BusyMaxDialogShell(
@@ -533,27 +516,17 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
           child: Text(context.l10n.cancel),
         ),
         BusyMaxPushButton.suggested(
-          onPressed: !_invalid && (widget.allowEmpty || _selected != null)
-              ? _submit
-              : null,
+          onPressed: widget.allowEmpty || _selected != null ? _submit : null,
           child: Text(MaterialLocalizations.of(context).okButtonLabel),
         ),
       ],
-      children: [_withoutInternalDateTimeEntryLabel(context, timeEntry)],
+      children: [Form(key: _formKey, child: timeEntry)],
     );
   }
 
-  void _setSelectedTimeText(String value) {
-    final trimmed = value.trim();
-    final parsed = parseTimeInput(trimmed);
-    setState(() {
-      _selected = parsed;
-      _invalid = trimmed.isNotEmpty && parsed == null;
-    });
-  }
-
   void _submit() {
-    if (_invalid || (!widget.allowEmpty && _selected == null)) {
+    if (!(_formKey.currentState?.validate() ?? false) ||
+        (!widget.allowEmpty && _selected == null)) {
       return;
     }
     widget.onChanged(_selected == null ? null : encodeTimeOfDay(_selected!));
@@ -562,15 +535,14 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
 }
 
 class _DesktopTimeFieldState extends State<DesktopTimeField> {
-  late final TextEditingController _controller;
+  late final YaruTimeEntryController _controller;
   var _syncingController = false;
 
   @override
   void initState() {
     super.initState();
-    final time = parseTimeOfDay(widget.time);
-    _controller = TextEditingController(
-      text: time == null ? '' : encodeTimeOfDay(time),
+    _controller = YaruTimeEntryController(
+      timeOfDay: parseTimeOfDay(widget.time),
     );
   }
 
@@ -579,38 +551,26 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.time != widget.time) {
       final nextTime = parseTimeOfDay(widget.time);
-      final nextText = nextTime == null ? '' : encodeTimeOfDay(nextTime);
-      if (_controller.text != nextText) {
+      if (_controller.timeOfDay != nextTime) {
         _syncingController = true;
-        _controller.text = nextText;
+        _controller.timeOfDay = nextTime;
         _syncingController = false;
       }
     }
   }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final timeEntry = _withoutInternalDateTimeEntryLabel(
-      context,
-      _BusyMaxTimeTextEntry(
-        controller: _controller,
-        label: widget.label,
-        onChanged: (time) {
-          if (_syncingController) {
-            return;
-          }
-          final parsed = parseTimeInput(time);
-          if (time.trim().isEmpty || parsed != null) {
-            widget.onChanged(parsed == null ? null : encodeTimeOfDay(parsed));
-          }
-        },
-      ),
+    final timeEntry = _BusyMaxTimeEntry(
+      controller: _controller,
+      label: widget.label,
+      acceptEmpty: true,
+      onChanged: (time) {
+        if (_syncingController) {
+          return;
+        }
+        widget.onChanged(time == null ? null : encodeTimeOfDay(time));
+      },
     );
     return YaruListTile.square(
       leading: const Icon(Icons.schedule),
@@ -629,100 +589,54 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
   }
 }
 
-class _BusyMaxTimeTextEntry extends StatelessWidget {
-  const _BusyMaxTimeTextEntry({
+class _BusyMaxTimeEntry extends StatelessWidget {
+  const _BusyMaxTimeEntry({
     required this.controller,
     required this.label,
+    required this.acceptEmpty,
     required this.onChanged,
-    this.focusNode,
-    this.errorText,
+    this.autofocus = false,
     this.onSubmitted,
   });
 
-  final TextEditingController controller;
-  final FocusNode? focusNode;
+  final YaruTimeEntryController controller;
   final String label;
-  final ValueChanged<String> onChanged;
-  final ValueChanged<String>? onSubmitted;
-  final String? errorText;
+  final bool acceptEmpty;
+  final bool autofocus;
+  final ValueChanged<TimeOfDay?> onChanged;
+  final ValueChanged<TimeOfDay?>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      focusNode: focusNode,
-      keyboardType: TextInputType.datetime,
-      textInputAction: TextInputAction.done,
-      textAlign: TextAlign.center,
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp('[0-9:]')),
-        const _BusyMaxTimeInputFormatter(),
-      ],
-      decoration: InputDecoration(
-        hintText: '--:--',
-        labelText: label,
-        isDense: true,
-        errorText: errorText,
+    final localizations = MaterialLocalizations.of(context);
+    return _withoutFloatingEntryLabel(
+      context,
+      YaruTimeEntry(
+        controller: controller,
+        autofocus: autofocus,
+        force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context)
+            ? true
+            : null,
+        acceptEmpty: acceptEmpty,
+        clearIconSemanticLabel: label,
+        errorFormatText: localizations.invalidTimeLabel,
+        errorInvalidText: localizations.invalidTimeLabel,
+        onChanged: onChanged,
+        onFieldSubmitted: onSubmitted,
       ),
-      onChanged: onChanged,
-      onFieldSubmitted: onSubmitted,
     );
   }
 }
 
-class _BusyMaxTimeInputFormatter extends TextInputFormatter {
-  const _BusyMaxTimeInputFormatter();
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final text = _formatTimeEntryInput(newValue.text);
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-  }
-}
-
-String _formatTimeEntryInput(String value) {
-  if (value.contains(':')) {
-    return value.length <= 5 ? value : value.substring(0, 5);
-  }
-
-  final digits = value.length <= 4 ? value : value.substring(0, 4);
-  if (digits.length <= 2) {
-    return digits;
-  }
-
-  if (digits.length == 3) {
-    final twoDigitHour = int.tryParse(digits.substring(0, 2));
-    if (twoDigitHour != null && twoDigitHour <= 23) {
-      return '${digits.substring(0, 2)}:${digits.substring(2)}';
-    }
-    return '${digits.substring(0, 1)}:${digits.substring(1)}';
-  }
-
-  return '${digits.substring(0, 2)}:${digits.substring(2)}';
-}
-
-Widget _withoutInternalDateTimeEntryLabel(BuildContext context, Widget child) {
+Widget _withoutFloatingEntryLabel(BuildContext context, Widget child) {
   // The date/time rows already provide the visible label through
   // YaruListTile.square, so field labels are hidden here to avoid duplicates.
   final theme = Theme.of(context);
-  const hiddenLabelStyle = TextStyle(
-    color: Colors.transparent,
-    fontSize: 0,
-    height: 0,
-  );
 
   return Theme(
     data: theme.copyWith(
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
         floatingLabelBehavior: FloatingLabelBehavior.never,
-        labelStyle: hiddenLabelStyle,
-        floatingLabelStyle: hiddenLabelStyle,
       ),
     ),
     child: child,
@@ -794,47 +708,6 @@ TimeOfDay? parseTimeOfDay(String? time) {
   }
   final hour = int.tryParse(time.substring(0, 2));
   final minute = int.tryParse(time.substring(3, 5));
-  if (hour == null ||
-      minute == null ||
-      hour < 0 ||
-      hour > 23 ||
-      minute < 0 ||
-      minute > 59) {
-    return null;
-  }
-  return TimeOfDay(hour: hour, minute: minute);
-}
-
-TimeOfDay? parseTimeInput(String? time) {
-  final trimmed = time?.trim();
-  if (trimmed == null || trimmed.isEmpty) {
-    return null;
-  }
-
-  if (trimmed.contains(':')) {
-    final parts = trimmed.split(':');
-    if (parts.length != 2 || parts.first.isEmpty || parts.last.isEmpty) {
-      return null;
-    }
-    return _timeOfDayFromParts(parts.first, parts.last);
-  }
-
-  if (trimmed.length <= 2) {
-    return _timeOfDayFromParts(trimmed, '00');
-  }
-  if (trimmed.length == 3) {
-    return _timeOfDayFromParts(trimmed.substring(0, 1), trimmed.substring(1));
-  }
-  if (trimmed.length == 4) {
-    return _timeOfDayFromParts(trimmed.substring(0, 2), trimmed.substring(2));
-  }
-
-  return null;
-}
-
-TimeOfDay? _timeOfDayFromParts(String hourText, String minuteText) {
-  final hour = int.tryParse(hourText);
-  final minute = int.tryParse(minuteText);
   if (hour == null ||
       minute == null ||
       hour < 0 ||

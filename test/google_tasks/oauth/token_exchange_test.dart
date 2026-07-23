@@ -626,7 +626,7 @@ void main() {
       loopbackFlow: OAuthLoopbackFlow(),
     );
 
-    await service.signOutAccount('google-a');
+    await service.clearLocalSession(accountId: 'google-a');
 
     expect(await tokenStore.readTokenSet('google-a'), isNull);
     expect(await tokenStore.readTokenSet('google-b'), isNotNull);
@@ -665,11 +665,42 @@ void main() {
 
       await service.revokeAndSignOutAccount('google-a');
 
-      expect(captured.url.queryParameters['token'], 'refresh');
+      expect(captured.url.queryParameters, isEmpty);
+      expect(Uri.splitQueryString(captured.body)['token'], 'refresh');
       expect(await tokenStore.readTokenSet('google-a'), isNull);
       expect(await tokenStore.readTokenSet('google-b'), isNotNull);
       expect(await tokenStore.readTokenSet('microsoft:m'), isNotNull);
       expect(await tokenStore.readActiveAccountId(), 'google-b');
+    },
+  );
+
+  test(
+    'revokeAuthorization reports non-success without clearing credentials',
+    () async {
+      final tokenStore = InMemoryOAuthTokenStore();
+      await tokenStore.saveTokenSet(
+        'google-a',
+        const OAuthTokenSetFixture().tokenSet,
+      );
+      final service = OAuthService(
+        config: _config,
+        httpClient: MockClient((request) async => http.Response('', 503)),
+        tokenStore: tokenStore,
+        loopbackFlow: OAuthLoopbackFlow(),
+      );
+
+      await expectLater(
+        service.revokeAuthorization('google-a'),
+        throwsA(
+          isA<OAuthException>().having(
+            (error) => error.code,
+            'code',
+            'OAuthRevocationFailed',
+          ),
+        ),
+      );
+
+      expect(await tokenStore.readTokenSet('google-a'), isNotNull);
     },
   );
 

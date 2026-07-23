@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ubuntu_widgets/ubuntu_widgets.dart';
 import 'package:yaru/yaru.dart';
 
@@ -27,7 +28,7 @@ abstract final class BusyMaxRadius {
   static const double md = kYaruContainerRadius;
   static const double lg = kYaruContainerRadius;
   static const double headerButton = kYaruButtonRadius;
-  static const double window = kYaruContainerRadius;
+  static const double window = kYaruWindowRadius;
 }
 
 abstract final class BusyMaxSizes {
@@ -50,9 +51,6 @@ abstract final class BusyMaxSizes {
   static const double sidebarActionButton = headerIconButton;
   static const double sidebarActionIcon = headerIcon;
   static const double miniCalendarWeekButton = headerIconButton;
-  static const double aboutCloseButton =
-      headerIconButton - BusyMaxSpacing.sm - BusyMaxSpacing.xxs;
-  static const double popoverActionButton = headerIconButton;
   static const double popoverArrowWidth = 18;
   static const double popoverArrowHeight = 10;
 }
@@ -303,53 +301,6 @@ class _BusyMaxPopoverOutlinePainter extends CustomPainter {
   }
 }
 
-class BusyMaxCircularAction extends StatelessWidget {
-  const BusyMaxCircularAction({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    final foregroundColor = destructive
-        ? Theme.of(context).colorScheme.error
-        : surfaceColors.mutedForeground;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: surfaceColors.control,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          hoverColor: surfaceColors.controlHover,
-          focusColor: surfaceColors.controlHover,
-          highlightColor: surfaceColors.controlHover,
-          splashColor: Colors.transparent,
-          onTap: onPressed,
-          child: SizedBox.square(
-            dimension: BusyMaxSizes.popoverActionButton,
-            child: Icon(
-              icon,
-              size: BusyMaxSizes.iconSm,
-              color: foregroundColor,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 RoundedRectangleBorder busyMaxHeaderButtonShape() {
   return RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
@@ -441,45 +392,6 @@ WidgetStateProperty<Color?> busyMaxHeaderButtonBackground(
     }
     return surfaceColors.control;
   });
-}
-
-ButtonStyle busyMaxDropdownButtonStyle(BuildContext context) {
-  return ButtonStyle(
-    minimumSize: const WidgetStatePropertyAll(
-      Size(BusyMaxSizes.headerIconButton, BusyMaxSizes.headerIconButton),
-    ),
-    padding: const WidgetStatePropertyAll(
-      EdgeInsets.symmetric(horizontal: BusyMaxSpacing.lg),
-    ),
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    foregroundColor: WidgetStatePropertyAll(
-      Theme.of(context).colorScheme.onSurfaceVariant,
-    ),
-    backgroundColor: WidgetStateProperty.resolveWith((states) {
-      return Colors.transparent;
-    }),
-    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-    side: const WidgetStatePropertyAll(BorderSide.none),
-    shape: WidgetStatePropertyAll(busyMaxHeaderButtonShape()),
-    elevation: const WidgetStatePropertyAll(0),
-    shadowColor: const WidgetStatePropertyAll(Colors.transparent),
-    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-    animationDuration: Duration.zero,
-  );
-}
-
-InputDecoration busyMaxDropdownDecoration() {
-  return const InputDecoration(
-    filled: false,
-    isCollapsed: true,
-    border: InputBorder.none,
-    enabledBorder: InputBorder.none,
-    focusedBorder: InputBorder.none,
-    disabledBorder: InputBorder.none,
-    errorBorder: InputBorder.none,
-    focusedErrorBorder: InputBorder.none,
-    contentPadding: EdgeInsets.zero,
-  );
 }
 
 MenuStyle busyMaxDropdownMenuStyle(BuildContext context, {double? minWidth}) {
@@ -673,6 +585,46 @@ abstract final class BusyMaxPushButton {
       onHover: onHover,
       onFocusChange: onFocusChange,
       style: busyMaxPushButtonStyle(style),
+      focusNode: focusNode,
+      autofocus: autofocus,
+      clipBehavior: clipBehavior,
+      statesController: statesController,
+      child: child,
+    );
+  }
+
+  /// A destructive desktop action.
+  ///
+  /// Keep destructive emphasis on the final action in a confirmation dialog;
+  /// ordinary destructive rows should continue to use semantic error
+  /// foregrounds without becoming accent-filled buttons.
+  static PushButton destructive({
+    required BuildContext context,
+    required Widget child,
+    required VoidCallback? onPressed,
+    VoidCallback? onLongPress,
+    ValueChanged<bool>? onHover,
+    ValueChanged<bool>? onFocusChange,
+    ButtonStyle? style,
+    FocusNode? focusNode,
+    bool autofocus = false,
+    Clip clipBehavior = Clip.none,
+    WidgetStatesController? statesController,
+    Key? key,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return PushButton.elevated(
+      key: key,
+      onPressed: onPressed,
+      onLongPress: onLongPress,
+      onHover: onHover,
+      onFocusChange: onFocusChange,
+      style: busyMaxPushButtonStyle(
+        ElevatedButton.styleFrom(
+          backgroundColor: colorScheme.error,
+          foregroundColor: colorScheme.onError,
+        ).merge(style),
+      ),
       focusNode: focusNode,
       autofocus: autofocus,
       clipBehavior: clipBehavior,
@@ -1214,7 +1166,6 @@ class BusyMaxCategoryEditorRow extends StatelessWidget {
     required this.categories,
     required this.suggestions,
     required this.adding,
-    required this.controller,
     required this.onAddPressed,
     required this.onSubmitted,
     required this.onCancelAdding,
@@ -1227,7 +1178,6 @@ class BusyMaxCategoryEditorRow extends StatelessWidget {
   final List<String> categories;
   final List<String> suggestions;
   final bool adding;
-  final TextEditingController controller;
   final VoidCallback onAddPressed;
   final ValueChanged<String> onSubmitted;
   final VoidCallback onCancelAdding;
@@ -1236,11 +1186,10 @@ class BusyMaxCategoryEditorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleSuggestions = [
-      for (final suggestion in suggestions)
-        if (suggestion.trim().isNotEmpty && !categories.contains(suggestion))
-          suggestion,
-    ];
+    final visibleSuggestions = _visibleCategorySuggestions(
+      suggestions: suggestions,
+      selectedCategories: categories,
+    );
     return BusyMaxActionRow(
       title: title,
       leading: const Icon(Icons.sell_outlined),
@@ -1257,8 +1206,7 @@ class BusyMaxCategoryEditorRow extends StatelessWidget {
                 onDeleted: () => onDeleted(category),
               ),
             if (adding) ...[
-              _BusyMaxCategoryInputChip(
-                controller: controller,
+              _BusyMaxCategoryInput(
                 hintText: addLabel,
                 suggestions: visibleSuggestions,
                 inputKey: inputKey,
@@ -1282,43 +1230,15 @@ class _BusyMaxCategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: surfaceColors.control,
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+    return InputChip(
+      label: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 160),
+        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          start: BusyMaxSpacing.md,
-          end: BusyMaxSpacing.xs,
-          top: BusyMaxSpacing.xs,
-          bottom: BusyMaxSpacing.xs,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 160),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-            ),
-            const SizedBox(width: BusyMaxSpacing.xs),
-            _BusyMaxCategoryIconAction(
-              icon: YaruIcons.window_close,
-              tooltip:
-                  '${MaterialLocalizations.of(context).deleteButtonTooltip} $label',
-              color: colorScheme.onSurfaceVariant,
-              onPressed: onDeleted,
-            ),
-          ],
-        ),
-      ),
+      deleteIcon: const Icon(YaruIcons.window_close),
+      deleteButtonTooltipMessage:
+          '${MaterialLocalizations.of(context).deleteButtonTooltip} $label',
+      onDeleted: onDeleted,
     );
   }
 }
@@ -1331,48 +1251,16 @@ class _BusyMaxAddCategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-        hoverColor: busyMaxEditorRowHoverColor(context),
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: BusyMaxSpacing.md,
-            vertical: BusyMaxSpacing.xs,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                YaruIcons.plus,
-                size: BusyMaxSizes.iconSm,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: BusyMaxSpacing.xs),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return ActionChip(
+      avatar: const Icon(YaruIcons.plus, size: BusyMaxSizes.iconSm),
+      label: Text(label),
+      onPressed: onPressed,
     );
   }
 }
 
-class _BusyMaxCategoryInputChip extends StatefulWidget {
-  const _BusyMaxCategoryInputChip({
-    required this.controller,
+class _BusyMaxCategoryInput extends StatefulWidget {
+  const _BusyMaxCategoryInput({
     required this.hintText,
     required this.suggestions,
     this.inputKey,
@@ -1380,7 +1268,6 @@ class _BusyMaxCategoryInputChip extends StatefulWidget {
     required this.onCancel,
   });
 
-  final TextEditingController controller;
   final String hintText;
   final List<String> suggestions;
   final Key? inputKey;
@@ -1388,289 +1275,165 @@ class _BusyMaxCategoryInputChip extends StatefulWidget {
   final VoidCallback onCancel;
 
   @override
-  State<_BusyMaxCategoryInputChip> createState() =>
-      _BusyMaxCategoryInputChipState();
+  State<_BusyMaxCategoryInput> createState() => _BusyMaxCategoryInputState();
 }
 
-class _BusyMaxCategoryInputChipState extends State<_BusyMaxCategoryInputChip> {
-  late final FocusNode _focusNode;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode = FocusNode();
-  }
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
+class _BusyMaxCategoryInputState extends State<_BusyMaxCategoryInput> {
+  FocusNode? _requestedFocusNode;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: surfaceColors.control,
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          start: BusyMaxSpacing.md,
-          end: BusyMaxSpacing.xs,
-        ),
-        child: SizedBox(
-          width: 180,
-          height: 30,
-          child: Row(
-            children: [
-              Expanded(
-                child: RawAutocomplete<String>(
-                  textEditingController: widget.controller,
-                  focusNode: _focusNode,
-                  displayStringForOption: (option) => option,
-                  optionsViewOpenDirection: OptionsViewOpenDirection.down,
-                  optionsBuilder: _categoryOptionsFor,
-                  onSelected: widget.onSubmitted,
-                  fieldViewBuilder:
-                      (context, controller, focusNode, onFieldSubmitted) {
-                        return TextField(
-                          key: widget.inputKey,
-                          controller: controller,
-                          focusNode: focusNode,
-                          autofocus: true,
-                          decoration: busyMaxDropdownDecoration().copyWith(
-                            hintText: widget.hintText,
-                          ),
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: _submitTypedCategory,
-                        );
-                      },
-                  optionsViewBuilder: (context, onSelected, options) {
-                    return _BusyMaxCategoryAutocompleteOptions(
-                      options: options.toList(growable: false),
-                      onSelected: onSelected,
-                    );
-                  },
+    final materialL10n = MaterialLocalizations.of(context);
+    return SizedBox(
+      width: 260,
+      child: Focus(
+        onKeyEvent: (_, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            widget.onCancel();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: YaruAutocomplete<String>(
+          displayStringForOption: (option) => option,
+          optionsMaxHeight: 240,
+          optionsBuilder: (value) =>
+              _matchingCategorySuggestions(widget.suggestions, value),
+          onSelected: widget.onSubmitted,
+          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+            _requestInitialFocus(focusNode);
+
+            void submitTypedCategory() {
+              final category = _canonicalCategory(
+                controller.text,
+                widget.suggestions,
+              );
+              if (category != null) {
+                widget.onSubmitted(category);
+              }
+            }
+
+            return TextField(
+              key: widget.inputKey,
+              controller: controller,
+              focusNode: focusNode,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: widget.hintText,
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    YaruIconButton(
+                      tooltip: materialL10n.okButtonLabel,
+                      icon: const Icon(YaruIcons.checkmark),
+                      onPressed: submitTypedCategory,
+                    ),
+                    YaruIconButton(
+                      tooltip: materialL10n.cancelButtonLabel,
+                      icon: const Icon(YaruIcons.window_close),
+                      onPressed: widget.onCancel,
+                    ),
+                  ],
                 ),
               ),
-              _BusyMaxCategoryIconAction(
-                icon: YaruIcons.checkmark,
-                tooltip: MaterialLocalizations.of(context).okButtonLabel,
-                color: colorScheme.onSurfaceVariant,
-                onPressed: () => _submitTypedCategory(widget.controller.text),
-              ),
-              const SizedBox(width: BusyMaxSpacing.xs),
-              _BusyMaxCategoryIconAction(
-                icon: YaruIcons.window_close,
-                tooltip: MaterialLocalizations.of(context).cancelButtonLabel,
-                color: colorScheme.onSurfaceVariant,
-                onPressed: widget.onCancel,
-              ),
-            ],
-          ),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (value) {
+                final options = _matchingCategorySuggestions(
+                  widget.suggestions,
+                  TextEditingValue(text: value),
+                );
+                if (options.isEmpty) {
+                  submitTypedCategory();
+                } else {
+                  onFieldSubmitted();
+                }
+              },
+            );
+          },
         ),
       ),
     );
   }
 
-  Iterable<String> _categoryOptionsFor(TextEditingValue value) {
-    final query = value.text.trim().toLowerCase();
-    if (query.isEmpty) {
-      return const [];
-    }
-    final matching = [
-      for (final suggestion in widget.suggestions)
-        if (suggestion.toLowerCase().contains(query)) suggestion,
-    ];
-    matching.sort((left, right) {
-      final leftLower = left.toLowerCase();
-      final rightLower = right.toLowerCase();
-      final leftStarts = leftLower.startsWith(query);
-      final rightStarts = rightLower.startsWith(query);
-      if (leftStarts != rightStarts) {
-        return leftStarts ? -1 : 1;
-      }
-      return leftLower.compareTo(rightLower);
-    });
-    return matching.take(8);
-  }
-
-  void _submitTypedCategory(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) {
+  void _requestInitialFocus(FocusNode focusNode) {
+    if (identical(_requestedFocusNode, focusNode)) {
       return;
     }
-    String? existing;
-    for (final suggestion in widget.suggestions) {
-      if (suggestion.toLowerCase() == trimmed.toLowerCase()) {
-        existing = suggestion;
-        break;
+    _requestedFocusNode = focusNode;
+    // This field is inserted into an already-focused editor, so TextField's
+    // autofocus alone does not reliably move focus from the Add chip.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && identical(_requestedFocusNode, focusNode)) {
+        focusNode.requestFocus();
       }
+    });
+  }
+}
+
+List<String> _visibleCategorySuggestions({
+  required List<String> suggestions,
+  required List<String> selectedCategories,
+}) {
+  final selected = {
+    for (final category in selectedCategories) _normalizedCategory(category),
+  };
+  final seen = <String>{};
+  return [
+    for (final suggestion in suggestions)
+      if (suggestion.trim() case final trimmed
+          when trimmed.isNotEmpty &&
+              !selected.contains(_normalizedCategory(trimmed)) &&
+              seen.add(_normalizedCategory(trimmed)))
+        trimmed,
+  ];
+}
+
+Iterable<String> _matchingCategorySuggestions(
+  List<String> suggestions,
+  TextEditingValue value,
+) {
+  final query = _normalizedCategory(value.text);
+  if (query.isEmpty) {
+    return const [];
+  }
+  final matching = [
+    for (final suggestion in suggestions)
+      if (_normalizedCategory(suggestion).contains(query)) suggestion,
+  ];
+  matching.sort((left, right) {
+    final leftNormalized = _normalizedCategory(left);
+    final rightNormalized = _normalizedCategory(right);
+    final leftExact = leftNormalized == query;
+    final rightExact = rightNormalized == query;
+    if (leftExact != rightExact) {
+      return leftExact ? -1 : 1;
     }
-    widget.onSubmitted(existing ?? trimmed);
-  }
-}
-
-class _BusyMaxCategoryIconAction extends StatelessWidget {
-  const _BusyMaxCategoryIconAction({
-    required this.icon,
-    required this.tooltip,
-    required this.color,
-    required this.onPressed,
-  });
-
-  static const _size = 22.0;
-
-  final IconData icon;
-  final String tooltip;
-  final Color color;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-          hoverColor: surfaceColors.controlHover,
-          focusColor: surfaceColors.controlHover,
-          highlightColor: surfaceColors.controlActive,
-          splashColor: Colors.transparent,
-          onTap: onPressed,
-          child: SizedBox.square(
-            dimension: _size,
-            child: Icon(icon, size: BusyMaxSizes.iconSm, color: color),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BusyMaxCategoryAutocompleteOptions extends StatelessWidget {
-  const _BusyMaxCategoryAutocompleteOptions({
-    required this.options,
-    required this.onSelected,
-  });
-
-  final List<String> options;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    if (options.isEmpty) {
-      return const SizedBox.shrink();
+    final leftStarts = leftNormalized.startsWith(query);
+    final rightStarts = rightNormalized.startsWith(query);
+    if (leftStarts != rightStarts) {
+      return leftStarts ? -1 : 1;
     }
-    final popupTheme = Theme.of(context).popupMenuTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : 180.0;
-        final labelWidth = (width - BusyMaxSpacing.md * 2).clamp(0.0, width);
-        return Align(
-          alignment: Alignment.topLeft,
-          child: Material(
-            color: popupTheme.color ?? colorScheme.surfaceContainerHigh,
-            elevation: BusyMaxElevation.popover,
-            shadowColor: BusyMaxShadow.physicalColor(context),
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: width,
-                maxWidth: width,
-                maxHeight: 240,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  itemCount: options.length,
-                  itemBuilder: (context, index) {
-                    final option = options[index];
-                    return _BusyMaxCategoryAutocompleteOption(
-                      width: width,
-                      labelWidth: labelWidth,
-                      option: option,
-                      onSelected: onSelected,
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _BusyMaxCategoryAutocompleteOption extends StatelessWidget {
-  const _BusyMaxCategoryAutocompleteOption({
-    required this.width,
-    required this.labelWidth,
-    required this.option,
-    required this.onSelected,
+    return leftNormalized.compareTo(rightNormalized);
   });
-
-  final double width;
-  final double labelWidth;
-  final String option;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: width,
-      height: 36,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-          hoverColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.08),
-          focusColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.08),
-          highlightColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.12),
-          splashColor: Colors.transparent,
-          onTap: () => onSelected(option),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: BusyMaxSpacing.md),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: SizedBox(
-                width: labelWidth,
-                child: Text(
-                  option,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  return matching.take(8);
 }
+
+String? _canonicalCategory(String value, List<String> suggestions) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  final normalized = _normalizedCategory(trimmed);
+  for (final suggestion in suggestions) {
+    if (_normalizedCategory(suggestion) == normalized) {
+      return suggestion;
+    }
+  }
+  return trimmed;
+}
+
+String _normalizedCategory(String value) => value.trim().toLowerCase();
 
 class BusyMaxCalendarValueRow extends StatelessWidget {
   const BusyMaxCalendarValueRow({
@@ -1843,23 +1606,40 @@ class BusyMaxComboRow<T> extends StatelessWidget {
             : width.clamp(120.0, double.infinity).toDouble();
         final selector = SizedBox(
           width: selectorWidth,
-          child: MenuButtonBuilder<T>(
-            selected: selected,
-            values: values,
-            menuPosition: PopupMenuPosition.under,
-            decoration: busyMaxDropdownDecoration(),
-            style: busyMaxDropdownButtonStyle(context),
-            menuStyle: busyMaxDropdownMenuStyle(
-              context,
-              minWidth: selectorWidth,
-            ),
-            itemStyle: busyMaxDropdownMenuItemStyle(context),
-            itemBuilder: (context, value, _) =>
-                menuItemBuilder?.call(context, value) ?? Text(labelFor(value)),
-            onSelected: enabled ? onSelected : null,
-            child:
-                selectedBuilder?.call(context, selected) ??
-                Text(labelFor(selected), overflow: TextOverflow.ellipsis),
+          child: BusyMaxMenuButton<T>(
+            tooltip: tooltip ?? title,
+            entries: [
+              for (final value in values)
+                BusyMaxMenuEntry<T>(
+                  value: value,
+                  label: labelFor(value),
+                  child: menuItemBuilder?.call(context, value),
+                ),
+            ],
+            onSelected: onSelected,
+            minMenuWidth: selectorWidth,
+            menuPosition: null,
+            enabled: enabled,
+            triggerBuilder: (context, onPressed, focusNode) {
+              return OutlinedButton(
+                focusNode: focusNode,
+                onPressed: onPressed,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child:
+                          selectedBuilder?.call(context, selected) ??
+                          Text(
+                            labelFor(selected),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                    ),
+                    const SizedBox(width: BusyMaxSpacing.sm),
+                    const Icon(YaruIcons.pan_down),
+                  ],
+                ),
+              );
+            },
           ),
         );
         final trailing = Row(
@@ -1983,6 +1763,7 @@ class BusyMaxMenuEntry<T> {
     required this.value,
     required this.label,
     this.icon,
+    this.child,
     this.enabled = true,
     this.checked = false,
     this.tooltip,
@@ -1992,6 +1773,7 @@ class BusyMaxMenuEntry<T> {
   final T value;
   final String label;
   final IconData? icon;
+  final Widget? child;
   final bool enabled;
   final bool checked;
   final String? tooltip;
@@ -2004,6 +1786,61 @@ typedef BusyMaxMenuTriggerBuilder =
       VoidCallback? onPressed,
       FocusNode focusNode,
     );
+
+/// Controls keyboard-driven opening of a [BusyMaxMenuButton].
+///
+/// Pointer activation remains owned by the button so a mouse click does not
+/// paint a keyboard focus ring. Commands and shortcuts use
+/// [openForKeyboard], which transfers focus to the first enabled menu item.
+class BusyMaxMenuController {
+  Object? _owner;
+  bool Function()? _openForKeyboard;
+  VoidCallback? _close;
+  bool Function()? _isOpen;
+
+  bool get isAttached => _owner != null;
+
+  bool get isOpen => _isOpen?.call() ?? false;
+
+  /// Opens the attached menu in keyboard modality.
+  ///
+  /// Returns false when the menu is not attached, is disabled, or is already
+  /// open.
+  bool openForKeyboard() {
+    final open = _openForKeyboard;
+    if (open == null) {
+      return false;
+    }
+    return open();
+  }
+
+  void close() => _close?.call();
+
+  void _attach({
+    required Object owner,
+    required bool Function() openForKeyboard,
+    required VoidCallback close,
+    required bool Function() isOpen,
+  }) {
+    // Flutter can mount a replacement responsive subtree before disposing its
+    // predecessor. Point commands at the newest attachment; the owner check
+    // in [_detach] prevents the retiring state from detaching its successor.
+    _owner = owner;
+    _openForKeyboard = openForKeyboard;
+    _close = close;
+    _isOpen = isOpen;
+  }
+
+  void _detach(Object owner) {
+    if (!identical(_owner, owner)) {
+      return;
+    }
+    _owner = null;
+    _openForKeyboard = null;
+    _close = null;
+    _isOpen = null;
+  }
+}
 
 class BusyMaxMenuButton<T> extends StatefulWidget {
   const BusyMaxMenuButton({
@@ -2026,7 +1863,7 @@ class BusyMaxMenuButton<T> extends StatefulWidget {
   final double minMenuWidth;
   final Offset? menuPosition;
   final BusyMaxMenuTriggerBuilder? triggerBuilder;
-  final MenuController? controller;
+  final BusyMaxMenuController? controller;
   final bool enabled;
 
   @override
@@ -2034,30 +1871,52 @@ class BusyMaxMenuButton<T> extends StatefulWidget {
 }
 
 class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
-  final _internalController = MenuController();
-  final _triggerFocusNode = FocusNode(debugLabel: 'BusyMax menu trigger');
+  final _menuController = MenuController();
+  late final FocusNode _triggerFocusNode;
+  final List<FocusNode> _entryFocusNodes = [];
 
-  MenuController get _controller => widget.controller ?? _internalController;
+  @override
+  void initState() {
+    super.initState();
+    _triggerFocusNode = FocusNode(
+      debugLabel: 'BusyMax menu trigger',
+      onKeyEvent: _handleTriggerKeyEvent,
+    );
+    _synchronizeEntryFocusNodes();
+    _attachExternalController();
+  }
 
   @override
   void didUpdateWidget(covariant BusyMaxMenuButton<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.enabled && !widget.enabled && _controller.isOpen) {
-      _controller.close();
+    if (!identical(oldWidget.controller, widget.controller)) {
+      oldWidget.controller?._detach(this);
+      _attachExternalController();
+    }
+    _synchronizeEntryFocusNodes();
+    if (oldWidget.enabled && !widget.enabled && _menuController.isOpen) {
+      _menuController.close();
     }
   }
 
   @override
   void dispose() {
+    widget.controller?._detach(this);
     _triggerFocusNode.dispose();
+    for (final focusNode in _entryFocusNodes) {
+      focusNode.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final reservesLeadingSpace = widget.entries.any(
+      (entry) => entry.checked || entry.icon != null,
+    );
     return MenuAnchor(
-      controller: _controller,
+      controller: _menuController,
       childFocusNode: _triggerFocusNode,
       crossAxisUnconstrained: false,
       style: busyMaxDropdownMenuStyle(context, minWidth: widget.minMenuWidth),
@@ -2090,16 +1949,44 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
         );
       },
       menuChildren: [
-        for (final entry in widget.entries)
+        for (var index = 0; index < widget.entries.length; index += 1)
           _BusyMaxMenuEntryButton<T>(
-            entry: entry,
+            entry: widget.entries[index],
+            focusNode: _entryFocusNodes[index],
+            reserveLeadingSpace: reservesLeadingSpace,
             onSelected: (value) {
               widget.onSelected(value);
-              _controller.close();
+              _menuController.close();
             },
           ),
       ],
     );
+  }
+
+  KeyEventResult _handleTriggerKeyEvent(FocusNode node, KeyEvent event) {
+    if (!widget.enabled || event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.space ||
+        key == LogicalKeyboardKey.arrowDown) {
+      if (_menuController.isOpen) {
+        if (key == LogicalKeyboardKey.arrowDown) {
+          _focusFirstEnabledEntry();
+        } else {
+          _menuController.close();
+        }
+      } else {
+        _openForKeyboard();
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape && _menuController.isOpen) {
+      _menuController.close();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   void _toggleMenu(MenuController controller) {
@@ -2107,6 +1994,10 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
       controller.close();
       return;
     }
+    _openMenu(controller);
+  }
+
+  void _openMenu(MenuController controller) {
     final position = widget.menuPosition;
     if (position == null) {
       controller.open();
@@ -2114,15 +2005,61 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
       controller.open(position: position);
     }
   }
+
+  bool _openForKeyboard() {
+    if (!widget.enabled || _menuController.isOpen) {
+      return false;
+    }
+    _triggerFocusNode.requestFocus();
+    _openMenu(_menuController);
+    _focusFirstEnabledEntry();
+    return true;
+  }
+
+  void _focusFirstEnabledEntry() {
+    final index = widget.entries.indexWhere((entry) => entry.enabled);
+    if (index < 0) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _menuController.isOpen) {
+        _entryFocusNodes[index].requestFocus();
+      }
+    });
+  }
+
+  void _attachExternalController() {
+    widget.controller?._attach(
+      owner: this,
+      openForKeyboard: _openForKeyboard,
+      close: _menuController.close,
+      isOpen: () => _menuController.isOpen,
+    );
+  }
+
+  void _synchronizeEntryFocusNodes() {
+    while (_entryFocusNodes.length < widget.entries.length) {
+      _entryFocusNodes.add(
+        FocusNode(debugLabel: 'BusyMax menu entry ${_entryFocusNodes.length}'),
+      );
+    }
+    while (_entryFocusNodes.length > widget.entries.length) {
+      _entryFocusNodes.removeLast().dispose();
+    }
+  }
 }
 
 class _BusyMaxMenuEntryButton<T> extends StatelessWidget {
   const _BusyMaxMenuEntryButton({
     required this.entry,
+    required this.focusNode,
+    required this.reserveLeadingSpace,
     required this.onSelected,
   });
 
   final BusyMaxMenuEntry<T> entry;
+  final FocusNode focusNode;
+  final bool reserveLeadingSpace;
   final ValueChanged<T> onSelected;
 
   @override
@@ -2131,9 +2068,12 @@ class _BusyMaxMenuEntryButton<T> extends StatelessWidget {
     final foreground = entry.destructive ? colorScheme.error : null;
     final iconData = entry.checked ? YaruIcons.checkmark : entry.icon;
     final icon = iconData == null
-        ? const SizedBox.square(dimension: BusyMaxSizes.iconSm)
+        ? reserveLeadingSpace
+              ? const SizedBox.square(dimension: BusyMaxSizes.iconSm)
+              : null
         : Icon(iconData, size: BusyMaxSizes.iconSm, color: foreground);
     final row = MenuItemButton(
+      focusNode: focusNode,
       leadingIcon: icon,
       onPressed: entry.enabled ? () => onSelected(entry.value) : null,
       style: busyMaxDropdownMenuItemStyle(context).copyWith(
@@ -2141,12 +2081,14 @@ class _BusyMaxMenuEntryButton<T> extends StatelessWidget {
             ? null
             : WidgetStatePropertyAll(foreground),
       ),
-      child: Text(
-        entry.label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: foreground == null ? null : TextStyle(color: foreground),
-      ),
+      child:
+          entry.child ??
+          Text(
+            entry.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: foreground == null ? null : TextStyle(color: foreground),
+          ),
     );
 
     if (entry.enabled || entry.tooltip == null) {
@@ -2512,46 +2454,6 @@ class BusyMaxModalEditorScaffold extends StatelessWidget {
   }
 }
 
-class BusyMaxDialogCloseButton extends StatelessWidget {
-  const BusyMaxDialogCloseButton({
-    super.key,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: surfaceColors.control,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          hoverColor: surfaceColors.controlHover,
-          focusColor: surfaceColors.controlHover,
-          highlightColor: surfaceColors.controlActive,
-          splashColor: Colors.transparent,
-          onTap: onPressed,
-          child: SizedBox.square(
-            dimension: BusyMaxSizes.aboutCloseButton,
-            child: Icon(
-              Icons.close,
-              size: BusyMaxSizes.iconSm,
-              color: surfaceColors.mutedForeground,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class BusyMaxModalEditorSurface extends StatelessWidget {
   const BusyMaxModalEditorSurface({
     super.key,
@@ -2773,7 +2675,6 @@ class BusyMaxConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return BusyMaxDialogShell(
       title: title,
       maxWidth: 460,
@@ -2782,16 +2683,17 @@ class BusyMaxConfirmDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(context.l10n.cancel),
         ),
-        BusyMaxPushButton.suggested(
-          style: destructive
-              ? ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.error,
-                  foregroundColor: colorScheme.onError,
-                )
-              : null,
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(confirmLabel),
-        ),
+        if (destructive)
+          BusyMaxPushButton.destructive(
+            context: context,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(confirmLabel),
+          )
+        else
+          BusyMaxPushButton.suggested(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(confirmLabel),
+          ),
       ],
       children: [Text(message)],
     );

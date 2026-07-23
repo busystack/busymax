@@ -183,17 +183,7 @@ class BusyMaxHeaderBarTheme {
     required this.backgroundColor,
     required this.sidebarBackgroundColor,
     required this.foregroundColor,
-    required this.mutedForegroundColor,
-    required this.disabledForegroundColor,
-    required this.controlColor,
-    required this.controlHoverColor,
-    required this.controlActiveColor,
-    required this.accentColor,
-    required this.accentForegroundColor,
-    required this.popoverBackgroundColor,
-    required this.borderColor,
     required this.sidebarBorderColor,
-    required this.shadeColor,
     required this.modalBarrierColor,
   });
 
@@ -202,17 +192,7 @@ class BusyMaxHeaderBarTheme {
   final Color backgroundColor;
   final Color sidebarBackgroundColor;
   final Color foregroundColor;
-  final Color mutedForegroundColor;
-  final Color disabledForegroundColor;
-  final Color controlColor;
-  final Color controlHoverColor;
-  final Color controlActiveColor;
-  final Color accentColor;
-  final Color accentForegroundColor;
-  final Color popoverBackgroundColor;
-  final Color borderColor;
   final Color sidebarBorderColor;
-  final Color shadeColor;
   final Color modalBarrierColor;
 
   Map<String, Object> toJson() {
@@ -222,17 +202,7 @@ class BusyMaxHeaderBarTheme {
       'backgroundColor': busyMaxCssColor(backgroundColor),
       'sidebarBackgroundColor': busyMaxCssColor(sidebarBackgroundColor),
       'foregroundColor': busyMaxCssColor(foregroundColor),
-      'mutedForegroundColor': busyMaxCssColor(mutedForegroundColor),
-      'disabledForegroundColor': busyMaxCssColor(disabledForegroundColor),
-      'controlColor': busyMaxCssColor(controlColor),
-      'controlHoverColor': busyMaxCssColor(controlHoverColor),
-      'controlActiveColor': busyMaxCssColor(controlActiveColor),
-      'accentColor': busyMaxCssColor(accentColor),
-      'accentForegroundColor': busyMaxCssColor(accentForegroundColor),
-      'popoverBackgroundColor': busyMaxCssColor(popoverBackgroundColor),
-      'borderColor': busyMaxCssColor(borderColor),
       'sidebarBorderColor': busyMaxCssColor(sidebarBorderColor),
-      'shadeColor': busyMaxCssColor(shadeColor),
       'modalBarrierColor': busyMaxCssColor(modalBarrierColor),
     };
   }
@@ -246,17 +216,7 @@ class BusyMaxHeaderBarTheme {
             other.backgroundColor == backgroundColor &&
             other.sidebarBackgroundColor == sidebarBackgroundColor &&
             other.foregroundColor == foregroundColor &&
-            other.mutedForegroundColor == mutedForegroundColor &&
-            other.disabledForegroundColor == disabledForegroundColor &&
-            other.controlColor == controlColor &&
-            other.controlHoverColor == controlHoverColor &&
-            other.controlActiveColor == controlActiveColor &&
-            other.accentColor == accentColor &&
-            other.accentForegroundColor == accentForegroundColor &&
-            other.popoverBackgroundColor == popoverBackgroundColor &&
-            other.borderColor == borderColor &&
             other.sidebarBorderColor == sidebarBorderColor &&
-            other.shadeColor == shadeColor &&
             other.modalBarrierColor == modalBarrierColor;
   }
 
@@ -267,17 +227,7 @@ class BusyMaxHeaderBarTheme {
     backgroundColor,
     sidebarBackgroundColor,
     foregroundColor,
-    mutedForegroundColor,
-    disabledForegroundColor,
-    controlColor,
-    controlHoverColor,
-    controlActiveColor,
-    accentColor,
-    accentForegroundColor,
-    popoverBackgroundColor,
-    borderColor,
     sidebarBorderColor,
-    shadeColor,
     modalBarrierColor,
   );
 }

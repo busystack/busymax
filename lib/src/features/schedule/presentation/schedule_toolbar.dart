@@ -53,7 +53,7 @@ class ScheduleToolbar extends StatelessWidget {
   final VoidCallback? onToggleSidebar;
   final VoidCallback? onSearch;
   final ValueChanged<ScheduleToolbarMenuAction>? onMenuSelected;
-  final MenuController? createMenuController;
+  final BusyMaxMenuController? createMenuController;
 
   @override
   Widget build(BuildContext context) {

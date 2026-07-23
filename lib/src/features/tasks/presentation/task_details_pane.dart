@@ -123,14 +123,32 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     final repository = _tasksRepository(ref, _effectiveAccountId);
     final listsRepository = _taskListsRepository(ref, _effectiveAccountId);
     final localTimeZone = ref.watch(localTimeZoneProvider);
-    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
-    final account = _accountForId(accounts, _effectiveAccountId);
-    final provider =
-        account?.provider ?? _providerForAccountId(_effectiveAccountId);
-    final capabilities = capabilitiesForProvider(provider);
+    final accounts = ref.watch(accountsStreamProvider);
+    final storedAccount = _accountForId(
+      accounts.valueOrNull ?? const [],
+      _effectiveAccountId,
+    );
+    final cachedAccount = _lastAccount?.id == _effectiveAccountId
+        ? _lastAccount
+        : null;
+    final account =
+        storedAccount ??
+        ((accounts.isLoading || accounts.hasError || _editorDirty)
+            ? cachedAccount
+            : null);
     final taskStream = _watchTask(repository);
     final listsStream = _watchTaskLists(listsRepository);
     final categorySuggestionsStream = _watchCategorySuggestions(repository);
+
+    if (account == null) {
+      if (accounts.hasValue && !accounts.isLoading) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => widget.onClose?.call(),
+        );
+      }
+      return const SizedBox.shrink();
+    }
+    final capabilities = capabilitiesForProvider(account.provider);
 
     return StreamBuilder<TaskEntity?>(
       stream: taskStream,
@@ -144,7 +162,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
               taskLists: _lastTaskLists,
               capabilities: _lastCapabilities ?? capabilities,
               localTimeZone: _lastLocalTimeZone ?? localTimeZone,
-              account: _lastAccount,
+              account: cachedAccount ?? account,
               categorySuggestions: _lastCategorySuggestions,
             );
           }
@@ -256,7 +274,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     required List<TaskListEntity> taskLists,
     required TaskProviderCapabilities capabilities,
     required String localTimeZone,
-    required AccountEntity? account,
+    required AccountEntity account,
     required List<String> categorySuggestions,
   }) {
     return TaskDetailsEditor(
@@ -265,11 +283,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       capabilities: capabilities,
       localTimeZone: localTimeZone,
       categorySuggestions: categorySuggestions,
-      accountLabel: _accountEditorLabel(
-        context,
-        account,
-        account?.provider ?? _providerForAccountId(_effectiveAccountId),
-      ),
+      accountLabel: _accountEditorLabel(context, account),
       onRefresh: () {
         unawaited(_refreshTask(repository, task));
       },
@@ -457,21 +471,7 @@ AccountEntity? _accountForId(List<AccountEntity> accounts, String accountId) {
   return null;
 }
 
-TaskProvider _providerForAccountId(String accountId) {
-  return accountId.startsWith('microsoft:')
-      ? TaskProvider.microsoft
-      : TaskProvider.google;
-}
-
-String _accountEditorLabel(
-  BuildContext context,
-  AccountEntity? account,
-  TaskProvider provider,
-) {
-  if (account == null) {
-    return _providerEditorLabel(context, provider);
-  }
-
+String _accountEditorLabel(BuildContext context, AccountEntity account) {
   final metadata = _accountMetadata(account);
   final email = _firstDisplayIdentity([
     account.email,

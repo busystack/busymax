@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 import '../l10n/l10n.dart';
 import '../platform/linux_header_bar_service.dart';
@@ -206,7 +207,8 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
             PositionedDirectional(
               top: BusyMaxSpacing.sm,
               end: BusyMaxSpacing.sm,
-              child: BusyMaxDialogCloseButton(
+              child: YaruIconButton(
+                icon: const Icon(Icons.close, size: BusyMaxSizes.iconSm),
                 tooltip: l10n.close,
                 onPressed: () => Navigator.of(context).pop(),
               ),
