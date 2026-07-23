@@ -7,7 +7,8 @@ OAuth-enabled Flutter build must run first.
 ## Prepare
 
 Required: Linux amd64, the Flutter Linux toolchain, snapd, Snapcraft with LXD,
-`unsquashfs` from `squashfs-tools`, and BusyMax Store access for publishing.
+the `libhandy-1-dev` build package, `unsquashfs` from `squashfs-tools`, and
+BusyMax Store access for publishing.
 
 Check that the package versions match:
 

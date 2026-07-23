@@ -29,6 +29,68 @@ void main() {
     });
 
     test(
+      'main window delegates four-corner clipping and window states to Handy',
+      () {
+        final source = File(
+          'linux/runner/my_application.cc',
+        ).readAsStringSync();
+        final linuxCmake = File('linux/CMakeLists.txt').readAsStringSync();
+        final runnerCmake = File(
+          'linux/runner/CMakeLists.txt',
+        ).readAsStringSync();
+        final workflow = File(
+          '.github/workflows/flutter-linux.yml',
+        ).readAsStringSync();
+        final snapcraft = File('snap/snapcraft.yaml').readAsStringSync();
+        final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
+        final activateStart = source.indexOf(
+          'static void my_application_activate(GApplication* application)',
+        );
+        final activateEnd = source.indexOf(
+          'static void my_application_startup(GApplication* application)',
+          activateStart,
+        );
+
+        expect(activateStart, isNonNegative);
+        expect(activateEnd, greaterThan(activateStart));
+        final activateBody = source.substring(activateStart, activateEnd);
+
+        expect(source, contains('#include <handy.h>'));
+        expect(source, contains('hdy_init()'));
+        expect(activateBody, contains('hdy_application_window_new('));
+        expect(activateBody, isNot(contains('gtk_application_window_new(')));
+        expect(source, contains('hdy_window_handle_new()'));
+        expect(activateBody, isNot(contains('gtk_window_set_titlebar(')));
+        expect(
+          linuxCmake,
+          contains(
+            'pkg_check_modules(HANDY REQUIRED IMPORTED_TARGET libhandy-1)',
+          ),
+        );
+        expect(
+          runnerCmake,
+          contains(
+            'target_link_libraries(\${BINARY_NAME} PRIVATE PkgConfig::HANDY)',
+          ),
+        );
+        expect(workflow, contains('libhandy-1-dev'));
+        expect(snapcraft, contains('- libhandy-1-0'));
+
+        // Handy owns the theme radius, state transitions, input region, and
+        // child crop. BusyMax must not reintroduce a second window-shaping
+        // implementation in GTK or Flutter.
+        expect(source, isNot(contains('gdk_window_shape_combine_region')));
+        expect(source, isNot(contains('create_rounded_window_region')));
+        expect(source, isNot(contains('configure_rounded_window_shape')));
+        expect(source, isNot(contains('CAIRO_OPERATOR_CLEAR')));
+        expect(source, isNot(contains('kNativeWindowRadius')));
+        expect(source, isNot(contains('border-radius: %dpx;')));
+        expect(source, isNot(contains('"unified"')));
+        expect(app, isNot(contains('_BusyMaxWindowCornerClip')));
+      },
+    );
+
+    test(
       'Task Details, Settings, and Agenda use BusyMax Yaru row patterns',
       () {
         final taskDetails = File(
@@ -482,7 +544,12 @@ void main() {
           'gtk_box_pack_start(GTK_BOX(self->titlebar_box), GTK_WIDGET(header_bar)',
         ),
       );
-      expect(source, contains('gtk_window_set_titlebar(window, titlebar)'));
+      expect(source, contains('hdy_window_handle_new()'));
+      expect(
+        source,
+        contains('gtk_container_add(GTK_CONTAINER(self->titlebar_handle),'),
+      );
+      expect(source, isNot(contains('gtk_window_set_titlebar(window,')));
       expect(
         source,
         isNot(
@@ -718,7 +785,10 @@ void main() {
       expect(source, contains('strcmp(method, "showCreateMenu") == 0'));
       expect(source, contains('setModalBarrierVisible'));
       expect(source, contains('busymax-modal-barrier'));
-      expect(source, contains('gtk_widget_set_sensitive(self->titlebar_box'));
+      expect(
+        source,
+        contains('gtk_widget_set_sensitive(self->titlebar_handle'),
+      );
       expect(source, isNot(contains('setBackgroundColor')));
       expect(source, isNot(contains('setSidebarBackgroundColor')));
       expect(source, contains('is_css_rgba_color'));
@@ -924,7 +994,21 @@ void main() {
         contains('".busymax-titlebar .busymax-header-brand {"'),
       );
       expect(headerCss, contains('"border-right: 1px solid %s;"'));
-      expect(headerCss, contains('".busymax-titlebar.busymax-modal-barrier,"'));
+      expect(
+        headerCss,
+        contains(
+          '".busymax-titlebar.busymax-modal-barrier '
+          '.busymax-header-brand,"',
+        ),
+      );
+      expect(
+        headerCss,
+        contains(
+          '".busymax-titlebar.busymax-modal-barrier "\n'
+          '      "headerbar.busymax-flat-headerbar,"',
+        ),
+      );
+      expect(headerCss, isNot(contains('".busymax-titlebar,"')));
       expect(source, contains('kDefaultWindowBackgroundColor[] = "#2C2C2C"'));
       expect(
         source,

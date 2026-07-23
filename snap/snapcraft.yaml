@@ -58,6 +58,7 @@ parts:
     plugin: dump
     source: build/linux/x64/release/bundle
     stage-packages:
+      - libhandy-1-0
       - liblzma5
       - libsecret-1-0
     override-prime: |

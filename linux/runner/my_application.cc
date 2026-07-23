@@ -2,6 +2,7 @@
 
 #include <flutter_linux/flutter_linux.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <handy.h>
 #include <pango/pango.h>
 #include <cmath>
 #include <cstdio>
@@ -83,6 +84,7 @@ struct _MyApplication {
   gboolean header_bar_modal_barrier_visible;
   GtkWindow* main_window;
   GtkWidget* flutter_view;
+  GtkWidget* titlebar_handle;
   GtkWidget* titlebar_box;
   GtkHeaderBar* header_bar;
   GtkWidget* header_start_box;
@@ -487,8 +489,6 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}"
-      ".busymax-titlebar,"
-      ".busymax-titlebar:backdrop,"
       "headerbar.busymax-flat-headerbar,"
       "headerbar.busymax-flat-headerbar:backdrop {"
       "background-color: %s;"
@@ -513,11 +513,6 @@ static void refresh_header_bar_css(MyApplication* self) {
       ".busymax-titlebar .busymax-header-title {"
       "color: %s;"
       "}"
-      ".busymax-titlebar.busymax-modal-barrier,"
-      ".busymax-titlebar.busymax-modal-barrier:backdrop {"
-      "background-color: %s;"
-      "background-image: linear-gradient(%s, %s);"
-      "}"
       ".busymax-titlebar.busymax-modal-barrier .busymax-header-brand,"
       ".busymax-titlebar.busymax-modal-barrier "
       ".busymax-header-brand:backdrop {"
@@ -534,7 +529,6 @@ static void refresh_header_bar_css(MyApplication* self) {
       window_background_color, background_color, foreground_color,
       sidebar_background_color, foreground_color, sidebar_border_color,
       foreground_color, foreground_color,
-      background_color, modal_barrier_color, modal_barrier_color,
       sidebar_background_color, modal_barrier_color, modal_barrier_color,
       background_color, modal_barrier_color, modal_barrier_color);
 
@@ -594,14 +588,16 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
 static void set_header_bar_modal_barrier_visible(MyApplication* self,
                                                  gboolean visible) {
   self->header_bar_modal_barrier_visible = visible;
-  if (self->titlebar_box != nullptr && GTK_IS_WIDGET(self->titlebar_box)) {
-    GtkStyleContext* context = gtk_widget_get_style_context(self->titlebar_box);
+  if (self->titlebar_handle != nullptr &&
+      GTK_IS_WIDGET(self->titlebar_handle)) {
+    GtkStyleContext* context =
+        gtk_widget_get_style_context(self->titlebar_handle);
     if (visible) {
       gtk_style_context_add_class(context, "busymax-modal-barrier");
     } else {
       gtk_style_context_remove_class(context, "busymax-modal-barrier");
     }
-    gtk_widget_set_sensitive(self->titlebar_box, !visible);
+    gtk_widget_set_sensitive(self->titlebar_handle, !visible);
   }
 }
 
@@ -1429,13 +1425,11 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   rebuild_header_menu_models(self);
 }
 
-static GtkWidget* create_busymax_header_bar(MyApplication* self) {
+static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   track_widget_pointer(&self->titlebar_box,
                        gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
   gtk_widget_set_halign(self->titlebar_box, GTK_ALIGN_FILL);
   gtk_widget_set_hexpand(self->titlebar_box, TRUE);
-  gtk_style_context_add_class(gtk_widget_get_style_context(self->titlebar_box),
-                              "busymax-titlebar");
   initialize_header_menu_actions(self);
 
   GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
@@ -1679,6 +1673,17 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   gtk_box_pack_start(GTK_BOX(self->titlebar_box), GTK_WIDGET(header_bar), TRUE,
                      TRUE, 0);
   return self->titlebar_box;
+}
+
+static GtkWidget* create_busymax_titlebar_handle(MyApplication* self) {
+  track_widget_pointer(&self->titlebar_handle, hdy_window_handle_new());
+  gtk_widget_set_hexpand(self->titlebar_handle, TRUE);
+  gtk_style_context_add_class(
+      gtk_widget_get_style_context(self->titlebar_handle),
+      "busymax-titlebar");
+  gtk_container_add(GTK_CONTAINER(self->titlebar_handle),
+                    create_busymax_titlebar(self));
+  return self->titlebar_handle;
 }
 
 static gboolean show_header_create_menu(MyApplication* self) {
@@ -2748,35 +2753,13 @@ static void my_application_activate(GApplication* application) {
     return;
   }
 
-  GtkWindow* window =
-      GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+  GtkWindow* window = GTK_WINDOW(hdy_application_window_new());
+  gtk_application_add_window(GTK_APPLICATION(application), window);
   self->main_window = window;
   gtk_widget_set_name(GTK_WIDGET(window), "busymax-window");
 
-  // Use a header bar when running in GNOME as this is the common style used
-  // by applications and is the setup most users will be using (e.g. Ubuntu
-  // desktop).
-  // If running on X and not using GNOME then just use a traditional title bar
-  // in case the window manager does more exotic layout, e.g. tiling.
-  // If running on Wayland assume the header bar will work (may need changing
-  // if future cases occur).
-  gboolean use_header_bar = TRUE;
-#ifdef GDK_WINDOWING_X11
-  GdkScreen* screen = gtk_window_get_screen(window);
-  if (GDK_IS_X11_SCREEN(screen)) {
-    const gchar* wm_name = gdk_x11_screen_get_window_manager_name(screen);
-    if (g_strcmp0(wm_name, "GNOME Shell") != 0) {
-      use_header_bar = FALSE;
-    }
-  }
-#endif
-  if (use_header_bar) {
-    GtkWidget* titlebar = create_busymax_header_bar(self);
-    gtk_widget_show_all(titlebar);
-    gtk_window_set_titlebar(window, titlebar);
-  } else {
-    gtk_window_set_title(window, kApplicationDisplayName);
-  }
+  GtkWidget* titlebar_handle = create_busymax_titlebar_handle(self);
+  gtk_widget_show_all(titlebar_handle);
 
   g_autoptr(GdkPixbuf) application_icon = load_application_icon();
   if (application_icon != nullptr) {
@@ -2802,7 +2785,13 @@ static void my_application_activate(GApplication* application) {
   track_widget_pointer(&self->flutter_view, GTK_WIDGET(view));
   set_main_flutter_view_background(self);
   gtk_widget_show(GTK_WIDGET(view));
-  gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
+
+  GtkWidget* window_content =
+      gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_box_pack_start(GTK_BOX(window_content), titlebar_handle, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(window_content), GTK_WIDGET(view), TRUE, TRUE, 0);
+  gtk_widget_show(window_content);
+  gtk_container_add(GTK_CONTAINER(window), window_content);
 
   // Show the window when Flutter renders.
   // Requires the view to be realized so we can start rendering.
@@ -2847,11 +2836,8 @@ static gboolean my_application_local_command_line(GApplication* application,
 
 // Implements GApplication::startup.
 static void my_application_startup(GApplication* application) {
-  // MyApplication* self = MY_APPLICATION(object);
-
-  // Perform any actions required at application startup.
-
   G_APPLICATION_CLASS(my_application_parent_class)->startup(application);
+  hdy_init();
 }
 
 // Implements GApplication::shutdown.
@@ -2889,6 +2875,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->header_menu_action_group);
   self->main_window = nullptr;
   clear_widget_pointer(&self->flutter_view);
+  clear_widget_pointer(&self->titlebar_handle);
   clear_widget_pointer(&self->titlebar_box);
   clear_header_bar_pointer(self);
   clear_widget_pointer(&self->header_start_box);
@@ -2982,6 +2969,7 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_modal_barrier_visible = FALSE;
   self->main_window = nullptr;
   self->flutter_view = nullptr;
+  self->titlebar_handle = nullptr;
   self->titlebar_box = nullptr;
   self->header_bar = nullptr;
   self->header_start_box = nullptr;

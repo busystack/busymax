@@ -78,6 +78,8 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 ## Prerequisites
 
 - Flutter: https://docs.flutter.dev/install
+- GTK 3 and libhandy development packages (`libgtk-3-dev` and
+  `libhandy-1-dev` on Ubuntu/Debian)
 - `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, see [Google Setup](docs/google_setup.md)
 - `MICROSOFT_OAUTH_CLIENT_ID`, see [Microsoft Setup](docs/microsoft_setup.md)
 
