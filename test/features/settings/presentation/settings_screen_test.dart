@@ -1,11 +1,13 @@
-import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:yaru/yaru.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -14,6 +16,7 @@ import 'package:busymax/src/features/settings/presentation/settings_screen.dart'
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
+import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/tasks_selection_state.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
@@ -203,19 +206,40 @@ void main() {
     expect(scaffold.backgroundColor, isNot(gtkColors.window));
   });
 
-  test('Settings sidebar items have native-feeling side padding', () {
-    final source = File(
-      'lib/src/features/settings/presentation/settings_screen.dart',
-    ).readAsStringSync();
+  testWidgets('Settings uses Yaru navigation with selected semantics', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
 
-    expect(source, contains('const SizedBox(width: BusyMaxSpacing.md)'));
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
+
+    expect(find.byType(YaruNavigationRail), findsOneWidget);
+    expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+    final accountsSemantics = tester.widget<Semantics>(
+      find.byKey(const ValueKey('settings-navigation-accounts')),
+    );
+    final scheduleSemantics = tester.widget<Semantics>(
+      find.byKey(const ValueKey('settings-navigation-schedule')),
+    );
+    expect(accountsSemantics.properties.selected, isTrue);
+    expect(scheduleSemantics.properties.selected, isFalse);
+
+    await tester.tap(find.text('Schedule'));
+    await tester.pumpAndSettle();
+
     expect(
-      source,
-      isNot(
-        contains(
-          'const SizedBox(width: BusyMaxSpacing.xs),\n                Icon(',
-        ),
-      ),
+      tester
+          .widget<Semantics>(
+            find.byKey(const ValueKey('settings-navigation-schedule')),
+          )
+          .properties
+          .selected,
+      isTrue,
     );
   });
 
@@ -267,6 +291,59 @@ void main() {
 
     expect(find.text('Day starts at'), findsOneWidget);
     expect(find.text('Day ends at'), findsOneWidget);
+  });
+
+  testWidgets('Settings narrow layout supports large text', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(640, 700),
+      textScaler: const TextScaler.linear(2),
+    );
+
+    expect(
+      find.byKey(const ValueKey('settings-page-selector')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Quiet-hour times are exposed and follow the master switch', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 800));
+    await tester.tap(find.text('Notifications'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Quiet hours start'), findsOneWidget);
+    expect(find.text('Quiet hours end'), findsOneWidget);
+    var timeRows = tester.widgetList<DesktopTimeValueRow>(
+      find.byType(DesktopTimeValueRow),
+    );
+    expect(timeRows.every((row) => !row.enabled), isTrue);
+
+    await tester.ensureVisible(find.text('Quiet hours'));
+    await tester.tap(find.text('Quiet hours'));
+    await tester.pumpAndSettle();
+
+    timeRows = tester.widgetList<DesktopTimeValueRow>(
+      find.byType(DesktopTimeValueRow),
+    );
+    expect(timeRows.every((row) => row.enabled), isTrue);
   });
 
   test('Schedule display hours persist and keep a valid range', () async {
@@ -364,6 +441,38 @@ void main() {
     expect(find.text('schedule route'), findsOneWidget);
   });
 
+  testWidgets('Settings back returns to the route that opened it', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    final router = await _pumpRoutedSettings(
+      tester,
+      container,
+      initialLocation: '/tasks',
+    );
+    unawaited(router.push('/settings'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('settings-page-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Notifications'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.queryParameters['page'], 'notifications');
+
+    await container
+        .read(linuxHeaderBarServiceProvider)
+        .handleNativeMethodCall(const MethodCall('back'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('tasks route'), findsOneWidget);
+  });
+
   testWidgets('Removing last account routes to sign in cleanly', (
     tester,
   ) async {
@@ -423,6 +532,7 @@ Future<void> _pumpSettings(
   WidgetTester tester,
   ProviderContainer container, {
   Size? logicalSize,
+  TextScaler? textScaler,
 }) async {
   if (logicalSize != null) {
     tester.view.devicePixelRatio = 1;
@@ -430,21 +540,30 @@ Future<void> _pumpSettings(
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
   }
+  final settings = textScaler == null
+      ? const SettingsScreen()
+      : Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+            child: const SettingsScreen(),
+          ),
+        );
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: localizedTestApp(child: const SettingsScreen()),
+      child: localizedTestApp(child: settings),
     ),
   );
   await tester.pumpAndSettle();
 }
 
-Future<void> _pumpRoutedSettings(
+Future<GoRouter> _pumpRoutedSettings(
   WidgetTester tester,
-  ProviderContainer container,
-) async {
+  ProviderContainer container, {
+  String initialLocation = '/settings',
+}) async {
   final router = GoRouter(
-    initialLocation: '/settings',
+    initialLocation: initialLocation,
     routes: [
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(
@@ -472,6 +591,7 @@ Future<void> _pumpRoutedSettings(
     ),
   );
   await tester.pumpAndSettle();
+  return router;
 }
 
 class _FakeAuthRepository implements AuthRepository {

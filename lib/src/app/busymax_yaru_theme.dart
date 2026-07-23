@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/theme.dart';
@@ -9,6 +7,8 @@ import 'busymax_design.dart';
 import 'busymax_surface_colors.dart';
 
 export 'busymax_surface_colors.dart';
+
+const _minimumRaisedSurfaceContrast = 1.08;
 
 abstract final class BusyMaxLinuxPalette {
   static const blueAccent = Color(0xFF3584E4);
@@ -29,17 +29,9 @@ abstract final class BusyMaxLinuxPalette {
   static const ubuntuWartyBrownAccent = Color(0xFFB39169);
   static const red3 = Color(0xFFE01B24);
   static const red5 = Color(0xFFA51D2D);
-  static const light1 = Color(0xFFFFFFFF);
   static const light2 = Color(0xFFF6F5F4);
-  static const light3 = Color(0xFFDEDDDA);
   static const light4 = Color(0xFFC0BFBC);
-  static const light5 = Color(0xFF9A9996);
-  static const dark1 = Color(0xFF77767B);
-  static const dark2 = Color(0xFF5E5C64);
-  static const dark3 = Color(0xFF3D3846);
-  static const dark4 = Color(0xFF241F31);
   static const dark5 = Color(0xFF000000);
-  static const darkElevatedSurface = Color(0xFF383838);
 }
 
 class BusyMaxYaruTheme {
@@ -51,19 +43,22 @@ class BusyMaxYaruTheme {
     String? gtkFontFamily,
     double? gtkFontSize,
     GtkThemeColors? gtkThemeColors,
+    bool highContrast = false,
   }) {
     final base = switch (brightness) {
-      Brightness.light => createYaruLightTheme(
-        primaryColor: BusyMaxLinuxPalette.light4,
-      ),
+      Brightness.light => createYaruLightTheme(primaryColor: accentColor),
       Brightness.dark => createYaruDarkTheme(
-        primaryColor: BusyMaxLinuxPalette.light2,
+        primaryColor: accentColor,
+        highContrast: highContrast,
       ),
     };
-    final colors = _BusyMaxResolvedSurfaceColors(
+    final resolvedColors = _BusyMaxResolvedSurfaceColors(
       brightness,
       gtkThemeColors: gtkThemeColors,
     ).colors;
+    final colors = highContrast
+        ? _highContrastSurfaceColors(brightness)
+        : resolvedColors;
     final onAccent = contrastColor(accentColor);
     final accentContainer = Color.alphaBlend(
       accentColor.withValues(
@@ -78,7 +73,9 @@ class BusyMaxYaruTheme {
       primaryContainer: accentContainer,
       onPrimaryContainer: contrastColor(accentContainer),
       secondary: accentColor,
-      error: brightness == Brightness.dark
+      error: highContrast
+          ? base.colorScheme.error
+          : brightness == Brightness.dark
           ? BusyMaxLinuxPalette.red3
           : BusyMaxLinuxPalette.red5,
       surface: colors.view,
@@ -92,9 +89,6 @@ class BusyMaxYaruTheme {
       outline: colors.border,
       outlineVariant: colors.subtleBorder,
       scrim: BusyMaxLinuxPalette.dark5,
-    );
-    final buttonShape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
     );
     final inputBorder = OutlineInputBorder(
       borderSide: BorderSide(color: colors.border),
@@ -152,44 +146,34 @@ class BusyMaxYaruTheme {
         fallback: textTheme.bodySmall,
       ),
     );
-    final outlinedButtonStyle = _buttonStyle(
+    final outlinedButtonStyle = _semanticButtonStyle(
       base.outlinedButtonTheme.style,
-      shape: buttonShape,
       foreground: colors.foreground,
-      background: colors.control,
+      background: Colors.transparent,
       disabledForeground: colors.disabledForeground,
-      disabledBackground: colors.disabledControl,
+      disabledBackground: Colors.transparent,
       textStyle: _normalizeTextStyleProperty(
         base.outlinedButtonTheme.style?.textStyle,
         normalizer: normalizer,
         fallback: textTheme.labelLarge,
       ),
-      side: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.focused)) {
-          return BorderSide(color: accentColor);
-        }
-        return BorderSide.none;
-      }),
     );
-    final filledButtonStyle = _buttonStyle(
+    final filledButtonStyle = _semanticButtonStyle(
       base.filledButtonTheme.style,
-      shape: buttonShape,
-      foreground: onAccent,
-      background: accentColor,
+      foreground: colors.foreground,
+      background: colors.control,
       disabledForeground: colors.disabledForeground,
       disabledBackground: colors.disabledControl,
-      overlayColor: _onAccentOverlay(onAccent),
       textStyle: _normalizeTextStyleProperty(
         base.filledButtonTheme.style?.textStyle,
         normalizer: normalizer,
         fallback: textTheme.labelLarge,
       ),
     );
-    final elevatedButtonStyle = _buttonStyle(
+    final elevatedButtonStyle = _semanticButtonStyle(
       base.elevatedButtonTheme.style,
-      shape: buttonShape,
-      foreground: colors.foreground,
-      background: colors.control,
+      foreground: onAccent,
+      background: accentColor,
       disabledForeground: colors.disabledForeground,
       disabledBackground: colors.disabledControl,
       textStyle: _normalizeTextStyleProperty(
@@ -197,58 +181,32 @@ class BusyMaxYaruTheme {
         normalizer: normalizer,
         fallback: textTheme.labelLarge,
       ),
-    ).copyWith(elevation: const WidgetStatePropertyAll(0));
-    final textButtonStyle = _buttonStyle(
+    );
+    final textButtonStyle = _semanticButtonStyle(
       base.textButtonTheme.style,
-      shape: buttonShape,
       foreground: accentColor,
       background: Colors.transparent,
       disabledForeground: colors.disabledForeground,
       disabledBackground: Colors.transparent,
-      overlayColor: _accentOverlay(accentColor),
       textStyle: _normalizeTextStyleProperty(
         base.textButtonTheme.style?.textStyle,
         normalizer: normalizer,
         fallback: textTheme.labelLarge,
       ),
     );
-    final segmentedButtonStyle =
-        _buttonStyle(
-          base.segmentedButtonTheme.style,
-          shape: buttonShape,
-          foreground: colors.foreground,
-          background: colors.control,
-          disabledForeground: colors.disabledForeground,
-          disabledBackground: colors.disabledControl,
-          overlayColor: _accentOverlay(accentColor),
-          textStyle: _normalizeTextStyleProperty(
-            base.segmentedButtonTheme.style?.textStyle,
-            normalizer: normalizer,
-            fallback: textTheme.labelLarge,
-          ),
-          side: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return BorderSide(color: accentColor);
-            }
-            return BorderSide(color: colors.border);
-          }),
-        ).copyWith(
-          foregroundColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.disabled)) {
-              return colors.disabledForeground;
-            }
-            if (states.contains(WidgetState.selected)) {
-              return accentColor;
-            }
-            return colors.foreground;
-          }),
-          backgroundColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return accentContainer;
-            }
-            return colors.control;
-          }),
-        );
+    final toggleButtonsTheme = base.toggleButtonsTheme.copyWith(
+      color: colors.foreground,
+      selectedColor: colors.foreground,
+      disabledColor: colors.disabledForeground,
+      fillColor: colors.controlActive,
+      borderColor: colors.border,
+      selectedBorderColor: colors.border,
+      disabledBorderColor: colors.disabledForeground,
+      hoverColor: colors.controlHover,
+      highlightColor: colors.controlActive,
+      splashColor: colors.controlHover,
+      focusColor: colors.controlActive,
+    );
 
     return base.copyWith(
       brightness: brightness,
@@ -264,11 +222,6 @@ class BusyMaxYaruTheme {
         colors,
       ],
       dividerColor: colors.subtleBorder,
-      visualDensity: VisualDensity.compact,
-      splashFactory: NoSplash.splashFactory,
-      focusColor: accentColor.withValues(alpha: 0.18),
-      hoverColor: colors.controlHover,
-      splashColor: accentColor.withValues(alpha: 0.12),
       appBarTheme: base.appBarTheme.copyWith(
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -325,14 +278,12 @@ class BusyMaxYaruTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(style: elevatedButtonStyle),
       textButtonTheme: TextButtonThemeData(style: textButtonStyle),
       iconButtonTheme: IconButtonThemeData(
-        style: _buttonStyle(
+        style: _semanticButtonStyle(
           base.iconButtonTheme.style,
-          shape: buttonShape,
-          foreground: colors.mutedForeground,
+          foreground: colors.foreground,
           background: Colors.transparent,
           disabledForeground: colors.disabledForeground,
           disabledBackground: Colors.transparent,
-          overlayColor: _accentOverlay(accentColor),
           textStyle: _normalizeTextStyleProperty(
             base.iconButtonTheme.style?.textStyle,
             normalizer: normalizer,
@@ -391,9 +342,7 @@ class BusyMaxYaruTheme {
           return colors.mutedForeground;
         }),
       ),
-      segmentedButtonTheme: SegmentedButtonThemeData(
-        style: segmentedButtonStyle,
-      ),
+      toggleButtonsTheme: toggleButtonsTheme,
       popupMenuTheme: base.popupMenuTheme.copyWith(
         color: colors.popover,
         surfaceTintColor: colors.popover,
@@ -407,7 +356,12 @@ class BusyMaxYaruTheme {
           fallback: textTheme.bodyMedium,
           color: colors.foreground,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: highContrast
+              ? BorderSide(color: colors.border)
+              : BorderSide.none,
+        ),
       ),
       chipTheme: base.chipTheme.copyWith(
         labelStyle: normalizer.apply(
@@ -423,6 +377,7 @@ class BusyMaxYaruTheme {
         decoration: BoxDecoration(
           color: colors.popover,
           borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
+          border: highContrast ? Border.all(color: colors.border) : null,
           boxShadow: BusyMaxShadow.tooltipShadows(colors.shade),
         ),
         padding: const EdgeInsets.symmetric(
@@ -542,6 +497,43 @@ class BusyMaxYaruTheme {
   }
 }
 
+BusyMaxSurfaceColors _highContrastSurfaceColors(Brightness brightness) {
+  final background = brightness == Brightness.dark
+      ? Colors.black
+      : Colors.white;
+  final foreground = contrastColor(background);
+  Color layer(double opacity) =>
+      Color.alphaBlend(foreground.withValues(alpha: opacity), background);
+
+  // High contrast is an accessibility contract, so it intentionally uses one
+  // coherent palette instead of retaining GTK surfaces that may have mixed
+  // luminance. Normal themes continue to preserve every valid GTK role.
+  return BusyMaxSurfaceColors(
+    window: background,
+    view: background,
+    sidebar: background,
+    secondarySidebar: background,
+    headerbar: background,
+    headerbarFlat: background,
+    card: background,
+    groupedSurface: background,
+    dialog: background,
+    popover: background,
+    control: layer(0.10),
+    controlHover: layer(0.18),
+    controlActive: layer(0.28),
+    activeToggle: layer(0.22),
+    foreground: foreground,
+    mutedForeground: foreground,
+    disabledForeground: layer(0.55),
+    disabledControl: layer(0.06),
+    border: foreground,
+    subtleBorder: foreground,
+    sidebarBorder: foreground,
+    shade: Colors.black,
+  );
+}
+
 class _TextStyleNormalizer {
   _TextStyleNormalizer({String? gtkFontFamily, double? gtkFontSize})
     : _gtkFontFamily = _validFontFamily(gtkFontFamily),
@@ -620,92 +612,188 @@ class _BusyMaxResolvedSurfaceColors {
       return fallback;
     }
 
-    final window =
-        _runtimeSurfaceColor(runtime.window, brightness: brightness) ??
+    // GTK surface colors may be translucent CSS layers. Resolve them against
+    // their semantic parent instead of rejecting valid native theme colors or
+    // trying to infer whether a theme's hue is aesthetically acceptable.
+    final sampledWindow =
+        _runtimeSurfaceColor(runtime.window, over: fallback.window) ??
         fallback.window;
-    final runtimeSidebar = _runtimeSurfaceColor(
-      runtime.sidebar,
-      brightness: brightness,
-    );
-    final runtimeSecondarySidebar = _runtimeSurfaceColor(
-      runtime.secondarySidebar,
-      brightness: brightness,
-    );
-    final runtimeView = _runtimeSurfaceColor(
-      runtime.view,
-      brightness: brightness,
-    );
-    final runtimeHeaderbar = _runtimeSurfaceColor(
-      runtime.headerbar,
-      brightness: brightness,
-    );
-    final runtimeHeaderbarFlat = _runtimeSurfaceColor(
-      runtime.headerbarFlat,
-      brightness: brightness,
-    );
-    final runtimeCard = _runtimeSurfaceColor(
-      runtime.card,
-      brightness: brightness,
-    );
-    final runtimePopover = _runtimeElevatedSurfaceColor(
-      runtime.popover,
-      brightness: brightness,
-    );
-    final view = runtimeView ?? fallback.view;
-    final sidebar =
-        _firstDistinctSemanticColor(
-          [runtimeSidebar, runtimeSecondarySidebar, runtimeHeaderbar],
-          from: [view, window],
+    final sampledView =
+        _runtimeSurfaceColor(runtime.view, over: sampledWindow) ??
+        fallback.view;
+    final sampledSidebar =
+        _runtimeSurfaceColor(runtime.sidebar, over: sampledWindow) ??
+        _runtimeSurfaceColor(runtime.secondarySidebar, over: sampledWindow) ??
+        _runtimeSurfaceColor(runtime.headerbar, over: sampledWindow) ??
+        fallback.sidebar;
+    final sampledSecondarySidebar =
+        _runtimeSurfaceColor(runtime.secondarySidebar, over: sampledWindow) ??
+        sampledSidebar;
+    final sampledHeaderbar =
+        _runtimeSurfaceColor(runtime.headerbar, over: sampledWindow) ??
+        sampledWindow;
+    final sampledHeaderbarFlat =
+        _runtimeSurfaceColor(runtime.headerbarFlat, over: sampledView) ??
+        sampledView;
+    final runtimeCard = _runtimeSurfaceColor(runtime.card, over: sampledView);
+    final sampledCard = runtimeCard ?? fallback.card;
+    final sampledDialog =
+        _runtimeSurfaceColor(runtime.dialog, over: sampledWindow) ??
+        sampledCard;
+    final sampledPopover =
+        _runtimeSurfaceColor(runtime.popover, over: sampledWindow) ??
+        sampledCard;
+    final sampledBackgrounds = [
+      sampledWindow,
+      sampledView,
+      sampledSidebar,
+      sampledSecondarySidebar,
+      sampledHeaderbar,
+      sampledHeaderbarFlat,
+      sampledCard,
+      sampledDialog,
+      sampledPopover,
+    ];
+    final foreground =
+        _runtimeReadableColor(
+          runtime.foreground,
+          backgrounds: sampledBackgrounds,
         ) ??
-        _derivedSidebarColor(brightness, view);
-    final groupedSurface =
-        runtimePopover ??
-        runtimeCard ??
-        (brightness == Brightness.light ? view : fallback.groupedSurface);
-    final readableBackgrounds = [window, view, sidebar, groupedSurface];
+        fallback.foreground;
+
+    Color readableSurface(Color sampled, Color fallbackSurface) {
+      return _contrastRatio(foreground, sampled) >= 4.5
+          ? sampled
+          : fallbackSurface;
+    }
+
+    // BusyMax currently has one generic foreground role. Preserve each GTK
+    // surface independently when that role remains readable, and fall back
+    // only the conflicting role for mixed-luminance themes.
+    final window = readableSurface(sampledWindow, fallback.window);
+    final view = readableSurface(sampledView, fallback.view);
+    final sidebar = readableSurface(sampledSidebar, fallback.sidebar);
+    final secondarySidebar = readableSurface(
+      sampledSecondarySidebar,
+      fallback.secondarySidebar,
+    );
+    final headerbar = readableSurface(sampledHeaderbar, fallback.headerbar);
+    final headerbarFlat = readableSurface(
+      sampledHeaderbarFlat,
+      fallback.headerbarFlat,
+    );
+    final card = readableSurface(sampledCard, fallback.card);
+    final dialog = readableSurface(sampledDialog, fallback.dialog);
+    final popover = readableSurface(sampledPopover, fallback.popover);
+    final groupedSurface = _resolvedGroupedSurface(
+      runtimeCard,
+      brightness: brightness,
+      view: view,
+      foreground: foreground,
+      fallback: fallback.groupedSurface,
+    );
+    final sidebarBorder = _resolvedSidebarBorder(
+      runtime.sidebarBorder,
+      brightness: brightness,
+      sidebar: sidebar,
+      fallback: fallback.sidebarBorder,
+    );
+    final readableBackgrounds = [
+      window,
+      view,
+      sidebar,
+      secondarySidebar,
+      headerbar,
+      headerbarFlat,
+      card,
+      dialog,
+      popover,
+    ];
+    final mutedForeground = _resolvedReadableColor(
+      runtime.mutedForeground,
+      fallback: fallback.mutedForeground,
+      guaranteed: foreground,
+      backgrounds: readableBackgrounds,
+      minContrast: 3,
+    );
+    final disabledForeground = _resolvedReadableColor(
+      runtime.disabledForeground,
+      fallback: fallback.disabledForeground,
+      guaranteed: foreground,
+      backgrounds: readableBackgrounds,
+      minContrast: 1.5,
+    );
 
     return fallback.copyWith(
       window: window,
       view: view,
       sidebar: sidebar,
-      secondarySidebar: runtimeSecondarySidebar,
-      headerbar: runtimeHeaderbar,
-      headerbarFlat: runtimeHeaderbarFlat ?? view,
-      card: runtimeCard,
+      secondarySidebar: secondarySidebar,
+      headerbar: headerbar,
+      headerbarFlat: headerbarFlat,
+      card: card,
       groupedSurface: groupedSurface,
-      dialog: _runtimeSurfaceColor(runtime.dialog, brightness: brightness),
-      popover: runtimePopover,
-      control: _runtimeControlColor(runtime.control, brightness: brightness),
-      controlHover: _runtimeControlColor(
-        runtime.controlHover,
-        brightness: brightness,
-      ),
-      controlActive: _runtimeControlColor(
-        runtime.controlActive,
-        brightness: brightness,
-      ),
+      dialog: dialog,
+      popover: popover,
+      control: _runtimeColor(runtime.control),
+      controlHover: _runtimeColor(runtime.controlHover),
+      controlActive: _runtimeColor(runtime.controlActive),
       activeToggle: _runtimeColor(runtime.activeToggle),
-      foreground: _runtimeReadableColor(
-        runtime.foreground,
-        backgrounds: readableBackgrounds,
-      ),
-      mutedForeground: _runtimeReadableColor(
-        runtime.mutedForeground,
-        backgrounds: readableBackgrounds,
-        minContrast: 3.0,
-      ),
-      disabledForeground: _runtimeReadableColor(
-        runtime.disabledForeground,
-        backgrounds: readableBackgrounds,
-        minContrast: 1.5,
-      ),
+      foreground: foreground,
+      mutedForeground: mutedForeground,
+      disabledForeground: disabledForeground,
       disabledControl: _runtimeColor(runtime.disabledControl),
       border: _runtimeColor(runtime.border),
       subtleBorder: _runtimeColor(runtime.subtleBorder),
-      sidebarBorder: _runtimeColor(runtime.sidebarBorder),
-      shade: _runtimeShadeColor(runtime.shade),
+      sidebarBorder: sidebarBorder,
+      shade: _runtimeShadeColor(runtime.shade, over: popover),
     );
   }
+}
+
+Color _resolvedGroupedSurface(
+  Color? runtimeCard, {
+  required Brightness brightness,
+  required Color view,
+  required Color foreground,
+  required Color fallback,
+}) {
+  if (runtimeCard == null || _contrastRatio(foreground, runtimeCard) < 4.5) {
+    return fallback;
+  }
+  if (brightness == Brightness.dark) {
+    // GTK 3 themes without a card role can return the underlying view color
+    // for an arbitrary `.card` sample. Dark grouped content needs a genuinely
+    // raised surface; otherwise its border and shadow disappear into the view.
+    final isRaised =
+        runtimeCard.computeLuminance() > view.computeLuminance() &&
+        _contrastRatio(runtimeCard, view) >= _minimumRaisedSurfaceContrast;
+    if (!isRaised) {
+      return fallback;
+    }
+  }
+  return runtimeCard;
+}
+
+Color _resolvedSidebarBorder(
+  Color? runtimeBorder, {
+  required Brightness brightness,
+  required Color sidebar,
+  required Color fallback,
+}) {
+  final candidate = _runtimeColor(runtimeBorder);
+  if (candidate == null || brightness != Brightness.dark) {
+    return candidate ?? fallback;
+  }
+  final effective = candidate.a < 1
+      ? Color.alphaBlend(candidate, sidebar)
+      : candidate;
+  // A dark separator sampled from GTK's generic `borders` token becomes a
+  // heavy inset edge on a dark sidebar. Retain native light separators and
+  // use the semantic fallback when the sample is visually recessed.
+  return effective.computeLuminance() < sidebar.computeLuminance()
+      ? fallback
+      : candidate;
 }
 
 Color? _runtimeColor(Color? color) {
@@ -715,15 +803,13 @@ Color? _runtimeColor(Color? color) {
   return color;
 }
 
-Color? _runtimeShadeColor(Color? color) {
+Color? _runtimeShadeColor(Color? color, {required Color over}) {
   final runtime = _runtimeColor(color);
   if (runtime == null) {
     return null;
   }
-  if (runtime.computeLuminance() > 0.35) {
-    return null;
-  }
-  return runtime;
+  final shaded = Color.alphaBlend(runtime, over);
+  return shaded.computeLuminance() < over.computeLuminance() ? runtime : null;
 }
 
 Color? _runtimeReadableColor(
@@ -743,6 +829,26 @@ Color? _runtimeReadableColor(
   return runtime;
 }
 
+Color _resolvedReadableColor(
+  Color? runtime, {
+  required Color fallback,
+  required Color guaranteed,
+  required Iterable<Color> backgrounds,
+  required double minContrast,
+}) {
+  return _runtimeReadableColor(
+        runtime,
+        backgrounds: backgrounds,
+        minContrast: minContrast,
+      ) ??
+      _runtimeReadableColor(
+        fallback,
+        backgrounds: backgrounds,
+        minContrast: minContrast,
+      ) ??
+      guaranteed;
+}
+
 double _contrastRatio(Color foreground, Color background) {
   final effectiveForeground = foreground.a < 1
       ? Color.alphaBlend(foreground, background)
@@ -758,122 +864,12 @@ double _contrastRatio(Color foreground, Color background) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-Color? _runtimeSurfaceColor(Color? color, {Brightness? brightness}) {
+Color? _runtimeSurfaceColor(Color? color, {required Color over}) {
   final runtime = _runtimeColor(color);
   if (runtime == null) {
     return null;
   }
-  if (runtime.a < 0.98 || _isNearBlackSurface(runtime)) {
-    return null;
-  }
-  if (brightness == Brightness.dark && _isTintedDarkSurface(runtime)) {
-    return null;
-  }
-  return runtime;
-}
-
-Color? _runtimeControlColor(Color? color, {required Brightness brightness}) {
-  final runtime = _runtimeColor(color);
-  if (runtime == null) {
-    return null;
-  }
-  if (_isChromaticControlColor(runtime)) {
-    return null;
-  }
-  if (brightness == Brightness.dark &&
-      runtime.a >= 0.98 &&
-      _isTintedDarkSurface(runtime)) {
-    return null;
-  }
-  return runtime;
-}
-
-Color? _runtimeElevatedSurfaceColor(
-  Color? color, {
-  required Brightness brightness,
-}) {
-  final runtime = _runtimeSurfaceColor(color, brightness: brightness);
-  if (runtime == null) {
-    return null;
-  }
-  if (brightness == Brightness.dark && _isTooDarkElevatedSurface(runtime)) {
-    return null;
-  }
-  return runtime;
-}
-
-bool _isTooDarkElevatedSurface(Color color) {
-  final value = color.toARGB32();
-  final red = (value >> 16) & 0xff;
-  final green = (value >> 8) & 0xff;
-  final blue = value & 0xff;
-  return red < 0x38 || green < 0x38 || blue < 0x38;
-}
-
-bool _isNearBlackSurface(Color color) {
-  final value = color.toARGB32();
-  final red = (value >> 16) & 0xff;
-  final green = (value >> 8) & 0xff;
-  final blue = value & 0xff;
-  return red <= 24 && green <= 24 && blue <= 24;
-}
-
-bool _isTintedDarkSurface(Color color) {
-  return _isBlueDominantColor(color);
-}
-
-bool _isBlueDominantColor(Color color) {
-  final value = color.toARGB32();
-  final red = (value >> 16) & 0xff;
-  final green = (value >> 8) & 0xff;
-  final blue = value & 0xff;
-  final maxChannel = math.max(red, math.max(green, blue));
-  final minChannel = math.min(red, math.min(green, blue));
-  return blue == maxChannel && maxChannel - minChannel >= 10;
-}
-
-bool _isChromaticControlColor(Color color) {
-  final value = color.toARGB32();
-  final red = (value >> 16) & 0xff;
-  final green = (value >> 8) & 0xff;
-  final blue = value & 0xff;
-  final maxChannel = math.max(red, math.max(green, blue));
-  final minChannel = math.min(red, math.min(green, blue));
-  return maxChannel - minChannel >= 10;
-}
-
-Color? _firstDistinctSemanticColor(
-  Iterable<Color?> candidates, {
-  required Iterable<Color> from,
-}) {
-  for (final candidate in candidates) {
-    if (candidate == null) {
-      continue;
-    }
-    final duplicatesExisting = from.any(
-      (existing) => _sameSemanticColor(candidate, existing),
-    );
-    if (!duplicatesExisting) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-Color _derivedSidebarColor(Brightness brightness, Color base) {
-  final overlay = brightness == Brightness.dark
-      ? Colors.white.withValues(alpha: 0.055)
-      : Colors.black.withValues(alpha: 0.045);
-  return Color.alphaBlend(overlay, base);
-}
-
-bool _sameSemanticColor(Color left, Color right) {
-  final leftValue = left.toARGB32();
-  final rightValue = right.toARGB32();
-  return ((leftValue >> 24) & 0xff) == ((rightValue >> 24) & 0xff) &&
-      ((leftValue >> 16) & 0xff) == ((rightValue >> 16) & 0xff) &&
-      ((leftValue >> 8) & 0xff) == ((rightValue >> 8) & 0xff) &&
-      (leftValue & 0xff) == (rightValue & 0xff);
+  return runtime.a < 1 ? Color.alphaBlend(runtime, over) : runtime;
 }
 
 String? _validFontFamily(String? family) {
@@ -898,21 +894,18 @@ WidgetStateProperty<TextStyle?> _normalizeTextStyleProperty(
   });
 }
 
-ButtonStyle _buttonStyle(
+/// Applies runtime semantic colors and typography without replacing Yaru's
+/// geometry, focus treatment, hover/press overlays, or motion defaults.
+ButtonStyle _semanticButtonStyle(
   ButtonStyle? base, {
-  required OutlinedBorder shape,
   required Color foreground,
   required Color background,
   required Color disabledForeground,
   required Color disabledBackground,
-  WidgetStateProperty<Color?>? overlayColor,
-  WidgetStateProperty<BorderSide?>? side,
   WidgetStateProperty<TextStyle?>? textStyle,
 }) {
   return (base ?? const ButtonStyle()).copyWith(
-    visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
     textStyle: textStyle,
-    shape: WidgetStatePropertyAll(shape),
     foregroundColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.disabled)) {
         return disabledForeground;
@@ -925,53 +918,5 @@ ButtonStyle _buttonStyle(
       }
       return background;
     }),
-    overlayColor: overlayColor ?? _controlOverlay(foreground),
-    side: side ?? const WidgetStatePropertyAll(BorderSide.none),
-    elevation: const WidgetStatePropertyAll(0),
   );
-}
-
-WidgetStateProperty<Color?> _controlOverlay(Color foreground) {
-  return WidgetStateProperty.resolveWith((states) {
-    if (states.contains(WidgetState.pressed)) {
-      return foreground.withValues(alpha: 0.14);
-    }
-    if (states.contains(WidgetState.hovered)) {
-      return foreground.withValues(alpha: 0.08);
-    }
-    if (states.contains(WidgetState.focused)) {
-      return foreground.withValues(alpha: 0.10);
-    }
-    return null;
-  });
-}
-
-WidgetStateProperty<Color?> _accentOverlay(Color accentColor) {
-  return WidgetStateProperty.resolveWith((states) {
-    if (states.contains(WidgetState.pressed)) {
-      return accentColor.withValues(alpha: 0.14);
-    }
-    if (states.contains(WidgetState.hovered)) {
-      return accentColor.withValues(alpha: 0.08);
-    }
-    if (states.contains(WidgetState.focused)) {
-      return accentColor.withValues(alpha: 0.12);
-    }
-    return null;
-  });
-}
-
-WidgetStateProperty<Color?> _onAccentOverlay(Color accentForeground) {
-  return WidgetStateProperty.resolveWith((states) {
-    if (states.contains(WidgetState.pressed)) {
-      return accentForeground.withValues(alpha: 0.14);
-    }
-    if (states.contains(WidgetState.hovered)) {
-      return accentForeground.withValues(alpha: 0.08);
-    }
-    if (states.contains(WidgetState.focused)) {
-      return accentForeground.withValues(alpha: 0.12);
-    }
-    return null;
-  });
 }

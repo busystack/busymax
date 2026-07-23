@@ -10,8 +10,10 @@ const _scheduleHeaderState = BusyMaxHeaderBarState(
   title: 'July 2026',
   viewMode: ScheduleViewMode.month,
   canRefresh: true,
-  canCreate: true,
+  canCreateEvent: true,
+  canCreateTask: true,
   searchActive: false,
+  searchQuery: '',
   canShowSidebar: true,
   sidebarVisible: true,
   navigationVisible: true,
@@ -23,8 +25,10 @@ const _settingsHeaderState = BusyMaxHeaderBarState(
   title: 'Settings',
   viewMode: ScheduleViewMode.month,
   canRefresh: false,
-  canCreate: false,
+  canCreateEvent: false,
+  canCreateTask: false,
   searchActive: false,
+  searchQuery: '',
   canShowSidebar: true,
   sidebarVisible: true,
   navigationVisible: false,
@@ -67,6 +71,8 @@ void main() {
         agenda: 'Agenda',
         search: 'Search',
         create: 'Create',
+        createEvent: 'Event',
+        createTask: 'Task',
         refresh: 'Refresh',
         menu: 'Menu',
         previous: 'Previous',
@@ -103,6 +109,7 @@ void main() {
         accentForegroundColor: Color(0xFFFFFFFF),
         popoverBackgroundColor: Color(0xFF36363A),
         borderColor: Color.fromRGBO(0, 0, 6, 0.75),
+        sidebarBorderColor: Color.fromRGBO(0, 0, 6, 0.75),
         shadeColor: Color.fromRGBO(0, 0, 6, 0.25),
         modalBarrierColor: Color.fromRGBO(0, 0, 0, 0.32),
       ),
@@ -123,6 +130,8 @@ void main() {
     expect(calls[1].arguments, containsPair('today', 'Today'));
     expect(calls[1].arguments, containsPair('year', 'Year'));
     expect(calls[1].arguments, containsPair('create', 'Create'));
+    expect(calls[1].arguments, containsPair('createEvent', 'Event'));
+    expect(calls[1].arguments, containsPair('createTask', 'Task'));
     expect(calls[1].arguments, containsPair('menu', 'Menu'));
     expect(calls[1].arguments, containsPair('sidebar', 'Toggle Sidebar'));
     expect(calls[1].arguments, containsPair('back', 'Back'));
@@ -159,6 +168,10 @@ void main() {
       calls.last.arguments,
       containsPair('accentForegroundColor', '#FFFFFF'),
     );
+    expect(
+      calls.last.arguments,
+      containsPair('sidebarBorderColor', 'rgba(0,0,6,0.75)'),
+    );
   });
 
   test('serializes CSS colors for native headerbar', () {
@@ -171,6 +184,29 @@ void main() {
       busyMaxCssColor(const Color.fromRGBO(0, 0, 6, 0.38)),
       'rgba(0,0,6,0.38)',
     );
+  });
+
+  test('native bridge failures degrade without blocking Flutter UI', () async {
+    const channel = MethodChannel('busymax_test/headerbar_platform_failure');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'initialize') {
+            return true;
+          }
+          throw PlatformException(code: 'native_failure');
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+    addTearDown(service.dispose);
+
+    await service.initialize();
+    expect(service.isAvailable, isTrue);
+
+    await service.setModalBarrierVisible(true);
+    expect(service.isAvailable, isFalse);
   });
 
   test(
@@ -196,8 +232,10 @@ void main() {
         title: 'July 2026',
         viewMode: ScheduleViewMode.month,
         canRefresh: true,
-        canCreate: false,
+        canCreateEvent: false,
+        canCreateTask: true,
         searchActive: true,
+        searchQuery: 'planning',
         canShowSidebar: false,
         sidebarVisible: false,
         navigationVisible: true,
@@ -220,8 +258,10 @@ void main() {
         'title': 'July 2026',
         'viewMode': 'month',
         'canRefresh': true,
-        'canCreate': false,
+        'canCreateEvent': false,
+        'canCreateTask': true,
         'searchActive': true,
+        'searchQuery': 'planning',
         'canShowSidebar': false,
         'sidebarVisible': false,
         'navigationVisible': true,
@@ -229,6 +269,43 @@ void main() {
         'backVisible': false,
       });
       expect(calls[2].arguments, containsPair('title', 'August 2026'));
+      expect(state.canCreate, isTrue);
+      expect(BusyMaxHeaderBarState.schemaVersion, 3);
+    },
+  );
+
+  test(
+    'only the active route session can open the native Create menu',
+    () async {
+      const channel = MethodChannel('busymax_test/headerbar_create_menu');
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            if (call.method == 'initialize' ||
+                call.method == 'showCreateMenu') {
+              return true;
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+      addTearDown(service.dispose);
+      final scheduleSession = service.claimSession();
+      addTearDown(scheduleSession.dispose);
+      final coveredSession = service.claimSession();
+      addTearDown(coveredSession.dispose);
+
+      expect(await scheduleSession.showCreateMenu(), isFalse);
+      expect(await coveredSession.showCreateMenu(), isTrue);
+      expect(
+        calls.where((call) => call.method == 'showCreateMenu'),
+        hasLength(1),
+      );
     },
   );
 
@@ -337,7 +414,11 @@ void main() {
     addTearDown(settingsSession.dispose);
     await settingsSession.updateState(_settingsHeaderState);
     await scheduleSession.updateState(
-      _scheduleHeaderState.copyWith(title: 'Updated schedule'),
+      _scheduleHeaderState.copyWith(
+        title: 'Updated schedule',
+        searchActive: true,
+        searchQuery: 'meeting',
+      ),
     );
 
     expect(scheduleSession.isAvailable, isTrue);
@@ -353,6 +434,8 @@ void main() {
       containsPair('title', 'Updated schedule'),
     );
     expect(stateCalls.last.arguments, containsPair('backVisible', false));
+    expect(stateCalls.last.arguments, containsPair('searchActive', true));
+    expect(stateCalls.last.arguments, containsPair('searchQuery', 'meeting'));
     expect(
       stateCalls.last.arguments,
       containsPair('scheduleControlsVisible', true),
@@ -395,12 +478,108 @@ void main() {
     expect(settingsActions, [BusyMaxHeaderBarAction.aboutBusyMax]);
   });
 
+  test(
+    'native search events belong exclusively to the active session',
+    () async {
+      final service = LinuxHeaderBarService(
+        channel: const MethodChannel('busymax_test/headerbar_owned_search'),
+        isLinux: false,
+      );
+      addTearDown(service.dispose);
+      final coveredSession = service.claimSession();
+      addTearDown(coveredSession.dispose);
+      final coveredEvents = <BusyMaxHeaderBarSearchEvent>[];
+      final coveredSubscription = coveredSession.searchEvents.listen(
+        coveredEvents.add,
+      );
+      addTearDown(coveredSubscription.cancel);
+
+      final activeSession = service.claimSession();
+      addTearDown(activeSession.dispose);
+      final activeEvents = <BusyMaxHeaderBarSearchEvent>[];
+      final activeSubscription = activeSession.searchEvents.listen(
+        activeEvents.add,
+      );
+      addTearDown(activeSubscription.cancel);
+
+      await service.handleNativeMethodCall(
+        const MethodCall('searchQueryChanged', 'planning'),
+      );
+      await service.handleNativeMethodCall(
+        const MethodCall('searchFocusChanged', true),
+      );
+      await service.handleNativeMethodCall(const MethodCall('searchCleared'));
+      await service.handleNativeMethodCall(
+        const MethodCall('searchEscapePressed'),
+      );
+      await service.handleNativeMethodCall(
+        const MethodCall('searchQueryChanged', 42),
+      );
+      await service.handleNativeMethodCall(
+        const MethodCall('searchFocusChanged', 'yes'),
+      );
+      await pumpEventQueue();
+
+      expect(coveredEvents, isEmpty);
+      expect(activeEvents, hasLength(4));
+      expect(
+        (activeEvents[0] as BusyMaxHeaderBarSearchQueryChanged).query,
+        'planning',
+      );
+      expect(
+        (activeEvents[1] as BusyMaxHeaderBarSearchFocusChanged).focused,
+        isTrue,
+      );
+      expect(activeEvents[2], isA<BusyMaxHeaderBarSearchCleared>());
+      expect(activeEvents[3], isA<BusyMaxHeaderBarSearchEscapePressed>());
+    },
+  );
+
+  test('only the active route session can focus native search', () async {
+    const channel = MethodChannel('busymax_test/headerbar_focus_search');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          if (call.method == 'initialize' || call.method == 'focusSearch') {
+            return true;
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+    addTearDown(service.dispose);
+    final coveredSession = service.claimSession();
+    addTearDown(coveredSession.dispose);
+    final activeSession = service.claimSession();
+    addTearDown(activeSession.dispose);
+
+    expect(await coveredSession.focusSearch(), isFalse);
+    expect(await activeSession.focusSearch(), isTrue);
+    expect(calls.where((call) => call.method == 'focusSearch'), hasLength(1));
+  });
+
   test('native header controls keep visible keyboard focus indicators', () {
     final source = File('linux/runner/my_application.cc').readAsStringSync();
 
     expect(source, contains('button.busymax-header-view-mode-button:focus {"'));
     expect(source, contains('button.busymax-header-popover-row:focus {"'));
+    expect(
+      source,
+      contains(
+        'button.busymax-header-popover-row.busymax-keyboard-focus:focus {"',
+      ),
+    );
     expect(source, contains('"box-shadow: inset 0 0 0 2px %s;"'));
+    expect(source, contains('gtk_window_get_focus_visible'));
+    expect(source, contains('configure_header_popover_row(self, item)'));
+    expect(source, contains('header_popover_row_key_press_cb'));
+    expect(source, contains('header_popover_row_button_press_cb'));
+    expect(source, isNot(contains('gtk_widget_set_can_focus(row, FALSE)')));
   });
 
   test('native sidebar availability is separate from expanded state', () {
@@ -427,15 +606,17 @@ void main() {
     final session = service.claimSession();
     addTearDown(session.dispose);
 
-    final nextAction = session.actions.take(5).toList();
-    await service.handleNativeMethodCall(const MethodCall('create'));
+    final nextAction = session.actions.take(6).toList();
+    await service.handleNativeMethodCall(const MethodCall('createEvent'));
+    await service.handleNativeMethodCall(const MethodCall('createTask'));
     await service.handleNativeMethodCall(const MethodCall('continueSetup'));
     await service.handleNativeMethodCall(const MethodCall('settings'));
     await service.handleNativeMethodCall(const MethodCall('keyboardShortcuts'));
     await service.handleNativeMethodCall(const MethodCall('aboutBusyMax'));
 
     expect(await nextAction, [
-      BusyMaxHeaderBarAction.create,
+      BusyMaxHeaderBarAction.createEvent,
+      BusyMaxHeaderBarAction.createTask,
       BusyMaxHeaderBarAction.continueSetup,
       BusyMaxHeaderBarAction.settings,
       BusyMaxHeaderBarAction.keyboardShortcuts,

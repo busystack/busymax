@@ -563,18 +563,22 @@ void main() {
     final repository = ScheduleRepository(database);
     final firstPage = await repository.listNoDateTasks(
       limit: 8,
-      filters: const ScheduleFilters(
+      filters: ScheduleFilters(
         accountIds: {'account'},
         taskListFilterActive: true,
-        taskListIds: {'inbox'},
+        taskListKeys: {
+          ScheduleTaskListKey(accountId: 'account', taskListId: 'inbox'),
+        },
       ),
     );
     final expandedPage = await repository.listNoDateTasks(
       limit: 12,
-      filters: const ScheduleFilters(
+      filters: ScheduleFilters(
         accountIds: {'account'},
         taskListFilterActive: true,
-        taskListIds: {'inbox'},
+        taskListKeys: {
+          ScheduleTaskListKey(accountId: 'account', taskListId: 'inbox'),
+        },
       ),
     );
 
@@ -611,19 +615,23 @@ void main() {
     final firstPage = await repository.listOverdueTasks(
       before: DateTime(2026, 6, 10),
       limit: 8,
-      filters: const ScheduleFilters(
+      filters: ScheduleFilters(
         accountIds: {'account'},
         taskListFilterActive: true,
-        taskListIds: {'inbox'},
+        taskListKeys: {
+          ScheduleTaskListKey(accountId: 'account', taskListId: 'inbox'),
+        },
       ),
     );
     final expandedPage = await repository.listOverdueTasks(
       before: DateTime(2026, 6, 10),
       limit: 12,
-      filters: const ScheduleFilters(
+      filters: ScheduleFilters(
         accountIds: {'account'},
         taskListFilterActive: true,
-        taskListIds: {'inbox'},
+        taskListKeys: {
+          ScheduleTaskListKey(accountId: 'account', taskListId: 'inbox'),
+        },
       ),
     );
 
@@ -642,6 +650,138 @@ void main() {
     );
     expect(expandedPage.items, hasLength(10));
     expect(expandedPage.hasMore, isFalse);
+  });
+
+  test(
+    'task-list filters keep equal provider list IDs account-qualified',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      for (final accountId in ['account-a', 'account-b']) {
+        await database
+            .into(database.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: accountId,
+                provider: const Value('google'),
+                authState: const Value('signed_in'),
+                createdAtUtc: _now,
+                updatedAtUtc: _now,
+              ),
+            );
+        await database.taskListsDao.upsertTaskList(
+          TaskListsCompanion.insert(
+            accountId: accountId,
+            id: 'inbox',
+            title: 'Inbox',
+            rawJson: '{}',
+            createdLocalAtUtc: _now,
+            updatedLocalAtUtc: _now,
+          ),
+        );
+        await database.tasksDao.upsertTask(
+          TasksCompanion.insert(
+            accountId: accountId,
+            taskListId: 'inbox',
+            id: 'shared-id',
+            title: 'Task from $accountId',
+            status: const Value('needsAction'),
+            dueUtc: const Value('2026-06-12'),
+            rawJson: '{}',
+            createdLocalAtUtc: _now,
+            updatedLocalAtUtc: _now,
+          ),
+        );
+      }
+
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 12)),
+        filters: ScheduleFilters(
+          accountIds: const {'account-a', 'account-b'},
+          taskListFilterActive: true,
+          taskListKeys: {
+            ScheduleTaskListKey(accountId: 'account-a', taskListId: 'inbox'),
+          },
+          includeCalendarEvents: false,
+          showNoDateTasks: false,
+        ),
+      );
+
+      expect(items.map((item) => item.title), ['Task from account-a']);
+    },
+  );
+
+  test('deep-link target waits for a live account-qualified task', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account-a',
+            provider: const Value('google'),
+            authState: const Value('signed_in'),
+            createdAtUtc: _now,
+            updatedAtUtc: _now,
+          ),
+        );
+    await database.taskListsDao.upsertTaskList(
+      TaskListsCompanion.insert(
+        accountId: 'account-a',
+        id: 'inbox',
+        title: 'Inbox',
+        rawJson: '{}',
+        createdLocalAtUtc: _now,
+        updatedLocalAtUtc: _now,
+      ),
+    );
+    final repository = ScheduleRepository(database);
+    final targetFuture = repository
+        .watchTaskTarget(
+          accountId: 'account-a',
+          taskListId: 'inbox',
+          taskId: 'late-task',
+        )
+        .where((target) => target != null)
+        .cast<ScheduleTaskTarget>()
+        .first;
+
+    await database.tasksDao.upsertTask(
+      TasksCompanion.insert(
+        accountId: 'account-a',
+        taskListId: 'inbox',
+        id: 'late-task',
+        title: 'Synced later',
+        status: const Value('needsAction'),
+        rawJson: '{}',
+        createdLocalAtUtc: _now,
+        updatedLocalAtUtc: _now,
+      ),
+    );
+
+    expect(
+      await targetFuture,
+      const ScheduleTaskTarget(
+        accountId: 'account-a',
+        taskListId: 'inbox',
+        taskId: 'late-task',
+      ),
+    );
+    await (database.update(database.tasks)..where(
+          (row) =>
+              row.accountId.equals('account-a') &
+              row.taskListId.equals('inbox') &
+              row.id.equals('late-task'),
+        ))
+        .write(const TasksCompanion(hidden: Value(true)));
+    expect(
+      await repository.findTaskTarget(
+        accountId: 'account-a',
+        taskListId: 'inbox',
+        taskId: 'late-task',
+      ),
+      null,
+    );
   });
 
   test('repository hides unavailable tasks', () async {

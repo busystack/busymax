@@ -166,6 +166,13 @@ class AppLocalizationsEs extends AppLocalizations {
       'Inicia sesión para sincronizar calendarios y tareas.';
 
   @override
+  String get scheduleNoSearchResults => 'No hay eventos ni tareas coincidentes';
+
+  @override
+  String get scheduleNoSearchResultsDescription =>
+      'Prueba con otra búsqueda o borra los filtros actuales.';
+
+  @override
   String get trayAgendaLoading => 'Cargando agenda...';
 
   @override
@@ -294,6 +301,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get timeSlot => 'Franja horaria';
 
   @override
+  String get timeMode => 'Hora';
+
+  @override
+  String get timeModeDescription => 'Usa solo fechas o define horas concretas.';
+
+  @override
   String get startDateTime => 'Fecha/hora de inicio';
 
   @override
@@ -363,6 +376,9 @@ class AppLocalizationsEs extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get reminderAtStart => 'A la hora de inicio';
 
   @override
   String reminderHoursBefore(int hours) {
@@ -1024,6 +1040,9 @@ class AppLocalizationsEs extends AppLocalizations {
       'Iniciar minimizado en la bandeja del sistema';
 
   @override
+  String get requiresTrayIcon => 'Requiere el icono de la bandeja del sistema.';
+
+  @override
   String get syncComplete => 'Sincronización completa.';
 
   @override
@@ -1061,6 +1080,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get quietHours => 'Horario silencioso';
 
   @override
+  String get quietHoursDescription =>
+      'Pausar las notificaciones durante este período.';
+
+  @override
+  String get quietHoursStart => 'Inicio del horario silencioso';
+
+  @override
+  String get quietHoursEnd => 'Fin del horario silencioso';
+
+  @override
   String get notifications => 'Notificaciones';
 
   @override
@@ -1096,9 +1125,6 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get redactTaskContentInDiagnostics =>
       'Ocultar contenido de tareas en diagnósticos';
-
-  @override
-  String get detailedNotifications => 'Texto detallado en notificaciones';
 
   @override
   String get developerDiagnostics => 'Diagnósticos de desarrollo';

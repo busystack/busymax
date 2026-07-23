@@ -19,11 +19,43 @@ enum BusyMaxHeaderBarAction {
   viewModeYear,
   viewModeAgenda,
   search,
-  create,
+  createEvent,
+  createTask,
   refresh,
   settings,
   keyboardShortcuts,
   aboutBusyMax,
+}
+
+sealed class BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchEvent();
+}
+
+@immutable
+final class BusyMaxHeaderBarSearchQueryChanged
+    extends BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchQueryChanged(this.query);
+
+  final String query;
+}
+
+@immutable
+final class BusyMaxHeaderBarSearchFocusChanged
+    extends BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchFocusChanged(this.focused);
+
+  final bool focused;
+}
+
+@immutable
+final class BusyMaxHeaderBarSearchCleared extends BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchCleared();
+}
+
+@immutable
+final class BusyMaxHeaderBarSearchEscapePressed
+    extends BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchEscapePressed();
 }
 
 @immutable
@@ -37,6 +69,8 @@ class BusyMaxHeaderBarLabels {
     required this.agenda,
     required this.search,
     required this.create,
+    required this.createEvent,
+    required this.createTask,
     required this.refresh,
     required this.menu,
     required this.previous,
@@ -56,6 +90,8 @@ class BusyMaxHeaderBarLabels {
   final String agenda;
   final String search;
   final String create;
+  final String createEvent;
+  final String createTask;
   final String refresh;
   final String menu;
   final String previous;
@@ -76,6 +112,8 @@ class BusyMaxHeaderBarLabels {
       'agenda': agenda,
       'search': search,
       'create': create,
+      'createEvent': createEvent,
+      'createTask': createTask,
       'refresh': refresh,
       'menu': menu,
       'previous': previous,
@@ -100,6 +138,8 @@ class BusyMaxHeaderBarLabels {
             agenda == other.agenda &&
             search == other.search &&
             create == other.create &&
+            createEvent == other.createEvent &&
+            createTask == other.createTask &&
             refresh == other.refresh &&
             menu == other.menu &&
             previous == other.previous &&
@@ -121,6 +161,8 @@ class BusyMaxHeaderBarLabels {
     agenda,
     search,
     create,
+    createEvent,
+    createTask,
     refresh,
     menu,
     previous,
@@ -150,6 +192,7 @@ class BusyMaxHeaderBarTheme {
     required this.accentForegroundColor,
     required this.popoverBackgroundColor,
     required this.borderColor,
+    required this.sidebarBorderColor,
     required this.shadeColor,
     required this.modalBarrierColor,
   });
@@ -168,6 +211,7 @@ class BusyMaxHeaderBarTheme {
   final Color accentForegroundColor;
   final Color popoverBackgroundColor;
   final Color borderColor;
+  final Color sidebarBorderColor;
   final Color shadeColor;
   final Color modalBarrierColor;
 
@@ -187,6 +231,7 @@ class BusyMaxHeaderBarTheme {
       'accentForegroundColor': busyMaxCssColor(accentForegroundColor),
       'popoverBackgroundColor': busyMaxCssColor(popoverBackgroundColor),
       'borderColor': busyMaxCssColor(borderColor),
+      'sidebarBorderColor': busyMaxCssColor(sidebarBorderColor),
       'shadeColor': busyMaxCssColor(shadeColor),
       'modalBarrierColor': busyMaxCssColor(modalBarrierColor),
     };
@@ -210,6 +255,7 @@ class BusyMaxHeaderBarTheme {
             other.accentForegroundColor == accentForegroundColor &&
             other.popoverBackgroundColor == popoverBackgroundColor &&
             other.borderColor == borderColor &&
+            other.sidebarBorderColor == sidebarBorderColor &&
             other.shadeColor == shadeColor &&
             other.modalBarrierColor == modalBarrierColor;
   }
@@ -230,6 +276,7 @@ class BusyMaxHeaderBarTheme {
     accentForegroundColor,
     popoverBackgroundColor,
     borderColor,
+    sidebarBorderColor,
     shadeColor,
     modalBarrierColor,
   );
@@ -245,8 +292,10 @@ class BusyMaxHeaderBarState {
     required this.title,
     required this.viewMode,
     required this.canRefresh,
-    required this.canCreate,
+    required this.canCreateEvent,
+    required this.canCreateTask,
     required this.searchActive,
+    required this.searchQuery,
     required this.canShowSidebar,
     required this.sidebarVisible,
     required this.navigationVisible,
@@ -254,13 +303,17 @@ class BusyMaxHeaderBarState {
     required this.backVisible,
   });
 
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 3;
 
   final String title;
   final ScheduleViewMode viewMode;
   final bool canRefresh;
-  final bool canCreate;
+  final bool canCreateEvent;
+  final bool canCreateTask;
   final bool searchActive;
+  final String searchQuery;
+
+  bool get canCreate => canCreateEvent || canCreateTask;
 
   /// Whether the current layout can present a sidebar.
   ///
@@ -278,8 +331,10 @@ class BusyMaxHeaderBarState {
       'title': title,
       'viewMode': viewMode.name,
       'canRefresh': canRefresh,
-      'canCreate': canCreate,
+      'canCreateEvent': canCreateEvent,
+      'canCreateTask': canCreateTask,
       'searchActive': searchActive,
+      'searchQuery': searchQuery,
       'canShowSidebar': canShowSidebar,
       'sidebarVisible': sidebarVisible,
       'navigationVisible': navigationVisible,
@@ -292,8 +347,10 @@ class BusyMaxHeaderBarState {
     String? title,
     ScheduleViewMode? viewMode,
     bool? canRefresh,
-    bool? canCreate,
+    bool? canCreateEvent,
+    bool? canCreateTask,
     bool? searchActive,
+    String? searchQuery,
     bool? canShowSidebar,
     bool? sidebarVisible,
     bool? navigationVisible,
@@ -304,8 +361,10 @@ class BusyMaxHeaderBarState {
       title: title ?? this.title,
       viewMode: viewMode ?? this.viewMode,
       canRefresh: canRefresh ?? this.canRefresh,
-      canCreate: canCreate ?? this.canCreate,
+      canCreateEvent: canCreateEvent ?? this.canCreateEvent,
+      canCreateTask: canCreateTask ?? this.canCreateTask,
       searchActive: searchActive ?? this.searchActive,
+      searchQuery: searchQuery ?? this.searchQuery,
       canShowSidebar: canShowSidebar ?? this.canShowSidebar,
       sidebarVisible: sidebarVisible ?? this.sidebarVisible,
       navigationVisible: navigationVisible ?? this.navigationVisible,
@@ -322,8 +381,10 @@ class BusyMaxHeaderBarState {
             title == other.title &&
             viewMode == other.viewMode &&
             canRefresh == other.canRefresh &&
-            canCreate == other.canCreate &&
+            canCreateEvent == other.canCreateEvent &&
+            canCreateTask == other.canCreateTask &&
             searchActive == other.searchActive &&
+            searchQuery == other.searchQuery &&
             canShowSidebar == other.canShowSidebar &&
             sidebarVisible == other.sidebarVisible &&
             navigationVisible == other.navigationVisible &&
@@ -336,8 +397,10 @@ class BusyMaxHeaderBarState {
     title,
     viewMode,
     canRefresh,
-    canCreate,
+    canCreateEvent,
+    canCreateTask,
     searchActive,
+    searchQuery,
     canShowSidebar,
     sidebarVisible,
     navigationVisible,
@@ -406,6 +469,10 @@ class LinuxHeaderBarService {
         _available = available;
       }
     } on MissingPluginException {
+      if (!_disposed) {
+        _available = false;
+      }
+    } on PlatformException {
       if (!_disposed) {
         _available = false;
       }
@@ -520,6 +587,11 @@ class LinuxHeaderBarService {
 
   @visibleForTesting
   Future<dynamic> handleNativeMethodCall(MethodCall call) async {
+    final searchEvent = _searchEventForCall(call);
+    if (searchEvent != null) {
+      _activeSession?._dispatchSearchEvent(searchEvent);
+      return null;
+    }
     final action = _actionForMethod(call.method);
     if (action != null) {
       _activeSession?._dispatch(action);
@@ -535,7 +607,49 @@ class LinuxHeaderBarService {
       await _channel.invokeMethod<void>(method, arguments);
     } on MissingPluginException {
       _available = false;
+    } on PlatformException {
+      _available = false;
     }
+  }
+
+  Future<bool> _showCreateMenu(LinuxHeaderBarSession session) async {
+    if (_disposed || !_available || !_isCurrentSession(session)) {
+      return false;
+    }
+    try {
+      return await _channel.invokeMethod<bool>('showCreateMenu') ?? false;
+    } on MissingPluginException {
+      _available = false;
+    } on PlatformException {
+      _available = false;
+    }
+    return false;
+  }
+
+  Future<bool> _focusSearch(LinuxHeaderBarSession session) async {
+    if (_disposed || !_available || !_isCurrentSession(session)) {
+      return false;
+    }
+    try {
+      return await _channel.invokeMethod<bool>('focusSearch') ?? false;
+    } on MissingPluginException {
+      _available = false;
+    } on PlatformException {
+      _available = false;
+    }
+    return false;
+  }
+
+  BusyMaxHeaderBarSearchEvent? _searchEventForCall(MethodCall call) {
+    return switch ((call.method, call.arguments)) {
+      ('searchQueryChanged', final String query) =>
+        BusyMaxHeaderBarSearchQueryChanged(query),
+      ('searchFocusChanged', final bool focused) =>
+        BusyMaxHeaderBarSearchFocusChanged(focused),
+      ('searchCleared', _) => const BusyMaxHeaderBarSearchCleared(),
+      ('searchEscapePressed', _) => const BusyMaxHeaderBarSearchEscapePressed(),
+      _ => null,
+    };
   }
 
   BusyMaxHeaderBarAction? _actionForMethod(String method) {
@@ -552,7 +666,8 @@ class LinuxHeaderBarService {
       'viewModeYear' => BusyMaxHeaderBarAction.viewModeYear,
       'viewModeAgenda' => BusyMaxHeaderBarAction.viewModeAgenda,
       'search' => BusyMaxHeaderBarAction.search,
-      'create' => BusyMaxHeaderBarAction.create,
+      'createEvent' => BusyMaxHeaderBarAction.createEvent,
+      'createTask' => BusyMaxHeaderBarAction.createTask,
       'refresh' => BusyMaxHeaderBarAction.refresh,
       'settings' => BusyMaxHeaderBarAction.settings,
       'keyboardShortcuts' => BusyMaxHeaderBarAction.keyboardShortcuts,
@@ -585,6 +700,8 @@ class LinuxHeaderBarSession {
 
   final LinuxHeaderBarService _service;
   final _actions = StreamController<BusyMaxHeaderBarAction>.broadcast();
+  final _searchEvents =
+      StreamController<BusyMaxHeaderBarSearchEvent>.broadcast();
   bool _disposed = false;
   BusyMaxHeaderBarState? _state;
   int _stateRevision = 0;
@@ -596,6 +713,8 @@ class LinuxHeaderBarSession {
   bool get isAvailable => !_disposed && _service.isAvailable;
 
   Stream<BusyMaxHeaderBarAction> get actions => _actions.stream;
+
+  Stream<BusyMaxHeaderBarSearchEvent> get searchEvents => _searchEvents.stream;
 
   Future<void> initialize() => _service.initialize();
 
@@ -613,6 +732,33 @@ class LinuxHeaderBarSession {
       return;
     }
     await _service._applyState(state, force: force);
+  }
+
+  /// Opens the route-owned native Create popover when it is available.
+  ///
+  /// The current-session check prevents an outgoing route from opening UI in
+  /// a header that has already been claimed by its successor.
+  Future<bool> showCreateMenu() async {
+    if (_disposed) {
+      return false;
+    }
+    await initialize();
+    if (!isCurrent) {
+      return false;
+    }
+    return _service._showCreateMenu(this);
+  }
+
+  /// Focuses the route-owned native search entry when it is active.
+  Future<bool> focusSearch() async {
+    if (_disposed) {
+      return false;
+    }
+    await initialize();
+    if (!isCurrent) {
+      return false;
+    }
+    return _service._focusSearch(this);
   }
 
   Future<void> setOnboardingControls({
@@ -680,6 +826,12 @@ class LinuxHeaderBarSession {
     }
   }
 
+  void _dispatchSearchEvent(BusyMaxHeaderBarSearchEvent event) {
+    if (isCurrent && !_searchEvents.isClosed) {
+      _searchEvents.add(event);
+    }
+  }
+
   void dispose() {
     if (_disposed) {
       return;
@@ -687,6 +839,7 @@ class LinuxHeaderBarSession {
     _disposed = true;
     _service._releaseSession(this);
     unawaited(_actions.close());
+    unawaited(_searchEvents.close());
   }
 
   void _disposeFromService() {
@@ -695,6 +848,7 @@ class LinuxHeaderBarSession {
     }
     _disposed = true;
     unawaited(_actions.close());
+    unawaited(_searchEvents.close());
   }
 }
 

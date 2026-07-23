@@ -36,7 +36,6 @@ import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_google_tasks_adapter.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/compact_agenda_window_service.dart';
-import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_window_service.dart';
 import '../task_providers/task_provider.dart';
 import '../schedule/schedule_commands.dart';
@@ -45,6 +44,7 @@ import 'app_router.dart';
 import 'app_settings.dart';
 
 export '../app/app_settings.dart';
+export '../platform/linux_header_bar_provider.dart';
 
 final buildConfigProvider = Provider<BuildConfig>(
   (ref) => BuildConfig.fromEnvironment(),
@@ -138,12 +138,6 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
 final linuxWindowServiceProvider = Provider<LinuxWindowService>(
   (ref) => const LinuxWindowService(),
 );
-
-final linuxHeaderBarServiceProvider = Provider<LinuxHeaderBarService>((ref) {
-  final service = LinuxHeaderBarService();
-  ref.onDispose(service.dispose);
-  return service;
-});
 
 final compactAgendaWindowServiceProvider = Provider<CompactAgendaWindowService>(
   (ref) {

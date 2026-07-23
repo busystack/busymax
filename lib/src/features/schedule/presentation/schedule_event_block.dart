@@ -52,6 +52,10 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
     final tooltipDetails = _tooltipDetails(context);
     final interactive = widget.onTap != null;
     final focusBorder = BorderSide(color: colorScheme.primary, width: 2);
+    final sourceAccent = ScheduleProjection.colorForItem(
+      widget.item,
+      colorScheme.brightness,
+    );
 
     return Semantics(
       container: true,
@@ -112,7 +116,7 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
                       left: BorderSide(
                         color: _showFocusHighlight
                             ? colorScheme.primary
-                            : surfaceColors.subtleBorder,
+                            : sourceAccent,
                         width: 4,
                       ),
                       top: _showFocusHighlight ? focusBorder : BorderSide.none,

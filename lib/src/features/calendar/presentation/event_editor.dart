@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
@@ -32,6 +34,7 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
         initialDraft: initialDraft,
         sources: sources,
         categorySuggestionsByAccount: categorySuggestionsByAccount,
+        headerBarService: headerBarService,
         onCancel: () => Navigator.of(context).pop(),
         onSave: (draft) =>
             Navigator.of(context).pop(EventEditorDialogResult.save(draft)),
@@ -69,6 +72,7 @@ class EventEditor extends StatefulWidget {
     required this.onSave,
     this.onDelete,
     this.categorySuggestionsByAccount = const {},
+    this.headerBarService,
   });
 
   final EventEditorDraft initialDraft;
@@ -77,6 +81,7 @@ class EventEditor extends StatefulWidget {
   final VoidCallback onCancel;
   final ValueChanged<EventEditorDraft> onSave;
   final ValueChanged<String>? onDelete;
+  final LinuxHeaderBarService? headerBarService;
 
   @override
   State<EventEditor> createState() => _EventEditorState();
@@ -90,6 +95,7 @@ class _EventEditorState extends State<EventEditor> {
   String? _guestError;
   var _addingGuest = false;
   var _addingCategory = false;
+  var _confirmingCancel = false;
 
   @override
   void initState() {
@@ -123,6 +129,9 @@ class _EventEditorState extends State<EventEditor> {
     final canSave = dirty && _draft.canSave;
     return CallbackShortcuts(
       bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          unawaited(_cancel());
+        },
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): () {
           if (canSave) {
             widget.onSave(_draft);
@@ -137,7 +146,7 @@ class _EventEditorState extends State<EventEditor> {
           title: title,
           cancelLabel: l10n.cancel,
           saveLabel: l10n.save,
-          onCancel: widget.onCancel,
+          onCancel: () => unawaited(_cancel()),
           onSave: canSave ? () => widget.onSave(_draft) : null,
           children: [
             BusyMaxGroupedList(
@@ -312,6 +321,34 @@ class _EventEditorState extends State<EventEditor> {
         ),
       ),
     );
+  }
+
+  Future<void> _cancel() async {
+    if (_confirmingCancel) {
+      return;
+    }
+    if (_draft == widget.initialDraft) {
+      widget.onCancel();
+      return;
+    }
+
+    _confirmingCancel = true;
+    try {
+      final discard = await showBusyMaxConfirm(
+        context,
+        title: context.l10n.discardChanges,
+        message: context.l10n.discardChangesConfirmation,
+        confirmLabel: context.l10n.discard,
+        destructive: true,
+        barrierColor: Colors.transparent,
+        headerBarService: widget.headerBarService,
+      );
+      if (discard && mounted) {
+        widget.onCancel();
+      }
+    } finally {
+      _confirmingCancel = false;
+    }
   }
 
   KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {

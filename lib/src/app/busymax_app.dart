@@ -104,6 +104,24 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
             gtkFontSize: gtkFont?.size,
             gtkThemeColors: gtkThemeColors,
           ),
+          highContrastTheme: buildBusyMaxTheme(
+            brightness: Brightness.light,
+            accentColor: accentColor,
+            family: settings.themeFamily,
+            gtkFontFamily: gtkFont?.family,
+            gtkFontSize: gtkFont?.size,
+            gtkThemeColors: gtkThemeColors,
+            highContrast: true,
+          ),
+          highContrastDarkTheme: buildBusyMaxTheme(
+            brightness: Brightness.dark,
+            accentColor: accentColor,
+            family: settings.themeFamily,
+            gtkFontFamily: gtkFont?.family,
+            gtkFontSize: gtkFont?.size,
+            gtkThemeColors: gtkThemeColors,
+            highContrast: true,
+          ),
           themeMode: settings.themeMode,
           localizationsDelegates: const [
             ...AppLocalizations.localizationsDelegates,
@@ -150,7 +168,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
                       ),
                   _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
                     onInvoke: (intent) {
-                      router.go('/settings');
+                      if (router.state.uri.path != '/settings') {
+                        unawaited(router.push<void>('/settings'));
+                      }
                       return null;
                     },
                   ),
@@ -185,6 +205,8 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       agenda: l10n.viewAgenda,
       search: materialL10n.searchFieldLabel,
       create: l10n.create,
+      createEvent: l10n.createEventAtTime,
+      createTask: l10n.createTaskAtDate,
       refresh: l10n.refreshAll,
       menu: l10n.mainMenu,
       previous: materialL10n.previousPageTooltip,
@@ -217,6 +239,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
             accentForegroundColor: colorScheme.onPrimary,
             popoverBackgroundColor: colors.popover,
             borderColor: colors.border,
+            sidebarBorderColor: colors.sidebarBorder,
             shadeColor: colors.shade,
             modalBarrierColor: modalBarrierColor,
           ),
@@ -357,7 +380,7 @@ class _BusyMaxWindowCornerClip extends StatelessWidget {
       borderRadius: const BorderRadius.vertical(
         bottom: Radius.circular(BusyMaxRadius.window),
       ),
-      clipBehavior: Clip.antiAliasWithSaveLayer,
+      clipBehavior: Clip.antiAlias,
       child: ColoredBox(
         color: BusyMaxSurfaceColors.of(context).window,
         child: child,

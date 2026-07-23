@@ -78,7 +78,7 @@ class TaskTreeView extends ConsumerWidget {
                     icon: YaruIcons.plus,
                     label: l10n.newTask,
                     tooltip: l10n.newTask,
-                    primary: true,
+                    suggested: true,
                     onPressed: onCreateTask,
                   ),
                 if (onRefreshAll != null)
@@ -144,7 +144,7 @@ class TaskTreeView extends ConsumerWidget {
                   icon: YaruIcons.plus,
                   label: l10n.newTask,
                   tooltip: l10n.newTask,
-                  primary: true,
+                  suggested: true,
                   onPressed: onCreateTask,
                 ),
             ],

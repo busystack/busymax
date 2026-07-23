@@ -21,7 +21,9 @@ void main() {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
       backend: backend,
-      settings: AppSettings.defaults().copyWith(detailedNotifications: true),
+      settings: AppSettings.defaults().copyWith(
+        notificationDetailLevel: NotificationDetailLevel.normal,
+      ),
     );
 
     await service.notifySyncFailure(
@@ -126,23 +128,51 @@ void main() {
   });
 
   test(
-    'detailed notification switch overrides private reminder text',
+    'private detail level also hides diagnostic notification text',
     () async {
       final backend = _FakeNotificationBackend();
       final service = DesktopNotificationService(
         backend: backend,
         settings: AppSettings.defaults().copyWith(
-          detailedNotifications: true,
           notificationDetailLevel: NotificationDetailLevel.private,
         ),
       );
 
-      await service.notifyEventReminder('Doctor', 'Clinic');
+      await service.notifySyncFailure('Private server response');
 
-      expect(backend.notifications.single.summary, 'Doctor');
-      expect(backend.notifications.single.body, 'Clinic');
+      expect(backend.notifications.single.body, isNot(contains('Private')));
+      expect(
+        backend.notifications.single.body,
+        contains('Details are hidden by privacy settings.'),
+      );
     },
   );
+
+  test('configured overnight quiet hours use an end-exclusive range', () async {
+    final settings = AppSettings.defaults().copyWith(
+      quietHoursEnabled: true,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+    );
+    final quietBackend = _FakeNotificationBackend();
+    final quietService = DesktopNotificationService(
+      backend: quietBackend,
+      settings: settings,
+      now: () => DateTime(2026, 1, 1, 23, 30),
+    );
+    final awakeBackend = _FakeNotificationBackend();
+    final awakeService = DesktopNotificationService(
+      backend: awakeBackend,
+      settings: settings,
+      now: () => DateTime(2026, 1, 2, 7),
+    );
+
+    await quietService.notifySyncFailure('Offline');
+    await awakeService.notifySyncFailure('Offline');
+
+    expect(quietBackend.notifications, isEmpty);
+    expect(awakeBackend.notifications, hasLength(1));
+  });
 }
 
 class _FakeNotificationBackend implements DesktopNotificationBackend {

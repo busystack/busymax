@@ -57,12 +57,12 @@ class ScheduleNoSourcesState extends StatelessWidget {
           ? context.l10n.scheduleNoSourcesDescription
           : context.l10n.scheduleSignInDescription,
       actions: [
-        BusyMaxPushButton.filled(
+        BusyMaxPushButton.suggested(
           onPressed: onOpenSettings,
           child: Text(context.l10n.settings),
         ),
         if (onRefresh != null)
-          BusyMaxPushButton.outlined(
+          BusyMaxPushButton.standard(
             onPressed: onRefresh,
             child: Text(context.l10n.trayAgendaRefresh),
           ),
@@ -82,7 +82,7 @@ class ScheduleUnavailableState extends StatelessWidget {
       icon: Icons.sync_problem_outlined,
       title: context.l10n.scheduleUnavailable,
       actions: [
-        BusyMaxPushButton.filled(
+        BusyMaxPushButton.suggested(
           onPressed: onRetry,
           child: Text(context.l10n.retry),
         ),
@@ -98,8 +98,8 @@ class ScheduleEmptyState extends StatelessWidget {
     required this.onNewTask,
   });
 
-  final VoidCallback onNewEvent;
-  final VoidCallback onNewTask;
+  final VoidCallback? onNewEvent;
+  final VoidCallback? onNewTask;
 
   @override
   Widget build(BuildContext context) {
@@ -107,15 +107,30 @@ class ScheduleEmptyState extends StatelessWidget {
       icon: Icons.event_available,
       title: context.l10n.noEventsOrTasks,
       actions: [
-        BusyMaxPushButton.outlined(
-          onPressed: onNewEvent,
-          child: Text(context.l10n.newEvent),
-        ),
-        BusyMaxPushButton.outlined(
-          onPressed: onNewTask,
-          child: Text(context.l10n.newTask),
-        ),
+        if (onNewEvent != null)
+          BusyMaxPushButton.standard(
+            onPressed: onNewEvent,
+            child: Text(context.l10n.newEvent),
+          ),
+        if (onNewTask != null)
+          BusyMaxPushButton.standard(
+            onPressed: onNewTask,
+            child: Text(context.l10n.newTask),
+          ),
       ],
+    );
+  }
+}
+
+class ScheduleSearchEmptyState extends StatelessWidget {
+  const ScheduleSearchEmptyState({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxEmptyState(
+      icon: Icons.search_off_outlined,
+      title: context.l10n.scheduleNoSearchResults,
+      message: context.l10n.scheduleNoSearchResultsDescription,
     );
   }
 }

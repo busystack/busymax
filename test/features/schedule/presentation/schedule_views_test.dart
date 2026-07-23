@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_day_week_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_event_block.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_item_chip.dart';
@@ -398,6 +399,59 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('month More waits for dismissal and returns a stable anchor', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    BuildContext? selectedAnchor;
+    ScheduleItem? selectedItem;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 700,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: _manyAllDayItemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onCreateAtDay: (_) {},
+              onItemSelected: (anchor, item, [_]) {
+                selectedAnchor = anchor;
+                selectedItem = item;
+              },
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final moreButton = find.ancestor(
+      of: find.textContaining('more'),
+      matching: find.byType(TextButton),
+    );
+    expect(moreButton, findsOneWidget);
+    tester.widget<TextButton>(moreButton).onPressed!();
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxPopoverSurface), findsOneWidget);
+    expect(find.byType(ListView), findsOneWidget);
+    final popoverChips = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(ScheduleItemChip),
+    );
+    expect(popoverChips, findsWidgets);
+    await tester.tap(popoverChips.at(1));
+    await tester.pumpAndSettle();
+
+    expect(selectedItem?.id, 'all-day-task:1');
+    expect(selectedAnchor, isNotNull);
+    expect(selectedAnchor!.mounted, isTrue);
+  });
+
   testWidgets('calendar schedule chip invokes calendar item tap', (
     tester,
   ) async {
@@ -494,6 +548,15 @@ void main() {
     );
     final popoverSurface = tester.widget<PhysicalShape>(popoverSurfaceFinder);
     final popoverContext = tester.element(popoverSurfaceFinder);
+    final popoverRoute = ModalRoute.of(popoverContext)!;
+    expect(
+      popoverRoute.traversalEdgeBehavior,
+      TraversalEdgeBehavior.closedLoop,
+    );
+    expect(
+      popoverRoute.directionalTraversalEdgeBehavior,
+      TraversalEdgeBehavior.stop,
+    );
     expect(
       popoverSurface.shadowColor,
       Theme.of(popoverContext).colorScheme.shadow,
@@ -510,6 +573,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(await action, ScheduleItemDetailsAction.export);
+  });
+
+  testWidgets('direct details popover registers for native-header dismissal', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final event = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+    final controller = ScheduleAnchoredPopoverController();
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: ScheduleAnchoredPopoverScope(
+          controller: controller,
+          child: Scaffold(
+            body: Builder(
+              builder: (anchorContext) => TextButton(
+                onPressed: () {
+                  showScheduleItemDetailsPopover(
+                    context: anchorContext,
+                    anchorContext: anchorContext,
+                    item: event,
+                  );
+                },
+                child: const Text('Open coordinated details'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open coordinated details'));
+    await tester.pumpAndSettle();
+    expect(controller.isOpen, isTrue);
+
+    final dismissal = controller.dismiss();
+    await tester.pumpAndSettle();
+    await dismissal;
+
+    expect(controller.isOpen, isFalse);
+    expect(find.byIcon(Icons.close), findsNothing);
   });
 
   testWidgets('schedule item details popover delete button returns delete', (
@@ -548,6 +654,105 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(await action, ScheduleItemDetailsAction.delete);
+  });
+
+  testWidgets('read-only event details omit mutation actions', (tester) async {
+    final event = CalendarScheduleItem(
+      id: 'event:read-only',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:shared',
+      providerCalendarId: 'shared',
+      title: 'Shared calendar event',
+      allDay: false,
+      start: DateTime(2026, 1, 15, 9),
+      end: DateTime(2026, 1, 15, 10),
+      capabilities: ScheduleItemCapabilities.readOnly,
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showScheduleItemDetailsPopover(
+                context: context,
+                anchorContext: context,
+                item: event,
+              ),
+              child: const Text('Open details'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(find.byIcon(Icons.delete_outline), findsNothing);
+  });
+
+  testWidgets('details popover constrains long content without animation', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(480, 300);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final event = CalendarScheduleItem(
+      id: 'event:long',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'primary',
+      title: 'A detailed event with a deliberately long title for sizing',
+      allDay: false,
+      start: DateTime(2026, 1, 15, 9),
+      end: DateTime(2026, 1, 15, 10),
+      location: 'A long location that still belongs inside the popover',
+      description: List.filled(20, 'Detailed agenda notes').join(' '),
+      categories: List.generate(20, (index) => 'Category $index'),
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(480, 300),
+            disableAnimations: true,
+          ),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                ),
+                child: const Text('Open details'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pump();
+
+    final popover = find.byWidgetPredicate(
+      (widget) =>
+          widget is PhysicalShape &&
+          widget.elevation == BusyMaxElevation.tooltip,
+    );
+    expect(popover, findsOneWidget);
+    expect(tester.getSize(popover).height, lessThanOrEqualTo(276));
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('schedule item details popover shows categories', (tester) async {
@@ -638,6 +843,49 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Categories: Blue category, Work'), findsOneWidget);
+  });
+
+  testWidgets('event reminder details use locale-aware labels', (tester) async {
+    final event = CalendarScheduleItem(
+      id: 'event:localized-reminders',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'primary',
+      title: 'Termin',
+      allDay: false,
+      start: DateTime(2026, 1, 15, 9),
+      end: DateTime(2026, 1, 15, 10),
+      reminderMinutesBeforeStart: const [0, 60, 1440],
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        locale: const Locale('de'),
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showScheduleItemDetailsPopover(
+                context: context,
+                anchorContext: context,
+                item: event,
+              ),
+              child: const Text('Öffnen'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Öffnen'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Erinnerung: Zum Startzeitpunkt, 1 Stunde vorher, 1 Tag vorher',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('schedule task details popover shows reminder', (tester) async {
@@ -1190,7 +1438,7 @@ void main() {
     expect(source, contains('context.l10n.allTasksRefreshed'));
     expect(source, contains('setScheduleViewMode(mode)'));
     expect(source, contains('settings.scheduleViewMode'));
-    expect(source, isNot(contains('ScheduleEmptyState')));
+    expect(source, contains('ScheduleEmptyState'));
     expect(source, isNot(contains('BusyMaxHeaderBarAction.newItem')));
     expect(source, isNot(contains('BusyMaxHeaderBarAction.openMenu')));
   });
@@ -1200,10 +1448,12 @@ void main() {
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
 
-    expect(source, contains('HardwareKeyboard.instance.addHandler'));
+    expect(source, isNot(contains('HardwareKeyboard.instance.addHandler')));
+    expect(source, contains('return Shortcuts('));
+    expect(source, contains('_ScheduleShortcutAction(this)'));
     expect(source, contains('route != null && !route.isCurrent'));
-    expect(source, contains('BusyMaxShortcutActivators.search.accepts'));
-    expect(source, contains('BusyMaxShortcutActivators.create.accepts'));
+    expect(source, contains('BusyMaxShortcutActivators.search:'));
+    expect(source, contains('BusyMaxShortcutActivators.create:'));
     expect(source, contains('LogicalKeyboardKey.arrowRight'));
     expect(source, contains('_next();'));
     expect(source, contains('LogicalKeyboardKey.arrowLeft'));
@@ -1214,10 +1464,13 @@ void main() {
     expect(source, isNot(contains('LogicalKeyboardKey.keyP')));
     expect(source, contains('LogicalKeyboardKey.keyE'));
     expect(source, isNot(contains('LogicalKeyboardKey.keyC')));
-    expect(source, contains('_openNewEvent(_latestVisibleSources'));
+    expect(source, contains('_openNewEvent(_latestWritableSources'));
     expect(source, contains('LogicalKeyboardKey.keyT'));
     expect(source, contains('_openNewTask(_latestAccounts'));
-    expect(source, contains('keyboard.isShiftPressed'));
+    expect(
+      source,
+      contains('SingleActivator(LogicalKeyboardKey.keyT, shift: true)'),
+    );
     expect(source, contains('_goToToday();'));
     expect(source, contains('LogicalKeyboardKey.digit1'));
     expect(source, contains('LogicalKeyboardKey.keyD'));
@@ -1266,6 +1519,24 @@ void main() {
     expect(source, contains('reminders: _eventRemindersForEdit('));
   });
 
+  test('month overflow uses the shared anchored popover route', () {
+    final month = File(
+      'lib/src/features/schedule/presentation/schedule_month_view.dart',
+    ).readAsStringSync();
+    final more = File(
+      'lib/src/features/schedule/presentation/schedule_more_popover.dart',
+    ).readAsStringSync();
+
+    expect(month, contains('anchorContext: anchorContext'));
+    expect(
+      more,
+      contains('showScheduleAnchoredPopover<ScheduleMorePopoverSelection>('),
+    );
+    expect(more, contains('BusyMaxPopoverSurface('));
+    expect(more, isNot(contains('showDialog<void>(')));
+    expect(more, isNot(contains('Dialog(')));
+  });
+
   test('schedule item details actions use shared button styling', () {
     final popover = File(
       'lib/src/features/schedule/presentation/schedule_item_details_popover.dart',
@@ -1303,12 +1574,7 @@ void main() {
         contains('final searchHasQuery = _searchQuery.trim().isNotEmpty'),
       );
       expect(workspace, contains('_rangeForSearchResults(items, range)'));
-      expect(
-        workspace,
-        contains(
-          'searchHasQuery\n                    ? ScheduleViewMode.agenda',
-        ),
-      );
+      expect(workspace, contains('? ScheduleViewMode.agenda'));
       expect(
         repository,
         contains('final searching = filters.query.trim().isNotEmpty'),
@@ -1334,8 +1600,8 @@ void main() {
     expect(compactAgenda, contains('BusyMaxGroupedList('));
     expect(agenda, isNot(contains('surfaceColor:')));
     expect(compactAgenda, isNot(contains('surfaceColor:')));
-    expect(agenda, isNot(contains('ScheduleProjection.colorForItem')));
-    expect(compactAgenda, isNot(contains('ScheduleProjection.colorForItem')));
+    expect(agenda, contains('ScheduleProjection.colorForItem'));
+    expect(compactAgenda, contains('ScheduleProjection.colorForItem'));
     expect(
       agenda,
       contains('BusyMaxSurfaceColors.of(context).mutedForeground'),
@@ -1772,7 +2038,7 @@ void main() {
     expect(sidebar, isNot(contains('_SourceVisibilityIndicator')));
   });
 
-  test('schedule create action lives in the headerbar before refresh', () {
+  test('schedule Create uses a native popover before refresh', () {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -1789,23 +2055,24 @@ void main() {
 
     expect(workspace, isNot(contains('floatingActionButtonLocation')));
     expect(workspace, isNot(contains('FloatingActionButton(')));
-    expect(workspace, contains('BusyMaxHeaderBarAction.create'));
+    expect(workspace, contains('BusyMaxHeaderBarAction.createEvent'));
+    expect(workspace, contains('BusyMaxHeaderBarAction.createTask'));
     expect(workspace, contains('void _openCreateAtSelectedDate()'));
-    expect(headerService, contains('BusyMaxHeaderBarAction.create'));
     expect(
       headerService,
-      contains("'create' => BusyMaxHeaderBarAction.create"),
+      isNot(contains("'create' => BusyMaxHeaderBarAction.create")),
     );
     expect(
       headerBar,
-      contains('create_header_icon_button("list-add-symbolic"'),
+      contains('gtk_image_new_from_icon_name("list-add-symbolic"'),
     );
     expect(
       headerBar,
-      contains(
-        'connect_header_bar_action(self, self->create_button, "create")',
-      ),
+      contains('create_header_popover_action_item(self, "createEvent"'),
     );
+    expect(headerBar, contains('self, "createTask", "Task"'));
+    expect(headerBar, contains('show_header_create_menu'));
+    expect(headerService, contains("'showCreateMenu'"));
     expect(
       headerBar.indexOf(
         'gtk_box_pack_start(GTK_BOX(end_box), self->create_button',
@@ -1868,7 +2135,7 @@ void main() {
     expect(taskChip, isNot(contains('if (!compact)')));
   });
 
-  test('schedule item chips use neutral surfaces instead of blue tints', () {
+  test('schedule item chips keep neutral surfaces with source accents', () {
     final eventBlock = File(
       'lib/src/features/schedule/presentation/schedule_event_block.dart',
     ).readAsStringSync();
@@ -1880,7 +2147,7 @@ void main() {
     ).readAsStringSync();
 
     expect(eventBlock, contains('color: surfaceColors.control'));
-    expect(eventBlock, contains('surfaceColors.subtleBorder'));
+    expect(eventBlock, contains('sourceAccent'));
     expect(taskChip, contains('color: surfaceColors.control'));
     expect(taskChip, contains('color: surfaceColors.subtleBorder'));
     expect(taskChip, contains('YaruCheckbox('));
@@ -1889,7 +2156,8 @@ void main() {
     expect(taskChip, isNot(contains('YaruCheckboxTheme')));
     expect(eventBlock, isNot(contains('Color.alphaBlend(')));
     expect(taskChip, isNot(contains('Color.alphaBlend(')));
-    expect(projection, isNot(contains('_colorFromHex(item.colorHex)')));
+    expect(projection, contains('_colorFromHex(item.colorHex)'));
+    expect(projection, contains('deterministicSourceColor(item.sourceId'));
     expect(projection, isNot(contains('0xff4d7fa8')));
     expect(projection, isNot(contains('0xff8db3d9')));
     expect(projection, isNot(contains('0xff326b88')));

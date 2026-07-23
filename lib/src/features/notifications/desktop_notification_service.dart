@@ -84,7 +84,7 @@ class DesktopNotificationService {
       return;
     }
 
-    final body = _settings.detailedNotifications
+    final body = _showsNotificationDetails
         ? _strings.syncFailureBody(redactForLog(message))
         : _strings.syncFailureBody(_strings.detailsHidden);
     final now = _now();
@@ -106,7 +106,7 @@ class DesktopNotificationService {
     if (!_settings.notifyConflicts || _isQuietHours()) {
       return;
     }
-    final body = _settings.detailedNotifications
+    final body = _showsNotificationDetails
         ? _strings.conflictBody(redactForLog(summary))
         : _strings.conflictBody(_strings.detailsHidden);
     await _safeNotify(
@@ -167,10 +167,10 @@ class DesktopNotificationService {
     );
   }
 
-  bool get _usesPrivateReminderText {
-    return !_settings.detailedNotifications &&
-        _settings.notificationDetailLevel == NotificationDetailLevel.private;
-  }
+  bool get _showsNotificationDetails =>
+      _settings.notificationDetailLevel == NotificationDetailLevel.normal;
+
+  bool get _usesPrivateReminderText => !_showsNotificationDetails;
 
   Future<void> _safeNotify(
     String summary,

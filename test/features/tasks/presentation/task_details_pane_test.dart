@@ -309,7 +309,6 @@ void main() {
 
     expect(find.text('Open'), findsNothing);
     expect(find.text('Done'), findsNothing);
-    expect(find.byType(SegmentedButton<bool>), findsNothing);
   });
 
   testWidgets('no visible timezone helper text or UTC appears', (tester) async {
@@ -511,8 +510,8 @@ void main() {
 
     expect(find.text('Due'), findsOneWidget);
     expect(find.text('Due date'), findsOneWidget);
-    expect(find.text('All Day'), findsNothing);
-    expect(find.text('Time Slot'), findsNothing);
+    expect(find.text('All day'), findsNothing);
+    expect(find.text('Time slot'), findsNothing);
     expect(find.text('Due time'), findsNothing);
     expect(find.text('Start'), findsNothing);
     expect(find.text('Start date'), findsNothing);
@@ -896,12 +895,12 @@ void main() {
     );
 
     expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
-    expect(find.text('All Day'), findsOneWidget);
-    expect(find.text('Time Slot'), findsOneWidget);
+    expect(find.text('All day'), findsOneWidget);
+    expect(find.text('Time slot'), findsOneWidget);
     expect(find.text('Due time'), findsOneWidget);
     expect(find.text('Start time'), findsOneWidget);
 
-    await tester.tap(find.text('All Day'));
+    await tester.tap(find.text('All day'));
     await tester.pumpAndSettle();
 
     expect(find.text('Due time'), findsNothing);
@@ -940,7 +939,7 @@ void main() {
       expect(find.text('Due time'), findsNothing);
       expect(find.text('Start time'), findsNothing);
 
-      await tester.tap(find.text('Time Slot'));
+      await tester.tap(find.text('Time slot'));
       await tester.pumpAndSettle();
 
       expect(find.text('Due time'), findsWidgets);
@@ -977,8 +976,8 @@ void main() {
     expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
     expect(find.text('Due time'), findsOneWidget);
     expect(find.text('Start time'), findsOneWidget);
-    expect(find.text('All Day'), findsOneWidget);
-    expect(find.text('Time Slot'), findsOneWidget);
+    expect(find.text('All day'), findsOneWidget);
+    expect(find.text('Time slot'), findsOneWidget);
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();

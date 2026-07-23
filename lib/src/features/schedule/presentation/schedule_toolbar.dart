@@ -9,6 +9,8 @@ import '../../../schedule/schedule_view_mode.dart';
 
 enum ScheduleToolbarMenuAction { refresh, settings, keyboardShortcuts, about }
 
+enum _ScheduleCreateAction { event, task }
+
 class ScheduleToolbar extends StatelessWidget {
   const ScheduleToolbar({
     super.key,
@@ -19,8 +21,10 @@ class ScheduleToolbar extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onModeChanged,
-    required this.canCreate,
-    required this.onCreate,
+    required this.canCreateEvent,
+    required this.canCreateTask,
+    required this.onCreateEvent,
+    required this.onCreateTask,
     required this.onRefresh,
     this.canRefresh = true,
     this.canShowSidebar = false,
@@ -28,6 +32,7 @@ class ScheduleToolbar extends StatelessWidget {
     this.onToggleSidebar,
     this.onSearch,
     this.onMenuSelected,
+    this.createMenuController,
   });
 
   final ScheduleViewMode mode;
@@ -37,8 +42,10 @@ class ScheduleToolbar extends StatelessWidget {
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final ValueChanged<ScheduleViewMode> onModeChanged;
-  final bool canCreate;
-  final VoidCallback onCreate;
+  final bool canCreateEvent;
+  final bool canCreateTask;
+  final VoidCallback onCreateEvent;
+  final VoidCallback onCreateTask;
   final VoidCallback onRefresh;
   final bool canRefresh;
   final bool canShowSidebar;
@@ -46,6 +53,7 @@ class ScheduleToolbar extends StatelessWidget {
   final VoidCallback? onToggleSidebar;
   final VoidCallback? onSearch;
   final ValueChanged<ScheduleToolbarMenuAction>? onMenuSelected;
+  final MenuController? createMenuController;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +76,7 @@ class ScheduleToolbar extends StatelessWidget {
                   ),
                   onPressed: onToggleSidebar,
                 ),
-              BusyMaxPushButton.outlined(
+              BusyMaxPushButton.standard(
                 onPressed: onToday,
                 child: Text(context.l10n.today),
               ),
@@ -116,10 +124,31 @@ class ScheduleToolbar extends StatelessWidget {
                   icon: const Icon(YaruIcons.search),
                   onPressed: onSearch,
                 ),
-              YaruIconButton(
+              BusyMaxMenuButton<_ScheduleCreateAction>(
                 tooltip: context.l10n.create,
                 icon: const Icon(YaruIcons.plus),
-                onPressed: canCreate ? onCreate : null,
+                controller: createMenuController,
+                enabled: canCreateEvent || canCreateTask,
+                entries: [
+                  BusyMaxMenuEntry(
+                    value: _ScheduleCreateAction.event,
+                    label: context.l10n.createEventAtTime,
+                    enabled: canCreateEvent,
+                  ),
+                  BusyMaxMenuEntry(
+                    value: _ScheduleCreateAction.task,
+                    label: context.l10n.createTaskAtDate,
+                    enabled: canCreateTask,
+                  ),
+                ],
+                onSelected: (value) {
+                  switch (value) {
+                    case _ScheduleCreateAction.event:
+                      onCreateEvent();
+                    case _ScheduleCreateAction.task:
+                      onCreateTask();
+                  }
+                },
               ),
               if (!compact)
                 YaruIconButton(

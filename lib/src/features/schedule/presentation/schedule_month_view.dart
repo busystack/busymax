@@ -252,20 +252,34 @@ class _MonthDayCell extends StatelessWidget {
                   if (showOverflow)
                     Align(
                       alignment: AlignmentDirectional.centerStart,
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          minimumSize: const Size(0, moreHeight),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      child: Builder(
+                        builder: (anchorContext) => TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            minimumSize: const Size(0, moreHeight),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () async {
+                            final selection = await showScheduleMorePopover(
+                              context: context,
+                              anchorContext: anchorContext,
+                              day: day,
+                              items: items,
+                              onTaskCompletionChanged: onTaskCompletionChanged,
+                            );
+                            if (selection == null ||
+                                !context.mounted ||
+                                !anchorContext.mounted) {
+                              return;
+                            }
+                            onItemSelected(
+                              anchorContext,
+                              selection.item,
+                              selection.anchorPoint,
+                            );
+                          },
+                          child: Text(context.l10n.moreItems(overflow)),
                         ),
-                        onPressed: () => showScheduleMorePopover(
-                          context: context,
-                          day: day,
-                          items: items,
-                          onItemSelected: onItemSelected,
-                          onTaskCompletionChanged: onTaskCompletionChanged,
-                        ),
-                        child: Text(context.l10n.moreItems(overflow)),
                       ),
                     ),
                 ],

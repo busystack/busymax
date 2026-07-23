@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'package:yaru/yaru.dart';
@@ -35,6 +37,7 @@ Future<void> showBusyMaxFeedbackDialog(
     maxHeight: 760,
     builder: (dialogContext) => BusyMaxFeedbackDialog(
       submissionService: submissionService,
+      headerBarService: headerBarService,
       onCancel: () => Navigator.of(dialogContext).pop(),
     ),
   );
@@ -48,6 +51,7 @@ class BusyMaxFeedbackDialog extends StatefulWidget {
     this.metadataLoader,
     this.submissionIdGenerator,
     this.osVersionProvider,
+    this.headerBarService,
   });
 
   final FeedbackSubmissionService submissionService;
@@ -55,6 +59,7 @@ class BusyMaxFeedbackDialog extends StatefulWidget {
   final FeedbackAppMetadataLoader? metadataLoader;
   final FeedbackSubmissionIdGenerator? submissionIdGenerator;
   final FeedbackOsVersionProvider? osVersionProvider;
+  final LinuxHeaderBarService? headerBarService;
 
   @override
   State<BusyMaxFeedbackDialog> createState() => _BusyMaxFeedbackDialogState();
@@ -71,6 +76,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
   var _includeTechnicalDetails = false;
   var _validationAttempted = false;
   var _submitting = false;
+  var _confirmingCancel = false;
   String? _statusMessage;
   var _statusIsError = false;
 
@@ -105,147 +111,176 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
 
     return PopScope(
       canPop: !_submitting,
-      child: BusyMaxModalEditorScaffold(
-        title: l10n.sendFeedback,
-        cancelLabel: l10n.cancel,
-        saveLabel: l10n.feedbackSubmit,
-        onCancel: widget.onCancel,
-        cancelEnabled: !_submitting,
-        onSave: _submitting ? null : _submit,
-        saving: _submitting,
-        children: [
-          BusyMaxGroupedList(
-            filled: true,
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): () {
+            unawaited(_cancel());
+          },
+        },
+        child: Focus(
+          autofocus: true,
+          child: BusyMaxModalEditorScaffold(
+            title: l10n.sendFeedback,
+            cancelLabel: l10n.cancel,
+            saveLabel: l10n.feedbackSubmit,
+            onCancel: () => unawaited(_cancel()),
+            cancelEnabled: !_submitting,
+            onSave: _submitting ? null : _submit,
+            saving: _submitting,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(BusyMaxSpacing.md),
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: l10n.feedbackCategory,
+              BusyMaxGroupedList(
+                filled: true,
+                children: [
+                  BusyMaxComboRow<FeedbackCategory?>(
+                    key: const Key('feedback-category'),
+                    title: l10n.feedbackCategory,
                     errorText: categoryInvalid
                         ? l10n.feedbackCategoryRequired
                         : null,
+                    values: const [null, ...FeedbackCategory.values],
+                    selected: _category,
+                    labelFor: (category) => category == null
+                        ? l10n.feedbackSelectCategory
+                        : _categoryLabel(context, category),
+                    enabled: !_submitting,
+                    onSelected: (value) {
+                      setState(() {
+                        _category = value;
+                        _draftChanged();
+                      });
+                    },
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<FeedbackCategory>(
-                      key: const Key('feedback-category'),
-                      value: _category,
-                      isExpanded: true,
-                      hint: Text(l10n.feedbackSelectCategory),
-                      items: [
-                        for (final category in FeedbackCategory.values)
-                          DropdownMenuItem(
-                            value: category,
-                            child: Text(_categoryLabel(context, category)),
-                          ),
-                      ],
-                      onChanged: _submitting
-                          ? null
-                          : (value) {
-                              setState(() {
-                                _category = value;
-                                _draftChanged();
-                              });
-                            },
+                  YaruListTile.square(
+                    title: TextField(
+                      key: const Key('feedback-subject'),
+                      controller: _subjectController,
+                      enabled: !_submitting,
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: l10n.feedbackSubject,
+                        errorText: subjectInvalid
+                            ? l10n.feedbackSubjectLengthError
+                            : null,
+                      ),
+                      onChanged: (_) => setState(_draftChanged),
+                    ),
+                  ),
+                  YaruListTile.square(
+                    title: TextField(
+                      key: const Key('feedback-message'),
+                      controller: _messageController,
+                      enabled: !_submitting,
+                      minLines: 4,
+                      maxLines: 8,
+                      keyboardType: TextInputType.multiline,
+                      decoration: InputDecoration(
+                        labelText: l10n.feedbackDetailedMessage,
+                        alignLabelWithHint: true,
+                        errorText: messageInvalid
+                            ? l10n.feedbackMessageLengthError
+                            : null,
+                      ),
+                      onChanged: (_) => setState(_draftChanged),
+                    ),
+                  ),
+                  YaruListTile.square(
+                    title: TextField(
+                      key: const Key('feedback-reply-email'),
+                      controller: _replyEmailController,
+                      enabled: !_submitting,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.done,
+                      decoration: InputDecoration(
+                        labelText: l10n.feedbackReplyEmail,
+                        errorText: replyEmailInvalid
+                            ? l10n.feedbackInvalidEmail
+                            : null,
+                      ),
+                      onChanged: (_) => setState(_draftChanged),
+                      onSubmitted: (_) {
+                        if (!_submitting) {
+                          _submit();
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              BusyMaxGroupedList(
+                filled: true,
+                children: [
+                  YaruCheckboxListTile(
+                    key: const Key('feedback-technical-details'),
+                    value: _includeTechnicalDetails,
+                    onChanged: _submitting
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _includeTechnicalDetails = value ?? false;
+                              _draftChanged();
+                            });
+                          },
+                    title: Text(l10n.feedbackIncludeTechnicalDetails),
+                    subtitle: Text(l10n.feedbackTechnicalDetailsDisclosure),
+                    shape: const RoundedRectangleBorder(),
+                  ),
+                ],
+              ),
+              if (_statusMessage case final status?) ...[
+                const SizedBox(height: BusyMaxSpacing.md),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    status,
+                    key: const Key('feedback-status'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: _statusIsError
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ),
-              ),
-              YaruListTile.square(
-                title: TextField(
-                  key: const Key('feedback-subject'),
-                  controller: _subjectController,
-                  enabled: !_submitting,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: l10n.feedbackSubject,
-                    errorText: subjectInvalid
-                        ? l10n.feedbackSubjectLengthError
-                        : null,
-                  ),
-                  onChanged: (_) => setState(_draftChanged),
-                ),
-              ),
-              YaruListTile.square(
-                title: TextField(
-                  key: const Key('feedback-message'),
-                  controller: _messageController,
-                  enabled: !_submitting,
-                  minLines: 4,
-                  maxLines: 8,
-                  keyboardType: TextInputType.multiline,
-                  decoration: InputDecoration(
-                    labelText: l10n.feedbackDetailedMessage,
-                    alignLabelWithHint: true,
-                    errorText: messageInvalid
-                        ? l10n.feedbackMessageLengthError
-                        : null,
-                  ),
-                  onChanged: (_) => setState(_draftChanged),
-                ),
-              ),
-              YaruListTile.square(
-                title: TextField(
-                  key: const Key('feedback-reply-email'),
-                  controller: _replyEmailController,
-                  enabled: !_submitting,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    labelText: l10n.feedbackReplyEmail,
-                    errorText: replyEmailInvalid
-                        ? l10n.feedbackInvalidEmail
-                        : null,
-                  ),
-                  onChanged: (_) => setState(_draftChanged),
-                  onSubmitted: (_) {
-                    if (!_submitting) {
-                      _submit();
-                    }
-                  },
-                ),
-              ),
+              ],
+              const SizedBox(height: BusyMaxSpacing.lg),
             ],
           ),
-          BusyMaxGroupedList(
-            filled: true,
-            children: [
-              CheckboxListTile(
-                key: const Key('feedback-technical-details'),
-                value: _includeTechnicalDetails,
-                onChanged: _submitting
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _includeTechnicalDetails = value ?? false;
-                          _draftChanged();
-                        });
-                      },
-                title: Text(l10n.feedbackIncludeTechnicalDetails),
-                subtitle: Text(l10n.feedbackTechnicalDetailsDisclosure),
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
-            ],
-          ),
-          if (_statusMessage case final status?) ...[
-            const SizedBox(height: BusyMaxSpacing.md),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                status,
-                key: const Key('feedback-status'),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: _statusIsError
-                      ? Theme.of(context).colorScheme.error
-                      : Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: BusyMaxSpacing.lg),
-        ],
+        ),
       ),
     );
+  }
+
+  Future<void> _cancel() async {
+    if (_submitting || _confirmingCancel) {
+      return;
+    }
+    final hasDraft =
+        _category != null ||
+        _subjectController.text.trim().isNotEmpty ||
+        _messageController.text.trim().isNotEmpty ||
+        _replyEmailController.text.trim().isNotEmpty ||
+        _includeTechnicalDetails;
+    if (!hasDraft) {
+      widget.onCancel();
+      return;
+    }
+
+    _confirmingCancel = true;
+    try {
+      final discard = await showBusyMaxConfirm(
+        context,
+        title: context.l10n.discardChanges,
+        message: context.l10n.discardChangesConfirmation,
+        confirmLabel: context.l10n.discard,
+        destructive: true,
+        barrierColor: Colors.transparent,
+        headerBarService: widget.headerBarService,
+      );
+      if (discard && mounted) {
+        widget.onCancel();
+      }
+    } finally {
+      _confirmingCancel = false;
+    }
   }
 
   Future<void> _submit() async {

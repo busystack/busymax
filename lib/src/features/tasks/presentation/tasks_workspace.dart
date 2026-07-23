@@ -328,7 +328,7 @@ class _TasksToolbar extends ConsumerWidget {
           actions: [
             BusyMaxToolbarButton(
               compact: compactActions,
-              primary: true,
+              suggested: true,
               tooltip: l10n.newTask,
               label: l10n.newTask,
               icon: YaruIcons.plus,

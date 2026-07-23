@@ -39,6 +39,8 @@ Map<String, Object?> encodeCompactAgendaData(CompactAgendaData data) {
     'hasSignedInAccounts': data.hasSignedInAccounts,
     'hasSources': data.hasSources,
     'generatedAt': data.generatedAt.toIso8601String(),
+    'canCreateEvents': data.canCreateEvents,
+    'canCreateTasks': data.canCreateTasks,
   };
 }
 
@@ -56,6 +58,8 @@ CompactAgendaData decodeCompactAgendaData(Object? raw) {
     hasSignedInAccounts: _boolValue(map, 'hasSignedInAccounts'),
     hasSources: _boolValue(map, 'hasSources'),
     generatedAt: _requiredDateTime(map, 'generatedAt'),
+    canCreateEvents: _boolValue(map, 'canCreateEvents'),
+    canCreateTasks: _boolValue(map, 'canCreateTasks'),
   );
 }
 
@@ -100,6 +104,8 @@ Map<String, Object?> encodeScheduleItem(ScheduleItem item) {
     'attendees': event.attendees,
     'colorHex': event.colorHex,
     'reminderMinutesBeforeStart': event.reminderMinutesBeforeStart,
+    'canEdit': event.capabilities.canEdit,
+    'canDelete': event.capabilities.canDelete,
   };
 }
 
@@ -175,6 +181,10 @@ ScheduleItem decodeScheduleItem(Object? raw) {
     sourceName: common.sourceName,
     accountDisplayName: common.accountDisplayName,
     accountEmail: common.accountEmail,
+    capabilities: ScheduleItemCapabilities(
+      canEdit: _boolValue(map, 'canEdit'),
+      canDelete: _boolValue(map, 'canDelete'),
+    ),
   );
 }
 

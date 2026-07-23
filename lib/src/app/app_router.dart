@@ -53,22 +53,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/tasks',
-        builder: (context, state) =>
-            const ScheduleWorkspace(initialScope: ScheduleScope.tasks),
-        routes: [
-          GoRoute(
-            path: ':listId',
-            builder: (context, state) =>
-                const ScheduleWorkspace(initialScope: ScheduleScope.tasks),
-            routes: [
-              GoRoute(
-                path: ':taskId',
-                builder: (context, state) =>
-                    const ScheduleWorkspace(initialScope: ScheduleScope.tasks),
-              ),
-            ],
-          ),
-        ],
+        pageBuilder: (context, state) => _tasksWorkspacePage(),
+      ),
+      GoRoute(
+        path: r'/tasks/:taskRoute(.*)',
+        redirect: (context, state) {
+          final segmentCount = state.uri.pathSegments.length;
+          return segmentCount == 3 || segmentCount == 4 ? null : '/tasks';
+        },
+        pageBuilder: (context, state) {
+          final segments = state.uri.pathSegments;
+          return _tasksWorkspacePage(
+            accountId: segments[1],
+            taskListId: segments[2],
+            taskId: segments.length == 4 ? segments[3] : null,
+          );
+        },
       ),
       GoRoute(
         path: '/settings',
@@ -81,6 +81,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+const _tasksWorkspacePageKey = ValueKey('tasks-workspace');
+
+Page<void> _tasksWorkspacePage({
+  String? accountId,
+  String? taskListId,
+  String? taskId,
+}) {
+  return NoTransitionPage<void>(
+    key: _tasksWorkspacePageKey,
+    child: ScheduleWorkspace(
+      initialScope: ScheduleScope.tasks,
+      initialTaskAccountId: accountId,
+      initialTaskListId: taskListId,
+      initialTaskId: taskId,
+    ),
+  );
+}
 
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();

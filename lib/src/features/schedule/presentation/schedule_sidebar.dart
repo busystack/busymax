@@ -43,8 +43,7 @@ class ScheduleSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
-    return Material(
-      color: BusyMaxSurfaceColors.of(context).sidebar,
+    return BusyMaxSidebarSurface(
       child: Column(
         children: [
           MiniCalendar(

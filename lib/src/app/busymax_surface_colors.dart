@@ -194,7 +194,7 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       disabledControl: Color.fromRGBO(255, 255, 255, 0.06),
       border: Color.fromRGBO(0, 0, 6, 0.75),
       subtleBorder: Color.fromRGBO(255, 255, 255, 0.10),
-      sidebarBorder: Color.fromRGBO(0, 0, 6, 0.36),
+      sidebarBorder: Color.fromRGBO(255, 255, 255, 0.10),
       shade: Color.fromRGBO(0, 0, 6, 0.25),
     ),
   };

@@ -118,20 +118,16 @@ void main() {
         expect(scheduleAgenda, contains('BusyMaxActionRow'));
         expect(scheduleAgenda, isNot(contains('scheduleAgendaRowBackground')));
         expect(scheduleAgenda, isNot(contains('surfaceColor:')));
-        expect(
-          scheduleAgenda,
-          isNot(contains('ScheduleProjection.colorForItem')),
-        );
+        expect(scheduleAgenda, contains('ScheduleProjection.colorForItem'));
+        expect(scheduleAgenda, contains('leading: _AgendaItemMarker'));
         expect(scheduleAgenda, isNot(contains('class _AgendaDayHeader')));
         expect(scheduleAgenda, isNot(contains('class _AgendaPlainHeader')));
 
         expect(compactAgenda, contains('BusyMaxGroupedList'));
         expect(compactAgenda, contains('BusyMaxActionRow'));
         expect(compactAgenda, isNot(contains('scheduleAgendaRowBackground')));
-        expect(
-          compactAgenda,
-          isNot(contains('ScheduleProjection.colorForItem')),
-        );
+        expect(compactAgenda, contains('ScheduleProjection.colorForItem'));
+        expect(compactAgenda, contains('leading: _CompactAgendaRowMarker'));
 
         expect(dateTimeFields, contains('YaruDateTimeEntry'));
         expect(dateTimeFields, contains('_BusyMaxTimeTextEntry'));
@@ -167,6 +163,14 @@ void main() {
       expect(source, isNot(contains("label: 'Sync now'")));
       expect(source, isNot(contains("label: 'Settings'")));
       expect(source, isNot(contains("label: 'Quit BusyMax'")));
+    });
+
+    test('main calendar window starts at the intended desktop size', () {
+      final source = File('linux/runner/my_application.cc').readAsStringSync();
+
+      expect(source, contains('kMainWindowDefaultWidth = 1280'));
+      expect(source, contains('kMainWindowDefaultHeight = 720'));
+      expect(source, contains('gtk_window_set_default_size'));
     });
 
     test('snap uses portal-backed secret storage without keyring plug', () {
@@ -407,11 +411,11 @@ void main() {
       expect(source, contains('header_brand_label'));
       expect(source, contains('settings_menu_button'));
       expect(source, contains('settings_menu'));
-      expect(source, contains('create_header_settings_item(self, "settings"'));
       expect(
         source,
-        contains('create_header_settings_item(self, "aboutBusyMax"'),
+        contains('create_header_popover_action_item(self, "settings"'),
       );
+      expect(source, contains('self, "aboutBusyMax", "About BusyMax"'));
       expect(source, isNot(contains('settingsAccounts')));
       expect(source, isNot(contains('settingsDiagnostics')));
       expect(source, contains('gtk_label_new(kApplicationDisplayName)'));
@@ -620,6 +624,10 @@ void main() {
         ),
       );
       expect(source, contains('button.busymax-header-popover-row:focus'));
+      expect(source, contains('busymax-keyboard-focus:focus'));
+      expect(source, contains('gtk_window_get_focus_visible'));
+      expect(source, contains('configure_header_popover_row(self, item)'));
+      expect(source, isNot(contains('gtk_widget_set_can_focus(item, FALSE)')));
       expect(source, contains('"object-select-symbolic"'));
       expect(source, contains('gtk_widget_set_opacity(check_widget'));
       expect(source, isNot(contains('gtk_model_button_new()')));
@@ -660,6 +668,32 @@ void main() {
       expect(source, contains('setLocalizedLabels'));
       expect(source, contains('setSidebarWidth'));
       expect(source, contains('setTheme'));
+      expect(source, contains('kHeaderBarStateSchemaVersion = 3'));
+      expect(source, contains('fl_lookup_int_arg(args, "schemaVersion"'));
+      expect(
+        source,
+        contains('schema_version != kHeaderBarStateSchemaVersion'),
+      );
+      expect(source, contains('args, "canCreateEvent"'));
+      expect(source, contains('args, "canCreateTask"'));
+      expect(source, contains('args, "searchQuery"'));
+      expect(source, contains('gtk_search_entry_new()'));
+      expect(source, contains('gtk_stack_add_named'));
+      expect(source, contains('"search-changed"'));
+      expect(source, contains('"searchFocusChanged"'));
+      expect(source, contains('"searchCleared"'));
+      expect(source, contains('"stop-search"'));
+      expect(source, contains('"searchEscapePressed"'));
+      expect(source, contains('"icon-release"'));
+      expect(source, contains('cache_header_search_query'));
+      expect(source, contains('focus_header_search_entry'));
+      expect(source, contains('strcmp(method, "focusSearch") == 0'));
+      expect(source, contains('gtk_entry_set_placeholder_text'));
+      expect(source, contains('clear_widget_pointer(&self->search_entry)'));
+      expect(source, contains('g_clear_pointer(&self->header_search_query'));
+      expect(source, isNot(contains('busymax-search-entry')));
+      expect(source, contains('set_header_create_capabilities'));
+      expect(source, contains('strcmp(method, "showCreateMenu") == 0'));
       expect(source, contains('setModalBarrierVisible'));
       expect(source, contains('busymax-modal-barrier'));
       expect(source, contains('gtk_widget_set_sensitive(self->titlebar_box'));
@@ -673,6 +707,8 @@ void main() {
       expect(source, contains('header_bar_control_hover_color'));
       expect(source, contains('header_bar_popover_background_color'));
       expect(source, contains('header_bar_border_color'));
+      expect(source, contains('header_bar_sidebar_border_color'));
+      expect(source, contains('border-right: 1px solid %s;'));
       expect(source, contains('header_bar_shade_color'));
       expect(source, contains('header_bar_accent_color'));
       expect(source, contains('header_bar_accent_foreground_color'));
@@ -784,12 +820,14 @@ void main() {
       expect(source, contains('list-add-symbolic'));
       expect(
         source,
-        contains(
-          'connect_header_bar_action(self, self->create_button, "create")',
-        ),
+        contains('create_header_popover_action_item(self, "createEvent"'),
       );
+      expect(source, contains('self, "createTask", "Task"'));
+      expect(source, contains('gtk_menu_button_set_popover'));
+      expect(source, contains('button.busymax-header-popover-row:disabled'));
+      expect(source, isNot(contains('self->create_button, "create"')));
       expect(source, contains('open-menu-symbolic'));
-      expect(source, contains('create_header_settings_item'));
+      expect(source, contains('create_header_popover_action_item'));
       expect(
         source,
         contains('button.busymax-header-button.busymax-sidebar-toggle:checked'),
@@ -950,17 +988,21 @@ void main() {
         source,
         contains('"gtk-application-prefer-dark-theme", prefer_dark'),
       );
-      expect(source, contains('yaru_theme_name_for_preference'));
-      expect(source, contains('available_gtk_theme_for_preference'));
-      expect(source, contains('available_icon_theme_for_preference'));
-      expect(source, contains('g_str_has_suffix(theme_name, "-dark")'));
+      expect(
+        source,
+        isNot(contains('g_object_set(settings, "gtk-theme-name"')),
+      );
+      expect(
+        source,
+        isNot(contains('g_object_set(settings, "gtk-icon-theme-name"')),
+      );
+      expect(source, isNot(contains('gtk_icon_theme_set_custom_theme')));
       expect(source, contains('theme_selected_bg_color'));
       expect(source, contains('set_theme_color(result, "accent"'));
+      expect(source, contains('"setGtkThemePreference"'));
+      expect(source, contains('set_gtk_theme_preference(fl_method_bool_arg'));
       expect(gtkFontService, contains('final Color? accent;'));
-      expect(
-        gtkFontService,
-        contains("accent: _parseColor(value['accent'] as String?)"),
-      );
+      expect(gtkFontService, contains("accent: _parseColor(value['accent'])"));
       expect(
         app,
         contains(
@@ -973,7 +1015,6 @@ void main() {
           'ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent',
         ),
       );
-      expect(source, contains('gtk_icon_theme_set_custom_theme'));
       expect(source, contains('fl_lookup_optional_bool_arg'));
       expect(
         source,

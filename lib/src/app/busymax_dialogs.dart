@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../platform/linux_header_bar_service.dart';
+import '../platform/linux_header_bar_provider.dart';
 import 'busymax_design.dart';
 import 'busymax_shortcuts.dart';
 
@@ -9,6 +11,22 @@ const _modalShortcuts = <ShortcutActivator, Intent>{
       DoNothingAndStopPropagationIntent(),
   BusyMaxShortcutActivators.settings: DoNothingAndStopPropagationIntent(),
 };
+
+/// Prevents application-level navigation shortcuts from escaping a modal
+/// surface while preserving shortcuts owned by that surface's descendants.
+///
+/// Use this for modal UI that is not presented by [showBusyMaxModalDialog],
+/// such as anchored popovers and in-page editor overlays.
+class BusyMaxModalShortcutBoundary extends StatelessWidget {
+  const BusyMaxModalShortcutBoundary({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Shortcuts(shortcuts: _modalShortcuts, child: child);
+  }
+}
 
 final _modalDepths = Map<LinuxHeaderBarService, int>.identity();
 
@@ -19,10 +37,12 @@ Future<T?> showBusyMaxModalDialog<T>(
   Color? barrierColor,
   bool barrierDismissible = true,
 }) async {
+  final effectiveHeaderBarService =
+      headerBarService ?? _headerBarServiceFrom(context);
   final previousFocus = FocusManager.instance.primaryFocus;
-  await acquireBusyMaxModalBarrier(headerBarService);
+  await acquireBusyMaxModalBarrier(effectiveHeaderBarService);
   if (!context.mounted) {
-    await releaseBusyMaxModalBarrier(headerBarService);
+    await releaseBusyMaxModalBarrier(effectiveHeaderBarService);
     return null;
   }
 
@@ -33,10 +53,10 @@ Future<T?> showBusyMaxModalDialog<T>(
       barrierDismissible: barrierDismissible,
       traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
       builder: (dialogContext) =>
-          Shortcuts(shortcuts: _modalShortcuts, child: builder(dialogContext)),
+          BusyMaxModalShortcutBoundary(child: builder(dialogContext)),
     );
   } finally {
-    await releaseBusyMaxModalBarrier(headerBarService);
+    await releaseBusyMaxModalBarrier(effectiveHeaderBarService);
     if (previousFocus?.context != null && previousFocus!.canRequestFocus) {
       previousFocus.requestFocus();
     }
@@ -53,6 +73,7 @@ Future<T?> showBusyMaxModalEditorDialog<T>(
   return showBusyMaxModalDialog<T>(
     context,
     headerBarService: headerBarService,
+    barrierDismissible: false,
     builder: (dialogContext) {
       final reduceMotion = MediaQuery.disableAnimationsOf(dialogContext);
       return Dialog(
@@ -88,6 +109,7 @@ Future<String?> showBusyMaxTextPrompt(
     context,
     headerBarService: headerBarService,
     barrierColor: barrierColor,
+    barrierDismissible: false,
     builder: (dialogContext) => BusyMaxPromptDialog(
       title: title,
       label: label,
@@ -148,4 +170,17 @@ Future<void> releaseBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
     return;
   }
   _modalDepths[service] = depth - 1;
+}
+
+LinuxHeaderBarService? _headerBarServiceFrom(BuildContext context) {
+  try {
+    return ProviderScope.containerOf(
+      context,
+      listen: false,
+    ).read(linuxHeaderBarServiceProvider);
+  } on StateError {
+    // Standalone widget hosts (including lightweight tests) do not
+    // necessarily install Riverpod. Explicit injection remains available.
+    return null;
+  }
 }

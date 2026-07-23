@@ -239,7 +239,12 @@ class _AgendaItemMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isTask = item.kind == ScheduleItemKind.task;
-    final color = BusyMaxSurfaceColors.of(context).mutedForeground;
+    final color = isTask
+        ? BusyMaxSurfaceColors.of(context).mutedForeground
+        : ScheduleProjection.colorForItem(
+            item,
+            Theme.of(context).colorScheme.brightness,
+          );
     final icon = isTask ? YaruIcons.task_list : YaruIcons.calendar;
     return Icon(icon, size: BusyMaxSizes.iconSm, color: color);
   }

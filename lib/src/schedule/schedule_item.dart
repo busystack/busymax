@@ -2,6 +2,25 @@ import '../task_providers/task_provider.dart';
 
 enum ScheduleItemKind { calendarEvent, task, localReminder }
 
+class ScheduleItemCapabilities {
+  const ScheduleItemCapabilities({
+    required this.canEdit,
+    required this.canDelete,
+  });
+
+  static const editable = ScheduleItemCapabilities(
+    canEdit: true,
+    canDelete: true,
+  );
+  static const readOnly = ScheduleItemCapabilities(
+    canEdit: false,
+    canDelete: false,
+  );
+
+  final bool canEdit;
+  final bool canDelete;
+}
+
 sealed class ScheduleItem {
   String get id;
   String get accountId;
@@ -16,6 +35,7 @@ sealed class ScheduleItem {
   bool get allDay;
   List<String> get categories;
   ScheduleItemKind get kind;
+  ScheduleItemCapabilities get capabilities;
 }
 
 class CalendarScheduleItem implements ScheduleItem {
@@ -46,6 +66,7 @@ class CalendarScheduleItem implements ScheduleItem {
     this.sourceName,
     this.accountDisplayName,
     this.accountEmail,
+    this.capabilities = ScheduleItemCapabilities.editable,
   });
 
   @override
@@ -90,6 +111,8 @@ class CalendarScheduleItem implements ScheduleItem {
   final String? accountDisplayName;
   @override
   final String? accountEmail;
+  @override
+  final ScheduleItemCapabilities capabilities;
 
   @override
   ScheduleItemKind get kind => ScheduleItemKind.calendarEvent;
@@ -112,6 +135,7 @@ class TaskScheduleItem implements ScheduleItem {
     this.sourceName,
     this.accountDisplayName,
     this.accountEmail,
+    this.capabilities = ScheduleItemCapabilities.editable,
   });
 
   @override
@@ -141,6 +165,8 @@ class TaskScheduleItem implements ScheduleItem {
   final String? accountDisplayName;
   @override
   final String? accountEmail;
+  @override
+  final ScheduleItemCapabilities capabilities;
 
   @override
   ScheduleItemKind get kind => ScheduleItemKind.task;

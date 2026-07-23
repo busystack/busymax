@@ -1,4 +1,5 @@
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
@@ -10,6 +11,7 @@ import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
 
@@ -46,6 +48,45 @@ void main() {
     expect(find.text('Created from Schedule'), findsOneWidget);
   });
 
+  testWidgets('task-list route defaults new tasks to that account and list', (
+    tester,
+  ) async {
+    final harness = await _pumpScheduleWorkspace(
+      tester,
+      initialTaskAccountId: _accountId,
+      initialTaskListId: _projectListId,
+    );
+
+    await tester.tap(find.byTooltip('Create'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Task'));
+    await tester.pumpAndSettle();
+    final titleField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField && widget.decoration?.labelText == 'Title',
+    );
+    await tester.enterText(titleField, 'Created in Projects');
+    await tester.pump();
+    expect(
+      tester
+              .widget<BusyMaxEditorHeader>(find.byType(BusyMaxEditorHeader))
+              .onSave ==
+          null,
+      isFalse,
+    );
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    final allTasks = await harness.database
+        .select(harness.database.tasks)
+        .get();
+    expect(allTasks, isNotEmpty);
+    final createdTask = allTasks.single;
+    expect(createdTask.title, 'Created in Projects');
+    expect(createdTask.accountId, _accountId);
+    expect(createdTask.taskListId, _projectListId);
+  });
+
   testWidgets('completing a task from Schedule refreshes its checkbox', (
     tester,
   ) async {
@@ -75,11 +116,48 @@ void main() {
     expect(task.status, 'completed');
     expect(tester.widget<YaruCheckbox>(checkbox).value, isTrue);
   });
+
+  testWidgets('dirty deep-linked task confirms before Escape closes it', (
+    tester,
+  ) async {
+    await _pumpScheduleWorkspace(
+      tester,
+      taskTitle: 'Opened from route',
+      initialTaskAccountId: _accountId,
+      initialTaskListId: _taskListId,
+      initialTaskId: 'task-1',
+    );
+
+    expect(find.text('Edit Task'), findsOneWidget);
+    expect(find.text('Opened from route'), findsWidgets);
+
+    await tester.enterText(find.byType(TextField).first, 'Unsaved route edit');
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Edit Task'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Task'), findsNothing);
+    expect(find.text('Opened from route'), findsOneWidget);
+  });
 }
 
 Future<_ScheduleHarness> _pumpScheduleWorkspace(
   WidgetTester tester, {
   String? taskTitle,
+  String? initialTaskAccountId,
+  String? initialTaskListId,
+  String? initialTaskId,
 }) async {
   final database = AppDatabase.memoryForTests();
   addTearDown(database.close);
@@ -100,6 +178,16 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
       accountId: _accountId,
       id: _taskListId,
       title: 'Inbox',
+      rawJson: '{}',
+      createdLocalAtUtc: _nowUtc,
+      updatedLocalAtUtc: _nowUtc,
+    ),
+  );
+  await database.taskListsDao.upsertTaskList(
+    TaskListsCompanion.insert(
+      accountId: _accountId,
+      id: _projectListId,
+      title: 'Projects',
       rawJson: '{}',
       createdLocalAtUtc: _nowUtc,
       updatedLocalAtUtc: _nowUtc,
@@ -147,7 +235,12 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
         }),
       ],
       child: localizedTestApp(
-        child: const ScheduleWorkspace(initialScope: ScheduleScope.tasks),
+        child: ScheduleWorkspace(
+          initialScope: ScheduleScope.tasks,
+          initialTaskAccountId: initialTaskAccountId,
+          initialTaskListId: initialTaskListId,
+          initialTaskId: initialTaskId,
+        ),
       ),
     ),
   );
@@ -176,4 +269,5 @@ class _MemorySettingsStore implements LocalSettingsStore {
 
 const _accountId = 'google:schedule-test';
 const _taskListId = 'inbox';
+const _projectListId = 'projects';
 const _nowUtc = '2026-07-19T00:00:00.000Z';

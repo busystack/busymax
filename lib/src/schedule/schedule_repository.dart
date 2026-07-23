@@ -18,6 +18,70 @@ class ScheduleRepository {
 
   final AppDatabase _database;
 
+  Future<ScheduleTaskTarget?> findTaskTarget({
+    required String accountId,
+    required String taskListId,
+    required String taskId,
+  }) async {
+    return watchTaskTarget(
+      accountId: accountId,
+      taskListId: taskListId,
+      taskId: taskId,
+    ).first;
+  }
+
+  /// Watches one live, visible task identified by its full database key.
+  ///
+  /// A stream is used for deep links so a route can remain pending while an
+  /// initial sync inserts the requested task, without polling or retry loops.
+  Stream<ScheduleTaskTarget?> watchTaskTarget({
+    required String accountId,
+    required String taskListId,
+    required String taskId,
+  }) {
+    final query =
+        _database.select(_database.tasks).join([
+            innerJoin(
+              _database.taskLists,
+              _database.taskLists.accountId.equalsExp(
+                    _database.tasks.accountId,
+                  ) &
+                  _database.taskLists.id.equalsExp(_database.tasks.taskListId),
+            ),
+            innerJoin(
+              _database.accounts,
+              _database.accounts.id.equalsExp(_database.tasks.accountId),
+            ),
+          ])
+          ..where(_database.tasks.accountId.equals(accountId))
+          ..where(_database.tasks.taskListId.equals(taskListId))
+          ..where(_database.tasks.id.equals(taskId))
+          ..where(_database.tasks.pendingDelete.equals(false))
+          ..where(_database.tasks.serverMissing.equals(false))
+          ..where(
+            _database.tasks.deleted.isNull() |
+                _database.tasks.deleted.equals(false),
+          )
+          ..where(
+            _database.tasks.hidden.isNull() |
+                _database.tasks.hidden.equals(false),
+          )
+          ..where(_database.taskLists.pendingDelete.equals(false))
+          ..where(_database.taskLists.serverMissing.equals(false))
+          ..where(_database.accounts.authState.equals('signed_in'));
+    return query.watchSingleOrNull().map((row) {
+      if (row == null) {
+        return null;
+      }
+      final task = row.readTable(_database.tasks);
+      return ScheduleTaskTarget(
+        accountId: task.accountId,
+        taskListId: task.taskListId,
+        taskId: task.id,
+      );
+    });
+  }
+
   Future<List<ScheduleItem>> listItems({
     required ScheduleRange range,
     ScheduleFilters filters = const ScheduleFilters(),
@@ -209,6 +273,9 @@ class ScheduleRepository {
           sourceName: source?.summary,
           accountDisplayName: accountDisplayNames[event.accountId],
           accountEmail: accountEmails[event.accountId],
+          capabilities: source != null && !source.readOnly && !source.isDeleted
+              ? ScheduleItemCapabilities.editable
+              : ScheduleItemCapabilities.readOnly,
         ),
       );
     }
@@ -224,7 +291,7 @@ class ScheduleRepository {
     Map<String, String?> accountDisplayNames,
     Map<String, String?> accountEmails,
   ) async {
-    if (filters.taskListFilterActive && filters.taskListIds.isEmpty) {
+    if (filters.taskListFilterActive && filters.taskListKeys.isEmpty) {
       return const [];
     }
     final query =
@@ -253,7 +320,7 @@ class ScheduleRepository {
                 _database.taskLists.serverMissing.equals(false),
           );
     if (filters.taskListFilterActive) {
-      query.where(_database.tasks.taskListId.isIn(filters.taskListIds));
+      query.where(_taskListFilter(filters.taskListKeys));
     }
     if (!filters.showCompletedTasks) {
       query.where(_taskIncomplete());
@@ -294,7 +361,7 @@ class ScheduleRepository {
     required bool Function(TaskScheduleItem item) itemFilter,
   }) async {
     if (!filters.includeTasks ||
-        (filters.taskListFilterActive && filters.taskListIds.isEmpty)) {
+        (filters.taskListFilterActive && filters.taskListKeys.isEmpty)) {
       return const ScheduleTaskBucketPage(items: [], hasMore: false);
     }
 
@@ -332,7 +399,7 @@ class ScheduleRepository {
           ..where(databaseFilter)
           ..limit(effectiveLimit + 1);
     if (filters.taskListFilterActive) {
-      query.where(_database.tasks.taskListId.isIn(filters.taskListIds));
+      query.where(_taskListFilter(filters.taskListKeys));
     }
     if (!filters.showCompletedTasks) {
       query.where(_taskIncomplete());
@@ -415,6 +482,17 @@ class ScheduleRepository {
         _database.tasks.status.equals('completed').not();
   }
 
+  Expression<bool> _taskListFilter(Set<ScheduleTaskListKey> taskListKeys) {
+    Expression<bool> matches = const Constant(false);
+    for (final key in taskListKeys) {
+      matches =
+          matches |
+          (_database.tasks.accountId.equals(key.accountId) &
+              _database.tasks.taskListId.equals(key.taskListId));
+    }
+    return matches;
+  }
+
   Expression<bool> _taskNoDate() {
     return _database.tasks.dueUtc.isNull() &
         _database.tasks.microsoftStartDateTime.isNull() &
@@ -435,6 +513,29 @@ class ScheduleRepository {
         _textInRange(_database.tasks.microsoftStartDateTime, startKey, endKey) |
         _textInRange(_database.tasks.microsoftDueDateTime, startKey, endKey);
   }
+}
+
+class ScheduleTaskTarget {
+  const ScheduleTaskTarget({
+    required this.accountId,
+    required this.taskListId,
+    required this.taskId,
+  });
+
+  final String accountId;
+  final String taskListId;
+  final String taskId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is ScheduleTaskTarget &&
+        other.accountId == accountId &&
+        other.taskListId == taskListId &&
+        other.taskId == taskId;
+  }
+
+  @override
+  int get hashCode => Object.hash(accountId, taskListId, taskId);
 }
 
 class ScheduleTaskBucketPage {

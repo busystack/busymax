@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
-import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
@@ -30,8 +29,7 @@ class TaskListsSidebar extends ConsumerWidget {
 
     return SizedBox(
       width: BusyMaxSizes.sidebarWidth,
-      child: Material(
-        color: BusyMaxSurfaceColors.of(context).sidebar,
+      child: BusyMaxSidebarSurface(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -102,7 +100,7 @@ class TaskListsSidebar extends ConsumerWidget {
               child: _SidebarFooterButton(
                 icon: YaruIcons.settings,
                 label: l10n.settings,
-                onTap: () => context.go('/settings'),
+                onTap: () => unawaited(context.push<void>('/settings')),
               ),
             ),
           ],

@@ -11,14 +11,21 @@ ThemeData buildBusyMaxTheme({
   String? gtkFontFamily,
   double? gtkFontSize,
   GtkThemeColors? gtkThemeColors,
+  bool highContrast = false,
 }) {
+  final effectiveAccentColor = highContrast
+      ? brightness == Brightness.dark
+            ? Colors.white
+            : Colors.black
+      : accentColor;
   return switch (family) {
     BusyMaxThemeFamily.yaru => BusyMaxYaruTheme.build(
       brightness: brightness,
-      accentColor: accentColor,
+      accentColor: effectiveAccentColor,
       gtkFontFamily: gtkFontFamily,
       gtkFontSize: gtkFontSize,
       gtkThemeColors: gtkThemeColors,
+      highContrast: highContrast,
     ),
   };
 }

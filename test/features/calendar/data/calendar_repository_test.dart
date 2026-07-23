@@ -99,6 +99,21 @@ void main() {
     expect(source.isDeleted, isTrue);
   });
 
+  test('source stream removes locally tombstoned calendars', () async {
+    await _upsertSource(repository);
+    expect(
+      await repository.watchSourcesForAccounts(const ['google:g']).first,
+      hasLength(1),
+    );
+
+    await repository.deleteLocalSource(_sourceId);
+
+    expect(
+      await repository.watchSourcesForAccounts(const ['google:g']).first,
+      isEmpty,
+    );
+  });
+
   test('provider hidden state can return to visible', () async {
     await repository.upsertSource(
       accountId: 'google:g',
@@ -143,6 +158,87 @@ void main() {
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
     expect(schedulerCalls, 1);
   });
+
+  test(
+    'read-only source rejects event creation before local mutation',
+    () async {
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: const CalendarSourceDto(
+          provider: TaskProvider.google,
+          providerCalendarId: 'calendar-1',
+          summary: 'Shared calendar',
+          readOnly: true,
+        ),
+      );
+
+      await expectLater(
+        repository.createLocalEvent(_newEventDraft()),
+        throwsA(
+          isA<CalendarMutationNotAllowed>().having(
+            (error) => error.operation,
+            'operation',
+            CalendarMutationOperation.createEvent,
+          ),
+        ),
+      );
+
+      expect(await database.select(database.calendarEvents).get(), isEmpty);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test('read-only source rejects event edits and deletes', () async {
+    await _upsertSource(repository);
+    await repository.createLocalEvent(_newEventDraft());
+    final event = await database.select(database.calendarEvents).getSingle();
+    await (database.update(database.calendarSources)
+          ..where((row) => row.id.equals(_sourceId)))
+        .write(const CalendarSourcesCompanion(readOnly: Value(true)));
+    final pendingBefore = await database.select(database.pendingOps).get();
+
+    await expectLater(
+      repository.updateLocalEvent(
+        EventEditorDraft.existing(
+          eventId: event.id,
+          accountId: event.accountId,
+          sourceId: event.calendarSourceId,
+          providerCalendarId: event.providerCalendarId,
+          title: 'Updated title',
+          allDay: event.allDay,
+          start: DateTime.utc(2026, 6, 8, 9),
+          end: DateTime.utc(2026, 6, 8, 10),
+        ),
+      ),
+      throwsA(
+        isA<CalendarMutationNotAllowed>().having(
+          (error) => error.operation,
+          'operation',
+          CalendarMutationOperation.editEvent,
+        ),
+      ),
+    );
+    await expectLater(
+      repository.deleteLocalEvent(event.id),
+      throwsA(
+        isA<CalendarMutationNotAllowed>().having(
+          (error) => error.operation,
+          'operation',
+          CalendarMutationOperation.deleteEvent,
+        ),
+      ),
+    );
+
+    final unchanged = await database
+        .select(database.calendarEvents)
+        .getSingle();
+    expect(unchanged.title, '');
+    expect(unchanged.isDeleted, isFalse);
+    expect(
+      await database.select(database.pendingOps).get(),
+      hasLength(pendingBefore.length),
+    );
+  });
 }
 
 const _sourceId = 'google:g|google|calendar-1';
@@ -155,6 +251,16 @@ Future<void> _upsertSource(CalendarRepository repository) {
       providerCalendarId: 'calendar-1',
       summary: 'Calendar',
     ),
+  );
+}
+
+EventEditorDraft _newEventDraft() {
+  return EventEditorDraft.newEvent(
+    accountId: 'google:g',
+    sourceId: _sourceId,
+    providerCalendarId: 'calendar-1',
+    start: DateTime.utc(2026, 6, 8, 9),
+    end: DateTime.utc(2026, 6, 8, 10),
   );
 }
 

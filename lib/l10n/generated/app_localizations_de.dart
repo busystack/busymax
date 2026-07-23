@@ -164,6 +164,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Melden Sie sich an, um Kalender und Aufgaben zu synchronisieren.';
 
   @override
+  String get scheduleNoSearchResults => 'Keine passenden Termine oder Aufgaben';
+
+  @override
+  String get scheduleNoSearchResultsDescription =>
+      'Versuchen Sie eine andere Suche oder löschen Sie die aktuellen Filter.';
+
+  @override
   String get trayAgendaLoading => 'Agenda wird geladen...';
 
   @override
@@ -292,6 +299,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get timeSlot => 'Zeitfenster';
 
   @override
+  String get timeMode => 'Zeit';
+
+  @override
+  String get timeModeDescription =>
+      'Nur Daten verwenden oder genaue Uhrzeiten festlegen.';
+
+  @override
   String get startDateTime => 'Startdatum/-zeit';
 
   @override
@@ -361,6 +375,9 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get reminderAtStart => 'Zum Startzeitpunkt';
 
   @override
   String reminderHoursBefore(int hours) {
@@ -1025,6 +1042,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Minimiert im Benachrichtigungsbereich starten';
 
   @override
+  String get requiresTrayIcon =>
+      'Erfordert das Symbol im Benachrichtigungsbereich.';
+
+  @override
   String get syncComplete => 'Synchronisierung abgeschlossen.';
 
   @override
@@ -1059,6 +1080,16 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get quietHours => 'Ruhezeiten';
+
+  @override
+  String get quietHoursDescription =>
+      'Benachrichtigungen während dieses Zeitraums pausieren.';
+
+  @override
+  String get quietHoursStart => 'Beginn der Ruhezeit';
+
+  @override
+  String get quietHoursEnd => 'Ende der Ruhezeit';
 
   @override
   String get notifications => 'Benachrichtigungen';
@@ -1096,9 +1127,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get redactTaskContentInDiagnostics =>
       'Aufgabeninhalte in Diagnosen schwärzen';
-
-  @override
-  String get detailedNotifications => 'Detaillierte Benachrichtigungstexte';
 
   @override
   String get developerDiagnostics => 'Entwicklerdiagnose';

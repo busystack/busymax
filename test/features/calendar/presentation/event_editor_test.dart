@@ -92,8 +92,8 @@ void main() {
 
     expect(find.text('Start time'), findsNothing);
     expect(find.text('End Time'), findsNothing);
-    expect(_plainTextFinder('All Day'), findsOneWidget);
-    expect(_plainTextFinder('Time Slot'), findsOneWidget);
+    expect(_plainTextFinder('All day'), findsOneWidget);
+    expect(_plainTextFinder('Time slot'), findsOneWidget);
     expect(find.text('No conference'), findsNothing);
     expect(find.text('Delete Event'), findsNothing);
   });
@@ -124,7 +124,7 @@ void main() {
       ),
     );
 
-    await tester.tap(_plainTextFinder('All Day'));
+    await tester.tap(_plainTextFinder('All day'));
     await tester.pump();
     await tester.tap(_headerButtonFinder('Save'));
 
@@ -1013,6 +1013,42 @@ void main() {
     },
   );
 
+  testWidgets('Escape routes dirty event cancellation through confirmation', (
+    tester,
+  ) async {
+    var cancelled = false;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8),
+              end: DateTime.utc(2026, 6, 8, 1),
+            ),
+            sources: _sources,
+            onCancel: () => cancelled = true,
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField).first, 'Changed event');
+    _focusEditorShortcuts(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(cancelled, isFalse);
+    expect(find.text('Discard changes?'), findsOneWidget);
+
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(cancelled, isTrue);
+  });
+
   test('event editor is opened through the shared BusyMax dialog route', () {
     final editor = File(
       'lib/src/features/calendar/presentation/event_editor.dart',
@@ -1045,8 +1081,8 @@ void main() {
     expect(design, contains('class BusyMaxModalEditorScaffold'));
     expect(design, contains('BusyMaxEditorHeader('));
     expect(design, contains('SingleChildScrollView'));
-    expect(design, contains('BusyMaxHeaderPushButton.outlined'));
-    expect(design, contains('BusyMaxHeaderPushButton.filled'));
+    expect(design, contains('BusyMaxHeaderPushButton.standard'));
+    expect(design, contains('BusyMaxHeaderPushButton.suggested'));
     expect(
       design,
       contains('EdgeInsets.symmetric(horizontal: BusyMaxSpacing.xl)'),
@@ -1056,22 +1092,18 @@ void main() {
     expect(editor, isNot(contains('BusyMaxDialogCloseButton')));
   });
 
-  test(
-    'editor row hover uses subtle foreground overlay, not selected color',
-    () {
-      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
-      final hoverStart = design.indexOf('Color busyMaxEditorRowHoverColor');
-      final hoverEnd = design.indexOf('Color busyMaxPanelBorder');
-      final hoverSource = design.substring(hoverStart, hoverEnd);
+  test('editor rows reuse the shared Yaru hover role, not a control fill', () {
+    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+    final hoverStart = design.indexOf('Color busyMaxRowHoverColor');
+    final hoverEnd = design.indexOf('Color busyMaxPanelBorder');
+    final hoverSource = design.substring(hoverStart, hoverEnd);
 
-      expect(hoverSource, contains('surfaceColors.foreground.withValues'));
-      expect(hoverSource, contains('Brightness.dark ? 0.045 : 0.055'));
-      expect(hoverSource, isNot(contains('.controlHover')));
-      expect(hoverSource, isNot(contains('Theme.of(context).hoverColor')));
-      expect(hoverSource, isNot(contains('primaryContainer')));
-      expect(hoverSource, isNot(contains('colorScheme.primary')));
-    },
-  );
+    expect(hoverSource, contains('return Theme.of(context).hoverColor'));
+    expect(hoverSource, contains('return busyMaxRowHoverColor(context)'));
+    expect(hoverSource, isNot(contains('.controlHover')));
+    expect(hoverSource, isNot(contains('primaryContainer')));
+    expect(hoverSource, isNot(contains('colorScheme.primary')));
+  });
 
   test('event editor text fields do not render duplicate section labels', () {
     final editor = File(

@@ -90,6 +90,10 @@ class ScheduleProjection {
   }
 
   static Color colorForItem(ScheduleItem item, Brightness brightness) {
+    if (item is CalendarScheduleItem) {
+      return _colorFromHex(item.colorHex) ??
+          deterministicSourceColor(item.sourceId, brightness);
+    }
     if (item is TaskScheduleItem && item.completed) {
       return brightness == Brightness.dark
           ? const Color(0xff949494)
@@ -128,6 +132,18 @@ class ScheduleProjection {
   static DateTime day(DateTime value) {
     return DateTime(value.year, value.month, value.day);
   }
+}
+
+Color? _colorFromHex(String? value) {
+  if (value == null) {
+    return null;
+  }
+  final normalized = value.trim().replaceFirst('#', '');
+  if (normalized.length != 6) {
+    return null;
+  }
+  final parsed = int.tryParse(normalized, radix: 16);
+  return parsed == null ? null : Color(0xff000000 | parsed);
 }
 
 String? _cleanLabel(String? label) {

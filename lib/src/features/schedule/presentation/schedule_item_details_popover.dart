@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:yaru/yaru.dart';
@@ -10,6 +8,7 @@ import '../../../calendar_providers/calendar_description.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import 'schedule_anchored_popover.dart';
 import 'schedule_event_block.dart';
 
 enum ScheduleItemDetailsAction { export, edit, delete }
@@ -20,170 +19,92 @@ Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
   required ScheduleItem item,
   Offset? anchorPoint,
 }) {
-  final anchorRect = anchorPoint == null
-      ? _globalRectFor(anchorContext)
-      : _globalRectForPoint(anchorPoint);
-  return showGeneralDialog<ScheduleItemDetailsAction>(
+  return showScheduleAnchoredPopover<ScheduleItemDetailsAction>(
     context: context,
-    barrierDismissible: true,
-    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: Colors.transparent,
-    transitionDuration: const Duration(milliseconds: 120),
-    pageBuilder: (context, animation, secondaryAnimation) {
-      return _ScheduleItemDetailsPopover(anchorRect: anchorRect, item: item);
-    },
-    transitionBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-      );
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-          child: child,
-        ),
+    anchorContext: anchorContext,
+    anchorPoint: anchorPoint,
+    semanticLabel: item.title,
+    builder: (context, arrowSide, arrowAlignment) {
+      return _ScheduleItemDetailsPopoverCard(
+        item: item,
+        arrowSide: arrowSide,
+        arrowAlignment: arrowAlignment,
       );
     },
   );
 }
 
-class _ScheduleItemDetailsPopover extends StatelessWidget {
-  const _ScheduleItemDetailsPopover({
-    required this.anchorRect,
-    required this.item,
-  });
-
-  final Rect? anchorRect;
-  final ScheduleItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final itemColor = ScheduleProjection.colorForItem(
-      item,
-      colorScheme.brightness,
-    );
-
-    return Material(
-      color: Colors.transparent,
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final layout = _popoverLayout(
-              anchorRect,
-              constraints.biggest,
-              textDirection: Directionality.of(context),
-            );
-            return Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
-                ),
-                Positioned.fill(
-                  child: CustomSingleChildLayout(
-                    delegate: _PopoverPositionDelegate(layout),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minWidth: layout.width,
-                        maxWidth: layout.width,
-                      ),
-                      child: _ScheduleItemDetailsPopoverCard(
-                        item: item,
-                        itemColor: itemColor,
-                        surfaceColors: surfaceColors,
-                        arrowSide: layout.arrowSide,
-                        arrowAlignment: layout.arrowAlignment,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
 class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
   const _ScheduleItemDetailsPopoverCard({
     required this.item,
-    required this.itemColor,
-    required this.surfaceColors,
     required this.arrowSide,
     required this.arrowAlignment,
   });
 
   final ScheduleItem item;
-  final Color itemColor;
-  final BusyMaxSurfaceColors surfaceColors;
   final BusyMaxPopoverArrowSide arrowSide;
   final double arrowAlignment;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
+    final itemColor = ScheduleProjection.colorForItem(
+      item,
+      colorScheme.brightness,
+    );
     return Material(
       color: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: BusyMaxPopoverSurface(
-          color: surfaceColors.popover,
-          arrowSide: arrowSide,
-          arrowAlignment: arrowAlignment,
-          child: Padding(
-            padding: const EdgeInsets.all(BusyMaxSpacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: BusyMaxSizes.iconSm,
-                      height: BusyMaxSizes.iconSm,
-                      margin: const EdgeInsets.only(top: BusyMaxSpacing.xs),
-                      decoration: BoxDecoration(
-                        color: itemColor,
-                        shape: BoxShape.circle,
-                      ),
+      child: BusyMaxPopoverSurface(
+        color: surfaceColors.popover,
+        arrowSide: arrowSide,
+        arrowAlignment: arrowAlignment,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(BusyMaxSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: BusyMaxSizes.iconSm,
+                    height: BusyMaxSizes.iconSm,
+                    margin: const EdgeInsets.only(top: BusyMaxSpacing.xs),
+                    decoration: BoxDecoration(
+                      color: itemColor,
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(width: BusyMaxSpacing.sm),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            item.title,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: BusyMaxSpacing.xxs),
-                          Text(
-                            _kindLabel(context, item),
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: colorScheme.onSurfaceVariant),
-                          ),
-                        ],
-                      ),
+                  ),
+                  const SizedBox(width: BusyMaxSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          item.title,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: BusyMaxSpacing.xxs),
+                        Text(
+                          _kindLabel(context, item),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colorScheme.onSurfaceVariant),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: BusyMaxSpacing.sm),
-                    _PopoverActions(item: item),
-                  ],
-                ),
-                const SizedBox(height: BusyMaxSpacing.lg),
-                _ScheduleItemDetails(item: item),
-              ],
-            ),
+                  ),
+                  const SizedBox(width: BusyMaxSpacing.sm),
+                  _PopoverActions(item: item),
+                ],
+              ),
+              const SizedBox(height: BusyMaxSpacing.lg),
+              _ScheduleItemDetails(item: item),
+            ],
           ),
         ),
       ),
@@ -198,23 +119,21 @@ class _PopoverActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        BusyMaxCircularAction(
-          icon: Icons.download_outlined,
-          tooltip: context.l10n.export,
-          onPressed: () =>
-              Navigator.of(context).pop(ScheduleItemDetailsAction.export),
-        ),
-        const SizedBox(width: BusyMaxSpacing.xs),
+    final actions = <Widget>[
+      BusyMaxCircularAction(
+        icon: Icons.download_outlined,
+        tooltip: context.l10n.export,
+        onPressed: () =>
+            Navigator.of(context).pop(ScheduleItemDetailsAction.export),
+      ),
+      if (item.capabilities.canEdit)
         BusyMaxCircularAction(
           icon: Icons.edit_outlined,
           tooltip: _editLabel(context, item),
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.edit),
         ),
-        const SizedBox(width: BusyMaxSpacing.xs),
+      if (item.capabilities.canDelete)
         BusyMaxCircularAction(
           icon: Icons.delete_outline,
           tooltip: context.l10n.delete,
@@ -222,135 +141,21 @@ class _PopoverActions extends StatelessWidget {
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.delete),
         ),
-        const SizedBox(width: BusyMaxSpacing.xs),
-        BusyMaxCircularAction(
-          icon: Icons.close,
-          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+      BusyMaxCircularAction(
+        icon: Icons.close,
+        tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+    ];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var index = 0; index < actions.length; index += 1) ...[
+          if (index > 0) const SizedBox(width: BusyMaxSpacing.xs),
+          actions[index],
+        ],
       ],
     );
-  }
-}
-
-Rect? _globalRectFor(BuildContext context) {
-  final renderObject = context.findRenderObject();
-  if (renderObject is! RenderBox || !renderObject.hasSize) {
-    return null;
-  }
-  return renderObject.localToGlobal(Offset.zero) & renderObject.size;
-}
-
-Rect _globalRectForPoint(Offset point) {
-  return Rect.fromCenter(center: point, width: 1, height: 1);
-}
-
-_PopoverLayout _popoverLayout(
-  Rect? anchor,
-  Size viewport, {
-  required TextDirection textDirection,
-}) {
-  const margin = BusyMaxSpacing.md;
-  const gap = BusyMaxSpacing.xs;
-  const preferredWidth = 420.0;
-  const minWidth = 280.0;
-  const estimatedHeight = 310.0;
-
-  final availableWidth = math.max(0.0, viewport.width - margin * 2);
-  final width = availableWidth < minWidth
-      ? availableWidth
-      : math.min(preferredWidth, availableWidth);
-  final maxLeft = math.max(margin, viewport.width - width - margin);
-
-  if (anchor == null) {
-    return _PopoverLayout(
-      anchor: null,
-      left: ((viewport.width - width) / 2).clamp(margin, maxLeft).toDouble(),
-      width: width,
-      arrowSide: BusyMaxPopoverArrowSide.top,
-      arrowAlignment: 0.5,
-    );
-  }
-
-  final preferredLeft = textDirection == TextDirection.rtl
-      ? anchor.right - width
-      : anchor.left;
-  final left = preferredLeft.clamp(margin, maxLeft).toDouble();
-  final below = anchor.bottom + gap;
-  final showBelow = below + estimatedHeight <= viewport.height - margin;
-  final arrowAlignment = ((anchor.center.dx - left) / width)
-      .clamp(0.08, 0.92)
-      .toDouble();
-
-  return _PopoverLayout(
-    anchor: anchor,
-    left: left,
-    width: width,
-    arrowSide: showBelow
-        ? BusyMaxPopoverArrowSide.top
-        : BusyMaxPopoverArrowSide.bottom,
-    arrowAlignment: arrowAlignment,
-  );
-}
-
-class _PopoverLayout {
-  const _PopoverLayout({
-    required this.anchor,
-    required this.left,
-    required this.width,
-    required this.arrowSide,
-    required this.arrowAlignment,
-  });
-
-  final Rect? anchor;
-  final double left;
-  final double width;
-  final BusyMaxPopoverArrowSide arrowSide;
-  final double arrowAlignment;
-}
-
-class _PopoverPositionDelegate extends SingleChildLayoutDelegate {
-  const _PopoverPositionDelegate(this.layout);
-
-  final _PopoverLayout layout;
-
-  @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
-    const margin = BusyMaxSpacing.md;
-    return BoxConstraints(
-      minWidth: layout.width,
-      maxWidth: layout.width,
-      maxHeight: math.max(0, constraints.maxHeight - margin * 2),
-    );
-  }
-
-  @override
-  Offset getPositionForChild(Size size, Size childSize) {
-    const margin = BusyMaxSpacing.md;
-    const gap = BusyMaxSpacing.xs;
-    final maxTop = math.max(margin, size.height - childSize.height - margin);
-    final anchor = layout.anchor;
-
-    if (anchor == null) {
-      final centered = (size.height - childSize.height) / 2;
-      return Offset(layout.left, centered.clamp(margin, maxTop).toDouble());
-    }
-
-    final preferredTop = switch (layout.arrowSide) {
-      BusyMaxPopoverArrowSide.top => anchor.bottom + gap,
-      BusyMaxPopoverArrowSide.bottom => anchor.top - childSize.height - gap,
-    };
-    return Offset(layout.left, preferredTop.clamp(margin, maxTop).toDouble());
-  }
-
-  @override
-  bool shouldRelayout(covariant _PopoverPositionDelegate oldDelegate) {
-    final old = oldDelegate.layout;
-    return layout.anchor != old.anchor ||
-        layout.left != old.left ||
-        layout.width != old.width ||
-        layout.arrowSide != old.arrowSide ||
-        layout.arrowAlignment != old.arrowAlignment;
   }
 }
 
@@ -483,7 +288,7 @@ List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
         icon: Icons.notifications_outlined,
         text:
             '${context.l10n.reminder}: '
-            '${item.reminderMinutesBeforeStart.map(_reminderBeforeLabel).join(', ')}',
+            '${item.reminderMinutesBeforeStart.map((minutes) => _reminderBeforeLabel(context, minutes)).join(', ')}',
       ),
     if (item.categories.isNotEmpty)
       _ScheduleDetailRow(
@@ -526,16 +331,17 @@ List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
   ];
 }
 
-String _reminderBeforeLabel(int minutes) {
+String _reminderBeforeLabel(BuildContext context, int minutes) {
   return switch (minutes) {
-    0 => 'At start',
-    1 => '1 minute before',
-    < 60 => '$minutes minutes before',
-    60 => '1 hour before',
-    < 1440 when minutes % 60 == 0 => '${minutes ~/ 60} hours before',
-    1440 => '1 day before',
-    > 1440 when minutes % 1440 == 0 => '${minutes ~/ 1440} days before',
-    _ => '$minutes minutes before',
+    0 => context.l10n.reminderAtStart,
+    < 60 => context.l10n.reminderMinutesBefore(minutes),
+    < 1440 when minutes % 60 == 0 => context.l10n.reminderHoursBefore(
+      minutes ~/ 60,
+    ),
+    >= 1440 when minutes % 1440 == 0 => context.l10n.reminderDaysBefore(
+      minutes ~/ 1440,
+    ),
+    _ => context.l10n.reminderMinutesBefore(minutes),
   };
 }
 

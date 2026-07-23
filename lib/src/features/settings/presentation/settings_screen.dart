@@ -21,6 +21,7 @@ import '../../accounts/data/accounts_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../sync/sync_auth_error.dart';
+import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../../tasks/presentation/tasks_selection_state.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -55,6 +56,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _headerBarSession.dispose();
     unawaited(_headerBarActions?.cancel());
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialPage != widget.initialPage) {
+      _page = widget.initialPage;
+    }
   }
 
   @override
@@ -122,20 +131,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 : () => _fullSync(context, ref, accounts),
           ),
           BusyMaxSwitchRow(
-            title: l10n.runInBackgroundWhenClosed,
-            value: settings.runInBackgroundWhenClosed,
-            onChanged: settingsController.setRunInBackgroundWhenClosed,
-            leading: const Icon(YaruIcons.window),
-          ),
-          BusyMaxSwitchRow(
             title: l10n.showTrayIcon,
             value: settings.showTrayIcon,
             onChanged: settingsController.setShowTrayIcon,
             leading: const Icon(YaruIcons.pin),
           ),
           BusyMaxSwitchRow(
+            title: l10n.runInBackgroundWhenClosed,
+            subtitle: settings.showTrayIcon ? null : l10n.requiresTrayIcon,
+            value: settings.runInBackgroundWhenClosed,
+            enabled: settings.showTrayIcon,
+            onChanged: settingsController.setRunInBackgroundWhenClosed,
+            leading: const Icon(YaruIcons.window),
+          ),
+          BusyMaxSwitchRow(
             title: l10n.startMinimizedToTray,
+            subtitle: settings.showTrayIcon ? null : l10n.requiresTrayIcon,
             value: settings.startMinimizedToTray,
+            enabled: settings.showTrayIcon,
             onChanged: settingsController.setStartMinimizedToTray,
             leading: const Icon(YaruIcons.window_minimize),
           ),
@@ -198,9 +211,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           BusyMaxSwitchRow(
             title: l10n.quietHours,
+            subtitle: l10n.quietHoursDescription,
             value: settings.quietHoursEnabled,
             onChanged: settingsController.setQuietHoursEnabled,
             leading: const Icon(YaruIcons.clear_night),
+          ),
+          DesktopTimeValueRow(
+            label: l10n.quietHoursStart,
+            time: settings.quietHoursStart,
+            enabled: settings.quietHoursEnabled,
+            allowEmpty: false,
+            onChanged: (time) {
+              if (time != null) {
+                unawaited(settingsController.setQuietHoursStart(time));
+              }
+            },
+          ),
+          DesktopTimeValueRow(
+            label: l10n.quietHoursEnd,
+            time: settings.quietHoursEnd,
+            enabled: settings.quietHoursEnabled,
+            allowEmpty: false,
+            onChanged: (time) {
+              if (time != null) {
+                unawaited(settingsController.setQuietHoursEnd(time));
+              }
+            },
           ),
         ],
       ),
@@ -213,12 +249,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value: settings.redactTaskContentInDiagnostics,
             onChanged: settingsController.setRedactTaskContentInDiagnostics,
             leading: const Icon(YaruIcons.shield_warning),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.detailedNotifications,
-            value: settings.detailedNotifications,
-            onChanged: settingsController.setDetailedNotifications,
-            leading: const Icon(YaruIcons.eye),
           ),
         ],
       ),
@@ -253,7 +283,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   child: _SettingsPageSelector(
                     selected: _page,
-                    onSelected: (page) => setState(() => _page = page),
+                    onSelected: _selectPage,
                   ),
                 ),
               Expanded(
@@ -275,7 +305,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 width: BusyMaxSizes.sidebarWidth,
                 child: _SettingsSidebar(
                   selected: _page,
-                  onSelected: (page) => setState(() => _page = page),
+                  onSelected: _selectPage,
                 ),
               ),
               Expanded(child: content),
@@ -325,7 +355,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
     if (action == BusyMaxHeaderBarAction.settings) {
-      setState(() => _page = SettingsPage.accounts);
+      _selectPage(SettingsPage.accounts);
       return;
     }
     if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
@@ -351,7 +381,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
     context.go('/schedule');
+  }
+
+  void _selectPage(SettingsPage page) {
+    if (_page != page) {
+      setState(() => _page = page);
+    }
+    final router = GoRouter.maybeOf(context);
+    final uri = router?.state.uri;
+    if (router == null || uri == null || uri.path != '/settings') {
+      return;
+    }
+    final routePage = uri.queryParameters['page'];
+    if (routePage == settingsPageRouteValue(page)) {
+      return;
+    }
+    unawaited(
+      router.replace(
+        uri
+            .replace(
+              queryParameters: {
+                ...uri.queryParameters,
+                'page': settingsPageRouteValue(page),
+              },
+            )
+            .toString(),
+      ),
+    );
   }
 
   void _updateSettingsHeaderBar(
@@ -373,8 +434,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: title,
             viewMode: settings.scheduleViewMode,
             canRefresh: false,
-            canCreate: false,
+            canCreateEvent: false,
+            canCreateTask: false,
             searchActive: false,
+            searchQuery: '',
             canShowSidebar: showSidebar,
             sidebarVisible: showSidebar,
             navigationVisible: false,
@@ -543,21 +606,37 @@ class _SettingsSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: BusyMaxSurfaceColors.of(context).sidebar,
-      child: ListView(
-        padding: const EdgeInsets.symmetric(
-          horizontal: BusyMaxSpacing.xs,
-          vertical: BusyMaxSpacing.md,
+    final sidebarColor = BusyMaxSurfaceColors.of(context).sidebar;
+    return BusyMaxSidebarSurface(
+      child: YaruNavigationPageTheme(
+        data: YaruNavigationPageThemeData(
+          sideBarColor: sidebarColor,
+          railPadding: const EdgeInsets.symmetric(
+            horizontal: BusyMaxSpacing.xs,
+            vertical: BusyMaxSpacing.md,
+          ),
         ),
-        children: [
-          for (final page in SettingsPage.values)
-            _SettingsSidebarItem(
-              page: page,
-              selected: selected == page,
-              onTap: () => onSelected(page),
-            ),
-        ],
+        child: YaruNavigationRail(
+          length: SettingsPage.values.length,
+          selectedIndex: SettingsPage.values.indexOf(selected),
+          onDestinationSelected: (index) =>
+              onSelected(SettingsPage.values[index]),
+          itemBuilder: (context, index, isSelected) {
+            final page = SettingsPage.values[index];
+            return Semantics(
+              key: ValueKey('settings-navigation-${page.name}'),
+              container: true,
+              selected: isSelected,
+              child: YaruNavigationRailItem(
+                style: YaruNavigationRailStyle.labelledExtended,
+                width: BusyMaxSizes.sidebarWidth - 2 * BusyMaxSpacing.xs,
+                extendedSelectedIndicator: true,
+                icon: Icon(_settingsPageIcon(page)),
+                label: Text(_settingsPageLabel(context, page)),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -591,9 +670,10 @@ class _SettingsPageSelector extends StatelessWidget {
             ),
         ],
         onSelected: onSelected,
-        triggerBuilder: (context, onPressed) {
-          return BusyMaxPushButton.outlined(
+        triggerBuilder: (context, onPressed, focusNode) {
+          return BusyMaxPushButton.standard(
             onPressed: onPressed,
+            focusNode: focusNode,
             child: Row(
               children: [
                 Icon(_settingsPageIcon(selected)),
@@ -610,65 +690,6 @@ class _SettingsPageSelector extends StatelessWidget {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _SettingsSidebarItem extends StatelessWidget {
-  const _SettingsSidebarItem({
-    required this.page,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final SettingsPage page;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Material(
-        color: selected
-            ? colorScheme.onSurface.withValues(alpha: 0.08)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-          onTap: onTap,
-          child: SizedBox(
-            height: 42,
-            child: Row(
-              children: [
-                const SizedBox(width: BusyMaxSpacing.md),
-                Icon(
-                  _settingsPageIcon(page),
-                  size: BusyMaxSizes.iconSm,
-                  color: selected
-                      ? colorScheme.onSurface
-                      : colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: BusyMaxSpacing.sm),
-                Expanded(
-                  child: Text(
-                    _settingsPageLabel(context, page),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: selected
-                          ? colorScheme.onSurface
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: BusyMaxSpacing.md),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

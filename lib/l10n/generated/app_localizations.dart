@@ -339,7 +339,7 @@ abstract class AppLocalizations {
   /// No description provided for @allDay.
   ///
   /// In en, this message translates to:
-  /// **'All Day'**
+  /// **'All day'**
   String get allDay;
 
   /// No description provided for @moreItems.
@@ -389,6 +389,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign in to sync calendars and tasks.'**
   String get scheduleSignInDescription;
+
+  /// No description provided for @scheduleNoSearchResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching events or tasks'**
+  String get scheduleNoSearchResults;
+
+  /// No description provided for @scheduleNoSearchResultsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a different search or clear the current filters.'**
+  String get scheduleNoSearchResultsDescription;
 
   /// No description provided for @trayAgendaLoading.
   ///
@@ -633,8 +645,20 @@ abstract class AppLocalizations {
   /// No description provided for @timeSlot.
   ///
   /// In en, this message translates to:
-  /// **'Time Slot'**
+  /// **'Time slot'**
   String get timeSlot;
+
+  /// No description provided for @timeMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get timeMode;
+
+  /// No description provided for @timeModeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use dates only or set specific times.'**
+  String get timeModeDescription;
 
   /// No description provided for @startDateTime.
   ///
@@ -761,6 +785,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{minutes, plural, =1{1 minute before} other{{minutes} minutes before}}'**
   String reminderMinutesBefore(int minutes);
+
+  /// No description provided for @reminderAtStart.
+  ///
+  /// In en, this message translates to:
+  /// **'At start'**
+  String get reminderAtStart;
 
   /// No description provided for @reminderHoursBefore.
   ///
@@ -1962,6 +1992,12 @@ abstract class AppLocalizations {
   /// **'Start minimized to the tray'**
   String get startMinimizedToTray;
 
+  /// No description provided for @requiresTrayIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'Requires the tray icon.'**
+  String get requiresTrayIcon;
+
   /// No description provided for @syncComplete.
   ///
   /// In en, this message translates to:
@@ -2027,6 +2063,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Quiet hours'**
   String get quietHours;
+
+  /// No description provided for @quietHoursDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause notifications during this period.'**
+  String get quietHoursDescription;
+
+  /// No description provided for @quietHoursStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet hours start'**
+  String get quietHoursStart;
+
+  /// No description provided for @quietHoursEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet hours end'**
+  String get quietHoursEnd;
 
   /// No description provided for @notifications.
   ///
@@ -2099,12 +2153,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Redact task content in diagnostics'**
   String get redactTaskContentInDiagnostics;
-
-  /// No description provided for @detailedNotifications.
-  ///
-  /// In en, this message translates to:
-  /// **'Detailed notification text'**
-  String get detailedNotifications;
 
   /// No description provided for @developerDiagnostics.
   ///

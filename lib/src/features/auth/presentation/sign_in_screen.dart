@@ -225,8 +225,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             title: title,
             viewMode: ref.read(appSettingsControllerProvider).scheduleViewMode,
             canRefresh: false,
-            canCreate: false,
+            canCreateEvent: false,
+            canCreateTask: false,
             searchActive: false,
+            searchQuery: '',
             canShowSidebar: false,
             sidebarVisible: false,
             navigationVisible: false,
@@ -458,7 +460,7 @@ class _AccountsOnboardingStep extends StatelessWidget {
         ],
         if (isSigningIn) ...[
           const SizedBox(height: BusyMaxSpacing.md),
-          BusyMaxPushButton.outlined(
+          BusyMaxPushButton.standard(
             onPressed: onCancelSignIn,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -632,11 +634,13 @@ class _PreferencesOnboardingStep extends StatelessWidget {
           title: l10n.privacy,
           filled: true,
           children: [
-            BusyMaxSwitchRow(
-              title: l10n.detailedNotifications,
-              value: settings.detailedNotifications,
-              onChanged: settingsController.setDetailedNotifications,
+            BusyMaxComboRow<NotificationDetailLevel>(
+              title: l10n.notificationDetailLevel,
               leading: const Icon(YaruIcons.eye),
+              values: NotificationDetailLevel.values,
+              selected: settings.notificationDetailLevel,
+              labelFor: (value) => _notificationDetailLabel(context, value),
+              onSelected: settingsController.setNotificationDetailLevel,
             ),
             BusyMaxSwitchRow(
               title: l10n.redactTaskContentInDiagnostics,
@@ -746,12 +750,12 @@ class _OnboardingFooter extends StatelessWidget {
       ),
       child: Row(
         children: [
-          BusyMaxPushButton.outlined(
+          BusyMaxPushButton.standard(
             onPressed: canGoBack ? onBack : null,
             child: Text(backLabel),
           ),
           const Spacer(),
-          BusyMaxPushButton.filled(
+          BusyMaxPushButton.suggested(
             onPressed: canContinue ? onContinue : null,
             child: Text(continueLabel),
           ),
@@ -799,5 +803,16 @@ String _themeModeLabel(
     BusyMaxThemeModePreference.system => l10n.themeSystem,
     BusyMaxThemeModePreference.light => l10n.themeLight,
     BusyMaxThemeModePreference.dark => l10n.themeDark,
+  };
+}
+
+String _notificationDetailLabel(
+  BuildContext context,
+  NotificationDetailLevel level,
+) {
+  final l10n = context.l10n;
+  return switch (level) {
+    NotificationDetailLevel.private => l10n.notificationDetailPrivate,
+    NotificationDetailLevel.normal => l10n.notificationDetailNormal,
   };
 }

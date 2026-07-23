@@ -34,11 +34,13 @@ void main() {
     final selected = {WidgetState.selected};
 
     final lightSurfaceColors = light.extension<BusyMaxSurfaceColors>()!;
+    final yaruBase = createYaruLightTheme(primaryColor: _testAccentColor);
 
     expect(light.colorScheme.primary, _testAccentColor);
     expect(dark.colorScheme.primary, _testAccentColor);
     expect(light.primaryColor, _testAccentColor);
-    expect(light.visualDensity, VisualDensity.compact);
+    expect(light.visualDensity, yaruBase.visualDensity);
+    expect(light.splashFactory, yaruBase.splashFactory);
     expect(light.scaffoldBackgroundColor, isNot(_testAccentColor));
     expect(light.colorScheme.surface, alternate.colorScheme.surface);
     expect(
@@ -64,19 +66,42 @@ void main() {
     );
     expect(
       light.filledButtonTheme.style?.backgroundColor?.resolve({}),
-      _testAccentColor,
+      lightSurfaceColors.control,
     );
     expect(
-      light.segmentedButtonTheme.style?.foregroundColor?.resolve(selected),
+      light.elevatedButtonTheme.style?.backgroundColor?.resolve({}),
       _testAccentColor,
     );
+    expect(light.toggleButtonsTheme.color, lightSurfaceColors.foreground);
     expect(
-      light.segmentedButtonTheme.style?.side?.resolve(selected)?.color,
-      _testAccentColor,
+      light.toggleButtonsTheme.selectedColor,
+      lightSurfaceColors.foreground,
     );
     expect(
-      light.segmentedButtonTheme.style?.backgroundColor?.resolve(selected),
-      light.colorScheme.primaryContainer,
+      light.toggleButtonsTheme.fillColor,
+      lightSurfaceColors.controlActive,
+    );
+    expect(light.toggleButtonsTheme.fillColor, isNot(_testAccentColor));
+    expect(light.toggleButtonsTheme.borderColor, lightSurfaceColors.border);
+    expect(
+      light.toggleButtonsTheme.selectedBorderColor,
+      lightSurfaceColors.border,
+    );
+    expect(
+      light.toggleButtonsTheme.borderRadius,
+      BorderRadius.circular(BusyMaxRadius.sm),
+    );
+    expect(
+      light.toggleButtonsTheme.highlightColor,
+      lightSurfaceColors.controlActive,
+    );
+    expect(
+      light.toggleButtonsTheme.splashColor,
+      lightSurfaceColors.controlHover,
+    );
+    expect(
+      light.toggleButtonsTheme.focusColor,
+      lightSurfaceColors.controlActive,
     );
     expect(light.floatingActionButtonTheme.backgroundColor, _testAccentColor);
     expect(light.progressIndicatorTheme.color, _testAccentColor);
@@ -89,7 +114,7 @@ void main() {
     final outlinedShape =
         light.outlinedButtonTheme.style?.shape?.resolve({})
             as RoundedRectangleBorder;
-    expect(outlinedShape.borderRadius, BorderRadius.circular(12));
+    expect(outlinedShape.borderRadius, BorderRadius.circular(BusyMaxRadius.sm));
 
     final pushButtonStyle = busyMaxPushButtonStyle(null);
     expect(
@@ -101,19 +126,50 @@ void main() {
       const Size.fromHeight(BusyMaxSizes.pushButtonHeight),
     );
     expect(
-      pushButtonStyle.padding?.resolve({}),
-      const EdgeInsets.symmetric(horizontal: 12),
+      light.outlinedButtonTheme.style?.side?.resolve({}),
+      yaruBase.outlinedButtonTheme.style?.side?.resolve({}),
+    );
+    for (final pair in [
+      (light.outlinedButtonTheme.style, yaruBase.outlinedButtonTheme.style),
+      (light.filledButtonTheme.style, yaruBase.filledButtonTheme.style),
+      (light.elevatedButtonTheme.style, yaruBase.elevatedButtonTheme.style),
+    ]) {
+      expect(pair.$1?.shape?.resolve({}), pair.$2?.shape?.resolve({}));
+      for (final states in [
+        {WidgetState.hovered},
+        {WidgetState.focused},
+        {WidgetState.pressed},
+      ]) {
+        expect(
+          pair.$1?.overlayColor?.resolve(states),
+          pair.$2?.overlayColor?.resolve(states),
+        );
+      }
+    }
+  });
+
+  test('shared push buttons expose semantic Yaru roles', () {
+    final standard = BusyMaxPushButton.standard(
+      onPressed: () {},
+      child: const Text('Standard'),
+    );
+    final suggested = BusyMaxPushButton.suggested(
+      onPressed: () {},
+      child: const Text('Suggested'),
+    );
+    final headerStandard = BusyMaxHeaderPushButton.standard(
+      onPressed: () {},
+      child: const Text('Cancel'),
+    );
+    final headerSuggested = BusyMaxHeaderPushButton.suggested(
+      onPressed: () {},
+      child: const Text('Save'),
     );
 
-    expect(light.outlinedButtonTheme.style?.side?.resolve({}), BorderSide.none);
-    expect(
-      light.outlinedButtonTheme.style?.side?.resolve({WidgetState.disabled}),
-      BorderSide.none,
-    );
-    expect(
-      light.outlinedButtonTheme.style?.side?.resolve({WidgetState.focused}),
-      BorderSide(color: _testAccentColor),
-    );
+    expect(standard, isA<FilledButton>());
+    expect(suggested, isA<ElevatedButton>());
+    expect(headerStandard, isA<FilledButton>());
+    expect(headerSuggested, isA<ElevatedButton>());
   });
 
   test('BusyMax Yaru theme exposes semantic fallback surfaces', () {
@@ -137,6 +193,7 @@ void main() {
     expect(darkColors.groupedSurface, const Color(0xFF383838));
     expect(darkColors.dialog, const Color(0xFF222226));
     expect(darkColors.popover, const Color(0xFF383838));
+    expect(darkColors.sidebarBorder, const Color.fromRGBO(255, 255, 255, 0.10));
     expect(darkColors.view, isNot(const Color(0xFF3E3E3E)));
     expect(light.scaffoldBackgroundColor, lightColors.window);
     expect(dark.scaffoldBackgroundColor, darkColors.window);
@@ -414,7 +471,6 @@ void main() {
       (theme.filledButtonTheme.style, base.filledButtonTheme.style),
       (theme.elevatedButtonTheme.style, base.elevatedButtonTheme.style),
       (theme.textButtonTheme.style, base.textButtonTheme.style),
-      (theme.segmentedButtonTheme.style, base.segmentedButtonTheme.style),
     ]) {
       _expectComponentStyleUsesTypography(
         pair.$1?.textStyle?.resolve(buttonStates),
@@ -502,7 +558,7 @@ void main() {
     expect(theme.popupMenuTheme.color, gtkColors.popover);
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
     expect(colors.sidebar, gtkColors.sidebar);
-    expect(colors.groupedSurface, gtkColors.popover);
+    expect(colors.groupedSurface, gtkColors.card);
   });
 
   test('BusyMax theme ignores light GTK runtime shade samples', () {
@@ -520,13 +576,16 @@ void main() {
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
 
     expect(colors.shade, busyMaxFallbackSurfaceColors(Brightness.light).shade);
-    expect(colors.groupedSurface, gtkColors.view);
+    expect(
+      colors.groupedSurface,
+      busyMaxFallbackSurfaceColors(Brightness.light).groupedSurface,
+    );
     expect(theme.shadowColor, theme.colorScheme.shadow);
     expect(theme.popupMenuTheme.shadowColor, theme.colorScheme.shadow);
     expect(theme.popupMenuTheme.shadowColor, isNot(colors.shade));
   });
 
-  test('BusyMax theme ignores too-dark GTK popover samples', () {
+  test('BusyMax theme preserves dark GTK popover samples', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       window: Color(0xFF242424),
@@ -541,12 +600,77 @@ void main() {
 
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
 
-    expect(theme.popupMenuTheme.color, const Color(0xFF383838));
-    expect(colors.popover, const Color(0xFF383838));
-    expect(colors.groupedSurface, const Color(0xFF383838));
+    expect(theme.popupMenuTheme.color, gtkColors.popover);
+    expect(colors.popover, gtkColors.popover);
+    expect(
+      colors.groupedSurface,
+      busyMaxFallbackSurfaceColors(Brightness.dark).groupedSurface,
+    );
   });
 
-  test('BusyMax theme ignores blue purple GTK dark surface samples', () {
+  test('BusyMax grouped surfaces ignore unreadable GTK card samples', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFFFFFFF),
+      view: Color(0xFFFFFFFF),
+      card: Color(0xFF101010),
+      popover: Color(0xFFEEEEEE),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+
+    expect(
+      colors.groupedSurface,
+      busyMaxFallbackSurfaceColors(Brightness.light).groupedSurface,
+    );
+    expect(colors.groupedSurface, isNot(gtkColors.card));
+    expect(colors.groupedSurface, isNot(gtkColors.popover));
+  });
+
+  test(
+    'BusyMax dark grouped surfaces reject flat or recessed card samples',
+    () {
+      for (final card in const [Color(0xFF242424), Color(0xFF101010)]) {
+        final colors = _buildBusyMaxTheme(
+          brightness: Brightness.dark,
+          gtkThemeColors: GtkThemeColors(
+            brightness: Brightness.dark,
+            window: const Color(0xFF202020),
+            view: const Color(0xFF242424),
+            card: card,
+          ),
+        ).extension<BusyMaxSurfaceColors>()!;
+
+        expect(
+          colors.groupedSurface,
+          busyMaxFallbackSurfaceColors(Brightness.dark).groupedSurface,
+        );
+      }
+    },
+  );
+
+  test('BusyMax dark sidebar rejects recessed boundary samples', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.dark,
+      window: Color(0xFF202020),
+      view: Color(0xFF242424),
+      sidebar: Color(0xFF303030),
+      sidebarBorder: Color.fromRGBO(0, 0, 0, 0.36),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.dark,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+
+    expect(
+      colors.sidebarBorder,
+      busyMaxFallbackSurfaceColors(Brightness.dark).sidebarBorder,
+    );
+  });
+
+  test('BusyMax theme preserves chromatic GTK dark surface samples', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       window: Color(0xFF241F31),
@@ -563,9 +687,9 @@ void main() {
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
 
-    expect(theme.scaffoldBackgroundColor, const Color(0xFF1D1D20));
-    expect(theme.colorScheme.surface, const Color(0xFF1D1D20));
-    expect(theme.colorScheme.surfaceContainer, const Color(0xFF222226));
+    expect(theme.scaffoldBackgroundColor, gtkColors.window);
+    expect(theme.colorScheme.surface, gtkColors.view);
+    expect(theme.colorScheme.surfaceContainer, gtkColors.card);
     expect(
       theme.colorScheme.surfaceContainerHigh,
       const Color.fromRGBO(255, 255, 255, 0.10),
@@ -574,15 +698,15 @@ void main() {
       theme.colorScheme.surfaceContainerHighest,
       const Color.fromRGBO(255, 255, 255, 0.14),
     );
-    expect(theme.dialogTheme.backgroundColor, const Color(0xFF222226));
-    expect(colors.sidebar, isNot(const Color(0xFF3D3846)));
+    expect(theme.dialogTheme.backgroundColor, gtkColors.dialog);
+    expect(colors.sidebar, gtkColors.sidebar);
     expect(colors.control, const Color.fromRGBO(255, 255, 255, 0.10));
     expect(colors.controlHover, const Color.fromRGBO(255, 255, 255, 0.14));
-    expect(colors.popover, const Color(0xFF383838));
-    expect(colors.groupedSurface, const Color(0xFF383838));
+    expect(colors.popover, gtkColors.popover);
+    expect(colors.groupedSurface, gtkColors.card);
   });
 
-  test('BusyMax theme ignores GTK accent control samples', () {
+  test('BusyMax theme preserves chromatic GTK control samples', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       control: Color(0x22004A99),
@@ -594,16 +718,14 @@ void main() {
       gtkThemeColors: gtkColors,
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
-    final fallback = busyMaxFallbackSurfaceColors(Brightness.dark);
-
-    expect(colors.control, fallback.control);
-    expect(colors.controlHover, fallback.controlHover);
-    expect(colors.controlActive, fallback.controlActive);
-    expect(theme.colorScheme.surfaceContainerHigh, fallback.control);
-    expect(theme.colorScheme.surfaceContainerHighest, fallback.controlHover);
+    expect(colors.control, gtkColors.control);
+    expect(colors.controlHover, gtkColors.controlHover);
+    expect(colors.controlActive, gtkColors.controlActive);
+    expect(theme.colorScheme.surfaceContainerHigh, gtkColors.control);
+    expect(theme.colorScheme.surfaceContainerHighest, gtkColors.controlHover);
   });
 
-  test('BusyMax theme derives sidebar from collapsed GTK colors', () {
+  test('BusyMax theme preserves a flat GTK surface hierarchy', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       window: Color(0xFF3E3E3E),
@@ -617,17 +739,10 @@ void main() {
 
     expect(theme.scaffoldBackgroundColor, gtkColors.window);
     expect(theme.colorScheme.surface, gtkColors.view);
-    expect(
-      theme.extension<BusyMaxSurfaceColors>()?.sidebar,
-      isNot(const Color(0xFF2E2E32)),
-    );
-    expect(
-      theme.extension<BusyMaxSurfaceColors>()?.sidebar,
-      isNot(theme.scaffoldBackgroundColor),
-    );
+    expect(theme.extension<BusyMaxSurfaceColors>()?.sidebar, gtkColors.sidebar);
   });
 
-  test('BusyMax theme uses native headerbar as sidebar candidate', () {
+  test('BusyMax theme keeps GTK semantic roles independent', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       window: Color(0xFF242424),
@@ -641,13 +756,12 @@ void main() {
     );
 
     expect(theme.colorScheme.surface, gtkColors.view);
-    expect(
-      theme.extension<BusyMaxSurfaceColors>()?.sidebar,
-      gtkColors.headerbar,
-    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    expect(colors.sidebar, gtkColors.sidebar);
+    expect(colors.headerbar, gtkColors.headerbar);
   });
 
-  test('BusyMax theme ignores black GTK surface samples', () {
+  test('BusyMax theme preserves black GTK surface samples', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       window: Color(0xFF000000),
@@ -661,13 +775,13 @@ void main() {
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
 
-    expect(theme.scaffoldBackgroundColor, const Color(0xFF1D1D20));
+    expect(theme.scaffoldBackgroundColor, gtkColors.window);
     expect(theme.colorScheme.surface, gtkColors.view);
-    expect(colors.sidebar, isNot(const Color(0xFF000000)));
-    expect(colors.sidebar, isNot(const Color(0xFF2E2E32)));
+    expect(colors.sidebar, gtkColors.sidebar);
+    expect(colors.headerbar, gtkColors.headerbar);
   });
 
-  test('BusyMax theme ignores near-black GTK surface samples', () {
+  test('BusyMax theme preserves near-black GTK surface samples', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       window: Color(0xFF101010),
@@ -681,13 +795,13 @@ void main() {
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
 
-    expect(theme.scaffoldBackgroundColor, const Color(0xFF1D1D20));
-    expect(theme.colorScheme.surface, const Color(0xFF1D1D20));
-    expect(colors.sidebar, isNot(const Color(0xFF101010)));
-    expect(colors.sidebar, isNot(theme.colorScheme.surface));
+    expect(theme.scaffoldBackgroundColor, gtkColors.window);
+    expect(theme.colorScheme.surface, gtkColors.view);
+    expect(colors.sidebar, gtkColors.sidebar);
+    expect(colors.headerbar, gtkColors.headerbar);
   });
 
-  test('BusyMax theme ignores translucent GTK surface samples', () {
+  test('BusyMax theme composites translucent GTK surface layers', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       window: Color(0x33000000),
@@ -700,11 +814,16 @@ void main() {
       gtkThemeColors: gtkColors,
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    final window = Color.alphaBlend(
+      gtkColors.window!,
+      busyMaxFallbackSurfaceColors(Brightness.dark).window,
+    );
+    final view = Color.alphaBlend(gtkColors.view!, window);
 
-    expect(theme.scaffoldBackgroundColor, const Color(0xFF1D1D20));
-    expect(theme.colorScheme.surface, const Color(0xFF1D1D20));
-    expect(colors.sidebar, isNot(const Color(0x33000000)));
-    expect(colors.sidebar, isNot(theme.colorScheme.surface));
+    expect(theme.scaffoldBackgroundColor, window);
+    expect(theme.colorScheme.surface, view);
+    expect(colors.sidebar, Color.alphaBlend(gtkColors.sidebar!, window));
+    expect(colors.headerbar, Color.alphaBlend(gtkColors.headerbar!, window));
   });
 
   test('BusyMax theme rejects unreadable GTK foreground samples', () {
@@ -726,6 +845,38 @@ void main() {
     expect(colors.mutedForeground, const Color.fromRGBO(255, 255, 255, 0.70));
     expect(theme.colorScheme.onSurface, colors.foreground);
     expect(theme.colorScheme.onSurfaceVariant, colors.mutedForeground);
+  });
+
+  test('BusyMax theme falls back only mixed-luminance GTK surface roles', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFFFFFFF),
+      view: Color(0xFFFFFFFF),
+      sidebar: Color(0xFF101010),
+      secondarySidebar: Color(0xFF111111),
+      headerbar: Color(0xFF121212),
+      headerbarFlat: Color(0xFF131313),
+      card: Color(0xFFFFFFFF),
+      dialog: Color(0xFF141414),
+      popover: Color(0xFF151515),
+    );
+    final theme = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      gtkThemeColors: gtkColors,
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    final fallback = busyMaxFallbackSurfaceColors(Brightness.light);
+
+    expect(colors.window, gtkColors.window);
+    expect(colors.view, gtkColors.view);
+    expect(colors.card, gtkColors.card);
+    expect(colors.sidebar, fallback.sidebar);
+    expect(colors.secondarySidebar, fallback.secondarySidebar);
+    expect(colors.headerbar, fallback.headerbar);
+    expect(colors.headerbarFlat, fallback.headerbarFlat);
+    expect(colors.dialog, fallback.dialog);
+    expect(colors.popover, fallback.popover);
+    expect(colors.foreground, fallback.foreground);
   });
 
   test('BusyMax theme ignores GTK runtime colors for other brightness', () {
@@ -842,27 +993,6 @@ void main() {
     expect(store.json['scheduleViewMode'], 'month');
   });
 
-  test('notification detail settings stay synchronized', () async {
-    final store = _MemorySettingsStore();
-    final settings = AppSettingsController(store);
-    await Future<void>.delayed(Duration.zero);
-
-    await settings.setNotificationDetailLevel(NotificationDetailLevel.private);
-    expect(settings.state.detailedNotifications, isFalse);
-
-    await settings.setDetailedNotifications(true);
-    expect(
-      settings.state.notificationDetailLevel,
-      NotificationDetailLevel.normal,
-    );
-
-    final loaded = AppSettings.fromJson({
-      'detailedNotifications': true,
-      'notificationDetailLevel': 'private',
-    });
-    expect(loaded.notificationDetailLevel, NotificationDetailLevel.normal);
-  });
-
   test('native headerbar receives semantic surface colors', () {
     final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
 
@@ -893,7 +1023,8 @@ void main() {
 
       expect(source, contains('ClipRRect('));
       expect(source, contains('bottom: Radius.circular(BusyMaxRadius.window)'));
-      expect(source, contains('clipBehavior: Clip.antiAliasWithSaveLayer'));
+      expect(source, contains('clipBehavior: Clip.antiAlias'));
+      expect(source, isNot(contains('Clip.antiAliasWithSaveLayer')));
       expect(
         source,
         contains('color: BusyMaxSurfaceColors.of(context).window'),

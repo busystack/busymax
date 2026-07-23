@@ -9,6 +9,8 @@ enum ScheduleCreateChoice { event, task }
 
 Future<ScheduleCreateChoice?> showScheduleCreateMenu({
   required BuildContext context,
+  bool canCreateEvent = true,
+  bool canCreateTask = true,
   LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalDialog<ScheduleCreateChoice>(
@@ -29,17 +31,21 @@ Future<ScheduleCreateChoice?> showScheduleCreateMenu({
                   style: Theme.of(dialogContext).textTheme.titleMedium,
                 ),
                 const SizedBox(height: BusyMaxSpacing.md),
-                BusyMaxPushButton.outlined(
-                  onPressed: () => Navigator.of(
-                    dialogContext,
-                  ).pop(ScheduleCreateChoice.event),
+                BusyMaxPushButton.standard(
+                  onPressed: canCreateEvent
+                      ? () => Navigator.of(
+                          dialogContext,
+                        ).pop(ScheduleCreateChoice.event)
+                      : null,
                   child: Text(dialogContext.l10n.createEventAtTime),
                 ),
                 const SizedBox(height: BusyMaxSpacing.sm),
-                BusyMaxPushButton.outlined(
-                  onPressed: () => Navigator.of(
-                    dialogContext,
-                  ).pop(ScheduleCreateChoice.task),
+                BusyMaxPushButton.standard(
+                  onPressed: canCreateTask
+                      ? () => Navigator.of(
+                          dialogContext,
+                        ).pop(ScheduleCreateChoice.task)
+                      : null,
                   child: Text(dialogContext.l10n.createTaskAtDate),
                 ),
               ],

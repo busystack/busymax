@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:yaru/yaru.dart';
 
@@ -226,7 +227,10 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
             width: 190,
             child: widget.enabled
                 ? dateEntry
-                : Opacity(opacity: 0.6, child: IgnorePointer(child: dateEntry)),
+                : Opacity(
+                    opacity: 0.6,
+                    child: ExcludeFocus(child: IgnorePointer(child: dateEntry)),
+                  ),
           ),
           YaruIconButton(
             tooltip: widget.label,
@@ -242,6 +246,9 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
   }
 
   Future<void> _pickNativeDate(BuildContext context) async {
+    if (!widget.enabled) {
+      return;
+    }
     if (!widget.useNativePicker) {
       final fallbackPicked = await showBusyMaxDateValueDialog(
         context,
@@ -304,10 +311,9 @@ Future<String?> showBusyMaxDateValueDialog(
   required String label,
   required String? initialDate,
 }) {
-  return showDialog<String>(
-    context: context,
-    barrierColor: Colors.transparent,
-    builder: (context) {
+  return showBusyMaxModalDialog<String>(
+    context,
+    builder: (dialogContext) {
       return _DesktopDateValueDialog(label: label, initialDate: initialDate);
     },
   );
@@ -344,11 +350,11 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
       title: widget.label,
       maxWidth: 360,
       actions: [
-        BusyMaxPushButton.outlined(
+        BusyMaxPushButton.standard(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.l10n.cancel),
         ),
-        BusyMaxPushButton.filled(
+        BusyMaxPushButton.suggested(
           onPressed: _selected == null ? null : _submit,
           child: Text(MaterialLocalizations.of(context).okButtonLabel),
         ),
@@ -443,9 +449,9 @@ class DesktopTimeValueRow extends StatelessWidget {
     if (!enabled) {
       return;
     }
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
+    await showBusyMaxModalDialog<void>(
+      context,
+      builder: (dialogContext) {
         return _DesktopTimeValueDialog(
           label: label,
           time: time,
@@ -522,11 +528,11 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
       title: widget.label,
       maxWidth: 360,
       actions: [
-        BusyMaxPushButton.outlined(
+        BusyMaxPushButton.standard(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.l10n.cancel),
         ),
-        BusyMaxPushButton.filled(
+        BusyMaxPushButton.suggested(
           onPressed: !_invalid && (widget.allowEmpty || _selected != null)
               ? _submit
               : null,
@@ -613,7 +619,10 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
         width: 168,
         child: widget.enabled
             ? timeEntry
-            : Opacity(opacity: 0.6, child: IgnorePointer(child: timeEntry)),
+            : Opacity(
+                opacity: 0.6,
+                child: ExcludeFocus(child: IgnorePointer(child: timeEntry)),
+              ),
       ),
       enabled: widget.enabled,
     );

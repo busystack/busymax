@@ -132,7 +132,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noCalendarsSynced => 'No calendars synced yet.';
 
   @override
-  String get allDay => 'All Day';
+  String get allDay => 'All day';
 
   @override
   String moreItems(int count) {
@@ -161,6 +161,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get scheduleSignInDescription =>
       'Sign in to sync calendars and tasks.';
+
+  @override
+  String get scheduleNoSearchResults => 'No matching events or tasks';
+
+  @override
+  String get scheduleNoSearchResultsDescription =>
+      'Try a different search or clear the current filters.';
 
   @override
   String get trayAgendaLoading => 'Loading agenda...';
@@ -286,7 +293,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get location => 'Location';
 
   @override
-  String get timeSlot => 'Time Slot';
+  String get timeSlot => 'Time slot';
+
+  @override
+  String get timeMode => 'Time';
+
+  @override
+  String get timeModeDescription => 'Use dates only or set specific times.';
 
   @override
   String get startDateTime => 'Start date/time';
@@ -358,6 +371,9 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get reminderAtStart => 'At start';
 
   @override
   String reminderHoursBefore(int hours) {
@@ -1014,6 +1030,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get startMinimizedToTray => 'Start minimized to the tray';
 
   @override
+  String get requiresTrayIcon => 'Requires the tray icon.';
+
+  @override
   String get syncComplete => 'Sync complete.';
 
   @override
@@ -1047,6 +1066,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get quietHours => 'Quiet hours';
+
+  @override
+  String get quietHoursDescription => 'Pause notifications during this period.';
+
+  @override
+  String get quietHoursStart => 'Quiet hours start';
+
+  @override
+  String get quietHoursEnd => 'Quiet hours end';
 
   @override
   String get notifications => 'Notifications';
@@ -1084,9 +1112,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get redactTaskContentInDiagnostics =>
       'Redact task content in diagnostics';
-
-  @override
-  String get detailedNotifications => 'Detailed notification text';
 
   @override
   String get developerDiagnostics => 'Developer diagnostics';

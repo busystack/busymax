@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_app.dart';
@@ -23,6 +23,7 @@ import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 
 void main() {
@@ -132,6 +133,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Choose system settings'), findsOneWidget);
+    expect(find.text('Notification detail level'), findsOneWidget);
+    expect(find.text('Detailed notification text'), findsNothing);
 
     await tester.tap(find.text('Finish setup'));
     await tester.pumpAndSettle();
@@ -157,6 +160,86 @@ void main() {
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
     expect(find.byType(TasksWorkspace), findsNothing);
+
+    final accountId = (await database.select(database.accounts).getSingle()).id;
+    await database.taskListsDao.upsertTaskList(
+      TaskListsCompanion.insert(
+        accountId: accountId,
+        id: 'list-1',
+        title: 'Route list',
+        rawJson: '{}',
+        createdLocalAtUtc: '2026-06-04T00:00:00.000Z',
+        updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
+      ),
+    );
+    await database.tasksDao.upsertTask(
+      TasksCompanion.insert(
+        accountId: accountId,
+        taskListId: 'list-1',
+        id: 'task-1',
+        title: 'Route task',
+        status: const Value('needsAction'),
+        rawJson: '{}',
+        createdLocalAtUtc: '2026-06-04T00:00:00.000Z',
+        updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
+      ),
+    );
+    final router = GoRouter.of(tester.element(find.byType(ScheduleWorkspace)));
+    router.go(
+      Uri(
+        pathSegments: ['', 'tasks', accountId, 'list-1', 'task-1'],
+      ).toString(),
+    );
+    await tester.pumpAndSettle();
+
+    final deepLinkedWorkspace = tester.widget<ScheduleWorkspace>(
+      find.byType(ScheduleWorkspace),
+    );
+    expect(deepLinkedWorkspace.initialScope, ScheduleScope.tasks);
+    expect(deepLinkedWorkspace.initialTaskAccountId, accountId);
+    expect(deepLinkedWorkspace.initialTaskListId, 'list-1');
+    expect(deepLinkedWorkspace.initialTaskId, 'task-1');
+    expect(find.text('Edit Task'), findsOneWidget);
+
+    final routedWorkspaceState = tester.state(find.byType(ScheduleWorkspace));
+    final titleField = find.byType(TextField).first;
+    await tester.enterText(titleField, 'Unsaved route title');
+    await tester.pump();
+    router.go(
+      Uri(
+        pathSegments: ['', 'tasks', accountId, 'list-1', 'missing-task'],
+      ).toString(),
+    );
+    await tester.pump();
+    expect(
+      tester.state(find.byType(ScheduleWorkspace)),
+      same(routedWorkspaceState),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(router.routeInformationProvider.value.uri.pathSegments, [
+      'tasks',
+      accountId,
+      'list-1',
+      'task-1',
+    ]);
+    expect(find.text('Edit Task'), findsOneWidget);
+
+    router.go(Uri(pathSegments: ['', 'tasks', accountId, 'list-1']).toString());
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.pathSegments, [
+      'tasks',
+      accountId,
+      'list-1',
+    ]);
+    expect(find.text('Edit Task'), findsNothing);
     await _disposeApp(tester);
   });
 

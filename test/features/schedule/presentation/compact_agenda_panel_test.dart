@@ -8,6 +8,7 @@ import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
 
@@ -322,6 +323,64 @@ void main() {
     expect(find.text('Work'), findsWidgets);
   });
 
+  testWidgets('Escape closes an editor before hiding compact agenda', (
+    tester,
+  ) async {
+    var hideCalls = 0;
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, canCreateEvents: true),
+        onHide: () async => hideCalls += 1,
+      ),
+    );
+
+    await tester.tap(find.text('New event'));
+    await tester.pump();
+    expect(find.text('Agenda'), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(hideCalls, 0);
+    expect(find.text('Agenda'), findsOneWidget);
+  });
+
+  testWidgets('equal create actions use neutral standard buttons', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testPanel(
+        data: _data(today, canCreateEvents: true, canCreateTasks: true),
+      ),
+    );
+
+    final standardButtons = find.byWidgetPredicate(
+      (widget) => widget is FilledButton,
+      description: 'standard filled button',
+    );
+    final suggestedButtons = find.byWidgetPredicate(
+      (widget) => widget is ElevatedButton,
+      description: 'suggested elevated button',
+    );
+
+    expect(
+      find.ancestor(of: find.text('New event'), matching: standardButtons),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(of: find.text('New task'), matching: standardButtons),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(of: find.text('New event'), matching: suggestedButtons),
+      findsNothing,
+    );
+    expect(
+      find.ancestor(of: find.text('New task'), matching: suggestedButtons),
+      findsNothing,
+    );
+  });
+
   testWidgets('loading state renders progress and skeleton rows', (
     tester,
   ) async {
@@ -348,6 +407,7 @@ Widget _testPanel({
   Size size = const Size(420, 680),
   Future<void> Function(ScheduleItem item)? onOpenItem,
   CompactAgendaTaskCompletionCallback? onTaskCompletionChanged,
+  Future<void> Function()? onHide,
 }) {
   return ProviderScope(
     child: localizedTestApp(
@@ -360,7 +420,7 @@ Widget _testPanel({
             onOpenBusyMax: () async {},
             onNewTask: () async {},
             onRefresh: () async {},
-            onHide: () async {},
+            onHide: onHide ?? () async {},
             onOpenItem: onOpenItem,
             onTaskCompletionChanged: onTaskCompletionChanged,
           ),
@@ -377,6 +437,8 @@ AsyncValue<CompactAgendaData> _data(
   bool hasMoreNoDateTasks = false,
   bool hasSignedInAccounts = true,
   bool hasSources = true,
+  bool canCreateEvents = false,
+  bool canCreateTasks = false,
 }) {
   return AsyncData(
     CompactAgendaData(
@@ -391,6 +453,8 @@ AsyncValue<CompactAgendaData> _data(
       hasSignedInAccounts: hasSignedInAccounts,
       hasSources: hasSources,
       generatedAt: today,
+      canCreateEvents: canCreateEvents,
+      canCreateTasks: canCreateTasks,
     ),
   );
 }

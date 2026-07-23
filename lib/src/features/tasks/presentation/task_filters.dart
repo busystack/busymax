@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
@@ -90,11 +89,10 @@ class _TaskFiltersBarState extends ConsumerState<TaskFiltersBar> {
     return Row(
       children: [
         Expanded(
-          child: YaruSearchField(
+          child: BusyMaxSearchField(
             controller: _searchController,
             autofocus: false,
             hintText: l10n.searchTasks,
-            clearIconSemanticLabel: l10n.cancel,
             onClear: () {
               notifier.state = filter.copyWith(searchQuery: '');
             },

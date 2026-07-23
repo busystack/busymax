@@ -66,4 +66,35 @@ void main() {
     expect(barrierCalls.first.arguments, isTrue);
     expect(barrierCalls.last.arguments, isFalse);
   });
+
+  testWidgets('create chooser disables unavailable creation kinds', (
+    tester,
+  ) async {
+    late BuildContext hostContext;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Builder(
+          builder: (context) {
+            hostContext = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    final result = showScheduleCreateMenu(
+      context: hostContext,
+      canCreateEvent: false,
+      canCreateTask: true,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Event'));
+    await tester.pump();
+    expect(find.text('Create'), findsOneWidget);
+
+    await tester.tap(find.text('Task'));
+    await tester.pumpAndSettle();
+    expect(await result, ScheduleCreateChoice.task);
+  });
 }

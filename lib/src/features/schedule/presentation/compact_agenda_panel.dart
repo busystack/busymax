@@ -93,18 +93,20 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
         : watchedData;
     return Shortcuts(
       shortcuts: const {
-        SingleActivator(LogicalKeyboardKey.escape): _HideIntent(),
+        SingleActivator(LogicalKeyboardKey.escape):
+            _DismissCompactAgendaIntent(),
         SingleActivator(LogicalKeyboardKey.keyR, control: true):
             _RefreshIntent(),
       },
       child: Actions(
         actions: {
-          _HideIntent: CallbackAction<_HideIntent>(
-            onInvoke: (_) {
-              unawaited(_hide());
-              return null;
-            },
-          ),
+          _DismissCompactAgendaIntent:
+              CallbackAction<_DismissCompactAgendaIntent>(
+                onInvoke: (_) {
+                  _dismissCompactAgenda();
+                  return null;
+                },
+              ),
           _RefreshIntent: CallbackAction<_RefreshIntent>(
             onInvoke: (_) {
               unawaited(_refresh());
@@ -175,8 +177,12 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                           ),
                         ),
                         _CompactAgendaBottomBar(
-                          onNewEvent: _newEvent,
-                          onNewTask: _newTask,
+                          onNewEvent: data.valueOrNull?.canCreateEvents == true
+                              ? _newEvent
+                              : null,
+                          onNewTask: data.valueOrNull?.canCreateTasks == true
+                              ? _newTask
+                              : null,
                         ),
                       ],
                     );
@@ -188,7 +194,7 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(BusyMaxRadius.window),
-                  clipBehavior: Clip.antiAliasWithSaveLayer,
+                  clipBehavior: Clip.antiAlias,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: colors.card,
@@ -383,6 +389,9 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   }
 
   Future<void> _newEvent() async {
+    if (_lastAgendaData?.canCreateEvents != true) {
+      return;
+    }
     setState(() {
       _creatingEvent = true;
       _creatingTask = false;
@@ -441,6 +450,9 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   }
 
   void _openEventEditor(CalendarScheduleItem item) {
+    if (!item.capabilities.canEdit) {
+      return;
+    }
     setState(() {
       _editingEventDraft = _eventDraftFromItem(item);
       _creatingEvent = false;
@@ -504,6 +516,22 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
     await windowManager.hide();
   }
 
+  void _dismissCompactAgenda() {
+    if (_editingTask != null) {
+      _closeTaskEditor();
+      return;
+    }
+    if (_creatingEvent || _editingEventDraft != null) {
+      _closeEventEditor();
+      return;
+    }
+    if (_creatingTask) {
+      _closeNewTaskEditor();
+      return;
+    }
+    unawaited(_hide());
+  }
+
   Future<void> _openItem(
     BuildContext anchorContext,
     ScheduleItem item, [
@@ -527,7 +555,9 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
       case ScheduleItemDetailsAction.export:
         await _exportItem(item);
       case ScheduleItemDetailsAction.edit:
-        if (item is TaskScheduleItem) {
+        if (!item.capabilities.canEdit) {
+          return;
+        } else if (item is TaskScheduleItem) {
           _openTaskEditor(item);
         } else if (item is CalendarScheduleItem) {
           _openEventEditor(item);
@@ -536,7 +566,9 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
           await windowManager.hide();
         }
       case ScheduleItemDetailsAction.delete:
-        await _deleteItem(item);
+        if (item.capabilities.canDelete) {
+          await _deleteItem(item);
+        }
     }
   }
 
@@ -560,6 +592,9 @@ class _CompactAgendaPanelState extends ConsumerState<CompactAgendaPanel> {
   }
 
   Future<void> _deleteItem(ScheduleItem item) async {
+    if (!item.capabilities.canDelete) {
+      return;
+    }
     final confirmed = await showBusyMaxConfirm(
       context,
       title: item is CalendarScheduleItem
@@ -708,15 +743,14 @@ DateTime _defaultNewEventStart() {
 }
 
 List<CalendarSourceEntity> _editableSources(
-  List<CalendarSourceEntity> sources, {
-  required String? currentSourceId,
-}) {
+  List<CalendarSourceEntity> sources,
+) {
   final visibleEditable = [
     for (final source in sources)
       if (!source.isDeleted &&
           !source.hidden &&
           source.selected &&
-          (!source.readOnly || source.id == currentSourceId))
+          source.capabilities.canCreateEvents)
         source,
   ];
   if (visibleEditable.isNotEmpty) {
@@ -726,7 +760,7 @@ List<CalendarSourceEntity> _editableSources(
     for (final source in sources)
       if (!source.isDeleted &&
           !source.hidden &&
-          (!source.readOnly || source.id == currentSourceId))
+          source.capabilities.canCreateEvents)
         source,
   ];
 }
@@ -959,7 +993,6 @@ class _CompactAgendaEventEditorViewState
               }
               final sources = _editableSources(
                 snapshot.data ?? const <CalendarSourceEntity>[],
-                currentSourceId: widget.initialDraft?.sourceId,
               );
               if (sources.isEmpty) {
                 return _CompactAgendaMessageState(
@@ -1192,14 +1225,14 @@ class _CompactAgendaMessageState extends StatelessWidget {
                       runSpacing: BusyMaxSpacing.sm,
                       children: [
                         if (primaryLabel != null)
-                          BusyMaxPushButton.filled(
+                          BusyMaxPushButton.suggested(
                             onPressed: onPrimary == null
                                 ? null
                                 : () => unawaited(onPrimary!()),
                             child: Text(primaryLabel!),
                           ),
                         if (secondaryLabel != null)
-                          BusyMaxPushButton.outlined(
+                          BusyMaxPushButton.standard(
                             onPressed: onSecondary == null
                                 ? null
                                 : () => unawaited(onSecondary!()),
@@ -1345,7 +1378,12 @@ class _CompactAgendaRowMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isTask = item.kind == ScheduleItemKind.task;
-    final color = BusyMaxSurfaceColors.of(context).mutedForeground;
+    final color = isTask
+        ? BusyMaxSurfaceColors.of(context).mutedForeground
+        : ScheduleProjection.colorForItem(
+            item,
+            Theme.of(context).colorScheme.brightness,
+          );
     final icon = isTask ? YaruIcons.task_list : YaruIcons.calendar;
     return Icon(icon, size: BusyMaxSizes.iconSm, color: color);
   }
@@ -1433,8 +1471,8 @@ class _CompactAgendaBottomBar extends StatelessWidget {
     required this.onNewTask,
   });
 
-  final Future<void> Function() onNewEvent;
-  final Future<void> Function() onNewTask;
+  final Future<void> Function()? onNewEvent;
+  final Future<void> Function()? onNewTask;
 
   @override
   Widget build(BuildContext context) {
@@ -1445,15 +1483,19 @@ class _CompactAgendaBottomBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: BusyMaxPushButton.filled(
-              onPressed: () => unawaited(onNewEvent()),
+            child: BusyMaxPushButton.standard(
+              onPressed: onNewEvent == null
+                  ? null
+                  : () => unawaited(onNewEvent!()),
               child: Text(context.l10n.newEvent),
             ),
           ),
           const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
-            child: BusyMaxPushButton.filled(
-              onPressed: () => unawaited(onNewTask()),
+            child: BusyMaxPushButton.standard(
+              onPressed: onNewTask == null
+                  ? null
+                  : () => unawaited(onNewTask!()),
               child: Text(context.l10n.compactAgendaNewTask),
             ),
           ),
@@ -1497,8 +1539,8 @@ class _CompactAgendaScrollShadow extends StatelessWidget {
   }
 }
 
-class _HideIntent extends Intent {
-  const _HideIntent();
+class _DismissCompactAgendaIntent extends Intent {
+  const _DismissCompactAgendaIntent();
 }
 
 class _RefreshIntent extends Intent {

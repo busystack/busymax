@@ -47,6 +47,8 @@ class GtkFontService {
       return _parseFontSettings(raw);
     } on MissingPluginException {
       return null;
+    } on PlatformException {
+      return null;
     }
   }
 
@@ -78,6 +80,22 @@ class GtkThemeService {
   final MethodChannel _methodChannel;
   final EventChannel _themeColorsEventsChannel;
 
+  Future<void> setPreferDark(bool? preferDark) async {
+    if (preferDark == null) {
+      return;
+    }
+    try {
+      await _methodChannel.invokeMethod<void>(
+        'setGtkThemePreference',
+        preferDark,
+      );
+    } on MissingPluginException {
+      // Non-Linux and lightweight test hosts do not expose GTK settings.
+    } on PlatformException {
+      // A theme preference is advisory; fall back to the current GTK palette.
+    }
+  }
+
   Future<GtkThemeColors?> getGtkThemeColors() async {
     try {
       final raw = await _methodChannel.invokeMapMethod<String, Object?>(
@@ -88,6 +106,8 @@ class GtkThemeService {
       }
       return _parseThemeColors(raw);
     } on MissingPluginException {
+      return null;
+    } on PlatformException {
       return null;
     }
   }
@@ -106,8 +126,15 @@ class GtkThemeService {
   }
 }
 
+final initialGtkFontSettingsProvider = Provider<GtkFontSettings?>(
+  (ref) => null,
+);
+
 final gtkFontSettingsProvider = StreamProvider<GtkFontSettings?>((ref) {
-  return const GtkFontService().watchGtkFont();
+  return _seededGtkSettingsStream(
+    ref.watch(initialGtkFontSettingsProvider),
+    const GtkFontService().watchGtkFont(),
+  );
 });
 
 @immutable
@@ -219,15 +246,33 @@ class GtkThemeColors {
   ]);
 }
 
+final initialGtkThemeColorsProvider = Provider<GtkThemeColors?>((ref) => null);
+
 final gtkThemeColorsProvider = StreamProvider<GtkThemeColors?>((ref) {
-  return const GtkThemeService().watchGtkThemeColors();
+  return _seededGtkSettingsStream(
+    ref.watch(initialGtkThemeColorsProvider),
+    const GtkThemeService().watchGtkThemeColors(),
+  );
 });
+
+Stream<T?> _seededGtkSettingsStream<T>(T? initial, Stream<T?> updates) async* {
+  var previous = initial;
+  yield initial;
+  await for (final update in updates) {
+    if (update == previous) {
+      continue;
+    }
+    previous = update;
+    yield update;
+  }
+}
 
 GtkFontSettings? _parseFontSettings(Object? value) {
   if (value is! Map) {
     return null;
   }
-  final family = (value['family'] as String?)?.trim();
+  final rawFamily = value['family'];
+  final family = rawFamily is String ? rawFamily.trim() : null;
   if (family == null || family.isEmpty) {
     return null;
   }
@@ -243,8 +288,11 @@ GtkThemeColors? _parseThemeColors(Object? value) {
   if (value is! Map) {
     return null;
   }
-  final window = _parseColor(value['window'] as String?);
-  final brightness = switch ((value['brightness'] as String?)?.trim()) {
+  final window = _parseColor(value['window']);
+  final rawBrightness = value['brightness'];
+  final brightness = switch (rawBrightness is String
+      ? rawBrightness.trim()
+      : null) {
     'dark' => Brightness.dark,
     'light' => Brightness.light,
     _ =>
@@ -260,33 +308,36 @@ GtkThemeColors? _parseThemeColors(Object? value) {
   return GtkThemeColors(
     brightness: brightness,
     window: window,
-    view: _parseColor(value['view'] as String?),
-    sidebar: _parseColor(value['sidebar'] as String?),
-    secondarySidebar: _parseColor(value['secondarySidebar'] as String?),
-    headerbar: _parseColor(value['headerbar'] as String?),
-    headerbarFlat: _parseColor(value['headerbarFlat'] as String?),
-    card: _parseColor(value['card'] as String?),
-    dialog: _parseColor(value['dialog'] as String?),
-    popover: _parseColor(value['popover'] as String?),
-    control: _parseColor(value['control'] as String?),
-    controlHover: _parseColor(value['controlHover'] as String?),
-    controlActive: _parseColor(value['controlActive'] as String?),
-    accent: _parseColor(value['accent'] as String?),
-    activeToggle: _parseColor(value['activeToggle'] as String?),
-    foreground: _parseColor(value['foreground'] as String?),
-    mutedForeground: _parseColor(value['mutedForeground'] as String?),
-    disabledForeground: _parseColor(value['disabledForeground'] as String?),
-    disabledControl: _parseColor(value['disabledControl'] as String?),
-    border: _parseColor(value['border'] as String?),
-    subtleBorder: _parseColor(value['subtleBorder'] as String?),
-    sidebarBorder: _parseColor(value['sidebarBorder'] as String?),
-    shade: _parseColor(value['shade'] as String?),
+    view: _parseColor(value['view']),
+    sidebar: _parseColor(value['sidebar']),
+    secondarySidebar: _parseColor(value['secondarySidebar']),
+    headerbar: _parseColor(value['headerbar']),
+    headerbarFlat: _parseColor(value['headerbarFlat']),
+    card: _parseColor(value['card']),
+    dialog: _parseColor(value['dialog']),
+    popover: _parseColor(value['popover']),
+    control: _parseColor(value['control']),
+    controlHover: _parseColor(value['controlHover']),
+    controlActive: _parseColor(value['controlActive']),
+    accent: _parseColor(value['accent']),
+    activeToggle: _parseColor(value['activeToggle']),
+    foreground: _parseColor(value['foreground']),
+    mutedForeground: _parseColor(value['mutedForeground']),
+    disabledForeground: _parseColor(value['disabledForeground']),
+    disabledControl: _parseColor(value['disabledControl']),
+    border: _parseColor(value['border']),
+    subtleBorder: _parseColor(value['subtleBorder']),
+    sidebarBorder: _parseColor(value['sidebarBorder']),
+    shade: _parseColor(value['shade']),
   );
 }
 
-Color? _parseColor(String? value) {
-  final raw = value?.trim();
-  if (raw == null || raw.isEmpty || !raw.startsWith('#')) {
+Color? _parseColor(Object? value) {
+  if (value is! String) {
+    return null;
+  }
+  final raw = value.trim();
+  if (raw.isEmpty || !raw.startsWith('#')) {
     return null;
   }
   final hex = raw.substring(1);

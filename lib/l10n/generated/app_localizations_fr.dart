@@ -164,6 +164,14 @@ class AppLocalizationsFr extends AppLocalizations {
       'Connectez-vous pour synchroniser vos calendriers et vos tâches.';
 
   @override
+  String get scheduleNoSearchResults =>
+      'Aucun événement ni aucune tâche ne correspond';
+
+  @override
+  String get scheduleNoSearchResultsDescription =>
+      'Essayez une autre recherche ou effacez les filtres actuels.';
+
+  @override
   String get trayAgendaLoading => 'Chargement de l’agenda...';
 
   @override
@@ -292,6 +300,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get timeSlot => 'Créneau';
 
   @override
+  String get timeMode => 'Horaire';
+
+  @override
+  String get timeModeDescription =>
+      'Utilisez uniquement les dates ou définissez des heures précises.';
+
+  @override
   String get startDateTime => 'Date/heure de début';
 
   @override
@@ -361,6 +376,9 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get reminderAtStart => 'À l’heure de début';
 
   @override
   String reminderHoursBefore(int hours) {
@@ -1023,6 +1041,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Démarrer réduit dans la zone de notification';
 
   @override
+  String get requiresTrayIcon =>
+      'Nécessite l’icône de la zone de notification.';
+
+  @override
   String get syncComplete => 'Synchronisation terminée.';
 
   @override
@@ -1056,6 +1078,16 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get quietHours => 'Plages horaires silencieuses';
+
+  @override
+  String get quietHoursDescription =>
+      'Mettre les notifications en pause pendant cette période.';
+
+  @override
+  String get quietHoursStart => 'Début des plages silencieuses';
+
+  @override
+  String get quietHoursEnd => 'Fin des plages silencieuses';
 
   @override
   String get notifications => 'Notifications';
@@ -1093,9 +1125,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get redactTaskContentInDiagnostics =>
       'Masquer le contenu des tâches dans les diagnostics';
-
-  @override
-  String get detailedNotifications => 'Texte de notification détaillé';
 
   @override
   String get developerDiagnostics => 'Diagnostics développeur';

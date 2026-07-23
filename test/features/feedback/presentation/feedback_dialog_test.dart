@@ -6,6 +6,7 @@ import 'package:busymax/src/features/feedback/presentation/feedback_dialog.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
@@ -146,6 +147,27 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('Escape confirms before discarding a feedback draft', (
+    tester,
+  ) async {
+    final service = _FakeFeedbackService((_) async {
+      return const FeedbackReceipt(id: 'unexpected');
+    });
+    var cancelCount = 0;
+    await _pumpDialog(tester, service, onCancel: () => cancelCount += 1);
+    await _enterValidRequiredFields(tester);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(cancelCount, 0);
+    expect(find.text('Discard changes?'), findsOneWidget);
+
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(cancelCount, 1);
+  });
+
   testWidgets('clears the form and shows the server reference on success', (
     tester,
   ) async {
@@ -155,7 +177,7 @@ void main() {
     await _pumpDialog(tester, service);
     await _enterValidRequiredFields(tester);
 
-    final checkbox = tester.widget<CheckboxListTile>(
+    final checkbox = tester.widget<YaruCheckboxListTile>(
       find.byKey(const Key('feedback-technical-details')),
     );
     expect(checkbox.value, isFalse);
@@ -352,7 +374,12 @@ Future<void> _pumpDialog(
 }
 
 Future<void> _enterValidRequiredFields(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('feedback-category')));
+  await tester.tap(
+    find.descendant(
+      of: find.byKey(const Key('feedback-category')),
+      matching: find.byType(OutlinedButton),
+    ),
+  );
   await tester.pumpAndSettle();
   await tester.tap(find.text('Problem or bug').last);
   await tester.pumpAndSettle();

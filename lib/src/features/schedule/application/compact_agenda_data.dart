@@ -84,6 +84,8 @@ Future<CompactAgendaData> loadCompactAgendaDataFromRepositories(
       hasSignedInAccounts: hasSignedInAccounts,
       hasSources: hasSources,
       generatedAt: now,
+      canCreateEvents: false,
+      canCreateTasks: false,
     );
   }
 
@@ -114,7 +116,7 @@ Future<CompactAgendaData> loadCompactAgendaDataFromRepositories(
   );
   final hasSources =
       visibility.visibleCalendarSourceIds.isNotEmpty ||
-      visibility.visibleTaskListIds.isNotEmpty;
+      visibility.visibleTaskListKeys.isNotEmpty;
   if (!hasSources) {
     return empty(hasSignedInAccounts: true, hasSources: false);
   }
@@ -125,7 +127,7 @@ Future<CompactAgendaData> loadCompactAgendaDataFromRepositories(
     filters: ScheduleFilters(
       accountIds: accountIds,
       sourceIds: visibility.visibleCalendarSourceIds,
-      taskListIds: visibility.visibleTaskListIds,
+      taskListKeys: visibility.visibleTaskListKeys,
       sourceFilterActive: true,
       taskListFilterActive: true,
       includeCalendarEvents: true,
@@ -139,7 +141,7 @@ Future<CompactAgendaData> loadCompactAgendaDataFromRepositories(
     limit: query.overdueLimit,
     filters: ScheduleFilters(
       accountIds: accountIds,
-      taskListIds: visibility.visibleTaskListIds,
+      taskListKeys: visibility.visibleTaskListKeys,
       taskListFilterActive: true,
       includeTasks: true,
       showCompletedTasks: false,
@@ -149,7 +151,7 @@ Future<CompactAgendaData> loadCompactAgendaDataFromRepositories(
     limit: query.noDateLimit,
     filters: ScheduleFilters(
       accountIds: accountIds,
-      taskListIds: visibility.visibleTaskListIds,
+      taskListKeys: visibility.visibleTaskListKeys,
       taskListFilterActive: true,
       includeTasks: true,
       showCompletedTasks: false,
@@ -183,6 +185,10 @@ Future<CompactAgendaData> loadCompactAgendaDataFromRepositories(
     hasSignedInAccounts: true,
     hasSources: true,
     generatedAt: now,
+    canCreateEvents: calendarSources.any(
+      (source) => source.capabilities.canCreateEvents,
+    ),
+    canCreateTasks: visibility.visibleTaskListKeys.isNotEmpty,
   );
 }
 
@@ -196,6 +202,8 @@ class CompactAgendaData {
     required this.hasSignedInAccounts,
     required this.hasSources,
     required this.generatedAt,
+    this.canCreateEvents = false,
+    this.canCreateTasks = false,
   });
 
   final DateTime today;
@@ -206,6 +214,8 @@ class CompactAgendaData {
   final bool hasSignedInAccounts;
   final bool hasSources;
   final DateTime generatedAt;
+  final bool canCreateEvents;
+  final bool canCreateTasks;
 }
 
 class CompactAgendaQuery {
