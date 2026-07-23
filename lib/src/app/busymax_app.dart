@@ -227,7 +227,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           BusyMaxHeaderBarTheme(
             preferDark: preferDark,
             windowBackgroundColor: colors.window,
-            backgroundColor: colors.view,
+            backgroundColor: colors.headerbar,
             sidebarBackgroundColor: colors.sidebar,
             foregroundColor: colors.foreground,
             mutedForegroundColor: colors.mutedForeground,

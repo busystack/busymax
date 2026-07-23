@@ -413,9 +413,14 @@ void main() {
       expect(source, contains('settings_menu'));
       expect(
         source,
-        contains('create_header_popover_action_item(self, "settings"'),
+        contains(
+          'g_menu_append(menu, self->header_settings_label, "header.settings")',
+        ),
       );
-      expect(source, contains('self, "aboutBusyMax", "About BusyMax"'));
+      expect(
+        source,
+        contains('create_header_bridge_action(self, "about", "aboutBusyMax")'),
+      );
       expect(source, isNot(contains('settingsAccounts')));
       expect(source, isNot(contains('settingsDiagnostics')));
       expect(source, contains('gtk_label_new(kApplicationDisplayName)'));
@@ -591,16 +596,23 @@ void main() {
         ),
       );
       expect(source, contains('transition: none;'));
-      expect(source, contains('gtk_popover_new(nullptr)'));
       expect(source, contains('gtk_popover_set_position'));
       expect(source, contains('GTK_POS_BOTTOM'));
-      expect(source, contains('create_header_popover_box'));
       expect(source, contains('gtk_popover_popdown'));
       expect(source, contains('gtk_menu_button_new()'));
       expect(source, contains('gtk_menu_button_set_use_popover'));
-      expect(source, contains('gtk_menu_button_set_popover'));
+      expect(source, contains('gtk_menu_button_set_menu_model'));
       expect(source, contains('close_header_menu_button'));
       expect(source, contains('gtk_toggle_button_set_active'));
+      expect(source, contains('g_menu_new()'));
+      expect(source, contains('g_menu_append_item(menu, item)'));
+      expect(
+        source,
+        contains('g_menu_item_set_action_and_target(item, "header.view-mode"'),
+      );
+      expect(source, contains('g_simple_action_new_stateful'));
+      expect(source, contains('g_action_map_add_action'));
+      expect(source, contains('gtk_widget_insert_action_group'));
       expect(source, isNot(contains('popdown_header_popover')));
       expect(source, isNot(contains('gtk_popover_set_relative_to')));
       expect(source, isNot(contains('gtk_popover_popup')));
@@ -615,21 +627,14 @@ void main() {
       expect(source, contains('"busymax-header-popover"'));
       expect(source, contains('header_bar_popover_background_color'));
       expect(source, contains('"popoverBackgroundColor"'));
-      expect(source, contains('"busymax-header-popover-row"'));
-      expect(source, contains('kHeaderPopoverRowSpacing'));
-      expect(
-        source,
-        contains(
-          'gtk_box_new(GTK_ORIENTATION_VERTICAL, kHeaderPopoverRowSpacing)',
-        ),
-      );
-      expect(source, contains('button.busymax-header-popover-row:focus'));
-      expect(source, contains('busymax-keyboard-focus:focus'));
-      expect(source, contains('gtk_window_get_focus_visible'));
-      expect(source, contains('configure_header_popover_row(self, item)'));
-      expect(source, isNot(contains('gtk_widget_set_can_focus(item, FALSE)')));
-      expect(source, contains('"object-select-symbolic"'));
-      expect(source, contains('gtk_widget_set_opacity(check_widget'));
+      expect(source, isNot(contains('"busymax-header-popover-row"')));
+      expect(source, isNot(contains('kHeaderPopoverRowSpacing')));
+      expect(source, isNot(contains('busymax-keyboard-focus')));
+      expect(source, isNot(contains('gtk_window_get_focus_visible')));
+      expect(source, isNot(contains('configure_header_popover_row')));
+      expect(source, isNot(contains('gtk_widget_grab_focus(first_item)')));
+      expect(source, isNot(contains('"object-select-symbolic"')));
+      expect(source, isNot(contains('gtk_widget_set_opacity(check_widget')));
       expect(source, isNot(contains('gtk_model_button_new()')));
       expect(source, isNot(contains('gtk_check_menu_item_new')));
       expect(source, isNot(contains('GTK_BUTTON_ROLE_CHECK')));
@@ -638,9 +643,12 @@ void main() {
       expect(source, isNot(contains('g_object_set(item, "active"')));
       expect(
         source,
-        contains('gtk_box_pack_start(GTK_BOX(view_mode_menu_box)'),
+        isNot(contains('gtk_box_pack_start(GTK_BOX(view_mode_menu_box)')),
       );
-      expect(source, contains('gtk_box_pack_start(GTK_BOX(settings_menu_box)'));
+      expect(
+        source,
+        isNot(contains('gtk_box_pack_start(GTK_BOX(settings_menu_box)')),
+      );
       expect(source, isNot(contains('.busymax-header-menu,')));
       expect(source, isNot(contains('menu.background.busymax-header-menu')));
       expect(source, isNot(contains('menuitem.busymax-header-view-mode-item')));
@@ -663,7 +671,7 @@ void main() {
       expect(source, contains('padding-left: 0;'));
       expect(source, contains('kHeaderButtonHeight'));
       expect(source, contains('kHeaderButtonSpacing'));
-      expect(source, contains('kHeaderMenuPadding = kHeaderButtonSpacing'));
+      expect(source, isNot(contains('kHeaderMenuPadding')));
       expect(source, isNot(contains('padding: 4px;')));
       expect(source, contains('setLocalizedLabels'));
       expect(source, contains('setSidebarWidth'));
@@ -723,7 +731,8 @@ void main() {
         isNot(contains('menuitem.busymax-header-view-mode-item:checked')),
       );
       expect(source, isNot(contains('busymax-header-view-mode-item-active')));
-      expect(source, contains('create_header_popup_window'));
+      expect(source, isNot(contains('create_header_popup_window')));
+      expect(source, contains('gtk_menu_button_set_menu_model'));
       expect(source, contains('busymax-header-primary-button'));
       expect(source, contains('fl_lookup_string_arg(args, "accentColor")'));
       expect(
@@ -751,7 +760,8 @@ void main() {
       expect(source, isNot(contains('GTK_STYLE_PROVIDER_PRIORITY_USER')));
       expect(source, isNot(contains('add_header_menu_provider_to_widget')));
       expect(source, isNot(contains('gtk_widget_get_toplevel(menu)')));
-      expect(source, contains('busymax-application'));
+      expect(source, isNot(contains('busymax-application')));
+      expect(source, contains('gtk_widget_insert_action_group'));
       expect(source, isNot(contains('gtk_widget_override_background_color')));
       expect(
         source,
@@ -781,8 +791,27 @@ void main() {
         contains('lookup_context_color(window_context, "wm_shadow"'),
       );
       expect(source, isNot(contains('shade_color = border_color')));
-      expect(source, contains('GTK_STYLE_CLASS_SIDEBAR'));
       expect(source, contains('GTK_STYLE_CLASS_VIEW'));
+      expect(source, contains('"window_bg_color"'));
+      expect(source, contains('"view_bg_color"'));
+      expect(source, contains('"sidebar_bg_color"'));
+      expect(source, contains('"secondary_sidebar_bg_color"'));
+      expect(source, contains('"headerbar_bg_color"'));
+      expect(source, contains('"card_bg_color"'));
+      expect(source, contains('"dialog_bg_color"'));
+      expect(source, contains('"popover_bg_color"'));
+      expect(source, contains('GtkWidget* sidebar ='));
+      expect(source, contains('GtkWidget* popover ='));
+      expect(source, contains('sample_widget_background(sidebar'));
+      expect(source, contains('sample_widget_background(popover'));
+      expect(
+        source.indexOf('"sidebar_bg_color"'),
+        lessThan(source.indexOf('sample_widget_background(sidebar')),
+      );
+      expect(
+        source.indexOf('"popover_bg_color"'),
+        lessThan(source.indexOf('sample_widget_background(popover')),
+      );
       expect(source, contains('gtk_style_context_get_property'));
       expect(source, contains('"background-color"'));
       expect(source, isNot(contains('gtk_style_context_get_background_color')));
@@ -815,19 +844,34 @@ void main() {
         source,
         isNot(contains('create_header_toggle_text_button("Agenda"')),
       );
-      expect(source, contains('create_header_view_mode_item(self, "year"'));
+      expect(
+        source,
+        contains(
+          'append_header_view_mode_item(menu, self->header_year_label, "year")',
+        ),
+      );
       expect(source, contains('return "viewModeYear"'));
       expect(source, contains('list-add-symbolic'));
       expect(
         source,
-        contains('create_header_popover_action_item(self, "createEvent"'),
+        contains(
+          'g_menu_append(menu, self->header_create_event_label,\n'
+          '                "header.create-event")',
+        ),
       );
-      expect(source, contains('self, "createTask", "Task"'));
-      expect(source, contains('gtk_menu_button_set_popover'));
-      expect(source, contains('button.busymax-header-popover-row:disabled'));
+      expect(
+        source,
+        contains(
+          'g_menu_append(menu, self->header_create_task_label, '
+          '"header.create-task")',
+        ),
+      );
+      expect(source, contains('gtk_menu_button_set_menu_model'));
+      expect(source, contains('g_simple_action_set_enabled'));
       expect(source, isNot(contains('self->create_button, "create"')));
       expect(source, contains('open-menu-symbolic'));
-      expect(source, contains('create_header_popover_action_item'));
+      expect(source, isNot(contains('create_header_popover_action_item')));
+      expect(source, isNot(contains('button.busymax-header-popover-row')));
       expect(
         source,
         contains('button.busymax-header-button.busymax-sidebar-toggle:checked'),
@@ -858,13 +902,14 @@ void main() {
       expect(source, contains('"border: 1px solid %s;"'));
       expect(source, contains('"box-shadow: 0 6px 18px %s;"'));
       expect(source, contains('muted_foreground_color'));
+      expect(source, contains('kDefaultWindowBackgroundColor[] = "#2C2C2C"'));
       expect(
         source,
-        contains('kDefaultHeaderBarBackgroundColor[] = "#1D1D20"'),
+        contains('kDefaultHeaderBarBackgroundColor[] = "#393939"'),
       );
       expect(
         source,
-        contains('kDefaultHeaderBarSidebarBackgroundColor[] = "#2E2E32"'),
+        contains('kDefaultHeaderBarSidebarBackgroundColor[] = "#393939"'),
       );
       expect(source, contains('set_flutter_view_background_color'));
       expect(source, contains('header_bar_window_background_color'));
@@ -1068,24 +1113,31 @@ void main() {
       expect(source, isNot(contains('return TextTheme(')));
     });
 
-    test('shared menu button has no nested hover background', () {
+    test('shared menu button preserves Yaru menu geometry and states', () {
       final source = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final menuStart = source.indexOf('MenuStyle busyMaxDropdownMenuStyle');
+      final itemStart = source.indexOf(
+        'ButtonStyle busyMaxDropdownMenuItemStyle',
+      );
+      final itemEnd = source.indexOf(
+        'ButtonStyle busyMaxPushButtonStyle',
+        itemStart,
+      );
+      final menuBody = source.substring(menuStart, itemStart);
+      final itemBody = source.substring(itemStart, itemEnd);
 
       expect(source, contains('class BusyMaxMenuButton'));
       expect(source, contains('class BusyMaxMenuEntry'));
-      expect(source, contains('busyMaxDropdownMenuStyle'));
-      expect(source, contains('busyMaxDropdownMenuItemStyle'));
       expect(source, contains('builder: (context, controller, child)'));
-      expect(
-        source,
-        contains('side: const WidgetStatePropertyAll(BorderSide.none)'),
-      );
-      expect(
-        source,
-        contains(
-          'surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent)',
-        ),
-      );
+      expect(menuBody, contains('Theme.of(context).menuTheme.style'));
+      expect(menuBody, contains('base.copyWith('));
+      expect(menuBody, contains('minimumSize:'));
+      expect(menuBody, isNot(contains('BusyMaxElevation')));
+      expect(menuBody, isNot(contains('RoundedRectangleBorder')));
+      expect(menuBody, isNot(contains('visualDensity:')));
+      expect(itemBody, contains('Theme.of(context).menuButtonTheme.style'));
+      expect(itemBody, isNot(contains('WidgetStateProperty.resolveWith')));
+      expect(itemBody, isNot(contains('backgroundColor:')));
       expect(source, isNot(contains('_BusyMaxPopupMenuTrigger')));
       expect(source, isNot(contains('MouseRegion(')));
       expect(source, isNot(contains('AnimatedContainer(')));

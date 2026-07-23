@@ -33,10 +33,9 @@ constexpr gint kHeaderButtonHorizontalPadding = 8;
 constexpr gint kHeaderButtonSpacing = 6;
 constexpr gint kHeaderWindowControlsBalanceWidth =
     kHeaderButtonHeight * 3 + kHeaderButtonSpacing * 2;
+constexpr gint kHeaderCenterMaximumWidthChars = 48;
 constexpr gint kHeaderOnboardingContentWidth = 480;
 constexpr gint kHeaderOnboardingSideWidth = 120;
-constexpr gint kHeaderMenuPadding = kHeaderButtonSpacing;
-constexpr gint kHeaderPopoverRowSpacing = 4;
 constexpr gint kHeaderSidebarContentInset = kHeaderButtonSpacing;
 constexpr gint kHeaderMainContentStartInset = kHeaderSidebarContentInset;
 constexpr gint kHeaderTooltipVerticalPadding = 5;
@@ -59,8 +58,9 @@ constexpr gint kCompactAgendaWindowMaxWidth =
     480 + kCompactAgendaWindowShadowMargin * 2;
 constexpr gint kCompactAgendaWindowMaxHeight =
     840 + kCompactAgendaWindowShadowMargin * 2;
-constexpr char kDefaultHeaderBarBackgroundColor[] = "#1D1D20";
-constexpr char kDefaultHeaderBarSidebarBackgroundColor[] = "#2E2E32";
+constexpr char kDefaultWindowBackgroundColor[] = "#2C2C2C";
+constexpr char kDefaultHeaderBarBackgroundColor[] = "#393939";
+constexpr char kDefaultHeaderBarSidebarBackgroundColor[] = "#393939";
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -113,9 +113,6 @@ struct _MyApplication {
   GtkWidget* header_brand_label;
   GtkWidget* settings_menu_button;
   GtkWidget* settings_menu;
-  GtkWidget* settings_item;
-  GtkWidget* keyboard_shortcuts_item;
-  GtkWidget* about_item;
   GtkWidget* header_view_box;
   GtkWidget* header_title_label;
   GtkWidget* search_entry;
@@ -127,18 +124,25 @@ struct _MyApplication {
   GtkWidget* view_mode_button;
   GtkWidget* view_mode_label;
   GtkWidget* view_mode_menu;
-  GtkWidget* view_mode_day_item;
-  GtkWidget* view_mode_week_item;
-  GtkWidget* view_mode_month_item;
-  GtkWidget* view_mode_year_item;
-  GtkWidget* view_mode_agenda_item;
   GtkWidget* search_button;
   GtkWidget* create_button;
   GtkWidget* create_menu;
-  GtkWidget* create_event_item;
-  GtkWidget* create_task_item;
   GtkWidget* refresh_button;
+  GSimpleActionGroup* header_menu_action_group;
+  GSimpleAction* header_view_mode_menu_action;
+  GSimpleAction* header_create_event_action;
+  GSimpleAction* header_create_task_action;
   gchar* header_view_mode;
+  gchar* header_day_label;
+  gchar* header_week_label;
+  gchar* header_month_label;
+  gchar* header_year_label;
+  gchar* header_agenda_label;
+  gchar* header_create_event_label;
+  gchar* header_create_task_label;
+  gchar* header_settings_label;
+  gchar* header_keyboard_shortcuts_label;
+  gchar* header_about_label;
   gchar* header_search_query;
   gboolean hide_on_close;
   gboolean suppress_header_bar_actions;
@@ -508,8 +512,6 @@ static void refresh_header_bar_css(MyApplication* self) {
   const gchar* foreground_disabled_color =
       css_color_or(self->header_bar_disabled_foreground_color,
                    "rgba(255,255,255,0.38)");
-  const gchar* muted_foreground_color = css_color_or(
-      self->header_bar_muted_foreground_color, "rgba(255,255,255,0.70)");
   const gchar* control_color =
       css_color_or(self->header_bar_control_color, "rgba(255,255,255,0.10)");
   const gchar* control_hover_color = css_color_or(
@@ -706,63 +708,6 @@ static void refresh_header_bar_css(MyApplication* self) {
       "border: 1px solid %s;"
       "box-shadow: 0 6px 18px %s;"
       "}"
-      "popover.busymax-header-popover button.busymax-header-popover-row {"
-      "color: %s;"
-      "background-color: transparent;"
-      "background-image: none;"
-      "border: none;"
-      "border-width: 0;"
-      "border-color: transparent;"
-      "border-image: none;"
-      "outline-color: transparent;"
-      "outline-style: none;"
-      "outline-width: 0;"
-      "outline-offset: 0;"
-      "box-shadow: none;"
-      "text-shadow: none;"
-      "-gtk-icon-shadow: none;"
-      "transition: none;"
-      "min-height: %dpx;"
-      "padding: 0 %dpx;"
-      "border-radius: %dpx;"
-      "}"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row:hover {"
-      "background-color: %s;"
-      "}"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row:focus {"
-      "background-color: transparent;"
-      "box-shadow: none;"
-      "}"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row.busymax-keyboard-focus:focus {"
-      "background-color: %s;"
-      "box-shadow: inset 0 0 0 2px %s;"
-      "}"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row:active,"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row:checked {"
-      "background-color: transparent;"
-      "}"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row label {"
-      "color: %s;"
-      "}"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row image {"
-      "color: %s;"
-      "}"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row:disabled,"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row:disabled label,"
-      "popover.busymax-header-popover "
-      "button.busymax-header-popover-row:disabled image {"
-      "color: %s;"
-      "background-color: transparent;"
-      "}"
       "tooltip,"
       "tooltip.background {"
       "margin: 0;"
@@ -799,11 +744,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       accent_color, accent_foreground_color, foreground_disabled_color,
       control_hover_color, control_hover_color, foreground_disabled_color,
       kHeaderButtonHeight,
-      popover_background_color, foreground_color, foreground_color,
-      border_color, shade_color, kHeaderButtonHeight,
-      kHeaderButtonHorizontalPadding, kHeaderButtonRadius,
-      control_hover_color, control_hover_color, accent_color, foreground_color,
-      muted_foreground_color, foreground_disabled_color,
+      popover_background_color, foreground_color, border_color, shade_color,
       kHeaderButtonRadius, shade_color, kHeaderTooltipVerticalPadding,
       kHeaderTooltipHorizontalPadding, kHeaderButtonRadius);
 
@@ -1076,30 +1017,194 @@ static void close_header_menu_button(GtkWidget* menu_button) {
   }
 }
 
-static GtkWidget* create_header_popup_window(MyApplication* self) {
-  GtkWidget* popover = gtk_popover_new(nullptr);
-  gtk_popover_set_position(GTK_POPOVER(popover), GTK_POS_BOTTOM);
-  gtk_popover_set_modal(GTK_POPOVER(popover), TRUE);
-  gtk_style_context_add_class(gtk_widget_get_style_context(popover),
+static const gchar* header_view_mode_action(const gchar* mode);
+static void set_header_view_mode(MyApplication* self, const gchar* mode);
+
+static void replace_header_label(gchar** target, const gchar* value) {
+  if (value == nullptr) {
+    return;
+  }
+  g_free(*target);
+  *target = g_strdup(value);
+}
+
+static const gchar* header_view_mode_label(MyApplication* self,
+                                           const gchar* mode) {
+  if (g_strcmp0(mode, "day") == 0) {
+    return self->header_day_label;
+  }
+  if (g_strcmp0(mode, "week") == 0) {
+    return self->header_week_label;
+  }
+  if (g_strcmp0(mode, "month") == 0) {
+    return self->header_month_label;
+  }
+  if (g_strcmp0(mode, "year") == 0) {
+    return self->header_year_label;
+  }
+  if (g_strcmp0(mode, "agenda") == 0) {
+    return self->header_agenda_label;
+  }
+  return "";
+}
+
+static void update_header_view_mode_label(MyApplication* self) {
+  if (self->view_mode_label == nullptr ||
+      !GTK_IS_LABEL(self->view_mode_label)) {
+    return;
+  }
+  const gchar* mode =
+      self->header_view_mode != nullptr ? self->header_view_mode : "week";
+  gtk_label_set_text(GTK_LABEL(self->view_mode_label),
+                     header_view_mode_label(self, mode));
+}
+
+static void set_header_menu_button_model(GtkWidget* button,
+                                         GMenuModel* model,
+                                         GtkWidget** tracked_popover) {
+  if (button == nullptr || !GTK_IS_MENU_BUTTON(button) || model == nullptr) {
+    return;
+  }
+  close_header_menu_button(button);
+  if (*tracked_popover != nullptr) {
+    clear_widget_pointer(tracked_popover);
+  }
+  gtk_menu_button_set_use_popover(GTK_MENU_BUTTON(button), TRUE);
+  gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(button), model);
+  GtkPopover* popover = gtk_menu_button_get_popover(GTK_MENU_BUTTON(button));
+  if (popover == nullptr || !GTK_IS_POPOVER(popover)) {
+    return;
+  }
+  track_widget_pointer(tracked_popover, GTK_WIDGET(popover));
+  gtk_popover_set_position(popover, GTK_POS_BOTTOM);
+  gtk_style_context_add_class(gtk_widget_get_style_context(GTK_WIDGET(popover)),
                               "busymax-header-popover");
-  g_object_set_data(G_OBJECT(popover), "busymax-application", self);
-  return popover;
 }
 
-static GtkWidget* create_header_popover_box(GtkWidget* popover) {
-  GtkWidget* box =
-      gtk_box_new(GTK_ORIENTATION_VERTICAL, kHeaderPopoverRowSpacing);
-  gtk_widget_set_margin_top(box, kHeaderMenuPadding);
-  gtk_widget_set_margin_bottom(box, kHeaderMenuPadding);
-  gtk_widget_set_margin_start(box, kHeaderMenuPadding);
-  gtk_widget_set_margin_end(box, kHeaderMenuPadding);
-  gtk_container_add(GTK_CONTAINER(popover), box);
-  return box;
+static void append_header_view_mode_item(GMenu* menu,
+                                         const gchar* label,
+                                         const gchar* mode) {
+  g_autoptr(GMenuItem) item = g_menu_item_new(label, nullptr);
+  g_menu_item_set_action_and_target(item, "header.view-mode", "s", mode);
+  g_menu_append_item(menu, item);
 }
 
-static void show_header_popover_content(GtkWidget* box) {
-  if (box != nullptr && GTK_IS_WIDGET(box)) {
-    gtk_widget_show_all(box);
+static void rebuild_header_settings_menu_model(MyApplication* self) {
+  if (self->settings_menu_button == nullptr) {
+    return;
+  }
+  g_autoptr(GMenu) menu = g_menu_new();
+  g_menu_append(menu, self->header_settings_label, "header.settings");
+  g_menu_append(menu, self->header_keyboard_shortcuts_label,
+                "header.keyboard-shortcuts");
+  g_menu_append(menu, self->header_about_label, "header.about");
+  set_header_menu_button_model(self->settings_menu_button, G_MENU_MODEL(menu),
+                               &self->settings_menu);
+}
+
+static void rebuild_header_view_mode_menu_model(MyApplication* self) {
+  if (self->view_mode_button == nullptr) {
+    return;
+  }
+  g_autoptr(GMenu) menu = g_menu_new();
+  append_header_view_mode_item(menu, self->header_day_label, "day");
+  append_header_view_mode_item(menu, self->header_week_label, "week");
+  append_header_view_mode_item(menu, self->header_month_label, "month");
+  append_header_view_mode_item(menu, self->header_year_label, "year");
+  append_header_view_mode_item(menu, self->header_agenda_label, "agenda");
+  set_header_menu_button_model(self->view_mode_button, G_MENU_MODEL(menu),
+                               &self->view_mode_menu);
+  update_header_view_mode_label(self);
+}
+
+static void rebuild_header_create_menu_model(MyApplication* self) {
+  if (self->create_button == nullptr) {
+    return;
+  }
+  g_autoptr(GMenu) menu = g_menu_new();
+  g_menu_append(menu, self->header_create_event_label,
+                "header.create-event");
+  g_menu_append(menu, self->header_create_task_label, "header.create-task");
+  set_header_menu_button_model(self->create_button, G_MENU_MODEL(menu),
+                               &self->create_menu);
+}
+
+static void rebuild_header_menu_models(MyApplication* self) {
+  rebuild_header_settings_menu_model(self);
+  rebuild_header_view_mode_menu_model(self);
+  rebuild_header_create_menu_model(self);
+}
+
+static void header_menu_action_activated_cb(GSimpleAction* action,
+                                            GVariant*,
+                                            gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (self->suppress_header_bar_actions) {
+    return;
+  }
+  const gchar* bridge_action = static_cast<const gchar*>(
+      g_object_get_data(G_OBJECT(action), "busymax-header-action"));
+  focus_flutter_view(self);
+  invoke_header_bar_action(self, bridge_action);
+}
+
+static void header_view_mode_action_activated_cb(GSimpleAction* action,
+                                                 GVariant* parameter,
+                                                 gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (self->suppress_header_bar_actions || parameter == nullptr ||
+      !g_variant_is_of_type(parameter, G_VARIANT_TYPE_STRING)) {
+    return;
+  }
+  const gchar* mode = g_variant_get_string(parameter, nullptr);
+  const gchar* bridge_action = header_view_mode_action(mode);
+  if (bridge_action == nullptr) {
+    return;
+  }
+  set_header_view_mode(self, mode);
+  focus_flutter_view(self);
+  invoke_header_bar_action(self, bridge_action);
+}
+
+static GSimpleAction* create_header_bridge_action(
+    MyApplication* self,
+    const gchar* action_name,
+    const gchar* bridge_action) {
+  GSimpleAction* action = g_simple_action_new(action_name, nullptr);
+  g_object_set_data(G_OBJECT(action), "busymax-header-action",
+                    const_cast<gchar*>(bridge_action));
+  g_signal_connect(action, "activate",
+                   G_CALLBACK(header_menu_action_activated_cb), self);
+  g_action_map_add_action(G_ACTION_MAP(self->header_menu_action_group),
+                          G_ACTION(action));
+  return action;
+}
+
+static void initialize_header_menu_actions(MyApplication* self) {
+  self->header_menu_action_group = g_simple_action_group_new();
+
+  g_autoptr(GSimpleAction) settings =
+      create_header_bridge_action(self, "settings", "settings");
+  g_autoptr(GSimpleAction) keyboard_shortcuts = create_header_bridge_action(
+      self, "keyboard-shortcuts", "keyboardShortcuts");
+  g_autoptr(GSimpleAction) about =
+      create_header_bridge_action(self, "about", "aboutBusyMax");
+  self->header_create_event_action =
+      create_header_bridge_action(self, "create-event", "createEvent");
+  self->header_create_task_action =
+      create_header_bridge_action(self, "create-task", "createTask");
+
+  self->header_view_mode_menu_action = g_simple_action_new_stateful(
+      "view-mode", G_VARIANT_TYPE_STRING, g_variant_new_string("week"));
+  g_signal_connect(self->header_view_mode_menu_action, "activate",
+                   G_CALLBACK(header_view_mode_action_activated_cb), self);
+  g_action_map_add_action(G_ACTION_MAP(self->header_menu_action_group),
+                          G_ACTION(self->header_view_mode_menu_action));
+
+  if (self->main_window != nullptr && GTK_IS_WIDGET(self->main_window)) {
+    gtk_widget_insert_action_group(
+        GTK_WIDGET(self->main_window), "header",
+        G_ACTION_GROUP(self->header_menu_action_group));
   }
 }
 
@@ -1195,8 +1300,14 @@ static void set_widget_sensitive(GtkWidget* widget, gboolean sensitive) {
 static void set_header_create_capabilities(MyApplication* self,
                                            gboolean can_create_event,
                                            gboolean can_create_task) {
-  set_widget_sensitive(self->create_event_item, can_create_event);
-  set_widget_sensitive(self->create_task_item, can_create_task);
+  if (self->header_create_event_action != nullptr) {
+    g_simple_action_set_enabled(self->header_create_event_action,
+                                can_create_event);
+  }
+  if (self->header_create_task_action != nullptr) {
+    g_simple_action_set_enabled(self->header_create_task_action,
+                                can_create_task);
+  }
   const gboolean can_create = can_create_event || can_create_task;
   set_widget_sensitive(self->create_button, can_create);
   if (!can_create) {
@@ -1239,272 +1350,17 @@ static const gchar* header_view_mode_action(const gchar* mode) {
   return nullptr;
 }
 
-static void set_header_view_mode(MyApplication* self, const gchar* mode);
-
-static GtkWidget* header_view_mode_item(MyApplication* self,
-                                        const gchar* mode) {
-  if (g_strcmp0(mode, "day") == 0) {
-    return self->view_mode_day_item;
-  }
-  if (g_strcmp0(mode, "week") == 0) {
-    return self->view_mode_week_item;
-  }
-  if (g_strcmp0(mode, "month") == 0) {
-    return self->view_mode_month_item;
-  }
-  if (g_strcmp0(mode, "year") == 0) {
-    return self->view_mode_year_item;
-  }
-  if (g_strcmp0(mode, "agenda") == 0) {
-    return self->view_mode_agenda_item;
-  }
-  return nullptr;
-}
-
-static void set_header_view_mode_item_label(GtkWidget* item,
-                                            const gchar* label) {
-  if (item == nullptr || label == nullptr) {
-    return;
-  }
-  g_object_set_data_full(G_OBJECT(item), "busymax-header-label",
-                         g_strdup(label), g_free);
-  GtkWidget* label_widget = static_cast<GtkWidget*>(
-      g_object_get_data(G_OBJECT(item), "busymax-header-label-widget"));
-  if (label_widget != nullptr && GTK_IS_LABEL(label_widget)) {
-    gtk_label_set_text(GTK_LABEL(label_widget), label);
-    return;
-  }
-  if (GTK_IS_BUTTON(item)) {
-    gtk_button_set_label(GTK_BUTTON(item), label);
-  }
-}
-
-static void set_header_view_mode_item_active(MyApplication* self,
-                                             GtkWidget* item,
-                                             gboolean active) {
-  if (item == nullptr || !GTK_IS_WIDGET(item)) {
-    return;
-  }
-  GtkWidget* check_widget = static_cast<GtkWidget*>(
-      g_object_get_data(G_OBJECT(item), "busymax-header-check-widget"));
-  if (check_widget != nullptr && GTK_IS_WIDGET(check_widget)) {
-    gtk_widget_set_opacity(check_widget, active ? 1.0 : 0.0);
-  }
-}
-
-static const gchar* header_view_mode_item_label(GtkWidget* item) {
-  if (item == nullptr) {
-    return "";
-  }
-  const gchar* stored_label = static_cast<const gchar*>(
-      g_object_get_data(G_OBJECT(item), "busymax-header-label"));
-  if (stored_label != nullptr) {
-    return stored_label;
-  }
-  const gchar* label = nullptr;
-  if (GTK_IS_BUTTON(item)) {
-    label = gtk_button_get_label(GTK_BUTTON(item));
-  }
-  return label != nullptr ? label : "";
-}
-
-static void update_header_view_mode_label(MyApplication* self) {
-  if (self->view_mode_label == nullptr ||
-      !GTK_IS_LABEL(self->view_mode_label)) {
-    return;
-  }
-  const gchar* mode =
-      self->header_view_mode != nullptr ? self->header_view_mode : "week";
-  const gchar* label = header_view_mode_item_label(
-      header_view_mode_item(self, mode));
-  gtk_label_set_text(GTK_LABEL(self->view_mode_label), label);
-}
-
-static void update_header_view_mode_items(MyApplication* self) {
-  const gchar* mode =
-      self->header_view_mode != nullptr ? self->header_view_mode : "week";
-  set_header_view_mode_item_active(self, self->view_mode_day_item,
-                                   g_strcmp0(mode, "day") == 0);
-  set_header_view_mode_item_active(self, self->view_mode_week_item,
-                                   g_strcmp0(mode, "week") == 0);
-  set_header_view_mode_item_active(self, self->view_mode_month_item,
-                                   g_strcmp0(mode, "month") == 0);
-  set_header_view_mode_item_active(self, self->view_mode_year_item,
-                                   g_strcmp0(mode, "year") == 0);
-  set_header_view_mode_item_active(self, self->view_mode_agenda_item,
-                                   g_strcmp0(mode, "agenda") == 0);
-}
-
-static void header_view_mode_item_clicked_cb(GtkWidget* widget,
-                                             gpointer user_data) {
-  MyApplication* self = MY_APPLICATION(user_data);
-  if (self->suppress_header_bar_actions) {
-    return;
-  }
-  const gchar* mode = static_cast<const gchar*>(
-      g_object_get_data(G_OBJECT(widget), "busymax-view-mode"));
-  if (header_view_mode_action(mode) == nullptr) {
-    return;
-  }
-  set_header_view_mode(self, mode);
-  close_header_menu_button(self->view_mode_button);
-  focus_flutter_view(self);
-  invoke_header_bar_action(self, header_view_mode_action(mode));
-}
-
-static void set_header_popover_row_keyboard_focus(GtkWidget* row,
-                                                  gboolean visible) {
-  if (row == nullptr || !GTK_IS_WIDGET(row)) {
-    return;
-  }
-  GtkStyleContext* context = gtk_widget_get_style_context(row);
-  if (visible) {
-    gtk_style_context_add_class(context, "busymax-keyboard-focus");
-  } else {
-    gtk_style_context_remove_class(context, "busymax-keyboard-focus");
-  }
-}
-
-static gboolean header_popover_row_focus_in_cb(GtkWidget* row,
-                                               GdkEventFocus* event,
-                                               gpointer user_data) {
-  MyApplication* self = MY_APPLICATION(user_data);
-  const gboolean focus_visible =
-      self->main_window != nullptr && GTK_IS_WINDOW(self->main_window) &&
-      gtk_window_get_focus_visible(self->main_window);
-  set_header_popover_row_keyboard_focus(row, focus_visible);
-  return FALSE;
-}
-
-static gboolean header_popover_row_focus_out_cb(GtkWidget* row,
-                                                GdkEventFocus* event,
-                                                gpointer user_data) {
-  set_header_popover_row_keyboard_focus(row, FALSE);
-  return FALSE;
-}
-
-static gboolean header_popover_row_key_press_cb(GtkWidget* row,
-                                                GdkEventKey* event,
-                                                gpointer user_data) {
-  set_header_popover_row_keyboard_focus(row, TRUE);
-  return FALSE;
-}
-
-static gboolean header_popover_row_button_press_cb(GtkWidget* row,
-                                                   GdkEventButton* event,
-                                                   gpointer user_data) {
-  set_header_popover_row_keyboard_focus(row, FALSE);
-  return FALSE;
-}
-
-static void configure_header_popover_row(MyApplication* self,
-                                         GtkWidget* row) {
-  gtk_button_set_relief(GTK_BUTTON(row), GTK_RELIEF_NONE);
-  gtk_widget_set_halign(row, GTK_ALIGN_FILL);
-  gtk_widget_set_hexpand(row, TRUE);
-  gtk_style_context_add_class(gtk_widget_get_style_context(row),
-                              GTK_STYLE_CLASS_FLAT);
-  gtk_style_context_add_class(gtk_widget_get_style_context(row),
-                              "busymax-header-popover-row");
-  g_signal_connect(row, "focus-in-event",
-                   G_CALLBACK(header_popover_row_focus_in_cb), self);
-  g_signal_connect(row, "focus-out-event",
-                   G_CALLBACK(header_popover_row_focus_out_cb), self);
-  g_signal_connect(row, "key-press-event",
-                   G_CALLBACK(header_popover_row_key_press_cb), self);
-  g_signal_connect(row, "button-press-event",
-                   G_CALLBACK(header_popover_row_button_press_cb), self);
-}
-
-static GtkWidget* create_header_view_mode_item(MyApplication* self,
-                                               const gchar* mode,
-                                               const gchar* fallback_label) {
-  GtkWidget* item = gtk_button_new();
-  GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, kHeaderButtonSpacing);
-  GtkWidget* check =
-      gtk_image_new_from_icon_name("object-select-symbolic", GTK_ICON_SIZE_MENU);
-  GtkWidget* label = gtk_label_new(fallback_label);
-  gtk_label_set_xalign(GTK_LABEL(label), 0.0);
-  gtk_widget_set_hexpand(label, TRUE);
-  gtk_box_pack_start(GTK_BOX(box), check, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(box), label, TRUE, TRUE, 0);
-  gtk_container_add(GTK_CONTAINER(item), box);
-  gtk_widget_set_opacity(check, 0.0);
-  configure_header_popover_row(self, item);
-  g_object_set_data(G_OBJECT(item), "busymax-header-label-widget", label);
-  g_object_set_data(G_OBJECT(item), "busymax-header-check-widget", check);
-  g_object_set_data_full(G_OBJECT(item), "busymax-header-label",
-                         g_strdup(fallback_label), g_free);
-  g_object_set_data_full(G_OBJECT(item), "busymax-view-mode",
-                         g_strdup(mode), g_free);
-  g_signal_connect(item, "clicked",
-                   G_CALLBACK(header_view_mode_item_clicked_cb), self);
-  return item;
-}
-
-static void header_popover_action_item_clicked_cb(GtkWidget* widget,
-                                                  gpointer user_data) {
-  MyApplication* self = MY_APPLICATION(user_data);
-  if (self->suppress_header_bar_actions) {
-    return;
-  }
-  const gchar* action = static_cast<const gchar*>(
-      g_object_get_data(G_OBJECT(widget), "busymax-header-action"));
-  GtkWidget* popover = gtk_widget_get_ancestor(widget, GTK_TYPE_POPOVER);
-  if (popover != nullptr && GTK_IS_POPOVER(popover)) {
-    gtk_popover_popdown(GTK_POPOVER(popover));
-  }
-  focus_flutter_view(self);
-  invoke_header_bar_action(self, action);
-}
-
-static GtkWidget* create_header_popover_action_item(
-    MyApplication* self,
-    const gchar* action,
-    const gchar* fallback_label) {
-  GtkWidget* item = gtk_button_new();
-  GtkWidget* label = gtk_label_new(fallback_label);
-  gtk_label_set_xalign(GTK_LABEL(label), 0.0);
-  gtk_widget_set_hexpand(label, TRUE);
-  gtk_container_add(GTK_CONTAINER(item), label);
-  configure_header_popover_row(self, item);
-  g_object_set_data(G_OBJECT(item), "busymax-header-label-widget", label);
-  g_object_set_data_full(G_OBJECT(item), "busymax-header-label",
-                         g_strdup(fallback_label), g_free);
-  g_object_set_data_full(G_OBJECT(item), "busymax-header-action",
-                         g_strdup(action), g_free);
-  g_signal_connect(item, "clicked",
-                   G_CALLBACK(header_popover_action_item_clicked_cb), self);
-  return item;
-}
-
-static void set_header_popover_action_item_label(GtkWidget* item,
-                                                 const gchar* label) {
-  if (item == nullptr || label == nullptr) {
-    return;
-  }
-  GtkWidget* label_widget = static_cast<GtkWidget*>(
-      g_object_get_data(G_OBJECT(item), "busymax-header-label-widget"));
-  if (label_widget != nullptr && GTK_IS_LABEL(label_widget)) {
-    gtk_label_set_text(GTK_LABEL(label_widget), label);
-    return;
-  }
-  if (GTK_IS_BUTTON(item)) {
-    gtk_button_set_label(GTK_BUTTON(item), label);
-  }
-}
-
 static void set_header_view_mode_labels(MyApplication* self,
                                         const gchar* day,
                                         const gchar* week,
                                         const gchar* month,
                                         const gchar* year,
                                         const gchar* agenda) {
-  set_header_view_mode_item_label(self->view_mode_day_item, day);
-  set_header_view_mode_item_label(self->view_mode_week_item, week);
-  set_header_view_mode_item_label(self->view_mode_month_item, month);
-  set_header_view_mode_item_label(self->view_mode_year_item, year);
-  set_header_view_mode_item_label(self->view_mode_agenda_item, agenda);
+  replace_header_label(&self->header_day_label, day);
+  replace_header_label(&self->header_week_label, week);
+  replace_header_label(&self->header_month_label, month);
+  replace_header_label(&self->header_year_label, year);
+  replace_header_label(&self->header_agenda_label, agenda);
   update_header_view_mode_label(self);
 }
 
@@ -1571,8 +1427,20 @@ static void set_header_view_mode(MyApplication* self, const gchar* mode) {
     g_free(self->header_view_mode);
     self->header_view_mode = g_strdup(mode);
   }
+  if (self->header_view_mode_menu_action != nullptr) {
+    g_autoptr(GVariant) state = g_variant_ref_sink(g_variant_new_string(mode));
+    GVariant* current_state =
+        g_action_get_state(G_ACTION(self->header_view_mode_menu_action));
+    const gboolean state_changed =
+        current_state == nullptr || !g_variant_equal(current_state, state);
+    if (current_state != nullptr) {
+      g_variant_unref(current_state);
+    }
+    if (state_changed) {
+      g_simple_action_set_state(self->header_view_mode_menu_action, state);
+    }
+  }
   update_header_view_mode_label(self);
-  update_header_view_mode_items(self);
 }
 
 static void update_header_title_balance_spacer(MyApplication* self) {
@@ -1592,9 +1460,10 @@ static void update_header_title_box_geometry(MyApplication* self) {
       !GTK_IS_WIDGET(self->header_title_box)) {
     return;
   }
-  const gint width = self->header_onboarding_controls_visible
-                         ? kHeaderOnboardingContentWidth
-                         : -1;
+  const gboolean onboarding = self->header_onboarding_controls_visible;
+  gtk_widget_set_halign(self->header_title_box,
+                        onboarding ? GTK_ALIGN_CENTER : GTK_ALIGN_FILL);
+  const gint width = onboarding ? kHeaderOnboardingContentWidth : -1;
   gtk_widget_set_size_request(self->header_title_box, width, -1);
 }
 
@@ -1784,17 +1653,18 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
     gtk_entry_set_placeholder_text(GTK_ENTRY(self->search_entry), search);
   }
   set_widget_tooltip(self->create_button, create);
-  set_header_popover_action_item_label(self->create_event_item, create_event);
-  set_header_popover_action_item_label(self->create_task_item, create_task);
+  replace_header_label(&self->header_create_event_label, create_event);
+  replace_header_label(&self->header_create_task_label, create_task);
   set_widget_tooltip(self->settings_menu_button, menu);
   set_widget_tooltip(self->refresh_button, refresh);
   set_widget_tooltip(self->previous_button, previous);
   set_widget_tooltip(self->next_button, next);
   set_widget_tooltip(self->sidebar_collapsed_toggle_button, sidebar);
-  set_header_popover_action_item_label(self->settings_item, settings);
-  set_header_popover_action_item_label(self->keyboard_shortcuts_item,
-                                       keyboard_shortcuts);
-  set_header_popover_action_item_label(self->about_item, about_busymax);
+  replace_header_label(&self->header_settings_label, settings);
+  replace_header_label(&self->header_keyboard_shortcuts_label,
+                       keyboard_shortcuts);
+  replace_header_label(&self->header_about_label, about_busymax);
+  rebuild_header_menu_models(self);
 }
 
 static GtkWidget* create_busymax_header_bar(MyApplication* self) {
@@ -1804,6 +1674,7 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   gtk_widget_set_hexpand(self->titlebar_box, TRUE);
   gtk_style_context_add_class(gtk_widget_get_style_context(self->titlebar_box),
                               "busymax-titlebar");
+  initialize_header_menu_actions(self);
 
   GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
   track_header_bar_pointer(self, header_bar);
@@ -1843,36 +1714,12 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   gtk_box_pack_start(GTK_BOX(brand_center_box), self->header_brand_label,
                      FALSE, FALSE, 0);
 
-  track_widget_pointer(&self->settings_menu, create_header_popup_window(self));
-  GtkWidget* settings_menu_box = create_header_popover_box(self->settings_menu);
-
-  track_widget_pointer(&self->settings_item,
-                       create_header_popover_action_item(self, "settings",
-                                                         "Settings"));
-  track_widget_pointer(&self->keyboard_shortcuts_item,
-                       create_header_popover_action_item(
-                           self, "keyboardShortcuts", "Keyboard Shortcuts"));
-  track_widget_pointer(&self->about_item,
-                       create_header_popover_action_item(
-                           self, "aboutBusyMax", "About BusyMax"));
-  gtk_box_pack_start(GTK_BOX(settings_menu_box), self->settings_item, FALSE,
-                     FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(settings_menu_box),
-                     self->keyboard_shortcuts_item, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(settings_menu_box), self->about_item, FALSE,
-                     FALSE, 0);
-  show_header_popover_content(settings_menu_box);
-
   track_widget_pointer(&self->settings_menu_button, gtk_menu_button_new());
   gtk_button_set_relief(GTK_BUTTON(self->settings_menu_button),
                         GTK_RELIEF_NONE);
   gtk_button_set_image(GTK_BUTTON(self->settings_menu_button),
                        gtk_image_new_from_icon_name("open-menu-symbolic",
                                                     GTK_ICON_SIZE_MENU));
-  gtk_menu_button_set_use_popover(GTK_MENU_BUTTON(self->settings_menu_button),
-                                  TRUE);
-  gtk_menu_button_set_popover(GTK_MENU_BUTTON(self->settings_menu_button),
-                              self->settings_menu);
   gtk_style_context_add_class(
       gtk_widget_get_style_context(self->settings_menu_button),
       GTK_STYLE_CLASS_FLAT);
@@ -1885,6 +1732,7 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   make_header_icon_button_square(self->settings_menu_button);
   gtk_widget_set_margin_end(self->settings_menu_button,
                             kHeaderSidebarContentInset);
+  rebuild_header_settings_menu_model(self);
 
   gtk_box_pack_start(GTK_BOX(self->header_sidebar_brand_box),
                      self->search_button, FALSE, FALSE, 0);
@@ -1943,11 +1791,12 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
   track_widget_pointer(&self->header_title_box,
                        gtk_box_new(GTK_ORIENTATION_HORIZONTAL,
                                    kHeaderButtonSpacing));
-  gtk_widget_set_halign(self->header_title_box, GTK_ALIGN_CENTER);
+  gtk_widget_set_halign(self->header_title_box, GTK_ALIGN_FILL);
   gtk_widget_set_hexpand(self->header_title_box, TRUE);
   track_widget_pointer(&self->header_title_stack, gtk_stack_new());
   gtk_widget_set_halign(self->header_title_stack, GTK_ALIGN_FILL);
   gtk_widget_set_hexpand(self->header_title_stack, TRUE);
+  gtk_stack_set_hhomogeneous(GTK_STACK(self->header_title_stack), FALSE);
   gtk_stack_set_transition_type(GTK_STACK(self->header_title_stack),
                                 GTK_STACK_TRANSITION_TYPE_NONE);
 
@@ -1971,13 +1820,16 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
                               "busymax-header-title");
   gtk_label_set_ellipsize(GTK_LABEL(self->header_title_label),
                           PANGO_ELLIPSIZE_END);
-  gtk_label_set_max_width_chars(GTK_LABEL(self->header_title_label), 48);
+  gtk_label_set_max_width_chars(GTK_LABEL(self->header_title_label),
+                                kHeaderCenterMaximumWidthChars);
   gtk_label_set_xalign(GTK_LABEL(self->header_title_label), 0.5);
   gtk_widget_set_halign(self->header_title_label, GTK_ALIGN_CENTER);
   gtk_widget_set_hexpand(self->header_title_label, TRUE);
 
   track_widget_pointer(&self->search_entry, gtk_search_entry_new());
   gtk_entry_set_placeholder_text(GTK_ENTRY(self->search_entry), "");
+  gtk_entry_set_max_width_chars(GTK_ENTRY(self->search_entry),
+                                kHeaderCenterMaximumWidthChars);
   gtk_widget_set_halign(self->search_entry, GTK_ALIGN_FILL);
   gtk_widget_set_valign(self->search_entry, GTK_ALIGN_CENTER);
   gtk_widget_set_hexpand(self->search_entry, TRUE);
@@ -2029,31 +1881,6 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
 
   track_widget_pointer(&self->header_view_box,
                        gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
-  track_widget_pointer(&self->view_mode_menu, create_header_popup_window(self));
-  GtkWidget* view_mode_menu_box =
-      create_header_popover_box(self->view_mode_menu);
-
-  track_widget_pointer(&self->view_mode_day_item,
-                       create_header_view_mode_item(self, "day", "Day"));
-  track_widget_pointer(&self->view_mode_week_item,
-                       create_header_view_mode_item(self, "week", "Week"));
-  track_widget_pointer(&self->view_mode_month_item,
-                       create_header_view_mode_item(self, "month", "Month"));
-  track_widget_pointer(&self->view_mode_year_item,
-                       create_header_view_mode_item(self, "year", "Year"));
-  track_widget_pointer(&self->view_mode_agenda_item,
-                       create_header_view_mode_item(self, "agenda", "Agenda"));
-  gtk_box_pack_start(GTK_BOX(view_mode_menu_box), self->view_mode_day_item,
-                     FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(view_mode_menu_box), self->view_mode_week_item,
-                     FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(view_mode_menu_box), self->view_mode_month_item,
-                     FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(view_mode_menu_box), self->view_mode_year_item,
-                     FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(view_mode_menu_box), self->view_mode_agenda_item,
-                     FALSE, FALSE, 0);
-  show_header_popover_content(view_mode_menu_box);
 
   track_widget_pointer(&self->view_mode_button, gtk_menu_button_new());
   gtk_button_set_relief(GTK_BUTTON(self->view_mode_button), GTK_RELIEF_NONE);
@@ -2061,10 +1888,6 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
                               GTK_STYLE_CLASS_FLAT);
   gtk_style_context_add_class(gtk_widget_get_style_context(self->view_mode_button),
                               "busymax-header-view-mode-button");
-  gtk_menu_button_set_use_popover(GTK_MENU_BUTTON(self->view_mode_button),
-                                  TRUE);
-  gtk_menu_button_set_popover(GTK_MENU_BUTTON(self->view_mode_button),
-                              self->view_mode_menu);
 
   GtkWidget* view_mode_button_box =
       gtk_box_new(GTK_ORIENTATION_HORIZONTAL, kHeaderButtonSpacing);
@@ -2079,38 +1902,23 @@ static GtkWidget* create_busymax_header_bar(MyApplication* self) {
                      FALSE, FALSE, 0);
   gtk_container_add(GTK_CONTAINER(self->view_mode_button),
                     view_mode_button_box);
+  rebuild_header_view_mode_menu_model(self);
 
   gtk_box_pack_start(GTK_BOX(self->header_view_box), self->view_mode_button,
                      FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(end_box), self->header_view_box, FALSE, FALSE, 0);
-
-  track_widget_pointer(&self->create_menu, create_header_popup_window(self));
-  GtkWidget* create_menu_box = create_header_popover_box(self->create_menu);
-  track_widget_pointer(
-      &self->create_event_item,
-      create_header_popover_action_item(self, "createEvent", "Event"));
-  track_widget_pointer(
-      &self->create_task_item,
-      create_header_popover_action_item(self, "createTask", "Task"));
-  gtk_box_pack_start(GTK_BOX(create_menu_box), self->create_event_item, FALSE,
-                     FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(create_menu_box), self->create_task_item, FALSE,
-                     FALSE, 0);
-  show_header_popover_content(create_menu_box);
 
   track_widget_pointer(&self->create_button, gtk_menu_button_new());
   gtk_button_set_relief(GTK_BUTTON(self->create_button), GTK_RELIEF_NONE);
   gtk_button_set_image(
       GTK_BUTTON(self->create_button),
       gtk_image_new_from_icon_name("list-add-symbolic", GTK_ICON_SIZE_MENU));
-  gtk_menu_button_set_use_popover(GTK_MENU_BUTTON(self->create_button), TRUE);
-  gtk_menu_button_set_popover(GTK_MENU_BUTTON(self->create_button),
-                              self->create_menu);
   gtk_style_context_add_class(gtk_widget_get_style_context(self->create_button),
                               GTK_STYLE_CLASS_FLAT);
   gtk_style_context_add_class(gtk_widget_get_style_context(self->create_button),
                               "busymax-header-button");
   make_header_icon_button_square(self->create_button);
+  rebuild_header_create_menu_model(self);
   gtk_box_pack_start(GTK_BOX(end_box), self->create_button, FALSE, FALSE, 0);
 
   track_widget_pointer(&self->refresh_button,
@@ -2139,16 +1947,12 @@ static gboolean show_header_create_menu(MyApplication* self) {
     return FALSE;
   }
 
+  // A pointer-triggered Flutter command should behave like clicking the native
+  // menu button: retain focus on the trigger and let GTK move into the model
+  // only when the user starts keyboard navigation.
+  gtk_widget_grab_focus(self->create_button);
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->create_button), TRUE);
-  GtkWidget* first_item =
-      self->create_event_item != nullptr &&
-              gtk_widget_get_sensitive(self->create_event_item)
-          ? self->create_event_item
-          : self->create_task_item;
-  if (first_item != nullptr && GTK_IS_WIDGET(first_item)) {
-    gtk_widget_grab_focus(first_item);
-  }
-  return TRUE;
+  return gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->create_button));
 }
 
 static void header_bar_method_call_cb(FlMethodChannel* channel,
@@ -2386,6 +2190,7 @@ static FlValue* get_gtk_theme_colors() {
   GdkRGBA window_color = {0, 0, 0, 0};
   GdkRGBA view_color = {0, 0, 0, 0};
   GdkRGBA sidebar_color = {0, 0, 0, 0};
+  GdkRGBA secondary_sidebar_color = {0, 0, 0, 0};
   GdkRGBA header_color = {0, 0, 0, 0};
   GdkRGBA card_color = {0, 0, 0, 0};
   GdkRGBA dialog_color = {0, 0, 0, 0};
@@ -2403,31 +2208,55 @@ static FlValue* get_gtk_theme_colors() {
 
   GtkStyleContext* window_context = gtk_widget_get_style_context(window);
   gtk_style_context_add_class(window_context, GTK_STYLE_CLASS_BACKGROUND);
-  lookup_context_color(window_context, "theme_bg_color", &window_color) ||
+  lookup_context_color(window_context, "window_bg_color", &window_color) ||
+      lookup_context_color(window_context, "theme_bg_color", &window_color) ||
       sample_widget_background(window, GTK_STYLE_CLASS_BACKGROUND,
                                GTK_STATE_FLAG_NORMAL, &window_color);
-  lookup_context_color(window_context, "theme_base_color", &view_color) ||
+  lookup_context_color(window_context, "view_bg_color", &view_color) ||
+      lookup_context_color(window_context, "theme_base_color", &view_color) ||
       sample_widget_background(view, GTK_STYLE_CLASS_VIEW,
                                GTK_STATE_FLAG_NORMAL, &view_color);
-  lookup_context_color(window_context, "theme_fg_color", &foreground_color) ||
+  lookup_context_color(window_context, "window_fg_color", &foreground_color) ||
+      lookup_context_color(window_context, "theme_fg_color",
+                           &foreground_color) ||
       sample_widget_color(window, GTK_STYLE_CLASS_BACKGROUND,
                           GTK_STATE_FLAG_NORMAL, &foreground_color);
   lookup_context_color(window_context, "theme_unfocused_fg_color",
                        &muted_foreground_color);
   lookup_context_color(window_context, "borders", &border_color);
-  lookup_context_color(window_context, "wm_shadow", &shade_color);
-  lookup_context_color(window_context, "theme_selected_bg_color",
-                       &accent_color);
+  lookup_context_color(window_context, "sidebar_border_color",
+                       &sidebar_border_color);
+  lookup_context_color(window_context, "shade_color", &shade_color) ||
+      lookup_context_color(window_context, "wm_shadow", &shade_color);
+  lookup_context_color(window_context, "accent_bg_color", &accent_color) ||
+      lookup_context_color(window_context, "theme_selected_bg_color",
+                           &accent_color);
 
-  sample_widget_background(sidebar, GTK_STYLE_CLASS_SIDEBAR,
-                           GTK_STATE_FLAG_NORMAL, &sidebar_color);
-  sample_widget_background(header, GTK_STYLE_CLASS_TITLEBAR,
-                           GTK_STATE_FLAG_NORMAL, &header_color);
-  sample_widget_background(card, "card", GTK_STATE_FLAG_NORMAL, &card_color);
-  sample_widget_background(dialog, GTK_STYLE_CLASS_BACKGROUND,
-                           GTK_STATE_FLAG_NORMAL, &dialog_color);
-  sample_widget_background(popover, GTK_STYLE_CLASS_BACKGROUND,
-                           GTK_STATE_FLAG_NORMAL, &popover_color);
+  // Prefer public semantic roles. Classic GTK 3 themes often expose only
+  // widget-class styling, so retain those samples as compatibility input;
+  // Dart validates their hierarchy before accepting them as raised surfaces.
+  lookup_context_color(window_context, "sidebar_bg_color", &sidebar_color) ||
+      sample_widget_background(sidebar, GTK_STYLE_CLASS_SIDEBAR,
+                               GTK_STATE_FLAG_NORMAL, &sidebar_color);
+  lookup_context_color(window_context, "secondary_sidebar_bg_color",
+                       &secondary_sidebar_color);
+  if (!color_is_visible(&secondary_sidebar_color) &&
+      color_is_visible(&sidebar_color)) {
+    secondary_sidebar_color = sidebar_color;
+  }
+  lookup_context_color(window_context, "headerbar_bg_color", &header_color) ||
+      sample_widget_background(header, GTK_STYLE_CLASS_TITLEBAR,
+                               GTK_STATE_FLAG_NORMAL, &header_color);
+  lookup_context_color(window_context, "card_bg_color", &card_color) ||
+      sample_widget_background(card, "card", GTK_STATE_FLAG_NORMAL,
+                               &card_color);
+  lookup_context_color(window_context, "dialog_bg_color", &dialog_color) ||
+      sample_widget_background(dialog, GTK_STYLE_CLASS_BACKGROUND,
+                               GTK_STATE_FLAG_NORMAL, &dialog_color);
+  lookup_context_color(window_context, "popover_bg_color", &popover_color) ||
+      sample_widget_background(popover, GTK_STYLE_CLASS_BACKGROUND,
+                               GTK_STATE_FLAG_NORMAL, &popover_color);
+
   sample_widget_background(control, nullptr, GTK_STATE_FLAG_NORMAL,
                            &control_color);
   sample_widget_background(control, nullptr, GTK_STATE_FLAG_PRELIGHT,
@@ -2438,8 +2267,6 @@ static FlValue* get_gtk_theme_colors() {
   if (color_is_visible(&border_color)) {
     subtle_border_color = border_color;
     subtle_border_color.alpha *= 0.56;
-    sidebar_border_color = border_color;
-    sidebar_border_color.alpha *= 0.72;
   }
 
   FlValue* result = fl_value_new_map();
@@ -2449,9 +2276,8 @@ static FlValue* get_gtk_theme_colors() {
   set_theme_color(result, "window", &window_color);
   set_theme_color(result, "view", &view_color);
   set_theme_color(result, "sidebar", &sidebar_color);
-  set_theme_color(result, "secondarySidebar", &sidebar_color);
+  set_theme_color(result, "secondarySidebar", &secondary_sidebar_color);
   set_theme_color(result, "headerbar", &header_color);
-  set_theme_color(result, "headerbarFlat", &view_color);
   set_theme_color(result, "card", &card_color);
   set_theme_color(result, "dialog", &dialog_color);
   set_theme_color(result, "popover", &popover_color);
@@ -3481,6 +3307,14 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->gtk_font_settings_event_channel);
   disconnect_gtk_theme_colors_signals(self);
   g_clear_object(&self->gtk_theme_colors_event_channel);
+  if (self->main_window != nullptr && GTK_IS_WIDGET(self->main_window)) {
+    gtk_widget_insert_action_group(GTK_WIDGET(self->main_window), "header",
+                                   nullptr);
+  }
+  g_clear_object(&self->header_view_mode_menu_action);
+  g_clear_object(&self->header_create_event_action);
+  g_clear_object(&self->header_create_task_action);
+  g_clear_object(&self->header_menu_action_group);
   self->main_window = nullptr;
   clear_widget_pointer(&self->flutter_view);
   clear_widget_pointer(&self->titlebar_box);
@@ -3497,9 +3331,6 @@ static void my_application_dispose(GObject* object) {
   clear_widget_pointer(&self->header_brand_label);
   clear_widget_pointer(&self->settings_menu_button);
   clear_widget_pointer(&self->settings_menu);
-  clear_widget_pointer(&self->settings_item);
-  clear_widget_pointer(&self->keyboard_shortcuts_item);
-  clear_widget_pointer(&self->about_item);
   clear_widget_pointer(&self->header_view_box);
   clear_widget_pointer(&self->header_title_label);
   clear_widget_pointer(&self->search_entry);
@@ -3511,16 +3342,9 @@ static void my_application_dispose(GObject* object) {
   clear_widget_pointer(&self->view_mode_button);
   clear_widget_pointer(&self->view_mode_label);
   clear_widget_pointer(&self->view_mode_menu);
-  clear_widget_pointer(&self->view_mode_day_item);
-  clear_widget_pointer(&self->view_mode_week_item);
-  clear_widget_pointer(&self->view_mode_month_item);
-  clear_widget_pointer(&self->view_mode_year_item);
-  clear_widget_pointer(&self->view_mode_agenda_item);
   clear_widget_pointer(&self->search_button);
   clear_widget_pointer(&self->create_button);
   clear_widget_pointer(&self->create_menu);
-  clear_widget_pointer(&self->create_event_item);
-  clear_widget_pointer(&self->create_task_item);
   clear_widget_pointer(&self->refresh_button);
   g_clear_pointer(&self->header_bar_window_background_color, g_free);
   g_clear_pointer(&self->header_bar_background_color, g_free);
@@ -3539,6 +3363,16 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_bar_shade_color, g_free);
   g_clear_pointer(&self->header_bar_modal_barrier_color, g_free);
   g_clear_pointer(&self->header_view_mode, g_free);
+  g_clear_pointer(&self->header_day_label, g_free);
+  g_clear_pointer(&self->header_week_label, g_free);
+  g_clear_pointer(&self->header_month_label, g_free);
+  g_clear_pointer(&self->header_year_label, g_free);
+  g_clear_pointer(&self->header_agenda_label, g_free);
+  g_clear_pointer(&self->header_create_event_label, g_free);
+  g_clear_pointer(&self->header_create_task_label, g_free);
+  g_clear_pointer(&self->header_settings_label, g_free);
+  g_clear_pointer(&self->header_keyboard_shortcuts_label, g_free);
+  g_clear_pointer(&self->header_about_label, g_free);
   g_clear_pointer(&self->header_search_query, g_free);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
@@ -3573,7 +3407,7 @@ static void my_application_init(MyApplication* self) {
   self->main_window_transparent_backing = FALSE;
   self->header_bar_css_provider = nullptr;
   self->header_bar_window_background_color =
-      g_strdup(kDefaultHeaderBarBackgroundColor);
+      g_strdup(kDefaultWindowBackgroundColor);
   self->header_bar_background_color =
       g_strdup(kDefaultHeaderBarBackgroundColor);
   self->header_bar_sidebar_background_color =
@@ -3611,9 +3445,6 @@ static void my_application_init(MyApplication* self) {
   self->header_brand_label = nullptr;
   self->settings_menu_button = nullptr;
   self->settings_menu = nullptr;
-  self->settings_item = nullptr;
-  self->keyboard_shortcuts_item = nullptr;
-  self->about_item = nullptr;
   self->header_view_box = nullptr;
   self->header_title_label = nullptr;
   self->search_entry = nullptr;
@@ -3625,18 +3456,25 @@ static void my_application_init(MyApplication* self) {
   self->view_mode_button = nullptr;
   self->view_mode_label = nullptr;
   self->view_mode_menu = nullptr;
-  self->view_mode_day_item = nullptr;
-  self->view_mode_week_item = nullptr;
-  self->view_mode_month_item = nullptr;
-  self->view_mode_year_item = nullptr;
-  self->view_mode_agenda_item = nullptr;
   self->search_button = nullptr;
   self->create_button = nullptr;
   self->create_menu = nullptr;
-  self->create_event_item = nullptr;
-  self->create_task_item = nullptr;
   self->refresh_button = nullptr;
+  self->header_menu_action_group = nullptr;
+  self->header_view_mode_menu_action = nullptr;
+  self->header_create_event_action = nullptr;
+  self->header_create_task_action = nullptr;
   self->header_view_mode = nullptr;
+  self->header_day_label = g_strdup("Day");
+  self->header_week_label = g_strdup("Week");
+  self->header_month_label = g_strdup("Month");
+  self->header_year_label = g_strdup("Year");
+  self->header_agenda_label = g_strdup("Agenda");
+  self->header_create_event_label = g_strdup("Event");
+  self->header_create_task_label = g_strdup("Task");
+  self->header_settings_label = g_strdup("Settings");
+  self->header_keyboard_shortcuts_label = g_strdup("Keyboard Shortcuts");
+  self->header_about_label = g_strdup("About BusyMax");
   self->header_search_query = g_strdup("");
   self->header_search_active = FALSE;
   self->header_navigation_visible = TRUE;

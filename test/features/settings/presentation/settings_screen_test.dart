@@ -169,7 +169,9 @@ void main() {
     expect(find.text('Add Google account'), findsNothing);
   });
 
-  testWidgets('Settings content uses the native view surface', (tester) async {
+  testWidgets('Settings content uses the native window surface', (
+    tester,
+  ) async {
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
@@ -202,8 +204,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-    expect(scaffold.backgroundColor, gtkColors.view);
-    expect(scaffold.backgroundColor, isNot(gtkColors.window));
+    expect(scaffold.backgroundColor, gtkColors.window);
+    expect(scaffold.backgroundColor, isNot(gtkColors.view));
   });
 
   testWidgets('Settings uses Yaru navigation with selected semantics', (

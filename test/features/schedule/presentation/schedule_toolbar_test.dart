@@ -172,8 +172,14 @@ void main() {
       eventButton.style?.backgroundColor?.resolve({}),
       taskButton.style?.backgroundColor?.resolve({}),
     );
-    expect(eventButton.style?.backgroundColor?.resolve({}), Colors.transparent);
-    expect(taskButton.style?.backgroundColor?.resolve({}), Colors.transparent);
+    final inheritedBackground = Theme.of(
+      tester.element(find.text('Task')),
+    ).menuButtonTheme.style?.backgroundColor?.resolve({});
+    expect(
+      eventButton.style?.backgroundColor?.resolve({}),
+      inheritedBackground,
+    );
+    expect(taskButton.style?.backgroundColor?.resolve({}), inheritedBackground);
 
     await tester.tap(find.text('Task'));
     await tester.pumpAndSettle();

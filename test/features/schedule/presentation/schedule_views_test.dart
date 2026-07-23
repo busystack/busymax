@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_day_week_view.dart';
@@ -562,6 +563,10 @@ void main() {
       Theme.of(popoverContext).colorScheme.shadow,
     );
     expect(popoverSurface.shadowColor.a, 1);
+    expect(
+      popoverSurface.color,
+      BusyMaxSurfaceColors.of(popoverContext).popover,
+    );
 
     final editCenter = tester.getCenter(find.byIcon(Icons.edit_outlined));
     final deleteCenter = tester.getCenter(find.byIcon(Icons.delete_outline));
@@ -2068,9 +2073,20 @@ void main() {
     );
     expect(
       headerBar,
-      contains('create_header_popover_action_item(self, "createEvent"'),
+      contains(
+        'g_menu_append(menu, self->header_create_event_label,\n'
+        '                "header.create-event")',
+      ),
     );
-    expect(headerBar, contains('self, "createTask", "Task"'));
+    expect(
+      headerBar,
+      contains(
+        'g_menu_append(menu, self->header_create_task_label, '
+        '"header.create-task")',
+      ),
+    );
+    expect(headerBar, contains('gtk_menu_button_set_menu_model'));
+    expect(headerBar, contains('g_simple_action_set_enabled'));
     expect(headerBar, contains('show_header_create_menu'));
     expect(headerService, contains("'showCreateMenu'"));
     expect(

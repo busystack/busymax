@@ -207,6 +207,16 @@ class BusyMaxYaruTheme {
       splashColor: colors.controlHover,
       focusColor: colors.controlActive,
     );
+    final menuStyle = _semanticMenuSurfaceStyle(
+      base.menuTheme.style,
+      color: colors.popover,
+      shadowColor: colorScheme.shadow,
+    );
+    final dropdownMenuStyle = _semanticMenuSurfaceStyle(
+      base.dropdownMenuTheme.menuStyle,
+      color: colors.popover,
+      shadowColor: colorScheme.shadow,
+    );
 
     return base.copyWith(
       brightness: brightness,
@@ -363,6 +373,10 @@ class BusyMaxYaruTheme {
               : BorderSide.none,
         ),
       ),
+      menuTheme: MenuThemeData(
+        style: menuStyle,
+        submenuIcon: base.menuTheme.submenuIcon,
+      ),
       chipTheme: base.chipTheme.copyWith(
         labelStyle: normalizer.apply(
           base.chipTheme.labelStyle,
@@ -417,6 +431,7 @@ class BusyMaxYaruTheme {
           fallback: textTheme.bodyMedium,
         ),
         inputDecorationTheme: inputDecorationTheme,
+        menuStyle: dropdownMenuStyle,
       ),
       tabBarTheme: base.tabBarTheme.copyWith(
         labelStyle: normalizer.apply(
@@ -621,28 +636,37 @@ class _BusyMaxResolvedSurfaceColors {
     final sampledView =
         _runtimeSurfaceColor(runtime.view, over: sampledWindow) ??
         fallback.view;
-    final sampledSidebar =
-        _runtimeSurfaceColor(runtime.sidebar, over: sampledWindow) ??
-        _runtimeSurfaceColor(runtime.secondarySidebar, over: sampledWindow) ??
-        _runtimeSurfaceColor(runtime.headerbar, over: sampledWindow) ??
-        fallback.sidebar;
+    final runtimeSidebar = _runtimeSurfaceColor(
+      runtime.sidebar,
+      over: sampledWindow,
+    );
+    final sampledSidebar = runtimeSidebar ?? fallback.sidebar;
+    final runtimeSecondarySidebar = _runtimeSurfaceColor(
+      runtime.secondarySidebar,
+      over: sampledWindow,
+    );
     final sampledSecondarySidebar =
-        _runtimeSurfaceColor(runtime.secondarySidebar, over: sampledWindow) ??
-        sampledSidebar;
-    final sampledHeaderbar =
-        _runtimeSurfaceColor(runtime.headerbar, over: sampledWindow) ??
-        sampledWindow;
+        runtimeSecondarySidebar ?? fallback.secondarySidebar;
+    final runtimeHeaderbar = _runtimeSurfaceColor(
+      runtime.headerbar,
+      over: sampledWindow,
+    );
+    final sampledHeaderbar = runtimeHeaderbar ?? fallback.headerbar;
     final sampledHeaderbarFlat =
         _runtimeSurfaceColor(runtime.headerbarFlat, over: sampledView) ??
         sampledView;
-    final runtimeCard = _runtimeSurfaceColor(runtime.card, over: sampledView);
+    final runtimeCard = _runtimeSurfaceColor(runtime.card, over: sampledWindow);
     final sampledCard = runtimeCard ?? fallback.card;
-    final sampledDialog =
-        _runtimeSurfaceColor(runtime.dialog, over: sampledWindow) ??
-        sampledCard;
-    final sampledPopover =
-        _runtimeSurfaceColor(runtime.popover, over: sampledWindow) ??
-        sampledCard;
+    final runtimeDialog = _runtimeSurfaceColor(
+      runtime.dialog,
+      over: sampledWindow,
+    );
+    final sampledDialog = runtimeDialog ?? fallback.dialog;
+    final runtimePopover = _runtimeSurfaceColor(
+      runtime.popover,
+      over: sampledWindow,
+    );
+    final sampledPopover = runtimePopover ?? fallback.popover;
     final sampledBackgrounds = [
       sampledWindow,
       sampledView,
@@ -667,31 +691,60 @@ class _BusyMaxResolvedSurfaceColors {
           : fallbackSurface;
     }
 
-    // BusyMax currently has one generic foreground role. Preserve each GTK
-    // surface independently when that role remains readable, and fall back
-    // only the conflicting role for mixed-luminance themes.
+    // BusyMax currently has one generic foreground role. Preserve compatible
+    // GTK roles when that foreground remains readable; raised roles receive
+    // the additional hierarchy validation below.
     final window = readableSurface(sampledWindow, fallback.window);
     final view = readableSurface(sampledView, fallback.view);
-    final sidebar = readableSurface(sampledSidebar, fallback.sidebar);
-    final secondarySidebar = readableSurface(
-      sampledSecondarySidebar,
-      fallback.secondarySidebar,
+    final sidebar = _resolvedRaisedSurface(
+      runtimeSidebar,
+      brightness: brightness,
+      parent: window,
+      foreground: foreground,
+      fallback: fallback.sidebar,
     );
-    final headerbar = readableSurface(sampledHeaderbar, fallback.headerbar);
+    final secondarySidebar = _resolvedRaisedSurface(
+      runtimeSecondarySidebar,
+      brightness: brightness,
+      parent: window,
+      foreground: foreground,
+      fallback: fallback.secondarySidebar,
+    );
+    final headerbar = _resolvedRaisedSurface(
+      runtimeHeaderbar,
+      brightness: brightness,
+      parent: window,
+      foreground: foreground,
+      fallback: fallback.headerbar,
+    );
     final headerbarFlat = readableSurface(
       sampledHeaderbarFlat,
       fallback.headerbarFlat,
     );
-    final card = readableSurface(sampledCard, fallback.card);
-    final dialog = readableSurface(sampledDialog, fallback.dialog);
-    final popover = readableSurface(sampledPopover, fallback.popover);
-    final groupedSurface = _resolvedGroupedSurface(
+    final card = _resolvedRaisedSurface(
       runtimeCard,
       brightness: brightness,
-      view: view,
+      parent: window,
       foreground: foreground,
-      fallback: fallback.groupedSurface,
+      fallback: fallback.card,
     );
+    final dialog = _resolvedRaisedSurface(
+      runtimeDialog,
+      brightness: brightness,
+      parent: window,
+      foreground: foreground,
+      fallback: fallback.dialog,
+    );
+    final popover = _resolvedRaisedSurface(
+      runtimePopover,
+      brightness: brightness,
+      parent: window,
+      foreground: foreground,
+      fallback: fallback.popover,
+    );
+    // Boxed/grouped content is one semantic card role. Keeping a single
+    // resolved token prevents Settings, Agenda, and Year view from drifting.
+    final groupedSurface = card;
     final sidebarBorder = _resolvedSidebarBorder(
       runtime.sidebarBorder,
       brightness: brightness,
@@ -735,14 +788,14 @@ class _BusyMaxResolvedSurfaceColors {
       groupedSurface: groupedSurface,
       dialog: dialog,
       popover: popover,
-      control: _runtimeColor(runtime.control),
-      controlHover: _runtimeColor(runtime.controlHover),
-      controlActive: _runtimeColor(runtime.controlActive),
-      activeToggle: _runtimeColor(runtime.activeToggle),
+      control: _runtimeOverlayColor(runtime.control),
+      controlHover: _runtimeOverlayColor(runtime.controlHover),
+      controlActive: _runtimeOverlayColor(runtime.controlActive),
+      activeToggle: _runtimeOverlayColor(runtime.activeToggle),
       foreground: foreground,
       mutedForeground: mutedForeground,
       disabledForeground: disabledForeground,
-      disabledControl: _runtimeColor(runtime.disabledControl),
+      disabledControl: _runtimeOverlayColor(runtime.disabledControl),
       border: _runtimeColor(runtime.border),
       subtleBorder: _runtimeColor(runtime.subtleBorder),
       sidebarBorder: sidebarBorder,
@@ -751,28 +804,35 @@ class _BusyMaxResolvedSurfaceColors {
   }
 }
 
-Color _resolvedGroupedSurface(
-  Color? runtimeCard, {
+Color _resolvedRaisedSurface(
+  Color? runtimeSurface, {
   required Brightness brightness,
-  required Color view,
+  required Color parent,
   required Color foreground,
   required Color fallback,
 }) {
-  if (runtimeCard == null || _contrastRatio(foreground, runtimeCard) < 4.5) {
+  bool isReadable(Color color) => _contrastRatio(foreground, color) >= 4.5;
+
+  bool hasExpectedHierarchy(Color color) {
+    if (brightness != Brightness.dark) {
+      return true;
+    }
+    return color.computeLuminance() > parent.computeLuminance() &&
+        _contrastRatio(color, parent) >= _minimumRaisedSurfaceContrast;
+  }
+
+  if (runtimeSurface != null &&
+      isReadable(runtimeSurface) &&
+      hasExpectedHierarchy(runtimeSurface)) {
+    return runtimeSurface;
+  }
+  if (isReadable(fallback) && hasExpectedHierarchy(fallback)) {
     return fallback;
   }
-  if (brightness == Brightness.dark) {
-    // GTK 3 themes without a card role can return the underlying view color
-    // for an arbitrary `.card` sample. Dark grouped content needs a genuinely
-    // raised surface; otherwise its border and shadow disappear into the view.
-    final isRaised =
-        runtimeCard.computeLuminance() > view.computeLuminance() &&
-        _contrastRatio(runtimeCard, view) >= _minimumRaisedSurfaceContrast;
-    if (!isRaised) {
-      return fallback;
-    }
-  }
-  return runtimeCard;
+
+  // A fixed fallback may itself be recessed against a brighter custom theme.
+  // Flat is safer than inverting the intended raised hierarchy.
+  return parent;
 }
 
 Color _resolvedSidebarBorder(
@@ -801,6 +861,14 @@ Color? _runtimeColor(Color? color) {
     return null;
   }
   return color;
+}
+
+Color? _runtimeOverlayColor(Color? color) {
+  final candidate = _runtimeColor(color);
+  if (candidate == null || candidate.a >= 1) {
+    return null;
+  }
+  return candidate;
 }
 
 Color? _runtimeShadeColor(Color? color, {required Color over}) {
@@ -892,6 +960,20 @@ WidgetStateProperty<TextStyle?> _normalizeTextStyleProperty(
   return WidgetStateProperty.resolveWith((states) {
     return normalizer.apply(property?.resolve(states), fallback: fallback);
   });
+}
+
+/// Applies only the semantic floating-surface roles and retains Yaru's menu
+/// geometry, item states, padding, and motion.
+MenuStyle _semanticMenuSurfaceStyle(
+  MenuStyle? base, {
+  required Color color,
+  required Color shadowColor,
+}) {
+  return (base ?? const MenuStyle()).copyWith(
+    backgroundColor: WidgetStatePropertyAll(color),
+    surfaceTintColor: WidgetStatePropertyAll(color),
+    shadowColor: WidgetStatePropertyAll(shadowColor),
+  );
 }
 
 /// Applies runtime semantic colors and typography without replacing Yaru's

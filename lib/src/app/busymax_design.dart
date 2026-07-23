@@ -483,64 +483,16 @@ InputDecoration busyMaxDropdownDecoration() {
 }
 
 MenuStyle busyMaxDropdownMenuStyle(BuildContext context, {double? minWidth}) {
-  final popupTheme = Theme.of(context).popupMenuTheme;
-  final colorScheme = Theme.of(context).colorScheme;
-  return MenuStyle(
-    backgroundColor: WidgetStatePropertyAll(
-      popupTheme.color ?? colorScheme.surfaceContainerHigh,
-    ),
-    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-    shadowColor: WidgetStatePropertyAll(BusyMaxShadow.physicalColor(context)),
-    elevation: const WidgetStatePropertyAll(BusyMaxElevation.popover),
-    padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 4)),
-    shape: WidgetStatePropertyAll(
-      RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-      ),
-    ),
-    side: const WidgetStatePropertyAll(BorderSide.none),
-    visualDensity: VisualDensity.standard,
-    minimumSize: WidgetStatePropertyAll(Size(minWidth ?? 0, 0)),
+  final base = Theme.of(context).menuTheme.style ?? const MenuStyle();
+  return base.copyWith(
+    minimumSize: minWidth == null
+        ? null
+        : WidgetStatePropertyAll(Size(minWidth, 0)),
   );
 }
 
 ButtonStyle busyMaxDropdownMenuItemStyle(BuildContext context) {
-  final colorScheme = Theme.of(context).colorScheme;
-  return ButtonStyle(
-    minimumSize: const WidgetStatePropertyAll(Size(0, 36)),
-    maximumSize: const WidgetStatePropertyAll(Size(double.infinity, 36)),
-    padding: const WidgetStatePropertyAll(
-      EdgeInsets.symmetric(horizontal: BusyMaxSpacing.md),
-    ),
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    textStyle: WidgetStatePropertyAll(Theme.of(context).textTheme.labelLarge),
-    foregroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.disabled)) {
-        return colorScheme.onSurfaceVariant.withValues(alpha: 0.55);
-      }
-      return colorScheme.onSurface;
-    }),
-    backgroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.pressed)) {
-        return colorScheme.onSurfaceVariant.withValues(alpha: 0.12);
-      }
-      if (states.contains(WidgetState.hovered) ||
-          states.contains(WidgetState.focused)) {
-        return colorScheme.onSurfaceVariant.withValues(alpha: 0.08);
-      }
-      return Colors.transparent;
-    }),
-    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-    side: const WidgetStatePropertyAll(BorderSide.none),
-    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-    shadowColor: const WidgetStatePropertyAll(Colors.transparent),
-    shape: WidgetStatePropertyAll(
-      RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-      ),
-    ),
-    animationDuration: Duration.zero,
-  );
+  return Theme.of(context).menuButtonTheme.style ?? const ButtonStyle();
 }
 
 ButtonStyle busyMaxPushButtonStyle(ButtonStyle? style) {

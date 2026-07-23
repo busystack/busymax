@@ -174,16 +174,20 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       shade: Color.fromRGBO(0, 0, 6, 0.07),
     ),
     Brightness.dark => const BusyMaxSurfaceColors(
-      window: Color(0xFF1D1D20),
+      // Current Yaru/libadwaita semantic surface ladder. These values are the
+      // fallback when GTK 3 cannot expose a compatible role; flat or recessed
+      // legacy `.sidebar` and `popover.background` samples must not replace
+      // these raised roles.
+      window: Color(0xFF2C2C2C),
       view: Color(0xFF1D1D20),
-      sidebar: Color(0xFF2E2E32),
-      secondarySidebar: Color(0xFF2E2E32),
-      headerbar: Color(0xFF2E2E32),
+      sidebar: Color(0xFF393939),
+      secondarySidebar: Color(0xFF323232),
+      headerbar: Color(0xFF393939),
       headerbarFlat: Color(0xFF1D1D20),
-      card: Color(0xFF222226),
-      groupedSurface: Color(0xFF383838),
-      dialog: Color(0xFF222226),
-      popover: Color(0xFF383838),
+      card: Color(0xFF3D3D3D),
+      groupedSurface: Color(0xFF3D3D3D),
+      dialog: Color(0xFF3E3E3E),
+      popover: Color(0xFF3E3E3E),
       control: Color.fromRGBO(255, 255, 255, 0.10),
       controlHover: Color.fromRGBO(255, 255, 255, 0.14),
       controlActive: Color.fromRGBO(255, 255, 255, 0.18),

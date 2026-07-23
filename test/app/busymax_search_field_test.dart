@@ -17,11 +17,17 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: BusyMaxSearchField(
-            controller: controller,
-            hintText: 'Search',
-            onChanged: changes.add,
-            onClear: () => clearCount += 1,
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 420,
+              child: BusyMaxSearchField(
+                controller: controller,
+                hintText: 'Search',
+                onChanged: changes.add,
+                onClear: () => clearCount += 1,
+              ),
+            ),
           ),
         ),
       ),
@@ -32,6 +38,8 @@ void main() {
     final field = tester.widget<YaruSearchField>(find.byType(YaruSearchField));
     expect(field.style, YaruSearchFieldStyle.filled);
     expect(field.height, kYaruTitleBarItemHeight);
+    expect(field.radius, const Radius.circular(kYaruTitleBarItemHeight));
+    expect(tester.getSize(find.byType(BusyMaxSearchField)).width, 420);
     expect(
       field.clearIconSemanticLabel,
       MaterialLocalizations.of(context).clearButtonTooltip,

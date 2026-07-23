@@ -256,7 +256,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     };
 
     return Scaffold(
-      backgroundColor: BusyMaxSurfaceColors.of(context).view,
+      backgroundColor: BusyMaxSurfaceColors.of(context).window,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final showSidebar = BusyMaxLayoutRules.showSettingsSidebar(

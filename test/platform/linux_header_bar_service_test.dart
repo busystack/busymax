@@ -563,22 +563,55 @@ void main() {
     expect(calls.where((call) => call.method == 'focusSearch'), hasLength(1));
   });
 
-  test('native header controls keep visible keyboard focus indicators', () {
+  test('native search uses a responsive theme-owned GTK entry', () {
     final source = File('linux/runner/my_application.cc').readAsStringSync();
 
-    expect(source, contains('button.busymax-header-view-mode-button:focus {"'));
-    expect(source, contains('button.busymax-header-popover-row:focus {"'));
+    expect(source, contains('gtk_search_entry_new()'));
     expect(
       source,
       contains(
-        'button.busymax-header-popover-row.busymax-keyboard-focus:focus {"',
+        'gtk_widget_set_halign(self->header_title_box, GTK_ALIGN_FILL);',
       ),
     );
+    expect(
+      source,
+      contains(
+        'gtk_stack_set_hhomogeneous(GTK_STACK(self->header_title_stack), FALSE)',
+      ),
+    );
+    expect(
+      source,
+      contains('gtk_entry_set_max_width_chars(GTK_ENTRY(self->search_entry),'),
+    );
+    expect(
+      source,
+      contains('gtk_widget_set_halign(self->search_entry, GTK_ALIGN_FILL);'),
+    );
+    expect(
+      source,
+      contains('gtk_widget_set_hexpand(self->search_entry, TRUE);'),
+    );
+    expect(
+      source,
+      isNot(contains('gtk_widget_set_size_request(self->search_entry')),
+    );
+    expect(source, isNot(contains('busymax-search-entry')));
+  });
+
+  test('native header menus delegate row focus modality to GTK', () {
+    final source = File('linux/runner/my_application.cc').readAsStringSync();
+
+    expect(source, contains('button.busymax-header-view-mode-button:focus {"'));
     expect(source, contains('"box-shadow: inset 0 0 0 2px %s;"'));
-    expect(source, contains('gtk_window_get_focus_visible'));
-    expect(source, contains('configure_header_popover_row(self, item)'));
-    expect(source, contains('header_popover_row_key_press_cb'));
-    expect(source, contains('header_popover_row_button_press_cb'));
+    expect(source, contains('gtk_menu_button_set_menu_model'));
+    expect(source, contains('g_menu_item_set_action_and_target'));
+    expect(source, contains('g_simple_action_new_stateful'));
+    expect(source, isNot(contains('button.busymax-header-popover-row')));
+    expect(source, isNot(contains('busymax-keyboard-focus')));
+    expect(source, isNot(contains('gtk_window_get_focus_visible')));
+    expect(source, isNot(contains('configure_header_popover_row')));
+    expect(source, isNot(contains('header_popover_row_key_press_cb')));
+    expect(source, isNot(contains('header_popover_row_button_press_cb')));
     expect(source, isNot(contains('gtk_widget_set_can_focus(row, FALSE)')));
   });
 
