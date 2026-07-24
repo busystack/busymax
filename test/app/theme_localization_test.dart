@@ -182,6 +182,24 @@ void main() {
     expect(dialogShape.side, baseDialogShape.side);
     expect(BusyMaxRadius.window, kYaruWindowRadius);
 
+    for (final pair in [
+      (theme.outlinedButtonTheme.style, base.outlinedButtonTheme.style),
+      (theme.filledButtonTheme.style, base.filledButtonTheme.style),
+      (theme.elevatedButtonTheme.style, base.elevatedButtonTheme.style),
+      (theme.textButtonTheme.style, base.textButtonTheme.style),
+    ]) {
+      final padding = pair.$1?.padding?.resolve(const {})! as EdgeInsets;
+      final basePadding = pair.$2?.padding?.resolve(const {})! as EdgeInsets;
+      expect(padding.horizontal, basePadding.horizontal);
+      expect(padding.vertical, 0);
+      expect(
+        pair.$1?.minimumSize?.resolve(const {}),
+        pair.$2?.minimumSize?.resolve(const {}),
+      );
+      expect(pair.$1?.visualDensity, VisualDensity.standard);
+      expect(pair.$1?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+    }
+
     final checkboxShape = theme.checkboxTheme.shape! as RoundedRectangleBorder;
     final baseCheckboxShape =
         base.checkboxTheme.shape! as RoundedRectangleBorder;
@@ -192,6 +210,9 @@ void main() {
     final basePopupShape = base.popupMenuTheme.shape! as OutlineInputBorder;
     expect(popupShape.borderRadius, basePopupShape.borderRadius);
     expect(popupShape.borderSide, basePopupShape.borderSide);
+    expect(theme.popupMenuTheme.elevation, base.popupMenuTheme.elevation);
+    expect(theme.popupMenuTheme.menuPadding, base.popupMenuTheme.menuPadding);
+    expect(theme.popupMenuTheme.position, base.popupMenuTheme.position);
 
     for (final style in [
       theme.textTheme.titleSmall,
@@ -254,6 +275,16 @@ void main() {
     expect(dark.dialogTheme.backgroundColor, darkColors.dialog);
     expect(light.popupMenuTheme.color, lightColors.popover);
     expect(dark.popupMenuTheme.color, darkColors.popover);
+    expect(
+      light.popupMenuTheme.labelTextStyle?.resolve(const {})?.color,
+      lightColors.foreground,
+    );
+    expect(
+      light.popupMenuTheme.labelTextStyle?.resolve(const {
+        WidgetState.disabled,
+      })?.color,
+      lightColors.disabledForeground,
+    );
     expect(
       dark.menuTheme.style?.backgroundColor?.resolve(const {}),
       darkColors.popover,
@@ -458,6 +489,13 @@ void main() {
     _expectComponentStyleUsesTypography(
       theme.popupMenuTheme.textStyle,
       baseStyle: base.popupMenuTheme.textStyle,
+      fallback: textTheme.bodyMedium,
+      family: gtkFamily,
+      scale: scale,
+    );
+    _expectComponentStyleUsesTypography(
+      theme.popupMenuTheme.labelTextStyle?.resolve(buttonStates),
+      baseStyle: base.popupMenuTheme.labelTextStyle?.resolve(buttonStates),
       fallback: textTheme.bodyMedium,
       family: gtkFamily,
       scale: scale,

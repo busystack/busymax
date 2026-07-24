@@ -648,18 +648,6 @@ abstract class AppLocalizations {
   /// **'Time slot'**
   String get timeSlot;
 
-  /// No description provided for @timeMode.
-  ///
-  /// In en, this message translates to:
-  /// **'Time'**
-  String get timeMode;
-
-  /// No description provided for @timeModeDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Use dates only or set specific times.'**
-  String get timeModeDescription;
-
   /// No description provided for @startDateTime.
   ///
   /// In en, this message translates to:

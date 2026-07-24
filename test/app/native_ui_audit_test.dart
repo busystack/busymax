@@ -1011,6 +1011,20 @@ void main() {
       expect(confirmBody, isNot(contains('return BusyMaxDialogShell(')));
     });
 
+    test('modal editors delegate their surface styling to DialogTheme', () {
+      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final start = design.indexOf('class BusyMaxModalEditorSurface');
+      final end = design.indexOf('class BusyMaxInlineBadge', start);
+      expect(start, isNonNegative);
+      expect(end, greaterThan(start));
+      final surface = design.substring(start, end);
+
+      expect(surface, contains('return Dialog('));
+      expect(surface, isNot(contains('floatingBorder')));
+      expect(surface, isNot(contains('BorderSide(')));
+      expect(surface, isNot(contains('BusyMaxElevation')));
+    });
+
     test('native headerbar CSS is limited to semantic surfaces', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
       final headerCssStart = source.indexOf(
@@ -1311,6 +1325,65 @@ void main() {
         source,
         isNot(contains('context.findRenderObject() as RenderBox')),
       );
+    });
+
+    test('form combo delegates selection geometry to Yaru dropdown theme', () {
+      final source = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final comboStart = source.indexOf('class BusyMaxComboBox');
+      final rowStart = source.indexOf('class BusyMaxComboRow');
+      final rowEnd = source.indexOf('class BusyMaxSwitchRow');
+
+      expect(comboStart, isNonNegative);
+      expect(rowStart, greaterThan(comboStart));
+      expect(rowEnd, greaterThan(rowStart));
+
+      final comboBody = source.substring(comboStart, rowStart);
+      final rowBody = source.substring(rowStart, rowEnd);
+      expect(comboBody, contains('DropdownMenu<_BusyMaxComboOption>('));
+      expect(comboBody, contains('selectOnly: true'));
+      expect(comboBody, contains('enableSearch: false'));
+      expect(comboBody, contains('DropdownMenuEntry<_BusyMaxComboOption>('));
+      expect(comboBody, contains('selected: option.index == selectedIndex'));
+      expect(
+        comboBody,
+        contains('trailingIcon: const Icon(YaruIcons.pan_down)'),
+      );
+      expect(
+        comboBody,
+        contains('selectedTrailingIcon: const Icon(YaruIcons.pan_up)'),
+      );
+      expect(comboBody, isNot(contains('YaruPopupMenuButton')));
+      expect(comboBody, isNot(contains('PopupMenuItem')));
+      expect(comboBody, isNot(contains('inputDecorationTheme:')));
+      expect(comboBody, isNot(contains('menuStyle:')));
+      expect(comboBody, isNot(contains('MenuAnchor(')));
+      expect(comboBody, isNot(contains('OutlinedButton(')));
+      expect(comboBody, isNot(contains('RoundedRectangleBorder')));
+      expect(comboBody, isNot(contains('BusyMaxElevation')));
+      expect(rowBody, contains('BusyMaxComboBox<T>('));
+      expect(rowBody, isNot(contains('BusyMaxMenuButton<T>(')));
+      expect(rowBody, isNot(contains('OutlinedButton(')));
+      expect(rowBody, isNot(contains('opacity: 0.6')));
+    });
+
+    test('time mode delegates linked-button visuals to the Yaru theme', () {
+      final source = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final start = source.indexOf('class BusyMaxTimeModeRow');
+      final end = source.indexOf('class BusyMaxModalEditorScaffold');
+
+      expect(start, isNonNegative);
+      expect(end, greaterThan(start));
+      final body = source.substring(start, end);
+      expect(body, contains('ToggleButtonsTheme.of(context)'));
+      expect(body, contains('ToggleButtons('));
+      expect(body, contains('constraints.maxWidth'));
+      expect(body, isNot(contains('YaruListTile')));
+      expect(body, isNot(contains('timeModeDescription')));
+      expect(body, isNot(contains('MediaQuery')));
+      expect(body, isNot(contains('SegmentedButton')));
+      expect(body, isNot(contains('Padding(')));
+      expect(body, isNot(contains('borderRadius:')));
+      expect(body, isNot(contains('fillColor:')));
     });
 
     test('feature code avoids raw Material controls with Yaru replacements', () {

@@ -47,6 +47,33 @@ void main() {
     expect(service.submissions, isEmpty);
   });
 
+  testWidgets('category can return to the unselected placeholder', (
+    tester,
+  ) async {
+    final service = _FakeFeedbackService((_) async {
+      return const FeedbackReceipt(id: 'unexpected');
+    });
+    await _pumpDialog(tester, service);
+    final selector = find.descendant(
+      of: find.byKey(const Key('feedback-category')),
+      matching: find.byWidgetPredicate((widget) => widget is DropdownMenu),
+    );
+
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Problem or bug').last);
+    await tester.pumpAndSettle();
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select a category').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Submit'));
+    await tester.pump();
+
+    expect(find.text('Select a category.'), findsOneWidget);
+    expect(service.submissions, isEmpty);
+  });
+
   testWidgets('rejects an invalid optional reply email', (tester) async {
     final service = _FakeFeedbackService((_) async {
       return const FeedbackReceipt(id: 'unexpected');
@@ -390,7 +417,7 @@ Future<void> _enterValidRequiredFields(WidgetTester tester) async {
   await tester.tap(
     find.descendant(
       of: find.byKey(const Key('feedback-category')),
-      matching: find.byType(OutlinedButton),
+      matching: find.byWidgetPredicate((widget) => widget is DropdownMenu),
     ),
   );
   await tester.pumpAndSettle();

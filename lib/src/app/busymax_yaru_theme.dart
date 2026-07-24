@@ -109,7 +109,7 @@ class BusyMaxYaruTheme {
       textTheme: textTheme,
     );
     final outlinedButtonStyle = _semanticButtonStyle(
-      base.outlinedButtonTheme.style,
+      _yaruDesktopButtonStyle(base.outlinedButtonTheme.style),
       foreground: colors.foreground,
       background: Colors.transparent,
       disabledForeground: colors.disabledForeground,
@@ -121,7 +121,7 @@ class BusyMaxYaruTheme {
       ),
     );
     final filledButtonStyle = _semanticButtonStyle(
-      base.filledButtonTheme.style,
+      _yaruDesktopButtonStyle(base.filledButtonTheme.style),
       foreground: colors.foreground,
       background: colors.control,
       disabledForeground: colors.disabledForeground,
@@ -133,7 +133,7 @@ class BusyMaxYaruTheme {
       ),
     );
     final elevatedButtonStyle = _semanticButtonStyle(
-      base.elevatedButtonTheme.style,
+      _yaruDesktopButtonStyle(base.elevatedButtonTheme.style),
       foreground: onAccent,
       background: accentColor,
       disabledForeground: colors.disabledForeground,
@@ -145,7 +145,7 @@ class BusyMaxYaruTheme {
       ),
     );
     final textButtonStyle = _semanticButtonStyle(
-      base.textButtonTheme.style,
+      _yaruDesktopButtonStyle(base.textButtonTheme.style),
       foreground: accentColor,
       background: Colors.transparent,
       disabledForeground: colors.disabledForeground,
@@ -315,16 +315,21 @@ class BusyMaxYaruTheme {
       popupMenuTheme: base.popupMenuTheme.copyWith(
         color: colors.popover,
         surfaceTintColor: colors.popover,
-        elevation: BusyMaxElevation.popover,
         shadowColor: colorScheme.shadow,
-        menuPadding: const EdgeInsets.symmetric(vertical: 4),
-        iconColor: colors.mutedForeground,
-        iconSize: 16,
         textStyle: normalizer.apply(
           base.popupMenuTheme.textStyle,
           fallback: textTheme.bodyMedium,
           color: colors.foreground,
         ),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          return normalizer.apply(
+            base.popupMenuTheme.labelTextStyle?.resolve(states),
+            fallback: textTheme.bodyMedium,
+            color: states.contains(WidgetState.disabled)
+                ? colors.disabledForeground
+                : colors.foreground,
+          );
+        }),
         shape: highContrast
             ? _withOutlineSide(
                 base.popupMenuTheme.shape,
@@ -1006,6 +1011,44 @@ MenuStyle _semanticMenuSurfaceStyle(
     backgroundColor: WidgetStatePropertyAll(color),
     surfaceTintColor: WidgetStatePropertyAll(color),
     shadowColor: WidgetStatePropertyAll(shadowColor),
+  );
+}
+
+/// Keeps Yaru's horizontal breathing room while allowing its own minimum
+/// button height to remain the control height.
+///
+/// Yaru 10.2 applies its common padding on every edge. For a single-line
+/// desktop action that vertical padding grows the control beyond Yaru's
+/// declared button-height token. GTK-style buttons use the height token as
+/// their metric, so normalize only that incompatible axis here, once, instead
+/// of constraining individual buttons.
+ButtonStyle? _yaruDesktopButtonStyle(ButtonStyle? base) {
+  final sourcePadding = base?.padding;
+  if (base == null || sourcePadding == null) {
+    return base;
+  }
+  return base.copyWith(
+    // Flutter's Linux-wide compact density would otherwise reduce Yaru's
+    // declared 34 px button minimum to 26 px. Yaru already defines the native
+    // control metric, so do not apply a second density reduction to buttons.
+    visualDensity: VisualDensity.standard,
+    // BusyMax is a desktop app. This is also Flutter's Linux default, but
+    // declaring it on the shared button style keeps widget tests and fallback
+    // shells from adding a mobile-only 48 px tap-target wrapper.
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    padding: WidgetStateProperty.resolveWith((states) {
+      return switch (sourcePadding.resolve(states)) {
+        final EdgeInsets padding => EdgeInsets.only(
+          left: padding.left,
+          right: padding.right,
+        ),
+        final EdgeInsetsDirectional padding => EdgeInsetsDirectional.only(
+          start: padding.start,
+          end: padding.end,
+        ),
+        final padding => padding,
+      };
+    }),
   );
 }
 

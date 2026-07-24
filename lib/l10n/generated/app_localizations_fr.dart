@@ -300,13 +300,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get timeSlot => 'Créneau';
 
   @override
-  String get timeMode => 'Horaire';
-
-  @override
-  String get timeModeDescription =>
-      'Utilisez uniquement les dates ou définissez des heures précises.';
-
-  @override
   String get startDateTime => 'Date/heure de début';
 
   @override

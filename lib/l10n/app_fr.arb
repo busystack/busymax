@@ -91,8 +91,6 @@
   "eventTitle": "Titre de l’événement",
   "location": "Lieu",
   "timeSlot": "Créneau",
-  "timeMode": "Horaire",
-  "timeModeDescription": "Utilisez uniquement les dates ou définissez des heures précises.",
   "startDateTime": "Date/heure de début",
   "endDateTime": "Date/heure de fin",
   "doesNotRepeat": "Ne se répète pas",

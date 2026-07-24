@@ -276,7 +276,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       ),
                     if (widget.capabilities.supportsRecurrence)
                       BusyMaxGroupedList(
-                        title: l10n.repeat,
                         filled: true,
                         children: [_repeatRow(draft)],
                       ),
@@ -402,17 +401,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     return BusyMaxComboRow<String>(
       title: l10n.account,
       leading: const Icon(YaruIcons.user),
+      subtitle: secondaryLabelFor?.call(widget.selectedAccountId!),
       values: widget.accountIds,
       selected: widget.selectedAccountId!,
       labelFor: labelFor,
-      menuItemBuilder: (context, value) => _TaskEditorAccountIdentity(
-        label: labelFor(value),
-        secondaryLabel: secondaryLabelFor?.call(value),
-      ),
-      selectedBuilder: (context, value) => _TaskEditorAccountIdentity(
-        label: labelFor(value),
-        secondaryLabel: secondaryLabelFor?.call(value),
-      ),
       onSelected: widget.onAccountSelected!,
     );
   }
@@ -422,7 +414,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (widget.taskLists.isEmpty) {
       return BusyMaxActionRow(
         title: l10n.list,
-        leading: const Icon(Icons.drive_file_move_outline),
+        leading: const Icon(YaruIcons.task_list),
         subtitle: listValue.isEmpty ? null : listValue,
         enabled: false,
       );
@@ -433,7 +425,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (!canSelectList) {
       return BusyMaxActionRow(
         title: l10n.list,
-        leading: const Icon(Icons.drive_file_move_outline),
+        leading: const Icon(YaruIcons.task_list),
         subtitle: listValue.isEmpty ? null : listValue,
         enabled: false,
         tooltip: widget.capabilities.supportsCrossListMove
@@ -443,15 +435,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     }
     return BusyMaxComboRow<String>(
       title: l10n.list,
-      leading: const Icon(Icons.drive_file_move_outline),
+      leading: const Icon(YaruIcons.task_list),
       subtitle: widget.accountLabel,
       values: [for (final list in widget.taskLists) list.id],
       selected: draft.taskListId,
       labelFor: (value) => _listTitle(value) ?? l10n.noneValue,
-      selectedBuilder: (context, value) => _taskEditorSelectedValue(
-        context,
-        _listTitle(value) ?? l10n.noneValue,
-      ),
       onSelected: (value) => _updateDraft(draft.copyWith(taskListId: value)),
     );
   }
@@ -537,12 +525,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final options = _repeatOptions(context);
     return BusyMaxComboRow<String>(
       title: l10n.repeat,
-      leading: const Icon(Icons.repeat),
+      leading: const Icon(YaruIcons.repeat),
       values: options.keys.toList(),
       selected: type,
       labelFor: (value) => options[value] ?? l10n.repeatNone,
-      selectedBuilder: (context, value) =>
-          _taskEditorSelectedValue(context, options[value] ?? l10n.repeatNone),
       onSelected: (value) => _updateDraft(
         draft.copyWith(recurrenceJson: _recurrenceJsonFor(value, draft)),
       ),
@@ -558,14 +544,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     };
     return BusyMaxComboRow<String>(
       title: l10n.importance,
-      leading: const Icon(Icons.priority_high_outlined),
+      leading: const Icon(YaruIcons.task_important),
       values: labels.keys.toList(),
       selected: draft.importance,
       labelFor: (value) => labels[value] ?? l10n.importanceNormal,
-      selectedBuilder: (context, value) => _taskEditorSelectedValue(
-        context,
-        labels[value] ?? l10n.importanceNormal,
-      ),
       onSelected: (value) => _updateDraft(draft.copyWith(importance: value)),
     );
   }
@@ -882,60 +864,6 @@ InputDecoration _plainTaskFieldDecoration(
     alignLabelWithHint: alignLabelWithHint,
     errorText: errorText,
   );
-}
-
-Widget _taskEditorSelectedValue(BuildContext context, String value) {
-  return Align(
-    alignment: Alignment.centerRight,
-    child: Text(
-      value,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.end,
-    ),
-  );
-}
-
-class _TaskEditorAccountIdentity extends StatelessWidget {
-  const _TaskEditorAccountIdentity({required this.label, this.secondaryLabel});
-
-  final String label;
-  final String? secondaryLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final secondary = secondaryLabel?.trim();
-    final primaryStyle = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(height: 1.05);
-    final secondaryStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: colorScheme.onSurfaceVariant,
-      height: 1.05,
-    );
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: primaryStyle,
-          ),
-          if (secondary != null && secondary.isNotEmpty)
-            Text(
-              secondary,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: secondaryStyle,
-            ),
-        ],
-      ),
-    );
-  }
 }
 
 TextStyle? _taskEditorProminentActionStyle(

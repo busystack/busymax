@@ -301,12 +301,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get timeSlot => 'Franja horaria';
 
   @override
-  String get timeMode => 'Hora';
-
-  @override
-  String get timeModeDescription => 'Usa solo fechas o define horas concretas.';
-
-  @override
   String get startDateTime => 'Fecha/hora de inicio';
 
   @override

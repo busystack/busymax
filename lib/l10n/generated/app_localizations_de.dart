@@ -299,13 +299,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get timeSlot => 'Zeitfenster';
 
   @override
-  String get timeMode => 'Zeit';
-
-  @override
-  String get timeModeDescription =>
-      'Nur Daten verwenden oder genaue Uhrzeiten festlegen.';
-
-  @override
   String get startDateTime => 'Startdatum/-zeit';
 
   @override

@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
@@ -48,45 +49,107 @@ void main() {
     expect(find.text('Save'), findsOneWidget);
   });
 
-  testWidgets('Cancel and Save are desktop PushButtons', (tester) async {
+  testWidgets('Cancel and Save use natural-width themed controls', (
+    tester,
+  ) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
     expect(
       find.ancestor(
         of: find.text('Cancel'),
-        matching: find.byWidgetPredicate((widget) => widget is PushButton),
+        matching: find.byType(FilledButton),
       ),
       findsOneWidget,
     );
     expect(
       find.ancestor(
         of: find.text('Save'),
-        matching: find.byWidgetPredicate((widget) => widget is PushButton),
+        matching: find.byType(ElevatedButton),
       ),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: find.byType(BusyMaxEditorHeader),
+        matching: find.byWidgetPredicate((widget) => widget is PushButton),
+      ),
+      findsNothing,
+    );
   });
 
-  testWidgets('editor actions use standard desktop push-button sizing', (
+  testWidgets('task selectors use the shared Yaru form selector', (
     tester,
   ) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
+    final comboRows = find.byType(BusyMaxComboRow<String>);
+    final comboCount = comboRows.evaluate().length;
+    expect(comboCount, greaterThanOrEqualTo(2));
+    expect(
+      find.descendant(
+        of: comboRows,
+        matching: find.byWidgetPredicate((widget) => widget is DropdownMenu),
+      ),
+      findsNWidgets(comboCount),
+    );
+    expect(
+      find.descendant(
+        of: comboRows,
+        matching: find.byType(BusyMaxMenuButton<String>),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: comboRows, matching: find.byType(OutlinedButton)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: comboRows,
+        matching: find.byType(YaruPopupMenuButton),
+      ),
+      findsNothing,
+    );
+  });
+
+  test('task selector content mirrors with text direction', () {
+    final source = File(
+      'lib/src/features/tasks/presentation/task_details_editor.dart',
+    ).readAsStringSync();
+
+    expect(source, isNot(contains('_taskEditorSelectedValue')));
+    expect(source, isNot(contains('_TaskEditorAccountIdentity')));
+    expect(source, isNot(contains('alignment: Alignment.centerRight')));
+    expect(source, isNot(contains('alignment: Alignment.centerLeft')));
+  });
+
+  testWidgets('editor actions keep native height without forced width', (
+    tester,
+  ) async {
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      theme: BusyMaxYaruTheme.build(
+        brightness: Brightness.light,
+        accentColor: const Color(0xFF3584E4),
+      ),
+    );
+
     expect(
       tester.getSize(_headerButtonFinder(tester, 'Cancel')).width,
-      inInclusiveRange(100, 180),
+      lessThan(kPushButtonSize.width),
     );
     expect(
       tester.getSize(_headerButtonFinder(tester, 'Save')).width,
-      inInclusiveRange(100, 180),
+      lessThan(kPushButtonSize.width),
     );
     expect(
       tester.getSize(_headerButtonFinder(tester, 'Cancel')).height,
-      inInclusiveRange(kPushButtonSize.height, kMinInteractiveDimension),
+      kYaruButtonHeight,
     );
     expect(
       tester.getSize(_headerButtonFinder(tester, 'Save')).height,
-      inInclusiveRange(kPushButtonSize.height, kMinInteractiveDimension),
+      kYaruButtonHeight,
     );
   });
 
@@ -654,7 +717,7 @@ void main() {
       expect(find.text('Due'), findsOneWidget);
       expect(find.text('Start'), findsOneWidget);
       expect(find.text('Reminder'), findsOneWidget);
-      expect(find.text('Repeat'), findsNWidgets(2));
+      expect(find.text('Repeat'), findsOneWidget);
       expect(find.text('Organization'), findsOneWidget);
       expect(find.text('Provider features'), findsNothing);
     },
@@ -1252,6 +1315,7 @@ Future<void> _pumpDetails(
   String? displayName,
   String? email,
   Stream<List<AccountEntity>>? accountsStream,
+  ThemeData? theme,
 }) async {
   final accountId =
       accountIdOverride ??
@@ -1316,6 +1380,7 @@ Future<void> _pumpDetails(
       child: localizedTestApp(
         locale: locale,
         alwaysUse24HourFormat: alwaysUse24HourFormat,
+        theme: theme,
         child: Scaffold(
           body: TaskDetailsPane(
             accountId: accountId,

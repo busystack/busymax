@@ -6,9 +6,11 @@ Widget localizedTestApp({
   required Widget child,
   Locale locale = const Locale('en'),
   bool? alwaysUse24HourFormat,
+  ThemeData? theme,
 }) {
   return MaterialApp(
     locale: locale,
+    theme: theme,
     localizationsDelegates: const [
       ...AppLocalizations.localizationsDelegates,
       ...GlobalUbuntuLocalizations.delegates,

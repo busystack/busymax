@@ -52,9 +52,7 @@ abstract final class BusyMaxSizes {
 
 abstract final class BusyMaxElevation {
   static const double card = 2;
-  static const double popover = 6;
   static const double tooltip = 10;
-  static const double window = 12;
 }
 
 abstract final class BusyMaxStroke {
@@ -1472,6 +1470,91 @@ class BusyMaxCalendarNotesCard extends StatelessWidget {
   }
 }
 
+typedef _BusyMaxComboOption = ({int index, String label});
+
+/// A theme-owned single-selection control for Flutter form content.
+///
+/// Action menus use [BusyMaxMenuButton] because they expose commands. Form
+/// selectors instead use [DropdownMenu] in select-only mode, whose geometry,
+/// popup surface, typography, and interaction states are explicitly supplied
+/// by Yaru's [DropdownMenuThemeData].
+class BusyMaxComboBox<T> extends StatelessWidget {
+  const BusyMaxComboBox({
+    super.key,
+    required this.values,
+    required this.selected,
+    required this.labelFor,
+    required this.onSelected,
+    required this.width,
+    this.enabled = true,
+    this.tooltip,
+    this.leadingBuilder,
+  }) : assert(values.length > 0, 'A combo box requires at least one value.');
+
+  final List<T> values;
+  final T selected;
+  final String Function(T value) labelFor;
+  final ValueChanged<T> onSelected;
+  final double width;
+  final bool enabled;
+  final String? tooltip;
+  final Widget Function(BuildContext context, T value)? leadingBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedIndex = values.indexWhere((value) => value == selected);
+    assert(
+      selectedIndex >= 0,
+      'The selected combo-box value must be present in values.',
+    );
+    final options = [
+      for (var index = 0; index < values.length; index += 1)
+        (index: index, label: labelFor(values[index])),
+    ];
+    final selectedOption = options[selectedIndex];
+    final selector = DropdownMenu<_BusyMaxComboOption>(
+      width: width,
+      enabled: enabled,
+      initialSelection: selectedOption,
+      selectOnly: true,
+      enableSearch: false,
+      trailingIcon: const Icon(YaruIcons.pan_down),
+      selectedTrailingIcon: const Icon(YaruIcons.pan_up),
+      leadingIcon: leadingBuilder?.call(context, selected),
+      dropdownMenuEntries: [
+        for (final option in options)
+          DropdownMenuEntry<_BusyMaxComboOption>(
+            value: option,
+            label: option.label,
+            leadingIcon: leadingBuilder?.call(context, values[option.index]),
+            labelWidget: Semantics(
+              selected: option.index == selectedIndex,
+              child: Text(
+                option.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+      ],
+      onSelected: enabled
+          ? (option) {
+              if (option != null) {
+                onSelected(values[option.index]);
+              }
+            }
+          : null,
+    );
+    return tooltip == null
+        ? selector
+        : Tooltip(
+            message: tooltip!,
+            excludeFromSemantics: true,
+            child: selector,
+          );
+  }
+}
+
 class BusyMaxComboRow<T> extends StatelessWidget {
   const BusyMaxComboRow({
     super.key,
@@ -1487,8 +1570,7 @@ class BusyMaxComboRow<T> extends StatelessWidget {
     this.tooltip,
     this.width = 220,
     this.trailingAction,
-    this.menuItemBuilder,
-    this.selectedBuilder,
+    this.selectorLeadingBuilder,
   });
 
   final String title;
@@ -1503,8 +1585,7 @@ class BusyMaxComboRow<T> extends StatelessWidget {
   final String? tooltip;
   final double width;
   final Widget? trailingAction;
-  final Widget Function(BuildContext context, T value)? menuItemBuilder;
-  final Widget Function(BuildContext context, T value)? selectedBuilder;
+  final Widget Function(BuildContext context, T value)? selectorLeadingBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -1552,43 +1633,15 @@ class BusyMaxComboRow<T> extends StatelessWidget {
             : constraints.hasBoundedWidth
             ? width.clamp(120.0, maximumInlineSelectorWidth).toDouble()
             : width.clamp(120.0, double.infinity).toDouble();
-        final selector = SizedBox(
+        final selector = BusyMaxComboBox<T>(
           width: selectorWidth,
-          child: BusyMaxMenuButton<T>(
-            tooltip: tooltip ?? title,
-            entries: [
-              for (final value in values)
-                BusyMaxMenuEntry<T>(
-                  value: value,
-                  label: labelFor(value),
-                  child: menuItemBuilder?.call(context, value),
-                ),
-            ],
-            onSelected: onSelected,
-            minMenuWidth: selectorWidth,
-            menuPosition: null,
-            enabled: enabled,
-            triggerBuilder: (context, onPressed, focusNode) {
-              return OutlinedButton(
-                focusNode: focusNode,
-                onPressed: onPressed,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child:
-                          selectedBuilder?.call(context, selected) ??
-                          Text(
-                            labelFor(selected),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                    ),
-                    const SizedBox(width: BusyMaxSpacing.sm),
-                    const Icon(YaruIcons.pan_down),
-                  ],
-                ),
-              );
-            },
-          ),
+          tooltip: tooltip ?? title,
+          values: values,
+          selected: selected,
+          labelFor: labelFor,
+          onSelected: onSelected,
+          enabled: enabled,
+          leadingBuilder: selectorLeadingBuilder,
         );
         final trailing = Row(
           mainAxisSize: MainAxisSize.min,
@@ -1656,10 +1709,7 @@ class BusyMaxComboRow<T> extends StatelessWidget {
               : '$title, $subtitle',
           value: labelFor(selected),
           child: ExcludeSemantics(
-            child: Opacity(
-              opacity: 0.6,
-              child: ExcludeFocus(child: IgnorePointer(child: validatedRow)),
-            ),
+            child: ExcludeFocus(child: IgnorePointer(child: validatedRow)),
           ),
         );
         return tooltip == null
@@ -2239,6 +2289,9 @@ class BusyMaxEditorHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final actionStyle = ButtonStyle(
+      textStyle: WidgetStatePropertyAll(Theme.of(context).textTheme.titleSmall),
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         BusyMaxSpacing.headerInset,
@@ -2247,10 +2300,18 @@ class BusyMaxEditorHeader extends StatelessWidget {
         0,
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          BusyMaxPushButton.standard(
-            onPressed: cancelEnabled ? onCancel : null,
-            child: Text(cancelLabel, overflow: TextOverflow.ellipsis),
+          Expanded(
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              heightFactor: 1,
+              child: FilledButton(
+                onPressed: cancelEnabled ? onCancel : null,
+                style: actionStyle,
+                child: Text(cancelLabel, overflow: TextOverflow.ellipsis),
+              ),
+            ),
           ),
           Expanded(
             child: Text(
@@ -2261,14 +2322,23 @@ class BusyMaxEditorHeader extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-          BusyMaxPushButton.suggested(
-            onPressed: onSave,
-            child: saving
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(saveLabel, overflow: TextOverflow.ellipsis),
+          Expanded(
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              heightFactor: 1,
+              child: ElevatedButton(
+                onPressed: onSave,
+                style: actionStyle,
+                child: saving
+                    ? const ExcludeSemantics(
+                        child: SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : Text(saveLabel, overflow: TextOverflow.ellipsis),
+              ),
+            ),
           ),
         ],
       ),
@@ -2289,56 +2359,36 @@ class BusyMaxTimeModeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final selector = ToggleButtons(
-      isSelected: [allDay, !allDay],
-      onPressed: (index) {
-        final value = index == 0;
-        if (value != allDay) {
-          onChanged(value);
-        }
-      },
-      children: [
-        for (final label in [l10n.allDay, l10n.timeSlot])
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: BusyMaxSpacing.md),
-            child: Text(label),
-          ),
-      ],
-    );
-
+    final labels = [l10n.allDay, l10n.timeSlot];
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-        final stackSelector =
-            !constraints.hasBoundedWidth ||
-            constraints.maxWidth < 480 ||
-            textScale > 1.2;
-        final label = YaruListTile.square(
-          title: Text(l10n.timeMode),
-          subtitle: _busyMaxGroupedRowSubtitle(
-            context,
-            Text(l10n.timeModeDescription),
-          ),
-          trailing: stackSelector ? null : selector,
-        );
-        if (!stackSelector) {
-          return label;
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        final toggleTheme = ToggleButtonsTheme.of(context);
+        final themeConstraints = toggleTheme.constraints;
+        final borderWidth = toggleTheme.borderWidth ?? BusyMaxStroke.outline;
+        final boundedSegmentWidth = constraints.hasBoundedWidth
+            ? ((constraints.maxWidth - borderWidth * (labels.length + 1)) /
+                      labels.length)
+                  .clamp(0.0, double.infinity)
+                  .toDouble()
+            : null;
+        final segmentConstraints = constraints.hasBoundedWidth
+            ? (themeConstraints ?? const BoxConstraints()).copyWith(
+                minWidth: boundedSegmentWidth,
+                maxWidth: boundedSegmentWidth,
+              )
+            : themeConstraints;
+        return ToggleButtons(
+          constraints: segmentConstraints,
+          isSelected: [allDay, !allDay],
+          onPressed: (index) {
+            final value = index == 0;
+            if (value != allDay) {
+              onChanged(value);
+            }
+          },
           children: [
-            label,
-            Padding(
-              padding: const EdgeInsetsDirectional.only(
-                start: BusyMaxSpacing.md,
-                end: BusyMaxSpacing.md,
-                bottom: BusyMaxSpacing.md,
-              ),
-              child: Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: selector,
-              ),
-            ),
+            for (final label in labels)
+              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           ],
         );
       },
@@ -2418,16 +2468,17 @@ class BusyMaxModalEditorSurface extends StatelessWidget {
     this.minWidth = 0,
     this.maxWidth = BusyMaxSizes.compactDetailsWidth,
     this.maxHeight,
+    this.insetPadding = EdgeInsets.zero,
   });
 
   final Widget child;
   final double minWidth;
   final double maxWidth;
   final double? maxHeight;
+  final EdgeInsets insetPadding;
 
   @override
   Widget build(BuildContext context) {
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final effectiveMaxWidth = maxWidth.isFinite
         ? maxWidth.clamp(0.0, double.infinity).toDouble()
         : maxWidth;
@@ -2441,25 +2492,19 @@ class BusyMaxModalEditorSurface extends StatelessWidget {
         ? double.infinity
         : maxHeight!.clamp(0.0, double.infinity).toDouble();
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        minWidth: effectiveMinWidth,
-        maxWidth: effectiveMaxWidth,
-        maxHeight: effectiveMaxHeight,
-      ),
-      child: Material(
-        color: surfaceColors.dialog,
-        surfaceTintColor: Colors.transparent,
-        elevation: BusyMaxElevation.window,
-        shadowColor: BusyMaxShadow.physicalColor(context),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BusyMaxRadius.lg),
-          side: BorderSide(
-            color: surfaceColors.floatingBorder,
-            width: BusyMaxStroke.outline,
-          ),
+    return Dialog(
+      insetPadding: insetPadding,
+      insetAnimationDuration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : BusyMaxMotion.dialogInsets,
+      insetAnimationCurve: BusyMaxMotion.dialogInsetsCurve,
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: effectiveMinWidth,
+          maxWidth: effectiveMaxWidth,
+          maxHeight: effectiveMaxHeight,
         ),
-        clipBehavior: Clip.antiAlias,
         child: child,
       ),
     );

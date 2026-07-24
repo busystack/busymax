@@ -93,8 +93,6 @@
   "eventTitle": "Event title",
   "location": "Location",
   "timeSlot": "Time slot",
-  "timeMode": "Time",
-  "timeModeDescription": "Use dates only or set specific times.",
   "startDateTime": "Start date/time",
   "endDateTime": "End date/time",
   "doesNotRepeat": "Does not repeat",

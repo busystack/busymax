@@ -91,8 +91,6 @@
   "eventTitle": "Título del evento",
   "location": "Ubicación",
   "timeSlot": "Franja horaria",
-  "timeMode": "Hora",
-  "timeModeDescription": "Usa solo fechas o define horas concretas.",
   "startDateTime": "Fecha/hora de inicio",
   "endDateTime": "Fecha/hora de fin",
   "doesNotRepeat": "No se repite",

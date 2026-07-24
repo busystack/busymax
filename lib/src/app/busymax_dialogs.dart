@@ -103,21 +103,11 @@ Future<T?> showBusyMaxModalEditorDialog<T>(
     headerBarService: headerBarService,
     barrierDismissible: false,
     builder: (dialogContext) {
-      final reduceMotion = MediaQuery.disableAnimationsOf(dialogContext);
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
+      return BusyMaxModalEditorSurface(
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
         insetPadding: const EdgeInsets.all(BusyMaxSpacing.lg),
-        insetAnimationDuration: reduceMotion
-            ? Duration.zero
-            : BusyMaxMotion.dialogInsets,
-        insetAnimationCurve: BusyMaxMotion.dialogInsetsCurve,
-        child: BusyMaxModalEditorSurface(
-          maxWidth: maxWidth,
-          maxHeight: maxHeight,
-          child: builder(dialogContext),
-        ),
+        child: builder(dialogContext),
       );
     },
   );

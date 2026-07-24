@@ -398,10 +398,6 @@ class _EventEditorState extends State<EventEditor> {
       values: labels.keys.toList(),
       selected: _recurrenceType(_draft.recurrence),
       labelFor: (value) => labels[value] ?? l10n.doesNotRepeat,
-      selectedBuilder: (context, value) => _eventEditorSelectedValue(
-        context,
-        labels[value] ?? l10n.doesNotRepeat,
-      ),
       onSelected: (value) {
         setState(() {
           _draft = value == 'none'
@@ -442,17 +438,9 @@ class _EventEditorState extends State<EventEditor> {
       enabled: existingSourceId == null,
       labelFor: (value) =>
           sources.firstWhere((source) => source.id == value).summary,
-      menuItemBuilder: (context, value) {
-        return _calendarSourceChoice(
-          context,
-          sources.firstWhere((source) => source.id == value),
-        );
-      },
-      selectedBuilder: (context, value) {
-        return _calendarSourceSelectedChoice(
-          context,
-          sources.firstWhere((source) => source.id == value),
-        );
+      selectorLeadingBuilder: (context, value) {
+        final source = sources.firstWhere((source) => source.id == value);
+        return _CalendarSourceDot(color: _calendarSourceColor(context, source));
       },
       onSelected: (value) {
         final source = sources.firstWhere((source) => source.id == value);
@@ -661,10 +649,6 @@ class _EventEditorState extends State<EventEditor> {
       values: values,
       selected: selected,
       labelFor: (value) => _availabilityLabel(context, value),
-      selectedBuilder: (context, value) => _eventEditorSelectedValue(
-        context,
-        _availabilityLabel(context, value),
-      ),
       onSelected: (value) {
         setState(() {
           _draft = _draft.copyWith(showAs: value);
@@ -686,8 +670,6 @@ class _EventEditorState extends State<EventEditor> {
       values: values,
       selected: selected,
       labelFor: (value) => _visibilityLabel(context, value),
-      selectedBuilder: (context, value) =>
-          _eventEditorSelectedValue(context, _visibilityLabel(context, value)),
       onSelected: (value) {
         setState(() {
           _draft = _draft.copyWith(visibilityOrSensitivity: value);
@@ -1102,61 +1084,6 @@ String _visibilityLabel(BuildContext context, String value) {
 
 bool _looksLikeEmail(String value) {
   return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
-}
-
-Widget _calendarSourceChoice(
-  BuildContext context,
-  CalendarSourceEntity source,
-) {
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      _CalendarSourceDot(color: _calendarSourceColor(context, source)),
-      const SizedBox(width: BusyMaxSpacing.sm),
-      Expanded(
-        child: Text(
-          source.summary,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    ],
-  );
-}
-
-Widget _calendarSourceSelectedChoice(
-  BuildContext context,
-  CalendarSourceEntity source,
-) {
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.end,
-    mainAxisSize: MainAxisSize.max,
-    children: [
-      _CalendarSourceDot(color: _calendarSourceColor(context, source)),
-      const SizedBox(width: BusyMaxSpacing.sm),
-      Flexible(
-        fit: FlexFit.loose,
-        child: Text(
-          source.summary,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.end,
-        ),
-      ),
-    ],
-  );
-}
-
-Widget _eventEditorSelectedValue(BuildContext context, String value) {
-  return Align(
-    alignment: Alignment.centerRight,
-    child: Text(
-      value,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.end,
-    ),
-  );
 }
 
 class _CalendarSourceDot extends StatelessWidget {

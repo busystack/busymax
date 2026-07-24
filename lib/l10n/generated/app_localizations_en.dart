@@ -296,12 +296,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get timeSlot => 'Time slot';
 
   @override
-  String get timeMode => 'Time';
-
-  @override
-  String get timeModeDescription => 'Use dates only or set specific times.';
-
-  @override
   String get startDateTime => 'Start date/time';
 
   @override
