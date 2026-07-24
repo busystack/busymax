@@ -318,7 +318,7 @@ void main() {
     await tester.tap(find.text('Team sync'));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byIcon(YaruIcons.share), findsOneWidget);
     expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
     expect(find.text('Work'), findsWidgets);
   });

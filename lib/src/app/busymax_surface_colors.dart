@@ -175,9 +175,11 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       groupedSurface: Color(0xFFFFFFFF),
       dialog: Color(0xFFFAFAFB),
       popover: Color(0xFFFFFFFF),
-      control: Color.fromRGBO(0, 0, 0, 0.06),
-      controlHover: Color.fromRGBO(0, 0, 0, 0.10),
-      controlActive: Color.fromRGBO(0, 0, 0, 0.16),
+      // Match Yaru's contained-button ladder. A weaker resting layer makes
+      // standard controls look flat until their hover overlay appears.
+      control: Color.fromRGBO(0, 0, 0, 0.10),
+      controlHover: Color.fromRGBO(0, 0, 0, 0.14),
+      controlActive: Color.fromRGBO(0, 0, 0, 0.18),
       activeToggle: Color(0xFFFFFFFF),
       foreground: foreground,
       mutedForeground: mutedForeground,
@@ -190,20 +192,19 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       shade: Color.fromRGBO(0, 0, 6, 0.07),
     ),
     Brightness.dark => BusyMaxSurfaceColors(
-      // Current Yaru/libadwaita semantic surface ladder. These values are the
-      // fallback when GTK 3 cannot expose a compatible role; flat or recessed
-      // legacy `.sidebar` and `popover.background` samples must not replace
-      // these raised roles.
-      window: Color(0xFF2C2C2C),
-      view: Color(0xFF1D1D20),
-      sidebar: Color(0xFF393939),
-      secondarySidebar: Color(0xFF323232),
-      headerbar: Color(0xFF393939),
-      headerbarFlat: Color(0xFF1D1D20),
-      card: Color(0xFF3D3D3D),
-      groupedSurface: Color(0xFF3D3D3D),
-      dialog: Color(0xFF3E3E3E),
-      popover: Color(0xFF3E3E3E),
+      // Current Yaru/libadwaita semantic surface ladder. GTK 3 cannot expose
+      // every libadwaita role reliably, so incompatible legacy samples fall
+      // back to the matching modern surface rather than a hand-tuned shade.
+      window: Color(0xFF222226),
+      view: Color(0xFF222226),
+      sidebar: Color(0xFF2E2E32),
+      secondarySidebar: Color(0xFF28282C),
+      headerbar: Color(0xFF2E2E32),
+      headerbarFlat: Color(0xFF222226),
+      card: Color(0xFF36363A),
+      groupedSurface: Color(0xFF36363A),
+      dialog: Color(0xFF36363A),
+      popover: Color(0xFF36363A),
       control: Color.fromRGBO(255, 255, 255, 0.10),
       controlHover: Color.fromRGBO(255, 255, 255, 0.14),
       controlActive: Color.fromRGBO(255, 255, 255, 0.18),

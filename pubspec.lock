@@ -474,14 +474,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  form_field_validator:
-    dependency: transitive
-    description:
-      name: form_field_validator
-      sha256: c1fc6c89b5525288c02fe989a88c6f30bb6072da4f9dded17a04cf68c4abfb87
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.0"
   fuchsia_remote_debug_protocol:
     dependency: transitive
     description: flutter
@@ -756,14 +748,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.0"
-  password_strength:
-    dependency: transitive
-    description:
-      name: password_strength
-      sha256: "0e51e3d864e37873a1347e658147f88b66e141ee36c58e19828dc5637961e1ce"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.0"
   path:
     dependency: "direct main"
     description:
@@ -1121,14 +1105,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.5.2+3"
-  ubuntu_widgets:
-    dependency: "direct main"
-    description:
-      name: ubuntu_widgets
-      sha256: "7eaa3bcfde7197c8ae18e4546339316fa95d445e3fa8e1fdb2d3c2ea569a5d38"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.8.1"
   url_launcher:
     dependency: "direct main"
     description:

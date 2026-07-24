@@ -113,7 +113,7 @@ class ScheduleToolbar extends StatelessWidget {
                       value: value,
                       label: _modeLabel(context, value),
                       icon: _modeIcon(value),
-                      checked: mode == value,
+                      selected: mode == value,
                     ),
                 ],
                 onSelected: onModeChanged,

@@ -4,6 +4,7 @@ import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/feedback/presentation/feedback_dialog.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,16 +13,24 @@ import 'package:yaru/yaru.dart';
 import '../../../test_localized_app.dart';
 
 const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
   testWidgets('shows required-field validation without sending', (
@@ -54,18 +63,15 @@ void main() {
       return const FeedbackReceipt(id: 'unexpected');
     });
     await _pumpDialog(tester, service);
-    final selector = find.descendant(
-      of: find.byKey(const Key('feedback-category')),
-      matching: find.byWidgetPredicate((widget) => widget is DropdownMenu),
-    );
+    final selector = _feedbackCategoryTrigger();
 
     await tester.tap(selector);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Problem or bug').last);
+    await tester.tap(_feedbackCategoryMenuItem('Problem or bug'));
     await tester.pumpAndSettle();
     await tester.tap(selector);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Select a category').last);
+    await tester.tap(_feedbackCategoryMenuItem('Select a category'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Submit'));
     await tester.pump();
@@ -414,14 +420,9 @@ Future<void> _pumpDialog(
 }
 
 Future<void> _enterValidRequiredFields(WidgetTester tester) async {
-  await tester.tap(
-    find.descendant(
-      of: find.byKey(const Key('feedback-category')),
-      matching: find.byWidgetPredicate((widget) => widget is DropdownMenu),
-    ),
-  );
+  await tester.tap(_feedbackCategoryTrigger());
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Problem or bug').last);
+  await tester.tap(_feedbackCategoryMenuItem('Problem or bug'));
   await tester.pumpAndSettle();
   await tester.enterText(
     find.byKey(const Key('feedback-subject')),
@@ -430,6 +431,20 @@ Future<void> _enterValidRequiredFields(WidgetTester tester) async {
   await tester.enterText(
     find.byKey(const Key('feedback-message')),
     'The calendar view did not update.',
+  );
+}
+
+Finder _feedbackCategoryTrigger() {
+  return find.descendant(
+    of: find.byKey(const Key('feedback-category')),
+    matching: find.byType(FilledButton),
+  );
+}
+
+Finder _feedbackCategoryMenuItem(String label) {
+  return find.ancestor(
+    of: find.text(label).last,
+    matching: find.byType(PopupMenuItem<int>),
   );
 }
 

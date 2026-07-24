@@ -35,7 +35,6 @@ dependencies:
   sqlite3_flutter_libs: ^0.6.0
   system_theme: ^3.3.0
   ubuntu_localizations: ^0.5.2+3
-  ubuntu_widgets: ^0.8.1
   url_launcher: ^6.3.0
   uuid: ^4.5.0
   window_manager: ^0.5.1

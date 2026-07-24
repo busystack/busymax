@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +12,73 @@ import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
+  testWidgets('toolbar delegates create selection to the native menu host', (
+    tester,
+  ) async {
+    MethodCall? nativeCall;
+    var events = 0;
+    var tasks = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, (call) async {
+          nativeCall = call;
+          return 1;
+        });
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            child: ScheduleToolbar(
+              mode: ScheduleViewMode.week,
+              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              selectedDate: DateTime(2026, 7, 22),
+              onToday: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onModeChanged: (_) {},
+              canCreateEvent: true,
+              canCreateTask: true,
+              onCreateEvent: () => events++,
+              onCreateTask: () => tasks++,
+              onRefresh: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Create'));
+    await tester.pumpAndSettle();
+
+    expect(events, 0);
+    expect(tasks, 1);
+    expect(nativeCall?.method, 'show');
+    expect((nativeCall?.arguments as Map<Object?, Object?>)['entries'], [
+      {'label': 'Event', 'enabled': true, 'selected': false},
+      {'label': 'Task', 'enabled': true, 'selected': false},
+    ]);
+    expect(find.byType(PopupMenuItem<int>), findsNothing);
+  });
+
   testWidgets('fallback toolbar exposes the complete shell command set', (
     tester,
   ) async {
@@ -56,6 +125,8 @@ void main() {
 
     await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
+    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+    expect(find.byType(YaruRadio<int>), findsNothing);
     expect(find.text('Event'), findsOneWidget);
     expect(find.text('Task'), findsOneWidget);
     await tester.tap(find.text('Event'));
@@ -65,12 +136,27 @@ void main() {
 
     await tester.tap(find.byTooltip('Week'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Month'));
+    expect(
+      find.byType(PopupMenuItem<int>),
+      findsNWidgets(ScheduleViewMode.values.length),
+    );
+    expect(
+      find.byType(YaruRadio<int>),
+      findsNWidgets(ScheduleViewMode.values.length),
+    );
+    await tester.tap(
+      find.ancestor(
+        of: find.text('Month'),
+        matching: find.byType(PopupMenuItem<int>),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(selectedMode, ScheduleViewMode.month);
 
     await tester.tap(find.byTooltip('Main Menu'));
     await tester.pumpAndSettle();
+    expect(find.byType(PopupMenuItem<int>), findsNWidgets(3));
+    expect(find.byType(YaruRadio<int>), findsNothing);
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     expect(selectedMenuAction, ScheduleToolbarMenuAction.settings);
@@ -115,6 +201,7 @@ void main() {
     expect(find.byTooltip('Refresh all'), findsNothing);
     await tester.tap(find.byTooltip('Main Menu'));
     await tester.pumpAndSettle();
+    expect(find.byType(PopupMenuItem<int>), findsNWidgets(4));
     await tester.tap(find.text('Refresh all'));
     await tester.pumpAndSettle();
 
@@ -122,7 +209,7 @@ void main() {
     expect(refreshes, 1);
   });
 
-  testWidgets('create menu keeps equal choices neutral and capability-aware', (
+  testWidgets('fallback create menu keeps actions capability-aware', (
     tester,
   ) async {
     var events = 0;
@@ -155,32 +242,22 @@ void main() {
     await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
 
-    final eventButton = tester.widget<MenuItemButton>(
+    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+    expect(find.byType(YaruRadio<int>), findsNothing);
+    final eventItem = tester.widget<PopupMenuItem<int>>(
       find.ancestor(
         of: find.text('Event'),
-        matching: find.byType(MenuItemButton),
+        matching: find.byType(PopupMenuItem<int>),
       ),
     );
-    final taskButton = tester.widget<MenuItemButton>(
+    final taskItem = tester.widget<PopupMenuItem<int>>(
       find.ancestor(
         of: find.text('Task'),
-        matching: find.byType(MenuItemButton),
+        matching: find.byType(PopupMenuItem<int>),
       ),
     );
-    expect(eventButton.onPressed, isNull);
-    expect(taskButton.onPressed, isNotNull);
-    expect(
-      eventButton.style?.backgroundColor?.resolve({}),
-      taskButton.style?.backgroundColor?.resolve({}),
-    );
-    final inheritedBackground = Theme.of(
-      tester.element(find.text('Task')),
-    ).menuButtonTheme.style?.backgroundColor?.resolve({});
-    expect(
-      eventButton.style?.backgroundColor?.resolve({}),
-      inheritedBackground,
-    );
-    expect(taskButton.style?.backgroundColor?.resolve({}), inheritedBackground);
+    expect(eventItem.enabled, isFalse);
+    expect(taskItem.enabled, isTrue);
 
     await tester.tap(find.text('Task'));
     await tester.pumpAndSettle();
@@ -219,8 +296,10 @@ void main() {
       );
 
       expect(controller.openForKeyboard(), isTrue);
+      expect(controller.isOpen, isTrue);
       await tester.pumpAndSettle();
 
+      expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
       expect(find.text('Event'), findsOneWidget);
       expect(find.text('Task'), findsOneWidget);
 
@@ -230,25 +309,80 @@ void main() {
           matching: find.byType(YaruIconButton),
         ),
       );
-      final anchor = tester.widget<MenuAnchor>(
-        find.ancestor(
-          of: find.byTooltip('Create'),
-          matching: find.byType(MenuAnchor),
-        ),
-      );
       expect(trigger.focusNode, isNotNull);
-      expect(anchor.childFocusNode, same(trigger.focusNode));
-      final menuItems = tester
-          .widgetList<MenuItemButton>(find.byType(MenuItemButton))
-          .toList();
-      expect(menuItems.first.focusNode?.hasFocus, isTrue);
+      expect(Focus.of(tester.element(find.text('Event'))).hasFocus, isTrue);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
+      expect(controller.isOpen, isFalse);
+      expect(find.byType(PopupMenuItem<int>), findsNothing);
       expect(find.text('Event'), findsNothing);
       expect(find.text('Task'), findsNothing);
     },
   );
+
+  testWidgets('controller close dismisses a pending native menu', (
+    tester,
+  ) async {
+    final controller = BusyMaxMenuController();
+    final nativeSelection = Completer<int?>();
+    var showCalls = 0;
+    var dismissCalls = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, (call) async {
+          switch (call.method) {
+            case 'show':
+              showCalls += 1;
+              return nativeSelection.future;
+            case 'dismiss':
+              dismissCalls += 1;
+              if (!nativeSelection.isCompleted) {
+                nativeSelection.complete();
+              }
+              return true;
+          }
+          throw MissingPluginException();
+        });
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            child: ScheduleToolbar(
+              mode: ScheduleViewMode.week,
+              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              selectedDate: DateTime(2026, 7, 22),
+              onToday: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onModeChanged: (_) {},
+              canCreateEvent: true,
+              canCreateTask: true,
+              onCreateEvent: () {},
+              onCreateTask: () {},
+              onRefresh: () {},
+              createMenuController: controller,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(controller.openForKeyboard(), isTrue);
+    await tester.pump();
+
+    expect(controller.isOpen, isTrue);
+    expect(showCalls, 1);
+    expect(find.byType(PopupMenuItem<int>), findsNothing);
+
+    controller.close();
+    await tester.pumpAndSettle();
+
+    expect(dismissCalls, 1);
+    expect(controller.isOpen, isFalse);
+    expect(find.byType(PopupMenuItem<int>), findsNothing);
+  });
 
   testWidgets('keyboard controller follows a responsive toolbar replacement', (
     tester,
@@ -303,15 +437,15 @@ void main() {
     expect(controller.openForKeyboard(), isTrue);
     await tester.pumpAndSettle();
 
+    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
     expect(find.text('Event'), findsOneWidget);
     expect(find.text('Task'), findsOneWidget);
-    final menuItems = tester
-        .widgetList<MenuItemButton>(find.byType(MenuItemButton))
-        .toList();
-    expect(menuItems.first.focusNode?.hasFocus, isTrue);
+    expect(Focus.of(tester.element(find.text('Event'))).hasFocus, isTrue);
 
     controller.close();
     await tester.pumpAndSettle();
+    expect(controller.isOpen, isFalse);
+    expect(find.byType(PopupMenuItem<int>), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
 
     expect(controller.isAttached, isFalse);

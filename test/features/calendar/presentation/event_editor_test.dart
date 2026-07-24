@@ -9,26 +9,34 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ubuntu_widgets/ubuntu_widgets.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
 const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
   testWidgets('editor actions use natural-width themed controls', (
@@ -58,14 +66,6 @@ void main() {
     );
 
     expect(
-      tester.getSize(_headerButtonFinder('Cancel')).width,
-      lessThan(kPushButtonSize.width),
-    );
-    expect(
-      tester.getSize(_headerButtonFinder('Save')).width,
-      lessThan(kPushButtonSize.width),
-    );
-    expect(
       tester.getSize(_headerButtonFinder('Cancel')).height,
       kYaruButtonHeight,
     );
@@ -87,19 +87,22 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(
-      find.descendant(
-        of: find.byType(BusyMaxEditorHeader),
-        matching: find.byWidgetPredicate((widget) => widget is PushButton),
-      ),
-      findsNothing,
-    );
     final cancelButton = tester.widget<FilledButton>(
       find.ancestor(
         of: find.text('Cancel'),
         matching: find.byType(FilledButton),
       ),
     );
+    final saveButton = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('Save'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(cancelButton.style?.fixedSize, isNull);
+    expect(cancelButton.style?.minimumSize, isNull);
+    expect(saveButton.style?.fixedSize, isNull);
+    expect(saveButton.style?.minimumSize, isNull);
     final cancelContext = tester.element(find.text('Cancel'));
     expect(
       cancelButton.style?.textStyle?.resolve(const {})?.fontWeight,
@@ -244,12 +247,12 @@ void main() {
     expect(entry.controller?.timeOfDay, isNull);
     expect(
       tester
-          .widget<PushButton>(
+          .widget<ButtonStyleButton>(
             find
                 .ancestor(
                   of: find.text('OK'),
                   matching: find.byWidgetPredicate(
-                    (widget) => widget is PushButton,
+                    (widget) => widget is ButtonStyleButton,
                   ),
                 )
                 .first,
@@ -955,10 +958,9 @@ void main() {
 
     expect(find.text('Add Reminder'), findsNothing);
     expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is EditableText &&
-            widget.controller.text == '5 minutes before',
+      find.descendant(
+        of: find.byType(BusyMaxComboBox<int>),
+        matching: find.text('5 minutes before'),
       ),
       findsOneWidget,
     );
@@ -1191,16 +1193,17 @@ void main() {
     expect(design, contains('BusyMaxEditorHeader('));
     expect(design, contains('SingleChildScrollView'));
     final headerStart = design.indexOf('class BusyMaxEditorHeader');
-    final headerEnd = design.indexOf('class BusyMaxTimeModeRow');
+    final headerEnd = design.indexOf('class BusyMaxModeSwitcher');
     final header = design.substring(headerStart, headerEnd);
     expect(header, contains('child: Row('));
     expect(header, contains('AlignmentDirectional.centerStart'));
-    expect(header, contains('child: FilledButton('));
+    expect(header, contains('child: BusyMaxPushButton.standard('));
     expect(header, contains('AlignmentDirectional.centerEnd'));
-    expect(header, contains('child: ElevatedButton('));
+    expect(header, contains('child: BusyMaxPushButton.suggested('));
     expect(header, contains('heightFactor: 1'));
     expect(header, contains('textTheme.titleSmall'));
-    expect(header, isNot(contains('BusyMaxPushButton')));
+    expect(header, isNot(contains('child: FilledButton(')));
+    expect(header, isNot(contains('child: ElevatedButton(')));
     expect(header, isNot(contains('NavigationToolbar(')));
     expect(header, isNot(contains('ConstrainedBox(')));
     expect(header, isNot(contains('kPushButtonSize')));
@@ -1389,14 +1392,18 @@ void main() {
     expect(editor, contains('l10n.deleteEvent'));
   });
 
-  testWidgets('combo selector inherits Yaru dropdown geometry', (tester) async {
+  testWidgets('combo selector uses the shared Yaru button trigger', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
     await tester.pumpWidget(
       localizedTestApp(
         child: Theme(
-          data: BusyMaxYaruTheme.build(
-            brightness: Brightness.light,
-            accentColor: const Color(0xFF3584E4),
-          ),
+          data: theme,
           child: SizedBox(
             width: 480,
             child: BusyMaxComboRow<String>(
@@ -1412,22 +1419,22 @@ void main() {
     );
 
     expect(find.byType(BusyMaxComboBox<String>), findsOneWidget);
-    final trigger = tester.widget<DropdownMenu>(
-      find.descendant(
-        of: find.byType(BusyMaxComboRow<String>),
-        matching: find.byWidgetPredicate((widget) => widget is DropdownMenu),
+    final triggerFinder = find.descendant(
+      of: find.byType(BusyMaxComboBox<String>),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is ButtonStyleButton && widget is! IconButton,
       ),
     );
-    expect(trigger.selectOnly, isTrue);
-    expect(trigger.enableSearch, isFalse);
-    expect(trigger.inputDecorationTheme, isNull);
-    expect(trigger.menuStyle, isNull);
-    expect(
-      tester
-          .getSize(find.byWidgetPredicate((widget) => widget is DropdownMenu))
-          .height,
-      kYaruButtonHeight,
+    final trigger = tester.widget<ButtonStyleButton>(triggerFinder);
+    expect(trigger.style, isNull);
+    expect(trigger.onPressed, isNotNull);
+    expect(tester.getSize(triggerFinder).height, kYaruButtonHeight);
+    final restingSurface = tester.widget<Material>(
+      find.descendant(of: triggerFinder, matching: find.byType(Material)).first,
     );
+    expect(restingSurface.type, MaterialType.button);
+    expect(restingSurface.color, colors.control);
+    expect(restingSurface.color, isNot(Colors.transparent));
   });
 }
 

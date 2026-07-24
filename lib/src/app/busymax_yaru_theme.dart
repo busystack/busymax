@@ -9,6 +9,7 @@ import 'busymax_surface_colors.dart';
 export 'busymax_surface_colors.dart';
 
 const _minimumRaisedSurfaceContrast = 1.08;
+const _minimumControlSurfaceContrast = 1.02;
 
 abstract final class BusyMaxLinuxPalette {
   static const red3 = Color(0xFFE01B24);
@@ -156,15 +157,6 @@ class BusyMaxYaruTheme {
         fallback: textTheme.labelLarge,
       ),
     );
-    final toggleButtonsTheme = base.toggleButtonsTheme.copyWith(
-      color: colors.foreground,
-      selectedColor: colors.foreground,
-      disabledColor: colors.disabledForeground,
-      fillColor: colors.controlActive,
-      borderColor: colors.border,
-      selectedBorderColor: colors.border,
-      disabledBorderColor: colors.disabledForeground,
-    );
     final menuStyle = _semanticMenuSurfaceStyle(
       base.menuTheme.style,
       color: colors.popover,
@@ -311,7 +303,6 @@ class BusyMaxYaruTheme {
           return colors.mutedForeground;
         }),
       ),
-      toggleButtonsTheme: toggleButtonsTheme,
       popupMenuTheme: base.popupMenuTheme.copyWith(
         color: colors.popover,
         surfaceTintColor: colors.popover,
@@ -658,10 +649,11 @@ class _BusyMaxResolvedSurfaceColors {
     // the additional hierarchy validation below.
     final window = readableSurface(sampledWindow, fallback.window);
     final view = readableSurface(sampledView, fallback.view);
-    final sidebar = _resolvedRaisedSurface(
+    final sidebar = _resolvedSidebarSurface(
       runtimeSidebar,
       brightness: brightness,
       parent: window,
+      adjacent: view,
       foreground: foreground,
       fallback: fallback.sidebar,
     );
@@ -743,6 +735,13 @@ class _BusyMaxResolvedSurfaceColors {
       backgrounds: readableBackgrounds,
       minContrast: 1.5,
     );
+    final controlLadder = _resolvedControlLadder(
+      runtimeControl: runtime.control,
+      runtimeHover: runtime.controlHover,
+      runtimeActive: runtime.controlActive,
+      fallback: fallback,
+      backgrounds: [view, sidebar, groupedSurface, dialog, popover],
+    );
 
     return fallback.copyWith(
       window: window,
@@ -755,9 +754,9 @@ class _BusyMaxResolvedSurfaceColors {
       groupedSurface: groupedSurface,
       dialog: dialog,
       popover: popover,
-      control: _runtimeOverlayColor(runtime.control),
-      controlHover: _runtimeOverlayColor(runtime.controlHover),
-      controlActive: _runtimeOverlayColor(runtime.controlActive),
+      control: controlLadder.control,
+      controlHover: controlLadder.hover,
+      controlActive: controlLadder.active,
       activeToggle: _runtimeOverlayColor(runtime.activeToggle),
       foreground: foreground,
       mutedForeground: mutedForeground,
@@ -770,6 +769,42 @@ class _BusyMaxResolvedSurfaceColors {
       shade: _runtimeShadeColor(runtime.shade, over: popover),
     );
   }
+}
+
+Color _resolvedSidebarSurface(
+  Color? runtimeSurface, {
+  required Brightness brightness,
+  required Color parent,
+  required Color adjacent,
+  required Color foreground,
+  required Color fallback,
+}) {
+  bool isReadable(Color color) => _contrastRatio(foreground, color) >= 4.5;
+
+  bool hasExpectedHierarchy(Color color) {
+    final surfaceLuminance = color.computeLuminance();
+    final isOnRaisedSideOfBoth = [parent, adjacent].every((background) {
+      final backgroundLuminance = background.computeLuminance();
+      return brightness == Brightness.dark
+          ? surfaceLuminance > backgroundLuminance
+          : surfaceLuminance < backgroundLuminance;
+    });
+    return isOnRaisedSideOfBoth;
+  }
+
+  if (runtimeSurface != null &&
+      isReadable(runtimeSurface) &&
+      hasExpectedHierarchy(runtimeSurface)) {
+    return runtimeSurface;
+  }
+  if (isReadable(fallback) && hasExpectedHierarchy(fallback)) {
+    return fallback;
+  }
+
+  // A custom palette can invert the fixed fallback hierarchy. Matching the
+  // adjacent content is safer than drawing the sidebar on the wrong side of
+  // either parent surface.
+  return adjacent;
 }
 
 Color _resolvedRaisedSurface(
@@ -837,6 +872,66 @@ Color? _runtimeOverlayColor(Color? color) {
     return null;
   }
   return candidate;
+}
+
+({Color control, Color hover, Color active}) _resolvedControlLadder({
+  required Color? runtimeControl,
+  required Color? runtimeHover,
+  required Color? runtimeActive,
+  required BusyMaxSurfaceColors fallback,
+  required Iterable<Color> backgrounds,
+}) {
+  final control = _runtimeOverlayColor(runtimeControl);
+  final hover = _runtimeOverlayColor(runtimeHover);
+  final active = _runtimeOverlayColor(runtimeActive);
+  if (control == null || hover == null || active == null) {
+    return (
+      control: fallback.control,
+      hover: fallback.controlHover,
+      active: fallback.controlActive,
+    );
+  }
+
+  // GTK 3 themes can report only a nearly transparent background-color while
+  // painting the actual button through a background image. Such samples are
+  // not usable as Flutter control roles. Require at least Yaru's semantic
+  // strength and validate the complete state ladder against every surface on
+  // which a shared control may appear.
+  if (control.a < fallback.control.a ||
+      hover.a < fallback.controlHover.a ||
+      active.a < fallback.controlActive.a) {
+    return (
+      control: fallback.control,
+      hover: fallback.controlHover,
+      active: fallback.controlActive,
+    );
+  }
+
+  for (final background in backgrounds) {
+    final controlContrast = _contrastRatio(
+      Color.alphaBlend(control, background),
+      background,
+    );
+    final hoverContrast = _contrastRatio(
+      Color.alphaBlend(hover, background),
+      background,
+    );
+    final activeContrast = _contrastRatio(
+      Color.alphaBlend(active, background),
+      background,
+    );
+    if (controlContrast < _minimumControlSurfaceContrast ||
+        hoverContrast < controlContrast ||
+        activeContrast < hoverContrast) {
+      return (
+        control: fallback.control,
+        hover: fallback.controlHover,
+        active: fallback.controlActive,
+      );
+    }
+  }
+
+  return (control: control, hover: hover, active: active);
 }
 
 Color? _runtimeShadeColor(Color? color, {required Color over}) {
@@ -1065,6 +1160,12 @@ ButtonStyle _semanticButtonStyle(
   return (base ?? const ButtonStyle()).copyWith(
     textStyle: textStyle,
     foregroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return disabledForeground;
+      }
+      return foreground;
+    }),
+    iconColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.disabled)) {
         return disabledForeground;
       }

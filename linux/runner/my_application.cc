@@ -4,6 +4,7 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <handy.h>
 #include <pango/pango.h>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -18,6 +19,7 @@ constexpr char kApplicationDisplayName[] = "BusyMax";
 constexpr char kNativeDateTimePickerChannel[] =
     "busymax/native_date_time_picker";
 constexpr char kNativeDialogChannel[] = "busymax/native_dialogs";
+constexpr char kNativeMenuChannel[] = "busymax/native_menus";
 constexpr char kWindowChannel[] = "io.busystack.busymax/window";
 constexpr char kHeaderBarChannel[] = "io.busystack.busymax/headerbar";
 constexpr char kGtkSettingsChannel[] = "io.busystack.busymax/gtk_settings";
@@ -63,6 +65,7 @@ struct _MyApplication {
   char** dart_entrypoint_arguments;
   FlMethodChannel* native_date_time_picker_channel;
   FlMethodChannel* native_dialog_channel;
+  FlMethodChannel* native_menu_channel;
   FlMethodChannel* window_channel;
   FlMethodChannel* header_bar_channel;
   FlMethodChannel* gtk_settings_channel;
@@ -456,6 +459,472 @@ static void register_native_dialogs_for_subwindow(FlView* view,
                          g_object_unref);
 }
 
+constexpr char kNativeMenuActionNamespace[] = "busymax-native-menu";
+constexpr char kNativeMenuActionIndexKey[] = "busymax-native-menu-index";
+
+struct NativeMenuHandlerData;
+
+struct NativeMenuSession {
+  NativeMenuHandlerData* owner;
+  gint64 id;
+  size_t entry_count;
+  GtkWidget* popover;
+  GMenu* model;
+  GSimpleActionGroup* action_group;
+  FlMethodCall* method_call;
+  gulong closed_signal_id;
+  guint cleanup_source_id;
+};
+
+struct NativeMenuHandlerData {
+  GtkWidget* view;
+  NativeMenuSession* active;
+};
+
+static void native_menu_session_respond(NativeMenuSession* session,
+                                        gint selected_index) {
+  if (session->method_call == nullptr) {
+    return;
+  }
+  g_autoptr(FlValue) result = selected_index < 0
+                                  ? fl_value_new_null()
+                                  : fl_value_new_int(selected_index);
+  fl_method_call_respond_success(session->method_call, result, nullptr);
+  g_clear_object(&session->method_call);
+}
+
+static void native_menu_session_dispose(NativeMenuSession* session) {
+  if (session == nullptr) {
+    return;
+  }
+
+  NativeMenuHandlerData* owner = session->owner;
+  if (owner != nullptr && owner->active == session) {
+    owner->active = nullptr;
+  }
+
+  if (session->cleanup_source_id != 0) {
+    g_source_remove(session->cleanup_source_id);
+    session->cleanup_source_id = 0;
+  }
+  native_menu_session_respond(session, -1);
+
+  if (session->popover != nullptr) {
+    if (session->closed_signal_id != 0) {
+      g_signal_handler_disconnect(session->popover,
+                                  session->closed_signal_id);
+      session->closed_signal_id = 0;
+    }
+    gtk_popover_bind_model(GTK_POPOVER(session->popover), nullptr, nullptr);
+    gtk_widget_destroy(session->popover);
+    g_clear_object(&session->popover);
+  }
+
+  if (owner != nullptr && owner->view != nullptr) {
+    gtk_widget_insert_action_group(owner->view, kNativeMenuActionNamespace,
+                                   nullptr);
+    if (gtk_widget_get_realized(owner->view)) {
+      gtk_widget_grab_focus(owner->view);
+    }
+  }
+  g_clear_object(&session->model);
+  g_clear_object(&session->action_group);
+  g_free(session);
+}
+
+static gboolean native_menu_cleanup_idle_cb(gpointer user_data) {
+  auto* session = static_cast<NativeMenuSession*>(user_data);
+  session->cleanup_source_id = 0;
+  native_menu_session_dispose(session);
+  return G_SOURCE_REMOVE;
+}
+
+static void native_menu_closed_cb(GtkPopover*, gpointer user_data) {
+  auto* session = static_cast<NativeMenuSession*>(user_data);
+  if (session->cleanup_source_id == 0) {
+    // GtkModelButton normally activates its GAction before closing the
+    // popover. Deferring final cleanup also covers themes/backends that emit
+    // "closed" first, so the action can still win with a selected index.
+    session->cleanup_source_id = g_idle_add_full(
+        G_PRIORITY_DEFAULT_IDLE, native_menu_cleanup_idle_cb, session, nullptr);
+  }
+}
+
+static void native_menu_action_activated_cb(GSimpleAction* action,
+                                            GVariant*,
+                                            gpointer user_data) {
+  auto* session = static_cast<NativeMenuSession*>(user_data);
+  const gint selected_index =
+      GPOINTER_TO_INT(
+          g_object_get_data(G_OBJECT(action), kNativeMenuActionIndexKey)) -
+      1;
+  native_menu_session_respond(session, selected_index);
+  if (session->popover != nullptr) {
+    gtk_popover_popdown(GTK_POPOVER(session->popover));
+  }
+}
+
+static void native_menu_selection_activated_cb(GSimpleAction* action,
+                                               GVariant* parameter,
+                                               gpointer user_data) {
+  if (parameter == nullptr ||
+      !g_variant_is_of_type(parameter, G_VARIANT_TYPE_STRING)) {
+    return;
+  }
+  const gchar* target = g_variant_get_string(parameter, nullptr);
+  gchar* end = nullptr;
+  const guint64 parsed = g_ascii_strtoull(target, &end, 10);
+  auto* session = static_cast<NativeMenuSession*>(user_data);
+  if (target[0] == '\0' || end == nullptr || *end != '\0' ||
+      parsed > static_cast<guint64>(G_MAXINT) ||
+      parsed >= session->entry_count) {
+    return;
+  }
+
+  g_simple_action_set_state(action, parameter);
+  native_menu_session_respond(session, static_cast<gint>(parsed));
+  if (session->popover != nullptr) {
+    gtk_popover_popdown(GTK_POPOVER(session->popover));
+  }
+}
+
+static gboolean native_menu_dismiss_active(NativeMenuHandlerData* data,
+                                           gint64 session_id) {
+  NativeMenuSession* session = data->active;
+  if (session == nullptr || session->id != session_id) {
+    return FALSE;
+  }
+
+  native_menu_session_respond(session, -1);
+  if (session->popover != nullptr &&
+      gtk_widget_get_visible(session->popover)) {
+    gtk_popover_popdown(GTK_POPOVER(session->popover));
+  } else {
+    native_menu_session_dispose(session);
+  }
+  return TRUE;
+}
+
+static gboolean fl_lookup_number_arg(FlValue* args,
+                                     const gchar* key,
+                                     gdouble* value_out) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  if (value == nullptr) {
+    return FALSE;
+  }
+  switch (fl_value_get_type(value)) {
+    case FL_VALUE_TYPE_FLOAT:
+      *value_out = fl_value_get_float(value);
+      return std::isfinite(*value_out);
+    case FL_VALUE_TYPE_INT:
+      *value_out = static_cast<gdouble>(fl_value_get_int(value));
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
+static gboolean fl_lookup_optional_bool_arg(FlValue* args,
+                                            const gchar* key,
+                                            gboolean fallback,
+                                            gboolean* value_out) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  if (value == nullptr) {
+    *value_out = fallback;
+    return TRUE;
+  }
+  if (fl_value_get_type(value) != FL_VALUE_TYPE_BOOL) {
+    return FALSE;
+  }
+  *value_out = fl_value_get_bool(value);
+  return TRUE;
+}
+
+static gboolean fl_lookup_positive_int64_arg(FlValue* args,
+                                             const gchar* key,
+                                             gint64* value_out) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  if (value == nullptr || fl_value_get_type(value) != FL_VALUE_TYPE_INT) {
+    return FALSE;
+  }
+  const gint64 parsed = fl_value_get_int(value);
+  if (parsed <= 0) {
+    return FALSE;
+  }
+  *value_out = parsed;
+  return TRUE;
+}
+
+static void respond_native_menu_argument_error(FlMethodCall* method_call,
+                                               const gchar* message) {
+  fl_method_call_respond_error(method_call, "invalid-arguments", message,
+                               nullptr, nullptr);
+}
+
+static gboolean parse_native_menu_anchor(FlValue* args,
+                                         GdkRectangle* rectangle_out) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* anchor = fl_value_lookup_string(args, "anchor");
+  if (anchor == nullptr || fl_value_get_type(anchor) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  gdouble x = 0;
+  gdouble y = 0;
+  gdouble width = 0;
+  gdouble height = 0;
+  const gboolean has_x = fl_lookup_number_arg(anchor, "x", &x) ||
+                         fl_lookup_number_arg(anchor, "left", &x);
+  const gboolean has_y = fl_lookup_number_arg(anchor, "y", &y) ||
+                         fl_lookup_number_arg(anchor, "top", &y);
+  if (!has_x || !has_y ||
+      !fl_lookup_number_arg(anchor, "width", &width) ||
+      !fl_lookup_number_arg(anchor, "height", &height) || width < 0 ||
+      height < 0 || !std::isfinite(x + width) ||
+      !std::isfinite(y + height)) {
+    return FALSE;
+  }
+
+  const gdouble left = std::floor(x);
+  const gdouble top = std::floor(y);
+  const gdouble right = std::ceil(x + width);
+  const gdouble bottom = std::ceil(y + height);
+  const gdouble pixel_width = std::max(1.0, right - left);
+  const gdouble pixel_height = std::max(1.0, bottom - top);
+  if (left < G_MININT || left > G_MAXINT || top < G_MININT ||
+      top > G_MAXINT || right < G_MININT || right > G_MAXINT ||
+      bottom < G_MININT || bottom > G_MAXINT || pixel_width > G_MAXINT ||
+      pixel_height > G_MAXINT) {
+    return FALSE;
+  }
+
+  rectangle_out->x = static_cast<gint>(left);
+  rectangle_out->y = static_cast<gint>(top);
+  rectangle_out->width = static_cast<gint>(pixel_width);
+  rectangle_out->height = static_cast<gint>(pixel_height);
+  return TRUE;
+}
+
+static void show_native_menu(NativeMenuHandlerData* data,
+                             FlMethodCall* method_call,
+                             FlValue* args) {
+  if (data->view == nullptr || !gtk_widget_get_realized(data->view)) {
+    fl_method_call_respond_error(method_call, "unavailable",
+                                 "The native menu host is unavailable.",
+                                 nullptr, nullptr);
+    return;
+  }
+
+  GdkRectangle anchor = {};
+  gint64 session_id = 0;
+  if (!fl_lookup_positive_int64_arg(args, "sessionId", &session_id) ||
+      !parse_native_menu_anchor(args, &anchor)) {
+    respond_native_menu_argument_error(
+        method_call,
+        "sessionId must be a positive integer and anchor must contain finite "
+        "x, y, width, and height.");
+    return;
+  }
+
+  FlValue* entries = fl_value_lookup_string(args, "entries");
+  gboolean focus_first = FALSE;
+  if (entries == nullptr ||
+      fl_value_get_type(entries) != FL_VALUE_TYPE_LIST ||
+      fl_value_get_length(entries) == 0 ||
+      fl_value_get_length(entries) > static_cast<size_t>(G_MAXINT) ||
+      !fl_lookup_optional_bool_arg(args, "focusFirst", FALSE,
+                                   &focus_first)) {
+    respond_native_menu_argument_error(
+        method_call,
+        "entries must be a non-empty list and focusFirst must be boolean.");
+    return;
+  }
+
+  size_t selected_entry_count = 0;
+  size_t selected_entry_index = 0;
+  gboolean has_disabled_entry = FALSE;
+  for (size_t index = 0; index < fl_value_get_length(entries); index++) {
+    FlValue* entry = fl_value_get_list_value(entries, index);
+    const gchar* label = fl_lookup_string_arg(entry, "label");
+    gboolean enabled = TRUE;
+    gboolean selected = FALSE;
+    if (label == nullptr ||
+        !fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled) ||
+        !fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected)) {
+      respond_native_menu_argument_error(
+          method_call,
+          "each entry must contain a label and optional boolean enabled and "
+          "selected values.");
+      return;
+    }
+    if (selected) {
+      selected_entry_count++;
+      selected_entry_index = index;
+    }
+    has_disabled_entry = has_disabled_entry || !enabled;
+  }
+  if (selected_entry_count > 1 ||
+      (selected_entry_count == 1 && has_disabled_entry)) {
+    respond_native_menu_argument_error(
+        method_call,
+        "single-choice menus require exactly one selected entry and all "
+        "entries enabled.");
+    return;
+  }
+
+  if (data->active != nullptr) {
+    native_menu_session_dispose(data->active);
+  }
+
+  auto* session = g_new0(NativeMenuSession, 1);
+  session->owner = data;
+  session->id = session_id;
+  session->entry_count = fl_value_get_length(entries);
+  session->method_call =
+      FL_METHOD_CALL(g_object_ref(G_OBJECT(method_call)));
+  session->action_group = g_simple_action_group_new();
+  session->model = g_menu_new();
+  data->active = session;
+
+  if (selected_entry_count == 1) {
+    g_autofree gchar* selected_target =
+        g_strdup_printf("%zu", selected_entry_index);
+    GSimpleAction* selection_action = g_simple_action_new_stateful(
+        "select", G_VARIANT_TYPE_STRING,
+        g_variant_new_string(selected_target));
+    g_signal_connect(selection_action, "activate",
+                     G_CALLBACK(native_menu_selection_activated_cb), session);
+    g_action_map_add_action(G_ACTION_MAP(session->action_group),
+                            G_ACTION(selection_action));
+    g_object_unref(selection_action);
+  }
+
+  g_autofree gchar* selection_action_name =
+      g_strdup_printf("%s.select", kNativeMenuActionNamespace);
+  for (size_t index = 0; index < fl_value_get_length(entries); index++) {
+    FlValue* entry = fl_value_get_list_value(entries, index);
+    const gchar* label = fl_lookup_string_arg(entry, "label");
+    gboolean enabled = TRUE;
+    fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled);
+
+    g_autoptr(GMenuItem) item = g_menu_item_new(label, nullptr);
+    if (selected_entry_count == 1) {
+      g_autofree gchar* target = g_strdup_printf("%zu", index);
+      g_menu_item_set_action_and_target_value(
+          item, selection_action_name, g_variant_new_string(target));
+    } else {
+      g_autofree gchar* action_name = g_strdup_printf("select-%zu", index);
+      GSimpleAction* action = g_simple_action_new(action_name, nullptr);
+      g_simple_action_set_enabled(action, enabled);
+      g_object_set_data(G_OBJECT(action), kNativeMenuActionIndexKey,
+                        GINT_TO_POINTER(static_cast<gint>(index) + 1));
+      g_signal_connect(action, "activate",
+                       G_CALLBACK(native_menu_action_activated_cb), session);
+      g_action_map_add_action(G_ACTION_MAP(session->action_group),
+                              G_ACTION(action));
+      g_autofree gchar* detailed_action =
+          g_strdup_printf("%s.%s", kNativeMenuActionNamespace, action_name);
+      g_menu_item_set_detailed_action(item, detailed_action);
+      g_object_unref(action);
+    }
+    g_menu_append_item(session->model, item);
+  }
+
+  gtk_widget_insert_action_group(
+      data->view, kNativeMenuActionNamespace,
+      G_ACTION_GROUP(session->action_group));
+  session->popover = gtk_popover_new_from_model(
+      data->view, G_MENU_MODEL(session->model));
+  g_object_ref_sink(session->popover);
+  gtk_popover_set_pointing_to(GTK_POPOVER(session->popover), &anchor);
+  gtk_popover_set_position(GTK_POPOVER(session->popover), GTK_POS_BOTTOM);
+  gtk_popover_set_constrain_to(GTK_POPOVER(session->popover),
+                               GTK_POPOVER_CONSTRAINT_WINDOW);
+  gtk_popover_set_modal(GTK_POPOVER(session->popover), TRUE);
+  gtk_widget_set_can_focus(session->popover, TRUE);
+  session->closed_signal_id =
+      g_signal_connect(session->popover, "closed",
+                       G_CALLBACK(native_menu_closed_cb), session);
+  gtk_widget_show_all(session->popover);
+  gtk_popover_popup(GTK_POPOVER(session->popover));
+  if (focus_first) {
+    gtk_widget_child_focus(session->popover, GTK_DIR_TAB_FORWARD);
+  } else {
+    gtk_widget_grab_focus(session->popover);
+  }
+}
+
+static void native_menu_handler_data_free(gpointer user_data) {
+  auto* data = static_cast<NativeMenuHandlerData*>(user_data);
+  if (data->active != nullptr) {
+    native_menu_session_dispose(data->active);
+  }
+  if (data->view != nullptr) {
+    g_object_remove_weak_pointer(
+        G_OBJECT(data->view),
+        reinterpret_cast<gpointer*>(&data->view));
+  }
+  g_free(data);
+}
+
+static void native_menu_method_call_cb(FlMethodChannel*,
+                                       FlMethodCall* method_call,
+                                       gpointer user_data) {
+  auto* data = static_cast<NativeMenuHandlerData*>(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (strcmp(method, "show") == 0) {
+    show_native_menu(data, method_call, fl_method_call_get_args(method_call));
+  } else if (strcmp(method, "dismiss") == 0) {
+    gint64 session_id = 0;
+    if (!fl_lookup_positive_int64_arg(fl_method_call_get_args(method_call),
+                                      "sessionId", &session_id)) {
+      respond_native_menu_argument_error(
+          method_call, "sessionId must be a positive integer.");
+      return;
+    }
+    respond_bool(method_call,
+                 native_menu_dismiss_active(data, session_id));
+  } else {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+  }
+}
+
+static FlMethodChannel* create_native_menu_channel(FlView* view) {
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  FlMethodChannel* channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      kNativeMenuChannel, FL_METHOD_CODEC(codec));
+  auto* data = g_new0(NativeMenuHandlerData, 1);
+  data->view = GTK_WIDGET(view);
+  g_object_add_weak_pointer(G_OBJECT(data->view),
+                            reinterpret_cast<gpointer*>(&data->view));
+  fl_method_channel_set_method_call_handler(
+      channel, native_menu_method_call_cb, data,
+      native_menu_handler_data_free);
+  return channel;
+}
+
+static void register_native_menus(MyApplication* self, FlView* view) {
+  self->native_menu_channel = create_native_menu_channel(view);
+}
+
+static void register_native_menus_for_subwindow(FlView* view,
+                                                GtkWindow* window) {
+  FlMethodChannel* channel = create_native_menu_channel(view);
+  g_object_set_data_full(G_OBJECT(window), "busymax-native-menus", channel,
+                         g_object_unref);
+}
+
 static void respond_success(FlMethodCall* method_call) {
   g_autoptr(FlValue) result = fl_value_new_null();
   fl_method_call_respond_success(method_call, result, nullptr);
@@ -541,6 +1010,45 @@ static const gchar* css_color_or(const gchar* value, const gchar* fallback) {
   return is_css_color_token(value) ? value : fallback;
 }
 
+static GdkRGBA composite_rgba(const GdkRGBA& foreground,
+                              const GdkRGBA& background) {
+  const gdouble inverse_foreground_alpha = 1.0 - foreground.alpha;
+  const gdouble alpha =
+      foreground.alpha + background.alpha * inverse_foreground_alpha;
+  if (alpha <= 0) {
+    return GdkRGBA{0, 0, 0, 0};
+  }
+  return GdkRGBA{
+      (foreground.red * foreground.alpha +
+       background.red * background.alpha * inverse_foreground_alpha) /
+          alpha,
+      (foreground.green * foreground.alpha +
+       background.green * background.alpha * inverse_foreground_alpha) /
+          alpha,
+      (foreground.blue * foreground.alpha +
+       background.blue * background.alpha * inverse_foreground_alpha) /
+          alpha,
+      alpha,
+  };
+}
+
+static gchar* modal_sidebar_border_css_color(const gchar* border_color,
+                                             const gchar* sidebar_color,
+                                             const gchar* barrier_color) {
+  GdkRGBA border;
+  GdkRGBA sidebar;
+  GdkRGBA barrier;
+  if (!gdk_rgba_parse(&border, border_color) ||
+      !gdk_rgba_parse(&sidebar, sidebar_color) ||
+      !gdk_rgba_parse(&barrier, barrier_color)) {
+    return g_strdup(border_color);
+  }
+
+  const GdkRGBA visible_border = composite_rgba(border, sidebar);
+  const GdkRGBA dimmed_border = composite_rgba(barrier, visible_border);
+  return gdk_rgba_to_string(&dimmed_border);
+}
+
 static void set_flutter_view_background_color(MyApplication* self,
                                               const gchar* color) {
   if (self->flutter_view == nullptr || !FL_IS_VIEW(self->flutter_view) ||
@@ -588,6 +1096,10 @@ static void refresh_header_bar_css(MyApplication* self) {
       self->header_bar_foreground_color, "rgba(255,255,255,0.86)");
   const gchar* modal_barrier_color = css_color_or(
       self->header_bar_modal_barrier_color, "rgba(0,0,0,0.32)");
+  g_autofree gchar* modal_sidebar_border_color =
+      modal_sidebar_border_css_color(sidebar_border_color,
+                                     sidebar_background_color,
+                                     modal_barrier_color);
   GtkWidget* header_bar = GTK_WIDGET(self->header_bar);
   GtkStyleContext* context = gtk_widget_get_style_context(header_bar);
   gtk_style_context_add_class(context, "busymax-flat-headerbar");
@@ -627,6 +1139,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       ".busymax-header-brand:backdrop {"
       "background-color: %s;"
       "background-image: linear-gradient(%s, %s);"
+      "border-right-color: %s;"
       "}"
       ".busymax-titlebar.busymax-modal-barrier "
       "headerbar.busymax-flat-headerbar,"
@@ -639,7 +1152,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       sidebar_background_color, foreground_color, sidebar_border_color,
       foreground_color, foreground_color,
       sidebar_background_color, modal_barrier_color, modal_barrier_color,
-      background_color, modal_barrier_color, modal_barrier_color);
+      modal_sidebar_border_color, background_color, modal_barrier_color,
+      modal_barrier_color);
 
   g_autoptr(GError) error = nullptr;
   GtkCssProvider* provider = gtk_css_provider_new();
@@ -941,6 +1455,9 @@ static void set_header_menu_button_model(GtkWidget* button,
     return;
   }
   close_header_menu_button(button);
+  // Pointer-opened header menus should not paint a keyboard focus ring around
+  // their first row. Keyboard traversal can still focus the trigger normally.
+  gtk_widget_set_focus_on_click(button, FALSE);
   if (*tracked_popover != nullptr) {
     clear_widget_pointer(tracked_popover);
   }
@@ -1805,9 +2322,8 @@ static gboolean show_header_create_menu(MyApplication* self) {
     return FALSE;
   }
 
-  // A pointer-triggered Flutter command should behave like clicking the native
-  // menu button: retain focus on the trigger and let GTK move into the model
-  // only when the user starts keyboard navigation.
+  // The Flutter command is keyboard-driven. Focus the native trigger before
+  // opening so GTK can move directly into its model rows.
   gtk_widget_grab_focus(self->create_button);
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->create_button), TRUE);
   return gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->create_button));
@@ -2904,6 +3420,7 @@ static void configure_compact_agenda_subwindow(FlPluginRegistry* registry) {
   register_compact_gtk_settings_channel(view, window);
   register_native_date_time_picker_for_subwindow(view, window);
   register_native_dialogs_for_subwindow(view, window);
+  register_native_menus_for_subwindow(view, window);
 }
 
 // Called when first Flutter frame received.
@@ -2973,6 +3490,7 @@ static void my_application_activate(GApplication* application) {
       });
   register_native_date_time_picker(self, view, window);
   register_native_dialogs(self, view, window);
+  register_native_menus(self, view);
   register_window_channel(self, view);
   register_header_bar_channel(self, view);
   register_gtk_settings_channel(self, view);
@@ -3026,6 +3544,7 @@ static void my_application_dispose(GObject* object) {
   }
   g_clear_object(&self->native_date_time_picker_channel);
   g_clear_object(&self->native_dialog_channel);
+  g_clear_object(&self->native_menu_channel);
   g_clear_object(&self->window_channel);
   g_clear_object(&self->header_bar_channel);
   g_clear_object(&self->gtk_settings_channel);
@@ -3107,6 +3626,7 @@ static void my_application_class_init(MyApplicationClass* klass) {
 static void my_application_init(MyApplication* self) {
   self->native_date_time_picker_channel = nullptr;
   self->native_dialog_channel = nullptr;
+  self->native_menu_channel = nullptr;
   self->window_channel = nullptr;
   self->header_bar_channel = nullptr;
   self->gtk_settings_channel = nullptr;

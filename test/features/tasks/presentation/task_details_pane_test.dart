@@ -16,19 +16,25 @@ import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
-import 'package:ubuntu_widgets/ubuntu_widgets.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
 const _nativePickerChannel = MethodChannel(nativeDateTimePickerChannelName);
 const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
   });
 
   tearDown(() {
@@ -38,6 +44,8 @@ void main() {
         });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
   testWidgets('Task Details header shows Cancel and Save', (tester) async {
@@ -68,16 +76,25 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(
-      find.descendant(
-        of: find.byType(BusyMaxEditorHeader),
-        matching: find.byWidgetPredicate((widget) => widget is PushButton),
+    final cancelButton = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.text('Cancel'),
+        matching: find.byType(FilledButton),
       ),
-      findsNothing,
     );
+    final saveButton = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('Save'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(cancelButton.style?.fixedSize, isNull);
+    expect(cancelButton.style?.minimumSize, isNull);
+    expect(saveButton.style?.fixedSize, isNull);
+    expect(saveButton.style?.minimumSize, isNull);
   });
 
-  testWidgets('task selectors use the shared Yaru form selector', (
+  testWidgets('task selectors use the shared native-menu trigger', (
     tester,
   ) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
@@ -88,7 +105,7 @@ void main() {
     expect(
       find.descendant(
         of: comboRows,
-        matching: find.byWidgetPredicate((widget) => widget is DropdownMenu),
+        matching: find.byType(BusyMaxComboBox<String>),
       ),
       findsNWidgets(comboCount),
     );
@@ -110,6 +127,17 @@ void main() {
       ),
       findsNothing,
     );
+    final triggers = find.descendant(
+      of: comboRows,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is ButtonStyleButton && widget is! IconButton,
+      ),
+    );
+    expect(triggers, findsNWidgets(comboCount));
+    for (final trigger in tester.widgetList<ButtonStyleButton>(triggers)) {
+      expect(trigger.style, isNull);
+      expect(trigger.onPressed, isNotNull);
+    }
   });
 
   test('task selector content mirrors with text direction', () {
@@ -135,14 +163,6 @@ void main() {
       ),
     );
 
-    expect(
-      tester.getSize(_headerButtonFinder(tester, 'Cancel')).width,
-      lessThan(kPushButtonSize.width),
-    );
-    expect(
-      tester.getSize(_headerButtonFinder(tester, 'Save')).width,
-      lessThan(kPushButtonSize.width),
-    );
     expect(
       tester.getSize(_headerButtonFinder(tester, 'Cancel')).height,
       kYaruButtonHeight,

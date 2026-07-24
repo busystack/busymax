@@ -638,15 +638,13 @@ class _SettingsPageSelector extends StatelessWidget {
       width: double.infinity,
       child: BusyMaxMenuButton<SettingsPage>(
         tooltip: _settingsPageLabel(context, selected),
-        minMenuWidth: BusyMaxSizes.sidebarWidth,
-        menuPosition: null,
         entries: [
           for (final page in SettingsPage.values)
             BusyMaxMenuEntry(
               value: page,
               label: _settingsPageLabel(context, page),
               icon: _settingsPageIcon(page),
-              checked: page == selected,
+              selected: page == selected,
             ),
         ],
         onSelected: onSelected,

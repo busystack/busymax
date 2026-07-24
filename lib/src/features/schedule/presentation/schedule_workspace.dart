@@ -188,6 +188,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _latestItems = const <ScheduleItem>[];
   final _itemAnchorContexts = <String, BuildContext>{};
   final _createMenuController = BusyMaxMenuController();
+  BusyMaxMenuSession? _createChoiceMenuSession;
   final _pointerAnchorClock = Stopwatch()..start();
   Offset? _recentSchedulePointerPosition;
   Duration? _recentSchedulePointerTime;
@@ -224,6 +225,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   @override
   void dispose() {
+    final createChoiceMenuSession = _createChoiceMenuSession;
+    _createChoiceMenuSession = null;
+    if (createChoiceMenuSession != null) {
+      unawaited(createChoiceMenuSession.dismiss());
+    }
     _headerBarSession.dispose();
     if (_taskDetailsTarget != null) {
       unawaited(
@@ -1361,6 +1367,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     DateTime start, {
     required bool canCreateTask,
   }) async {
+    if (_createChoiceMenuSession != null) {
+      return;
+    }
     final writableSources = writableCalendarSources(sources);
     final anchorPoint = _takeRecentSchedulePointerPosition();
     final canCreateEvent = writableSources.isNotEmpty;
@@ -1380,11 +1389,21 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       );
       return;
     }
-    final choice = await showScheduleCreateMenu(
-      context: context,
-      anchorContext: _createChoiceAnchorContext(),
-      anchorPoint: anchorPoint,
-    );
+    final menuSession = BusyMaxMenuSession();
+    _createChoiceMenuSession = menuSession;
+    ScheduleCreateChoice? choice;
+    try {
+      choice = await showScheduleCreateMenu(
+        context: context,
+        anchorContext: _createChoiceAnchorContext(),
+        anchorPoint: anchorPoint,
+        session: menuSession,
+      );
+    } finally {
+      if (identical(_createChoiceMenuSession, menuSession)) {
+        _createChoiceMenuSession = null;
+      }
+    }
     if (!mounted || choice == null) {
       return;
     }

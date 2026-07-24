@@ -16,6 +16,7 @@ import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
@@ -24,7 +25,22 @@ import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+
 void main() {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
   testWidgets('Settings removes the selected Microsoft account', (
     tester,
   ) async {
@@ -429,7 +445,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('settings-page-selector')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Schedule'));
+    await tester.tap(_settingsMenuItemWithLabel('Schedule'));
     await tester.pumpAndSettle();
 
     expect(find.text('Day starts at'), findsOneWidget);
@@ -604,7 +620,7 @@ void main() {
     expect(find.byType(SettingsScreen), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('settings-page-selector')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Notifications'));
+    await tester.tap(_settingsMenuItemWithLabel('Notifications'));
     await tester.pumpAndSettle();
     expect(router.state.uri.queryParameters['page'], 'notifications');
 
@@ -639,6 +655,13 @@ void main() {
     expect(container.read(selectedAccountIdProvider), isNull);
     expect(find.text('sign in route'), findsOneWidget);
   });
+}
+
+Finder _settingsMenuItemWithLabel(String label) {
+  return find.ancestor(
+    of: find.text(label).last,
+    matching: find.byType(PopupMenuItem<int>),
+  );
 }
 
 Future<void> _openAccountRemovalDialog(WidgetTester tester) async {

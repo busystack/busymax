@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,7 +13,22 @@ import 'package:yaru/yaru.dart';
 
 import '../test_localized_app.dart';
 
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+
 void main() {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
   for (final brightness in Brightness.values) {
     testWidgets(
       'grouped list uses the semantic $brightness surface and Yaru rows',
@@ -425,7 +442,7 @@ void main() {
     );
 
     final combo = find.byType(BusyMaxComboRow<String>);
-    final trigger = find.descendant(of: combo, matching: _dropdownMenuFinder());
+    final trigger = find.descendant(of: combo, matching: _comboTriggerFinder());
     expect(trigger, findsOneWidget);
 
     await tester.tap(trigger, warnIfMissed: false);
@@ -434,7 +451,8 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
-    expect(find.byType(MenuItemButton).hitTestable(), findsNothing);
+    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNothing);
+    expect(find.byType(YaruRadio<int>).hitTestable(), findsNothing);
     expect(selected, isEmpty);
     final disabledSemantics = tester.widget<Semantics>(
       find.descendant(
@@ -450,7 +468,7 @@ void main() {
     expect(disabledSemantics.properties.value, 'Personal');
   });
 
-  testWidgets('combo row delegates form selection and geometry to Yaru', (
+  testWidgets('combo row delegates selection to the shared native menu path', (
     tester,
   ) async {
     final selections = <int>[];
@@ -471,15 +489,15 @@ void main() {
 
     final triggerFinder = find.descendant(
       of: find.byType(BusyMaxComboRow<int>),
-      matching: _dropdownMenuFinder(),
+      matching: _comboTriggerFinder(),
     );
-    final trigger = tester.widget<DropdownMenu>(triggerFinder);
-    expect(trigger.selectOnly, isTrue);
-    expect(trigger.enableSearch, isFalse);
-    expect(trigger.width, tester.getSize(triggerFinder).width);
-    expect(trigger.inputDecorationTheme, isNull);
-    expect(trigger.menuStyle, isNull);
-    expect(trigger.initialSelection, isNotNull);
+    final trigger = tester.widget<ButtonStyleButton>(triggerFinder);
+    final comboBox = tester.widget<BusyMaxComboBox<int>>(
+      find.byType(BusyMaxComboBox<int>),
+    );
+    expect(trigger.onPressed, isNotNull);
+    expect(trigger.style, isNull);
+    expect(tester.getSize(triggerFinder).width, comboBox.width);
 
     final selectedRect = tester.getRect(find.text('Calendar 1').first);
     final arrowRect = tester.getRect(
@@ -495,38 +513,72 @@ void main() {
     await tester.tap(triggerFinder);
     await tester.pumpAndSettle();
 
-    final firstChoice = find
-        .byWidgetPredicate(
-          (widget) => widget is Text && widget.data == 'Calendar 1',
-        )
-        .hitTestable();
-    final secondChoice = find
-        .byWidgetPredicate(
-          (widget) => widget is Text && widget.data == 'Calendar 2',
-        )
-        .hitTestable();
+    final firstChoice = _menuItemWithLabel('Calendar 1');
+    final secondChoice = _menuItemWithLabel('Calendar 2');
     expect(firstChoice, findsOneWidget);
     expect(secondChoice, findsOneWidget);
     expect(
       tester.getRect(firstChoice).top,
       greaterThanOrEqualTo(tester.getRect(triggerFinder).bottom),
     );
-    final visibleMenuItems = find.byType(MenuItemButton).hitTestable();
+    final visibleMenuItems = find.byType(PopupMenuItem<int>).hitTestable();
     expect(visibleMenuItems, findsNWidgets(2));
     expect(find.byType(YaruFocusBorder), findsNothing);
-    final selectedSemantics = tester
-        .widgetList<Semantics>(
-          find.descendant(
-            of: visibleMenuItems,
-            matching: find.byType(Semantics),
-          ),
-        )
-        .where((semantics) => semantics.properties.selected == true);
-    expect(selectedSemantics, hasLength(1));
+    final radioItems = tester.widgetList<YaruRadio<int>>(
+      find.byType(YaruRadio<int>),
+    );
+    expect(radioItems.map((item) => item.value), [0, 1]);
+    expect(radioItems.map((item) => item.groupValue), everyElement(0));
 
     await tester.tap(secondChoice);
     await tester.pumpAndSettle();
     expect(selections, [2]);
+  });
+
+  testWidgets('disposing a combo dismisses only its native menu session', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    final nativeSelection = Completer<int?>();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, (call) async {
+          calls.add(call);
+          if (call.method == 'show') {
+            return await nativeSelection.future;
+          }
+          if (call.method == 'dismiss') {
+            return true;
+          }
+          throw MissingPluginException();
+        });
+
+    await tester.pumpWidget(
+      _testApp(
+        BusyMaxComboRow<String>(
+          title: 'Calendar',
+          values: const ['Personal', 'Work'],
+          selected: 'Personal',
+          labelFor: (value) => value,
+          onSelected: (_) {},
+        ),
+      ),
+    );
+    await tester.tap(_comboTriggerFinder());
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+
+    final showArguments =
+        calls.singleWhere((call) => call.method == 'show').arguments!
+            as Map<Object?, Object?>;
+    final dismissArguments =
+        calls.singleWhere((call) => call.method == 'dismiss').arguments!
+            as Map<Object?, Object?>;
+    expect(dismissArguments['sessionId'], showArguments['sessionId']);
+
+    nativeSelection.complete();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('combo row maps a nullable domain choice through the popup', (
@@ -545,15 +597,15 @@ void main() {
       ),
     );
 
-    await tester.tap(_dropdownMenuFinder());
+    await tester.tap(_comboTriggerFinder());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Select a category').last);
+    await tester.tap(_menuItemWithLabel('Select a category'));
     await tester.pumpAndSettle();
 
     expect(selections, [isNull]);
   });
 
-  testWidgets('combo popup stays constrained to its trigger width', (
+  testWidgets('combo trigger keeps its layout width with long menu content', (
     tester,
   ) async {
     const selectorWidth = 220.0;
@@ -576,14 +628,15 @@ void main() {
       ),
     );
 
-    final trigger = _dropdownMenuFinder();
+    final trigger = _comboTriggerFinder();
+    final comboBox = tester.widget<BusyMaxComboBox<String>>(
+      find.byType(BusyMaxComboBox<String>),
+    );
+    expect(tester.getSize(trigger).width, comboBox.width);
     await tester.tap(trigger);
     await tester.pumpAndSettle();
 
-    final triggerWidth = tester.getSize(trigger).width;
-    for (final item in find.byType(MenuItemButton).hitTestable().evaluate()) {
-      expect(tester.getSize(find.byWidget(item.widget)).width, triggerWidth);
-    }
+    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });
 
@@ -605,13 +658,13 @@ void main() {
 
     final triggerFinder = find.descendant(
       of: find.byType(BusyMaxComboRow<String>),
-      matching: _dropdownMenuFinder(),
+      matching: _comboTriggerFinder(),
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
-    expect(find.byType(MenuItemButton).hitTestable(), findsNWidgets(2));
+    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNWidgets(2));
     expect(
       tester.getRect(find.text('Personal').last).top,
       greaterThanOrEqualTo(tester.getRect(triggerFinder).bottom),
@@ -619,12 +672,10 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(selections, ['Work']);
-    expect(find.byType(MenuItemButton).hitTestable(), findsNothing);
+    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNothing);
   });
 
   testWidgets('combo row accepts unbounded horizontal constraints', (
@@ -644,8 +695,11 @@ void main() {
       ),
     );
 
-    expect(_dropdownMenuFinder(), findsOneWidget);
-    expect(tester.getSize(_dropdownMenuFinder()).width, 220);
+    expect(_comboTriggerFinder(), findsOneWidget);
+    expect(
+      tester.getSize(_comboTriggerFinder()).width,
+      BusyMaxSizes.comboWidth,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -820,26 +874,28 @@ void main() {
     final titleRect = tester.getRect(
       find.text('Calendar account with a long label'),
     );
-    final triggerRect = tester.getRect(_dropdownMenuFinder());
+    final triggerRect = tester.getRect(_comboTriggerFinder());
     expect(triggerRect.top, greaterThanOrEqualTo(titleRect.bottom));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('time mode is a full-width neutral Yaru toggle group', (
+  testWidgets('time mode delegates full-width neutral selection to Yaru tabs', (
     tester,
   ) async {
-    const accentColor = Color(0xFF3584E4);
     final changes = <bool>[];
+    var allDay = true;
     await tester.pumpWidget(
-      localizedTestApp(
-        child: Theme(
-          data: BusyMaxYaruTheme.build(
-            brightness: Brightness.light,
-            accentColor: accentColor,
-          ),
-          child: Scaffold(
-            body: BusyMaxTimeModeRow(allDay: true, onChanged: changes.add),
-          ),
+      _timeModeTestApp(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return BusyMaxTimeModeRow(
+              allDay: allDay,
+              onChanged: (value) {
+                changes.add(value);
+                setState(() => allDay = value);
+              },
+            );
+          },
         ),
       ),
     );
@@ -847,67 +903,236 @@ void main() {
     expect(find.text('Time'), findsNothing);
     expect(find.text('Use dates only or set specific times.'), findsNothing);
     expect(find.byType(YaruListTile), findsNothing);
+    expect(find.byType(ToggleButtons), findsNothing);
+    expect(find.byType(BusyMaxModeSwitcher<bool>), findsOneWidget);
 
-    final control = tester.widget<ToggleButtons>(find.byType(ToggleButtons));
-    expect(control.isSelected, [isTrue, isFalse]);
-    final theme = Theme.of(tester.element(find.byType(ToggleButtons)));
-    final colors = theme.extension<BusyMaxSurfaceColors>()!;
-    expect(theme.toggleButtonsTheme.fillColor, colors.controlActive);
-    expect(theme.toggleButtonsTheme.fillColor, isNot(accentColor));
-    expect(theme.toggleButtonsTheme.selectedColor, colors.foreground);
-    expect(theme.toggleButtonsTheme.selectedBorderColor, colors.border);
+    final control = tester.widget<YaruTabBar>(find.byType(YaruTabBar));
+    expect(control.height, isNull);
+    expect(control.labelColor, isNull);
+    expect(control.unselectedLabelColor, isNull);
+    expect(control.tabController?.index, 0);
     expect(
-      theme.toggleButtonsTheme.borderRadius,
-      BorderRadius.circular(BusyMaxRadius.sm),
+      Theme.of(tester.element(find.byType(YaruTabBar))).platform,
+      TargetPlatform.linux,
     );
 
     final rowRect = tester.getRect(find.byType(BusyMaxTimeModeRow));
-    final controlRect = tester.getRect(find.byType(ToggleButtons));
+    final controlRect = tester.getRect(find.byType(YaruTabBar));
     expect(controlRect.width, rowRect.width);
-    final segmentWidths = tester
-        .widgetList<TextButton>(
-          find.descendant(
-            of: find.byType(ToggleButtons),
-            matching: find.byType(TextButton),
-          ),
-        )
-        .map((button) => tester.getSize(find.byWidget(button)).width)
-        .toList();
-    expect(segmentWidths, hasLength(2));
-    expect(segmentWidths.first, segmentWidths.last);
+    final optionWidths = [
+      for (final label in ['All day', 'Time slot'])
+        tester
+            .getSize(
+              find
+                  .ancestor(
+                    of: find.text(label),
+                    matching: find.byType(InkWell),
+                  )
+                  .first,
+            )
+            .width,
+    ];
+    expect(optionWidths, hasLength(2));
+    expect(optionWidths.first, optionWidths.last);
+
+    await tester.tap(find.text('All day'));
+    await tester.pump();
+    expect(changes, isEmpty);
 
     await tester.tap(find.text('Time slot'));
     await tester.pump();
     expect(changes, [isFalse]);
+    expect(control.tabController?.index, 1);
   });
 
   testWidgets('time mode remains full width when its section is narrow', (
     tester,
   ) async {
     await tester.pumpWidget(
-      localizedTestApp(
-        child: Theme(
-          data: BusyMaxYaruTheme.build(
-            brightness: Brightness.light,
-            accentColor: const Color(0xFF3584E4),
-          ),
-          child: const Scaffold(
-            body: Center(
-              child: SizedBox(
-                width: 420,
-                child: BusyMaxTimeModeRow(allDay: true, onChanged: _ignoreBool),
-              ),
-            ),
+      _timeModeTestApp(
+        const Center(
+          child: SizedBox(
+            width: 420,
+            child: BusyMaxTimeModeRow(allDay: true, onChanged: _ignoreBool),
           ),
         ),
       ),
     );
 
     final rowRect = tester.getRect(find.byType(BusyMaxTimeModeRow));
-    final controlRect = tester.getRect(find.byType(ToggleButtons));
+    final controlRect = tester.getRect(find.byType(YaruTabBar));
     expect(controlRect.width, rowRect.width);
     expect(controlRect.width, 420);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mode switcher follows external selection changes', (
+    tester,
+  ) async {
+    Widget switcher(bool allDay) {
+      return BusyMaxTimeModeRow(allDay: allDay, onChanged: _ignoreBool);
+    }
+
+    await tester.pumpWidget(_timeModeTestApp(switcher(true)));
+    expect(
+      tester.widget<YaruTabBar>(find.byType(YaruTabBar)).tabController?.index,
+      0,
+    );
+
+    await tester.pumpWidget(_timeModeTestApp(switcher(false)));
+    await tester.pump();
+
+    expect(
+      tester.widget<YaruTabBar>(find.byType(YaruTabBar)).tabController?.index,
+      1,
+    );
+  });
+
+  testWidgets('mode switcher restores a rejected external selection', (
+    tester,
+  ) async {
+    final changes = <bool>[];
+    await tester.pumpWidget(
+      _timeModeTestApp(
+        BusyMaxTimeModeRow(allDay: true, onChanged: changes.add),
+      ),
+    );
+
+    await tester.tap(find.text('Time slot'));
+    await tester.pump();
+
+    expect(changes, [isFalse]);
+    expect(
+      tester.widget<YaruTabBar>(find.byType(YaruTabBar)).tabController?.index,
+      0,
+    );
+  });
+
+  testWidgets('mode switcher safely accepts a different choice count', (
+    tester,
+  ) async {
+    Widget switcher(List<int> values) {
+      return BusyMaxModeSwitcher<int>(
+        values: values,
+        selected: 1,
+        labelFor: (value) => 'Mode $value',
+        onSelected: (_) {},
+      );
+    }
+
+    await tester.pumpWidget(_timeModeTestApp(switcher([1, 2])));
+    await tester.pumpWidget(_timeModeTestApp(switcher([1, 2, 3])));
+
+    final control = tester.widget<YaruTabBar>(find.byType(YaruTabBar));
+    expect(control.tabs, hasLength(3));
+    expect(control.tabController?.length, 3);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('mode switcher snapshots and validates domain choices', () {
+    final values = [1, 2];
+    final switcher = BusyMaxModeSwitcher<int>(
+      values: values,
+      selected: 1,
+      labelFor: (value) => '$value',
+      onSelected: (_) {},
+    );
+    values.add(3);
+
+    expect(switcher.values, [1, 2]);
+    expect(
+      () => BusyMaxModeSwitcher<int>(
+        values: const [1],
+        selected: 1,
+        labelFor: (value) => '$value',
+        onSelected: (_) {},
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => BusyMaxModeSwitcher<int>(
+        values: const [1, 1],
+        selected: 1,
+        labelFor: (value) => '$value',
+        onSelected: (_) {},
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => BusyMaxModeSwitcher<int>(
+        values: const [1, 2],
+        selected: 3,
+        labelFor: (value) => '$value',
+        onSelected: (_) {},
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  testWidgets('mode switcher supports desktop keyboard selection', (
+    tester,
+  ) async {
+    final changes = <bool>[];
+    var allDay = true;
+    await tester.pumpWidget(
+      _timeModeTestApp(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return BusyMaxTimeModeRow(
+              allDay: allDay,
+              onChanged: (value) {
+                changes.add(value);
+                setState(() => allDay = value);
+              },
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(changes, [isFalse]);
+  });
+
+  testWidgets('mode switcher announces one selected localized mode', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    var allDay = true;
+    await tester.pumpWidget(
+      _timeModeTestApp(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return BusyMaxTimeModeRow(
+              allDay: allDay,
+              onChanged: (value) => setState(() => allDay = value),
+            );
+          },
+        ),
+      ),
+    );
+
+    var allDayNode = tester.getSemantics(find.text('All day'));
+    var timeSlotNode = tester.getSemantics(find.text('Time slot'));
+    expect(allDayNode.role, ui.SemanticsRole.tab);
+    expect(timeSlotNode.role, ui.SemanticsRole.tab);
+    expect(allDayNode.flagsCollection.isSelected, ui.Tristate.isTrue);
+    expect(timeSlotNode.flagsCollection.isSelected, ui.Tristate.isFalse);
+
+    await tester.tap(find.text('Time slot'));
+    await tester.pump();
+
+    allDayNode = tester.getSemantics(find.text('All day'));
+    timeSlotNode = tester.getSemantics(find.text('Time slot'));
+    expect(allDayNode.flagsCollection.isSelected, ui.Tristate.isFalse);
+    expect(timeSlotNode.flagsCollection.isSelected, ui.Tristate.isTrue);
+    semantics.dispose();
   });
 
   testWidgets('editor header actions are natural width with native loading', (
@@ -1001,8 +1226,16 @@ void main() {
 
 void _ignoreBool(bool value) {}
 
-Finder _dropdownMenuFinder() {
-  return find.byWidgetPredicate((widget) => widget is DropdownMenu);
+Finder _comboTriggerFinder() {
+  return find.byWidgetPredicate(
+    (widget) => widget is ButtonStyleButton && widget is! IconButton,
+  );
+}
+
+Finder _menuItemWithLabel(String label) {
+  return find
+      .ancestor(of: find.text(label), matching: find.byType(PopupMenuItem<int>))
+      .hitTestable();
 }
 
 Widget _testApp(Widget child) {
@@ -1013,6 +1246,18 @@ Widget _testApp(Widget child) {
     ),
     home: Scaffold(
       body: Center(child: SizedBox(width: 480, child: child)),
+    ),
+  );
+}
+
+Widget _timeModeTestApp(Widget child) {
+  return localizedTestApp(
+    child: Theme(
+      data: BusyMaxYaruTheme.build(
+        brightness: Brightness.light,
+        accentColor: const Color(0xFF3584E4),
+      ).copyWith(platform: TargetPlatform.linux),
+      child: Scaffold(body: child),
     ),
   );
 }

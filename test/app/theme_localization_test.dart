@@ -70,44 +70,29 @@ void main() {
       lightSurfaceColors.control,
     );
     expect(
-      light.elevatedButtonTheme.style?.backgroundColor?.resolve({}),
-      _testAccentColor,
-    );
-    expect(light.toggleButtonsTheme.color, lightSurfaceColors.foreground);
-    expect(
-      light.toggleButtonsTheme.selectedColor,
+      light.filledButtonTheme.style?.iconColor?.resolve({}),
       lightSurfaceColors.foreground,
     );
     expect(
-      light.toggleButtonsTheme.fillColor,
-      lightSurfaceColors.controlActive,
-    );
-    expect(light.toggleButtonsTheme.fillColor, isNot(_testAccentColor));
-    expect(light.toggleButtonsTheme.borderColor, lightSurfaceColors.border);
-    expect(
-      light.toggleButtonsTheme.selectedBorderColor,
-      lightSurfaceColors.border,
+      light.elevatedButtonTheme.style?.backgroundColor?.resolve({}),
+      _testAccentColor,
     );
     expect(
-      light.toggleButtonsTheme.borderRadius,
-      BorderRadius.circular(BusyMaxRadius.sm),
+      light.elevatedButtonTheme.style?.iconColor?.resolve({}),
+      light.colorScheme.onPrimary,
     );
-    expect(
-      light.toggleButtonsTheme.highlightColor,
-      yaruBase.toggleButtonsTheme.highlightColor,
-    );
-    expect(
-      light.toggleButtonsTheme.splashColor,
-      yaruBase.toggleButtonsTheme.splashColor,
-    );
-    expect(
-      light.toggleButtonsTheme.focusColor,
-      yaruBase.toggleButtonsTheme.focusColor,
-    );
-    expect(
-      light.toggleButtonsTheme.hoverColor,
-      yaruBase.toggleButtonsTheme.hoverColor,
-    );
+    for (final style in [
+      light.filledButtonTheme.style,
+      light.elevatedButtonTheme.style,
+      light.outlinedButtonTheme.style,
+      light.textButtonTheme.style,
+    ]) {
+      expect(
+        style?.iconColor?.resolve({WidgetState.disabled}),
+        lightSurfaceColors.disabledForeground,
+      );
+    }
+    expect(light.toggleButtonsTheme, yaruBase.toggleButtonsTheme);
     expect(light.floatingActionButtonTheme.backgroundColor, _testAccentColor);
     expect(light.progressIndicatorTheme.color, _testAccentColor);
     expect(light.textSelectionTheme.cursorColor, _testAccentColor);
@@ -256,17 +241,20 @@ void main() {
     expect(lightColors.groupedSurface, const Color(0xFFFFFFFF));
     expect(lightColors.dialog, const Color(0xFFFAFAFB));
     expect(lightColors.popover, const Color(0xFFFFFFFF));
-    expect(darkColors.window, const Color(0xFF2C2C2C));
-    expect(darkColors.view, const Color(0xFF1D1D20));
-    expect(darkColors.sidebar, const Color(0xFF393939));
-    expect(darkColors.secondarySidebar, const Color(0xFF323232));
-    expect(darkColors.headerbar, const Color(0xFF393939));
-    expect(darkColors.card, const Color(0xFF3D3D3D));
-    expect(darkColors.groupedSurface, const Color(0xFF3D3D3D));
-    expect(darkColors.dialog, const Color(0xFF3E3E3E));
-    expect(darkColors.popover, const Color(0xFF3E3E3E));
+    expect(lightColors.control, const Color.fromRGBO(0, 0, 0, 0.10));
+    expect(lightColors.controlHover, const Color.fromRGBO(0, 0, 0, 0.14));
+    expect(lightColors.controlActive, const Color.fromRGBO(0, 0, 0, 0.18));
+    expect(darkColors.window, const Color(0xFF222226));
+    expect(darkColors.view, const Color(0xFF222226));
+    expect(darkColors.sidebar, const Color(0xFF2E2E32));
+    expect(darkColors.secondarySidebar, const Color(0xFF28282C));
+    expect(darkColors.headerbar, const Color(0xFF2E2E32));
+    expect(darkColors.card, const Color(0xFF36363A));
+    expect(darkColors.groupedSurface, const Color(0xFF36363A));
+    expect(darkColors.dialog, const Color(0xFF36363A));
+    expect(darkColors.popover, const Color(0xFF36363A));
     expect(darkColors.sidebarBorder, const Color.fromRGBO(255, 255, 255, 0.10));
-    expect(darkColors.view, isNot(const Color(0xFF3E3E3E)));
+    expect(darkColors.view, isNot(const Color(0xFF36363A)));
     expect(light.scaffoldBackgroundColor, lightColors.window);
     expect(dark.scaffoldBackgroundColor, darkColors.window);
     expect(light.cardColor, lightColors.card);
@@ -726,6 +714,40 @@ void main() {
     expect(theme.popupMenuTheme.shadowColor, isNot(colors.shade));
   });
 
+  test('BusyMax rejects a flat light GTK3 sidebar sample', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFFAFAFA),
+      view: Color(0xFFFAFAFA),
+      sidebar: Color(0xFFFAFAFA),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+
+    expect(
+      colors.sidebar,
+      busyMaxFallbackSurfaceColors(Brightness.light).sidebar,
+    );
+    expect(colors.sidebar, isNot(gtkColors.sidebar));
+  });
+
+  test('BusyMax preserves a distinct light GTK sidebar sample', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFFAFAFA),
+      view: Color(0xFFFFFFFF),
+      sidebar: Color(0xFFE8E8EA),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+
+    expect(colors.sidebar, gtkColors.sidebar);
+  });
+
   test('BusyMax theme preserves dark GTK popover samples', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
@@ -980,6 +1002,45 @@ void main() {
     expect(theme.colorScheme.surfaceContainerHigh, gtkColors.control);
     expect(theme.colorScheme.surfaceContainerHighest, gtkColors.controlHover);
   });
+
+  test('BusyMax theme rejects an imperceptible GTK control ladder', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      control: Color.fromRGBO(0, 0, 0, 0.02),
+      controlHover: Color.fromRGBO(0, 0, 0, 0.04),
+      controlActive: Color.fromRGBO(0, 0, 0, 0.06),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+    final fallback = busyMaxFallbackSurfaceColors(Brightness.light);
+
+    expect(colors.control, fallback.control);
+    expect(colors.controlHover, fallback.controlHover);
+    expect(colors.controlActive, fallback.controlActive);
+  });
+
+  test(
+    'BusyMax theme rejects GTK controls indistinguishable from surfaces',
+    () {
+      const gtkColors = GtkThemeColors(
+        brightness: Brightness.light,
+        control: Color.fromRGBO(255, 255, 255, 0.12),
+        controlHover: Color.fromRGBO(255, 255, 255, 0.18),
+        controlActive: Color.fromRGBO(255, 255, 255, 0.24),
+      );
+      final colors = _buildBusyMaxTheme(
+        brightness: Brightness.light,
+        gtkThemeColors: gtkColors,
+      ).extension<BusyMaxSurfaceColors>()!;
+      final fallback = busyMaxFallbackSurfaceColors(Brightness.light);
+
+      expect(colors.control, fallback.control);
+      expect(colors.controlHover, fallback.controlHover);
+      expect(colors.controlActive, fallback.controlActive);
+    },
+  );
 
   test('BusyMax theme rejects opaque GTK widget samples as overlay roles', () {
     const gtkColors = GtkThemeColors(

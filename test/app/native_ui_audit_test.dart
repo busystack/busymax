@@ -683,7 +683,6 @@ void main() {
       expect(source, contains('gtk_widget_insert_action_group'));
       expect(source, isNot(contains('popdown_header_popover')));
       expect(source, isNot(contains('gtk_popover_set_relative_to')));
-      expect(source, isNot(contains('gtk_popover_popup')));
       expect(source, isNot(contains('"busymax-popover-open"')));
       expect(source, isNot(contains('header_popover_is_open')));
       expect(source, isNot(contains('set_header_popover_open')));
@@ -802,6 +801,8 @@ void main() {
       expect(source, isNot(contains('header_bar_border_color')));
       expect(source, contains('header_bar_sidebar_border_color'));
       expect(source, contains('border-right: 1px solid %s;'));
+      expect(source, contains('modal_sidebar_border_css_color'));
+      expect(source, contains('composite_rgba'));
       expect(source, isNot(contains('header_bar_shade_color')));
       expect(source, contains('header_bar_modal_barrier_color'));
       expect(source, isNot(contains('header_bar_accent_color')));
@@ -974,6 +975,38 @@ void main() {
       expect(source, isNot(contains('"openMenu"')));
     });
 
+    test('Linux content menus are native GTK model popovers', () {
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final service = File(
+        'lib/src/platform/native_menu_service.dart',
+      ).readAsStringSync();
+      final start = runner.indexOf('constexpr char kNativeMenuActionNamespace');
+      final end = runner.indexOf('static void respond_success', start);
+
+      expect(start, isNonNegative);
+      expect(end, greaterThan(start));
+      final nativeMenu = runner.substring(start, end);
+      expect(runner, contains('"busymax/native_menus"'));
+      expect(nativeMenu, contains('gtk_popover_new_from_model('));
+      expect(nativeMenu, contains('gtk_popover_set_pointing_to('));
+      expect(nativeMenu, contains('gtk_popover_set_modal('));
+      expect(nativeMenu, contains('g_simple_action_set_enabled('));
+      expect(nativeMenu, contains('g_simple_action_new_stateful('));
+      expect(nativeMenu, contains('g_object_ref(G_OBJECT(method_call))'));
+      expect(nativeMenu, contains('gtk_popover_popup('));
+      expect(nativeMenu, isNot(contains('gtk_dialog_run(')));
+      expect(nativeMenu, isNot(contains('gtk_menu_new(')));
+      expect(nativeMenu, isNot(contains('gtk_widget_override')));
+      expect(
+        service,
+        contains("const nativeMenuChannelName = 'busymax/native_menus'"),
+      );
+      expect(service, contains("invokeMethod<int>('show'"));
+      expect(service, contains("invokeMethod<bool>('dismiss'"));
+      expect(service, contains('on MissingPluginException'));
+      expect(service, contains('on PlatformException'));
+    });
+
     test('Linux confirmations are native GTK dialogs with a Yaru fallback', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
       final dialogs = File(
@@ -1046,6 +1079,7 @@ void main() {
         contains('".busymax-titlebar .busymax-header-brand {"'),
       );
       expect(headerCss, contains('"border-right: 1px solid %s;"'));
+      expect(headerCss, contains('"border-right-color: %s;"'));
       expect(
         headerCss,
         contains(
@@ -1293,41 +1327,47 @@ void main() {
       expect(source, isNot(contains('return TextTheme(')));
     });
 
-    test('shared menu button preserves Yaru menu geometry and states', () {
+    test('shared menus prefer native GTK with one Yaru-themed fallback', () {
       final source = File('lib/src/app/busymax_design.dart').readAsStringSync();
-      final menuStart = source.indexOf('MenuStyle busyMaxDropdownMenuStyle');
-      final itemStart = source.indexOf(
-        'ButtonStyle busyMaxDropdownMenuItemStyle',
+      final menuStart = source.indexOf(
+        'Future<BusyMaxMenuSelection<T>?> showBusyMaxMenu',
       );
-      final itemEnd = source.indexOf(
-        "/// BusyMax's cross-platform fallback for a native desktop search entry.",
-        itemStart,
+      final triggerStart = source.indexOf(
+        'typedef BusyMaxMenuTriggerBuilder',
+        menuStart,
       );
-      final menuBody = source.substring(menuStart, itemStart);
-      final itemBody = source.substring(itemStart, itemEnd);
+      final menuBody = source.substring(menuStart, triggerStart);
+      final fallbackStart = menuBody.indexOf(
+        'Future<int?> _showBusyMaxFlutterMenu',
+      );
+      final fallbackEnd = menuBody.indexOf(
+        'Widget _busyMaxFallbackMenuEntry',
+        fallbackStart,
+      );
+      final fallbackBody = menuBody.substring(fallbackStart, fallbackEnd);
 
       expect(source, contains('class BusyMaxMenuButton'));
       expect(source, contains('class BusyMaxMenuEntry'));
-      expect(source, contains('builder: (context, controller, child)'));
-      expect(menuBody, contains('Theme.of(context).menuTheme.style'));
-      expect(menuBody, contains('base.copyWith('));
-      expect(menuBody, contains('minimumSize:'));
-      expect(menuBody, isNot(contains('BusyMaxElevation')));
-      expect(menuBody, isNot(contains('RoundedRectangleBorder')));
-      expect(menuBody, isNot(contains('visualDensity:')));
-      expect(itemBody, contains('Theme.of(context).menuButtonTheme.style'));
-      expect(itemBody, isNot(contains('WidgetStateProperty.resolveWith')));
-      expect(itemBody, isNot(contains('backgroundColor:')));
-      expect(source, isNot(contains('_BusyMaxPopupMenuTrigger')));
-      expect(source, isNot(contains('MouseRegion(')));
-      expect(source, isNot(contains('AnimatedContainer(')));
-      expect(
-        source,
-        isNot(contains('context.findRenderObject() as RenderBox')),
-      );
+      expect(menuBody, contains('nativeMenuService.show('));
+      expect(menuBody, contains('if (nativeResult.available)'));
+      expect(menuBody, contains('_showBusyMaxFlutterMenu('));
+      expect(fallbackBody, contains('final selection = showMenu<int>('));
+      expect(fallbackBody, contains('return await selection;'));
+      expect(fallbackBody, contains('session._releaseFallbackRoute();'));
+      expect(fallbackBody, contains('PopupMenuItem<int>('));
+      expect(fallbackBody, contains('YaruRadio<int>('));
+      expect(fallbackBody, contains('inMutuallyExclusiveGroup: true'));
+      expect(fallbackBody, isNot(contains('YaruCheckedPopupMenuItem')));
+      expect(fallbackBody, isNot(contains('MenuAnchor(')));
+      expect(fallbackBody, isNot(contains('MenuItemButton(')));
+      expect(fallbackBody, isNot(contains('DropdownMenu(')));
+      expect(fallbackBody, isNot(contains('shape:')));
+      expect(fallbackBody, isNot(contains('color:')));
+      expect(fallbackBody, isNot(contains('elevation:')));
+      expect(fallbackBody, isNot(contains('constraints:')));
     });
 
-    test('form combo delegates selection geometry to Yaru dropdown theme', () {
+    test('form combo delegates its menu to the shared native adapter', () {
       final source = File('lib/src/app/busymax_design.dart').readAsStringSync();
       final comboStart = source.indexOf('class BusyMaxComboBox');
       final rowStart = source.indexOf('class BusyMaxComboRow');
@@ -1339,19 +1379,15 @@ void main() {
 
       final comboBody = source.substring(comboStart, rowStart);
       final rowBody = source.substring(rowStart, rowEnd);
-      expect(comboBody, contains('DropdownMenu<_BusyMaxComboOption>('));
-      expect(comboBody, contains('selectOnly: true'));
-      expect(comboBody, contains('enableSearch: false'));
-      expect(comboBody, contains('DropdownMenuEntry<_BusyMaxComboOption>('));
-      expect(comboBody, contains('selected: option.index == selectedIndex'));
-      expect(
-        comboBody,
-        contains('trailingIcon: const Icon(YaruIcons.pan_down)'),
-      );
-      expect(
-        comboBody,
-        contains('selectedTrailingIcon: const Icon(YaruIcons.pan_up)'),
-      );
+      expect(comboBody, contains('BusyMaxPushButton.standard('));
+      expect(comboBody, contains('showBusyMaxMenu<T>('));
+      expect(comboBody, contains('BusyMaxMenuEntry('));
+      expect(comboBody, contains('selected: value == selected'));
+      expect(comboBody, contains('NativeMenuService'));
+      expect(comboBody, contains('YaruIcons.pan_down'));
+      expect(comboBody, contains('YaruIcons.pan_up'));
+      expect(comboBody, isNot(contains('DropdownMenu')));
+      expect(comboBody, isNot(contains('DropdownMenuEntry')));
       expect(comboBody, isNot(contains('YaruPopupMenuButton')));
       expect(comboBody, isNot(contains('PopupMenuItem')));
       expect(comboBody, isNot(contains('inputDecorationTheme:')));
@@ -1366,24 +1402,30 @@ void main() {
       expect(rowBody, isNot(contains('opacity: 0.6')));
     });
 
-    test('time mode delegates linked-button visuals to the Yaru theme', () {
+    test('time mode delegates the complete mode control to Yaru', () {
       final source = File('lib/src/app/busymax_design.dart').readAsStringSync();
-      final start = source.indexOf('class BusyMaxTimeModeRow');
+      final start = source.indexOf('class BusyMaxModeSwitcher');
       final end = source.indexOf('class BusyMaxModalEditorScaffold');
 
       expect(start, isNonNegative);
       expect(end, greaterThan(start));
       final body = source.substring(start, end);
-      expect(body, contains('ToggleButtonsTheme.of(context)'));
-      expect(body, contains('ToggleButtons('));
-      expect(body, contains('constraints.maxWidth'));
+      expect(body, contains('return YaruTabBar('));
+      expect(body, contains('YaruTab(label: widget.labelFor(value))'));
+      expect(body, contains('BusyMaxModeSwitcher<bool>('));
       expect(body, isNot(contains('YaruListTile')));
       expect(body, isNot(contains('timeModeDescription')));
       expect(body, isNot(contains('MediaQuery')));
+      expect(body, isNot(contains('ToggleButtons')));
       expect(body, isNot(contains('SegmentedButton')));
+      expect(body, isNot(contains('LayoutBuilder')));
+      expect(body, isNot(contains('BoxConstraints')));
+      expect(body, isNot(contains('constraints.maxWidth')));
       expect(body, isNot(contains('Padding(')));
+      expect(body, isNot(contains('height:')));
       expect(body, isNot(contains('borderRadius:')));
       expect(body, isNot(contains('fillColor:')));
+      expect(body, isNot(contains('labelColor:')));
     });
 
     test('feature code avoids raw Material controls with Yaru replacements', () {
@@ -1410,9 +1452,21 @@ void main() {
             isNot(contains('DropdownButtonFormField')),
             reason: location,
           );
+          expect(
+            _hasRawDropdownMenu(line),
+            isFalse,
+            reason: '$location should use BusyMaxComboBox.',
+          );
+          expect(
+            _hasRawMenuItemButton(line),
+            isFalse,
+            reason: '$location should use BusyMaxMenuEntry.',
+          );
+          expect(line, isNot(contains('ToggleButtons(')), reason: location);
+          expect(line, isNot(contains('SegmentedButton(')), reason: location);
           expect(_hasRawMenuAnchor(file, line), isFalse, reason: location);
           expect(
-            _hasRawPopupMenuButton(file, line),
+            _hasRawPopupMenuButton(line),
             isFalse,
             reason: '$location should use BusyMaxMenuButton.',
           );
@@ -1457,10 +1511,17 @@ Iterable<File> _dartFilesIn(String path) sync* {
   }
 }
 
-bool _hasRawPopupMenuButton(File file, String line) {
+bool _hasRawPopupMenuButton(String line) {
   return line.contains('PopupMenuButton') &&
-      !line.contains('YaruPopupMenuButton') &&
       !line.contains('BusyMaxMenuButton');
+}
+
+bool _hasRawDropdownMenu(String line) {
+  return RegExp(r'\bDropdownMenu(?:<[^>]+>)?\s*\(').hasMatch(line);
+}
+
+bool _hasRawMenuItemButton(String line) {
+  return RegExp(r'\bMenuItemButton(?:<[^>]+>)?\s*\(').hasMatch(line);
 }
 
 bool _hasRawPopupMenuEntry(File file, String line) {
@@ -1487,7 +1548,9 @@ bool _hasRawSwitch(String line) {
 }
 
 bool _hasRawIconButton(String line) {
-  return line.contains('IconButton(') && !line.contains('YaruIconButton(');
+  return line.contains('IconButton(') &&
+      !line.contains('YaruIconButton(') &&
+      !line.contains('BusyMaxPopoverIconButton(');
 }
 
 bool _isAllowedFontSizeException(File file, String line) {
