@@ -1090,6 +1090,26 @@ static gint header_sidebar_effective_width(MyApplication* self) {
   return self->header_bar_sidebar_width;
 }
 
+static gboolean current_gtk_theme_uses_legacy_yaru_shadow() {
+  GtkSettings* settings = gtk_settings_get_default();
+  if (settings == nullptr) {
+    return FALSE;
+  }
+
+  g_autofree gchar* theme_name = nullptr;
+  g_object_get(settings, "gtk-theme-name", &theme_name, nullptr);
+  if (theme_name == nullptr) {
+    return FALSE;
+  }
+
+  g_autofree gchar* normalized_theme = g_ascii_strdown(theme_name, -1);
+  const gboolean is_yaru =
+      g_strcmp0(normalized_theme, "yaru") == 0 ||
+      g_str_has_prefix(normalized_theme, "yaru-");
+  return is_yaru && strstr(normalized_theme, "highcontrast") == nullptr &&
+         strstr(normalized_theme, "high-contrast") == nullptr;
+}
+
 static void refresh_header_bar_css(MyApplication* self) {
   if (!has_header_bar(self) ||
       !is_css_color_token(self->header_bar_background_color)) {
@@ -1133,6 +1153,41 @@ static void refresh_header_bar_css(MyApplication* self) {
       modal_sidebar_border_css_color(sidebar_border_color,
                                      sidebar_background_color,
                                      modal_barrier_color);
+  const gboolean use_yaru_window_decoration_compatibility =
+      !self->header_bar_high_contrast &&
+      current_gtk_theme_uses_legacy_yaru_shadow();
+  const gchar* yaru_window_decoration_css =
+      use_yaru_window_decoration_compatibility
+          ? "window#busymax-window.csd:not(.solid-csd):"
+            "not(.maximized):not(.fullscreen):not(.tiled):"
+            "not(.tiled-top):not(.tiled-right):not(.tiled-bottom):"
+            "not(.tiled-left) > decoration {"
+            // Keep Yaru GTK 3's native diffuse shadow, but omit its legacy
+            // zero-blur outline. Current GTK 4/libadwaita Ubuntu apps use a
+            // much subtler edge, while Handy remains responsible for radius,
+            // clipping, and window-state geometry.
+            "box-shadow: 0 3px 9px 1px rgba(0,0,0,0.5);"
+            "}"
+            "window#busymax-window.csd:not(.solid-csd):"
+            "not(.maximized):not(.fullscreen):not(.tiled):"
+            "not(.tiled-top):not(.tiled-right):not(.tiled-bottom):"
+            "not(.tiled-left) > decoration:backdrop {"
+            "box-shadow: 0 3px 9px 1px transparent,"
+            "0 2px 6px 2px rgba(0,0,0,0.2);"
+            "}"
+            "window#busymax-window.csd.tiled:not(.solid-csd):"
+            "not(.maximized):not(.fullscreen) > decoration,"
+            "window#busymax-window.csd.tiled-top:not(.solid-csd):"
+            "not(.maximized):not(.fullscreen) > decoration,"
+            "window#busymax-window.csd.tiled-right:not(.solid-csd):"
+            "not(.maximized):not(.fullscreen) > decoration,"
+            "window#busymax-window.csd.tiled-bottom:not(.solid-csd):"
+            "not(.maximized):not(.fullscreen) > decoration,"
+            "window#busymax-window.csd.tiled-left:not(.solid-csd):"
+            "not(.maximized):not(.fullscreen) > decoration {"
+            "box-shadow: 0 0 0 20px transparent;"
+            "}"
+          : "";
   GtkWidget* header_bar = GTK_WIDGET(self->header_bar);
   GtkStyleContext* context = gtk_widget_get_style_context(header_bar);
   gtk_style_context_add_class(context, "busymax-flat-headerbar");
@@ -1143,6 +1198,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}"
+      "%s"
       "headerbar.busymax-flat-headerbar,"
       "headerbar.busymax-flat-headerbar:backdrop {"
       "background-color: %s;"
@@ -1221,7 +1277,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: linear-gradient(%s, %s);"
       "}",
-      window_background_color, background_color, foreground_color,
+      window_background_color, yaru_window_decoration_css, background_color,
+      foreground_color,
       sidebar_background_color, foreground_color, sidebar_border_color,
       foreground_color, foreground_color, native_popover_css,
       sidebar_background_color, modal_barrier_color, modal_barrier_color,
@@ -2921,20 +2978,15 @@ static void send_gtk_theme_colors_event(MyApplication* self) {
   }
 }
 
-static void gtk_theme_colors_notify_cb(GObject* object,
-                                       GParamSpec* pspec,
+static void gtk_theme_colors_notify_cb(GObject*,
+                                       GParamSpec*,
                                        gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
+  refresh_header_bar_css(self);
   send_gtk_theme_colors_event(self);
 }
 
-static FlMethodErrorResponse* gtk_theme_colors_listen_cb(
-    FlEventChannel* channel,
-    FlValue* args,
-    gpointer user_data) {
-  MyApplication* self = MY_APPLICATION(user_data);
-  self->gtk_theme_colors_listening = TRUE;
-
+static void connect_gtk_theme_colors_signals(MyApplication* self) {
   GtkSettings* settings = gtk_settings_get_default();
   if (settings != nullptr && self->gtk_theme_name_signal_id == 0) {
     self->gtk_theme_name_signal_id =
@@ -2946,7 +2998,16 @@ static FlMethodErrorResponse* gtk_theme_colors_listen_cb(
         settings, "notify::gtk-application-prefer-dark-theme",
         G_CALLBACK(gtk_theme_colors_notify_cb), self);
   }
+}
 
+static FlMethodErrorResponse* gtk_theme_colors_listen_cb(
+    FlEventChannel* channel,
+    FlValue* args,
+    gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->gtk_theme_colors_listening = TRUE;
+
+  connect_gtk_theme_colors_signals(self);
   send_gtk_theme_colors_event(self);
   return nullptr;
 }
@@ -2957,7 +3018,6 @@ static FlMethodErrorResponse* gtk_theme_colors_cancel_cb(
     gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
   self->gtk_theme_colors_listening = FALSE;
-  disconnect_gtk_theme_colors_signals(self);
   return nullptr;
 }
 
@@ -3605,6 +3665,7 @@ static gboolean my_application_local_command_line(GApplication* application,
 static void my_application_startup(GApplication* application) {
   G_APPLICATION_CLASS(my_application_parent_class)->startup(application);
   hdy_init();
+  connect_gtk_theme_colors_signals(MY_APPLICATION(application));
 }
 
 // Implements GApplication::shutdown.
@@ -3619,6 +3680,7 @@ static void my_application_shutdown(GApplication* application) {
 // Implements GObject::dispose.
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
+  disconnect_gtk_theme_colors_signals(self);
   if (self->header_bar_css_provider != nullptr) {
     gtk_style_context_remove_provider_for_screen(
         gdk_screen_get_default(), GTK_STYLE_PROVIDER(self->header_bar_css_provider));
@@ -3632,7 +3694,6 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->gtk_settings_channel);
   disconnect_gtk_font_settings_signal(self);
   g_clear_object(&self->gtk_font_settings_event_channel);
-  disconnect_gtk_theme_colors_signals(self);
   g_clear_object(&self->gtk_theme_colors_event_channel);
   if (self->main_window != nullptr && GTK_IS_WIDGET(self->main_window)) {
     gtk_widget_insert_action_group(GTK_WIDGET(self->main_window), "header",

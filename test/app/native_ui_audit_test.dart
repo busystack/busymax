@@ -91,6 +91,85 @@ void main() {
     );
 
     test(
+      'Yaru GTK3 window compatibility removes only the legacy frame ring',
+      () {
+        final source = File(
+          'linux/runner/my_application.cc',
+        ).readAsStringSync();
+        final themeGateStart = source.indexOf(
+          'static gboolean current_gtk_theme_uses_legacy_yaru_shadow()',
+        );
+        final refreshStart = source.indexOf(
+          'static void refresh_header_bar_css(MyApplication* self)',
+        );
+        final refreshEnd = source.indexOf(
+          'static void set_css_color_field(',
+          refreshStart,
+        );
+
+        expect(themeGateStart, isNonNegative);
+        expect(refreshStart, greaterThan(themeGateStart));
+        expect(refreshEnd, greaterThan(refreshStart));
+
+        final themeGate = source.substring(themeGateStart, refreshStart);
+        final refresh = source.substring(refreshStart, refreshEnd);
+        final compatibilityStart = refresh.indexOf(
+          'const gchar* yaru_window_decoration_css =',
+        );
+        final compatibilityEnd = refresh.indexOf(
+          'GtkWidget* header_bar',
+          compatibilityStart,
+        );
+
+        expect(themeGate, contains('gtk_settings_get_default()'));
+        expect(themeGate, contains('"gtk-theme-name"'));
+        expect(themeGate, contains('g_ascii_strdown(theme_name, -1)'));
+        expect(themeGate, contains('g_strcmp0(normalized_theme, "yaru")'));
+        expect(
+          themeGate,
+          contains('g_str_has_prefix(normalized_theme, "yaru-")'),
+        );
+        expect(themeGate, contains('strstr(normalized_theme, "highcontrast")'));
+        expect(compatibilityStart, isNonNegative);
+        expect(compatibilityEnd, greaterThan(compatibilityStart));
+
+        final compatibility = refresh.substring(
+          compatibilityStart,
+          compatibilityEnd,
+        );
+
+        expect(refresh, contains('!self->header_bar_high_contrast'));
+        expect(
+          refresh,
+          contains('current_gtk_theme_uses_legacy_yaru_shadow()'),
+        );
+        expect(
+          compatibility,
+          contains('box-shadow: 0 3px 9px 1px rgba(0,0,0,0.5);'),
+        );
+        expect(
+          compatibility,
+          contains('box-shadow: 0 3px 9px 1px transparent,'),
+        );
+        expect(compatibility, contains('0 2px 6px 2px rgba(0,0,0,0.2);'));
+        expect(compatibility, contains('box-shadow: 0 0 0 20px transparent;'));
+        expect(compatibility, contains('not(.solid-csd)'));
+        expect(compatibility, contains('not(.maximized)'));
+        expect(compatibility, contains('not(.fullscreen)'));
+        expect(compatibility, contains('.tiled-top'));
+        expect(compatibility, contains('.tiled-right'));
+        expect(compatibility, contains('.tiled-bottom'));
+        expect(compatibility, contains('.tiled-left'));
+        expect(compatibility, isNot(contains('0 0 0 1px')));
+        expect(compatibility, isNot(contains('border-radius')));
+        expect(
+          compatibility,
+          isNot(contains('gdk_window_shape_combine_region')),
+        );
+      },
+    );
+
+    test(
       'Task Details, Settings, and Agenda use BusyMax Yaru row patterns',
       () {
         final taskDetails = File(
@@ -597,7 +676,11 @@ void main() {
         contains('gtk_widget_set_name(GTK_WIDGET(window), "busymax-window")'),
       );
       expect(source, contains('set_main_flutter_view_background(self)'));
-      expect(source, isNot(contains('window#busymax-window decoration')));
+      expect(
+        source,
+        isNot(contains('window#busymax-window decoration')),
+        reason: 'The compatibility rule must remain direct-child scoped.',
+      );
       expect(source, isNot(contains('main_window_transparent_backing')));
       expect(source, isNot(contains('clear_transparent_window_cb')));
       expect(source, isNot(contains('CAIRO_OPERATOR_CLEAR')));
@@ -1297,7 +1380,39 @@ void main() {
       expect(source, contains('notify::gtk-theme-name'));
       expect(source, contains('notify::gtk-application-prefer-dark-theme'));
       expect(source, contains('send_gtk_theme_colors_event'));
+      expect(source, contains('connect_gtk_theme_colors_signals'));
       expect(source, contains('disconnect_gtk_theme_colors_signals'));
+      final notifyStart = source.indexOf(
+        'static void gtk_theme_colors_notify_cb(',
+      );
+      final listenStart = source.indexOf(
+        'static FlMethodErrorResponse* gtk_theme_colors_listen_cb(',
+      );
+      final cancelStart = source.indexOf(
+        'static FlMethodErrorResponse* gtk_theme_colors_cancel_cb(',
+      );
+      final registerStart = source.indexOf(
+        'static void register_gtk_settings_channel(',
+      );
+      final startupStart = source.indexOf(
+        'static void my_application_startup(GApplication* application)',
+      );
+      final shutdownStart = source.indexOf(
+        'static void my_application_shutdown(GApplication* application)',
+      );
+      expect(notifyStart, isNonNegative);
+      expect(listenStart, greaterThan(notifyStart));
+      expect(cancelStart, greaterThan(listenStart));
+      expect(registerStart, greaterThan(cancelStart));
+      expect(startupStart, greaterThan(registerStart));
+      expect(shutdownStart, greaterThan(startupStart));
+      final notify = source.substring(notifyStart, listenStart);
+      final cancel = source.substring(cancelStart, registerStart);
+      final startup = source.substring(startupStart, shutdownStart);
+      expect(notify, contains('refresh_header_bar_css(self)'));
+      expect(notify, contains('send_gtk_theme_colors_event(self)'));
+      expect(cancel, isNot(contains('disconnect_gtk_theme_colors_signals')));
+      expect(startup, contains('connect_gtk_theme_colors_signals('));
       expect(
         source,
         contains('g_clear_object(&self->gtk_theme_colors_event_channel)'),
