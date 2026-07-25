@@ -162,6 +162,7 @@ class GtkThemeColors {
     this.disabledControl,
     this.border,
     this.divider,
+    this.cardShade,
     this.floatingBorder,
     this.sidebarBorder,
     this.shade,
@@ -189,6 +190,7 @@ class GtkThemeColors {
   final Color? disabledControl;
   final Color? border;
   final Color? divider;
+  final Color? cardShade;
   final Color? floatingBorder;
   final Color? sidebarBorder;
   final Color? shade;
@@ -219,6 +221,7 @@ class GtkThemeColors {
             other.disabledControl == disabledControl &&
             other.border == border &&
             other.divider == divider &&
+            other.cardShade == cardShade &&
             other.floatingBorder == floatingBorder &&
             other.sidebarBorder == sidebarBorder &&
             other.shade == shade;
@@ -248,6 +251,7 @@ class GtkThemeColors {
     disabledControl,
     border,
     divider,
+    cardShade,
     floatingBorder,
     sidebarBorder,
     shade,
@@ -336,6 +340,7 @@ GtkThemeColors? _parseThemeColors(Object? value) {
     disabledControl: _parseColor(value['disabledControl']),
     border: _parseColor(value['border']),
     divider: _parseColor(value['divider']),
+    cardShade: _parseColor(value['cardShade']),
     floatingBorder: _parseColor(value['floatingBorder']),
     sidebarBorder: _parseColor(value['sidebarBorder']),
     shade: _parseColor(value['shade']),

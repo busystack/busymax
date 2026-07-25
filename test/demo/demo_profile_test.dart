@@ -39,9 +39,7 @@ void main() {
   });
 
   test('demo provider graph remains local and owns its database', () async {
-    final profile = await BusyMaxDemoProfile.create(
-      now: DateTime(2026, 7, 23, 10),
-    );
+    final profile = await BusyMaxDemoProfile.create();
     final settings = busyMaxDemoSettings(BusyMaxDemoTheme.system);
     final settingsStore = InMemoryLocalSettingsStore(settings.toJson());
     final container = ProviderContainer(

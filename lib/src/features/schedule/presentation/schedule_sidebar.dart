@@ -237,16 +237,14 @@ class _SourceVisibilityButton extends StatelessWidget {
       checked: value,
       button: true,
       onTap: () => onChanged(!value),
-      child: YaruIconButton(
+      child: BusyMaxHeaderIconButton(
         tooltip: tooltip,
         iconSize: BusyMaxSizes.sidebarActionIcon,
         icon: Icon(YaruIcons.checkmark, color: iconColor),
         onPressed: () => onChanged(!value),
-        style: busyMaxHeaderIconButtonStyle(
-          foregroundColor: iconColor,
-          backgroundColor: busyMaxSubtleButtonBackground(context),
-          overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-        ),
+        foregroundColor: iconColor,
+        backgroundColor: busyMaxSubtleButtonBackground(context),
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
     );
   }
@@ -360,7 +358,7 @@ class _AccountHeaderRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: BusyMaxSpacing.xs),
-          YaruIconButton(
+          BusyMaxHeaderIconButton(
             tooltip: expanded
                 ? MaterialLocalizations.of(context).expandedIconTapHint
                 : MaterialLocalizations.of(context).collapsedIconTapHint,
@@ -371,11 +369,9 @@ class _AccountHeaderRow extends StatelessWidget {
               child: const Icon(YaruIcons.pan_end, size: 16),
             ),
             onPressed: onToggleExpanded,
-            style: busyMaxHeaderIconButtonStyle(
-              foregroundColor: colorScheme.onSurfaceVariant,
-              backgroundColor: busyMaxSubtleButtonBackground(context),
-              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-            ),
+            foregroundColor: colorScheme.onSurfaceVariant,
+            backgroundColor: busyMaxSubtleButtonBackground(context),
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           ),
         ],
       ),

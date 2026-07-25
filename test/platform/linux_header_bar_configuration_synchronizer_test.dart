@@ -124,11 +124,14 @@ BusyMaxHeaderBarConfiguration _configuration({required bool dark}) {
     sidebarWidth: 300,
     theme: BusyMaxHeaderBarTheme(
       preferDark: dark,
+      highContrast: false,
       windowBackgroundColor: dark ? Colors.black : Colors.white,
       backgroundColor: dark ? Colors.black : Colors.white,
       sidebarBackgroundColor: dark ? Colors.black : Colors.white,
       foregroundColor: dark ? Colors.white : Colors.black,
       sidebarBorderColor: Colors.grey,
+      popoverBackgroundColor: dark ? Colors.black : Colors.white,
+      floatingBorderColor: Colors.grey,
       modalBarrierColor: Colors.black54,
     ),
   );

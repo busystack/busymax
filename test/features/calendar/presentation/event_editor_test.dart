@@ -110,6 +110,64 @@ void main() {
     );
   });
 
+  testWidgets('event editor groups use the contextual semantic card layer', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: BusyMaxModalEditorSurface(
+            maxWidth: 640,
+            maxHeight: 720,
+            child: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                start: DateTime.utc(2026, 6, 8),
+                end: DateTime.utc(2026, 6, 8, 1),
+              ),
+              sources: _sources,
+              onCancel: () {},
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final groupedMaterials = tester.widgetList<Material>(
+      find.descendant(
+        of: find.byType(BusyMaxGroupedSurface),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Material && widget.color == colors.card,
+        ),
+      ),
+    );
+    expect(groupedMaterials, isNotEmpty);
+    expect(colors.groupedSurface.a, lessThan(1));
+    expect(colors.card.a, 1);
+    expect(
+      groupedMaterials.every((material) => material.color?.a == 1),
+      isTrue,
+    );
+    expect(
+      Color.alphaBlend(colors.groupedSurface, colors.window).toARGB32(),
+      colors.card.toARGB32(),
+    );
+  });
+
   testWidgets('all-day event hides time rows and conference placeholder', (
     tester,
   ) async {
@@ -959,7 +1017,7 @@ void main() {
     expect(find.text('Add Reminder'), findsNothing);
     expect(
       find.descendant(
-        of: find.byType(BusyMaxComboBox<int>),
+        of: find.byType(BusyMaxComboRow<int>),
         matching: find.text('5 minutes before'),
       ),
       findsOneWidget,
@@ -1392,7 +1450,7 @@ void main() {
     expect(editor, contains('l10n.deleteEvent'));
   });
 
-  testWidgets('combo selector uses the shared Yaru button trigger', (
+  testWidgets('combo selector uses a flat native-style row trigger', (
     tester,
   ) async {
     final theme = BusyMaxYaruTheme.build(
@@ -1418,23 +1476,34 @@ void main() {
       ),
     );
 
-    expect(find.byType(BusyMaxComboBox<String>), findsOneWidget);
+    expect(find.byType(BusyMaxMenuButton<String>), findsOneWidget);
     final triggerFinder = find.descendant(
-      of: find.byType(BusyMaxComboBox<String>),
+      of: find.byType(BusyMaxComboRow<String>),
       matching: find.byWidgetPredicate(
-        (widget) => widget is ButtonStyleButton && widget is! IconButton,
+        (widget) => widget is YaruListTile && widget.focusNode != null,
       ),
     );
-    final trigger = tester.widget<ButtonStyleButton>(triggerFinder);
-    expect(trigger.style, isNull);
-    expect(trigger.onPressed, isNotNull);
-    expect(tester.getSize(triggerFinder).height, kYaruButtonHeight);
+    final trigger = tester.widget<YaruListTile>(triggerFinder);
+    expect(trigger.onTap, isNotNull);
+    expect(
+      tester.getSize(triggerFinder).height,
+      greaterThan(kYaruButtonHeight),
+    );
+    expect(
+      find.descendant(
+        of: find.byType(BusyMaxComboRow<String>),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is ButtonStyleButton && widget is! IconButton,
+        ),
+      ),
+      findsNothing,
+    );
     final restingSurface = tester.widget<Material>(
       find.descendant(of: triggerFinder, matching: find.byType(Material)).first,
     );
-    expect(restingSurface.type, MaterialType.button);
-    expect(restingSurface.color, colors.control);
-    expect(restingSurface.color, isNot(Colors.transparent));
+    expect(restingSurface.type, MaterialType.canvas);
+    expect(restingSurface.color, Colors.transparent);
+    expect(restingSurface.color, isNot(colors.control));
   });
 }
 

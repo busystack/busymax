@@ -96,7 +96,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
-    final borderColor = busyMaxPanelBorder(context);
+    final gridColor = busyMaxCalendarGridColor(context);
     final todayOverlayAlpha = widget.daysShowed == 1 ? 0.0 : 0.035;
     final todayColor = Color.alphaBlend(
       surfaceColors.controlActive.withValues(alpha: todayOverlayAlpha),
@@ -145,7 +145,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         ),
         fullDayEventsBarDecoration: BoxDecoration(
           color: colorScheme.surface,
-          border: Border(bottom: BorderSide(color: borderColor)),
+          border: Border(bottom: BorderSide(color: gridColor)),
         ),
         fullDayBackgroundColor: colorScheme.surface,
         fullDayEventsBuilder: (events, width) {
@@ -203,7 +203,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         dayCustomPainter: (heightPerMinute, isToday) => icv.LinesPainter(
           heightPerMinute: heightPerMinute,
           isToday: isToday,
-          lineColor: borderColor,
+          lineColor: gridColor,
           hourStrokeWidth: 0.7,
           halfStrokeWidth: 0.35,
           quarterStrokeWidth: 0,
@@ -488,7 +488,9 @@ class _PlannerDayHeader extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        border: Border(bottom: BorderSide(color: busyMaxPanelBorder(context))),
+        border: Border(
+          bottom: BorderSide(color: busyMaxCalendarGridColor(context)),
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

@@ -284,6 +284,7 @@ void main() {
             'disabledControl': '#0FFFFFFF',
             'border': '#99000000',
             'divider': '#1AFFFFFF',
+            'cardShade': '#5A101010',
             'floatingBorder': '#24000000',
             'sidebarBorder': '#33000000',
             'shade': '#55000000',
@@ -308,6 +309,7 @@ void main() {
     expect(colors?.accent, const Color(0xFFC061CB));
     expect(colors?.accentForeground, const Color(0xFFFFFFFF));
     expect(colors?.divider, const Color(0x1AFFFFFF));
+    expect(colors?.cardShade, const Color(0x5A101010));
     expect(colors?.floatingBorder, const Color(0x24000000));
   });
 

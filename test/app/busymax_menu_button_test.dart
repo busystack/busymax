@@ -65,12 +65,33 @@ void main() {
       ),
     );
 
+    final triggerFinder = find.ancestor(
+      of: find.byTooltip('Options'),
+      matching: find.byType(YaruIconButton),
+    );
+    var trigger = tester.widget<YaruIconButton>(triggerFinder);
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    expect(trigger.isSelected, isFalse);
+    expect(trigger.style, isNull);
+    final yaruStyle = trigger.defaultStyleOf(tester.element(triggerFinder));
+    expect(yaruStyle.backgroundColor?.resolve({}), isNull);
+    expect(yaruStyle.overlayColor?.resolve({WidgetState.hovered}), isNotNull);
+    expect(yaruStyle.overlayColor?.resolve({WidgetState.pressed}), isNotNull);
+
     await tester.tap(find.byTooltip('Options'));
     await tester.pumpAndSettle();
 
     expect(find.text('Refresh calendar'), findsOneWidget);
     expect(find.text('Open in provider'), findsOneWidget);
-    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    trigger = tester.widget<YaruIconButton>(triggerFinder);
+    expect(trigger.isSelected, isTrue);
+    expect(
+      trigger
+          .defaultStyleOf(tester.element(triggerFinder))
+          .backgroundColor
+          ?.resolve({WidgetState.selected}),
+      isNotNull,
+    );
     expect(find.byType(MenuAnchor), findsNothing);
     expect(find.byType(MenuItemButton), findsNothing);
     expect(
@@ -87,6 +108,8 @@ void main() {
     controller.close();
     await tester.pumpAndSettle();
 
+    trigger = tester.widget<YaruIconButton>(triggerFinder);
+    expect(trigger.isSelected, isFalse);
     expect(find.text('Refresh calendar'), findsNothing);
     expect(selected, isNull);
 
@@ -140,6 +163,7 @@ void main() {
       ),
     );
 
+    final triggerRect = tester.getRect(find.byType(YaruIconButton));
     await tester.tap(find.byTooltip('Options'));
     await tester.pump();
 
@@ -149,7 +173,14 @@ void main() {
     expect(calls, hasLength(1));
     expect(calls.single.method, 'show');
     final arguments = calls.single.arguments! as Map<Object?, Object?>;
-    expect(arguments['anchor'], isA<Map<Object?, Object?>>());
+    final rawAnchor = arguments['anchor']! as Map<Object?, Object?>;
+    final anchor = Rect.fromLTWH(
+      (rawAnchor['x']! as num).toDouble(),
+      (rawAnchor['y']! as num).toDouble(),
+      (rawAnchor['width']! as num).toDouble(),
+      (rawAnchor['height']! as num).toDouble(),
+    );
+    expect(anchor, triggerRect);
     expect(arguments['entries'], [
       {'label': 'Refresh calendar', 'enabled': true, 'selected': true},
       {'label': 'Open in provider', 'enabled': true, 'selected': false},

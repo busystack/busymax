@@ -94,10 +94,55 @@ void main() {
     expect(saveButton.style?.minimumSize, isNull);
   });
 
-  testWidgets('task selectors use the shared native-menu trigger', (
+  testWidgets('task editor groups use the contextual semantic card layer', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      theme: theme,
+      modalEditorSurface: true,
+    );
+
+    final groupedMaterials = tester.widgetList<Material>(
+      find.descendant(
+        of: find.byType(BusyMaxGroupedSurface),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Material && widget.color == colors.card,
+        ),
+      ),
+    );
+    expect(groupedMaterials, isNotEmpty);
+    expect(colors.groupedSurface.a, lessThan(1));
+    expect(colors.card.a, 1);
+    expect(
+      groupedMaterials.every((material) => material.color?.a == 1),
+      isTrue,
+    );
+    expect(
+      Color.alphaBlend(colors.groupedSurface, colors.window).toARGB32(),
+      colors.card.toARGB32(),
+    );
+  });
+
+  testWidgets('task selectors use native combo-row triggers', (tester) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      theme: theme,
+      modalEditorSurface: true,
+    );
 
     final comboRows = find.byType(BusyMaxComboRow<String>);
     final comboCount = comboRows.evaluate().length;
@@ -105,14 +150,16 @@ void main() {
     expect(
       find.descendant(
         of: comboRows,
-        matching: find.byType(BusyMaxComboBox<String>),
+        matching: find.byType(BusyMaxMenuButton<String>),
       ),
       findsNWidgets(comboCount),
     );
     expect(
       find.descendant(
         of: comboRows,
-        matching: find.byType(BusyMaxMenuButton<String>),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is ButtonStyleButton && widget is! IconButton,
+        ),
       ),
       findsNothing,
     );
@@ -130,13 +177,26 @@ void main() {
     final triggers = find.descendant(
       of: comboRows,
       matching: find.byWidgetPredicate(
-        (widget) => widget is ButtonStyleButton && widget is! IconButton,
+        (widget) => widget is YaruListTile && widget.focusNode != null,
       ),
     );
     expect(triggers, findsNWidgets(comboCount));
-    for (final trigger in tester.widgetList<ButtonStyleButton>(triggers)) {
-      expect(trigger.style, isNull);
-      expect(trigger.onPressed, isNotNull);
+    for (var index = 0; index < comboCount; index += 1) {
+      final triggerFinder = triggers.at(index);
+      final trigger = tester.widget<YaruListTile>(triggerFinder);
+      expect(trigger.onTap, isNotNull);
+      expect(
+        trigger.hoverColor,
+        busyMaxRowHoverColor(tester.element(triggerFinder)),
+      );
+      final restingSurface = tester.widget<Material>(
+        find
+            .descendant(of: triggerFinder, matching: find.byType(Material))
+            .first,
+      );
+      expect(restingSurface.type, MaterialType.canvas);
+      expect(restingSurface.color, Colors.transparent);
+      expect(restingSurface.color, isNot(colors.control));
     }
   });
 
@@ -1336,6 +1396,7 @@ Future<void> _pumpDetails(
   String? email,
   Stream<List<AccountEntity>>? accountsStream,
   ThemeData? theme,
+  bool modalEditorSurface = false,
 }) async {
   final accountId =
       accountIdOverride ??
@@ -1402,12 +1463,23 @@ Future<void> _pumpDetails(
         alwaysUse24HourFormat: alwaysUse24HourFormat,
         theme: theme,
         child: Scaffold(
-          body: TaskDetailsPane(
-            accountId: accountId,
-            taskListId: 'list-1',
-            taskId: 'task-1',
-            onClose: onClose,
-          ),
+          body: modalEditorSurface
+              ? BusyMaxModalEditorSurface(
+                  maxWidth: 640,
+                  maxHeight: 1000,
+                  child: TaskDetailsPane(
+                    accountId: accountId,
+                    taskListId: 'list-1',
+                    taskId: 'task-1',
+                    onClose: onClose,
+                  ),
+                )
+              : TaskDetailsPane(
+                  accountId: accountId,
+                  taskListId: 'list-1',
+                  taskId: 'task-1',
+                  onClose: onClose,
+                ),
         ),
       ),
     ),

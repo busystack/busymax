@@ -13,6 +13,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_item_exporte
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
+import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
@@ -59,6 +60,114 @@ void main() {
     expect(find.text('Submit report', skipOffstage: false), findsOneWidget);
     expect(find.byType(icv.EventsMonths), findsNothing);
     expect(find.byType(icv.EventsList), findsNothing);
+  });
+
+  for (final configuration in const [
+    (label: 'day', daysShowed: 1),
+    (label: 'week', daysShowed: 7),
+  ]) {
+    testWidgets(
+      'dark ${configuration.label} grid stays visible with a recessed GTK divider',
+      (tester) async {
+        final selectedDate = DateTime(2026, 1, 15);
+        final theme = _darkCalendarGridTestTheme();
+        final expectedGridColor = theme.colorScheme.onSurface.withValues(
+          alpha: BusyMaxAlpha.calendarGridDark,
+        );
+
+        await tester.pumpWidget(
+          localizedTestApp(
+            theme: theme,
+            child: Scaffold(
+              body: SizedBox(
+                width: 1000,
+                height: 720,
+                child: ScheduleDayWeekView(
+                  range: configuration.daysShowed == 1
+                      ? ScheduleRange.day(selectedDate)
+                      : ScheduleRange.week(selectedDate),
+                  selectedDate: selectedDate,
+                  daysShowed: configuration.daysShowed,
+                  items: _itemsFor(selectedDate),
+                  onDaySelected: (_) {},
+                  onEmptySlot: (_) {},
+                  onItemSelected: (_, _, [_]) {},
+                  onTaskCompletionChanged: (_, _) {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final viewContext = tester.element(find.byType(ScheduleDayWeekView));
+        final planner = tester.widget<icv.EventsPlanner>(
+          find.byType(icv.EventsPlanner),
+        );
+        final painter =
+            planner.dayParam.dayCustomPainter!(1, false) as icv.LinesPainter;
+        final effectiveGridColor = Color.alphaBlend(
+          painter.lineColor,
+          theme.colorScheme.surface,
+        );
+
+        // GTK's generic separator remains a distinct, recessed native role.
+        expect(theme.colorScheme.outlineVariant, _recessedGtkDivider);
+        expect(planner.daysShowed, configuration.daysShowed);
+        expect(busyMaxCalendarGridColor(viewContext), expectedGridColor);
+        expect(painter.lineColor, expectedGridColor);
+        expect(painter.lineColor, isNot(_recessedGtkDivider));
+        expect(
+          effectiveGridColor.computeLuminance(),
+          greaterThan(theme.colorScheme.surface.computeLuminance()),
+        );
+      },
+    );
+  }
+
+  testWidgets('dark month grid uses the shared neutral grid color', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final theme = _darkCalendarGridTestTheme();
+    final expectedGridColor = theme.colorScheme.onSurface.withValues(
+      alpha: BusyMaxAlpha.calendarGridDark,
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDaySelected: (_) {},
+              onCreateAtDay: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final monthCell = tester.widget<DecoratedBox>(
+      find
+          .descendant(
+            of: find.byType(GridView),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    final cellBorder =
+        (monthCell.decoration as BoxDecoration).border! as Border;
+    expect(cellBorder.top.color, expectedGridColor);
+    expect(cellBorder.left.color, expectedGridColor);
   });
 
   testWidgets('day view applies configured display hours to planner scroll', (
@@ -1746,7 +1855,7 @@ void main() {
     expect(design, contains('class BusyMaxPopoverIconButton'));
     expect(design, contains('return Material('));
     expect(design, contains('shape: const CircleBorder()'));
-    expect(design, contains('child: YaruIconButton('));
+    expect(design, contains('class BusyMaxHeaderIconButton'));
     expect(design, contains('iconSize: kYaruTitleBarItemHeight'));
     expect(design, contains('color: enabled ? colors.control'));
     expect(popover, contains('BusyMaxPopoverIconButton('));
@@ -1812,7 +1921,7 @@ void main() {
     );
     expect(design, isNot(contains('final Color? surfaceColor;')));
     expect(design, isNot(contains('color: color ?? surfaceColors.control')));
-    expect(design, contains('color: surfaceColors.groupedSurface'));
+    expect(design, contains('CardTheme.of(context)'));
     expect(design, contains('BusyMaxShadow.physicalColor(context)'));
     expect(design, isNot(contains('lightSurfaceShadowMinimum')));
     expect(design, isNot(contains('class _BusyMaxRowTile')));
@@ -2694,8 +2803,7 @@ void main() {
       'lib/src/features/schedule/presentation/schedule_month_view.dart',
     ).readAsStringSync();
 
-    expect(source, contains('colorScheme.onSurface.withValues'));
-    expect(source, contains('Brightness.dark ? 0.06 : 0.10'));
+    expect(source, contains('busyMaxCalendarGridColor(context)'));
     expect(source, contains('position: DecorationPosition.foreground'));
     expect(source, contains('left: BorderSide(color: border)'));
     expect(source, contains('bottom: row == rows - 1'));
@@ -2735,6 +2843,19 @@ Color _pixelAt(
 
 double _luminanceDistance(Color first, Color second) {
   return (first.computeLuminance() - second.computeLuminance()).abs();
+}
+
+const _recessedGtkDivider = Color.fromRGBO(0, 0, 6, 0.56);
+
+ThemeData _darkCalendarGridTestTheme() {
+  return BusyMaxYaruTheme.build(
+    brightness: Brightness.dark,
+    accentColor: const Color(0xFF3584E4),
+    gtkThemeColors: const GtkThemeColors(
+      brightness: Brightness.dark,
+      divider: _recessedGtkDivider,
+    ),
+  );
 }
 
 List<ScheduleItem> _itemsFor(DateTime day) {

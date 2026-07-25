@@ -216,6 +216,7 @@ class _MiniCalendarWeekNumberButton extends StatelessWidget {
           onPressed: () => onSelected(weekStart),
           style:
               busyMaxHeaderIconButtonStyle(
+                context,
                 foregroundColor: colorScheme.onSurfaceVariant,
                 backgroundColor: busyMaxHeaderButtonBackground(context),
                 overlayColor: const WidgetStatePropertyAll(Colors.transparent),
@@ -469,16 +470,14 @@ class _MiniCalendarStepper extends StatelessWidget {
     required IconData icon,
     required VoidCallback onPressed,
   }) {
-    return YaruIconButton(
+    return BusyMaxHeaderIconButton(
       tooltip: tooltip,
       iconSize: BusyMaxSizes.headerIcon,
       icon: Icon(icon),
       onPressed: onPressed,
-      style: busyMaxHeaderIconButtonStyle(
-        foregroundColor: colorScheme.onSurfaceVariant,
-        backgroundColor: busyMaxHeaderButtonBackground(context),
-        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-      ),
+      foregroundColor: colorScheme.onSurfaceVariant,
+      backgroundColor: busyMaxHeaderButtonBackground(context),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
     );
   }
 
@@ -500,6 +499,7 @@ class _MiniCalendarStepper extends StatelessWidget {
       child: TextButton(
         onPressed: action,
         style: busyMaxHeaderTextButtonStyle(
+          context,
           foregroundColor: colorScheme.onSurfaceVariant,
           backgroundColor: busyMaxHeaderButtonBackground(context),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),

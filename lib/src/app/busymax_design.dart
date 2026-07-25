@@ -36,7 +36,6 @@ abstract final class BusyMaxSizes {
   static const double detailsWidth = 700;
   static const double compactDetailsWidth = 700;
   static const double comboWidth = 220;
-  static const double comboMinWidth = 120;
   static const double toolbarHeight = kYaruTitleBarHeight;
   static const double sidebarRowHeight = 36;
   static const double taskRowMinHeight = 48;
@@ -53,9 +52,7 @@ abstract final class BusyMaxSizes {
 }
 
 abstract final class BusyMaxFormLayout {
-  static const double comboStackBreakpoint = 560;
   static const double comboInlineMaxFraction = 0.46;
-  static const double comboLargeTextScale = 1.2;
 }
 
 abstract final class BusyMaxElevation {
@@ -68,6 +65,8 @@ abstract final class BusyMaxStroke {
 }
 
 abstract final class BusyMaxAlpha {
+  static const double calendarGridLight = 0.10;
+  static const double calendarGridDark = 0.06;
   static const double modalBarrier = 0.32;
 }
 
@@ -198,27 +197,29 @@ class BusyMaxPopoverSurface extends StatelessWidget {
       side: arrowSide,
       alignment: alignment,
     );
+    final paddedChild = Padding(
+      padding: EdgeInsets.only(
+        top: arrowSide == BusyMaxPopoverArrowSide.top ? arrowHeight : 0,
+        bottom: arrowSide == BusyMaxPopoverArrowSide.bottom ? arrowHeight : 0,
+      ),
+      child: Padding(padding: padding, child: child),
+    );
+    final surfaceChild = MediaQuery.highContrastOf(context)
+        ? CustomPaint(
+            foregroundPainter: _BusyMaxPopoverOutlinePainter(
+              clipper: clipper,
+              color: BusyMaxSurfaceColors.of(context).floatingBorder,
+            ),
+            child: paddedChild,
+          )
+        : paddedChild;
     return PhysicalShape(
       clipper: clipper,
       color: color,
       elevation: BusyMaxElevation.tooltip,
       shadowColor: BusyMaxShadow.physicalColor(context),
       clipBehavior: Clip.antiAlias,
-      child: CustomPaint(
-        foregroundPainter: _BusyMaxPopoverOutlinePainter(
-          clipper: clipper,
-          color: BusyMaxSurfaceColors.of(context).floatingBorder,
-        ),
-        child: Padding(
-          padding: EdgeInsets.only(
-            top: arrowSide == BusyMaxPopoverArrowSide.top ? arrowHeight : 0,
-            bottom: arrowSide == BusyMaxPopoverArrowSide.bottom
-                ? arrowHeight
-                : 0,
-          ),
-          child: Padding(padding: padding, child: child),
-        ),
-      ),
+      child: surfaceChild,
     );
   }
 }
@@ -308,11 +309,66 @@ RoundedRectangleBorder busyMaxHeaderButtonShape() {
   );
 }
 
-ButtonStyle busyMaxHeaderIconButtonStyle({
+/// An icon button whose BusyMax semantic state style remains authoritative.
+///
+/// `YaruIconButton` supplies excellent defaults, but in Yaru 10.2 its
+/// internally complete [ButtonStyle] is merged ahead of the caller's style.
+/// That makes caller-provided foreground, background, and overlay state
+/// properties unreachable. This adapter keeps Flutter's native button
+/// interaction model and Yaru's optional keyboard-focus border while allowing
+/// the shared BusyMax header style to resolve those semantic states.
+class BusyMaxHeaderIconButton extends StatelessWidget {
+  const BusyMaxHeaderIconButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+    this.iconSize = BusyMaxSizes.headerIcon,
+    this.foregroundColor,
+    this.backgroundColor,
+    this.overlayColor,
+  });
+
+  final Widget icon;
+  final VoidCallback? onPressed;
+  final String? tooltip;
+  final double iconSize;
+  final Color? foregroundColor;
+  final WidgetStateProperty<Color?>? backgroundColor;
+  final WidgetStateProperty<Color?>? overlayColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = IconButton(
+      tooltip: tooltip,
+      icon: icon,
+      iconSize: iconSize,
+      onPressed: onPressed,
+      style: busyMaxHeaderIconButtonStyle(
+        context,
+        foregroundColor: foregroundColor,
+        backgroundColor: backgroundColor,
+        overlayColor: overlayColor,
+      ),
+    );
+    return YaruTheme.maybeOf(context)?.focusBorders == true
+        ? YaruFocusBorder.primary(
+            borderRadius: BorderRadius.circular(100),
+            child: button,
+          )
+        : button;
+  }
+}
+
+ButtonStyle busyMaxHeaderIconButtonStyle(
+  BuildContext context, {
   Color? foregroundColor,
   WidgetStateProperty<Color?>? backgroundColor,
   WidgetStateProperty<Color?>? overlayColor,
 }) {
+  final disabledForeground = BusyMaxSurfaceColors.of(
+    context,
+  ).disabledForeground;
   return ButtonStyle(
     fixedSize: const WidgetStatePropertyAll(
       Size.square(BusyMaxSizes.headerIconButton),
@@ -325,9 +381,11 @@ ButtonStyle busyMaxHeaderIconButtonStyle({
     ),
     padding: const WidgetStatePropertyAll(EdgeInsets.zero),
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    foregroundColor: foregroundColor == null
-        ? null
-        : WidgetStatePropertyAll(foregroundColor),
+    foregroundColor: WidgetStateProperty.resolveWith((states) {
+      return states.contains(WidgetState.disabled)
+          ? disabledForeground
+          : foregroundColor;
+    }),
     backgroundColor: backgroundColor,
     overlayColor: overlayColor,
     side: const WidgetStatePropertyAll(BorderSide.none),
@@ -335,11 +393,15 @@ ButtonStyle busyMaxHeaderIconButtonStyle({
   );
 }
 
-ButtonStyle busyMaxHeaderTextButtonStyle({
+ButtonStyle busyMaxHeaderTextButtonStyle(
+  BuildContext context, {
   Color? foregroundColor,
   WidgetStateProperty<Color?>? backgroundColor,
   WidgetStateProperty<Color?>? overlayColor,
 }) {
+  final disabledForeground = BusyMaxSurfaceColors.of(
+    context,
+  ).disabledForeground;
   return ButtonStyle(
     minimumSize: const WidgetStatePropertyAll(
       Size(BusyMaxSizes.headerIconButton, BusyMaxSizes.headerIconButton),
@@ -348,9 +410,11 @@ ButtonStyle busyMaxHeaderTextButtonStyle({
       EdgeInsets.symmetric(horizontal: BusyMaxSpacing.md),
     ),
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    foregroundColor: foregroundColor == null
-        ? null
-        : WidgetStatePropertyAll(foregroundColor),
+    foregroundColor: WidgetStateProperty.resolveWith((states) {
+      return states.contains(WidgetState.disabled)
+          ? disabledForeground
+          : foregroundColor;
+    }),
     backgroundColor: backgroundColor,
     overlayColor: overlayColor,
     side: const WidgetStatePropertyAll(BorderSide.none),
@@ -384,7 +448,8 @@ WidgetStateProperty<Color?> busyMaxHeaderButtonBackground(
     if (states.contains(WidgetState.disabled)) {
       return surfaceColors.disabledControl;
     }
-    if (states.contains(WidgetState.pressed)) {
+    if (states.contains(WidgetState.pressed) ||
+        states.contains(WidgetState.selected)) {
       return surfaceColors.controlActive;
     }
     if (states.contains(WidgetState.hovered) ||
@@ -674,6 +739,24 @@ Color busyMaxPanelBorder(BuildContext context) {
   return Theme.of(context).colorScheme.outlineVariant;
 }
 
+/// A low-emphasis separator for repeated calendar cells and time slots.
+///
+/// GTK's generic separator can be recessed (darker than its surface), which
+/// is appropriate for native list separators but makes a dense dark calendar
+/// grid look black. Calendar grids instead use a subtle foreground tint, while
+/// high-contrast themes retain their full-strength semantic outline.
+Color busyMaxCalendarGridColor(BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  if (colorScheme.isHighContrast) {
+    return colorScheme.outlineVariant;
+  }
+  return colorScheme.onSurface.withValues(
+    alpha: colorScheme.brightness == Brightness.dark
+        ? BusyMaxAlpha.calendarGridDark
+        : BusyMaxAlpha.calendarGridLight,
+  );
+}
+
 TextStyle? busyMaxSectionHeaderStyle(BuildContext context) {
   final theme = Theme.of(context);
   return theme.textTheme.titleSmall?.copyWith(
@@ -795,26 +878,41 @@ class BusyMaxSurface extends StatelessWidget {
     required this.child,
     this.filled = true,
     this.color,
-    this.side = BorderSide.none,
+    this.side,
     this.clipBehavior = Clip.antiAlias,
   });
 
   final Widget child;
   final bool filled;
   final Color? color;
-  final BorderSide side;
+  final BorderSide? side;
   final Clip clipBehavior;
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(BusyMaxRadius.md);
+    final cardTheme = CardTheme.of(context);
     final surfaceColors = BusyMaxSurfaceColors.of(context);
+    final fallbackShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(BusyMaxRadius.md),
+    );
+    final themedShape = cardTheme.shape;
+    final ShapeBorder shape;
+    if (themedShape is OutlinedBorder) {
+      shape = side == null ? themedShape : themedShape.copyWith(side: side);
+    } else if (themedShape != null && side == null) {
+      shape = themedShape;
+    } else {
+      shape = fallbackShape.copyWith(side: side ?? BorderSide.none);
+    }
     return Material(
-      color: filled ? color ?? surfaceColors.card : Colors.transparent,
-      elevation: filled ? BusyMaxElevation.card : 0,
-      shadowColor: BusyMaxShadow.physicalColor(context),
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: borderRadius, side: side),
+      color: filled
+          ? color ?? cardTheme.color ?? surfaceColors.card
+          : Colors.transparent,
+      elevation: filled ? cardTheme.elevation ?? BusyMaxElevation.card : 0,
+      shadowColor:
+          cardTheme.shadowColor ?? BusyMaxShadow.physicalColor(context),
+      surfaceTintColor: cardTheme.surfaceTintColor ?? Colors.transparent,
+      shape: shape,
       clipBehavior: clipBehavior,
       child: child,
     );
@@ -833,13 +931,11 @@ class BusyMaxGroupedSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final highContrast = MediaQuery.highContrastOf(context);
     return BusyMaxSurface(
-      color: surfaceColors.groupedSurface,
       side: highContrast
           ? BorderSide(color: Theme.of(context).colorScheme.outline)
-          : BorderSide.none,
+          : null,
       clipBehavior: clipBehavior,
       child: child,
     );
@@ -969,7 +1065,7 @@ class _BusyMaxGroupedListSurface extends StatelessWidget {
         for (var index = 0; index < children.length; index++) ...[
           children[index],
           if (index < children.length - 1)
-            Divider(height: 1, thickness: 1, color: surfaceColors.divider),
+            Divider(height: 1, thickness: 1, color: surfaceColors.cardShade),
         ],
       ],
     );
@@ -1034,8 +1130,13 @@ class _BusyMaxActionRowState extends State<BusyMaxActionRow> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final colors = BusyMaxSurfaceColors.of(context);
     final titleStyle = widget.destructive
-        ? TextStyle(color: colorScheme.error)
+        ? TextStyle(
+            color: widget.enabled
+                ? colorScheme.error
+                : colors.disabledForeground,
+          )
         : null;
     final subtitle =
         widget.subtitleWidget ??
@@ -1511,217 +1612,16 @@ class BusyMaxCalendarNotesCard extends StatelessWidget {
   }
 }
 
-/// A controlled single-selection trigger backed by the host toolkit menu.
+/// A single-selection row following the native AdwComboRow interaction model.
 ///
-/// Linux presents a real GTK menu. If the native bridge is unavailable, the
-/// centralized Yaru-themed fallback is used without changing domain behavior.
-class BusyMaxComboBox<T> extends StatefulWidget {
-  BusyMaxComboBox({
-    super.key,
-    required List<T> values,
-    required this.selected,
-    required this.labelFor,
-    required this.onSelected,
-    required this.width,
-    this.enabled = true,
-    this.tooltip,
-    this.leadingBuilder,
-    this.nativeMenuService = const NativeMenuService(),
-  }) : values = List<T>.unmodifiable(values) {
-    if (this.values.isEmpty) {
-      throw ArgumentError.value(
-        values,
-        'values',
-        'A combo box requires at least one value.',
-      );
-    }
-    if (this.values.toSet().length != this.values.length) {
-      throw ArgumentError.value(
-        values,
-        'values',
-        'A combo box requires unique values.',
-      );
-    }
-    if (!this.values.contains(selected)) {
-      throw ArgumentError.value(
-        selected,
-        'selected',
-        'The selected value must be present in values.',
-      );
-    }
-  }
-
-  final List<T> values;
-  final T selected;
-  final String Function(T value) labelFor;
-  final ValueChanged<T> onSelected;
-  final double width;
-  final bool enabled;
-  final String? tooltip;
-  final Widget Function(BuildContext context, T value)? leadingBuilder;
-  final NativeMenuService nativeMenuService;
-
-  @override
-  State<BusyMaxComboBox<T>> createState() => _BusyMaxComboBoxState<T>();
-}
-
-class _BusyMaxComboBoxState<T> extends State<BusyMaxComboBox<T>> {
-  final _triggerKey = GlobalKey();
-  late final FocusNode _triggerFocusNode;
-  BusyMaxMenuSession? _activeMenuSession;
-  bool _menuOpen = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _triggerFocusNode = FocusNode(
-      debugLabel: 'BusyMax combo trigger',
-      onKeyEvent: _handleTriggerKeyEvent,
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant BusyMaxComboBox<T> oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.enabled && !widget.enabled) {
-      _dismissMenu();
-    }
-  }
-
-  @override
-  void dispose() {
-    final session = _activeMenuSession;
-    _activeMenuSession = null;
-    if (session != null) {
-      unawaited(session.dismiss());
-    }
-    _triggerFocusNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Builder(
-      builder: (triggerContext) {
-        final selector = SizedBox(
-          key: _triggerKey,
-          width: widget.width,
-          child: Semantics(
-            expanded: _menuOpen,
-            child: BusyMaxPushButton.standard(
-              onPressed: widget.enabled
-                  ? () => _openMenu(triggerContext, focusFirst: false)
-                  : null,
-              focusNode: _triggerFocusNode,
-              child: Row(
-                children: [
-                  if (widget.leadingBuilder?.call(context, widget.selected)
-                      case final leading?) ...[
-                    leading,
-                    const SizedBox(width: BusyMaxSpacing.sm),
-                  ],
-                  Expanded(
-                    child: Text(
-                      widget.labelFor(widget.selected),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(_menuOpen ? YaruIcons.pan_up : YaruIcons.pan_down),
-                ],
-              ),
-            ),
-          ),
-        );
-        return widget.tooltip == null
-            ? selector
-            : Tooltip(
-                message: widget.tooltip!,
-                excludeFromSemantics: true,
-                child: selector,
-              );
-      },
-    );
-  }
-
-  KeyEventResult _handleTriggerKeyEvent(FocusNode node, KeyEvent event) {
-    if (!widget.enabled || event is! KeyDownEvent) {
-      return KeyEventResult.ignored;
-    }
-    final key = event.logicalKey;
-    if (key != LogicalKeyboardKey.arrowDown &&
-        key != LogicalKeyboardKey.enter &&
-        key != LogicalKeyboardKey.space) {
-      return KeyEventResult.ignored;
-    }
-    final triggerContext = _triggerKey.currentContext;
-    if (!_menuOpen && triggerContext != null) {
-      unawaited(_openMenu(triggerContext, focusFirst: true));
-    }
-    return KeyEventResult.handled;
-  }
-
-  Future<void> _openMenu(
-    BuildContext triggerContext, {
-    required bool focusFirst,
-  }) async {
-    if (!widget.enabled || _menuOpen) {
-      return;
-    }
-    final values = List<T>.unmodifiable(widget.values);
-    final selected = widget.selected;
-    final labelFor = widget.labelFor;
-    final onSelected = widget.onSelected;
-    final nativeMenuService = widget.nativeMenuService;
-    final session = BusyMaxMenuSession();
-    _activeMenuSession = session;
-    setState(() => _menuOpen = true);
-    BusyMaxMenuSelection<T>? selection;
-    try {
-      selection = await showBusyMaxMenu<T>(
-        context: context,
-        anchorContext: triggerContext,
-        entries: [
-          for (final value in values)
-            BusyMaxMenuEntry(
-              value: value,
-              label: labelFor(value),
-              selected: value == selected,
-            ),
-        ],
-        nativeMenuService: nativeMenuService,
-        session: session,
-        focusFirst: focusFirst,
-      );
-    } finally {
-      if (mounted && identical(_activeMenuSession, session)) {
-        setState(() {
-          _activeMenuSession = null;
-          _menuOpen = false;
-        });
-      }
-    }
-    if (mounted &&
-        !session._isDismissed &&
-        selection != null &&
-        selection.value != selected) {
-      onSelected(selection.value);
-    }
-  }
-
-  void _dismissMenu() {
-    final session = _activeMenuSession;
-    if (session != null) {
-      unawaited(session.dismiss());
-    }
-  }
-}
-
+/// The whole row owns hover, focus, and activation. Its current value remains
+/// plain trailing content, while menu presentation is delegated to the shared
+/// host-toolkit adapter.
 class BusyMaxComboRow<T> extends StatelessWidget {
-  const BusyMaxComboRow({
+  BusyMaxComboRow({
     super.key,
     required this.title,
-    required this.values,
+    required List<T> values,
     required this.selected,
     required this.labelFor,
     required this.onSelected,
@@ -1733,7 +1633,36 @@ class BusyMaxComboRow<T> extends StatelessWidget {
     this.width = BusyMaxSizes.comboWidth,
     this.trailingAction,
     this.selectorLeadingBuilder,
-  });
+  }) : values = List<T>.unmodifiable(values) {
+    if (this.values.isEmpty) {
+      throw ArgumentError.value(
+        values,
+        'values',
+        'A combo row requires at least one value.',
+      );
+    }
+    if (this.values.toSet().length != this.values.length) {
+      throw ArgumentError.value(
+        values,
+        'values',
+        'A combo row requires unique values.',
+      );
+    }
+    if (!this.values.contains(selected)) {
+      throw ArgumentError.value(
+        selected,
+        'selected',
+        'The selected value must be present in values.',
+      );
+    }
+    if (!width.isFinite || width <= 0) {
+      throw ArgumentError.value(
+        width,
+        'width',
+        'The maximum value width must be finite and positive.',
+      );
+    }
+  }
 
   final String title;
   final List<T> values;
@@ -1755,13 +1684,10 @@ class BusyMaxComboRow<T> extends StatelessWidget {
       builder: (context, constraints) {
         final hasError = errorText?.isNotEmpty ?? false;
         final subtitleWidget = hasError
-            ? Semantics(
-                liveRegion: true,
-                child: Text(
-                  errorText!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+            ? Text(
+                errorText!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
                 ),
               )
             : subtitle == null
@@ -1774,122 +1700,136 @@ class BusyMaxComboRow<T> extends StatelessWidget {
                 subtitleWidget,
                 enabled: enabled,
               );
-        final bodyFontSize = Theme.of(context).textTheme.bodyMedium?.fontSize;
-        final textScale = bodyFontSize == null
-            ? 1.0
-            : MediaQuery.textScalerOf(context).scale(bodyFontSize) /
-                  bodyFontSize;
         final actionAllowance = trailingAction == null
             ? 0.0
             : BusyMaxSizes.headerIconButton + BusyMaxSpacing.xs;
-        final stackControl =
-            !constraints.hasBoundedWidth ||
-            constraints.maxWidth < BusyMaxFormLayout.comboStackBreakpoint ||
-            textScale > BusyMaxFormLayout.comboLargeTextScale;
         final availableWidth = constraints.hasBoundedWidth
             ? constraints.maxWidth
             : width + BusyMaxSpacing.md * 2 + actionAllowance;
-        final maximumInlineSelectorWidth =
-            (availableWidth * BusyMaxFormLayout.comboInlineMaxFraction)
-                .clamp(BusyMaxSizes.comboMinWidth, double.infinity)
+        final maximumValueWidth =
+            (availableWidth * BusyMaxFormLayout.comboInlineMaxFraction -
+                    actionAllowance)
+                .clamp(0.0, width)
                 .toDouble();
-        final selectorWidth = stackControl
-            ? (availableWidth - BusyMaxSpacing.md * 2 - actionAllowance)
-                  .clamp(BusyMaxSizes.comboMinWidth, double.infinity)
-                  .toDouble()
-            : constraints.hasBoundedWidth
-            ? width
-                  .clamp(BusyMaxSizes.comboMinWidth, maximumInlineSelectorWidth)
-                  .toDouble()
-            : width
-                  .clamp(BusyMaxSizes.comboMinWidth, double.infinity)
-                  .toDouble();
-        final selector = BusyMaxComboBox<T>(
-          width: selectorWidth,
+        final menuButton = BusyMaxMenuButton<T>(
           tooltip: tooltip ?? title,
-          values: values,
-          selected: selected,
-          labelFor: labelFor,
-          onSelected: onSelected,
-          enabled: enabled,
-          leadingBuilder: selectorLeadingBuilder,
-        );
-        final trailing = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            selector,
-            if (trailingAction != null) ...[
-              const SizedBox(width: BusyMaxSpacing.xs),
-              trailingAction!,
-            ],
+          entries: [
+            for (final value in values)
+              BusyMaxMenuEntry(
+                value: value,
+                label: labelFor(value),
+                selected: value == selected,
+              ),
           ],
-        );
-        final row = stackControl
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  YaruListTile.square(
-                    leading: leading,
-                    titleText: title,
-                    subtitle: styledSubtitle,
-                    enabled: enabled,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      BusyMaxSpacing.md,
-                      0,
-                      BusyMaxSpacing.md,
-                      BusyMaxSpacing.md,
+          onSelected: (value) {
+            if (value != selected) {
+              onSelected(value);
+            }
+          },
+          enabled: enabled,
+          triggerBuilder: (context, trigger) {
+            final colors = BusyMaxSurfaceColors.of(context);
+            final valueForeground = enabled
+                ? colors.foreground
+                : colors.disabledForeground;
+            final value = ExcludeSemantics(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maximumValueWidth),
+                child: DefaultTextStyle.merge(
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: valueForeground),
+                  child: IconTheme.merge(
+                    data: IconThemeData(
+                      color: valueForeground,
+                      size: BusyMaxSizes.iconSm,
                     ),
-                    child: trailing,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (selectorLeadingBuilder?.call(context, selected)
+                            case final selectedLeading?) ...[
+                          selectedLeading,
+                          const SizedBox(width: BusyMaxSpacing.sm),
+                        ],
+                        Flexible(
+                          child: Text(
+                            labelFor(selected),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: BusyMaxSpacing.sm),
+                        trigger.anchor(child: const Icon(YaruIcons.pan_down)),
+                      ],
+                    ),
                   ),
-                ],
-              )
-            : YaruListTile.square(
-                leading: leading,
-                titleText: title,
-                subtitle: styledSubtitle,
-                trailing: trailing,
-                enabled: enabled,
-              );
-        // YaruListTile deliberately expands its title inside a Row, so it
-        // requires a finite horizontal constraint. If dialog content is
-        // measured unbounded, use the compact stacked form and only reserve
-        // the selector's requested width plus the tile padding.
-        final boundedRow = constraints.hasBoundedWidth
-            ? row
-            : SizedBox(width: availableWidth, child: row);
-        final validatedRow = hasError
-            ? Semantics(
-                container: true,
-                validationResult: ui.SemanticsValidationResult.invalid,
-                child: boundedRow,
-              )
-            : boundedRow;
-
-        if (enabled) {
-          return validatedRow;
-        }
-
-        final disabledRow = Semantics(
-          container: true,
-          button: true,
-          enabled: false,
-          label: subtitle == null || subtitle!.isEmpty
-              ? title
-              : '$title, $subtitle',
-          value: labelFor(selected),
-          child: ExcludeSemantics(
-            child: ExcludeFocus(child: IgnorePointer(child: validatedRow)),
-          ),
+                ),
+              ),
+            );
+            final row = YaruListTile.square(
+              leading: leading == null
+                  ? null
+                  : ExcludeSemantics(child: leading!),
+              title: ExcludeSemantics(child: Text(title)),
+              subtitle: styledSubtitle == null
+                  ? null
+                  : ExcludeSemantics(child: styledSubtitle),
+              trailing: value,
+              onTap: trigger.onPressed,
+              focusNode: trigger.focusNode,
+              hoverColor: busyMaxRowHoverColor(context),
+              enabled: enabled,
+            );
+            final semanticRow = Semantics(
+              container: true,
+              button: true,
+              enabled: enabled,
+              expanded: trigger.isOpen,
+              onTap: enabled ? trigger.onPressed : null,
+              label: subtitle == null || subtitle!.isEmpty
+                  ? title
+                  : '$title, $subtitle',
+              value: labelFor(selected),
+              hint: hasError ? errorText : null,
+              liveRegion: hasError,
+              validationResult: hasError
+                  ? ui.SemanticsValidationResult.invalid
+                  : ui.SemanticsValidationResult.valid,
+              child: ExcludeSemantics(child: row),
+            );
+            final interactionRow = trailingAction == null
+                ? semanticRow
+                : Row(
+                    children: [
+                      Expanded(child: semanticRow),
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          end: BusyMaxSpacing.md,
+                        ),
+                        child: trailingAction!,
+                      ),
+                    ],
+                  );
+            final statefulRow = ColoredBox(
+              color: trigger.isOpen
+                  ? busyMaxRowHoverColor(context)
+                  : Colors.transparent,
+              child: interactionRow,
+            );
+            final boundedRow = constraints.hasBoundedWidth
+                ? statefulRow
+                : SizedBox(width: availableWidth, child: statefulRow);
+            return tooltip == null
+                ? boundedRow
+                : Tooltip(
+                    message: tooltip!,
+                    excludeFromSemantics: true,
+                    child: boundedRow,
+                  );
+          },
         );
-        return tooltip == null
-            ? disabledRow
-            : Tooltip(
-                message: tooltip!,
-                excludeFromSemantics: true,
-                child: disabledRow,
-              );
+        return menuButton;
       },
     );
   }
@@ -2025,7 +1965,7 @@ final class BusyMaxMenuSession {
   }
 }
 
-/// Presents a semantic menu at [anchorContext] or [anchorPoint].
+/// Presents a semantic menu at [anchorRect], [anchorContext], or [anchorPoint].
 ///
 /// Linux delegates the menu surface, rows, focus, keyboard navigation, and
 /// dismissal to GTK. The Flutter route exists only for hosts where that
@@ -2035,10 +1975,15 @@ Future<BusyMaxMenuSelection<T>?> showBusyMaxMenu<T>({
   required List<BusyMaxMenuEntry<T>> entries,
   BuildContext? anchorContext,
   Offset? anchorPoint,
+  Rect? anchorRect,
   NativeMenuService nativeMenuService = const NativeMenuService(),
   BusyMaxMenuSession? session,
   bool focusFirst = false,
 }) async {
+  assert(
+    anchorRect == null || (anchorContext == null && anchorPoint == null),
+    'anchorRect cannot be combined with anchorContext or anchorPoint.',
+  );
   if (entries.isEmpty) {
     return null;
   }
@@ -2049,10 +1994,12 @@ Future<BusyMaxMenuSelection<T>?> showBusyMaxMenu<T>({
     return null;
   }
   presentation._beginPresentation(nativeMenuService);
-  final anchor = _busyMaxMenuAnchorRect(
-    anchorContext ?? context,
-    anchorPoint: anchorPoint,
-  );
+  final anchor =
+      anchorRect ??
+      _busyMaxMenuAnchorRect(
+        anchorContext ?? context,
+        anchorPoint: anchorPoint,
+      );
   final nativeResult = await nativeMenuService.show(
     session: presentation._nativeSession,
     anchor: anchor,
@@ -2108,6 +2055,21 @@ Rect _busyMaxMenuAnchorRect(BuildContext anchorContext, {Offset? anchorPoint}) {
     return Rect.zero;
   }
   return renderObject.localToGlobal(Offset.zero) & renderObject.size;
+}
+
+Rect _busyMaxMenuControlAnchorRect({
+  required BuildContext triggerContext,
+  required BuildContext? affordanceContext,
+}) {
+  final triggerRect = _busyMaxMenuAnchorRect(triggerContext);
+  if (affordanceContext == null) {
+    return triggerRect;
+  }
+  final affordanceRect = _busyMaxMenuAnchorRect(affordanceContext);
+  if (triggerRect.isEmpty || affordanceRect.isEmpty) {
+    return triggerRect;
+  }
+  return affordanceRect;
 }
 
 List<NativeMenuEntry> _nativeMenuEntries<T>(List<BusyMaxMenuEntry<T>> entries) {
@@ -2274,11 +2236,35 @@ Widget _busyMaxFallbackMenuEntry<T>(
 }
 
 typedef BusyMaxMenuTriggerBuilder =
-    Widget Function(
-      BuildContext context,
-      VoidCallback? onPressed,
-      FocusNode focusNode,
-    );
+    Widget Function(BuildContext context, BusyMaxMenuTriggerDetails trigger);
+
+/// Interaction and geometry supplied to a custom [BusyMaxMenuButton] trigger.
+///
+/// The trigger may make a larger control clickable while marking the native
+/// relative widget with [anchor]. Menus are positioned from that widget's
+/// exact geometry, matching `GtkPopover.relative-to`.
+@immutable
+class BusyMaxMenuTriggerDetails {
+  const BusyMaxMenuTriggerDetails._({
+    required this.onPressed,
+    required this.focusNode,
+    required this.isOpen,
+    required GlobalKey menuAnchorKey,
+  }) : _menuAnchorKey = menuAnchorKey;
+
+  final VoidCallback? onPressed;
+  final FocusNode focusNode;
+  final bool isOpen;
+  final GlobalKey _menuAnchorKey;
+
+  /// Marks the visual affordance used as the menu's native relative widget.
+  ///
+  /// A custom trigger should call this exactly once. When omitted, the shared
+  /// menu adapter safely falls back to the complete trigger bounds.
+  Widget anchor({required Widget child}) {
+    return KeyedSubtree(key: _menuAnchorKey, child: child);
+  }
+}
 
 /// Controls keyboard-driven opening of a [BusyMaxMenuButton].
 ///
@@ -2363,6 +2349,7 @@ class BusyMaxMenuButton<T> extends StatefulWidget {
 
 class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
   final _triggerKey = GlobalKey();
+  final _menuAnchorKey = GlobalKey();
   late final FocusNode _triggerFocusNode;
   BusyMaxMenuSession? _activeMenuSession;
   bool _menuOpen = false;
@@ -2404,21 +2391,28 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
   @override
   Widget build(BuildContext context) {
     final triggerBuilder = widget.triggerBuilder;
+    final triggerDetails = BusyMaxMenuTriggerDetails._(
+      onPressed: widget.enabled ? _toggleMenu : null,
+      focusNode: _triggerFocusNode,
+      isOpen: _menuOpen,
+      menuAnchorKey: _menuAnchorKey,
+    );
     final trigger = triggerBuilder != null
-        ? triggerBuilder(
-            context,
-            widget.enabled ? _toggleMenu : null,
-            _triggerFocusNode,
-          )
-        : YaruIconButton(
-            tooltip: widget.tooltip,
-            icon: widget.icon,
-            focusNode: _triggerFocusNode,
-            onPressed: widget.enabled ? _toggleMenu : null,
+        ? triggerBuilder(context, triggerDetails)
+        : triggerDetails.anchor(
+            child: YaruIconButton(
+              tooltip: widget.tooltip,
+              icon: widget.icon,
+              focusNode: _triggerFocusNode,
+              isSelected: _menuOpen,
+              onPressed: widget.enabled ? _toggleMenu : null,
+            ),
           );
     return KeyedSubtree(
       key: _triggerKey,
-      child: Semantics(expanded: _menuOpen, child: trigger),
+      child: triggerBuilder == null
+          ? Semantics(expanded: _menuOpen, child: trigger)
+          : trigger,
     );
   }
 
@@ -2469,9 +2463,13 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
 
     BusyMaxMenuSelection<T>? selection;
     try {
+      final anchor = _busyMaxMenuControlAnchorRect(
+        triggerContext: triggerContext,
+        affordanceContext: _menuAnchorKey.currentContext,
+      );
       selection = await showBusyMaxMenu<T>(
         context: context,
-        anchorContext: triggerContext,
+        anchorRect: anchor,
         entries: entries,
         nativeMenuService: nativeMenuService,
         session: session,
@@ -2973,6 +2971,7 @@ class BusyMaxModalEditorSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final editorSurface = Theme.of(context).scaffoldBackgroundColor;
     final effectiveMaxWidth = maxWidth.isFinite
         ? maxWidth.clamp(0.0, double.infinity).toDouble()
         : maxWidth;
@@ -2987,6 +2986,8 @@ class BusyMaxModalEditorSurface extends StatelessWidget {
         : maxHeight!.clamp(0.0, double.infinity).toDouble();
 
     return Dialog(
+      backgroundColor: editorSurface,
+      surfaceTintColor: editorSurface,
       insetPadding: insetPadding,
       insetAnimationDuration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_yaru_theme.dart';
@@ -182,18 +181,16 @@ class _FormatButton extends StatelessWidget {
       message: tooltip,
       child: SizedBox.square(
         dimension: BusyMaxSizes.headerIconButton,
-        child: YaruIconButton(
+        child: BusyMaxHeaderIconButton(
           tooltip: tooltip,
           onPressed: onPressed,
-          style: busyMaxHeaderIconButtonStyle(
-            foregroundColor: Theme.of(context).colorScheme.onSurface,
-            backgroundColor: WidgetStateProperty.resolveWith((states) {
-              if (active || states.contains(WidgetState.hovered)) {
-                return surfaceColors.controlHover;
-              }
-              return Colors.transparent;
-            }),
-          ),
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (active || states.contains(WidgetState.hovered)) {
+              return surfaceColors.controlHover;
+            }
+            return Colors.transparent;
+          }),
           icon: Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(

@@ -231,6 +231,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         sidebarWidth: BusyMaxSizes.sidebarWidth,
         theme: BusyMaxHeaderBarTheme(
           preferDark: preferDark,
+          highContrast: MediaQuery.highContrastOf(context),
           windowBackgroundColor: colors.window,
           // This header is deliberately borderless and visually continuous
           // with the main pane, so it uses the flat header role.
@@ -238,6 +239,8 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           sidebarBackgroundColor: colors.sidebar,
           foregroundColor: colors.foreground,
           sidebarBorderColor: colors.sidebarBorder,
+          popoverBackgroundColor: colors.popover,
+          floatingBorderColor: colors.floatingBorder,
           modalBarrierColor: modalBarrierColor,
         ),
       ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
@@ -15,11 +16,14 @@ final ubuntuSystemAccentColorProvider = StreamProvider<Color>((ref) async* {
   }
 
   final appearance = ref.watch(linuxPortalAppearanceProvider);
-  final initial = await appearance.readAccentColor();
-  if (initial != null) {
-    yield initial;
+  Color? current;
+  await for (final color in appearance.accentColorChanges()) {
+    if (color == current) {
+      continue;
+    }
+    current = color;
+    yield color;
   }
-  yield* appearance.accentColorChanges().distinct();
 });
 
 class LinuxPortalAppearance {
@@ -36,8 +40,10 @@ class LinuxPortalAppearance {
     final client = DBusClient.session();
     try {
       final object = _portalObject(client);
-      return await _readFreedesktopAccent(object) ??
-          await _readGnomeAccentName(object);
+      return await readPreferredLinuxAccentColor(
+        readFreedesktop: () => _readFreedesktopAccent(object),
+        readGnome: () => _readGnomeAccentName(object),
+      );
     } on Object {
       return null;
     } finally {
@@ -55,22 +61,19 @@ class LinuxPortalAppearance {
         name: 'SettingChanged',
         signature: DBusSignature('ssv'),
       );
-      await for (final signal in signals) {
-        final namespace = signal.values[0].asString();
-        final key = signal.values[1].asString();
-        if (key != _accentColor) {
-          continue;
-        }
-        final value = signal.values[2].asVariant();
-        final color = namespace == _freedesktopAppearance
-            ? colorFromPortalAccentValue(value)
-            : namespace == _gnomeInterface
-            ? colorFromUbuntuAccentNameValue(value)
-            : null;
-        if (color != null) {
-          yield color;
-        }
-      }
+      final changes = signals
+          .where((signal) => signal.values[1].asString() == _accentColor)
+          .map(
+            (signal) => (
+              namespace: signal.values[0].asString(),
+              value: signal.values[2].asVariant(),
+            ),
+          );
+      yield* watchPreferredLinuxAccentColors(
+        readFreedesktop: () => _readFreedesktopAccent(object),
+        readGnome: () => _readGnomeAccentName(object),
+        changes: changes,
+      );
     } on Object {
       return;
     } finally {
@@ -110,6 +113,99 @@ class LinuxPortalAppearance {
       DBusString(key),
     ], replySignature: DBusSignature('v'));
     return response.returnValues.single.asVariant();
+  }
+}
+
+/// Reads the exact freedesktop RGB value first, while keeping the Ubuntu
+/// named-accent setting as an independent fallback for older portals.
+@visibleForTesting
+Future<Color?> readPreferredLinuxAccentColor({
+  required Future<Color?> Function() readFreedesktop,
+  required Future<Color?> Function() readGnome,
+}) async {
+  final freedesktopAccent = await _readAccentSafely(readFreedesktop);
+  if (freedesktopAccent != null) {
+    return freedesktopAccent;
+  }
+  return _readAccentSafely(readGnome);
+}
+
+Future<Color?> _readAccentSafely(Future<Color?> Function() read) async {
+  try {
+    return await read();
+  } on Object {
+    return null;
+  }
+}
+
+typedef LinuxAccentSettingChange = ({String namespace, DBusValue value});
+
+/// Watches the modern exact accent and the legacy named fallback as one
+/// ordered source.
+///
+/// The signal subscription is established before the initial snapshot is
+/// read. This prevents a portal update from being lost in the read/subscribe
+/// gap and ensures the same resolver carries exact-RGB authority from the
+/// initial value into all later signals.
+@visibleForTesting
+Stream<Color> watchPreferredLinuxAccentColors({
+  required Future<Color?> Function() readFreedesktop,
+  required Future<Color?> Function() readGnome,
+  required Stream<LinuxAccentSettingChange> changes,
+}) async* {
+  final iterator = StreamIterator<LinuxAccentSettingChange>(changes);
+  var nextChange = iterator.moveNext();
+  try {
+    final freedesktopAccent = await _readAccentSafely(readFreedesktop);
+    final resolver = LinuxAccentChangeResolver(
+      freedesktopAuthoritative: freedesktopAccent != null,
+    );
+    if (freedesktopAccent != null) {
+      yield freedesktopAccent;
+    } else {
+      final gnomeAccent = await _readAccentSafely(readGnome);
+      if (gnomeAccent != null) {
+        yield gnomeAccent;
+      }
+    }
+
+    while (await nextChange) {
+      final change = iterator.current;
+      // Resume the subscription before yielding so subsequent portal updates
+      // are buffered even while the consumer processes this color.
+      nextChange = iterator.moveNext();
+      final color = resolver.resolve(change.namespace, change.value);
+      if (color != null) {
+        yield color;
+      }
+    }
+  } finally {
+    await iterator.cancel();
+  }
+}
+
+/// Resolves portal change signals without allowing an approximate named color
+/// to replace an exact RGB value once the modern freedesktop key is available.
+@visibleForTesting
+class LinuxAccentChangeResolver {
+  LinuxAccentChangeResolver({bool freedesktopAuthoritative = false})
+    : _freedesktopAuthoritative = freedesktopAuthoritative;
+
+  bool _freedesktopAuthoritative;
+
+  Color? resolve(String namespace, DBusValue value) {
+    if (namespace == LinuxPortalAppearance._freedesktopAppearance) {
+      final color = colorFromPortalAccentValue(value);
+      if (color != null) {
+        _freedesktopAuthoritative = true;
+      }
+      return color;
+    }
+    if (namespace == LinuxPortalAppearance._gnomeInterface &&
+        !_freedesktopAuthoritative) {
+      return colorFromUbuntuAccentNameValue(value);
+    }
+    return null;
   }
 }
 

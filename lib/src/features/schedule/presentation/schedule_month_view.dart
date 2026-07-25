@@ -46,9 +46,7 @@ class ScheduleMonthView extends StatelessWidget {
     final month = DateTime(selectedDate.year, selectedDate.month);
     final grouped = ScheduleProjection.groupByDay(items);
     final theme = Theme.of(context);
-    final border = theme.colorScheme.onSurface.withValues(
-      alpha: theme.brightness == Brightness.dark ? 0.06 : 0.10,
-    );
+    final border = busyMaxCalendarGridColor(context);
 
     return Column(
       children: [

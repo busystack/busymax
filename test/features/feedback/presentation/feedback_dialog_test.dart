@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/feedback/presentation/feedback_dialog.dart';
@@ -437,7 +438,7 @@ Future<void> _enterValidRequiredFields(WidgetTester tester) async {
 Finder _feedbackCategoryTrigger() {
   return find.descendant(
     of: find.byKey(const Key('feedback-category')),
-    matching: find.byType(FilledButton),
+    matching: find.byType(BusyMaxMenuButton<FeedbackCategory?>),
   );
 }
 

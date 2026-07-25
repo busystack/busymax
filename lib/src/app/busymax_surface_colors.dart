@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-const _dimLabelOpacity = 0.55;
-
 @immutable
 class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
   const BusyMaxSurfaceColors({
@@ -25,6 +23,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
     required this.disabledControl,
     required this.border,
     required this.divider,
+    required this.cardShade,
     required this.floatingBorder,
     required this.sidebarBorder,
     required this.shade,
@@ -37,6 +36,14 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
   final Color headerbar;
   final Color headerbarFlat;
   final Color card;
+
+  /// Source layer for GTK's boxed-list/card role.
+  ///
+  /// Modern Yaru publishes this role as a translucent layer in dark mode.
+  /// It is retained for semantic color resolution, but must not be painted
+  /// directly by an elevated Flutter [Material]: the physical shadow would
+  /// show through the translucent fill. Use the opaque [card] paint token for
+  /// shared card surfaces.
   final Color groupedSurface;
   final Color dialog;
   final Color popover;
@@ -50,6 +57,12 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
   final Color disabledControl;
   final Color border;
   final Color divider;
+
+  /// Recessed separator used between rows inside a boxed-list/card surface.
+  ///
+  /// This is libadwaita's `card_shade_color`, which is intentionally distinct
+  /// from the generic GTK separator and outline roles.
+  final Color cardShade;
   final Color floatingBorder;
   final Color sidebarBorder;
   final Color shade;
@@ -82,6 +95,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
     Color? disabledControl,
     Color? border,
     Color? divider,
+    Color? cardShade,
     Color? floatingBorder,
     Color? sidebarBorder,
     Color? shade,
@@ -107,6 +121,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
       disabledControl: disabledControl ?? this.disabledControl,
       border: border ?? this.border,
       divider: divider ?? this.divider,
+      cardShade: cardShade ?? this.cardShade,
       floatingBorder: floatingBorder ?? this.floatingBorder,
       sidebarBorder: sidebarBorder ?? this.sidebarBorder,
       shade: shade ?? this.shade,
@@ -147,6 +162,7 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
       disabledControl: Color.lerp(disabledControl, other.disabledControl, t)!,
       border: Color.lerp(border, other.border, t)!,
       divider: Color.lerp(divider, other.divider, t)!,
+      cardShade: Color.lerp(cardShade, other.cardShade, t)!,
       floatingBorder: Color.lerp(floatingBorder, other.floatingBorder, t)!,
       sidebarBorder: Color.lerp(sidebarBorder, other.sidebarBorder, t)!,
       shade: Color.lerp(shade, other.shade, t)!,
@@ -155,26 +171,37 @@ class BusyMaxSurfaceColors extends ThemeExtension<BusyMaxSurfaceColors> {
 }
 
 BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
-  final foreground = switch (brightness) {
-    Brightness.light => const Color.fromRGBO(0, 0, 6, 0.80),
-    Brightness.dark => const Color(0xFFF6F5F4),
+  final window = switch (brightness) {
+    Brightness.light => const Color(0xFFFAFAFA),
+    Brightness.dark => const Color(0xFF2C2C2C),
   };
-  final mutedForeground = foreground.withValues(
-    alpha: foreground.a * _dimLabelOpacity,
-  );
+  final foreground = switch (brightness) {
+    Brightness.light => const Color(0xFF3D3D3D),
+    Brightness.dark => const Color(0xFFF7F7F7),
+  };
+  // Enabled 10–14 px labels consume this role. Keep it opaque so its contrast
+  // remains stable on every semantic surface instead of stacking alpha on an
+  // arbitrary view, dialog, or popover background.
+  final mutedForeground = switch (brightness) {
+    Brightness.light => const Color(0xFF666666),
+    Brightness.dark => const Color(0xFFB5B5B5),
+  };
 
   return switch (brightness) {
     Brightness.light => BusyMaxSurfaceColors(
-      window: Color(0xFFFAFAFB),
+      // Modern Yaru/libadwaita semantic surface roles. GTK 3 does not publish
+      // every modern role, so named theme values replace these fallbacks only
+      // when the bridge can identify the role and the resolver can read it.
+      window: window,
       view: Color(0xFFFFFFFF),
-      sidebar: Color(0xFFEBEBED),
-      secondarySidebar: Color(0xFFF3F3F5),
-      headerbar: Color(0xFFFFFFFF),
+      sidebar: Color(0xFFEBEBEB),
+      secondarySidebar: Color(0xFFF0F0F0),
+      headerbar: Color(0xFFFAFAFA),
       headerbarFlat: Color(0xFFFFFFFF),
       card: Color(0xFFFFFFFF),
       groupedSurface: Color(0xFFFFFFFF),
-      dialog: Color(0xFFFAFAFB),
-      popover: Color(0xFFFFFFFF),
+      dialog: window,
+      popover: Color(0xFFFAFAFA),
       // Match Yaru's contained-button ladder. A weaker resting layer makes
       // standard controls look flat until their hover overlay appears.
       control: Color.fromRGBO(0, 0, 0, 0.10),
@@ -183,41 +210,52 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
       activeToggle: Color(0xFFFFFFFF),
       foreground: foreground,
       mutedForeground: mutedForeground,
-      disabledForeground: Color.fromRGBO(0, 0, 6, 0.38),
+      // Yaru derives disabled content from the semantic foreground rather
+      // than from absolute black. Keep the shared fallback on that same role
+      // so native and Flutter controls resolve to one disabled color.
+      disabledForeground: foreground.withValues(alpha: 0.38),
       disabledControl: Color.fromRGBO(0, 0, 0, 0.04),
-      border: Color.fromRGBO(0, 0, 6, 0.18),
-      divider: Color.fromRGBO(0, 0, 6, 0.10),
-      floatingBorder: Color.fromRGBO(0, 0, 6, 0.10),
-      sidebarBorder: Color.fromRGBO(0, 0, 6, 0.07),
-      shade: Color.fromRGBO(0, 0, 6, 0.07),
+      border: Color.fromRGBO(0, 0, 0, 0.18),
+      divider: Color.fromRGBO(0, 0, 0, 0.10),
+      cardShade: Color.fromRGBO(24, 24, 24, 0.08),
+      floatingBorder: Color.fromRGBO(0, 0, 0, 0.10),
+      sidebarBorder: Color.fromRGBO(24, 24, 24, 0.08),
+      shade: Color.fromRGBO(0, 0, 0, 0.07),
     ),
     Brightness.dark => BusyMaxSurfaceColors(
-      // Current Yaru/libadwaita semantic surface ladder. GTK 3 cannot expose
-      // every libadwaita role reliably, so incompatible legacy samples fall
-      // back to the matching modern surface rather than a hand-tuned shade.
-      window: Color(0xFF222226),
-      view: Color(0xFF222226),
-      sidebar: Color(0xFF2E2E32),
-      secondarySidebar: Color(0xFF28282C),
-      headerbar: Color(0xFF2E2E32),
-      headerbarFlat: Color(0xFF222226),
-      card: Color(0xFF36363A),
-      groupedSurface: Color(0xFF36363A),
-      dialog: Color(0xFF36363A),
-      popover: Color(0xFF36363A),
+      // Modern Yaru/libadwaita semantic surface roles. In particular, native
+      // floating surfaces are raised neutral grays rather than the near-black
+      // widget-class colors reported by legacy GTK 3 sampling.
+      window: window,
+      view: Color(0xFF272727),
+      sidebar: Color(0xFF393939),
+      secondarySidebar: Color(0xFF323232),
+      headerbar: Color(0xFF393939),
+      headerbarFlat: Color(0xFF272727),
+      card: Color(0xFF3D3D3D),
+      // libadwaita/Yaru's card role is a contextual layer, not a fixed dark
+      // gray. It resolves against the semantic surface that contains it.
+      groupedSurface: Color.fromRGBO(255, 255, 255, 0.08),
+      dialog: Color(0xFF3E3E3E),
+      popover: Color(0xFF3E3E3E),
       control: Color.fromRGBO(255, 255, 255, 0.10),
       controlHover: Color.fromRGBO(255, 255, 255, 0.14),
       controlActive: Color.fromRGBO(255, 255, 255, 0.18),
       activeToggle: Color.fromRGBO(255, 255, 255, 0.20),
       foreground: foreground,
       mutedForeground: mutedForeground,
-      disabledForeground: Color.fromRGBO(255, 255, 255, 0.38),
+      disabledForeground: foreground.withValues(alpha: 0.38),
       disabledControl: Color.fromRGBO(255, 255, 255, 0.06),
-      border: Color.fromRGBO(0, 0, 6, 0.75),
+      border: Color.fromRGBO(0, 0, 0, 0.75),
       divider: Color.fromRGBO(255, 255, 255, 0.10),
+      // Modern Yaru uses a 36% near-black recessed edge for dark cards.
+      // Keep the neutral fallback free of the theme's slight blue component.
+      cardShade: Color.fromRGBO(0, 0, 0, 0.36),
       floatingBorder: Color.fromRGBO(255, 255, 255, 0.10),
-      sidebarBorder: Color.fromRGBO(255, 255, 255, 0.10),
-      shade: Color.fromRGBO(0, 0, 6, 0.25),
+      // A sidebar boundary is recessed in Yaru, not highlighted. This exact
+      // fallback mirrors its named semantic role when GTK 3 omits that role.
+      sidebarBorder: Color.fromRGBO(16, 16, 16, 0.35),
+      shade: Color.fromRGBO(0, 0, 0, 0.25),
     ),
   };
 }

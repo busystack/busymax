@@ -8,7 +8,6 @@ import 'busymax_surface_colors.dart';
 
 export 'busymax_surface_colors.dart';
 
-const _minimumRaisedSurfaceContrast = 1.08;
 const _minimumControlSurfaceContrast = 1.02;
 
 abstract final class BusyMaxLinuxPalette {
@@ -44,6 +43,7 @@ class BusyMaxYaruTheme {
     final colors = highContrast
         ? _highContrastSurfaceColors(brightness)
         : resolvedColors;
+    final surfaceContainers = _surfaceContainerLadder(colors, brightness);
     final sampledAccentForeground =
         gtkThemeColors?.brightness == brightness &&
             gtkThemeColors?.accent == accentColor
@@ -75,11 +75,13 @@ class BusyMaxYaruTheme {
       surface: colors.view,
       onSurface: colors.foreground,
       onSurfaceVariant: colors.mutedForeground,
-      surfaceContainerLowest: colors.window,
-      surfaceContainerLow: colors.view,
-      surfaceContainer: colors.card,
-      surfaceContainerHigh: colors.control,
-      surfaceContainerHighest: colors.controlHover,
+      // Generic Material surfaces need opaque elevation roles. The translucent
+      // control ladder belongs exclusively to interactive widget states.
+      surfaceContainerLowest: surfaceContainers.lowest,
+      surfaceContainerLow: surfaceContainers.low,
+      surfaceContainer: surfaceContainers.container,
+      surfaceContainerHigh: surfaceContainers.high,
+      surfaceContainerHighest: surfaceContainers.highest,
       outline: colors.border,
       outlineVariant: colors.divider,
       scrim: BusyMaxLinuxPalette.dark5,
@@ -125,6 +127,7 @@ class BusyMaxYaruTheme {
       _yaruDesktopButtonStyle(base.filledButtonTheme.style),
       foreground: colors.foreground,
       background: colors.control,
+      selectedBackground: colors.controlActive,
       disabledForeground: colors.disabledForeground,
       disabledBackground: colors.disabledControl,
       textStyle: _normalizeTextStyleProperty(
@@ -157,15 +160,36 @@ class BusyMaxYaruTheme {
         fallback: textTheme.labelLarge,
       ),
     );
+    final floatingSurfaceSide = highContrast
+        ? BorderSide(color: colors.border)
+        : BorderSide.none;
     final menuStyle = _semanticMenuSurfaceStyle(
       base.menuTheme.style,
       color: colors.popover,
       shadowColor: colorScheme.shadow,
+      side: floatingSurfaceSide,
     );
     final dropdownMenuStyle = _semanticMenuSurfaceStyle(
       base.dropdownMenuTheme.menuStyle,
       color: colors.popover,
       shadowColor: colorScheme.shadow,
+      side: floatingSurfaceSide,
+    );
+    final cardTheme = base.cardTheme.copyWith(
+      // Elevated Flutter surfaces must be opaque. A translucent card layer
+      // lets PhysicalShape's shadow show through its own fill on Linux,
+      // darkening the card well below the native Yaru result. [colors.card]
+      // is the same semantic GTK layer precomposited over the window/editor
+      // surface by the resolver.
+      color: colors.card,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: colorScheme.shadow,
+      elevation: BusyMaxElevation.card,
+      shape:
+          base.cardTheme.shape ??
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(BusyMaxRadius.md),
+          ),
     );
 
     return base.copyWith(
@@ -176,6 +200,7 @@ class BusyMaxYaruTheme {
       scaffoldBackgroundColor: colors.window,
       canvasColor: colors.window,
       cardColor: colors.card,
+      cardTheme: cardTheme,
       extensions: [
         for (final extension in base.extensions.values)
           if (extension is! BusyMaxSurfaceColors) extension,
@@ -200,12 +225,7 @@ class BusyMaxYaruTheme {
       dialogTheme: base.dialogTheme.copyWith(
         backgroundColor: colors.dialog,
         surfaceTintColor: colors.dialog,
-        shape: highContrast
-            ? _withOutlineSide(
-                base.dialogTheme.shape,
-                BorderSide(color: colors.border),
-              )
-            : base.dialogTheme.shape,
+        shape: _withOutlineSide(base.dialogTheme.shape, floatingSurfaceSide),
         titleTextStyle: normalizer.apply(
           base.dialogTheme.titleTextStyle,
           fallback: textTheme.titleLarge,
@@ -321,12 +341,7 @@ class BusyMaxYaruTheme {
                 : colors.foreground,
           );
         }),
-        shape: highContrast
-            ? _withOutlineSide(
-                base.popupMenuTheme.shape,
-                BorderSide(color: colors.border),
-              )
-            : base.popupMenuTheme.shape,
+        shape: _withOutlineSide(base.popupMenuTheme.shape, floatingSurfaceSide),
       ),
       menuTheme: MenuThemeData(
         style: menuStyle,
@@ -464,6 +479,72 @@ class BusyMaxYaruTheme {
   }
 }
 
+({Color lowest, Color low, Color container, Color high, Color highest})
+_surfaceContainerLadder(BusyMaxSurfaceColors colors, Brightness brightness) {
+  var ladder = <Color>[
+    colors.view,
+    colors.window,
+    colors.secondarySidebar,
+    colors.secondarySidebar,
+    colors.sidebar,
+  ];
+  if (!_isOpaqueMonotonicLadder(ladder, brightness)) {
+    var candidates = <Color>[
+      colors.view,
+      colors.window,
+      colors.secondarySidebar,
+      colors.sidebar,
+    ];
+    if (candidates.any((color) => color.a < 1)) {
+      final fallback = busyMaxFallbackSurfaceColors(brightness);
+      candidates = [
+        fallback.view,
+        fallback.window,
+        fallback.secondarySidebar,
+        fallback.sidebar,
+      ];
+    }
+    candidates.sort((first, second) {
+      final luminanceOrder = first.computeLuminance().compareTo(
+        second.computeLuminance(),
+      );
+      if (luminanceOrder != 0) {
+        return brightness == Brightness.dark ? luminanceOrder : -luminanceOrder;
+      }
+      return first.toARGB32().compareTo(second.toARGB32());
+    });
+    ladder = [
+      candidates[0],
+      candidates[1],
+      candidates[2],
+      candidates[2],
+      candidates[3],
+    ];
+  }
+
+  return (
+    lowest: ladder[0],
+    low: ladder[1],
+    container: ladder[2],
+    high: ladder[3],
+    highest: ladder[4],
+  );
+}
+
+bool _isOpaqueMonotonicLadder(List<Color> ladder, Brightness brightness) {
+  if (ladder.any((color) => color.a < 1)) {
+    return false;
+  }
+  for (var index = 0; index < ladder.length - 1; index++) {
+    final current = ladder[index].computeLuminance();
+    final next = ladder[index + 1].computeLuminance();
+    if (brightness == Brightness.light ? current < next : current > next) {
+      return false;
+    }
+  }
+  return true;
+}
+
 BusyMaxSurfaceColors _highContrastSurfaceColors(Brightness brightness) {
   final background = brightness == Brightness.dark
       ? Colors.black
@@ -496,6 +577,7 @@ BusyMaxSurfaceColors _highContrastSurfaceColors(Brightness brightness) {
     disabledControl: layer(0.06),
     border: foreground,
     divider: foreground,
+    cardShade: foreground,
     floatingBorder: foreground,
     sidebarBorder: foreground,
     shade: Colors.black,
@@ -635,6 +717,7 @@ class _BusyMaxResolvedSurfaceColors {
         _runtimeReadableColor(
           runtime.foreground,
           backgrounds: sampledBackgrounds,
+          requireOpaque: true,
         ) ??
         fallback.foreground;
 
@@ -644,71 +727,46 @@ class _BusyMaxResolvedSurfaceColors {
           : fallbackSurface;
     }
 
-    // BusyMax currently has one generic foreground role. Preserve compatible
-    // GTK roles when that foreground remains readable; raised roles receive
-    // the additional hierarchy validation below.
+    // The Linux bridge only publishes named GTK semantic roles here; legacy
+    // widget-class samples are omitted instead of being mislabeled as modern
+    // surface roles. Preserve every supplied role when the shared foreground
+    // remains readable. Inferring validity from luminance ordering would
+    // reject legitimate custom GTK palettes.
     final window = readableSurface(sampledWindow, fallback.window);
     final view = readableSurface(sampledView, fallback.view);
-    final sidebar = _resolvedSidebarSurface(
-      runtimeSidebar,
-      brightness: brightness,
-      parent: window,
-      adjacent: view,
-      foreground: foreground,
-      fallback: fallback.sidebar,
+    final sidebar = readableSurface(sampledSidebar, fallback.sidebar);
+    final secondarySidebar = readableSurface(
+      sampledSecondarySidebar,
+      fallback.secondarySidebar,
     );
-    final secondarySidebar = _resolvedRaisedSurface(
-      runtimeSecondarySidebar,
-      brightness: brightness,
-      parent: window,
-      foreground: foreground,
-      fallback: fallback.secondarySidebar,
-    );
-    final headerbar = _resolvedRaisedSurface(
-      runtimeHeaderbar,
-      brightness: brightness,
-      parent: window,
-      foreground: foreground,
-      fallback: fallback.headerbar,
-    );
+    final headerbar = readableSurface(sampledHeaderbar, fallback.headerbar);
     final headerbarFlat = readableSurface(
       sampledHeaderbarFlat,
       fallback.headerbarFlat,
     );
-    final card = _resolvedRaisedSurface(
-      runtimeCard,
-      brightness: brightness,
-      parent: window,
+    final card = readableSurface(sampledCard, fallback.card);
+    final dialog = readableSurface(sampledDialog, fallback.dialog);
+    final popover = readableSurface(sampledPopover, fallback.popover);
+    // Preserve GTK's semantic card layer as source data. Modern Yaru makes
+    // this translucent, while [card] above is its opaque window/editor
+    // composition. Elevated Flutter cards must paint that opaque role so
+    // their physical shadow cannot bleed through the fill.
+    final groupedSurface = _resolvedGroupedSurfaceLayer(
+      runtime.card,
+      fallback: fallback.groupedSurface,
       foreground: foreground,
-      fallback: fallback.card,
+      backgrounds: [window, view, dialog, popover],
     );
-    final dialog = _resolvedRaisedSurface(
-      runtimeDialog,
-      brightness: brightness,
-      parent: window,
-      foreground: foreground,
-      fallback: fallback.dialog,
-    );
-    final popover = _resolvedRaisedSurface(
-      runtimePopover,
-      brightness: brightness,
-      parent: window,
-      foreground: foreground,
-      fallback: fallback.popover,
-    );
-    // Boxed/grouped content is one semantic card role. Keeping a single
-    // resolved token prevents Settings, Agenda, and Year view from drifting.
-    final groupedSurface = card;
-    final sidebarBorder = _resolvedSidebarBorder(
-      runtime.sidebarBorder,
-      brightness: brightness,
-      sidebar: sidebar,
-      fallback: fallback.sidebarBorder,
-    );
-    // Inset separators and floating-surface outlines are distinct native
-    // roles. Resolve each GTK sample directly rather than evaluating a shared
-    // color against an unrelated card surface.
+    final effectiveGroupedSurfaces = [
+      for (final background in [window, view, dialog, popover])
+        _surfaceColorOver(groupedSurface, over: background),
+    ];
+    // Sidebar boundaries, inset separators, and floating-surface outlines are
+    // distinct named native roles. Preserve their GTK values directly instead
+    // of rejecting a legitimate recessed edge by its luminance polarity.
+    final runtimeSidebarBorder = _runtimeColor(runtime.sidebarBorder);
     final runtimeDivider = _runtimeColor(runtime.divider);
+    final runtimeCardShade = _runtimeColor(runtime.cardShade);
     final runtimeFloatingBorder = _runtimeColor(runtime.floatingBorder);
     final readableBackgrounds = [
       window,
@@ -726,7 +784,8 @@ class _BusyMaxResolvedSurfaceColors {
       fallback: fallback.mutedForeground,
       guaranteed: foreground,
       backgrounds: readableBackgrounds,
-      minContrast: 3,
+      minContrast: 4.5,
+      requireOpaque: true,
     );
     final disabledForeground = _resolvedReadableColor(
       runtime.disabledForeground,
@@ -740,7 +799,13 @@ class _BusyMaxResolvedSurfaceColors {
       runtimeHover: runtime.controlHover,
       runtimeActive: runtime.controlActive,
       fallback: fallback,
-      backgrounds: [view, sidebar, groupedSurface, dialog, popover],
+      backgrounds: [
+        view,
+        sidebar,
+        dialog,
+        popover,
+        ...effectiveGroupedSurfaces,
+      ],
     );
 
     return fallback.copyWith(
@@ -764,99 +829,31 @@ class _BusyMaxResolvedSurfaceColors {
       disabledControl: _runtimeOverlayColor(runtime.disabledControl),
       border: _runtimeColor(runtime.border),
       divider: runtimeDivider,
+      cardShade: runtimeCardShade,
       floatingBorder: runtimeFloatingBorder,
-      sidebarBorder: sidebarBorder,
+      sidebarBorder: runtimeSidebarBorder,
       shade: _runtimeShadeColor(runtime.shade, over: popover),
     );
   }
 }
 
-Color _resolvedSidebarSurface(
-  Color? runtimeSurface, {
-  required Brightness brightness,
-  required Color parent,
-  required Color adjacent,
-  required Color foreground,
+Color _resolvedGroupedSurfaceLayer(
+  Color? runtimeCard, {
   required Color fallback,
+  required Color foreground,
+  required Iterable<Color> backgrounds,
 }) {
-  bool isReadable(Color color) => _contrastRatio(foreground, color) >= 4.5;
-
-  bool hasExpectedHierarchy(Color color) {
-    final surfaceLuminance = color.computeLuminance();
-    final isOnRaisedSideOfBoth = [parent, adjacent].every((background) {
-      final backgroundLuminance = background.computeLuminance();
-      return brightness == Brightness.dark
-          ? surfaceLuminance > backgroundLuminance
-          : surfaceLuminance < backgroundLuminance;
-    });
-    return isOnRaisedSideOfBoth;
-  }
-
-  if (runtimeSurface != null &&
-      isReadable(runtimeSurface) &&
-      hasExpectedHierarchy(runtimeSurface)) {
-    return runtimeSurface;
-  }
-  if (isReadable(fallback) && hasExpectedHierarchy(fallback)) {
+  final candidate = _runtimeColor(runtimeCard);
+  if (candidate == null) {
     return fallback;
   }
-
-  // A custom palette can invert the fixed fallback hierarchy. Matching the
-  // adjacent content is safer than drawing the sidebar on the wrong side of
-  // either parent surface.
-  return adjacent;
-}
-
-Color _resolvedRaisedSurface(
-  Color? runtimeSurface, {
-  required Brightness brightness,
-  required Color parent,
-  required Color foreground,
-  required Color fallback,
-}) {
-  bool isReadable(Color color) => _contrastRatio(foreground, color) >= 4.5;
-
-  bool hasExpectedHierarchy(Color color) {
-    if (brightness != Brightness.dark) {
-      return true;
+  for (final background in backgrounds) {
+    final effective = _surfaceColorOver(candidate, over: background);
+    if (_contrastRatio(foreground, effective) < 4.5) {
+      return fallback;
     }
-    return color.computeLuminance() > parent.computeLuminance() &&
-        _contrastRatio(color, parent) >= _minimumRaisedSurfaceContrast;
   }
-
-  if (runtimeSurface != null &&
-      isReadable(runtimeSurface) &&
-      hasExpectedHierarchy(runtimeSurface)) {
-    return runtimeSurface;
-  }
-  if (isReadable(fallback) && hasExpectedHierarchy(fallback)) {
-    return fallback;
-  }
-
-  // A fixed fallback may itself be recessed against a brighter custom theme.
-  // Flat is safer than inverting the intended raised hierarchy.
-  return parent;
-}
-
-Color _resolvedSidebarBorder(
-  Color? runtimeBorder, {
-  required Brightness brightness,
-  required Color sidebar,
-  required Color fallback,
-}) {
-  final candidate = _runtimeColor(runtimeBorder);
-  if (candidate == null || brightness != Brightness.dark) {
-    return candidate ?? fallback;
-  }
-  final effective = candidate.a < 1
-      ? Color.alphaBlend(candidate, sidebar)
-      : candidate;
-  // A dark separator sampled from GTK's generic `borders` token becomes a
-  // heavy inset edge on a dark sidebar. Retain native light separators and
-  // use the semantic fallback when the sample is visually recessed.
-  return effective.computeLuminance() < sidebar.computeLuminance()
-      ? fallback
-      : candidate;
+  return candidate;
 }
 
 Color? _runtimeColor(Color? color) {
@@ -947,9 +944,10 @@ Color? _runtimeReadableColor(
   Color? color, {
   required Iterable<Color> backgrounds,
   double minContrast = 4.5,
+  bool requireOpaque = false,
 }) {
   final runtime = _runtimeColor(color);
-  if (runtime == null) {
+  if (runtime == null || (requireOpaque && runtime.a < 1)) {
     return null;
   }
   for (final background in backgrounds) {
@@ -966,16 +964,19 @@ Color _resolvedReadableColor(
   required Color guaranteed,
   required Iterable<Color> backgrounds,
   required double minContrast,
+  bool requireOpaque = false,
 }) {
   return _runtimeReadableColor(
         runtime,
         backgrounds: backgrounds,
         minContrast: minContrast,
+        requireOpaque: requireOpaque,
       ) ??
       _runtimeReadableColor(
         fallback,
         backgrounds: backgrounds,
         minContrast: minContrast,
+        requireOpaque: requireOpaque,
       ) ??
       guaranteed;
 }
@@ -1000,7 +1001,11 @@ Color? _runtimeSurfaceColor(Color? color, {required Color over}) {
   if (runtime == null) {
     return null;
   }
-  return runtime.a < 1 ? Color.alphaBlend(runtime, over) : runtime;
+  return _surfaceColorOver(runtime, over: over);
+}
+
+Color _surfaceColorOver(Color color, {required Color over}) {
+  return color.a < 1 ? Color.alphaBlend(color, over) : color;
 }
 
 String? _validFontFamily(String? family) {
@@ -1101,11 +1106,13 @@ MenuStyle _semanticMenuSurfaceStyle(
   MenuStyle? base, {
   required Color color,
   required Color shadowColor,
+  required BorderSide side,
 }) {
   return (base ?? const MenuStyle()).copyWith(
     backgroundColor: WidgetStatePropertyAll(color),
     surfaceTintColor: WidgetStatePropertyAll(color),
     shadowColor: WidgetStatePropertyAll(shadowColor),
+    side: WidgetStatePropertyAll(side),
   );
 }
 
@@ -1153,6 +1160,7 @@ ButtonStyle _semanticButtonStyle(
   ButtonStyle? base, {
   required Color foreground,
   required Color background,
+  Color? selectedBackground,
   required Color disabledForeground,
   required Color disabledBackground,
   WidgetStateProperty<TextStyle?>? textStyle,
@@ -1174,6 +1182,9 @@ ButtonStyle _semanticButtonStyle(
     backgroundColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.disabled)) {
         return disabledBackground;
+      }
+      if (selectedBackground != null && states.contains(WidgetState.selected)) {
+        return selectedBackground;
       }
       return background;
     }),

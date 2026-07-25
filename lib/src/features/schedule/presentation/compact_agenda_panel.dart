@@ -881,15 +881,13 @@ class _CompactHeaderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return YaruIconButton(
+    return BusyMaxHeaderIconButton(
       tooltip: tooltip,
       icon: Icon(icon),
       iconSize: BusyMaxSizes.iconMd,
       onPressed: onPressed,
-      style: busyMaxHeaderIconButtonStyle(
-        foregroundColor: BusyMaxSurfaceColors.of(context).foreground,
-        backgroundColor: busyMaxSubtleButtonBackground(context),
-      ),
+      foregroundColor: BusyMaxSurfaceColors.of(context).foreground,
+      backgroundColor: busyMaxSubtleButtonBackground(context),
     );
   }
 }

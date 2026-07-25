@@ -96,11 +96,14 @@ void main() {
     await service.setTheme(
       const BusyMaxHeaderBarTheme(
         preferDark: true,
+        highContrast: false,
         windowBackgroundColor: Color(0xFF18181B),
         backgroundColor: Color(0xFF1D1D20),
         sidebarBackgroundColor: Color(0xFF2E2E32),
         foregroundColor: Color(0xFFFFFFFF),
         sidebarBorderColor: Color.fromRGBO(0, 0, 6, 0.75),
+        popoverBackgroundColor: Color(0xFF36363A),
+        floatingBorderColor: Color.fromRGBO(255, 255, 255, 0.10),
         modalBarrierColor: Color.fromRGBO(0, 0, 0, 0.32),
       ),
     );
@@ -139,11 +142,14 @@ void main() {
       calls.last.arguments,
       equals({
         'preferDark': true,
+        'highContrast': false,
         'windowBackgroundColor': '#18181B',
         'backgroundColor': '#1D1D20',
         'sidebarBackgroundColor': '#2E2E32',
         'foregroundColor': '#FFFFFF',
         'sidebarBorderColor': 'rgba(0,0,6,0.75)',
+        'popoverBackgroundColor': '#36363A',
+        'floatingBorderColor': 'rgba(255,255,255,0.10)',
         'modalBarrierColor': 'rgba(0,0,0,0.32)',
       }),
     );
@@ -573,6 +579,47 @@ void main() {
     expect(source, isNot(contains('busymax-search-entry')));
   });
 
+  test('focused native search text wins delayed Dart snapshots', () {
+    final source = File('linux/runner/my_application.cc').readAsStringSync();
+    final stateSetter = RegExp(
+      r'static void set_header_search_state[\s\S]*?'
+      r'(?=^static void set_header_view_mode)',
+      multiLine: true,
+    ).firstMatch(source)?.group(0);
+
+    expect(source, contains('enum class HeaderSearchQueryUpdateDisposition'));
+    expect(
+      source,
+      contains('resolve_header_search_query_update(false, true, true)'),
+    );
+    expect(
+      source,
+      contains('resolve_header_search_query_update(false, true, false)'),
+    );
+    expect(
+      source,
+      contains('HeaderSearchQueryUpdateDisposition::kPreserveNativeText'),
+    );
+    expect(
+      source,
+      contains(
+        'A newer focused native edit must survive a delayed Dart snapshot',
+      ),
+    );
+    expect(source, contains('native_entry_has_authority'));
+    expect(source, isNot(contains('echoes_last_native_query')));
+
+    expect(stateSetter, isNotNull);
+    final queryOffset = stateSetter!.indexOf(
+      'set_header_search_query(self, query, effective_active);',
+    );
+    final activationOffset = stateSetter.indexOf(
+      'self->header_search_active = effective_active;',
+    );
+    expect(queryOffset, isNonNegative);
+    expect(activationOffset, greaterThan(queryOffset));
+  });
+
   test('native header menus delegate row focus modality to GTK', () {
     final source = File('linux/runner/my_application.cc').readAsStringSync();
 
@@ -590,6 +637,8 @@ void main() {
     expect(source, isNot(contains('outline-style: none')));
     expect(source, isNot(contains('transition: none')));
     expect(source, isNot(contains('popover.busymax-header-popover')));
+    expect(source, contains('kNativePopoverStyleClass'));
+    expect(source, contains('style_native_popover(GTK_WIDGET(popover))'));
     expect(source, isNot(contains('tooltip.background')));
     expect(source, isNot(contains('button.busymax-header-popover-row')));
     expect(source, isNot(contains('busymax-keyboard-focus')));

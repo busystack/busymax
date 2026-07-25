@@ -179,30 +179,39 @@ class BusyMaxHeaderBarLabels {
 class BusyMaxHeaderBarTheme {
   const BusyMaxHeaderBarTheme({
     required this.preferDark,
+    required this.highContrast,
     required this.windowBackgroundColor,
     required this.backgroundColor,
     required this.sidebarBackgroundColor,
     required this.foregroundColor,
     required this.sidebarBorderColor,
+    required this.popoverBackgroundColor,
+    required this.floatingBorderColor,
     required this.modalBarrierColor,
   });
 
   final bool preferDark;
+  final bool highContrast;
   final Color windowBackgroundColor;
   final Color backgroundColor;
   final Color sidebarBackgroundColor;
   final Color foregroundColor;
   final Color sidebarBorderColor;
+  final Color popoverBackgroundColor;
+  final Color floatingBorderColor;
   final Color modalBarrierColor;
 
   Map<String, Object> toJson() {
     return <String, Object>{
       'preferDark': preferDark,
+      'highContrast': highContrast,
       'windowBackgroundColor': busyMaxCssColor(windowBackgroundColor),
       'backgroundColor': busyMaxCssColor(backgroundColor),
       'sidebarBackgroundColor': busyMaxCssColor(sidebarBackgroundColor),
       'foregroundColor': busyMaxCssColor(foregroundColor),
       'sidebarBorderColor': busyMaxCssColor(sidebarBorderColor),
+      'popoverBackgroundColor': busyMaxCssColor(popoverBackgroundColor),
+      'floatingBorderColor': busyMaxCssColor(floatingBorderColor),
       'modalBarrierColor': busyMaxCssColor(modalBarrierColor),
     };
   }
@@ -212,22 +221,28 @@ class BusyMaxHeaderBarTheme {
     return identical(this, other) ||
         other is BusyMaxHeaderBarTheme &&
             other.preferDark == preferDark &&
+            other.highContrast == highContrast &&
             other.windowBackgroundColor == windowBackgroundColor &&
             other.backgroundColor == backgroundColor &&
             other.sidebarBackgroundColor == sidebarBackgroundColor &&
             other.foregroundColor == foregroundColor &&
             other.sidebarBorderColor == sidebarBorderColor &&
+            other.popoverBackgroundColor == popoverBackgroundColor &&
+            other.floatingBorderColor == floatingBorderColor &&
             other.modalBarrierColor == modalBarrierColor;
   }
 
   @override
   int get hashCode => Object.hash(
     preferDark,
+    highContrast,
     windowBackgroundColor,
     backgroundColor,
     sidebarBackgroundColor,
     foregroundColor,
     sidebarBorderColor,
+    popoverBackgroundColor,
+    floatingBorderColor,
     modalBarrierColor,
   );
 }

@@ -1,4 +1,5 @@
 import 'package:busymax/src/app/app_theme.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +53,7 @@ void main() {
       expect(surfaces.disabledForeground, isNot(surfaces.foreground));
       expect(surfaces.border, surfaces.foreground);
       expect(surfaces.divider, surfaces.foreground);
+      expect(surfaces.cardShade, surfaces.foreground);
       expect(surfaces.floatingBorder, surfaces.foreground);
       expect(surfaces.sidebarBorder, surfaces.foreground);
       expect(theme.colorScheme.outline, surfaces.foreground);
@@ -73,6 +75,13 @@ void main() {
 
       final popupShape = theme.popupMenuTheme.shape! as OutlineInputBorder;
       expect(popupShape.borderSide.color, surfaces.border);
+      final dialogShape = theme.dialogTheme.shape! as RoundedRectangleBorder;
+      expect(dialogShape.side.color, surfaces.border);
+      expect(theme.menuTheme.style?.side?.resolve({})?.color, surfaces.border);
+      expect(
+        theme.dropdownMenuTheme.menuStyle?.side?.resolve({})?.color,
+        surfaces.border,
+      );
 
       final tooltipDecoration = theme.tooltipTheme.decoration! as BoxDecoration;
       expect(tooltipDecoration.border, isNotNull);
@@ -100,6 +109,35 @@ void main() {
     expect(surfaces.dialog, Colors.white);
     expect(surfaces.popover, Colors.white);
     expect(surfaces.foreground, Colors.black);
+  });
+
+  testWidgets('calendar grids retain the high-contrast outline', (
+    tester,
+  ) async {
+    for (final brightness in Brightness.values) {
+      final theme = buildBusyMaxTheme(
+        brightness: brightness,
+        accentColor: _testAccent,
+        highContrast: true,
+      );
+      Color? gridColor;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Theme(
+            data: theme,
+            child: Builder(
+              builder: (context) {
+                gridColor = busyMaxCalendarGridColor(context);
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(gridColor, theme.colorScheme.outlineVariant);
+    }
   });
 
   test('standard themes retain the requested system accent', () {

@@ -491,7 +491,7 @@ class _EventEditorState extends State<EventEditor> {
               ...minutes.skip(index + 1),
             ]);
           },
-          trailingAction: YaruIconButton(
+          trailingAction: BusyMaxHeaderIconButton(
             tooltip: l10n.removeReminder,
             iconSize: BusyMaxSizes.headerIcon,
             icon: const Icon(YaruIcons.window_close),
@@ -501,11 +501,9 @@ class _EventEditorState extends State<EventEditor> {
                 ...minutes.skip(index + 1),
               ]);
             },
-            style: busyMaxHeaderIconButtonStyle(
-              foregroundColor: colorScheme.onSurfaceVariant,
-              backgroundColor: busyMaxSubtleButtonBackground(context),
-              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-            ),
+            foregroundColor: colorScheme.onSurfaceVariant,
+            backgroundColor: busyMaxSubtleButtonBackground(context),
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           ),
         ),
       if (canAddReminder)

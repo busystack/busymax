@@ -648,23 +648,28 @@ class _SettingsPageSelector extends StatelessWidget {
             ),
         ],
         onSelected: onSelected,
-        triggerBuilder: (context, onPressed, focusNode) {
-          return BusyMaxPushButton.standard(
-            onPressed: onPressed,
-            focusNode: focusNode,
-            child: Row(
-              children: [
-                Icon(_settingsPageIcon(selected)),
-                const SizedBox(width: BusyMaxSpacing.sm),
-                Expanded(
-                  child: Text(
-                    _settingsPageLabel(context, selected),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        triggerBuilder: (context, trigger) {
+          return trigger.anchor(
+            child: Semantics(
+              expanded: trigger.isOpen,
+              child: BusyMaxPushButton.standard(
+                onPressed: trigger.onPressed,
+                focusNode: trigger.focusNode,
+                child: Row(
+                  children: [
+                    Icon(_settingsPageIcon(selected)),
+                    const SizedBox(width: BusyMaxSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        _settingsPageLabel(context, selected),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Icon(YaruIcons.pan_down),
+                  ],
                 ),
-                const Icon(YaruIcons.pan_down),
-              ],
+              ),
             ),
           );
         },
