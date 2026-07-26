@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:busymax/src/app/busymax_about_dialog.dart';
+import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,6 +22,68 @@ void main() {
     expect(find.byIcon(Icons.close), findsOneWidget);
     expect(find.text('Close'), findsNothing);
   });
+
+  for (final (brightness, dialogColor, popoverColor) in const [
+    (Brightness.light, Color(0xFFFAFAFA), Color(0xFFFAFAFA)),
+    (Brightness.dark, Color(0xFF3E3E3E), Color(0xFF3E3E3E)),
+  ]) {
+    testWidgets('about dialog keeps grouped content distinct in $brightness', (
+      tester,
+    ) async {
+      final theme = BusyMaxYaruTheme.build(
+        brightness: brightness,
+        accentColor: const Color(0xFF3584E4),
+      );
+      final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+      await tester.pumpWidget(
+        localizedTestApp(theme: theme, child: const BusyMaxAboutDialog()),
+      );
+
+      final dialogMaterials = tester.widgetList<Material>(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(Material),
+        ),
+      );
+      final groupedMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byType(BusyMaxGroupedSurface),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Material && widget.elevation == BusyMaxElevation.card,
+          ),
+        ),
+      );
+      final expectedGroupedColor = Color.alphaBlend(
+        colors.groupedSurface,
+        colors.dialog,
+      );
+
+      expect(colors.dialog, dialogColor);
+      expect(colors.popover, popoverColor);
+      expect(colors.dialog, isNot(colors.sidebar));
+      expect(
+        dialogMaterials.any((material) => material.color == dialogColor),
+        isTrue,
+      );
+      expect(
+        groupedMaterial.color?.toARGB32(),
+        expectedGroupedColor.toARGB32(),
+      );
+      expect(groupedMaterial.color, isNot(dialogColor));
+      if (brightness == Brightness.dark) {
+        expect(
+          groupedMaterial.color?.toARGB32(),
+          isNot(colors.card.toARGB32()),
+        );
+        expect(
+          groupedMaterial.color!.computeLuminance(),
+          greaterThan(colors.dialog.computeLuminance()),
+        );
+      }
+    });
+  }
 
   test('about links point to BusyStack repository', () {
     final source = File(

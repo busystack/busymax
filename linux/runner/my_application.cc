@@ -59,7 +59,9 @@ constexpr char kDefaultHeaderBarBackgroundColor[] = "#272727";
 constexpr char kDefaultHeaderBarSidebarBackgroundColor[] = "#393939";
 constexpr char kDefaultHeaderBarSidebarBorderColor[] =
     "rgba(16,16,16,0.35)";
+constexpr char kDefaultDialogOutlineColor[] = "rgba(255,255,255,0.07)";
 constexpr char kHeaderControlStyleClass[] = "busymax-header-control";
+constexpr char kNativeDialogStyleClass[] = "busymax-native-dialog";
 constexpr char kNativePopoverStyleClass[] = "busymax-native-popover";
 
 struct _MyApplication {
@@ -85,7 +87,7 @@ struct _MyApplication {
   gchar* header_bar_sidebar_border_color;
   gchar* header_bar_foreground_color;
   gchar* header_bar_popover_background_color;
-  gchar* header_bar_floating_border_color;
+  gchar* header_bar_dialog_outline_color;
   gchar* header_bar_modal_barrier_color;
   gboolean header_bar_high_contrast;
   gint header_bar_sidebar_width;
@@ -278,6 +280,11 @@ static void respond_string(FlMethodCall* method_call, const gchar* value) {
   fl_method_call_respond_success(method_call, result, nullptr);
 }
 
+static void style_native_dialog(GtkWidget* dialog) {
+  gtk_style_context_add_class(gtk_widget_get_style_context(dialog),
+                              kNativeDialogStyleClass);
+}
+
 static void handle_pick_date(FlMethodCall* method_call,
                              FlValue* args,
                              GtkWindow* parent) {
@@ -289,6 +296,7 @@ static void handle_pick_date(FlMethodCall* method_call,
       title != nullptr ? title : "Date", parent, GTK_DIALOG_MODAL,
       cancel_label != nullptr ? cancel_label : "_Cancel", GTK_RESPONSE_CANCEL,
       ok_label != nullptr ? ok_label : "_OK", GTK_RESPONSE_OK, nullptr);
+  style_native_dialog(dialog);
   gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
   GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
@@ -380,6 +388,7 @@ static void handle_native_confirmation(FlMethodCall* method_call,
                                   GTK_DIALOG_DESTROY_WITH_PARENT),
       destructive ? GTK_MESSAGE_WARNING : GTK_MESSAGE_QUESTION,
       GTK_BUTTONS_NONE, "%s", title != nullptr ? title : "");
+  style_native_dialog(dialog);
   if (message != nullptr && message[0] != '\0') {
     gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s",
                                              message);
@@ -1128,12 +1137,6 @@ static void refresh_header_bar_css(MyApplication* self) {
       kDefaultHeaderBarSidebarBorderColor);
   const gchar* foreground_color = css_color_or(
       self->header_bar_foreground_color, "rgba(255,255,255,0.86)");
-  const gchar* floating_border_color = css_color_or(
-      self->header_bar_floating_border_color, foreground_color);
-  g_autofree gchar* native_popover_border_css =
-      self->header_bar_high_contrast
-          ? g_strdup_printf("border-color: %s;", floating_border_color)
-          : g_strdup("border: none;");
   g_autofree gchar* native_popover_css =
       is_css_color_token(self->header_bar_popover_background_color)
           ? g_strdup_printf(
@@ -1141,12 +1144,25 @@ static void refresh_header_bar_css(MyApplication* self) {
                 "popover.background.%s:backdrop {"
                 "background-color: %s;"
                 "background-image: none;"
-                "%s"
                 "}",
                 kNativePopoverStyleClass, kNativePopoverStyleClass,
-                self->header_bar_popover_background_color,
-                native_popover_border_css)
+                self->header_bar_popover_background_color)
           : g_strdup("");
+  g_autofree gchar* native_dialog_css = g_strdup_printf(
+      ".%s,.%s:backdrop {"
+      "background-color: %s;"
+      "background-image: none;"
+      "}"
+      ".%s.csd:not(.solid-csd):not(.maximized):not(.fullscreen) {"
+      // GTK 3 has no named modern dialog-outline role. Flutter supplies the
+      // shared semantic token so native confirmations and in-window dialogs
+      // retain the same restrained inside edge.
+      "box-shadow: inset 0 0 0 1px %s;"
+      "}",
+      kNativeDialogStyleClass, kNativeDialogStyleClass,
+      window_background_color, kNativeDialogStyleClass,
+      css_color_or(self->header_bar_dialog_outline_color,
+                   kDefaultDialogOutlineColor));
   const gchar* modal_barrier_color = css_color_or(
       self->header_bar_modal_barrier_color, "rgba(0,0,0,0.32)");
   g_autofree gchar* modal_sidebar_border_color =
@@ -1156,38 +1172,50 @@ static void refresh_header_bar_css(MyApplication* self) {
   const gboolean use_yaru_window_decoration_compatibility =
       !self->header_bar_high_contrast &&
       current_gtk_theme_uses_legacy_yaru_shadow();
-  const gchar* yaru_window_decoration_css =
+  g_autofree gchar* yaru_window_decoration_css =
       use_yaru_window_decoration_compatibility
-          ? "window#busymax-window.csd:not(.solid-csd):"
-            "not(.maximized):not(.fullscreen):not(.tiled):"
-            "not(.tiled-top):not(.tiled-right):not(.tiled-bottom):"
-            "not(.tiled-left) > decoration {"
-            // Keep Yaru GTK 3's native diffuse shadow, but omit its legacy
-            // zero-blur outline. Current GTK 4/libadwaita Ubuntu apps use a
-            // much subtler edge, while Handy remains responsible for radius,
-            // clipping, and window-state geometry.
-            "box-shadow: 0 3px 9px 1px rgba(0,0,0,0.5);"
-            "}"
-            "window#busymax-window.csd:not(.solid-csd):"
-            "not(.maximized):not(.fullscreen):not(.tiled):"
-            "not(.tiled-top):not(.tiled-right):not(.tiled-bottom):"
-            "not(.tiled-left) > decoration:backdrop {"
-            "box-shadow: 0 3px 9px 1px transparent,"
-            "0 2px 6px 2px rgba(0,0,0,0.2);"
-            "}"
-            "window#busymax-window.csd.tiled:not(.solid-csd):"
-            "not(.maximized):not(.fullscreen) > decoration,"
-            "window#busymax-window.csd.tiled-top:not(.solid-csd):"
-            "not(.maximized):not(.fullscreen) > decoration,"
-            "window#busymax-window.csd.tiled-right:not(.solid-csd):"
-            "not(.maximized):not(.fullscreen) > decoration,"
-            "window#busymax-window.csd.tiled-bottom:not(.solid-csd):"
-            "not(.maximized):not(.fullscreen) > decoration,"
-            "window#busymax-window.csd.tiled-left:not(.solid-csd):"
-            "not(.maximized):not(.fullscreen) > decoration {"
-            "box-shadow: 0 0 0 20px transparent;"
-            "}"
-          : "";
+          ? g_strdup_printf(
+                "window#busymax-window.csd:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen):not(.tiled):"
+                "not(.tiled-top):not(.tiled-right):not(.tiled-bottom):"
+                "not(.tiled-left) > decoration {"
+                // Keep Yaru GTK 3's native diffuse shadow, but omit its legacy
+                // zero-blur outline. Current GTK 4/libadwaita Ubuntu apps use
+                // a much subtler edge, while Handy remains responsible for
+                // radius, clipping, and window-state geometry.
+                "box-shadow: 0 3px 9px 1px rgba(0,0,0,0.5);"
+                "}"
+                "window#busymax-window.csd:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen):not(.tiled):"
+                "not(.tiled-top):not(.tiled-right):not(.tiled-bottom):"
+                "not(.tiled-left) > decoration:backdrop {"
+                "box-shadow: 0 3px 9px 1px transparent,"
+                "0 2px 6px 2px rgba(0,0,0,0.2);"
+                "}"
+                "window#busymax-window.csd.tiled:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen) > decoration,"
+                "window#busymax-window.csd.tiled-top:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen) > decoration,"
+                "window#busymax-window.csd.tiled-right:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen) > decoration,"
+                "window#busymax-window.csd.tiled-bottom:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen) > decoration,"
+                "window#busymax-window.csd.tiled-left:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen) > decoration {"
+                "box-shadow: 0 0 0 20px transparent;"
+                "}"
+                "messagedialog.%s.csd:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen) > decoration {"
+                // Yaru GTK 3 adds a 65%-black zero-blur ring to message
+                // dialogs. Translate the current libadwaita message-dialog
+                // shadow to GTK 3's decoration node, leaving GTK in charge of
+                // every control, radius, layout, focus state, and action role.
+                "box-shadow: 0 0 14px 2px rgba(0,0,6,0.03),"
+                "0 0 5px 2px rgba(0,0,6,0.10),"
+                "0 0 0 1px rgba(0,0,0,0.05);"
+                "}",
+                kNativeDialogStyleClass)
+          : g_strdup("");
   GtkWidget* header_bar = GTK_WIDGET(self->header_bar);
   GtkStyleContext* context = gtk_widget_get_style_context(header_bar);
   gtk_style_context_add_class(context, "busymax-flat-headerbar");
@@ -1198,6 +1226,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}"
+      "%s"
       "%s"
       "headerbar.busymax-flat-headerbar,"
       "headerbar.busymax-flat-headerbar:backdrop {"
@@ -1277,8 +1306,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: linear-gradient(%s, %s);"
       "}",
-      window_background_color, yaru_window_decoration_css, background_color,
-      foreground_color,
+      window_background_color, yaru_window_decoration_css, native_dialog_css,
+      background_color, foreground_color,
       sidebar_background_color, foreground_color, sidebar_border_color,
       foreground_color, foreground_color, native_popover_css,
       sidebar_background_color, modal_barrier_color, modal_barrier_color,
@@ -1336,8 +1365,8 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
                       fl_lookup_string_arg(args, "foregroundColor"));
   set_css_color_field(&self->header_bar_popover_background_color,
                       fl_lookup_string_arg(args, "popoverBackgroundColor"));
-  set_css_color_field(&self->header_bar_floating_border_color,
-                      fl_lookup_string_arg(args, "floatingBorderColor"));
+  set_css_color_field(&self->header_bar_dialog_outline_color,
+                      fl_lookup_string_arg(args, "dialogOutlineColor"));
   set_css_color_field(&self->header_bar_modal_barrier_color,
                       fl_lookup_string_arg(args, "modalBarrierColor"));
   set_main_flutter_view_background(self);
@@ -2674,32 +2703,6 @@ static gboolean sample_widget_background(GtkWidget* widget,
   return color_is_visible(color);
 }
 
-static gboolean sample_widget_border_color(GtkWidget* widget,
-                                           const gchar* style_class,
-                                           GtkStateFlags state,
-                                           GdkRGBA* color) {
-  if (widget == nullptr || color == nullptr) {
-    return FALSE;
-  }
-  GtkStyleContext* context = gtk_widget_get_style_context(widget);
-  if (context == nullptr) {
-    return FALSE;
-  }
-  if (style_class != nullptr) {
-    gtk_style_context_add_class(context, style_class);
-  }
-  gtk_style_context_set_state(context, state);
-  GValue value = G_VALUE_INIT;
-  gtk_style_context_get_property(context, "border-color", state, &value);
-  const GdkRGBA* border =
-      static_cast<const GdkRGBA*>(g_value_get_boxed(&value));
-  if (border != nullptr) {
-    *color = *border;
-  }
-  g_value_unset(&value);
-  return color_is_visible(color);
-}
-
 static gboolean sample_widget_color(GtkWidget* widget,
                                     const gchar* style_class,
                                     GtkStateFlags state,
@@ -2750,7 +2753,6 @@ static const gchar* brightness_for_color(const GdkRGBA* color) {
 static FlValue* get_gtk_theme_colors() {
   GtkWidget* window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   GtkWidget* view = gtk_text_view_new();
-  GtkWidget* popover = gtk_popover_new(nullptr);
   GtkWidget* control = gtk_button_new();
   GtkWidget* separator = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
   GtkWidget* dim_label = gtk_label_new(nullptr);
@@ -2825,8 +2827,13 @@ static FlValue* get_gtk_theme_colors() {
   lookup_context_color(window_context, "card_shade_color", &card_shade_color);
   lookup_context_color(window_context, "dialog_bg_color", &dialog_color);
   lookup_context_color(window_context, "popover_bg_color", &popover_color);
-  sample_widget_border_color(popover, GTK_STYLE_CLASS_BACKGROUND,
-                             GTK_STATE_FLAG_NORMAL, &floating_border_color);
+  // Only publish a named floating-surface role. Sampling GTK 3's computed
+  // popover border here imports its legacy light rim into the Flutter GTK 4
+  // palette, where modern Yaru uses a recessed edge instead.
+  lookup_context_color(window_context, "popover_border_color",
+                       &floating_border_color) ||
+      lookup_context_color(window_context, "floating_border_color",
+                           &floating_border_color);
   sample_widget_background(separator, GTK_STYLE_CLASS_SEPARATOR,
                            GTK_STATE_FLAG_NORMAL, &divider_color);
 
@@ -2867,7 +2874,6 @@ static FlValue* get_gtk_theme_colors() {
   gtk_widget_destroy(dim_label);
   gtk_widget_destroy(separator);
   gtk_widget_destroy(control);
-  gtk_widget_destroy(popover);
   gtk_widget_destroy(view);
   gtk_widget_destroy(window);
   return result;
@@ -3740,7 +3746,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_bar_sidebar_border_color, g_free);
   g_clear_pointer(&self->header_bar_foreground_color, g_free);
   g_clear_pointer(&self->header_bar_popover_background_color, g_free);
-  g_clear_pointer(&self->header_bar_floating_border_color, g_free);
+  g_clear_pointer(&self->header_bar_dialog_outline_color, g_free);
   g_clear_pointer(&self->header_bar_modal_barrier_color, g_free);
   g_clear_pointer(&self->header_view_mode, g_free);
   g_clear_pointer(&self->header_day_label, g_free);
@@ -3796,7 +3802,8 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_sidebar_border_color = nullptr;
   self->header_bar_foreground_color = nullptr;
   self->header_bar_popover_background_color = nullptr;
-  self->header_bar_floating_border_color = nullptr;
+  self->header_bar_dialog_outline_color =
+      g_strdup(kDefaultDialogOutlineColor);
   self->header_bar_modal_barrier_color = nullptr;
   self->header_bar_high_contrast = FALSE;
   self->header_bar_sidebar_width = 300;

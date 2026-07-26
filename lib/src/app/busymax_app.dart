@@ -240,7 +240,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           foregroundColor: colors.foreground,
           sidebarBorderColor: colors.sidebarBorder,
           popoverBackgroundColor: colors.popover,
-          floatingBorderColor: colors.floatingBorder,
+          dialogOutlineColor: colors.dialogOutline,
           modalBarrierColor: modalBarrierColor,
         ),
       ),

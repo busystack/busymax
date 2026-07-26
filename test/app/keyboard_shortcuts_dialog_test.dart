@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_keyboard_shortcuts_dialog.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -42,6 +44,66 @@ void main() {
     expect(find.byIcon(Icons.close), findsWidgets);
     expect(find.text('Close'), findsNothing);
   });
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'keyboard shortcut groups resolve the contextual $brightness dialog card',
+      (tester) async {
+        final theme = BusyMaxYaruTheme.build(
+          brightness: brightness,
+          accentColor: const Color(0xFFE95420),
+        );
+        final colors = theme.extension<BusyMaxSurfaceColors>()!;
+        final expectedGroupedColor = Color.alphaBlend(
+          colors.groupedSurface,
+          colors.dialog,
+        );
+        final expectedDialogSide = BorderSide(color: colors.dialogOutline);
+
+        await tester.pumpWidget(
+          localizedTestApp(
+            theme: theme,
+            child: const BusyMaxKeyboardShortcutsDialog(),
+          ),
+        );
+
+        final groupedMaterials = tester
+            .widgetList<Material>(
+              find.descendant(
+                of: find.byType(BusyMaxGroupedSurface),
+                matching: find.byType(Material),
+              ),
+            )
+            .where((material) => material.elevation == BusyMaxElevation.card)
+            .toList();
+
+        expect(groupedMaterials, hasLength(6));
+        expect(
+          groupedMaterials.every(
+            (material) =>
+                material.color?.toARGB32() == expectedGroupedColor.toARGB32(),
+          ),
+          isTrue,
+        );
+        final dialog = tester.widget<Dialog>(find.byType(Dialog));
+        final dialogShape =
+            (dialog.shape ?? theme.dialogTheme.shape)!
+                as RoundedRectangleBorder;
+        expect(dialogShape.side, expectedDialogSide);
+        expect(dialogShape.side.color, isNot(colors.floatingBorder));
+        if (brightness == Brightness.dark) {
+          expect(
+            expectedGroupedColor.toARGB32(),
+            isNot(colors.card.toARGB32()),
+          );
+          expect(
+            expectedGroupedColor.computeLuminance(),
+            greaterThan(colors.dialog.computeLuminance()),
+          );
+        }
+      },
+    );
+  }
 
   test('keyboard shortcuts are available from native headerbar menu', () {
     final app = File('lib/src/app/busymax_app.dart').readAsStringSync();

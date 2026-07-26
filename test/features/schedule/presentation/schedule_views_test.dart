@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
@@ -764,15 +765,31 @@ void main() {
       find.byType(BusyMaxPopoverIconButton).first,
     );
     final actionColors = BusyMaxSurfaceColors.of(actionContext);
+    expect(BusyMaxSizes.popoverActionButton, kYaruTitleBarItemHeight);
+    expect(BusyMaxSizes.popoverActionIcon, BusyMaxSizes.iconSm);
     expect(actionSurfaces, hasLength(4));
     for (final button in actionButtons) {
-      expect(button.iconSize, kYaruTitleBarItemHeight);
-      expect(button.style, isNull);
+      expect(button.iconSize, BusyMaxSizes.popoverActionButton);
+      expect(button.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+    }
+    for (final button in find.byType(BusyMaxPopoverIconButton).evaluate()) {
+      expect(
+        tester.getSize(find.byWidget(button.widget)),
+        const Size.square(BusyMaxSizes.popoverActionButton),
+      );
     }
     for (final surface in actionSurfaces) {
       expect(surface.color, actionColors.control);
       expect(surface.shape, const CircleBorder());
       expect(surface.clipBehavior, Clip.antiAlias);
+    }
+    for (final icon in tester.widgetList<Icon>(
+      find.descendant(
+        of: find.byType(BusyMaxPopoverIconButton),
+        matching: find.byType(Icon),
+      ),
+    )) {
+      expect(icon.size, BusyMaxSizes.popoverActionIcon);
     }
     expect(
       tester.widget<Icon>(find.byIcon(YaruIcons.trash)).color,
@@ -804,10 +821,16 @@ void main() {
       Theme.of(popoverContext).colorScheme.shadow,
     );
     expect(popoverSurface.shadowColor.a, 1);
-    expect(
-      popoverSurface.color,
-      BusyMaxSurfaceColors.of(popoverContext).popover,
+    expect(popoverSurface.color, BusyMaxSurfaceColors.of(popoverContext).card);
+    final contentSurface = tester.widget<BusyMaxPopoverSurface>(
+      find.descendant(
+        of: find.byType(BusyMaxContentPopoverSurface),
+        matching: find.byType(BusyMaxPopoverSurface),
+      ),
     );
+    final contentColors = BusyMaxSurfaceColors.of(popoverContext);
+    expect(contentSurface.color, contentColors.card);
+    expect(contentSurface.outlineColor, contentColors.floatingBorder);
 
     final editCenter = tester.getCenter(find.byIcon(Icons.edit_outlined));
     final deleteCenter = tester.getCenter(find.byIcon(YaruIcons.trash));
@@ -820,6 +843,166 @@ void main() {
 
     expect(await action, ScheduleItemDetailsAction.export);
   });
+
+  for (final baseline in const [
+    (
+      brightness: Brightness.light,
+      interior: Color(0xFFFFFFFF),
+      outline: Color.fromRGBO(0, 0, 0, 0.14),
+      wrongOutline: Color.fromRGBO(24, 24, 24, 0.08),
+    ),
+    (
+      brightness: Brightness.dark,
+      interior: Color(0xFF3D3D3D),
+      outline: Color.fromRGBO(0, 0, 0, 0.14),
+      wrongOutline: Color.fromRGBO(0, 0, 0, 0.36),
+    ),
+  ]) {
+    testWidgets(
+      'details popover paints the reviewed ${baseline.brightness.name} '
+      'content surface and native floating edge',
+      (tester) async {
+        tester.view
+          ..physicalSize = const Size(800, 600)
+          ..devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        final boundaryKey = GlobalKey();
+        final selectedDate = DateTime(2026, 1, 15);
+        final event = _itemsFor(
+          selectedDate,
+        ).whereType<CalendarScheduleItem>().first;
+        final theme = BusyMaxYaruTheme.build(
+          brightness: baseline.brightness,
+          accentColor: const Color(0xFF3584E4),
+        );
+
+        await tester.pumpWidget(
+          RepaintBoundary(
+            key: boundaryKey,
+            child: localizedTestApp(
+              theme: theme,
+              child: Builder(
+                builder: (context) {
+                  final mediaQuery = MediaQuery.of(
+                    context,
+                  ).copyWith(disableAnimations: true);
+                  return MediaQuery(
+                    data: mediaQuery,
+                    child: Scaffold(
+                      body: Align(
+                        alignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 40),
+                          child: Builder(
+                            builder: (anchorContext) {
+                              return TextButton(
+                                onPressed: () {
+                                  showScheduleItemDetailsPopover(
+                                    context: anchorContext,
+                                    anchorContext: anchorContext,
+                                    item: event,
+                                  );
+                                },
+                                child: const Text('Open details palette probe'),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open details palette probe'));
+        await tester.pumpAndSettle();
+
+        final shapeFinder = find.descendant(
+          of: find.byType(BusyMaxContentPopoverSurface),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is PhysicalShape &&
+                widget.elevation == BusyMaxElevation.tooltip,
+          ),
+        );
+        final popoverFinder = find.descendant(
+          of: find.byType(BusyMaxContentPopoverSurface),
+          matching: find.byType(BusyMaxPopoverSurface),
+        );
+        expect(shapeFinder, findsOneWidget);
+        expect(popoverFinder, findsOneWidget);
+
+        final popover = tester.widget<BusyMaxPopoverSurface>(popoverFinder);
+        expect(popover.color, baseline.interior);
+        expect(popover.outlineColor, baseline.outline);
+
+        final shapeBox = tester.renderObject<RenderBox>(shapeFinder);
+        final boundary =
+            boundaryKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final pixels = await _capturePixels(tester, boundaryKey);
+        final bodyMidpoint = shapeBox.size.height / 2;
+        final interior = _pixelAtGlobalPosition(
+          pixels,
+          boundary: boundary,
+          globalPosition: shapeBox.localToGlobal(Offset(8, bodyMidpoint)),
+        );
+        // The route's PhysicalShape anti-aliases its one-pixel perimeter at
+        // half coverage. Compare the rendered pixel to that visible result,
+        // while the separate palette test locks the unmodified source token.
+        final expectedEdge = Color.alphaBlend(
+          baseline.outline.withValues(alpha: baseline.outline.a * 0.5),
+          baseline.interior,
+        );
+        final wrongEdge = Color.alphaBlend(
+          baseline.wrongOutline.withValues(
+            alpha: baseline.wrongOutline.a * 0.5,
+          ),
+          baseline.interior,
+        );
+        final edgeCandidates = [
+          for (final x in const [0.5, 1.0, 1.5, 2.0])
+            for (final yOffset in const [-2.0, 0.0, 2.0])
+              _pixelAtGlobalPosition(
+                pixels,
+                boundary: boundary,
+                globalPosition: shapeBox.localToGlobal(
+                  Offset(x, bodyMidpoint + yOffset),
+                ),
+              ),
+        ];
+        final edge = edgeCandidates.reduce(
+          (closest, candidate) =>
+              _rgbDistance(candidate, expectedEdge) <
+                  _rgbDistance(closest, expectedEdge)
+              ? candidate
+              : closest,
+        );
+
+        expect(interior, baseline.interior);
+        expect(edgeCandidates, contains(isNot(interior)));
+        expect(
+          _rgbDistance(edge, expectedEdge),
+          lessThanOrEqualTo(25),
+          reason: 'edge candidates: $edgeCandidates',
+        );
+        expect(
+          _rgbDistance(edge, expectedEdge),
+          lessThan(_rgbDistance(edge, wrongEdge)),
+        );
+        if (baseline.brightness == Brightness.dark) {
+          expect(
+            edge.computeLuminance(),
+            lessThan(interior.computeLuminance()),
+          );
+        }
+      },
+    );
+  }
 
   for (final brightness in Brightness.values) {
     testWidgets(
@@ -840,7 +1023,7 @@ void main() {
               child: RepaintBoundary(
                 key: boundaryKey,
                 child: ColoredBox(
-                  color: colors.popover,
+                  color: colors.card,
                   child: SizedBox.square(
                     dimension: 50,
                     child: Center(
@@ -860,7 +1043,7 @@ void main() {
 
         final restingPixels = await _capturePixels(tester, boundaryKey);
         final background = _pixelAt(restingPixels, x: 2, y: 2);
-        final restingFace = _pixelAt(restingPixels, x: 25, y: 12);
+        final restingFace = _pixelAt(restingPixels, x: 25, y: 10);
         expect(restingFace, isNot(background));
 
         final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -873,7 +1056,7 @@ void main() {
 
         final hoveredPixels = await _capturePixels(tester, boundaryKey);
         final hoveredBackground = _pixelAt(hoveredPixels, x: 2, y: 2);
-        final hoveredFace = _pixelAt(hoveredPixels, x: 25, y: 12);
+        final hoveredFace = _pixelAt(hoveredPixels, x: 25, y: 10);
         expect(hoveredBackground, background);
         expect(hoveredFace, isNot(restingFace));
         expect(
@@ -1856,9 +2039,11 @@ void main() {
     expect(design, contains('return Material('));
     expect(design, contains('shape: const CircleBorder()'));
     expect(design, contains('class BusyMaxHeaderIconButton'));
-    expect(design, contains('iconSize: kYaruTitleBarItemHeight'));
+    expect(design, contains('iconSize: BusyMaxSizes.popoverActionButton'));
     expect(design, contains('color: enabled ? colors.control'));
     expect(popover, contains('BusyMaxPopoverIconButton('));
+    expect(popover, contains('BusyMaxContentPopoverSurface('));
+    expect(popover, isNot(contains('surfaceColors.popover')));
     expect(popover, contains('destructive: true'));
     expect(popover, isNot(contains('backgroundColor:')));
     expect(popover, isNot(contains('foregroundColor:')));
@@ -2821,7 +3006,13 @@ Future<({Uint8List bytes, int width})> _capturePixels(
     final byteData = (await tester.binding.runAsync<ByteData?>(
       () => image.toByteData(format: ui.ImageByteFormat.rawStraightRgba),
     ))!;
-    return (bytes: byteData.buffer.asUint8List(), width: image.width);
+    return (
+      bytes: byteData.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
+      ),
+      width: image.width,
+    );
   } finally {
     image.dispose();
   }
@@ -2839,6 +3030,22 @@ Color _pixelAt(
     pixels.bytes[offset + 1],
     pixels.bytes[offset + 2],
   );
+}
+
+Color _pixelAtGlobalPosition(
+  ({Uint8List bytes, int width}) pixels, {
+  required RenderRepaintBoundary boundary,
+  required Offset globalPosition,
+}) {
+  final local = boundary.globalToLocal(globalPosition);
+  return _pixelAt(pixels, x: local.dx.floor(), y: local.dy.floor());
+}
+
+double _rgbDistance(Color first, Color second) {
+  final red = (first.r - second.r) * 255;
+  final green = (first.g - second.g) * 255;
+  final blue = (first.b - second.b) * 255;
+  return math.sqrt(red * red + green * green + blue * blue);
 }
 
 double _luminanceDistance(Color first, Color second) {

@@ -90,84 +90,72 @@ void main() {
       },
     );
 
-    test(
-      'Yaru GTK3 window compatibility removes only the legacy frame ring',
-      () {
-        final source = File(
-          'linux/runner/my_application.cc',
-        ).readAsStringSync();
-        final themeGateStart = source.indexOf(
-          'static gboolean current_gtk_theme_uses_legacy_yaru_shadow()',
-        );
-        final refreshStart = source.indexOf(
-          'static void refresh_header_bar_css(MyApplication* self)',
-        );
-        final refreshEnd = source.indexOf(
-          'static void set_css_color_field(',
-          refreshStart,
-        );
+    test('Yaru GTK3 compatibility replaces legacy decoration rings', () {
+      final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final themeGateStart = source.indexOf(
+        'static gboolean current_gtk_theme_uses_legacy_yaru_shadow()',
+      );
+      final refreshStart = source.indexOf(
+        'static void refresh_header_bar_css(MyApplication* self)',
+      );
+      final refreshEnd = source.indexOf(
+        'static void set_css_color_field(',
+        refreshStart,
+      );
 
-        expect(themeGateStart, isNonNegative);
-        expect(refreshStart, greaterThan(themeGateStart));
-        expect(refreshEnd, greaterThan(refreshStart));
+      expect(themeGateStart, isNonNegative);
+      expect(refreshStart, greaterThan(themeGateStart));
+      expect(refreshEnd, greaterThan(refreshStart));
 
-        final themeGate = source.substring(themeGateStart, refreshStart);
-        final refresh = source.substring(refreshStart, refreshEnd);
-        final compatibilityStart = refresh.indexOf(
-          'const gchar* yaru_window_decoration_css =',
-        );
-        final compatibilityEnd = refresh.indexOf(
-          'GtkWidget* header_bar',
-          compatibilityStart,
-        );
+      final themeGate = source.substring(themeGateStart, refreshStart);
+      final refresh = source.substring(refreshStart, refreshEnd);
+      final compatibilityStart = refresh.indexOf(
+        'g_autofree gchar* yaru_window_decoration_css =',
+      );
+      final compatibilityEnd = refresh.indexOf(
+        'GtkWidget* header_bar',
+        compatibilityStart,
+      );
 
-        expect(themeGate, contains('gtk_settings_get_default()'));
-        expect(themeGate, contains('"gtk-theme-name"'));
-        expect(themeGate, contains('g_ascii_strdown(theme_name, -1)'));
-        expect(themeGate, contains('g_strcmp0(normalized_theme, "yaru")'));
-        expect(
-          themeGate,
-          contains('g_str_has_prefix(normalized_theme, "yaru-")'),
-        );
-        expect(themeGate, contains('strstr(normalized_theme, "highcontrast")'));
-        expect(compatibilityStart, isNonNegative);
-        expect(compatibilityEnd, greaterThan(compatibilityStart));
+      expect(themeGate, contains('gtk_settings_get_default()'));
+      expect(themeGate, contains('"gtk-theme-name"'));
+      expect(themeGate, contains('g_ascii_strdown(theme_name, -1)'));
+      expect(themeGate, contains('g_strcmp0(normalized_theme, "yaru")'));
+      expect(
+        themeGate,
+        contains('g_str_has_prefix(normalized_theme, "yaru-")'),
+      );
+      expect(themeGate, contains('strstr(normalized_theme, "highcontrast")'));
+      expect(compatibilityStart, isNonNegative);
+      expect(compatibilityEnd, greaterThan(compatibilityStart));
 
-        final compatibility = refresh.substring(
-          compatibilityStart,
-          compatibilityEnd,
-        );
+      final compatibility = refresh.substring(
+        compatibilityStart,
+        compatibilityEnd,
+      );
 
-        expect(refresh, contains('!self->header_bar_high_contrast'));
-        expect(
-          refresh,
-          contains('current_gtk_theme_uses_legacy_yaru_shadow()'),
-        );
-        expect(
-          compatibility,
-          contains('box-shadow: 0 3px 9px 1px rgba(0,0,0,0.5);'),
-        );
-        expect(
-          compatibility,
-          contains('box-shadow: 0 3px 9px 1px transparent,'),
-        );
-        expect(compatibility, contains('0 2px 6px 2px rgba(0,0,0,0.2);'));
-        expect(compatibility, contains('box-shadow: 0 0 0 20px transparent;'));
-        expect(compatibility, contains('not(.solid-csd)'));
-        expect(compatibility, contains('not(.maximized)'));
-        expect(compatibility, contains('not(.fullscreen)'));
-        expect(compatibility, contains('.tiled-top'));
-        expect(compatibility, contains('.tiled-right'));
-        expect(compatibility, contains('.tiled-bottom'));
-        expect(compatibility, contains('.tiled-left'));
-        expect(compatibility, isNot(contains('0 0 0 1px')));
-        expect(compatibility, isNot(contains('border-radius')));
-        expect(
-          compatibility,
-          isNot(contains('gdk_window_shape_combine_region')),
-        );
-      },
-    );
+      expect(refresh, contains('!self->header_bar_high_contrast'));
+      expect(refresh, contains('current_gtk_theme_uses_legacy_yaru_shadow()'));
+      expect(
+        compatibility,
+        contains('box-shadow: 0 3px 9px 1px rgba(0,0,0,0.5);'),
+      );
+      expect(compatibility, contains('box-shadow: 0 3px 9px 1px transparent,'));
+      expect(compatibility, contains('0 2px 6px 2px rgba(0,0,0,0.2);'));
+      expect(compatibility, contains('box-shadow: 0 0 0 20px transparent;'));
+      expect(compatibility, contains('not(.solid-csd)'));
+      expect(compatibility, contains('not(.maximized)'));
+      expect(compatibility, contains('not(.fullscreen)'));
+      expect(compatibility, contains('.tiled-top'));
+      expect(compatibility, contains('.tiled-right'));
+      expect(compatibility, contains('.tiled-bottom'));
+      expect(compatibility, contains('.tiled-left'));
+      expect(compatibility, contains('0 0 0 1px rgba(0,0,0,0.05);'));
+      expect(compatibility, isNot(contains('rgba(0,0,0,0.65)')));
+      expect(compatibility, isNot(contains('rgba(0,0,0,0.75)')));
+      expect(compatibility, isNot(contains('border-radius')));
+      expect(compatibility, isNot(contains('gdk_window_shape_combine_region')));
+    });
 
     test(
       'Task Details, Settings, and Agenda use BusyMax Yaru row patterns',
@@ -773,9 +761,10 @@ void main() {
       expect(source, isNot(contains('"busymax-header-popover"')));
       expect(source, contains('"busymax-native-popover"'));
       expect(source, contains('header_bar_popover_background_color'));
-      expect(source, contains('header_bar_floating_border_color'));
+      expect(source, isNot(contains('header_bar_floating_border_color')));
       expect(source, contains('"popoverBackgroundColor"'));
-      expect(source, contains('"floatingBorderColor"'));
+      expect(source, contains('"dialogOutlineColor"'));
+      expect(source, isNot(contains('"floatingBorderColor"')));
       expect(source, isNot(contains('"busymax-header-popover-row"')));
       expect(source, isNot(contains('kHeaderPopoverRowSpacing')));
       expect(source, isNot(contains('busymax-keyboard-focus')));
@@ -880,7 +869,7 @@ void main() {
       expect(source, isNot(contains('header_bar_disabled_foreground_color')));
       expect(source, isNot(contains('header_bar_control_hover_color')));
       expect(source, contains('header_bar_popover_background_color'));
-      expect(source, contains('header_bar_floating_border_color'));
+      expect(source, isNot(contains('header_bar_floating_border_color')));
       expect(source, isNot(contains('header_bar_border_color')));
       expect(source, contains('header_bar_sidebar_border_color'));
       expect(source, contains('border-right: 1px solid %s;'));
@@ -976,7 +965,10 @@ void main() {
       expect(source, contains('"card_bg_color"'));
       expect(source, contains('"dialog_bg_color"'));
       expect(source, contains('"popover_bg_color"'));
-      expect(source, contains('GtkWidget* popover ='));
+      expect(
+        source,
+        isNot(contains('GtkWidget* popover = gtk_popover_new(nullptr);')),
+      );
       expect(source, isNot(contains('GtkWidget* sidebar = gtk_box_new(')));
       expect(
         source,
@@ -1145,7 +1137,9 @@ void main() {
       expect(end, greaterThan(start));
       final surface = design.substring(start, end);
 
-      expect(surface, contains('return Dialog('));
+      expect(surface, contains('return BusyMaxSurfaceScope('));
+      expect(surface, contains('role: BusyMaxSurfaceRole.window'));
+      expect(surface, contains('child: Dialog('));
       expect(surface, contains('Theme.of(context).scaffoldBackgroundColor'));
       expect(surface, contains('backgroundColor: editorSurface'));
       expect(surface, contains('surfaceTintColor: editorSurface'));
@@ -1153,6 +1147,21 @@ void main() {
       expect(surface, isNot(contains('BorderSide(')));
       expect(surface, isNot(contains('BusyMaxElevation')));
       expect(surface, isNot(contains('Color(0x')));
+    });
+
+    test('dialog shells preserve the shared themed shape and perimeter', () {
+      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final start = design.indexOf('class BusyMaxDialogShell');
+      final end = design.indexOf('class BusyMaxConfirmDialog', start);
+      expect(start, isNonNegative);
+      expect(end, greaterThan(start));
+      final shell = design.substring(start, end);
+
+      expect(shell, contains('child: Dialog('));
+      expect(shell, contains('clipBehavior: Clip.antiAlias'));
+      expect(shell, isNot(contains('shape: RoundedRectangleBorder(')));
+      expect(shell, isNot(contains('ClipRRect(')));
+      expect(shell, isNot(contains('BorderSide(')));
     });
 
     test('native headerbar CSS uses scoped semantic surfaces and states', () {
@@ -1168,17 +1177,41 @@ void main() {
       expect(headerCssEnd, isNonNegative);
       final headerCss = source.substring(headerCssStart, headerCssEnd);
       final nativePopoverCssStart = source.indexOf(
-        'g_autofree gchar* native_popover_border_css =',
+        'g_autofree gchar* native_popover_css =',
       );
       final nativePopoverCssEnd = source.indexOf(
-        'const gchar* modal_barrier_color',
+        'g_autofree gchar* native_dialog_css =',
         nativePopoverCssStart,
+      );
+      final nativeDialogCssStart = nativePopoverCssEnd;
+      final nativeDialogCssEnd = source.indexOf(
+        'const gchar* modal_barrier_color',
+        nativeDialogCssStart,
       );
       expect(nativePopoverCssStart, isNonNegative);
       expect(nativePopoverCssEnd, isNonNegative);
+      expect(nativeDialogCssStart, isNonNegative);
+      expect(nativeDialogCssEnd, isNonNegative);
       final nativePopoverCss = source.substring(
         nativePopoverCssStart,
         nativePopoverCssEnd,
+      );
+      final nativeDialogCss = source.substring(
+        nativeDialogCssStart,
+        nativeDialogCssEnd,
+      );
+      final yaruDecorationCssStart = source.indexOf(
+        'const gboolean use_yaru_window_decoration_compatibility =',
+      );
+      final yaruDecorationCssEnd = source.indexOf(
+        'GtkWidget* header_bar =',
+        yaruDecorationCssStart,
+      );
+      expect(yaruDecorationCssStart, isNonNegative);
+      expect(yaruDecorationCssEnd, isNonNegative);
+      final yaruDecorationCss = source.substring(
+        yaruDecorationCssStart,
+        yaruDecorationCssEnd,
       );
 
       expect(source, contains('"busymax-header-title"'));
@@ -1230,7 +1263,7 @@ void main() {
       expect(source, contains('"sidebarBorderColor"'));
       expect(source, contains('"foregroundColor"'));
       expect(source, contains('"popoverBackgroundColor"'));
-      expect(source, contains('"floatingBorderColor"'));
+      expect(source, isNot(contains('"floatingBorderColor"')));
       expect(source, contains('"highContrast"'));
       expect(source, isNot(contains('"shadeColor"')));
       expect(source, contains('"modalBarrierColor"'));
@@ -1252,7 +1285,11 @@ void main() {
       );
       expect(
         source,
-        contains('fl_lookup_string_arg(args, "floatingBorderColor")'),
+        contains('fl_lookup_string_arg(args, "dialogOutlineColor")'),
+      );
+      expect(
+        source,
+        isNot(contains('fl_lookup_string_arg(args, "floatingBorderColor")')),
       );
       expect(
         source,
@@ -1262,14 +1299,54 @@ void main() {
       expect(source, contains('"background-color: %s;"'));
       expect(nativePopoverCss, contains('kNativePopoverStyleClass'));
       expect(nativePopoverCss, contains('"background-color: %s;"'));
-      expect(nativePopoverCss, contains('g_strdup_printf("border-color: %s;"'));
-      expect(nativePopoverCss, contains('g_strdup("border: none;")'));
+      expect(
+        nativePopoverCss,
+        isNot(contains('g_strdup_printf("border-color: %s;"')),
+      );
+      expect(nativePopoverCss, isNot(contains('g_strdup("border: none;")')));
       expect(nativePopoverCss, isNot(contains('box-shadow')));
       expect(nativePopoverCss, isNot(contains('border-radius')));
       expect(nativePopoverCss, isNot(contains('padding')));
       expect(nativePopoverCss, isNot(contains('outline')));
       expect(nativePopoverCss, isNot(contains('modelbutton')));
       expect(nativePopoverCss, isNot(contains('#')));
+      expect(source, contains('"busymax-native-dialog"'));
+      expect(source, contains('style_native_dialog(GtkWidget* dialog)'));
+      expect('style_native_dialog(dialog);'.allMatches(source).length, 2);
+      expect(
+        nativeDialogCss,
+        contains('g_autofree gchar* native_dialog_css ='),
+      );
+      expect(nativeDialogCss, contains('"box-shadow: inset 0 0 0 1px %s;"'));
+      expect(
+        yaruDecorationCss,
+        contains(
+          '"messagedialog.%s.csd:not(.solid-csd):"\n'
+          '                "not(.maximized):not(.fullscreen) > decoration {"',
+        ),
+      );
+      expect(
+        yaruDecorationCss,
+        contains('current_gtk_theme_uses_legacy_yaru_shadow()'),
+      );
+      expect(yaruDecorationCss, contains('!self->header_bar_high_contrast'));
+      expect(
+        yaruDecorationCss,
+        contains('"box-shadow: 0 0 14px 2px rgba(0,0,6,0.03),"'),
+      );
+      expect(yaruDecorationCss, contains('"0 0 5px 2px rgba(0,0,6,0.10),"'));
+      expect(yaruDecorationCss, contains('"0 0 0 1px rgba(0,0,0,0.05);"'));
+      expect(yaruDecorationCss, contains('kNativeDialogStyleClass'));
+      expect(yaruDecorationCss, isNot(contains('"border:')));
+      expect(
+        nativeDialogCss,
+        contains(
+          'kNativeDialogStyleClass, kNativeDialogStyleClass,\n'
+          '      window_background_color',
+        ),
+      );
+      expect(nativeDialogCss, isNot(contains('"border:')));
+      expect(nativeDialogCss, isNot(contains('border-radius')));
       expect(source, contains('style_native_popover(session->popover)'));
       expect(source, contains('style_native_popover(GTK_WIDGET(popover))'));
       expect(headerCss, isNot(contains('.busymax-titlebar button')));
@@ -1450,6 +1527,17 @@ void main() {
         source,
         contains('lookup_context_color(window_context, "card_shade_color"'),
       );
+      expect(
+        source,
+        contains('lookup_context_color(window_context, "popover_border_color"'),
+      );
+      expect(
+        source,
+        contains(
+          'lookup_context_color(window_context, "floating_border_color"',
+        ),
+      );
+      expect(source, isNot(contains('sample_widget_border_color(')));
       expect(source, contains('gtk_separator_new(GTK_ORIENTATION_HORIZONTAL)'));
       expect(source, contains('sample_widget_background(separator'));
       expect(source, isNot(contains('divider_color.alpha *=')));

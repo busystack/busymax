@@ -47,6 +47,8 @@ abstract final class BusyMaxSizes {
   static const double sidebarActionButton = headerIconButton;
   static const double sidebarActionIcon = headerIcon;
   static const double miniCalendarWeekButton = headerIconButton;
+  static const double popoverActionButton = kYaruTitleBarItemHeight;
+  static const double popoverActionIcon = iconSm;
   static const double popoverArrowWidth = 18;
   static const double popoverArrowHeight = 10;
 }
@@ -178,6 +180,7 @@ class BusyMaxPopoverSurface extends StatelessWidget {
     super.key,
     required this.child,
     required this.color,
+    this.outlineColor,
     this.arrowSide = BusyMaxPopoverArrowSide.top,
     this.arrowAlignment = 0.5,
     this.padding = EdgeInsets.zero,
@@ -185,6 +188,7 @@ class BusyMaxPopoverSurface extends StatelessWidget {
 
   final Widget child;
   final Color color;
+  final Color? outlineColor;
   final BusyMaxPopoverArrowSide arrowSide;
   final double arrowAlignment;
   final EdgeInsetsGeometry padding;
@@ -204,15 +208,13 @@ class BusyMaxPopoverSurface extends StatelessWidget {
       ),
       child: Padding(padding: padding, child: child),
     );
-    final surfaceChild = MediaQuery.highContrastOf(context)
-        ? CustomPaint(
-            foregroundPainter: _BusyMaxPopoverOutlinePainter(
-              clipper: clipper,
-              color: BusyMaxSurfaceColors.of(context).floatingBorder,
-            ),
-            child: paddedChild,
-          )
-        : paddedChild;
+    final surfaceChild = CustomPaint(
+      foregroundPainter: _BusyMaxPopoverOutlinePainter(
+        clipper: clipper,
+        color: outlineColor ?? BusyMaxSurfaceColors.of(context).floatingBorder,
+      ),
+      child: paddedChild,
+    );
     return PhysicalShape(
       clipper: clipper,
       color: color,
@@ -220,6 +222,39 @@ class BusyMaxPopoverSurface extends StatelessWidget {
       shadowColor: BusyMaxShadow.physicalColor(context),
       clipBehavior: Clip.antiAlias,
       child: surfaceChild,
+    );
+  }
+}
+
+/// A rich anchored content surface, distinct from compact GTK-style menus.
+///
+/// Details cards use the shared raised-card fill and the standard floating
+/// perimeter. This keeps their rich content surface distinct from compact
+/// menus while all popovers retain one native edge, geometry, and shadow.
+class BusyMaxContentPopoverSurface extends StatelessWidget {
+  const BusyMaxContentPopoverSurface({
+    super.key,
+    required this.child,
+    this.arrowSide = BusyMaxPopoverArrowSide.top,
+    this.arrowAlignment = 0.5,
+    this.padding = EdgeInsets.zero,
+  });
+
+  final Widget child;
+  final BusyMaxPopoverArrowSide arrowSide;
+  final double arrowAlignment;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BusyMaxSurfaceColors.of(context);
+    return BusyMaxPopoverSurface(
+      color: colors.card,
+      outlineColor: colors.floatingBorder,
+      arrowSide: arrowSide,
+      arrowAlignment: arrowAlignment,
+      padding: padding,
+      child: child,
     );
   }
 }
@@ -698,10 +733,23 @@ class BusyMaxPopoverIconButton extends StatelessWidget {
       child: YaruIconButton(
         icon: Icon(
           icon,
-          size: kYaruIconSize,
+          size: BusyMaxSizes.popoverActionIcon,
           color: enabled ? foreground : colors.disabledForeground,
         ),
-        iconSize: kYaruTitleBarItemHeight,
+        iconSize: BusyMaxSizes.popoverActionButton,
+        style: const ButtonStyle(
+          fixedSize: WidgetStatePropertyAll(
+            Size.square(BusyMaxSizes.popoverActionButton),
+          ),
+          minimumSize: WidgetStatePropertyAll(
+            Size.square(BusyMaxSizes.popoverActionButton),
+          ),
+          maximumSize: WidgetStatePropertyAll(
+            Size.square(BusyMaxSizes.popoverActionButton),
+          ),
+          padding: WidgetStatePropertyAll(EdgeInsets.zero),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
         tooltip: tooltip,
         onPressed: onPressed,
       ),
@@ -815,6 +863,55 @@ class BusyMaxClamp extends StatelessWidget {
         ? SingleChildScrollView(controller: controller, child: body)
         : body;
   }
+}
+
+/// Semantic parent surfaces that can contain a grouped card.
+///
+/// GTK's card role is a contextual layer in dark themes. Keeping the parent
+/// role explicit lets the shared grouped-card adapter resolve one opaque paint
+/// color for Flutter's elevated [Material] without tying every card to the
+/// main window background.
+enum BusyMaxSurfaceRole { window, view, sidebar, dialog, popover }
+
+class BusyMaxSurfaceScope extends InheritedWidget {
+  const BusyMaxSurfaceScope({
+    super.key,
+    required this.role,
+    required super.child,
+  });
+
+  final BusyMaxSurfaceRole role;
+
+  static BusyMaxSurfaceRole roleOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<BusyMaxSurfaceScope>()
+            ?.role ??
+        BusyMaxSurfaceRole.window;
+  }
+
+  @override
+  bool updateShouldNotify(BusyMaxSurfaceScope oldWidget) {
+    return role != oldWidget.role;
+  }
+}
+
+Color busyMaxGroupedSurfaceColor(BuildContext context) {
+  final colors = BusyMaxSurfaceColors.of(context);
+  final role = BusyMaxSurfaceScope.roleOf(context);
+  if (role == BusyMaxSurfaceRole.window) {
+    // The native bridge already resolves the opaque card role against the
+    // window. Reuse that authoritative value exactly instead of recomputing
+    // an equivalent color with different floating-point channel values.
+    return colors.card;
+  }
+  final parent = switch (role) {
+    BusyMaxSurfaceRole.window => colors.window,
+    BusyMaxSurfaceRole.view => colors.view,
+    BusyMaxSurfaceRole.sidebar => colors.sidebar,
+    BusyMaxSurfaceRole.dialog => colors.dialog,
+    BusyMaxSurfaceRole.popover => colors.popover,
+  };
+  return Color.alphaBlend(colors.groupedSurface, parent);
 }
 
 class BusyMaxGroupedList extends StatelessWidget {
@@ -933,6 +1030,7 @@ class BusyMaxGroupedSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final highContrast = MediaQuery.highContrastOf(context);
     return BusyMaxSurface(
+      color: busyMaxGroupedSurfaceColor(context),
       side: highContrast
           ? BorderSide(color: Theme.of(context).colorScheme.outline)
           : null,
@@ -2985,22 +3083,25 @@ class BusyMaxModalEditorSurface extends StatelessWidget {
         ? double.infinity
         : maxHeight!.clamp(0.0, double.infinity).toDouble();
 
-    return Dialog(
-      backgroundColor: editorSurface,
-      surfaceTintColor: editorSurface,
-      insetPadding: insetPadding,
-      insetAnimationDuration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : BusyMaxMotion.dialogInsets,
-      insetAnimationCurve: BusyMaxMotion.dialogInsetsCurve,
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: effectiveMinWidth,
-          maxWidth: effectiveMaxWidth,
-          maxHeight: effectiveMaxHeight,
+    return BusyMaxSurfaceScope(
+      role: BusyMaxSurfaceRole.window,
+      child: Dialog(
+        backgroundColor: editorSurface,
+        surfaceTintColor: editorSurface,
+        insetPadding: insetPadding,
+        insetAnimationDuration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : BusyMaxMotion.dialogInsets,
+        insetAnimationCurve: BusyMaxMotion.dialogInsetsCurve,
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: effectiveMinWidth,
+            maxWidth: effectiveMaxWidth,
+            maxHeight: effectiveMaxHeight,
+          ),
+          child: child,
         ),
-        child: child,
       ),
     );
   }
@@ -3053,12 +3154,10 @@ class BusyMaxDialogShell extends StatelessWidget {
       namesRoute: true,
       explicitChildNodes: true,
       label: title,
-      child: Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BusyMaxRadius.lg),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(BusyMaxRadius.lg),
+      child: BusyMaxSurfaceScope(
+        role: BusyMaxSurfaceRole.dialog,
+        child: Dialog(
+          clipBehavior: Clip.antiAlias,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: Column(

@@ -160,20 +160,23 @@ class BusyMaxYaruTheme {
         fallback: textTheme.labelLarge,
       ),
     );
-    final floatingSurfaceSide = highContrast
-        ? BorderSide(color: colors.border)
-        : BorderSide.none;
+    final popoverSurfaceSide = BorderSide(
+      color: highContrast ? colors.border : colors.floatingBorder,
+    );
+    final dialogSurfaceSide = BorderSide(
+      color: highContrast ? colors.border : colors.dialogOutline,
+    );
     final menuStyle = _semanticMenuSurfaceStyle(
       base.menuTheme.style,
       color: colors.popover,
       shadowColor: colorScheme.shadow,
-      side: floatingSurfaceSide,
+      side: popoverSurfaceSide,
     );
     final dropdownMenuStyle = _semanticMenuSurfaceStyle(
       base.dropdownMenuTheme.menuStyle,
       color: colors.popover,
       shadowColor: colorScheme.shadow,
-      side: floatingSurfaceSide,
+      side: popoverSurfaceSide,
     );
     final cardTheme = base.cardTheme.copyWith(
       // Elevated Flutter surfaces must be opaque. A translucent card layer
@@ -225,7 +228,10 @@ class BusyMaxYaruTheme {
       dialogTheme: base.dialogTheme.copyWith(
         backgroundColor: colors.dialog,
         surfaceTintColor: colors.dialog,
-        shape: _withOutlineSide(base.dialogTheme.shape, floatingSurfaceSide),
+        // Retain Yaru's dialog radius and geometry, but use the modern
+        // libadwaita dialog outline instead of Yaru Flutter's conspicuous
+        // dark-mode white outline. Popovers have a separate perimeter role.
+        shape: _withOutlineSide(base.dialogTheme.shape, dialogSurfaceSide),
         titleTextStyle: normalizer.apply(
           base.dialogTheme.titleTextStyle,
           fallback: textTheme.titleLarge,
@@ -341,7 +347,7 @@ class BusyMaxYaruTheme {
                 : colors.foreground,
           );
         }),
-        shape: _withOutlineSide(base.popupMenuTheme.shape, floatingSurfaceSide),
+        shape: _withOutlineSide(base.popupMenuTheme.shape, popoverSurfaceSide),
       ),
       menuTheme: MenuThemeData(
         style: menuStyle,
@@ -578,6 +584,7 @@ BusyMaxSurfaceColors _highContrastSurfaceColors(Brightness brightness) {
     border: foreground,
     divider: foreground,
     cardShade: foreground,
+    dialogOutline: foreground,
     floatingBorder: foreground,
     sidebarBorder: foreground,
     shade: Colors.black,

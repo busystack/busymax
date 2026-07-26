@@ -38,7 +38,6 @@ void main() {
           accentColor: const Color(0xFF3584E4),
         );
         final colors = theme.extension<BusyMaxSurfaceColors>()!;
-
         await tester.pumpWidget(
           MaterialApp(
             theme: theme,
@@ -1100,6 +1099,14 @@ void main() {
           accentColor: const Color(0xFF3584E4),
         );
         final colors = theme.extension<BusyMaxSurfaceColors>()!;
+        final expectedDialog = switch (brightness) {
+          Brightness.light => const Color(0xFFFAFAFA),
+          Brightness.dark => const Color(0xFF3E3E3E),
+        };
+        final expectedPopover = switch (brightness) {
+          Brightness.light => const Color(0xFFFAFAFA),
+          Brightness.dark => const Color(0xFF3E3E3E),
+        };
 
         await tester.pumpWidget(
           MaterialApp(
@@ -1137,6 +1144,8 @@ void main() {
             matching: find.byType(Dialog),
           ),
         );
+        expect(colors.dialog, expectedDialog);
+        expect(colors.popover, expectedPopover);
         expect(modalDialog.backgroundColor, colors.window);
         expect(modalDialog.surfaceTintColor, colors.window);
         expect(modalDialog.elevation, isNull);
@@ -1150,6 +1159,7 @@ void main() {
             matching: find.byType(PhysicalShape),
           ),
         );
+        expect(physicalShape.color, expectedPopover);
         expect(physicalShape.elevation, BusyMaxElevation.tooltip);
         expect(physicalShape.shadowColor, theme.colorScheme.shadow);
         final outlinePaint = find.descendant(
@@ -1159,7 +1169,7 @@ void main() {
                 widget is CustomPaint && widget.foregroundPainter != null,
           ),
         );
-        expect(outlinePaint, findsNothing);
+        expect(outlinePaint, findsOneWidget);
         expect(tester.takeException(), isNull);
 
         await tester.pumpWidget(
@@ -1181,21 +1191,21 @@ void main() {
           find.descendant(
             of: find.byType(AlertDialog),
             matching: find.byWidgetPredicate(
-              (widget) => widget is Material && widget.color == colors.dialog,
+              (widget) => widget is Material && widget.color == expectedDialog,
             ),
           ),
         );
         expect(alertDialog.backgroundColor, isNull);
         expect(alertDialog.surfaceTintColor, isNull);
-        expect(theme.dialogTheme.backgroundColor, colors.dialog);
-        expect(alertMaterial.color, colors.dialog);
+        expect(theme.dialogTheme.backgroundColor, expectedDialog);
+        expect(alertMaterial.color, expectedDialog);
         expect(alertMaterial.shape, theme.dialogTheme.shape);
         expect(tester.takeException(), isNull);
       },
     );
   }
 
-  testWidgets('popover perimeter is outlined only in high contrast', (
+  testWidgets('popover perimeter remains outlined in high contrast', (
     tester,
   ) async {
     final theme = BusyMaxYaruTheme.build(

@@ -131,7 +131,7 @@ BusyMaxHeaderBarConfiguration _configuration({required bool dark}) {
       foregroundColor: dark ? Colors.white : Colors.black,
       sidebarBorderColor: Colors.grey,
       popoverBackgroundColor: dark ? Colors.black : Colors.white,
-      floatingBorderColor: Colors.grey,
+      dialogOutlineColor: dark ? Colors.white : Colors.white10,
       modalBarrierColor: Colors.black54,
     ),
   );

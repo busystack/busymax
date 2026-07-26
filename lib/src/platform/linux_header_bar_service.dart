@@ -186,7 +186,7 @@ class BusyMaxHeaderBarTheme {
     required this.foregroundColor,
     required this.sidebarBorderColor,
     required this.popoverBackgroundColor,
-    required this.floatingBorderColor,
+    required this.dialogOutlineColor,
     required this.modalBarrierColor,
   });
 
@@ -198,7 +198,7 @@ class BusyMaxHeaderBarTheme {
   final Color foregroundColor;
   final Color sidebarBorderColor;
   final Color popoverBackgroundColor;
-  final Color floatingBorderColor;
+  final Color dialogOutlineColor;
   final Color modalBarrierColor;
 
   Map<String, Object> toJson() {
@@ -211,7 +211,7 @@ class BusyMaxHeaderBarTheme {
       'foregroundColor': busyMaxCssColor(foregroundColor),
       'sidebarBorderColor': busyMaxCssColor(sidebarBorderColor),
       'popoverBackgroundColor': busyMaxCssColor(popoverBackgroundColor),
-      'floatingBorderColor': busyMaxCssColor(floatingBorderColor),
+      'dialogOutlineColor': busyMaxCssColor(dialogOutlineColor),
       'modalBarrierColor': busyMaxCssColor(modalBarrierColor),
     };
   }
@@ -228,7 +228,7 @@ class BusyMaxHeaderBarTheme {
             other.foregroundColor == foregroundColor &&
             other.sidebarBorderColor == sidebarBorderColor &&
             other.popoverBackgroundColor == popoverBackgroundColor &&
-            other.floatingBorderColor == floatingBorderColor &&
+            other.dialogOutlineColor == dialogOutlineColor &&
             other.modalBarrierColor == modalBarrierColor;
   }
 
@@ -242,7 +242,7 @@ class BusyMaxHeaderBarTheme {
     foregroundColor,
     sidebarBorderColor,
     popoverBackgroundColor,
-    floatingBorderColor,
+    dialogOutlineColor,
     modalBarrierColor,
   );
 }

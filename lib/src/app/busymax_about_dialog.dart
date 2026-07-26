@@ -46,99 +46,102 @@ class BusyMaxAboutDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final textTheme = Theme.of(context).textTheme;
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(BusyMaxSpacing.lg),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.center,
-                    child: const _BusyMaxLogo(size: 72),
-                  ),
-                  const SizedBox(height: BusyMaxSpacing.md),
-                  Text(
-                    l10n.appTitle,
-                    textAlign: TextAlign.center,
-                    style: textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: BusyMaxSpacing.xs),
-                  Text(
-                    l10n.aboutBusyMaxDescription,
-                    textAlign: TextAlign.center,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return BusyMaxSurfaceScope(
+      role: BusyMaxSurfaceRole.dialog,
+      child: Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(BusyMaxSpacing.lg),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.center,
+                      child: const _BusyMaxLogo(size: 72),
                     ),
-                  ),
-                  const SizedBox(height: BusyMaxSpacing.sm),
-                  Align(
-                    alignment: Alignment.center,
-                    child: FutureBuilder<PackageInfo>(
-                      future: PackageInfo.fromPlatform(),
-                      builder: (context, snapshot) {
-                        final info = snapshot.data;
-                        final version = info == null
-                            ? ''
-                            : 'v${info.version}+${info.buildNumber}';
-                        return _VersionTag(version: version);
-                      },
+                    const SizedBox(height: BusyMaxSpacing.md),
+                    Text(
+                      l10n.appTitle,
+                      textAlign: TextAlign.center,
+                      style: textTheme.headlineSmall,
                     ),
-                  ),
-                  const SizedBox(height: BusyMaxSpacing.lg),
-                  BusyMaxGroupedList(
-                    filled: true,
-                    children: [
-                      BusyMaxActionRow(
-                        title: l10n.website,
-                        leading: const Icon(Icons.language),
-                        trailing: const Icon(
-                          Icons.open_in_new,
-                          size: BusyMaxSizes.iconSm,
-                        ),
-                        onTap: () => unawaited(
-                          _openExternalUri(Uri.parse(_busyMaxWebsiteUri)),
-                        ),
+                    const SizedBox(height: BusyMaxSpacing.xs),
+                    Text(
+                      l10n.aboutBusyMaxDescription,
+                      textAlign: TextAlign.center,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                      BusyMaxActionRow(
-                        title: l10n.sendFeedback,
-                        leading: const Icon(Icons.feedback_outlined),
-                        trailing: const Icon(
-                          Icons.chevron_right,
-                          size: BusyMaxSizes.iconSm,
-                        ),
-                        onTap: onSendFeedback,
+                    ),
+                    const SizedBox(height: BusyMaxSpacing.sm),
+                    Align(
+                      alignment: Alignment.center,
+                      child: FutureBuilder<PackageInfo>(
+                        future: PackageInfo.fromPlatform(),
+                        builder: (context, snapshot) {
+                          final info = snapshot.data;
+                          final version = info == null
+                              ? ''
+                              : 'v${info.version}+${info.buildNumber}';
+                          return _VersionTag(version: version);
+                        },
                       ),
-                      BusyMaxActionRow(
-                        title: l10n.reportAnIssue,
-                        leading: const Icon(YaruIcons.warning),
-                        trailing: const Icon(
-                          Icons.open_in_new,
-                          size: BusyMaxSizes.iconSm,
+                    ),
+                    const SizedBox(height: BusyMaxSpacing.lg),
+                    BusyMaxGroupedList(
+                      filled: true,
+                      children: [
+                        BusyMaxActionRow(
+                          title: l10n.website,
+                          leading: const Icon(Icons.language),
+                          trailing: const Icon(
+                            Icons.open_in_new,
+                            size: BusyMaxSizes.iconSm,
+                          ),
+                          onTap: () => unawaited(
+                            _openExternalUri(Uri.parse(_busyMaxWebsiteUri)),
+                          ),
                         ),
-                        onTap: () => unawaited(
-                          _openExternalUri(Uri.parse(_busyMaxIssuesUri)),
+                        BusyMaxActionRow(
+                          title: l10n.sendFeedback,
+                          leading: const Icon(Icons.feedback_outlined),
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                            size: BusyMaxSizes.iconSm,
+                          ),
+                          onTap: onSendFeedback,
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        BusyMaxActionRow(
+                          title: l10n.reportAnIssue,
+                          leading: const Icon(YaruIcons.warning),
+                          trailing: const Icon(
+                            Icons.open_in_new,
+                            size: BusyMaxSizes.iconSm,
+                          ),
+                          onTap: () => unawaited(
+                            _openExternalUri(Uri.parse(_busyMaxIssuesUri)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            PositionedDirectional(
-              top: BusyMaxSpacing.sm,
-              end: BusyMaxSpacing.sm,
-              child: YaruIconButton(
-                icon: const Icon(Icons.close, size: BusyMaxSizes.iconSm),
-                tooltip: l10n.close,
-                onPressed: () => Navigator.of(context).pop(),
+              PositionedDirectional(
+                top: BusyMaxSpacing.sm,
+                end: BusyMaxSpacing.sm,
+                child: YaruIconButton(
+                  icon: const Icon(Icons.close, size: BusyMaxSizes.iconSm),
+                  tooltip: l10n.close,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

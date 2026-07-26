@@ -103,7 +103,7 @@ void main() {
         foregroundColor: Color(0xFFFFFFFF),
         sidebarBorderColor: Color.fromRGBO(0, 0, 6, 0.75),
         popoverBackgroundColor: Color(0xFF36363A),
-        floatingBorderColor: Color.fromRGBO(255, 255, 255, 0.10),
+        dialogOutlineColor: Color.fromRGBO(255, 255, 255, 0.07),
         modalBarrierColor: Color.fromRGBO(0, 0, 0, 0.32),
       ),
     );
@@ -149,7 +149,7 @@ void main() {
         'foregroundColor': '#FFFFFF',
         'sidebarBorderColor': 'rgba(0,0,6,0.75)',
         'popoverBackgroundColor': '#36363A',
-        'floatingBorderColor': 'rgba(255,255,255,0.10)',
+        'dialogOutlineColor': 'rgba(255,255,255,0.07)',
         'modalBarrierColor': 'rgba(0,0,0,0.32)',
       }),
     );

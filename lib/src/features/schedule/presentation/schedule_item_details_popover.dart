@@ -3,7 +3,6 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
-import '../../../app/busymax_yaru_theme.dart';
 import '../../../calendar_providers/calendar_description.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
@@ -48,15 +47,13 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final itemColor = ScheduleProjection.colorForItem(
       item,
       colorScheme.brightness,
     );
     return Material(
       color: Colors.transparent,
-      child: BusyMaxPopoverSurface(
-        color: surfaceColors.popover,
+      child: BusyMaxContentPopoverSurface(
         arrowSide: arrowSide,
         arrowAlignment: arrowAlignment,
         child: SingleChildScrollView(

@@ -179,7 +179,8 @@ void main() {
     final baseDialogShape = base.dialogTheme.shape! as RoundedRectangleBorder;
     expect(dialogShape.borderRadius, baseDialogShape.borderRadius);
     expect(dialogShape.borderRadius, BorderRadius.circular(kYaruWindowRadius));
-    expect(dialogShape.side, BorderSide.none);
+    expect(dialogShape.side, BorderSide(color: colors.dialogOutline));
+    expect(dialogShape.side, isNot(baseDialogShape.side));
     expect(BusyMaxRadius.window, kYaruWindowRadius);
 
     for (final pair in [
@@ -209,14 +210,17 @@ void main() {
     final popupShape = theme.popupMenuTheme.shape! as OutlineInputBorder;
     final basePopupShape = base.popupMenuTheme.shape! as OutlineInputBorder;
     expect(popupShape.borderRadius, basePopupShape.borderRadius);
-    expect(popupShape.borderSide, BorderSide.none);
+    expect(popupShape.borderSide, BorderSide(color: colors.floatingBorder));
     expect(theme.popupMenuTheme.elevation, base.popupMenuTheme.elevation);
     expect(theme.popupMenuTheme.menuPadding, base.popupMenuTheme.menuPadding);
     expect(theme.popupMenuTheme.position, base.popupMenuTheme.position);
-    expect(theme.menuTheme.style?.side?.resolve({}), BorderSide.none);
+    expect(
+      theme.menuTheme.style?.side?.resolve({}),
+      BorderSide(color: colors.floatingBorder),
+    );
     expect(
       theme.dropdownMenuTheme.menuStyle?.side?.resolve({}),
-      BorderSide.none,
+      BorderSide(color: colors.floatingBorder),
     );
 
     for (final style in [
@@ -312,6 +316,11 @@ void main() {
     expect(lightColors.controlHover, const Color.fromRGBO(0, 0, 0, 0.14));
     expect(lightColors.controlActive, const Color.fromRGBO(0, 0, 0, 0.18));
     expect(lightColors.mutedForeground, const Color(0xFF666666));
+    expect(
+      lightColors.dialogOutline,
+      const Color.fromRGBO(255, 255, 255, 0.07),
+    );
+    expect(lightColors.floatingBorder, const Color.fromRGBO(0, 0, 0, 0.14));
     expect(lightColors.sidebarBorder, const Color.fromRGBO(24, 24, 24, 0.08));
     expect(darkColors.window, const Color(0xFF2C2C2C));
     expect(darkColors.view, const Color(0xFF272727));
@@ -327,6 +336,8 @@ void main() {
     expect(darkColors.popover, const Color(0xFF3E3E3E));
     expect(darkColors.mutedForeground, const Color(0xFFB5B5B5));
     expect(darkColors.border, const Color.fromRGBO(0, 0, 0, 0.75));
+    expect(darkColors.dialogOutline, const Color.fromRGBO(255, 255, 255, 0.07));
+    expect(darkColors.floatingBorder, const Color.fromRGBO(0, 0, 0, 0.14));
     expect(darkColors.sidebarBorder, const Color.fromRGBO(16, 16, 16, 0.35));
     expect(
       Color.alphaBlend(darkColors.sidebarBorder, darkColors.sidebar).toARGB32(),
@@ -437,7 +448,10 @@ void main() {
         pair.$1?.shape?.resolve(const {}),
         pair.$2?.shape?.resolve(const {}),
       );
-      expect(pair.$1?.side?.resolve(const {}), BorderSide.none);
+      expect(
+        pair.$1?.side?.resolve(const {}),
+        BorderSide(color: darkColors.floatingBorder),
+      );
       expect(
         pair.$1?.padding?.resolve(const {}),
         pair.$2?.padding?.resolve(const {}),
@@ -485,6 +499,7 @@ void main() {
       sidebar: const Color(0xFF040506),
       groupedSurface: const Color(0xFF060708),
       disabledForeground: const Color(0xFF070809),
+      dialogOutline: const Color(0xFF090A0B),
       shade: const Color(0xFF0A0B0C),
     );
 
@@ -492,6 +507,7 @@ void main() {
     expect(updated.sidebar, const Color(0xFF040506));
     expect(updated.groupedSurface, const Color(0xFF060708));
     expect(updated.disabledForeground, const Color(0xFF070809));
+    expect(updated.dialogOutline, const Color(0xFF090A0B));
     expect(updated.shade, const Color(0xFF0A0B0C));
     expect(updated.view, base.view);
     expect(updated.popover, base.popover);
@@ -514,6 +530,10 @@ void main() {
       Color.lerp(start.groupedSurface, end.groupedSurface, 0.5),
     );
     expect(midpoint.dialog, Color.lerp(start.dialog, end.dialog, 0.5));
+    expect(
+      midpoint.dialogOutline,
+      Color.lerp(start.dialogOutline, end.dialogOutline, 0.5),
+    );
     expect(
       midpoint.disabledForeground,
       Color.lerp(start.disabledForeground, end.disabledForeground, 0.5),
@@ -806,9 +826,11 @@ void main() {
     );
     expect(theme.colorScheme.onSurface, gtkColors.foreground);
     expect(theme.colorScheme.onSurfaceVariant, gtkColors.mutedForeground);
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
     expect(theme.dialogTheme.backgroundColor, gtkColors.dialog);
     expect(theme.popupMenuTheme.color, gtkColors.popover);
-    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    expect(colors.dialog, gtkColors.dialog);
+    expect(colors.popover, gtkColors.popover);
     expect(colors.sidebar, gtkColors.sidebar);
     expect(colors.groupedSurface, gtkColors.card);
     expect(colors.cardShade, gtkColors.cardShade);
@@ -889,7 +911,7 @@ void main() {
     expect(colors.sidebar, gtkColors.sidebar);
   });
 
-  test('BusyMax theme preserves dark GTK popover samples', () {
+  test('BusyMax preserves named GTK floating-surface roles', () {
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
       window: Color(0xFF242424),
@@ -906,6 +928,7 @@ void main() {
 
     expect(theme.popupMenuTheme.color, gtkColors.popover);
     expect(colors.popover, gtkColors.popover);
+    expect(colors.dialog, busyMaxFallbackSurfaceColors(Brightness.dark).dialog);
     expect(
       colors.groupedSurface,
       busyMaxFallbackSurfaceColors(Brightness.dark).groupedSurface,
@@ -927,6 +950,7 @@ void main() {
     );
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
     expect(colors.sidebar, gtkColors.sidebar);
+    expect(colors.dialog, busyMaxFallbackSurfaceColors(Brightness.dark).dialog);
     expect(colors.popover, gtkColors.popover);
     expect(theme.popupMenuTheme.color, colors.popover);
     expect(
@@ -1007,7 +1031,7 @@ void main() {
     expect(colors.card, isNot(wrongParent));
   });
 
-  test('BusyMax preserves readable darker roles from a custom GTK theme', () {
+  test('BusyMax preserves custom GTK surface roles', () {
     const parent = Color(0xFF3E3E3E);
     const gtkColors = GtkThemeColors(
       brightness: Brightness.dark,
@@ -1178,6 +1202,7 @@ void main() {
     expect(colors.sidebar, gtkColors.sidebar);
     expect(colors.control, const Color.fromRGBO(255, 255, 255, 0.10));
     expect(colors.controlHover, const Color.fromRGBO(255, 255, 255, 0.14));
+    expect(colors.dialog, gtkColors.dialog);
     expect(colors.popover, gtkColors.popover);
     expect(colors.groupedSurface, gtkColors.card);
   });
@@ -1555,7 +1580,7 @@ void main() {
     expect(source, contains('foregroundColor: colors.foreground'));
     expect(source, contains('sidebarBorderColor: colors.sidebarBorder'));
     expect(source, contains('popoverBackgroundColor: colors.popover'));
-    expect(source, contains('floatingBorderColor: colors.floatingBorder'));
+    expect(source, isNot(contains('floatingBorderColor:')));
     expect(source, contains('modalBarrierColor: modalBarrierColor'));
     expect(source, isNot(contains('controlHoverColor: colors.controlHover')));
     expect(source, isNot(contains('accentColor: colorScheme.primary')));

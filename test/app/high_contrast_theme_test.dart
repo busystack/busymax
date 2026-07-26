@@ -54,6 +54,7 @@ void main() {
       expect(surfaces.border, surfaces.foreground);
       expect(surfaces.divider, surfaces.foreground);
       expect(surfaces.cardShade, surfaces.foreground);
+      expect(surfaces.dialogOutline, surfaces.foreground);
       expect(surfaces.floatingBorder, surfaces.foreground);
       expect(surfaces.sidebarBorder, surfaces.foreground);
       expect(theme.colorScheme.outline, surfaces.foreground);
