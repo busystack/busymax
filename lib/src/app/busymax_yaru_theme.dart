@@ -179,15 +179,13 @@ class BusyMaxYaruTheme {
       side: popoverSurfaceSide,
     );
     final cardTheme = base.cardTheme.copyWith(
-      // Elevated Flutter surfaces must be opaque. A translucent card layer
-      // lets PhysicalShape's shadow show through its own fill on Linux,
-      // darkening the card well below the native Yaru result. [colors.card]
-      // is the same semantic GTK layer precomposited over the window/editor
-      // surface by the resolver.
+      // Filled Flutter surfaces must be opaque. [colors.card] is the semantic
+      // GTK layer precomposited over the window/editor surface by the resolver.
+      // Card and Yaru continue to own elevation and shadow geometry.
       color: colors.card,
       surfaceTintColor: Colors.transparent,
       shadowColor: colorScheme.shadow,
-      elevation: BusyMaxElevation.card,
+      elevation: BusyMaxElevation.groupedCard,
       shape:
           base.cardTheme.shape ??
           RoundedRectangleBorder(
@@ -228,6 +226,10 @@ class BusyMaxYaruTheme {
       dialogTheme: base.dialogTheme.copyWith(
         backgroundColor: colors.dialog,
         surfaceTintColor: colors.dialog,
+        // Material 3 makes its default dialog shadow transparent. Restore the
+        // semantic theme shadow while retaining the framework-owned elevation
+        // and Yaru-owned dialog geometry.
+        shadowColor: colorScheme.shadow,
         // Retain Yaru's dialog radius and geometry, but use the modern
         // libadwaita dialog outline instead of Yaru Flutter's conspicuous
         // dark-mode white outline. Popovers have a separate perimeter role.
@@ -333,6 +335,7 @@ class BusyMaxYaruTheme {
         color: colors.popover,
         surfaceTintColor: colors.popover,
         shadowColor: colorScheme.shadow,
+        elevation: menuStyle.elevation?.resolve(const {}),
         textStyle: normalizer.apply(
           base.popupMenuTheme.textStyle,
           fallback: textTheme.bodyMedium,
@@ -363,19 +366,7 @@ class BusyMaxYaruTheme {
           fallback: textTheme.labelLarge,
         ),
       ),
-      tooltipTheme: base.tooltipTheme.copyWith(
-        decoration: BoxDecoration(
-          color: colors.popover,
-          borderRadius: BorderRadius.circular(BusyMaxRadius.headerButton),
-          border: highContrast ? Border.all(color: colors.border) : null,
-          boxShadow: BusyMaxShadow.tooltipShadows(colors.shade),
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: BusyMaxSpacing.tooltipHorizontal,
-          vertical: BusyMaxSpacing.tooltipVertical,
-        ),
-        textStyle: textTheme.bodyMedium?.copyWith(color: colors.foreground),
-      ),
+      tooltipTheme: base.tooltipTheme,
       snackBarTheme: base.snackBarTheme.copyWith(
         contentTextStyle: normalizer.apply(
           base.snackBarTheme.contentTextStyle,
@@ -587,7 +578,7 @@ BusyMaxSurfaceColors _highContrastSurfaceColors(Brightness brightness) {
     dialogOutline: foreground,
     floatingBorder: foreground,
     sidebarBorder: foreground,
-    shade: Colors.black,
+    shade: Colors.black.withValues(alpha: 0.50),
   );
 }
 

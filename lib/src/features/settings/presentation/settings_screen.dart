@@ -260,7 +260,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     };
 
     return Scaffold(
-      backgroundColor: BusyMaxSurfaceColors.of(context).view,
+      backgroundColor: BusyMaxSurfaceColors.of(context).window,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final showSidebar = BusyMaxLayoutRules.showSettingsSidebar(
@@ -703,7 +703,7 @@ class _SettingsFallbackHeader extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium,
+              style: busyMaxHeaderTitleStyle(context),
             ),
           ),
           const SizedBox(width: BusyMaxSizes.headerIconButton),

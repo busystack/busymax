@@ -101,7 +101,7 @@ class ScheduleToolbar extends StatelessWidget {
                   _rangeLabel(context, mode, range, selectedDate),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: busyMaxHeaderTitleStyle(context),
                 ),
               ),
               BusyMaxMenuButton<ScheduleViewMode>(

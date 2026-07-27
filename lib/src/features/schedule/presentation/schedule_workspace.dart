@@ -553,7 +553,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       ],
                     );
                     return Scaffold(
-                      backgroundColor: BusyMaxSurfaceColors.of(context).view,
+                      backgroundColor: BusyMaxSurfaceColors.of(context).window,
                       body: LayoutBuilder(
                         builder: (context, constraints) {
                           final showSidebar = BusyMaxLayoutRules.showSidebar(

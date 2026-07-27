@@ -190,8 +190,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Start time'), findsNothing);
-    expect(find.text('End Time'), findsNothing);
+    expect(_timeRowFinder('Start time'), findsNothing);
+    expect(_timeRowFinder('End Time'), findsNothing);
     expect(_plainTextFinder('All day'), findsOneWidget);
     expect(_plainTextFinder('Time slot'), findsOneWidget);
     expect(find.text('No conference'), findsNothing);
@@ -239,7 +239,7 @@ void main() {
     );
   });
 
-  testWidgets('timed event shows separated end date and end time labels', (
+  testWidgets('timed event gives date and time fields contextual labels', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -261,14 +261,80 @@ void main() {
       ),
     );
 
-    expect(find.text('Start date'), findsOneWidget);
-    expect(find.text('Start time'), findsOneWidget);
-    expect(find.text('End Date'), findsOneWidget);
-    expect(find.text('End Time'), findsOneWidget);
-    expect(find.text('End date/time'), findsNothing);
+    expect(find.text('Start date/time'), findsOneWidget);
+    expect(find.text('End date/time'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DesktopDateValueRow && widget.label == 'Start date',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DesktopTimeValueRow && widget.label == 'Start time',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is DesktopDateValueRow && widget.label == 'End Date',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is DesktopTimeValueRow && widget.label == 'End Time',
+      ),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('event time popup opens with current time and requires a value', (
+  testWidgets('existing timed event renders all date and time values', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        alwaysUse24HourFormat: true,
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime(2026, 6, 8, 9, 15),
+              end: DateTime(2026, 6, 8, 10, 45),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final startDate = _dateTextField(tester, 'Start date');
+    final startTime = _timeTextField(tester, 'Start time');
+    final endDate = _dateTextField(tester, 'End Date');
+    final endTime = _timeTextField(tester, 'End Time');
+
+    expect(startDate.controller?.text, isNotEmpty);
+    expect(startTime.controller?.text, '09:15');
+    expect(endDate.controller?.text, isNotEmpty);
+    expect(endTime.controller?.text, '10:45');
+    expect(startDate.decoration?.labelText, 'Start date');
+    expect(startTime.decoration?.labelText, 'Start time');
+    expect(endDate.decoration?.labelText, 'End Date');
+    expect(endTime.decoration?.labelText, 'End Time');
+    expect(find.text('Enter date'), findsNothing);
+    expect(find.text('Enter time'), findsNothing);
+  });
+
+  testWidgets('event time entry reports an empty required value', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -290,37 +356,151 @@ void main() {
       ),
     );
 
-    await tester.ensureVisible(find.text('Start time'));
-    await tester.tap(find.text('Start time'));
-    await tester.pumpAndSettle();
+    final fieldFinder = _timeEntryFinder('Start time');
+    await tester.ensureVisible(fieldFinder);
+    var entry = tester.widget<TextFormField>(fieldFinder);
+    expect(
+      parseDesktopTimeInput(
+        tester.element(fieldFinder),
+        entry.controller?.text ?? '',
+      ),
+      const TimeOfDay(hour: 9, minute: 0),
+      reason: 'visible value: ${entry.controller?.text}',
+    );
 
-    final fieldFinder = _timeEntryFinder();
-    final entry = tester.widget<YaruTimeEntry>(fieldFinder);
-    expect(entry.controller?.timeOfDay, const TimeOfDay(hour: 9, minute: 0));
-
-    await tester.tap(find.byIcon(YaruIcons.edit_clear));
+    await tester.tap(fieldFinder);
     await tester.pump();
+    await _clearTimeEntry(tester, 'Start time');
 
     expect(tester.takeException(), isNull);
-    expect(entry.controller?.timeOfDay, isNull);
+    entry = tester.widget<TextFormField>(fieldFinder);
+    expect(entry.controller?.text, isEmpty);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    entry = tester.widget<TextFormField>(fieldFinder);
+    expect(entry.controller?.text, isEmpty);
     expect(
-      tester
-          .widget<ButtonStyleButton>(
-            find
-                .ancestor(
-                  of: find.text('OK'),
-                  matching: find.byWidgetPredicate(
-                    (widget) => widget is ButtonStyleButton,
-                  ),
-                )
-                .first,
-          )
-          .onPressed,
-      isNull,
+      find.text(
+        MaterialLocalizations.of(tester.element(fieldFinder)).invalidTimeLabel,
+      ),
+      findsOneWidget,
     );
+    expect(find.text('OK'), findsNothing);
   });
 
-  testWidgets('event time popup accepts midnight input', (tester) async {
+  testWidgets(
+    'invalid visible start time disables Save and Ctrl+S and makes Cancel confirm',
+    (tester) async {
+      var saveCalls = 0;
+      var cancelled = false;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ),
+              sources: _sources,
+              onCancel: () => cancelled = true,
+              onSave: (_) => saveCalls += 1,
+            ),
+          ),
+        ),
+      );
+
+      final startTime = _timeEntryFinder('Start time');
+      await tester.enterText(startTime, 'not a time');
+      await tester.pump();
+
+      final saveButton = tester.widget<ButtonStyleButton>(
+        _headerButtonFinder('Save'),
+      );
+      expect(saveButton.onPressed, isNull);
+      expect(
+        find.text(
+          MaterialLocalizations.of(tester.element(startTime)).invalidTimeLabel,
+        ),
+        findsOneWidget,
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      expect(saveCalls, 0);
+
+      await tester.tap(_headerButtonFinder('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(cancelled, isFalse);
+      expect(find.text('Discard changes?'), findsOneWidget);
+
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+
+      expect(cancelled, isTrue);
+      expect(saveCalls, 0);
+    },
+  );
+
+  testWidgets('switching an invalid timed event to all-day clears validity', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(_timeEntryFinder('Start time'), 'not a time');
+    await tester.pump();
+    expect(
+      tester.widget<ButtonStyleButton>(_headerButtonFinder('Save')).onPressed,
+      isNull,
+    );
+
+    await tester.tap(_plainTextFinder('All day'));
+    await tester.pumpAndSettle();
+
+    expect(_timeRowFinder('Start time'), findsNothing);
+    expect(_timeRowFinder('End Time'), findsNothing);
+    expect(
+      tester.widget<ButtonStyleButton>(_headerButtonFinder('Save')).onPressed,
+      isNotNull,
+    );
+
+    await tester.tap(_headerButtonFinder('Save'));
+    await tester.pump();
+
+    expect(saved?.allDay, isTrue);
+  });
+
+  testWidgets('event time field accepts midnight input', (tester) async {
     EventEditorDraft? saved;
     await tester.pumpWidget(
       localizedTestApp(
@@ -342,13 +522,12 @@ void main() {
       ),
     );
 
-    await tester.ensureVisible(find.text('Start time'));
-    await tester.tap(find.text('Start time'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(YaruIcons.edit_clear));
-    await _enterTime(tester, hour: '00', minute: '00');
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+    final fieldFinder = _timeEntryFinder('Start time');
+    await tester.ensureVisible(fieldFinder);
+    await tester.tap(fieldFinder);
+    await tester.pump();
+    await _clearTimeEntry(tester, 'Start time');
+    await _enterTime(tester, label: 'Start time', hour: '00', minute: '00');
 
     await tester.tap(_headerButtonFinder('Save'));
 
@@ -1230,7 +1409,14 @@ void main() {
     expect(editor, contains('showBusyMaxEventEditorDialog'));
     expect(editor, contains('showBusyMaxModalEditorDialog'));
     expect(editor, isNot(contains('showDialog<EventEditorDialogResult>')));
-    expect(dialogs, contains('setModalBarrierVisible(true)'));
+    expect(
+      dialogs,
+      contains('await acquireBusyMaxModalBarrier(headerBarService)'),
+    );
+    expect(
+      dialogs,
+      contains('await releaseBusyMaxModalBarrier(headerBarService)'),
+    );
     expect(
       dialogs,
       contains('barrierColor ?? busyMaxModalBarrierColor(context)'),
@@ -1272,18 +1458,34 @@ void main() {
     expect(editor, isNot(contains('BusyMaxDialogCloseButton')));
   });
 
-  test('editor rows reuse the shared Yaru hover role, not a control fill', () {
-    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
-    final hoverStart = design.indexOf('Color busyMaxRowHoverColor');
-    final hoverEnd = design.indexOf('Color busyMaxPanelBorder');
-    final hoverSource = design.substring(hoverStart, hoverEnd);
+  test(
+    'editor rows reuse the shared native hover role, not a control fill',
+    () {
+      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final editor = File(
+        'lib/src/features/calendar/presentation/event_editor.dart',
+      ).readAsStringSync();
+      final hoverStart = design.indexOf('Color busyMaxRowHoverColor');
+      final hoverEnd = design.indexOf('Color busyMaxPanelBorder');
+      final hoverSource = design.substring(hoverStart, hoverEnd);
 
-    expect(hoverSource, contains('return Theme.of(context).hoverColor'));
-    expect(hoverSource, contains('return busyMaxRowHoverColor(context)'));
-    expect(hoverSource, isNot(contains('.controlHover')));
-    expect(hoverSource, isNot(contains('primaryContainer')));
-    expect(hoverSource, isNot(contains('colorScheme.primary')));
-  });
+      expect(hoverSource, contains('final theme = Theme.of(context)'));
+      expect(hoverSource, contains('final hover = theme.hoverColor'));
+      expect(
+        hoverSource,
+        contains('BusyMaxAlpha.groupedRowLightHoverStrength'),
+      );
+      expect(design, contains('groupedRowLightHoverStrength = 0.50'));
+      expect(
+        hoverSource,
+        contains('theme.colorScheme.brightness == Brightness.dark'),
+      );
+      expect(hoverSource, isNot(contains('.controlHover')));
+      expect(hoverSource, isNot(contains('primaryContainer')));
+      expect(hoverSource, isNot(contains('colorScheme.primary')));
+      expect(editor, isNot(contains('hoverColor:')));
+    },
+  );
 
   test('event editor text fields do not render duplicate section labels', () {
     final editor = File(
@@ -1341,26 +1543,28 @@ void main() {
     );
   });
 
-  test('event editor text fields use plain borderless decoration', () {
+  test('event editor text fields use shared grouped-row decoration', () {
     final editor = File(
       'lib/src/features/calendar/presentation/event_editor.dart',
     ).readAsStringSync();
+    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
-    expect(editor, contains('_plainEventFieldDecoration'));
-    expect(editor, contains('filled: false'));
-    expect(editor, contains('fillColor: Colors.transparent'));
-    expect(editor, contains('hoverColor: Colors.transparent'));
-    expect(editor, contains('labelText: labelText'));
-    expect(editor, contains('labelStyle: labelStyle'));
-    expect(editor, contains('floatingLabelStyle: labelStyle'));
+    expect(editor, contains('busyMaxGroupedTextFieldDecoration'));
+    expect(editor, isNot(contains('_plainEventFieldDecoration')));
+    expect(design, contains('filled: false'));
+    expect(design, contains('fillColor: Colors.transparent'));
+    expect(design, contains('hoverColor: Colors.transparent'));
+    expect(design, contains('labelText: labelText'));
+    expect(design, contains('labelStyle: labelStyle'));
+    expect(design, contains('floatingLabelStyle: labelStyle'));
     expect(
-      editor,
+      design,
       contains('floatingLabelBehavior: FloatingLabelBehavior.auto'),
     );
-    expect(editor, contains('enabledBorder: InputBorder.none'));
-    expect(editor, contains('focusedBorder: InputBorder.none'));
-    expect(editor, contains('errorBorder: InputBorder.none'));
-    expect(editor, contains('focusedErrorBorder: InputBorder.none'));
+    expect(design, contains('enabledBorder: InputBorder.none'));
+    expect(design, contains('focusedBorder: InputBorder.none'));
+    expect(design, contains('errorBorder: InputBorder.none'));
+    expect(design, contains('focusedErrorBorder: InputBorder.none'));
   });
 
   test(
@@ -1526,18 +1730,50 @@ BusyMaxComboRow<String> _comboRow(WidgetTester tester, String title) {
   );
 }
 
-Finder _timeEntryFinder() => find.byType(YaruTimeEntry);
+Finder _timeRowFinder(String label) {
+  return find.byWidgetPredicate(
+    (widget) => widget is DesktopTimeValueRow && widget.label == label,
+  );
+}
+
+TextField _dateTextField(WidgetTester tester, String label) {
+  final row = find.byWidgetPredicate(
+    (widget) => widget is DesktopDateValueRow && widget.label == label,
+  );
+  return tester.widget<TextField>(
+    find.descendant(of: row, matching: find.byType(TextField)),
+  );
+}
+
+TextField _timeTextField(WidgetTester tester, String label) {
+  return tester.widget<TextField>(
+    find.descendant(
+      of: _timeRowFinder(label),
+      matching: find.byType(TextField),
+    ),
+  );
+}
+
+Finder _timeEntryFinder(String label) {
+  return find.descendant(
+    of: _timeRowFinder(label),
+    matching: find.byType(TextFormField),
+  );
+}
+
+Future<void> _clearTimeEntry(WidgetTester tester, String label) async {
+  await tester.enterText(_timeEntryFinder(label), '');
+  await tester.pump();
+}
 
 Future<void> _enterTime(
   WidgetTester tester, {
+  required String label,
   required String hour,
   required String minute,
 }) async {
-  final entry = _timeEntryFinder();
-  await tester.tap(entry);
-  await tester.enterText(entry, hour);
-  await tester.pump();
-  await tester.enterText(entry, minute);
+  final entry = _timeEntryFinder(label);
+  await tester.enterText(entry, '$hour:$minute');
   await tester.pump();
 }
 

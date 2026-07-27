@@ -91,7 +91,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     return Scaffold(
       body: ColoredBox(
-        color: BusyMaxSurfaceColors.of(context).view,
+        color: BusyMaxSurfaceColors.of(context).window,
         child: SafeArea(
           top: !Platform.isLinux || !_nativeHeaderBarAvailable,
           child: LayoutBuilder(

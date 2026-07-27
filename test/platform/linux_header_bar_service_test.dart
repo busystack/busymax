@@ -103,6 +103,9 @@ void main() {
         foregroundColor: Color(0xFFFFFFFF),
         sidebarBorderColor: Color.fromRGBO(0, 0, 6, 0.75),
         popoverBackgroundColor: Color(0xFF36363A),
+        menuHoverColor: Color.fromRGBO(255, 255, 255, 0.14),
+        popoverShadowColor: Color.fromRGBO(0, 0, 0, 0.3),
+        dialogBackgroundColor: Color(0xFF36363A),
         dialogOutlineColor: Color.fromRGBO(255, 255, 255, 0.07),
         modalBarrierColor: Color.fromRGBO(0, 0, 0, 0.32),
       ),
@@ -149,6 +152,9 @@ void main() {
         'foregroundColor': '#FFFFFF',
         'sidebarBorderColor': 'rgba(0,0,6,0.75)',
         'popoverBackgroundColor': '#36363A',
+        'menuHoverColor': 'rgba(255,255,255,0.14)',
+        'popoverShadowColor': 'rgba(0,0,0,0.30)',
+        'dialogBackgroundColor': '#36363A',
         'dialogOutlineColor': 'rgba(255,255,255,0.07)',
         'modalBarrierColor': 'rgba(0,0,0,0.32)',
       }),
@@ -544,8 +550,15 @@ void main() {
     expect(calls.where((call) => call.method == 'focusSearch'), hasLength(1));
   });
 
-  test('native search uses a responsive theme-owned GTK entry', () {
+  test('native search uses responsive GTK geometry with a scoped Yaru shim', () {
     final source = File('linux/runner/my_application.cc').readAsStringSync();
+    final geometryCssStart = source.indexOf(
+      'g_autofree gchar* native_search_geometry_css =',
+    );
+    final geometryCssEnd = source.indexOf(
+      'g_autofree gchar* native_menu_state_css =',
+      geometryCssStart,
+    );
 
     expect(source, contains('gtk_search_entry_new()'));
     expect(
@@ -576,7 +589,37 @@ void main() {
       source,
       isNot(contains('gtk_widget_set_size_request(self->search_entry')),
     );
-    expect(source, isNot(contains('busymax-search-entry')));
+    expect(source, contains('"busymax-header-search-entry"'));
+    expect(
+      source,
+      contains(
+        'gtk_style_context_add_class(gtk_widget_get_style_context(self->search_entry),',
+      ),
+    );
+    expect(source, contains('kHeaderSearchEntryStyleClass'));
+
+    expect(geometryCssStart, isNonNegative);
+    expect(geometryCssEnd, greaterThan(geometryCssStart));
+    final geometryCss = source.substring(geometryCssStart, geometryCssEnd);
+    expect(geometryCss, contains('use_legacy_yaru_compatibility'));
+    expect(geometryCss, contains('"entry.search.%s {"'));
+    expect(geometryCss, contains('"border-radius: 9px;"'));
+    expect(geometryCss, contains('kHeaderSearchEntryStyleClass'));
+    expect(geometryCss, isNot(contains('background')));
+    expect(geometryCss, isNot(contains('border-color')));
+    expect(geometryCss, isNot(contains('"border:')));
+    expect(geometryCss, isNot(contains('box-shadow')));
+    expect(geometryCss, isNot(contains('padding')));
+    expect(geometryCss, isNot(contains('min-height')));
+    expect(geometryCss, isNot(contains('#')));
+    expect(geometryCss, isNot(contains('rgba(')));
+    expect(
+      source,
+      contains(
+        'const gboolean use_legacy_yaru_compatibility =\n'
+        '      !self->header_bar_high_contrast &&',
+      ),
+    );
   });
 
   test('focused native search text wins delayed Dart snapshots', () {
@@ -638,7 +681,7 @@ void main() {
     expect(source, isNot(contains('transition: none')));
     expect(source, isNot(contains('popover.busymax-header-popover')));
     expect(source, contains('kNativePopoverStyleClass'));
-    expect(source, contains('style_native_popover(GTK_WIDGET(popover))'));
+    expect(source, contains('style_header_menu_popover(GTK_WIDGET(popover))'));
     expect(source, isNot(contains('tooltip.background')));
     expect(source, isNot(contains('button.busymax-header-popover-row')));
     expect(source, isNot(contains('busymax-keyboard-focus')));

@@ -645,7 +645,10 @@ Future<void> _renameCalendar(
     initialValue: source.summary,
     headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
-  if (title == null || title.trim().isEmpty || title.trim() == source.summary) {
+  if (!context.mounted ||
+      title == null ||
+      title.trim().isEmpty ||
+      title.trim() == source.summary) {
     return;
   }
   await ref
@@ -685,7 +688,10 @@ Future<void> _renameTaskList(
     initialValue: list.title,
     headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
-  if (title == null || title.trim().isEmpty || title.trim() == list.title) {
+  if (!context.mounted ||
+      title == null ||
+      title.trim().isEmpty ||
+      title.trim() == list.title) {
     return;
   }
   await ref

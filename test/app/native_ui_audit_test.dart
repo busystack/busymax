@@ -84,7 +84,6 @@ void main() {
         expect(source, isNot(contains('configure_rounded_window_shape')));
         expect(source, isNot(contains('CAIRO_OPERATOR_CLEAR')));
         expect(source, isNot(contains('kNativeWindowRadius')));
-        expect(source, isNot(contains('border-radius: %dpx;')));
         expect(source, isNot(contains('"unified"')));
         expect(app, isNot(contains('_BusyMaxWindowCornerClip')));
       },
@@ -195,8 +194,11 @@ void main() {
         expect(design, contains('class BusyMaxDialogShell'));
         expect(design, contains('class BusyMaxModalEditorSurface'));
         expect(design, contains('Color busyMaxModalBarrierColor'));
-        expect(design, contains('abstract final class BusyMaxElevation'));
-        expect(design, contains('BusyMaxShadow.physicalColor(context)'));
+        expect(design, contains('decoration: ShapeDecoration('));
+        expect(design, contains('BusyMaxShadow.nativePopoverShadowsFor('));
+        expect(design, contains('ShapeBorderClipper(shape: shape)'));
+        expect(design, isNot(contains('_BusyMaxPopoverShadowPainter')));
+        expect(design, isNot(contains('return PhysicalShape(')));
         expect(design, isNot(contains('lightSurfaceShadowMinimum')));
         expect(design, contains('final bool filled;'));
         expect(design, contains('BusyMaxSurfaceColors.of(context)'));
@@ -205,6 +207,18 @@ void main() {
         expect(design, contains('surfaceColors.control'));
         expect(design, contains('YaruListTile.square('));
         expect(design, isNot(contains('class _BusyMaxRowTile')));
+        final calendarRowStart = design.indexOf(
+          'class BusyMaxCalendarValueRow',
+        );
+        final calendarRowEnd = design.indexOf(
+          'class BusyMaxCalendarNotesCard',
+          calendarRowStart,
+        );
+        expect(calendarRowStart, isNonNegative);
+        expect(calendarRowEnd, greaterThan(calendarRowStart));
+        final calendarRow = design.substring(calendarRowStart, calendarRowEnd);
+        expect(calendarRow, contains('required this.entry'));
+        expect(calendarRow, isNot(contains('TextField(')));
 
         expect(taskDetails, contains('BusyMaxClamp'));
         expect(taskDetails, contains('BusyMaxGroupedList'));
@@ -258,11 +272,22 @@ void main() {
         expect(compactAgenda, contains('ScheduleProjection.colorForItem'));
         expect(compactAgenda, contains('leading: _CompactAgendaRowMarker'));
 
-        expect(dateTimeFields, contains('YaruDateTimeEntry'));
-        expect(dateTimeFields, contains('YaruTimeEntry('));
-        expect(dateTimeFields, contains('YaruTimeEntryController'));
+        expect(dateTimeFields, contains('InputDatePickerFormField'));
+        expect(dateTimeFields, contains('fieldLabelText: widget.label'));
+        expect(dateTimeFields, contains('entry: TextFormField('));
+        expect(
+          'busyMaxGroupedTextFieldDecoration'.allMatches(dateTimeFields).length,
+          greaterThanOrEqualTo(2),
+        );
+        expect(dateTimeFields, contains('labelText: widget.label'));
+        expect(dateTimeFields, contains('parseDesktopTimeInput'));
+        expect(dateTimeFields, isNot(contains('_withoutFloatingEntryLabel')));
         expect(dateTimeFields, isNot(contains('_BusyMaxTimeTextEntry')));
-        expect(dateTimeFields, isNot(contains('parseTimeInput')));
+        expect(dateTimeFields, isNot(contains('YaruDateTimeEntry')));
+        expect(dateTimeFields, isNot(contains('YaruTimeEntry(')));
+        expect(dateTimeFields, isNot(contains('YaruTimeEntryController')));
+        expect(dateTimeFields, isNot(contains("'Enter date'")));
+        expect(dateTimeFields, isNot(contains("'Enter time'")));
         expect(dateTimeFields, isNot(contains('fontSize: 0')));
         expect(dateTimeFields, isNot(contains('showDatePicker')));
         expect(dateTimeFields, isNot(contains('showTimePicker')));
@@ -535,6 +560,19 @@ void main() {
           'gtk_label_set_xalign(GTK_LABEL(self->header_title_label), 0.5)',
         ),
       );
+      final headerTitleStart = source.indexOf(
+        'track_widget_pointer(&self->header_title_label',
+      );
+      final searchEntryStart = source.indexOf(
+        'track_widget_pointer(&self->search_entry',
+        headerTitleStart,
+      );
+      expect(headerTitleStart, isNonNegative);
+      expect(searchEntryStart, greaterThan(headerTitleStart));
+      expect(
+        source.substring(headerTitleStart, searchEntryStart),
+        contains('GTK_STYLE_CLASS_TITLE'),
+      );
       expect(source, isNot(contains('header_brand_logo')));
       expect(source, contains('header_brand_label'));
       expect(source, contains('settings_menu_button'));
@@ -691,13 +729,15 @@ void main() {
       expect(source, isNot(contains('linear-gradient(to right')));
       expect(source, isNot(contains('GtkWidget* sidebar_toggle_button;')));
       expect(source, isNot(contains('self->sidebar_toggle_button')));
-      expect(source, isNot(contains('border-radius: %dpx;')));
       expect(source, isNot(contains('kHeaderButtonRadius')));
       expect(source, isNot(contains('tooltip.background')));
-      expect(source, isNot(contains('tooltip > box')));
-      expect(source, isNot(contains('tooltip label')));
+      expect(source, isNot(contains('"tooltip > box,"')));
+      expect(source, isNot(contains('"tooltip label {"')));
       expect(source, isNot(contains('kHeaderTooltipVerticalPadding')));
       expect(source, isNot(contains('kHeaderTooltipHorizontalPadding')));
+      expect(source, isNot(contains('kYaruGtk3TooltipVerticalPadding')));
+      expect(source, isNot(contains('kYaruGtk3TooltipHorizontalPadding')));
+      expect(source, isNot(contains('kYaruGtk3TooltipRadius')));
       expect(source, isNot(contains('"padding: %dpx %dpx;"')));
       expect(source, contains('kHeaderControlStyleClass'));
       expect(source, isNot(contains('busymax-header-menu-control')));
@@ -760,9 +800,15 @@ void main() {
       expect(source, isNot(contains('gtk_widget_get_visible(popup)')));
       expect(source, isNot(contains('"busymax-header-popover"')));
       expect(source, contains('"busymax-native-popover"'));
+      expect(source, contains('"busymax-header-menu-depth"'));
       expect(source, contains('header_bar_popover_background_color'));
+      expect(source, contains('header_bar_popover_shadow_color'));
+      expect(source, contains('header_bar_menu_hover_color'));
       expect(source, isNot(contains('header_bar_floating_border_color')));
       expect(source, contains('"popoverBackgroundColor"'));
+      expect(source, contains('"menuHoverColor"'));
+      expect(source, contains('"popoverShadowColor"'));
+      expect(source, contains('"dialogBackgroundColor"'));
       expect(source, contains('"dialogOutlineColor"'));
       expect(source, isNot(contains('"floatingBorderColor"')));
       expect(source, isNot(contains('"busymax-header-popover-row"')));
@@ -851,14 +897,59 @@ void main() {
       expect(source, contains('gtk_entry_set_placeholder_text'));
       expect(source, contains('clear_widget_pointer(&self->search_entry)'));
       expect(source, contains('g_clear_pointer(&self->header_search_query'));
-      expect(source, isNot(contains('busymax-search-entry')));
+      expect(source, contains('"busymax-header-search-entry"'));
+      expect(source, contains('kHeaderSearchEntryStyleClass'));
       expect(source, contains('set_header_create_capabilities'));
       expect(source, contains('strcmp(method, "showCreateMenu") == 0'));
       expect(source, contains('setModalBarrierVisible'));
       expect(source, contains('busymax-modal-barrier'));
       expect(
         source,
-        contains('gtk_widget_set_sensitive(self->titlebar_handle'),
+        isNot(contains('gtk_widget_set_sensitive(self->titlebar_handle')),
+      );
+      expect(source, contains('GtkWidget* titlebar_overlay;'));
+      expect(source, contains('GtkWidget* titlebar_modal_barrier;'));
+      expect(source, contains('gtk_overlay_new()'));
+      expect(source, contains('gtk_event_box_new()'));
+      expect(source, contains('gtk_overlay_add_overlay'));
+      expect(source, contains('gtk_overlay_set_overlay_pass_through'));
+      expect(
+        source,
+        contains(
+          'gtk_widget_set_halign(self->titlebar_modal_barrier, GTK_ALIGN_FILL)',
+        ),
+      );
+      expect(
+        source,
+        contains(
+          'gtk_widget_set_valign(self->titlebar_modal_barrier, GTK_ALIGN_FILL)',
+        ),
+      );
+      expect(
+        source,
+        isNot(
+          contains(
+            'gtk_widget_set_hexpand(self->titlebar_modal_barrier, TRUE)',
+          ),
+        ),
+      );
+      expect(
+        source,
+        isNot(
+          contains(
+            'gtk_widget_set_vexpand(self->titlebar_modal_barrier, TRUE)',
+          ),
+        ),
+      );
+      expect(source, contains('consume_header_bar_modal_input_cb'));
+      expect(source, contains('case GDK_BUTTON_PRESS:'));
+      expect(source, contains('return TRUE;'));
+      expect(source, contains('gtk_widget_set_no_show_all'));
+      expect(
+        source,
+        contains(
+          'gtk_widget_set_visible(self->titlebar_modal_barrier, visible)',
+        ),
       );
       expect(source, isNot(contains('setBackgroundColor')));
       expect(source, isNot(contains('setSidebarBackgroundColor')));
@@ -875,8 +966,8 @@ void main() {
       expect(source, contains('border-right: 1px solid %s;'));
       expect(source, contains('"rgba(16,16,16,0.35)"'));
       expect(source, isNot(contains('"rgba(255,255,255,0.10)"')));
-      expect(source, contains('modal_sidebar_border_css_color'));
-      expect(source, contains('composite_rgba'));
+      expect(source, isNot(contains('modal_sidebar_border_css_color')));
+      expect(source, isNot(contains('composite_rgba')));
       expect(source, isNot(contains('header_bar_shade_color')));
       expect(source, contains('header_bar_modal_barrier_color'));
       expect(source, isNot(contains('header_bar_accent_color')));
@@ -918,7 +1009,7 @@ void main() {
       );
       expect(source, isNot(contains('create_header_popup_box')));
       expect(source, isNot(contains('draw_header_popup_background_cb')));
-      expect(source, isNot(contains('gtk_event_box_new()')));
+      expect('gtk_event_box_new()'.allMatches(source).length, 1);
       expect(source, isNot(contains('gtk_widget_set_app_paintable(popup')));
       expect(headerBarSource, isNot(contains('gtk_window_move')));
       expect(source, isNot(contains('override_header_menu_colors')));
@@ -950,15 +1041,32 @@ void main() {
       expect(source, contains('get_gtk_theme_colors'));
       expect(source, contains('lookup_context_color'));
       expect(source, contains('theme_bg_color'));
-      expect(source, contains('theme_base_color'));
       expect(
         source,
-        contains('lookup_context_color(window_context, "wm_shadow"'),
+        isNot(
+          contains('lookup_context_color(window_context, "theme_base_color"'),
+        ),
+      );
+      expect(
+        source,
+        contains(
+          'lookup_context_color(window_context, "view_bg_color", &view_color);',
+        ),
+      );
+      expect(
+        source,
+        contains(
+          'lookup_context_color(window_context, "shade_color", &shade_color);',
+        ),
+      );
+      expect(
+        source,
+        isNot(contains('lookup_context_color(window_context, "wm_shadow"')),
       );
       expect(source, isNot(contains('shade_color = border_color')));
-      expect(source, contains('GTK_STYLE_CLASS_VIEW'));
+      expect(source, isNot(contains('gtk_text_view_new()')));
+      expect(source, isNot(contains('sample_widget_background(view')));
       expect(source, contains('"window_bg_color"'));
-      expect(source, contains('"view_bg_color"'));
       expect(source, contains('"sidebar_bg_color"'));
       expect(source, contains('"secondary_sidebar_bg_color"'));
       expect(source, contains('"headerbar_bg_color"'));
@@ -1079,6 +1187,26 @@ void main() {
       expect(nativeMenu, contains('g_simple_action_new_stateful('));
       expect(nativeMenu, contains('g_object_ref(G_OBJECT(method_call))'));
       expect(nativeMenu, contains('gtk_popover_popup('));
+      expect(
+        nativeMenu,
+        isNot(contains('gtk_widget_show_all(session->popover)')),
+      );
+      expect(nativeMenu, isNot(contains('gtk_popover_bind_model(')));
+      expect(nativeMenu, contains('gtk_widget_destroy(session->popover)'));
+      expect(
+        nativeMenu,
+        contains(
+          'gtk_widget_child_focus(session->popover, GTK_DIR_TAB_FORWARD)',
+        ),
+      );
+      expect(
+        nativeMenu,
+        isNot(contains('gtk_widget_grab_focus(session->popover)')),
+      );
+      expect(
+        nativeMenu,
+        isNot(contains('gtk_widget_set_can_focus(session->popover')),
+      );
       expect(nativeMenu, isNot(contains('gtk_dialog_run(')));
       expect(nativeMenu, isNot(contains('gtk_menu_new(')));
       expect(nativeMenu, isNot(contains('gtk_widget_override')));
@@ -1128,6 +1256,73 @@ void main() {
       expect(confirmBody, contains('return AlertDialog('));
       expect(confirmBody, isNot(contains('return BusyMaxDialogShell(')));
     });
+
+    test(
+      'text prompts reuse the shared Yaru grouped form without native reinvention',
+      () {
+        final runner = File(
+          'linux/runner/my_application.cc',
+        ).readAsStringSync();
+        final service = File(
+          'lib/src/platform/native_dialog_service.dart',
+        ).readAsStringSync();
+        final dialogs = File(
+          'lib/src/app/busymax_dialogs.dart',
+        ).readAsStringSync();
+        final design = File(
+          'lib/src/app/busymax_design.dart',
+        ).readAsStringSync();
+        final nativeDialogsStart = runner.indexOf('static void respond_bool(');
+        final nativeDialogsEnd = runner.indexOf(
+          'struct NativeDialogHandlerData',
+          nativeDialogsStart,
+        );
+        final promptStart = design.indexOf('class BusyMaxPromptDialog');
+        final promptEnd = design.indexOf(
+          'class BusyMaxConfirmDialog',
+          promptStart,
+        );
+
+        expect(nativeDialogsStart, isNonNegative);
+        expect(nativeDialogsEnd, greaterThan(nativeDialogsStart));
+        final nativeDialogs = runner.substring(
+          nativeDialogsStart,
+          nativeDialogsEnd,
+        );
+        expect(nativeDialogs, isNot(contains('handle_native_prompt')));
+        expect(nativeDialogs, isNot(contains('respond_native_prompt')));
+        expect(nativeDialogs, isNot(contains('gtk_entry_new()')));
+        expect(nativeDialogs, isNot(contains('gtk_dialog_new_with_buttons(')));
+        expect(nativeDialogs, contains('gtk_message_dialog_new('));
+        expect(runner, contains('strcmp(method, "confirm") == 0'));
+        expect(runner, isNot(contains('strcmp(method, "prompt")')));
+
+        expect(service, isNot(contains('NativeTextPromptResult')));
+        expect(service, isNot(contains('Future<NativeTextPromptResult>')));
+        expect(service, isNot(contains('invokeMapMethod<String, Object?>')));
+        expect(service, isNot(contains("'prompt'")));
+        expect(service, contains('on MissingPluginException'));
+        expect(service, contains('on PlatformException'));
+        expect(dialogs, isNot(contains('nativeDialogService.prompt(')));
+        expect(dialogs, contains('showBusyMaxModalDialog<String>('));
+        expect(dialogs, contains('BusyMaxPromptDialog('));
+
+        expect(promptStart, isNonNegative);
+        expect(promptEnd, greaterThan(promptStart));
+        final prompt = design.substring(promptStart, promptEnd);
+        expect(prompt, contains('BusyMaxDialogShell('));
+        expect(prompt, contains('BusyMaxGroupedList('));
+        expect(prompt, contains('filled: true'));
+        expect(prompt, contains('YaruListTile.square('));
+        expect(prompt, contains('busyMaxGroupedTextFieldDecoration('));
+        expect(prompt, contains('TextEditingController('));
+        expect(prompt, contains('_canSubmit ? _submit : null'));
+        expect(prompt, contains('onFieldSubmitted: (_) => _submit()'));
+        expect(prompt, isNot(contains('maxWidth:')));
+        expect(prompt, isNot(contains('InputDecoration(')));
+        expect(prompt, isNot(contains('AlertDialog(')));
+      },
+    );
 
     test('modal editors use the semantic window role with themed geometry', () {
       final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
@@ -1200,8 +1395,48 @@ void main() {
         nativeDialogCssStart,
         nativeDialogCssEnd,
       );
+      final nativeSearchGeometryCssStart = source.indexOf(
+        'g_autofree gchar* native_search_geometry_css =',
+      );
+      final nativeSearchGeometryCssEnd = source.indexOf(
+        'g_autofree gchar* native_menu_state_css =',
+        nativeSearchGeometryCssStart,
+      );
+      expect(nativeSearchGeometryCssStart, isNonNegative);
+      expect(
+        nativeSearchGeometryCssEnd,
+        greaterThan(nativeSearchGeometryCssStart),
+      );
+      final nativeSearchGeometryCss = source.substring(
+        nativeSearchGeometryCssStart,
+        nativeSearchGeometryCssEnd,
+      );
+      final nativeMenuStateCssStart = nativeSearchGeometryCssEnd;
+      final nativeMenuStateCssEnd = source.indexOf(
+        'g_autofree gchar* header_menu_shadow_css =',
+        nativeMenuStateCssStart,
+      );
+      expect(nativeMenuStateCssStart, isNonNegative);
+      expect(nativeMenuStateCssEnd, greaterThan(nativeMenuStateCssStart));
+      final nativeMenuStateCss = source.substring(
+        nativeMenuStateCssStart,
+        nativeMenuStateCssEnd,
+      );
+      final headerMenuShadowCssStart = source.indexOf(
+        'g_autofree gchar* header_menu_shadow_css =',
+      );
+      final headerMenuShadowCssEnd = source.indexOf(
+        'g_autofree gchar* yaru_window_decoration_css =',
+        headerMenuShadowCssStart,
+      );
+      expect(headerMenuShadowCssStart, isNonNegative);
+      expect(headerMenuShadowCssEnd, isNonNegative);
+      final headerMenuShadowCss = source.substring(
+        headerMenuShadowCssStart,
+        headerMenuShadowCssEnd,
+      );
       final yaruDecorationCssStart = source.indexOf(
-        'const gboolean use_yaru_window_decoration_compatibility =',
+        'const gboolean use_legacy_yaru_compatibility =',
       );
       final yaruDecorationCssEnd = source.indexOf(
         'GtkWidget* header_bar =',
@@ -1222,21 +1457,47 @@ void main() {
         contains('".busymax-titlebar .busymax-header-brand {"'),
       );
       expect(headerCss, contains('"border-right: 1px solid %s;"'));
-      expect(headerCss, contains('"border-right-color: %s;"'));
+      expect(headerCss, isNot(contains('"border-right-color: %s;"')));
       expect(
         headerCss,
         contains(
-          '".busymax-titlebar.busymax-modal-barrier '
-          '.busymax-header-brand,"',
+          '".busymax-titlebar.%s "\n'
+          '      ".busymax-header-control,"',
         ),
       );
       expect(
         headerCss,
         contains(
-          '".busymax-titlebar.busymax-modal-barrier "\n'
-          '      "headerbar.busymax-flat-headerbar,"',
+          '".busymax-titlebar .%s,"\n'
+          '      ".busymax-titlebar .%s:backdrop {"',
         ),
       );
+      expect(headerCss, contains('"color: alpha(%s, %.2f);"'));
+      expect(source, contains('kHeaderBackdropForegroundOpacity = 0.50'));
+      expect(source, contains('kHeaderDisabledForegroundOpacity = 0.38'));
+      expect(
+        source,
+        contains(
+          'kHeaderDisabledBackdropForegroundOpacity =\n'
+          '    kHeaderDisabledForegroundOpacity * '
+          'kHeaderBackdropForegroundOpacity',
+        ),
+      );
+      expect(
+        headerCss,
+        contains('".busymax-header-control:disabled:backdrop,"'),
+      );
+      expect(
+        headerCss,
+        contains('"headerbar button.titlebutton:disabled:backdrop {"'),
+      );
+      expect(
+        source,
+        contains(
+          'self->header_bar_modal_barrier_color, kDefaultModalBarrierColor',
+        ),
+      );
+      expect(headerCss, isNot(contains('linear-gradient(%s, %s)')));
       expect(headerCss, isNot(contains('".busymax-titlebar,"')));
       expect(source, contains('kDefaultWindowBackgroundColor[] = "#2C2C2C"'));
       expect(
@@ -1263,6 +1524,9 @@ void main() {
       expect(source, contains('"sidebarBorderColor"'));
       expect(source, contains('"foregroundColor"'));
       expect(source, contains('"popoverBackgroundColor"'));
+      expect(source, contains('"menuHoverColor"'));
+      expect(source, contains('"popoverShadowColor"'));
+      expect(source, contains('"dialogBackgroundColor"'));
       expect(source, isNot(contains('"floatingBorderColor"')));
       expect(source, contains('"highContrast"'));
       expect(source, isNot(contains('"shadeColor"')));
@@ -1282,6 +1546,15 @@ void main() {
       expect(
         source,
         contains('fl_lookup_string_arg(args, "popoverBackgroundColor")'),
+      );
+      expect(source, contains('fl_lookup_string_arg(args, "menuHoverColor")'));
+      expect(
+        source,
+        contains('fl_lookup_string_arg(args, "popoverShadowColor")'),
+      );
+      expect(
+        source,
+        contains('fl_lookup_string_arg(args, "dialogBackgroundColor")'),
       );
       expect(
         source,
@@ -1305,11 +1578,72 @@ void main() {
       );
       expect(nativePopoverCss, isNot(contains('g_strdup("border: none;")')));
       expect(nativePopoverCss, isNot(contains('box-shadow')));
+      expect(source, isNot(contains('kNativePopoverShadowCss')));
       expect(nativePopoverCss, isNot(contains('border-radius')));
       expect(nativePopoverCss, isNot(contains('padding')));
       expect(nativePopoverCss, isNot(contains('outline')));
       expect(nativePopoverCss, isNot(contains('modelbutton')));
       expect(nativePopoverCss, isNot(contains('#')));
+      expect(
+        nativeSearchGeometryCss,
+        contains('use_legacy_yaru_compatibility'),
+      );
+      expect(nativeSearchGeometryCss, contains('"entry.search.%s {"'));
+      expect(nativeSearchGeometryCss, contains('"border-radius: 9px;"'));
+      expect(nativeSearchGeometryCss, contains('kHeaderSearchEntryStyleClass'));
+      expect(nativeSearchGeometryCss, isNot(contains('background')));
+      expect(nativeSearchGeometryCss, isNot(contains('border-color')));
+      expect(nativeSearchGeometryCss, isNot(contains('"border:')));
+      expect(nativeSearchGeometryCss, isNot(contains('box-shadow')));
+      expect(nativeSearchGeometryCss, isNot(contains('padding')));
+      expect(nativeSearchGeometryCss, isNot(contains('min-height')));
+      expect(nativeSearchGeometryCss, isNot(contains('#')));
+      expect(nativeSearchGeometryCss, isNot(contains('rgba(')));
+      expect(nativeMenuStateCss, contains('!self->header_bar_high_contrast'));
+      expect(
+        nativeMenuStateCss,
+        isNot(contains('use_legacy_yaru_compatibility')),
+      );
+      expect(
+        nativeMenuStateCss,
+        contains('is_css_color_token(self->header_bar_menu_hover_color)'),
+      );
+      expect(
+        nativeMenuStateCss,
+        contains(
+          '"popover.background.%s "\n'
+          '                '
+          '"modelbutton:hover:not(:disabled) {"',
+        ),
+      );
+      expect(nativeMenuStateCss, isNot(contains(':not(:backdrop)')));
+      expect(nativeMenuStateCss, isNot(contains('modelbutton.flat')));
+      expect(nativeMenuStateCss, contains('"background-color: %s;"'));
+      expect(nativeMenuStateCss, contains('"background-image: none;"'));
+      expect(nativeMenuStateCss, contains('self->header_bar_menu_hover_color'));
+      expect(nativeMenuStateCss, contains('kNativePopoverStyleClass'));
+      expect(nativeMenuStateCss, isNot(contains('border-radius')));
+      expect(nativeMenuStateCss, isNot(contains('"border:')));
+      expect(nativeMenuStateCss, isNot(contains('box-shadow')));
+      expect(nativeMenuStateCss, isNot(contains('padding')));
+      expect(nativeMenuStateCss, isNot(contains('margin')));
+      expect(nativeMenuStateCss, isNot(contains('min-height')));
+      expect(nativeMenuStateCss, isNot(contains('#')));
+      expect(nativeMenuStateCss, isNot(contains('rgba(')));
+      expect(
+        headerMenuShadowCss,
+        contains('"popover.background.%s.%s:not(:backdrop) {"'),
+      );
+      expect(headerMenuShadowCss, contains('"box-shadow: 0 1px 3px %s;"'));
+      expect(
+        headerMenuShadowCss,
+        contains('self->header_bar_popover_shadow_color'),
+      );
+      expect(headerMenuShadowCss, contains('kDefaultHeaderMenuShadowColor'));
+      expect(headerMenuShadowCss, contains('kNativePopoverStyleClass'));
+      expect(headerMenuShadowCss, contains('kHeaderMenuDepthStyleClass'));
+      expect(headerMenuShadowCss, isNot(contains('"border:')));
+      expect(headerMenuShadowCss, isNot(contains('border-radius')));
       expect(source, contains('"busymax-native-dialog"'));
       expect(source, contains('style_native_dialog(GtkWidget* dialog)'));
       expect('style_native_dialog(dialog);'.allMatches(source).length, 2);
@@ -1317,6 +1651,19 @@ void main() {
         nativeDialogCss,
         contains('g_autofree gchar* native_dialog_css ='),
       );
+      expect(
+        nativeDialogCss,
+        contains(
+          '".%s headerbar,"\n'
+          '      ".%s headerbar:backdrop {"',
+        ),
+      );
+      expect(
+        'dialog_background_color'.allMatches(nativeDialogCss).length,
+        2,
+        reason: 'the native dialog body and titlebar share one surface role',
+      );
+      expect(nativeDialogCss, isNot(contains('window_background_color')));
       expect(nativeDialogCss, contains('"box-shadow: inset 0 0 0 1px %s;"'));
       expect(
         yaruDecorationCss,
@@ -1329,6 +1676,7 @@ void main() {
         yaruDecorationCss,
         contains('current_gtk_theme_uses_legacy_yaru_shadow()'),
       );
+      expect(yaruDecorationCss, contains('use_legacy_yaru_compatibility'));
       expect(yaruDecorationCss, contains('!self->header_bar_high_contrast'));
       expect(
         yaruDecorationCss,
@@ -1342,14 +1690,19 @@ void main() {
         nativeDialogCss,
         contains(
           'kNativeDialogStyleClass, kNativeDialogStyleClass,\n'
-          '      window_background_color',
+          '      dialog_background_color',
         ),
       );
       expect(nativeDialogCss, isNot(contains('"border:')));
       expect(nativeDialogCss, isNot(contains('border-radius')));
       expect(source, contains('style_native_popover(session->popover)'));
-      expect(source, contains('style_native_popover(GTK_WIDGET(popover))'));
-      expect(headerCss, isNot(contains('.busymax-titlebar button')));
+      expect(source, isNot(contains('activate_native_menu_host(')));
+      expect(
+        source,
+        contains('style_header_menu_popover(GTK_WIDGET(popover))'),
+      );
+      expect(source, contains('style_native_popover(popover)'));
+      expect(headerCss, contains('headerbar button.titlebutton'));
       expect(source, contains('kHeaderControlStyleClass'));
       expect(source, isNot(contains('kHeaderMenuControlStyleClass')));
       expect(source, contains('style_header_control(button)'));
@@ -1498,10 +1851,10 @@ void main() {
       expect(headerBarService, contains("'preferDark': preferDark"));
       expect(
         app,
-        contains(
-          'final preferDark = Theme.of(context).brightness == Brightness.dark',
-        ),
+        contains('final preferDark = theme.brightness == Brightness.dark'),
       );
+      expect(app, contains('popoverShadowColor: theme.colorScheme.shadow'));
+      expect(app, contains('BusyMaxAlpha.nativeHeaderMenuShadowOpacity'));
       expect(app, contains('preferDark: preferDark'));
       expect(source, contains('static void set_gtk_theme_preference'));
       expect(
@@ -1640,7 +1993,10 @@ void main() {
       expect(fallbackBody, contains('final selection = showMenu<int>('));
       expect(fallbackBody, contains('return await selection;'));
       expect(fallbackBody, contains('session._releaseFallbackRoute();'));
-      expect(fallbackBody, contains('PopupMenuItem<int>('));
+      expect(fallbackBody, contains('_BusyMaxPopupMenuItem<int>('));
+      expect(fallbackBody, contains('extends PopupMenuItem<T>'));
+      expect(fallbackBody, contains('super.build(context)'));
+      expect(fallbackBody, contains('hoverColor: widget.hoverColor'));
       expect(fallbackBody, contains('YaruRadio<int>('));
       expect(fallbackBody, contains('inMutuallyExclusiveGroup: true'));
       expect(fallbackBody, isNot(contains('YaruCheckedPopupMenuItem')));

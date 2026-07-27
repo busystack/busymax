@@ -164,11 +164,12 @@ void main() {
     expect(theme.cardTheme.color?.a, 1);
     expect(theme.cardTheme.surfaceTintColor, Colors.transparent);
     expect(theme.cardTheme.shadowColor, theme.colorScheme.shadow);
-    expect(theme.cardTheme.elevation, BusyMaxElevation.card);
+    expect(theme.cardTheme.elevation, BusyMaxElevation.groupedCard);
     expect(theme.cardTheme.margin, base.cardTheme.margin);
     expect(theme.cardTheme.clipBehavior, base.cardTheme.clipBehavior);
     final cardShape = theme.cardTheme.shape! as RoundedRectangleBorder;
     expect(cardShape.borderRadius, BorderRadius.circular(BusyMaxRadius.md));
+    expect(cardShape.side, BorderSide.none);
 
     expect(
       theme.dropdownMenuTheme.inputDecorationTheme?.constraints,
@@ -177,6 +178,8 @@ void main() {
 
     final dialogShape = theme.dialogTheme.shape! as RoundedRectangleBorder;
     final baseDialogShape = base.dialogTheme.shape! as RoundedRectangleBorder;
+    expect(theme.dialogTheme.elevation, base.dialogTheme.elevation);
+    expect(theme.dialogTheme.shadowColor, theme.colorScheme.shadow);
     expect(dialogShape.borderRadius, baseDialogShape.borderRadius);
     expect(dialogShape.borderRadius, BorderRadius.circular(kYaruWindowRadius));
     expect(dialogShape.side, BorderSide(color: colors.dialogOutline));
@@ -211,7 +214,14 @@ void main() {
     final basePopupShape = base.popupMenuTheme.shape! as OutlineInputBorder;
     expect(popupShape.borderRadius, basePopupShape.borderRadius);
     expect(popupShape.borderSide, BorderSide(color: colors.floatingBorder));
-    expect(theme.popupMenuTheme.elevation, base.popupMenuTheme.elevation);
+    expect(
+      theme.popupMenuTheme.elevation,
+      theme.menuTheme.style?.elevation?.resolve(const {}),
+    );
+    expect(
+      theme.menuTheme.style?.elevation?.resolve(const {}),
+      base.menuTheme.style?.elevation?.resolve(const {}),
+    );
     expect(theme.popupMenuTheme.menuPadding, base.popupMenuTheme.menuPadding);
     expect(theme.popupMenuTheme.position, base.popupMenuTheme.position);
     expect(
@@ -308,6 +318,7 @@ void main() {
     expect(lightColors.sidebar, const Color(0xFFEBEBEB));
     expect(lightColors.secondarySidebar, const Color(0xFFF0F0F0));
     expect(lightColors.headerbar, const Color(0xFFFAFAFA));
+    expect(lightColors.headerbarFlat, lightColors.view);
     expect(lightColors.card, const Color(0xFFFFFFFF));
     expect(lightColors.groupedSurface, const Color(0xFFFFFFFF));
     expect(lightColors.dialog, const Color(0xFFFAFAFA));
@@ -409,12 +420,14 @@ void main() {
     expect(dark.cardTheme.color, darkColors.card);
     expect(light.cardTheme.color?.a, 1);
     expect(dark.cardTheme.color?.a, 1);
-    expect(light.cardTheme.elevation, BusyMaxElevation.card);
-    expect(dark.cardTheme.elevation, BusyMaxElevation.card);
+    expect(light.cardTheme.elevation, BusyMaxElevation.groupedCard);
+    expect(dark.cardTheme.elevation, BusyMaxElevation.groupedCard);
     expect(light.cardTheme.shadowColor, light.colorScheme.shadow);
     expect(dark.cardTheme.shadowColor, dark.colorScheme.shadow);
     expect(light.dialogTheme.backgroundColor, lightColors.dialog);
     expect(dark.dialogTheme.backgroundColor, darkColors.dialog);
+    expect(light.dialogTheme.shadowColor, light.colorScheme.shadow);
+    expect(dark.dialogTheme.shadowColor, dark.colorScheme.shadow);
     expect(light.popupMenuTheme.color, lightColors.popover);
     expect(dark.popupMenuTheme.color, darkColors.popover);
     expect(
@@ -457,36 +470,9 @@ void main() {
         pair.$2?.padding?.resolve(const {}),
       );
     }
-    expect(light.tooltipTheme.decoration, isA<BoxDecoration>());
-    expect(dark.tooltipTheme.decoration, isA<BoxDecoration>());
-    expect(
-      (light.tooltipTheme.decoration! as BoxDecoration).color,
-      lightColors.popover,
-    );
-    expect((light.tooltipTheme.decoration! as BoxDecoration).border, isNull);
-    expect(
-      (light.tooltipTheme.decoration! as BoxDecoration).boxShadow,
-      BusyMaxShadow.tooltipShadows(lightColors.shade),
-    );
-    expect(
-      (dark.tooltipTheme.decoration! as BoxDecoration).color,
-      darkColors.popover,
-    );
-    expect((dark.tooltipTheme.decoration! as BoxDecoration).border, isNull);
-    expect(
-      (dark.tooltipTheme.decoration! as BoxDecoration).boxShadow,
-      BusyMaxShadow.tooltipShadows(darkColors.shade),
-    );
-    expect(light.tooltipTheme.textStyle?.color, lightColors.foreground);
-    expect(dark.tooltipTheme.textStyle?.color, darkColors.foreground);
-    expect(
-      light.tooltipTheme.textStyle?.fontSize,
-      light.textTheme.bodyMedium?.fontSize,
-    );
-    expect(
-      dark.tooltipTheme.textStyle?.fontSize,
-      dark.textTheme.bodyMedium?.fontSize,
-    );
+    final yaruLight = createYaruLightTheme(primaryColor: _testAccentColor);
+    expect(light.tooltipTheme, yaruLight.tooltipTheme);
+    expect(dark.tooltipTheme, yaruDark.tooltipTheme);
   });
 
   test('BusyMaxSurfaceColors copyWith preserves and overrides fields', () {
@@ -704,13 +690,9 @@ void main() {
       family: gtkFamily,
       scale: scale,
     );
-    _expectComponentStyleUsesTypography(
-      theme.tooltipTheme.textStyle,
-      baseStyle: null,
-      fallback: textTheme.bodyMedium,
-      family: gtkFamily,
-      scale: scale,
-    );
+    // Yaru leaves tooltip textStyle unset, so Flutter resolves it from the
+    // already-normalized ambient TextTheme together with its inverse palette.
+    expect(theme.tooltipTheme.textStyle, base.tooltipTheme.textStyle);
     _expectComponentStyleUsesTypography(
       theme.snackBarTheme.contentTextStyle,
       baseStyle: base.snackBarTheme.contentTextStyle,
@@ -894,6 +876,54 @@ void main() {
     ).extension<BusyMaxSurfaceColors>()!;
 
     expect(colors.sidebar, gtkColors.sidebar);
+  });
+
+  test('light view keeps its semantic fallback when GTK omits it', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFF4F4F4),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+    final fallback = busyMaxFallbackSurfaceColors(Brightness.light);
+
+    expect(colors.window, gtkColors.window);
+    expect(colors.view, fallback.view);
+    expect(colors.headerbarFlat, fallback.view);
+  });
+
+  test('an explicit GTK workspace view remains authoritative', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFF4F4F4),
+      view: Color(0xFFFFFFFF),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.light,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+
+    expect(colors.window, gtkColors.window);
+    expect(colors.view, gtkColors.view);
+    expect(colors.headerbarFlat, gtkColors.view);
+  });
+
+  test('dark workspace keeps its distinct fallback when GTK omits view', () {
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.dark,
+      window: Color(0xFF303030),
+    );
+    final colors = _buildBusyMaxTheme(
+      brightness: Brightness.dark,
+      gtkThemeColors: gtkColors,
+    ).extension<BusyMaxSurfaceColors>()!;
+    final fallback = busyMaxFallbackSurfaceColors(Brightness.dark);
+
+    expect(colors.window, gtkColors.window);
+    expect(colors.view, fallback.view);
+    expect(colors.headerbarFlat, fallback.view);
   });
 
   test('BusyMax preserves a distinct light GTK sidebar sample', () {
@@ -1574,12 +1604,15 @@ void main() {
     expect(source, contains('_headerBarConfigurationSynchronizer.schedule('));
     expect(synchronizer, contains('await service.setTheme('));
     expect(source, contains('windowBackgroundColor: colors.window'));
-    expect(source, contains('backgroundColor: colors.headerbarFlat'));
+    expect(source, contains('backgroundColor: colors.window'));
+    expect(source, isNot(contains('backgroundColor: colors.headerbarFlat')));
     expect(source, isNot(contains('backgroundColor: colors.headerbar,')));
     expect(source, contains('sidebarBackgroundColor: colors.sidebar'));
     expect(source, contains('foregroundColor: colors.foreground'));
     expect(source, contains('sidebarBorderColor: colors.sidebarBorder'));
     expect(source, contains('popoverBackgroundColor: colors.popover'));
+    expect(source, contains('menuHoverColor: colors.controlHover'));
+    expect(source, contains('dialogBackgroundColor: colors.dialog'));
     expect(source, isNot(contains('floatingBorderColor:')));
     expect(source, contains('modalBarrierColor: modalBarrierColor'));
     expect(source, isNot(contains('controlHoverColor: colors.controlHover')));
@@ -1611,10 +1644,10 @@ void main() {
     final shellEnd = source.indexOf('child: Column(', shellStart);
     final shellSource = source.substring(shellStart, shellEnd);
 
-    expect(source, contains('color: BusyMaxSurfaceColors.of(context).view'));
+    expect(source, contains('color: BusyMaxSurfaceColors.of(context).window'));
     expect(
       source,
-      isNot(contains('color: BusyMaxSurfaceColors.of(context).window')),
+      isNot(contains('color: BusyMaxSurfaceColors.of(context).view')),
     );
     expect(shellSource, contains('BusyMaxSurface('));
     expect(shellSource, contains('filled: false'));

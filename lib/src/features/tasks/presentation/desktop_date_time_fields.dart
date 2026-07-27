@@ -60,7 +60,6 @@ class DesktopDateField extends StatefulWidget {
     required this.onChanged,
     this.enabled = true,
     this.onClear,
-    this.emptyLabel,
     this.useNativePicker = true,
   });
 
@@ -69,7 +68,6 @@ class DesktopDateField extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final bool enabled;
   final VoidCallback? onClear;
-  final String? emptyLabel;
   final bool useNativePicker;
 
   @override
@@ -84,7 +82,6 @@ class DesktopDateValueRow extends StatelessWidget {
     required this.onChanged,
     this.enabled = true,
     this.onClear,
-    this.emptyLabel,
     this.useNativePicker = true,
   });
 
@@ -93,155 +90,92 @@ class DesktopDateValueRow extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final bool enabled;
   final VoidCallback? onClear;
-  final String? emptyLabel;
   final bool useNativePicker;
 
   @override
   Widget build(BuildContext context) {
-    final formatted = formatDesktopDate(context, date);
-    final displayValue = formatted.isEmpty
-        ? emptyLabel ?? context.l10n.noneValue
-        : formatted;
-    final canClear = date != null && date!.isNotEmpty && onClear != null;
-
-    return BusyMaxCalendarValueRow(
+    return DesktopDateField(
       label: label,
-      value: displayValue,
-      leading: const Icon(YaruIcons.calendar),
+      date: date,
+      onChanged: onChanged,
       enabled: enabled,
-      onTap: () => _pickNativeDate(context),
-      trailingIcons: [
-        if (canClear)
-          YaruIconButton(
-            tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
-            iconSize: BusyMaxSizes.iconMd,
-            icon: const Icon(YaruIcons.window_close),
-            onPressed: enabled ? onClear : null,
-          ),
-        const Icon(Icons.edit_outlined, size: BusyMaxSizes.iconMd),
-        const Icon(YaruIcons.calendar, size: BusyMaxSizes.iconMd),
-      ],
+      onClear: onClear,
+      useNativePicker: useNativePicker,
     );
-  }
-
-  Future<void> _pickNativeDate(BuildContext context) async {
-    if (!enabled) {
-      return;
-    }
-    if (!useNativePicker) {
-      final fallbackPicked = await showBusyMaxDateValueDialog(
-        context,
-        label: label,
-        initialDate: date,
-      );
-      if (context.mounted && fallbackPicked != null) {
-        onChanged(fallbackPicked);
-      }
-      return;
-    }
-    final localizations = MaterialLocalizations.of(context);
-    final picked = await _nativeDateTimePicker.pickDate(
-      title: label,
-      initialDate: date,
-      cancelLabel: localizations.cancelButtonLabel,
-      okLabel: localizations.okButtonLabel,
-    );
-    if (!context.mounted) {
-      return;
-    }
-    if (picked.date != null) {
-      onChanged(picked.date!);
-      return;
-    }
-    if (picked.available) {
-      return;
-    }
-    final fallbackPicked = await showBusyMaxDateValueDialog(
-      context,
-      label: label,
-      initialDate: date,
-    );
-    if (context.mounted && fallbackPicked != null) {
-      onChanged(fallbackPicked);
-    }
   }
 }
 
 class _DesktopDateFieldState extends State<DesktopDateField> {
-  late final YaruDateTimeEntryController _controller;
-  var _syncingController = false;
+  late final TextEditingController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = YaruDateTimeEntryController(
-      dateTime: parseDateOnly(widget.date),
-    );
+    _controller = TextEditingController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncVisibleValue();
   }
 
   @override
   void didUpdateWidget(covariant DesktopDateField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.date != widget.date) {
-      final nextDate = parseDateOnly(widget.date);
-      final currentDate = _controller.dateTime;
-      if (!isSameDate(currentDate, nextDate)) {
-        _syncingController = true;
-        _controller.dateTime = nextDate;
-        _syncingController = false;
-      }
+      _syncVisibleValue();
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final dateEntry = _withoutFloatingEntryLabel(
-      context,
-      YaruDateTimeEntry(
-        controller: _controller,
-        includeTime: false,
-        firstDateTime: DateTime(1900),
-        lastDateTime: DateTime(2100, 12, 31),
-        acceptEmpty: true,
-        clearIconSemanticLabel: widget.label,
-        onChanged: (date) {
-          if (_syncingController) {
-            return;
-          }
-          if (date == null) {
-            widget.onClear?.call();
-            return;
-          }
-          widget.onChanged(encodeDateOnly(date));
-        },
-      ),
-    );
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
-    return YaruListTile.square(
-      leading: const Icon(YaruIcons.calendar),
-      titleText: widget.label,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 190,
-            child: widget.enabled
-                ? dateEntry
-                : Opacity(
-                    opacity: 0.6,
-                    child: ExcludeFocus(child: IgnorePointer(child: dateEntry)),
-                  ),
-          ),
-          YaruIconButton(
-            tooltip: widget.label,
-            iconSize: 28,
-            onPressed: widget.enabled ? () => _pickNativeDate(context) : null,
-            icon: const Icon(YaruIcons.calendar),
-          ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    final canClear = widget.date?.isNotEmpty ?? false;
+    return BusyMaxCalendarValueRow(
+      label: widget.label,
+      entry: TextFormField(
+        controller: _controller,
+        readOnly: true,
+        showCursor: false,
+        enableInteractiveSelection: false,
+        enabled: widget.enabled,
+        decoration: busyMaxGroupedTextFieldDecoration(
+          context,
+          labelText: widget.label,
+        ),
+        onTap: widget.enabled ? () => _pickNativeDate(context) : null,
       ),
+      trailingIcons: [
+        if (canClear && widget.onClear != null)
+          YaruIconButton(
+            tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+            onPressed: widget.enabled ? widget.onClear : null,
+            icon: const Icon(YaruIcons.window_close),
+          ),
+        YaruIconButton(
+          tooltip: widget.label,
+          onPressed: widget.enabled ? () => _pickNativeDate(context) : null,
+          icon: const Icon(YaruIcons.calendar),
+        ),
+      ],
       enabled: widget.enabled,
-      onTap: widget.enabled ? () => _pickNativeDate(context) : null,
+    );
+  }
+
+  void _syncVisibleValue() {
+    final formatted = formatDesktopDate(context, widget.date);
+    if (_controller.text == formatted) {
+      return;
+    }
+    _controller.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 
@@ -288,21 +222,12 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
   }
 
   void _applyPickedDate(String picked) {
-    final pickedDate = parseDateOnly(picked);
-    if (!isSameDate(_controller.dateTime, pickedDate)) {
-      _syncingController = true;
-      _controller.dateTime = pickedDate;
-      _syncingController = false;
-    }
+    final formatted = formatDesktopDate(context, picked);
+    _controller.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
     widget.onChanged(picked);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || isSameDate(_controller.dateTime, pickedDate)) {
-        return;
-      }
-      _syncingController = true;
-      _controller.dateTime = pickedDate;
-      _syncingController = false;
-    });
   }
 }
 
@@ -334,14 +259,16 @@ class _DesktopDateValueDialog extends StatefulWidget {
 }
 
 class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
-  late final YaruDateTimeEntryController _controller;
-  DateTime? _selected;
+  static final _firstDate = DateTime(1900);
+  static final _lastDate = DateTime(2100, 12, 31);
+
+  final _formKey = GlobalKey<FormState>();
+  late DateTime _selected;
 
   @override
   void initState() {
     super.initState();
-    _selected = parseDateOnly(widget.initialDate) ?? _today();
-    _controller = YaruDateTimeEntryController(dateTime: _selected);
+    _selected = _supportedInitialDate(widget.initialDate);
   }
 
   @override
@@ -355,25 +282,20 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
           child: Text(context.l10n.cancel),
         ),
         BusyMaxPushButton.suggested(
-          onPressed: _selected == null ? null : _submit,
+          onPressed: _submit,
           child: Text(MaterialLocalizations.of(context).okButtonLabel),
         ),
       ],
       children: [
-        _withoutFloatingEntryLabel(
-          context,
-          YaruDateTimeEntry(
-            controller: _controller,
-            includeTime: false,
-            firstDateTime: DateTime(1900),
-            lastDateTime: DateTime(2100, 12, 31),
-            acceptEmpty: false,
-            clearIconSemanticLabel: widget.label,
-            onChanged: (date) {
-              setState(() {
-                _selected = date;
-              });
-            },
+        Form(
+          key: _formKey,
+          child: InputDatePickerFormField(
+            initialDate: _selected,
+            firstDate: _firstDate,
+            lastDate: _lastDate,
+            fieldLabelText: widget.label,
+            onDateSaved: (date) => _selected = date,
+            onDateSubmitted: _finish,
           ),
         ),
       ],
@@ -381,11 +303,27 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
   }
 
   void _submit() {
-    final selected = _selected;
-    if (selected == null) {
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) {
       return;
     }
+    form.save();
+    _finish(_selected);
+  }
+
+  void _finish(DateTime selected) {
     Navigator.of(context).pop(encodeDateOnly(selected));
+  }
+
+  DateTime _supportedInitialDate(String? encodedDate) {
+    final date = parseDateOnly(encodedDate) ?? _today();
+    if (date.isBefore(_firstDate)) {
+      return _firstDate;
+    }
+    if (date.isAfter(_lastDate)) {
+      return _lastDate;
+    }
+    return date;
   }
 }
 
@@ -396,12 +334,16 @@ class DesktopTimeField extends StatefulWidget {
     required this.time,
     required this.onChanged,
     this.enabled = true,
+    this.allowEmpty = true,
+    this.onValidityChanged,
   });
 
   final String label;
   final String? time;
   final ValueChanged<String?> onChanged;
   final bool enabled;
+  final bool allowEmpty;
+  final ValueChanged<bool>? onValidityChanged;
 
   @override
   State<DesktopTimeField> createState() => _DesktopTimeFieldState();
@@ -414,251 +356,249 @@ class DesktopTimeValueRow extends StatelessWidget {
     required this.time,
     required this.onChanged,
     this.enabled = true,
-    this.emptyLabel,
     this.allowEmpty = true,
+    this.onValidityChanged,
   });
 
   final String label;
   final String? time;
   final ValueChanged<String?> onChanged;
   final bool enabled;
-  final String? emptyLabel;
   final bool allowEmpty;
+  final ValueChanged<bool>? onValidityChanged;
 
   @override
   Widget build(BuildContext context) {
-    final formatted = formatDesktopTime(context, time);
-    final displayValue = formatted.isEmpty
-        ? emptyLabel ?? context.l10n.noneValue
-        : formatted;
-
-    return BusyMaxCalendarValueRow(
+    return DesktopTimeField(
       label: label,
-      value: displayValue,
-      leading: const Icon(Icons.schedule),
+      time: time,
+      onChanged: onChanged,
       enabled: enabled,
-      onTap: () => _editTime(context),
-      trailingIcons: const [
-        Icon(Icons.edit_outlined, size: BusyMaxSizes.iconMd),
-        Icon(Icons.schedule, size: BusyMaxSizes.iconMd),
-      ],
+      allowEmpty: allowEmpty,
+      onValidityChanged: onValidityChanged,
     );
-  }
-
-  Future<void> _editTime(BuildContext context) async {
-    if (!enabled) {
-      return;
-    }
-    await showBusyMaxModalDialog<void>(
-      context,
-      builder: (dialogContext) {
-        return _DesktopTimeValueDialog(
-          label: label,
-          time: time,
-          onChanged: onChanged,
-          allowEmpty: allowEmpty,
-        );
-      },
-    );
-  }
-}
-
-class _DesktopTimeValueDialog extends StatefulWidget {
-  const _DesktopTimeValueDialog({
-    required this.label,
-    required this.time,
-    required this.onChanged,
-    required this.allowEmpty,
-  });
-
-  final String label;
-  final String? time;
-  final ValueChanged<String?> onChanged;
-  final bool allowEmpty;
-
-  @override
-  State<_DesktopTimeValueDialog> createState() =>
-      _DesktopTimeValueDialogState();
-}
-
-class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
-  late final YaruTimeEntryController _controller;
-  final _formKey = GlobalKey<FormState>();
-  TimeOfDay? _selected;
-
-  @override
-  void initState() {
-    super.initState();
-    _selected = parseTimeOfDay(widget.time);
-    _controller = YaruTimeEntryController(timeOfDay: _selected);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final timeEntry = _BusyMaxTimeEntry(
-      controller: _controller,
-      label: widget.label,
-      acceptEmpty: widget.allowEmpty,
-      autofocus: true,
-      onChanged: (time) {
-        setState(() {
-          _selected = time;
-        });
-      },
-      onSubmitted: (_) => _submit(),
-    );
-    return BusyMaxDialogShell(
-      title: widget.label,
-      maxWidth: 360,
-      actions: [
-        BusyMaxPushButton.standard(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(context.l10n.cancel),
-        ),
-        BusyMaxPushButton.suggested(
-          onPressed: widget.allowEmpty || _selected != null ? _submit : null,
-          child: Text(MaterialLocalizations.of(context).okButtonLabel),
-        ),
-      ],
-      children: [Form(key: _formKey, child: timeEntry)],
-    );
-  }
-
-  void _submit() {
-    if (!(_formKey.currentState?.validate() ?? false) ||
-        (!widget.allowEmpty && _selected == null)) {
-      return;
-    }
-    widget.onChanged(_selected == null ? null : encodeTimeOfDay(_selected!));
-    Navigator.of(context).pop();
   }
 }
 
 class _DesktopTimeFieldState extends State<DesktopTimeField> {
-  late final YaruTimeEntryController _controller;
-  var _syncingController = false;
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+  var _syncingText = false;
+  var _inputValid = true;
+  bool? _reportedValidity;
+  var _hasPendingEmission = false;
+  String? _pendingEmission;
 
   @override
   void initState() {
     super.initState();
-    _controller = YaruTimeEntryController(
-      timeOfDay: parseTimeOfDay(widget.time),
-    );
+    _inputValid = _storedTimeIsValid(widget.time, widget.allowEmpty);
+    _controller = TextEditingController();
+    _focusNode = FocusNode(debugLabel: widget.label)
+      ..addListener(_handleFocusChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_focusNode.hasFocus) {
+      _syncVisibleValue();
+    }
+    _reportValidityAfterBuild();
   }
 
   @override
   void didUpdateWidget(covariant DesktopTimeField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.time != widget.time) {
-      final nextTime = parseTimeOfDay(widget.time);
-      if (_controller.timeOfDay != nextTime) {
-        _syncingController = true;
-        _controller.timeOfDay = nextTime;
-        _syncingController = false;
-      }
+    final timeChanged = oldWidget.time != widget.time;
+    final policyChanged = oldWidget.allowEmpty != widget.allowEmpty;
+    final availabilityChanged = oldWidget.enabled != widget.enabled;
+    final validityCallbackAdded =
+        oldWidget.onValidityChanged == null && widget.onValidityChanged != null;
+    if (validityCallbackAdded) {
+      _reportedValidity = null;
+    }
+    if (!timeChanged &&
+        !policyChanged &&
+        !availabilityChanged &&
+        !validityCallbackAdded) {
+      return;
+    }
+    if (!timeChanged && !policyChanged && !availabilityChanged) {
+      _reportValidityAfterBuild();
+      return;
+    }
+
+    final acceptedLocalEmission =
+        timeChanged &&
+        !availabilityChanged &&
+        _hasPendingEmission &&
+        widget.time == _pendingEmission;
+    _hasPendingEmission = false;
+    _pendingEmission = null;
+
+    if (!acceptedLocalEmission || availabilityChanged) {
+      _inputValid = _storedTimeIsValid(widget.time, widget.allowEmpty);
+      _syncVisibleValue();
+      _reportValidityAfterBuild();
+    } else if (!_focusNode.hasFocus) {
+      _syncVisibleValue();
     }
   }
 
   @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_handleFocusChanged)
+      ..dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final timeEntry = _BusyMaxTimeEntry(
-      controller: _controller,
+    return BusyMaxCalendarValueRow(
       label: widget.label,
-      acceptEmpty: true,
-      onChanged: (time) {
-        if (_syncingController) {
-          return;
-        }
-        widget.onChanged(time == null ? null : encodeTimeOfDay(time));
-      },
-    );
-    return YaruListTile.square(
-      leading: const Icon(Icons.schedule),
-      titleText: widget.label,
-      trailing: SizedBox(
-        width: 168,
-        child: widget.enabled
-            ? timeEntry
-            : Opacity(
-                opacity: 0.6,
-                child: ExcludeFocus(child: IgnorePointer(child: timeEntry)),
-              ),
+      entry: TextFormField(
+        controller: _controller,
+        focusNode: _focusNode,
+        enabled: widget.enabled,
+        keyboardType: TextInputType.datetime,
+        textInputAction: TextInputAction.done,
+        decoration: busyMaxGroupedTextFieldDecoration(
+          context,
+          labelText: widget.label,
+          errorText: _inputValid
+              ? null
+              : MaterialLocalizations.of(context).invalidTimeLabel,
+        ),
+        onChanged: _handleTextChanged,
+        onFieldSubmitted: (_) => _normalizeOrRestore(),
       ),
       enabled: widget.enabled,
     );
   }
-}
 
-class _BusyMaxTimeEntry extends StatelessWidget {
-  const _BusyMaxTimeEntry({
-    required this.controller,
-    required this.label,
-    required this.acceptEmpty,
-    required this.onChanged,
-    this.autofocus = false,
-    this.onSubmitted,
-  });
+  void _handleTextChanged(String input) {
+    if (_syncingText) {
+      return;
+    }
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      _setInputValidity(widget.allowEmpty);
+      if (widget.allowEmpty) {
+        _emitTime(null);
+      }
+      return;
+    }
+    final parsed = parseDesktopTimeInput(context, trimmed);
+    if (parsed == null) {
+      _setInputValidity(false);
+      return;
+    }
+    _setInputValidity(true);
+    _emitTime(encodeTimeOfDay(parsed));
+  }
 
-  final YaruTimeEntryController controller;
-  final String label;
-  final bool acceptEmpty;
-  final bool autofocus;
-  final ValueChanged<TimeOfDay?> onChanged;
-  final ValueChanged<TimeOfDay?>? onSubmitted;
+  void _handleFocusChanged() {
+    if (_focusNode.hasFocus) {
+      return;
+    }
+    if (_restoreRejectedPendingEmission()) {
+      return;
+    }
+    _normalizeOrRestore();
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    final localizations = MaterialLocalizations.of(context);
-    return _withoutFloatingEntryLabel(
-      context,
-      YaruTimeEntry(
-        controller: controller,
-        autofocus: autofocus,
-        force24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context)
-            ? true
-            : null,
-        acceptEmpty: acceptEmpty,
-        clearIconSemanticLabel: label,
-        errorFormatText: localizations.invalidTimeLabel,
-        errorInvalidText: localizations.invalidTimeLabel,
-        onChanged: onChanged,
-        onFieldSubmitted: onSubmitted,
-      ),
+  void _normalizeOrRestore() {
+    final input = _controller.text.trim();
+    if (input.isEmpty && widget.allowEmpty) {
+      _setInputValidity(true);
+      _emitTime(null);
+      _syncVisibleValue();
+      return;
+    }
+    final parsed = parseDesktopTimeInput(context, input);
+    if (parsed == null) {
+      _setInputValidity(false);
+      return;
+    }
+    _setInputValidity(true);
+    _emitTime(encodeTimeOfDay(parsed));
+    _syncVisibleValue(time: parsed);
+  }
+
+  void _syncVisibleValue({TimeOfDay? time}) {
+    final parsed = time ?? parseTimeOfDay(widget.time);
+    final formatted = parsed == null ? '' : formatMaterialTime(context, parsed);
+    if (_controller.text == formatted) {
+      return;
+    }
+    _syncingText = true;
+    _controller.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
+    _syncingText = false;
   }
-}
 
-Widget _withoutFloatingEntryLabel(BuildContext context, Widget child) {
-  // The date/time rows already provide the visible label through
-  // YaruListTile.square, so field labels are hidden here to avoid duplicates.
-  final theme = Theme.of(context);
-
-  return Theme(
-    data: theme.copyWith(
-      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-        floatingLabelBehavior: FloatingLabelBehavior.never,
-      ),
-    ),
-    child: child,
-  );
-}
-
-String formatDesktopDate(BuildContext context, String? date) {
-  final parsed = parseDateOnly(date);
-  if (parsed == null) {
-    return '';
+  void _emitTime(String? value) {
+    if (value == widget.time ||
+        _hasPendingEmission && value == _pendingEmission) {
+      return;
+    }
+    _hasPendingEmission = true;
+    _pendingEmission = value;
+    widget.onChanged(value);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_hasPendingEmission ||
+          _focusNode.hasFocus ||
+          widget.time == _pendingEmission) {
+        return;
+      }
+      _restoreRejectedPendingEmission();
+    });
   }
-  return DateFormat.yMMMd(
-    Localizations.localeOf(context).toLanguageTag(),
-  ).format(parsed);
-}
 
-String formatDesktopTime(BuildContext context, String? time) {
-  final parsed = parseTimeOfDay(time);
-  if (parsed == null) {
-    return '';
+  bool _restoreRejectedPendingEmission() {
+    if (!_hasPendingEmission || widget.time == _pendingEmission) {
+      return false;
+    }
+    _hasPendingEmission = false;
+    _pendingEmission = null;
+    _inputValid = _storedTimeIsValid(widget.time, widget.allowEmpty);
+    _syncVisibleValue();
+    _reportValidity(_inputValid);
+    setState(() {});
+    return true;
   }
-  return formatMaterialTime(context, parsed);
+
+  void _setInputValidity(bool valid) {
+    if (_inputValid != valid) {
+      setState(() {
+        _inputValid = valid;
+      });
+    }
+    _reportValidity(valid);
+  }
+
+  void _reportValidityAfterBuild() {
+    final validity = _inputValid;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _inputValid == validity) {
+        _reportValidity(validity);
+      }
+    });
+  }
+
+  void _reportValidity(bool valid) {
+    if (_reportedValidity == valid) {
+      return;
+    }
+    _reportedValidity = valid;
+    widget.onValidityChanged?.call(valid);
+  }
 }
 
 String formatDesktopDateTime(BuildContext context, String? dateTime) {
@@ -678,6 +618,49 @@ String formatMaterialTime(BuildContext context, TimeOfDay time) {
     time,
     alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
   );
+}
+
+String formatDesktopDate(BuildContext context, String? date) {
+  final parsed = parseDateOnly(date);
+  if (parsed == null) {
+    return '';
+  }
+  return DateFormat.yMMMd(
+    Localizations.localeOf(context).toLanguageTag(),
+  ).format(parsed);
+}
+
+@visibleForTesting
+TimeOfDay? parseDesktopTimeInput(BuildContext context, String input) {
+  final trimmed = input.trim();
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  if (_providerTimePattern.hasMatch(trimmed)) {
+    return parseTimeOfDay(trimmed);
+  }
+
+  final normalized = trimmed
+      .replaceAll('\u00A0', ' ')
+      .replaceAll('\u202F', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ');
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  for (final candidate in {trimmed, normalized}) {
+    for (final format in [
+      DateFormat.Hm(locale),
+      DateFormat.jm(locale),
+      DateFormat('H:mm', locale),
+      DateFormat('h:mm a', locale),
+    ]) {
+      try {
+        final parsed = format.parseStrict(candidate);
+        return TimeOfDay(hour: parsed.hour, minute: parsed.minute);
+      } on FormatException {
+        // Try the other native locale representation.
+      }
+    }
+  }
+  return null;
 }
 
 DateTime? parseDateOnly(String? date) {
@@ -703,11 +686,15 @@ DateTime? parseGraphLocalDateTime(String? dateTime) {
 }
 
 TimeOfDay? parseTimeOfDay(String? time) {
-  if (time == null || time.length < 5) {
+  if (time == null) {
     return null;
   }
-  final hour = int.tryParse(time.substring(0, 2));
-  final minute = int.tryParse(time.substring(3, 5));
+  final match = _providerTimePattern.firstMatch(time);
+  if (match == null) {
+    return null;
+  }
+  final hour = int.tryParse(match.group(1)!);
+  final minute = int.tryParse(match.group(2)!);
   if (hour == null ||
       minute == null ||
       hour < 0 ||
@@ -717,6 +704,12 @@ TimeOfDay? parseTimeOfDay(String? time) {
     return null;
   }
   return TimeOfDay(hour: hour, minute: minute);
+}
+
+final _providerTimePattern = RegExp(r'^(\d{2}):(\d{2})$');
+
+bool _storedTimeIsValid(String? time, bool allowEmpty) {
+  return time == null ? allowEmpty : parseTimeOfDay(time) != null;
 }
 
 String encodeDateOnly(DateTime date) {

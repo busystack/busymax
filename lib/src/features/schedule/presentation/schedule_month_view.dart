@@ -46,12 +46,13 @@ class ScheduleMonthView extends StatelessWidget {
     final month = DateTime(selectedDate.year, selectedDate.month);
     final grouped = ScheduleProjection.groupByDay(items);
     final theme = Theme.of(context);
+    final workspaceColor = BusyMaxSurfaceColors.of(context).window;
     final border = busyMaxCalendarGridColor(context);
 
     return Column(
       children: [
         ColoredBox(
-          color: theme.colorScheme.surface,
+          color: workspaceColor,
           child: SizedBox(
             height: 34,
             child: Row(
@@ -148,8 +149,8 @@ class _MonthDayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
+    final workspaceColor = surfaceColors.window;
     final today = DateUtils.isSameDay(day, DateTime.now());
 
     return BusyMaxCalendarDaySemantics(
@@ -158,8 +159,8 @@ class _MonthDayCell extends StatelessWidget {
       onTap: onSelect,
       child: Material(
         color: selected
-            ? Color.alphaBlend(surfaceColors.control, colorScheme.surface)
-            : colorScheme.surface,
+            ? Color.alphaBlend(surfaceColors.control, workspaceColor)
+            : workspaceColor,
         child: InkWell(
           onTap: onSelect,
           onDoubleTap: onCreate,

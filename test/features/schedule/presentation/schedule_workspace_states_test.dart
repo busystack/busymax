@@ -29,7 +29,7 @@ void main() {
     final loadingContext = tester.element(find.byType(ScheduleLoadingState));
     expect(
       tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
-      BusyMaxSurfaceColors.of(loadingContext).view,
+      BusyMaxSurfaceColors.of(loadingContext).window,
     );
   });
 

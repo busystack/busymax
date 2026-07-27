@@ -98,6 +98,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   final _titleController = TextEditingController();
   final _notesController = TextEditingController();
   final _shortcutFocusNode = FocusNode(debugLabel: 'Task editor shortcuts');
+  final _invalidTimeFields = <_TaskTimeField>{};
 
   TaskDetailsDraft? _draft;
   TaskDetailsDraft? _cleanDraftBaseline;
@@ -120,7 +121,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     super.didUpdateWidget(oldWidget);
     final nextKey = _taskKey(widget.task);
     final sameKey = _loadedTaskKey == nextKey;
-    final hasChanges = _hasDraftChanges(_draft);
+    final hasChanges = _hasEditorChanges(_draft);
 
     if (!sameKey) {
       if (hasChanges && widget.confirmTaskSwitch) {
@@ -149,14 +150,15 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final draft =
         _draft ?? TaskDetailsDraft.fromTask(_editingTask, widget.localTimeZone);
     final l10n = context.l10n;
-    final hasChanges = _hasDraftChanges(draft);
+    final hasChanges = _hasEditorChanges(draft);
+    final scheduledAllDay = _isScheduledAllDay(draft);
     final canSave =
         draft.title.trim().isNotEmpty &&
         hasChanges &&
         !_saving &&
+        _timeFieldsAreValid(draft, scheduledAllDay) &&
         (widget.canSaveDraft?.call(draft) ?? true);
     final currentList = _listTitle(draft.taskListId);
-    final scheduledAllDay = _isScheduledAllDay(draft);
     final listValue = [
       currentList,
       widget.accountLabel,
@@ -201,10 +203,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       filled: true,
                       children: [
                         YaruListTile.square(
-                          hoverColor: busyMaxEditorRowHoverColor(context),
                           title: TextField(
                             controller: _titleController,
-                            decoration: _plainTaskFieldDecoration(
+                            decoration: busyMaxGroupedTextFieldDecoration(
                               context,
                               labelText: l10n.title,
                             ),
@@ -236,7 +237,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         DesktopDateValueRow(
                           label: l10n.dueDate,
                           date: draft.dueDate,
-                          emptyLabel: l10n.noneValue,
                           onChanged: (value) =>
                               _updateDraft(draft.copyWith(dueDate: value)),
                           useNativePicker: widget.useNativeDatePicker,
@@ -255,9 +255,12 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                           DesktopTimeValueRow(
                             label: l10n.dueTime,
                             time: draft.microsoftDueTime,
-                            emptyLabel: l10n.noneValue,
                             onChanged: (value) => _updateDraft(
                               draft.copyWith(microsoftDueTime: value),
+                            ),
+                            onValidityChanged: (valid) => _setTimeFieldValidity(
+                              _TaskTimeField.due,
+                              valid,
                             ),
                           ),
                       ],
@@ -295,12 +298,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       filled: true,
                       children: [
                         YaruListTile.square(
-                          hoverColor: busyMaxEditorRowHoverColor(context),
                           title: TextField(
                             controller: _notesController,
                             minLines: 3,
                             maxLines: 5,
-                            decoration: _plainTaskFieldDecoration(
+                            decoration: busyMaxGroupedTextFieldDecoration(
                               context,
                               labelText: l10n.notes,
                               alignLabelWithHint: true,
@@ -450,7 +452,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopDateValueRow(
         label: l10n.startDate,
         date: draft.microsoftStartDate,
-        emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftStartDate: value)),
         useNativePicker: widget.useNativeDatePicker,
@@ -462,9 +463,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         DesktopTimeValueRow(
           label: l10n.startTime,
           time: draft.microsoftStartTime,
-          emptyLabel: l10n.noneValue,
           onChanged: (value) =>
               _updateDraft(draft.copyWith(microsoftStartTime: value)),
+          onValidityChanged: (valid) =>
+              _setTimeFieldValidity(_TaskTimeField.start, valid),
         ),
     ];
   }
@@ -485,6 +487,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   void _setScheduledAllDay(TaskDetailsDraft draft, bool allDay) {
     if (allDay) {
+      _invalidTimeFields
+        ..remove(_TaskTimeField.due)
+        ..remove(_TaskTimeField.start);
       _updateDraft(
         draft.copyWith(
           microsoftDueTime: widget.capabilities.supportsDueTime
@@ -607,7 +612,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   Future<void> _save() async {
     final draft = _draft;
-    if (draft == null || _saving) {
+    if (draft == null ||
+        _saving ||
+        !_timeFieldsAreValid(draft, _isScheduledAllDay(draft))) {
       return;
     }
     final patch = draft.toPatch(
@@ -637,7 +644,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   Future<void> _cancel() async {
     final draft = _draft;
-    final hasChanges = _hasDraftChanges(draft);
+    final hasChanges = _hasEditorChanges(draft);
     if (hasChanges) {
       final discard = await showBusyMaxConfirm(
         context,
@@ -730,6 +737,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         TaskDetailsDraft.fromTask(task, widget.localTimeZone);
     _editingTask = task;
     _loadedTaskKey = taskKey;
+    _invalidTimeFields.clear();
     _draft = draft;
     _cleanDraftBaseline = draft;
     _titleController.text = draft.title;
@@ -742,7 +750,43 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       _draft = draft;
     });
     widget.onDraftChanged?.call(draft);
-    widget.onDirtyChanged?.call(_hasDraftChanges(draft));
+    widget.onDirtyChanged?.call(_hasEditorChanges(draft));
+  }
+
+  void _setTimeFieldValidity(_TaskTimeField field, bool valid) {
+    final changed = valid
+        ? _invalidTimeFields.remove(field)
+        : _invalidTimeFields.add(field);
+    if (changed) {
+      setState(() {});
+      widget.onDirtyChanged?.call(_hasEditorChanges(_draft));
+    }
+  }
+
+  bool _hasEditorChanges(TaskDetailsDraft? draft) {
+    if (draft == null) {
+      return false;
+    }
+    return _hasDraftChanges(draft) ||
+        !_timeFieldsAreValid(draft, _isScheduledAllDay(draft));
+  }
+
+  bool _timeFieldsAreValid(TaskDetailsDraft draft, bool scheduledAllDay) {
+    if (!scheduledAllDay &&
+        widget.capabilities.supportsDueTime &&
+        _invalidTimeFields.contains(_TaskTimeField.due)) {
+      return false;
+    }
+    if (!scheduledAllDay &&
+        widget.capabilities.supportsStartDateTime &&
+        _invalidTimeFields.contains(_TaskTimeField.start)) {
+      return false;
+    }
+    if (draft.microsoftReminderEnabled &&
+        _invalidTimeFields.contains(_TaskTimeField.reminder)) {
+      return false;
+    }
+    return true;
   }
 
   bool _hasDraftChanges(TaskDetailsDraft? draft) {
@@ -804,7 +848,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopDateValueRow(
         label: l10n.reminderDate,
         date: draft.microsoftReminderDate,
-        emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderDate: value)),
         useNativePicker: widget.useNativeDatePicker,
@@ -814,56 +857,27 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopTimeValueRow(
         label: l10n.reminderTime,
         time: draft.microsoftReminderTime,
-        emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderTime: value)),
+        onValidityChanged: (valid) =>
+            _setTimeFieldValidity(_TaskTimeField.reminder, valid),
       ),
       BusyMaxActionRow(
         title: l10n.removeReminder,
         leading: const Icon(YaruIcons.window_close),
-        onTap: () => _updateDraft(
-          draft.copyWith(
-            microsoftReminderEnabled: false,
-            microsoftReminderDate: null,
-            microsoftReminderTime: null,
-          ),
-        ),
+        onTap: () {
+          _invalidTimeFields.remove(_TaskTimeField.reminder);
+          _updateDraft(
+            draft.copyWith(
+              microsoftReminderEnabled: false,
+              microsoftReminderDate: null,
+              microsoftReminderTime: null,
+            ),
+          );
+        },
       ),
     ];
   }
-}
-
-InputDecoration _plainTaskFieldDecoration(
-  BuildContext context, {
-  required String labelText,
-  String? errorText,
-  bool alignLabelWithHint = false,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  final labelColor = errorText == null
-      ? colorScheme.onSurfaceVariant
-      : colorScheme.error;
-  final labelStyle = Theme.of(
-    context,
-  ).textTheme.bodyMedium?.copyWith(color: labelColor);
-  return InputDecoration(
-    filled: false,
-    fillColor: Colors.transparent,
-    hoverColor: Colors.transparent,
-    border: InputBorder.none,
-    enabledBorder: InputBorder.none,
-    focusedBorder: InputBorder.none,
-    disabledBorder: InputBorder.none,
-    errorBorder: InputBorder.none,
-    focusedErrorBorder: InputBorder.none,
-    contentPadding: EdgeInsets.zero,
-    labelText: labelText,
-    labelStyle: labelStyle,
-    floatingLabelStyle: labelStyle,
-    floatingLabelBehavior: FloatingLabelBehavior.auto,
-    alignLabelWithHint: alignLabelWithHint,
-    errorText: errorText,
-  );
 }
 
 TextStyle? _taskEditorProminentActionStyle(
@@ -875,6 +889,8 @@ TextStyle? _taskEditorProminentActionStyle(
     context,
   ).textTheme.labelLarge?.copyWith(color: color, fontWeight: fontWeight);
 }
+
+enum _TaskTimeField { due, start, reminder }
 
 class _TaskDetailsHeader extends StatelessWidget {
   const _TaskDetailsHeader({

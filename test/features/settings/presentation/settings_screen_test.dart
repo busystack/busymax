@@ -16,6 +16,7 @@ import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
+import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
@@ -39,6 +40,25 @@ void main() {
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
+  testWidgets('Settings fallback header uses the semantic title style', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      useFlutterHeader: true,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+
+    final emphasizedAccountTitles = tester
+        .widgetList<Text>(find.text('Accounts'))
+        .where((text) => text.style?.fontWeight == FontWeight.bold);
+    expect(emphasizedAccountTitles, hasLength(1));
   });
 
   testWidgets('Settings removes the selected Microsoft account', (
@@ -295,7 +315,9 @@ void main() {
     expect(find.text('Add Google account'), findsNothing);
   });
 
-  testWidgets('Settings content uses the native view surface', (tester) async {
+  testWidgets('Settings workspace uses the native window surface', (
+    tester,
+  ) async {
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
@@ -328,8 +350,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-    expect(scaffold.backgroundColor, gtkColors.view);
-    expect(scaffold.backgroundColor, isNot(gtkColors.window));
+    expect(scaffold.backgroundColor, gtkColors.window);
+    expect(scaffold.backgroundColor, isNot(gtkColors.view));
   });
 
   testWidgets('Settings uses Yaru master-detail rows with selected semantics', (
@@ -488,10 +510,12 @@ void main() {
     await tester.tap(find.text('Notifications'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Quiet hours start'), findsOneWidget);
-    expect(find.text('Quiet hours end'), findsOneWidget);
     var timeRows = tester.widgetList<DesktopTimeValueRow>(
       find.byType(DesktopTimeValueRow),
+    );
+    expect(
+      timeRows.map((row) => row.label),
+      containsAll(<String>['Quiet hours start', 'Quiet hours end']),
     );
     expect(timeRows.every((row) => !row.enabled), isTrue);
 
@@ -550,8 +574,14 @@ void main() {
     await tester.ensureVisible(newListButtons.at(1));
     await tester.tap(newListButtons.at(1));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Client work');
-    await tester.tap(find.text('Create'));
+
+    final promptField = find.descendant(
+      of: find.byType(BusyMaxPromptDialog),
+      matching: find.byType(TextField),
+    );
+    expect(promptField, findsOneWidget);
+    await tester.enterText(promptField, 'Client work');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
     expect(googleLists.createdTitles, isEmpty);
@@ -660,7 +690,7 @@ void main() {
 Finder _settingsMenuItemWithLabel(String label) {
   return find.ancestor(
     of: find.text(label).last,
-    matching: find.byType(PopupMenuItem<int>),
+    matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
   );
 }
 
@@ -677,6 +707,7 @@ ProviderContainer _container({
   BuildConfig buildConfig = _emptyBuildConfig,
   Map<String, _FakeTaskListsRepository>? taskListRepositories,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
+  bool useFlutterHeader = false,
 }) {
   return ProviderContainer(
     overrides: [
@@ -694,6 +725,12 @@ ProviderContainer _container({
       localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
       syncEngineProvider.overrideWithValue(null),
       buildConfigProvider.overrideWithValue(buildConfig),
+      if (useFlutterHeader)
+        linuxHeaderBarServiceProvider.overrideWith((ref) {
+          final service = LinuxHeaderBarService(isLinux: false);
+          ref.onDispose(service.dispose);
+          return service;
+        }),
       taskListsRepositoryForAccountProvider.overrideWith((ref, accountId) {
         return taskListRepositories?[accountId] ?? _FakeTaskListsRepository();
       }),

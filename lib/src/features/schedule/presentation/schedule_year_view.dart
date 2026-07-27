@@ -43,7 +43,7 @@ class ScheduleYearView extends StatelessWidget {
         final monthHeight = _monthPanelHeight(monthWidth);
 
         return ColoredBox(
-          color: Theme.of(context).colorScheme.surface,
+          color: BusyMaxSurfaceColors.of(context).window,
           child: GridView.builder(
             padding: const EdgeInsets.all(BusyMaxSpacing.md),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

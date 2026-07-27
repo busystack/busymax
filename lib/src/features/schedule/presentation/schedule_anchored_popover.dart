@@ -221,6 +221,7 @@ class _ScheduleAnchoredPopoverRoute extends StatelessWidget {
                         explicitChildNodes: true,
                         child: BlockSemantics(
                           child: Stack(
+                            clipBehavior: Clip.none,
                             children: [
                               Positioned.fill(
                                 child: GestureDetector(
@@ -262,6 +263,8 @@ class _SchedulePopoverLayout {
     required this.left,
     required this.width,
     required this.maximumHeight,
+    required this.horizontalMargin,
+    required this.verticalMargin,
     required this.arrowSide,
     required this.arrowAlignment,
   });
@@ -274,21 +277,33 @@ class _SchedulePopoverLayout {
     required double minimumWidth,
     required double preferredMinimumHeight,
   }) {
-    const margin = BusyMaxSpacing.md;
     const gap = BusyMaxSpacing.xs;
-    final availableWidth = math.max(0.0, viewport.width - margin * 2);
+    final horizontalMargin = _adaptivePopoverMargin(
+      viewport.width,
+      preferredMinimumExtent: minimumWidth,
+    );
+    final verticalMargin = _adaptivePopoverMargin(
+      viewport.height,
+      preferredMinimumExtent: preferredMinimumHeight,
+    );
+    final availableWidth = math.max(0.0, viewport.width - horizontalMargin * 2);
     final width = availableWidth < minimumWidth
         ? availableWidth
         : math.min(preferredWidth, availableWidth);
-    final maximumLeft = math.max(margin, viewport.width - width - margin);
+    final maximumLeft = math.max(
+      horizontalMargin,
+      viewport.width - width - horizontalMargin,
+    );
     if (anchor == null) {
       return _SchedulePopoverLayout(
         anchor: null,
         left: ((viewport.width - width) / 2)
-            .clamp(margin, maximumLeft)
+            .clamp(horizontalMargin, maximumLeft)
             .toDouble(),
         width: width,
-        maximumHeight: math.max(0, viewport.height - margin * 2),
+        maximumHeight: math.max(0, viewport.height - verticalMargin * 2),
+        horizontalMargin: horizontalMargin,
+        verticalMargin: verticalMargin,
         arrowSide: BusyMaxPopoverArrowSide.top,
         arrowAlignment: 0.5,
       );
@@ -297,11 +312,11 @@ class _SchedulePopoverLayout {
     final preferredLeft = textDirection == TextDirection.rtl
         ? anchor.right - width
         : anchor.left;
-    final left = preferredLeft.clamp(margin, maximumLeft).toDouble();
-    final spaceAbove = math.max(0.0, anchor.top - gap - margin);
+    final left = preferredLeft.clamp(horizontalMargin, maximumLeft).toDouble();
+    final spaceAbove = math.max(0.0, anchor.top - gap - verticalMargin);
     final spaceBelow = math.max(
       0.0,
-      viewport.height - anchor.bottom - gap - margin,
+      viewport.height - anchor.bottom - gap - verticalMargin,
     );
     final showBelow =
         spaceBelow >= math.min(preferredMinimumHeight, spaceAbove) ||
@@ -314,6 +329,8 @@ class _SchedulePopoverLayout {
       left: left,
       width: width,
       maximumHeight: showBelow ? spaceBelow : spaceAbove,
+      horizontalMargin: horizontalMargin,
+      verticalMargin: verticalMargin,
       arrowSide: showBelow
           ? BusyMaxPopoverArrowSide.top
           : BusyMaxPopoverArrowSide.bottom,
@@ -325,6 +342,8 @@ class _SchedulePopoverLayout {
   final double left;
   final double width;
   final double maximumHeight;
+  final double horizontalMargin;
+  final double verticalMargin;
   final BusyMaxPopoverArrowSide arrowSide;
   final double arrowAlignment;
 }
@@ -345,18 +364,17 @@ class _SchedulePopoverPositionDelegate extends SingleChildLayoutDelegate {
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    const margin = BusyMaxSpacing.md;
     const gap = BusyMaxSpacing.xs;
     final maximumTop = math.max(
-      margin,
-      size.height - childSize.height - margin,
+      layout.verticalMargin,
+      size.height - childSize.height - layout.verticalMargin,
     );
     final anchor = layout.anchor;
     if (anchor == null) {
       return Offset(
         layout.left,
         ((size.height - childSize.height) / 2)
-            .clamp(margin, maximumTop)
+            .clamp(layout.verticalMargin, maximumTop)
             .toDouble(),
       );
     }
@@ -366,7 +384,7 @@ class _SchedulePopoverPositionDelegate extends SingleChildLayoutDelegate {
     };
     return Offset(
       layout.left,
-      preferredTop.clamp(margin, maximumTop).toDouble(),
+      preferredTop.clamp(layout.verticalMargin, maximumTop).toDouble(),
     );
   }
 
@@ -376,7 +394,20 @@ class _SchedulePopoverPositionDelegate extends SingleChildLayoutDelegate {
         layout.left != oldDelegate.layout.left ||
         layout.width != oldDelegate.layout.width ||
         layout.maximumHeight != oldDelegate.layout.maximumHeight ||
+        layout.horizontalMargin != oldDelegate.layout.horizontalMargin ||
+        layout.verticalMargin != oldDelegate.layout.verticalMargin ||
         layout.arrowSide != oldDelegate.layout.arrowSide ||
         layout.arrowAlignment != oldDelegate.layout.arrowAlignment;
   }
+}
+
+double _adaptivePopoverMargin(
+  double extent, {
+  required double preferredMinimumExtent,
+}) {
+  final availableSurplus = extent - preferredMinimumExtent;
+  if (availableSurplus <= 0) {
+    return 0;
+  }
+  return math.min(BusyMaxShadow.nativePopoverPaintMargin, availableSurplus / 2);
 }

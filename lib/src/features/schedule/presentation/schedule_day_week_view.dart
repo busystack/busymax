@@ -96,11 +96,12 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
+    final workspaceColor = surfaceColors.window;
     final gridColor = busyMaxCalendarGridColor(context);
     final todayOverlayAlpha = widget.daysShowed == 1 ? 0.0 : 0.035;
     final todayColor = Color.alphaBlend(
       surfaceColors.controlActive.withValues(alpha: todayOverlayAlpha),
-      colorScheme.surface,
+      workspaceColor,
     );
     final showFullDayBar = _hasRenderedFullDayEvents(context, widget);
     final fullDayBarHeight = showFullDayBar ? _fullDayBarHeight : 0.0;
@@ -124,7 +125,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
       onDayChange: (day) => widget.onDaySelected(_day(day)),
       daysHeaderParam: icv.DaysHeaderParam(
         daysHeaderHeight: widget.daysShowed == 1 ? 0 : 50,
-        daysHeaderColor: colorScheme.surface,
+        daysHeaderColor: workspaceColor,
         dayHeaderBuilder: (day, isToday) => widget.daysShowed == 1
             ? const SizedBox.shrink()
             : _PlannerDayHeader(day: day, isToday: isToday),
@@ -144,10 +145,10 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
           ),
         ),
         fullDayEventsBarDecoration: BoxDecoration(
-          color: colorScheme.surface,
+          color: workspaceColor,
           border: Border(bottom: BorderSide(color: gridColor)),
         ),
-        fullDayBackgroundColor: colorScheme.surface,
+        fullDayBackgroundColor: workspaceColor,
         fullDayEventsBuilder: (events, width) {
           return _FullDayScrollPane(
             events: events,
@@ -195,7 +196,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
       ),
       dayParam: icv.DayParam(
         todayColor: todayColor,
-        dayColor: colorScheme.surface,
+        dayColor: workspaceColor,
         dayTopPadding: 8,
         dayBottomPadding: 16,
         onSlotMinutesRound: 15,
@@ -277,7 +278,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         ),
         offTimesColor: Color.alphaBlend(
           colorScheme.onSurface.withValues(alpha: 0.025),
-          colorScheme.surface,
+          workspaceColor,
         ),
         offTimesAllDaysPainter:
             (column, day, isToday, heightPerMinute, ranges, color) =>
@@ -487,7 +488,7 @@ class _PlannerDayHeader extends StatelessWidget {
     return Container(
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: surfaceColors.window,
         border: Border(
           bottom: BorderSide(color: busyMaxCalendarGridColor(context)),
         ),

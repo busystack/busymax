@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
@@ -28,6 +29,169 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
+
+  testWidgets('filled surfaces use the shared native card shadow profile', (
+    tester,
+  ) async {
+    const semanticShadow = Color(0xFF123456);
+    const semanticElevation = 3.0;
+    final baseTheme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final theme = baseTheme.copyWith(
+      cardTheme: baseTheme.cardTheme.copyWith(
+        elevation: semanticElevation,
+        shadowColor: semanticShadow,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: const BusyMaxSurface(child: SizedBox(width: 120, height: 48)),
+      ),
+    );
+
+    final card = tester.widget<Card>(
+      find.descendant(
+        of: find.byType(BusyMaxSurface),
+        matching: find.byType(Card),
+      ),
+    );
+    final material = tester.widget<Material>(
+      find.descendant(of: find.byType(Card), matching: find.byType(Material)),
+    );
+    final shadowDecoration = _nativeCardDecoration(
+      tester,
+      find.byType(BusyMaxSurface),
+    );
+    expect(card.elevation, isNull);
+    expect(card.shadowColor, Colors.transparent);
+    expect(material.elevation, semanticElevation);
+    expect(material.shadowColor, Colors.transparent);
+    expect(
+      shadowDecoration.shadows,
+      BusyMaxShadow.nativeCardShadows(semanticShadow),
+    );
+  });
+
+  testWidgets(
+    'Flutter popover surfaces use the native layered shadow profile',
+    (tester) async {
+      const semanticShadow = Color.fromRGBO(32, 80, 128, 0.8);
+      const menuKey = ValueKey('menu-popover');
+      final baseTheme = BusyMaxYaruTheme.build(
+        brightness: Brightness.light,
+        accentColor: const Color(0xFF3584E4),
+      );
+      final theme = baseTheme.copyWith(
+        colorScheme: baseTheme.colorScheme.copyWith(shadow: semanticShadow),
+      );
+      final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            body: Column(
+              children: [
+                BusyMaxPopoverSurface(
+                  key: menuKey,
+                  color: colors.popover,
+                  child: const SizedBox(width: 120, height: 48),
+                ),
+                const BusyMaxContentPopoverSurface(
+                  child: SizedBox(width: 120, height: 48),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final menuDecorationFinder = find.descendant(
+        of: find.byKey(menuKey),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is ShapeDecoration &&
+              ((widget.decoration as ShapeDecoration).shadows?.isNotEmpty ??
+                  false),
+        ),
+      );
+      final contentDecorationFinder = find.descendant(
+        of: find.byType(BusyMaxContentPopoverSurface),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is ShapeDecoration &&
+              ((widget.decoration as ShapeDecoration).shadows?.isNotEmpty ??
+                  false),
+        ),
+      );
+
+      expect(menuDecorationFinder, findsOneWidget);
+      expect(contentDecorationFinder, findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BusyMaxPopoverSurface),
+          matching: find.byType(PhysicalShape),
+        ),
+        findsNothing,
+      );
+      final expectedMenuShadows = BusyMaxShadow.nativePopoverShadows(
+        semanticShadow,
+      );
+      final expectedDetailsShadows = BusyMaxShadow.nativePopoverShadows(
+        semanticShadow,
+        role: BusyMaxPopoverShadowRole.details,
+      );
+      for (final (finder, expectedShadows) in [
+        (menuDecorationFinder, expectedMenuShadows),
+        (contentDecorationFinder, expectedDetailsShadows),
+      ]) {
+        final decoratedBox = tester.widget<DecoratedBox>(finder);
+        final decoration = decoratedBox.decoration as ShapeDecoration;
+        expect(decoration.shadows, expectedShadows);
+        for (final shadow in decoration.shadows!) {
+          expect(shadow.color.r, semanticShadow.r);
+          expect(shadow.color.g, semanticShadow.g);
+          expect(shadow.color.b, semanticShadow.b);
+        }
+      }
+      expect(expectedMenuShadows[0].blurRadius, 14);
+      expect(expectedMenuShadows[1].blurRadius, 5);
+      expect(expectedDetailsShadows[0].blurRadius, 13.5);
+      expect(expectedDetailsShadows[1].blurRadius, 4.5);
+      expect(expectedMenuShadows[0].color.a, closeTo(0.8 * 0.05, 0.0001));
+      expect(expectedMenuShadows[1].color.a, closeTo(0.8 * 0.09, 0.0001));
+      expect(
+        expectedDetailsShadows.map((shadow) => shadow.color),
+        expectedMenuShadows.map((shadow) => shadow.color),
+      );
+      expect(BusyMaxShadow.nativePopoverPaintMargin, 31);
+    },
+  );
+
+  test(
+    'Settings and Year view delegate card shadows to the shared surface',
+    () {
+      final settings = File(
+        'lib/src/features/settings/presentation/settings_screen.dart',
+      ).readAsStringSync();
+      final yearView = File(
+        'lib/src/features/schedule/presentation/schedule_year_view.dart',
+      ).readAsStringSync();
+
+      expect(settings, contains('BusyMaxGroupedList('));
+      expect(yearView, contains('BusyMaxGroupedSurface('));
+      for (final source in [settings, yearView]) {
+        expect(source, isNot(contains('BoxShadow(')));
+        expect(source, isNot(contains('elevation:')));
+      }
+    },
+  );
 
   for (final brightness in Brightness.values) {
     testWidgets(
@@ -72,13 +236,20 @@ void main() {
             ),
           ),
         );
-        expect(BusyMaxElevation.card, 2);
         expect(materialSurface.color, theme.cardTheme.color);
         expect(materialSurface.color?.a, 1);
-        expect(materialSurface.elevation, BusyMaxElevation.card);
-        expect(materialSurface.shadowColor, theme.colorScheme.shadow);
+        expect(materialSurface.elevation, theme.cardTheme.elevation);
+        expect(materialSurface.shadowColor, Colors.transparent);
+        expect(
+          _nativeCardDecoration(tester, groupedSurface).shadows,
+          BusyMaxShadow.nativeCardShadows(theme.colorScheme.shadow),
+        );
         final shape = materialSurface.shape! as RoundedRectangleBorder;
         expect(shape.side, BorderSide.none);
+        expect(
+          find.descendant(of: groupedSurface, matching: find.byType(Card)),
+          findsOneWidget,
+        );
         expect(
           find.descendant(
             of: groupedSurface,
@@ -123,6 +294,41 @@ void main() {
       },
     );
   }
+
+  testWidgets('unfilled surfaces stay flat and borderless', (tester) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: const BusyMaxSurface(
+          filled: false,
+          child: SizedBox(width: 120, height: 48),
+        ),
+      ),
+    );
+
+    final material = tester.widget<Material>(
+      find.descendant(
+        of: find.byType(BusyMaxSurface),
+        matching: find.byType(Material),
+      ),
+    );
+    final shape = material.shape! as RoundedRectangleBorder;
+    expect(material.color, Colors.transparent);
+    expect(material.elevation, 0);
+    expect(shape.side, BorderSide.none);
+    expect(
+      find.descendant(
+        of: find.byType(BusyMaxSurface),
+        matching: find.byType(Card),
+      ),
+      findsNothing,
+    );
+  });
 
   testWidgets('disabled grouped subtitles use the semantic disabled role', (
     tester,
@@ -313,6 +519,52 @@ void main() {
     expect(shape.side, inheritedSide);
   });
 
+  testWidgets('grouped cards inherit the semantic card shadow color', (
+    tester,
+  ) async {
+    const semanticShadow = Color(0x80123456);
+    final baseTheme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final theme = baseTheme.copyWith(
+      cardTheme: baseTheme.cardTheme.copyWith(shadowColor: semanticShadow),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: const BusyMaxGroupedSurface(
+          child: SizedBox(width: 120, height: 48),
+        ),
+      ),
+    );
+
+    final decoration = _nativeCardDecoration(
+      tester,
+      find.byType(BusyMaxGroupedSurface),
+    );
+    final expectedShadows = BusyMaxShadow.nativeCardShadows(semanticShadow);
+    expect(decoration.shadows, expectedShadows);
+    for (final shadow in decoration.shadows!) {
+      expect(shadow.color.r, semanticShadow.r);
+      expect(shadow.color.g, semanticShadow.g);
+      expect(shadow.color.b, semanticShadow.b);
+    }
+    expect(
+      expectedShadows[0].color.a,
+      closeTo(semanticShadow.a * 0.03, 0.0001),
+    );
+    expect(
+      expectedShadows[1].color.a,
+      closeTo(semanticShadow.a * 0.07, 0.0001),
+    );
+    expect(
+      expectedShadows[2].color.a,
+      closeTo(semanticShadow.a * 0.03, 0.0001),
+    );
+  });
+
   testWidgets(
     'grouped card paints its opaque semantic role in a dark editor sheet',
     (tester) async {
@@ -368,22 +620,28 @@ void main() {
       );
       expect(groupedMaterial.color, colors.card);
       expect(groupedMaterial.color?.a, 1);
-      expect(groupedMaterial.elevation, BusyMaxElevation.card);
-      expect(groupedMaterial.shadowColor, theme.colorScheme.shadow);
+      expect(groupedMaterial.elevation, theme.cardTheme.elevation);
+      expect(groupedMaterial.shadowColor, Colors.transparent);
+      expect(
+        _nativeCardDecoration(
+          tester,
+          find.byType(BusyMaxGroupedSurface),
+        ).shadows,
+        BusyMaxShadow.nativeCardShadows(theme.colorScheme.shadow),
+      );
     },
   );
 
   for (final brightness in Brightness.values) {
-    testWidgets('rows use the subtle Yaru $brightness hover role', (
+    testWidgets('rows use the native $brightness boxed-row hover role', (
       tester,
     ) async {
-      final theme = BusyMaxYaruTheme.build(
+      final baseTheme = BusyMaxYaruTheme.build(
         brightness: brightness,
         accentColor: const Color(0xFF3584E4),
       );
-      final yaruBase = brightness == Brightness.light
-          ? createYaruLightTheme(primaryColor: BusyMaxLinuxPalette.light4)
-          : createYaruDarkTheme(primaryColor: BusyMaxLinuxPalette.light2);
+      const rowHover = Color(0x1A2A7FFF);
+      final theme = baseTheme.copyWith(hoverColor: rowHover);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -403,11 +661,12 @@ void main() {
         ),
       );
 
-      expect(theme.hoverColor, yaruBase.hoverColor);
-      expect(
-        theme.hoverColor,
-        isNot(theme.extension<BusyMaxSurfaceColors>()!.controlHover),
-      );
+      expect(theme.hoverColor, rowHover);
+      final expectedHover = brightness == Brightness.dark
+          ? rowHover
+          : rowHover.withValues(
+              alpha: rowHover.a * BusyMaxAlpha.groupedRowLightHoverStrength,
+            );
       final actionTile = tester.widget<YaruListTile>(
         find.descendant(
           of: find.byType(BusyMaxActionRow),
@@ -420,16 +679,115 @@ void main() {
           matching: find.byType(YaruListTile),
         ),
       );
-      expect(actionTile.hoverColor, theme.hoverColor);
-      expect(switchTile.hoverColor, theme.hoverColor);
-      expect(
-        busyMaxEditorRowHoverColor(
-          tester.element(find.byType(BusyMaxActionRow)),
-        ),
-        theme.hoverColor,
+      expect(actionTile.hoverColor, expectedHover);
+      expect(switchTile.hoverColor, expectedHover);
+      if (brightness == Brightness.light) {
+        expect(expectedHover.a, lessThan(rowHover.a));
+      } else {
+        expect(expectedHover, rowHover);
+      }
+      expect(expectedHover.r, rowHover.r);
+      expect(expectedHover.g, rowHover.g);
+      expect(expectedHover.b, rowHover.b);
+    });
+
+    testWidgets('rows apply the native $brightness boxed-row hover strength', (
+      tester,
+    ) async {
+      final theme = BusyMaxYaruTheme.build(
+        brightness: brightness,
+        accentColor: const Color(0xFF3584E4),
       );
+      final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            body: BusyMaxActionRow(title: 'Calendar', onTap: () {}),
+          ),
+        ),
+      );
+
+      final tile = tester.widget<YaruListTile>(
+        find.descendant(
+          of: find.byType(BusyMaxActionRow),
+          matching: find.byType(YaruListTile),
+        ),
+      );
+      expect(theme.hoverColor.a, closeTo(10 / 255, 0.0001));
+      final expectedAlpha = brightness == Brightness.dark
+          ? theme.hoverColor.a
+          : theme.hoverColor.a * BusyMaxAlpha.groupedRowLightHoverStrength;
+      expect(tile.hoverColor?.a, closeTo(expectedAlpha, 0.0001));
+      expect(
+        tile.hoverColor?.a,
+        closeTo(brightness == Brightness.dark ? 10 / 255 : 0.02, 0.001),
+      );
+      expect(tile.hoverColor, isNot(colors.controlHover));
     });
   }
+
+  testWidgets('high-contrast grouped rows retain the full hover signal', (
+    tester,
+  ) async {
+    final theme = buildBusyMaxTheme(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+      highContrast: true,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          body: BusyMaxActionRow(title: 'Calendar', onTap: () {}),
+        ),
+      ),
+    );
+
+    final tile = tester.widget<YaruListTile>(
+      find.descendant(
+        of: find.byType(BusyMaxActionRow),
+        matching: find.byType(YaruListTile),
+      ),
+    );
+    expect(theme.colorScheme.isHighContrast, isTrue);
+    expect(tile.hoverColor, theme.hoverColor);
+  });
+
+  testWidgets('grouped entry keeps interaction inside its field', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => YaruListTile.square(
+              title: TextField(
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: 'Title',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final entryTile = tester.widget<YaruListTile>(find.byType(YaruListTile));
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(entryTile.onTap, isNull);
+    expect(entryTile.hoverColor, isNull);
+    expect(field.decoration?.hoverColor, Colors.transparent);
+  });
 
   testWidgets('sidebar surface draws the semantic directional end boundary', (
     tester,
@@ -660,7 +1018,12 @@ void main() {
 
     expect(trailingActivations, 1);
     expect(selections, isEmpty);
-    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNothing);
+    expect(
+      find
+          .byWidgetPredicate((widget) => widget is PopupMenuItem<int>)
+          .hitTestable(),
+      findsNothing,
+    );
     semanticsHandle.dispose();
   });
 
@@ -691,7 +1054,12 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
-    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNothing);
+    expect(
+      find
+          .byWidgetPredicate((widget) => widget is PopupMenuItem<int>)
+          .hitTestable(),
+      findsNothing,
+    );
     expect(find.byType(YaruRadio<int>).hitTestable(), findsNothing);
     expect(selected, isEmpty);
     final disabledSemantics = tester.widget<Semantics>(
@@ -783,7 +1151,9 @@ void main() {
       tester.getRect(firstChoice).top,
       greaterThanOrEqualTo(arrowRect.bottom),
     );
-    final visibleMenuItems = find.byType(PopupMenuItem<int>).hitTestable();
+    final visibleMenuItems = find
+        .byWidgetPredicate((widget) => widget is PopupMenuItem<int>)
+        .hitTestable();
     expect(visibleMenuItems, findsNWidgets(2));
     expect(find.byType(YaruFocusBorder), findsNothing);
     final radioItems = tester.widgetList<YaruRadio<int>>(
@@ -955,7 +1325,12 @@ void main() {
     await tester.tap(trigger);
     await tester.pumpAndSettle();
 
-    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNWidgets(2));
+    expect(
+      find
+          .byWidgetPredicate((widget) => widget is PopupMenuItem<int>)
+          .hitTestable(),
+      findsNWidgets(2),
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -983,7 +1358,12 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
-    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNWidgets(2));
+    expect(
+      find
+          .byWidgetPredicate((widget) => widget is PopupMenuItem<int>)
+          .hitTestable(),
+      findsNWidgets(2),
+    );
     expect(
       tester.getRect(find.text('Personal').last).top,
       greaterThanOrEqualTo(tester.getRect(triggerFinder).bottom),
@@ -994,7 +1374,12 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(selections, ['Work']);
-    expect(find.byType(PopupMenuItem<int>).hitTestable(), findsNothing);
+    expect(
+      find
+          .byWidgetPredicate((widget) => widget is PopupMenuItem<int>)
+          .hitTestable(),
+      findsNothing,
+    );
   });
 
   testWidgets('combo row accepts unbounded horizontal constraints', (
@@ -1152,24 +1537,39 @@ void main() {
         expect(modalDialog.shadowColor, isNull);
         expect(modalDialog.shape, isNull);
         expect(modalMaterial.shape, theme.dialogTheme.shape);
+        expect(modalMaterial.shadowColor, theme.dialogTheme.shadowColor);
+        expect(modalMaterial.elevation, greaterThan(0));
 
-        final physicalShape = tester.widget<PhysicalShape>(
+        final popoverDecorationFinder = find.descendant(
+          of: find.byType(BusyMaxPopoverSurface),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is DecoratedBox &&
+                widget.decoration is ShapeDecoration &&
+                (widget.decoration as ShapeDecoration).color ==
+                    expectedPopover &&
+                ((widget.decoration as ShapeDecoration).shadows?.isNotEmpty ??
+                    false),
+          ),
+        );
+        expect(popoverDecorationFinder, findsOneWidget);
+        expect(
           find.descendant(
             of: find.byType(BusyMaxPopoverSurface),
             matching: find.byType(PhysicalShape),
           ),
+          findsNothing,
         );
-        expect(physicalShape.color, expectedPopover);
-        expect(physicalShape.elevation, BusyMaxElevation.tooltip);
-        expect(physicalShape.shadowColor, theme.colorScheme.shadow);
-        final outlinePaint = find.descendant(
+        final outlineDecorationFinder = find.descendant(
           of: find.byType(BusyMaxPopoverSurface),
           matching: find.byWidgetPredicate(
             (widget) =>
-                widget is CustomPaint && widget.foregroundPainter != null,
+                widget is DecoratedBox &&
+                widget.position == DecorationPosition.foreground &&
+                widget.decoration is ShapeDecoration,
           ),
         );
-        expect(outlinePaint, findsOneWidget);
+        expect(outlineDecorationFinder, findsOneWidget);
         expect(tester.takeException(), isNull);
 
         await tester.pumpWidget(
@@ -1200,6 +1600,8 @@ void main() {
         expect(theme.dialogTheme.backgroundColor, expectedDialog);
         expect(alertMaterial.color, expectedDialog);
         expect(alertMaterial.shape, theme.dialogTheme.shape);
+        expect(alertMaterial.shadowColor, theme.dialogTheme.shadowColor);
+        expect(alertMaterial.elevation, modalMaterial.elevation);
         expect(tester.takeException(), isNull);
       },
     );
@@ -1228,15 +1630,22 @@ void main() {
       ),
     );
 
-    expect(
-      find.descendant(
-        of: find.byType(BusyMaxPopoverSurface),
-        matching: find.byWidgetPredicate(
-          (widget) => widget is CustomPaint && widget.foregroundPainter != null,
-        ),
+    final outlineFinder = find.descendant(
+      of: find.byType(BusyMaxPopoverSurface),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.position == DecorationPosition.foreground &&
+            widget.decoration is ShapeDecoration,
       ),
-      findsOneWidget,
     );
+    expect(outlineFinder, findsOneWidget);
+    final outlineDecoration =
+        tester.widget<DecoratedBox>(outlineFinder).decoration
+            as ShapeDecoration;
+    final outlineShape = outlineDecoration.shape as OutlinedBorder;
+    expect(outlineShape.side.color, colors.floatingBorder);
+    expect(outlineShape.side.width, BusyMaxStroke.outline);
   });
 
   testWidgets('combo row keeps its value inline for large text', (
@@ -1675,6 +2084,22 @@ void main() {
   });
 }
 
+ShapeDecoration _nativeCardDecoration(WidgetTester tester, Finder surface) {
+  final decoratedBox = tester.widget<DecoratedBox>(
+    find.descendant(
+      of: surface,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is ShapeDecoration &&
+            ((widget.decoration as ShapeDecoration).shadows?.isNotEmpty ??
+                false),
+      ),
+    ),
+  );
+  return decoratedBox.decoration as ShapeDecoration;
+}
+
 void _ignoreBool(bool value) {}
 
 Finder _comboTriggerFinder() {
@@ -1685,7 +2110,12 @@ Finder _comboTriggerFinder() {
 
 Finder _menuItemWithLabel(String label) {
   return find
-      .ancestor(of: find.text(label), matching: find.byType(PopupMenuItem<int>))
+      .ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PopupMenuItem<int>,
+        ),
+      )
       .hitTestable();
 }
 

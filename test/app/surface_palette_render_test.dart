@@ -174,7 +174,7 @@ void main() {
         }
         expect(
           _pixelAtProbe(tester, pixels, contentPopoverProbe),
-          baseline.card,
+          baseline.popover,
         );
       },
     );

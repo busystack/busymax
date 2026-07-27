@@ -92,7 +92,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     return NotificationListener<ScrollNotification>(
       onNotification: _handleScroll,
       child: ColoredBox(
-        color: Theme.of(context).colorScheme.surface,
+        color: BusyMaxSurfaceColors.of(context).window,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
             BusyMaxSpacing.lg,

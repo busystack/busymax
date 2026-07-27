@@ -203,7 +203,8 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     final l10n = AppLocalizations.of(context);
     final materialL10n = MaterialLocalizations.of(context);
     final modalBarrierColor = busyMaxModalBarrierColor(context);
-    final preferDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final preferDark = theme.brightness == Brightness.dark;
     final labels = BusyMaxHeaderBarLabels(
       today: l10n.today,
       day: l10n.viewDay,
@@ -234,12 +235,19 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           highContrast: MediaQuery.highContrastOf(context),
           windowBackgroundColor: colors.window,
           // This header is deliberately borderless and visually continuous
-          // with the main pane, so it uses the flat header role.
-          backgroundColor: colors.headerbarFlat,
+          // with the main workspace, so both use the window surface role.
+          backgroundColor: colors.window,
           sidebarBackgroundColor: colors.sidebar,
           foregroundColor: colors.foreground,
           sidebarBorderColor: colors.sidebarBorder,
           popoverBackgroundColor: colors.popover,
+          menuHoverColor: colors.controlHover,
+          popoverShadowColor: theme.colorScheme.shadow.withValues(
+            alpha:
+                theme.colorScheme.shadow.a *
+                BusyMaxAlpha.nativeHeaderMenuShadowOpacity,
+          ),
+          dialogBackgroundColor: colors.dialog,
           dialogOutlineColor: colors.dialogOutline,
           modalBarrierColor: modalBarrierColor,
         ),

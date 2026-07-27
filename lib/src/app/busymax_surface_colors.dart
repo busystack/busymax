@@ -209,15 +209,15 @@ BusyMaxSurfaceColors busyMaxFallbackSurfaceColors(Brightness brightness) {
 
   return switch (brightness) {
     Brightness.light => BusyMaxSurfaceColors(
-      // Modern Yaru/libadwaita semantic surface roles. GTK 3 does not publish
-      // every modern role, so named theme values replace these fallbacks only
-      // when the bridge can identify the role and the resolver can read it.
+      // Modern Yaru/libadwaita semantic surface roles. Application workspaces
+      // choose the window role explicitly; the view role remains available to
+      // editable and list content instead of being redefined globally.
       window: window,
       view: view,
       sidebar: Color(0xFFEBEBEB),
       secondarySidebar: Color(0xFFF0F0F0),
       headerbar: Color(0xFFFAFAFA),
-      headerbarFlat: Color(0xFFFFFFFF),
+      headerbarFlat: view,
       card: Color(0xFFFFFFFF),
       groupedSurface: Color(0xFFFFFFFF),
       dialog: const Color(0xFFFAFAFA),

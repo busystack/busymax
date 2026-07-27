@@ -35,6 +35,14 @@ constexpr gint kHeaderButtonSpacing = 6;
 constexpr gint kHeaderCenterMaximumWidthChars = 48;
 constexpr gint kHeaderOnboardingContentWidth = 480;
 constexpr gint kHeaderOnboardingSideWidth = 120;
+// Current libadwaita applies filter: opacity(0.5) to headerbar window-handle
+// content in the backdrop state. GTK 3 cannot apply that filter here without
+// also disturbing BusyMax's independently resolved header surfaces, so carry
+// the same native metric through the semantic foreground instead.
+constexpr gdouble kHeaderBackdropForegroundOpacity = 0.50;
+constexpr gdouble kHeaderDisabledForegroundOpacity = 0.38;
+constexpr gdouble kHeaderDisabledBackdropForegroundOpacity =
+    kHeaderDisabledForegroundOpacity * kHeaderBackdropForegroundOpacity;
 constexpr gint kHeaderSidebarContentInset = kHeaderButtonSpacing;
 constexpr gint kHeaderMainContentStartInset = kHeaderSidebarContentInset;
 constexpr gint kMainWindowDefaultWidth = 1280;
@@ -59,10 +67,17 @@ constexpr char kDefaultHeaderBarBackgroundColor[] = "#272727";
 constexpr char kDefaultHeaderBarSidebarBackgroundColor[] = "#393939";
 constexpr char kDefaultHeaderBarSidebarBorderColor[] =
     "rgba(16,16,16,0.35)";
+constexpr char kDefaultHeaderMenuShadowColor[] = "rgba(0,0,0,0.3)";
 constexpr char kDefaultDialogOutlineColor[] = "rgba(255,255,255,0.07)";
+constexpr char kDefaultModalBarrierColor[] = "rgba(0,0,0,0.25)";
 constexpr char kHeaderControlStyleClass[] = "busymax-header-control";
+constexpr char kHeaderSearchEntryStyleClass[] =
+    "busymax-header-search-entry";
+constexpr char kHeaderModalOpenStyleClass[] = "busymax-modal-open";
+constexpr char kHeaderModalBarrierStyleClass[] = "busymax-modal-barrier";
 constexpr char kNativeDialogStyleClass[] = "busymax-native-dialog";
 constexpr char kNativePopoverStyleClass[] = "busymax-native-popover";
+constexpr char kHeaderMenuDepthStyleClass[] = "busymax-header-menu-depth";
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -87,6 +102,9 @@ struct _MyApplication {
   gchar* header_bar_sidebar_border_color;
   gchar* header_bar_foreground_color;
   gchar* header_bar_popover_background_color;
+  gchar* header_bar_popover_shadow_color;
+  gchar* header_bar_menu_hover_color;
+  gchar* header_bar_dialog_background_color;
   gchar* header_bar_dialog_outline_color;
   gchar* header_bar_modal_barrier_color;
   gboolean header_bar_high_contrast;
@@ -97,6 +115,8 @@ struct _MyApplication {
   GtkWindow* main_window;
   GtkWidget* flutter_view;
   GtkWidget* titlebar_handle;
+  GtkWidget* titlebar_overlay;
+  GtkWidget* titlebar_modal_barrier;
   GtkWidget* titlebar_box;
   GtkHeaderBar* header_bar;
   GtkWidget* header_start_box;
@@ -158,6 +178,15 @@ static void style_native_popover(GtkWidget* popover) {
   }
   gtk_style_context_add_class(gtk_widget_get_style_context(popover),
                               kNativePopoverStyleClass);
+}
+
+static void style_header_menu_popover(GtkWidget* popover) {
+  style_native_popover(popover);
+  if (popover == nullptr || !GTK_IS_POPOVER(popover)) {
+    return;
+  }
+  gtk_style_context_add_class(gtk_widget_get_style_context(popover),
+                              kHeaderMenuDepthStyleClass);
 }
 
 static GdkPixbuf* load_application_icon_at_size(gint size) {
@@ -536,7 +565,6 @@ static void native_menu_session_dispose(NativeMenuSession* session) {
                                   session->closed_signal_id);
       session->closed_signal_id = 0;
     }
-    gtk_popover_bind_model(GTK_POPOVER(session->popover), nullptr, nullptr);
     gtk_widget_destroy(session->popover);
     g_clear_object(&session->popover);
   }
@@ -873,16 +901,15 @@ static void show_native_menu(NativeMenuHandlerData* data,
   gtk_popover_set_constrain_to(GTK_POPOVER(session->popover),
                                GTK_POPOVER_CONSTRAINT_WINDOW);
   gtk_popover_set_modal(GTK_POPOVER(session->popover), TRUE);
-  gtk_widget_set_can_focus(session->popover, TRUE);
   session->closed_signal_id =
       g_signal_connect(session->popover, "closed",
                        G_CALLBACK(native_menu_closed_cb), session);
-  gtk_widget_show_all(session->popover);
+  // gtk_popover_popup() is the canonical mapper. Mapping the complete
+  // popover first via gtk_widget_show_all() leaves it in GTK's SHOWN state,
+  // so popup() returns before completing its normal presentation lifecycle.
   gtk_popover_popup(GTK_POPOVER(session->popover));
   if (focus_first) {
     gtk_widget_child_focus(session->popover, GTK_DIR_TAB_FORWARD);
-  } else {
-    gtk_widget_grab_focus(session->popover);
   }
 }
 
@@ -1032,45 +1059,6 @@ static const gchar* css_color_or(const gchar* value, const gchar* fallback) {
   return is_css_color_token(value) ? value : fallback;
 }
 
-static GdkRGBA composite_rgba(const GdkRGBA& foreground,
-                              const GdkRGBA& background) {
-  const gdouble inverse_foreground_alpha = 1.0 - foreground.alpha;
-  const gdouble alpha =
-      foreground.alpha + background.alpha * inverse_foreground_alpha;
-  if (alpha <= 0) {
-    return GdkRGBA{0, 0, 0, 0};
-  }
-  return GdkRGBA{
-      (foreground.red * foreground.alpha +
-       background.red * background.alpha * inverse_foreground_alpha) /
-          alpha,
-      (foreground.green * foreground.alpha +
-       background.green * background.alpha * inverse_foreground_alpha) /
-          alpha,
-      (foreground.blue * foreground.alpha +
-       background.blue * background.alpha * inverse_foreground_alpha) /
-          alpha,
-      alpha,
-  };
-}
-
-static gchar* modal_sidebar_border_css_color(const gchar* border_color,
-                                             const gchar* sidebar_color,
-                                             const gchar* barrier_color) {
-  GdkRGBA border;
-  GdkRGBA sidebar;
-  GdkRGBA barrier;
-  if (!gdk_rgba_parse(&border, border_color) ||
-      !gdk_rgba_parse(&sidebar, sidebar_color) ||
-      !gdk_rgba_parse(&barrier, barrier_color)) {
-    return g_strdup(border_color);
-  }
-
-  const GdkRGBA visible_border = composite_rgba(border, sidebar);
-  const GdkRGBA dimmed_border = composite_rgba(barrier, visible_border);
-  return gdk_rgba_to_string(&dimmed_border);
-}
-
 static void set_flutter_view_background_color(MyApplication* self,
                                               const gchar* color) {
   if (self->flutter_view == nullptr || !FL_IS_VIEW(self->flutter_view) ||
@@ -1137,6 +1125,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       kDefaultHeaderBarSidebarBorderColor);
   const gchar* foreground_color = css_color_or(
       self->header_bar_foreground_color, "rgba(255,255,255,0.86)");
+  const gchar* dialog_background_color = css_color_or(
+      self->header_bar_dialog_background_color, window_background_color);
   g_autofree gchar* native_popover_css =
       is_css_color_token(self->header_bar_popover_background_color)
           ? g_strdup_printf(
@@ -1153,6 +1143,11 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}"
+      ".%s headerbar,"
+      ".%s headerbar:backdrop {"
+      "background-color: %s;"
+      "background-image: none;"
+      "}"
       ".%s.csd:not(.solid-csd):not(.maximized):not(.fullscreen) {"
       // GTK 3 has no named modern dialog-outline role. Flutter supplies the
       // shared semantic token so native confirmations and in-window dialogs
@@ -1160,20 +1155,50 @@ static void refresh_header_bar_css(MyApplication* self) {
       "box-shadow: inset 0 0 0 1px %s;"
       "}",
       kNativeDialogStyleClass, kNativeDialogStyleClass,
-      window_background_color, kNativeDialogStyleClass,
+      dialog_background_color, kNativeDialogStyleClass,
+      kNativeDialogStyleClass, dialog_background_color,
+      kNativeDialogStyleClass,
       css_color_or(self->header_bar_dialog_outline_color,
                    kDefaultDialogOutlineColor));
   const gchar* modal_barrier_color = css_color_or(
-      self->header_bar_modal_barrier_color, "rgba(0,0,0,0.32)");
-  g_autofree gchar* modal_sidebar_border_color =
-      modal_sidebar_border_css_color(sidebar_border_color,
-                                     sidebar_background_color,
-                                     modal_barrier_color);
-  const gboolean use_yaru_window_decoration_compatibility =
+      self->header_bar_modal_barrier_color, kDefaultModalBarrierColor);
+  const gboolean use_legacy_yaru_compatibility =
       !self->header_bar_high_contrast &&
       current_gtk_theme_uses_legacy_yaru_shadow();
+  g_autofree gchar* native_search_geometry_css =
+      use_legacy_yaru_compatibility
+          ? g_strdup_printf(
+                "entry.search.%s {"
+                "border-radius: 9px;"
+                "}",
+                kHeaderSearchEntryStyleClass)
+          : g_strdup("");
+  g_autofree gchar* native_menu_state_css =
+      !self->header_bar_high_contrast &&
+              is_css_color_token(self->header_bar_menu_hover_color)
+          ? g_strdup_printf(
+                "popover.background.%s "
+                "modelbutton:hover:not(:disabled) {"
+                "background-color: %s;"
+                "background-image: none;"
+                "}",
+                kNativePopoverStyleClass,
+                self->header_bar_menu_hover_color)
+          : g_strdup("");
+  g_autofree gchar* header_menu_shadow_css =
+      use_legacy_yaru_compatibility
+          ? g_strdup_printf(
+                "popover.background.%s.%s:not(:backdrop) {"
+                // Preserve Yaru's semantic shadow strength and native
+                // one-pixel offset, softening only its legacy two-pixel blur.
+                "box-shadow: 0 1px 3px %s;"
+                "}",
+                kNativePopoverStyleClass, kHeaderMenuDepthStyleClass,
+                css_color_or(self->header_bar_popover_shadow_color,
+                             kDefaultHeaderMenuShadowColor))
+          : g_strdup("");
   g_autofree gchar* yaru_window_decoration_css =
-      use_yaru_window_decoration_compatibility
+      use_legacy_yaru_compatibility
           ? g_strdup_printf(
                 "window#busymax-window.csd:not(.solid-csd):"
                 "not(.maximized):not(.fullscreen):not(.tiled):"
@@ -1228,6 +1253,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "}"
       "%s"
       "%s"
+      "%s"
       "headerbar.busymax-flat-headerbar,"
       "headerbar.busymax-flat-headerbar:backdrop {"
       "background-color: %s;"
@@ -1249,8 +1275,47 @@ static void refresh_header_bar_css(MyApplication* self) {
       ".busymax-titlebar .busymax-header-brand label {"
       "color: %s;"
       "}"
+      ".busymax-titlebar .busymax-header-brand label:backdrop {"
+      "color: alpha(%s, %.2f);"
+      "}"
       ".busymax-titlebar .busymax-header-title {"
       "color: %s;"
+      "}"
+      ".busymax-titlebar .busymax-header-title:backdrop {"
+      "color: alpha(%s, %.2f);"
+      "}"
+      // GTK themes can assign an absolute backdrop foreground directly to
+      // buttons, overriding the semantic foreground inherited from the
+      // headerbar. Keep enabled BusyMax controls and GTK-generated window
+      // controls on the same semantic roles and native opacity metrics in
+      // focused, backdrop, and disabled states.
+      ".busymax-titlebar "
+      ".busymax-header-control:not(:disabled),"
+      ".busymax-titlebar "
+      "headerbar button.titlebutton:not(:disabled) {"
+      "color: %s;"
+      "-gtk-icon-effect: none;"
+      "}"
+      ".busymax-titlebar "
+      ".busymax-header-control:not(:disabled):backdrop,"
+      ".busymax-titlebar "
+      "headerbar button.titlebutton:not(:disabled):backdrop {"
+      "color: alpha(%s, %.2f);"
+      "-gtk-icon-effect: none;"
+      "}"
+      ".busymax-titlebar "
+      ".busymax-header-control:disabled,"
+      ".busymax-titlebar "
+      "headerbar button.titlebutton:disabled {"
+      "color: alpha(%s, %.2f);"
+      "-gtk-icon-effect: none;"
+      "}"
+      ".busymax-titlebar "
+      ".busymax-header-control:disabled:backdrop,"
+      ".busymax-titlebar "
+      "headerbar button.titlebutton:disabled:backdrop {"
+      "color: alpha(%s, %.2f);"
+      "-gtk-icon-effect: none;"
       "}"
       // Yaru GTK 3 paints pressed and checked buttons with an absolute
       // near-black image. That legacy state is incompatible with BusyMax's
@@ -1291,28 +1356,50 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: alpha(currentColor, 0.19);"
       "background-image: none;"
       "}"
-      "%s"
-      ".busymax-titlebar.busymax-modal-barrier .busymax-header-brand,"
-      ".busymax-titlebar.busymax-modal-barrier "
-      ".busymax-header-brand:backdrop {"
-      "background-color: %s;"
-      "background-image: linear-gradient(%s, %s);"
-      "border-right-color: %s;"
+      // While a modal route is present, transient and checked control
+      // surfaces must not remain painted above the dimmed titlebar. The
+      // controls stay sensitive so GTK does not substitute disabled colors;
+      // the full-size input shield below owns interaction blocking.
+      ".busymax-titlebar.%s "
+      ".busymax-header-control,"
+      ".busymax-titlebar.%s "
+      ".busymax-header-control:hover,"
+      ".busymax-titlebar.%s "
+      ".busymax-header-control:active,"
+      ".busymax-titlebar.%s "
+      ".busymax-header-control:checked,"
+      ".busymax-titlebar.%s "
+      ".busymax-header-control:checked:hover,"
+      ".busymax-titlebar.%s "
+      ".busymax-header-control:checked:active {"
+      "background-color: transparent;"
+      "background-image: none;"
+      "border-color: transparent;"
+      "box-shadow: none;"
       "}"
-      ".busymax-titlebar.busymax-modal-barrier "
-      "headerbar.busymax-flat-headerbar,"
-      ".busymax-titlebar.busymax-modal-barrier "
-      "headerbar.busymax-flat-headerbar:backdrop {"
+      "%s"
+      "%s"
+      "%s"
+      ".busymax-titlebar .%s,"
+      ".busymax-titlebar .%s:backdrop {"
       "background-color: %s;"
-      "background-image: linear-gradient(%s, %s);"
+      "background-image: none;"
       "}",
       window_background_color, yaru_window_decoration_css, native_dialog_css,
+      native_search_geometry_css,
       background_color, foreground_color,
       sidebar_background_color, foreground_color, sidebar_border_color,
-      foreground_color, foreground_color, native_popover_css,
-      sidebar_background_color, modal_barrier_color, modal_barrier_color,
-      modal_sidebar_border_color, background_color, modal_barrier_color,
-      modal_barrier_color);
+      foreground_color, foreground_color, kHeaderBackdropForegroundOpacity,
+      foreground_color, foreground_color, kHeaderBackdropForegroundOpacity,
+      foreground_color, foreground_color, kHeaderBackdropForegroundOpacity,
+      foreground_color, kHeaderDisabledForegroundOpacity, foreground_color,
+      kHeaderDisabledBackdropForegroundOpacity,
+      kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
+      kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
+      kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
+      native_popover_css, native_menu_state_css, header_menu_shadow_css,
+      kHeaderModalBarrierStyleClass,
+      kHeaderModalBarrierStyleClass, modal_barrier_color);
 
   g_autoptr(GError) error = nullptr;
   GtkCssProvider* provider = gtk_css_provider_new();
@@ -1365,6 +1452,12 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
                       fl_lookup_string_arg(args, "foregroundColor"));
   set_css_color_field(&self->header_bar_popover_background_color,
                       fl_lookup_string_arg(args, "popoverBackgroundColor"));
+  set_css_color_field(&self->header_bar_popover_shadow_color,
+                      fl_lookup_string_arg(args, "popoverShadowColor"));
+  set_css_color_field(&self->header_bar_menu_hover_color,
+                      fl_lookup_string_arg(args, "menuHoverColor"));
+  set_css_color_field(&self->header_bar_dialog_background_color,
+                      fl_lookup_string_arg(args, "dialogBackgroundColor"));
   set_css_color_field(&self->header_bar_dialog_outline_color,
                       fl_lookup_string_arg(args, "dialogOutlineColor"));
   set_css_color_field(&self->header_bar_modal_barrier_color,
@@ -1372,6 +1465,9 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
   set_main_flutter_view_background(self);
   refresh_header_bar_css(self);
 }
+
+static void close_header_menu_button(GtkWidget* menu_button);
+static void focus_flutter_view(MyApplication* self);
 
 static void set_header_bar_modal_barrier_visible(MyApplication* self,
                                                  gboolean visible) {
@@ -1381,11 +1477,20 @@ static void set_header_bar_modal_barrier_visible(MyApplication* self,
     GtkStyleContext* context =
         gtk_widget_get_style_context(self->titlebar_handle);
     if (visible) {
-      gtk_style_context_add_class(context, "busymax-modal-barrier");
+      gtk_style_context_add_class(context, kHeaderModalOpenStyleClass);
     } else {
-      gtk_style_context_remove_class(context, "busymax-modal-barrier");
+      gtk_style_context_remove_class(context, kHeaderModalOpenStyleClass);
     }
-    gtk_widget_set_sensitive(self->titlebar_handle, !visible);
+  }
+  if (self->titlebar_modal_barrier != nullptr &&
+      GTK_IS_WIDGET(self->titlebar_modal_barrier)) {
+    gtk_widget_set_visible(self->titlebar_modal_barrier, visible);
+  }
+  if (visible) {
+    close_header_menu_button(self->settings_menu_button);
+    close_header_menu_button(self->view_mode_button);
+    close_header_menu_button(self->create_button);
+    focus_flutter_view(self);
   }
 }
 
@@ -1408,7 +1513,8 @@ static void clear_widget_pointer(GtkWidget** target) {
 
 static void invoke_header_bar_action(MyApplication* self,
                                      const gchar* action) {
-  if (self->header_bar_channel == nullptr || action == nullptr) {
+  if (self->header_bar_modal_barrier_visible ||
+      self->header_bar_channel == nullptr || action == nullptr) {
     return;
   }
   fl_method_channel_invoke_method(self->header_bar_channel, action, nullptr,
@@ -1418,7 +1524,8 @@ static void invoke_header_bar_action(MyApplication* self,
 static void invoke_header_bar_string_action(MyApplication* self,
                                             const gchar* action,
                                             const gchar* value) {
-  if (self->header_bar_channel == nullptr || action == nullptr) {
+  if (self->header_bar_modal_barrier_visible ||
+      self->header_bar_channel == nullptr || action == nullptr) {
     return;
   }
   g_autoptr(FlValue) args = fl_value_new_string(value == nullptr ? "" : value);
@@ -1429,7 +1536,8 @@ static void invoke_header_bar_string_action(MyApplication* self,
 static void invoke_header_bar_bool_action(MyApplication* self,
                                           const gchar* action,
                                           gboolean value) {
-  if (self->header_bar_channel == nullptr || action == nullptr) {
+  if (self->header_bar_modal_barrier_visible ||
+      self->header_bar_channel == nullptr || action == nullptr) {
     return;
   }
   g_autoptr(FlValue) args = fl_value_new_bool(value);
@@ -1518,7 +1626,9 @@ static void set_header_search_query(MyApplication* self,
 static void header_search_entry_search_changed_cb(GtkSearchEntry* entry,
                                                   gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
-  if (self->suppress_header_bar_actions || !self->header_search_active) {
+  if (self->suppress_header_bar_actions ||
+      self->header_bar_modal_barrier_visible ||
+      !self->header_search_active) {
     return;
   }
   const gchar* query = gtk_entry_get_text(GTK_ENTRY(entry));
@@ -1532,16 +1642,20 @@ static void header_search_entry_search_changed_cb(GtkSearchEntry* entry,
 static gboolean header_search_entry_focus_in_cb(GtkWidget*,
                                                 GdkEventFocus*,
                                                 gpointer user_data) {
-  invoke_header_bar_bool_action(MY_APPLICATION(user_data),
-                                "searchFocusChanged", TRUE);
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (!self->header_bar_modal_barrier_visible) {
+    invoke_header_bar_bool_action(self, "searchFocusChanged", TRUE);
+  }
   return FALSE;
 }
 
 static gboolean header_search_entry_focus_out_cb(GtkWidget*,
                                                  GdkEventFocus*,
                                                  gpointer user_data) {
-  invoke_header_bar_bool_action(MY_APPLICATION(user_data),
-                                "searchFocusChanged", FALSE);
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (!self->header_bar_modal_barrier_visible) {
+    invoke_header_bar_bool_action(self, "searchFocusChanged", FALSE);
+  }
   return FALSE;
 }
 
@@ -1551,7 +1665,9 @@ static void header_search_entry_icon_release_cb(
     GdkEvent*,
     gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
-  if (self->suppress_header_bar_actions || !self->header_search_active ||
+  if (self->suppress_header_bar_actions ||
+      self->header_bar_modal_barrier_visible ||
+      !self->header_search_active ||
       icon_position != GTK_ENTRY_ICON_SECONDARY ||
       gtk_entry_get_text(entry)[0] == '\0') {
     return;
@@ -1566,7 +1682,9 @@ static void header_search_entry_icon_release_cb(
 static void header_search_entry_stop_search_cb(GtkSearchEntry*,
                                                gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
-  if (self->suppress_header_bar_actions || !self->header_search_active) {
+  if (self->suppress_header_bar_actions ||
+      self->header_bar_modal_barrier_visible ||
+      !self->header_search_active) {
     return;
   }
   invoke_header_bar_action(self, "searchEscapePressed");
@@ -1581,7 +1699,8 @@ static void focus_flutter_view(MyApplication* self) {
 static void header_bar_action_clicked_cb(GtkWidget* widget,
                                          gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
-  if (self->suppress_header_bar_actions) {
+  if (self->suppress_header_bar_actions ||
+      self->header_bar_modal_barrier_visible) {
     return;
   }
   const gchar* action = static_cast<const gchar*>(
@@ -1674,7 +1793,7 @@ static void set_header_menu_button_model(GtkWidget* button,
     return;
   }
   track_widget_pointer(tracked_popover, GTK_WIDGET(popover));
-  style_native_popover(GTK_WIDGET(popover));
+  style_header_menu_popover(GTK_WIDGET(popover));
   gtk_popover_set_position(popover, GTK_POS_BOTTOM);
 }
 
@@ -1736,7 +1855,8 @@ static void header_menu_action_activated_cb(GSimpleAction* action,
                                             GVariant*,
                                             gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
-  if (self->suppress_header_bar_actions) {
+  if (self->suppress_header_bar_actions ||
+      self->header_bar_modal_barrier_visible) {
     return;
   }
   const gchar* bridge_action = static_cast<const gchar*>(
@@ -1749,7 +1869,8 @@ static void header_view_mode_action_activated_cb(GSimpleAction* action,
                                                  GVariant* parameter,
                                                  gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
-  if (self->suppress_header_bar_actions || parameter == nullptr ||
+  if (self->suppress_header_bar_actions ||
+      self->header_bar_modal_barrier_visible || parameter == nullptr ||
       !g_variant_is_of_type(parameter, G_VARIANT_TYPE_STRING)) {
     return;
   }
@@ -2368,6 +2489,9 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   gtk_style_context_add_class(gtk_widget_get_style_context(
                                   self->header_title_label),
                               "busymax-header-title");
+  gtk_style_context_add_class(
+      gtk_widget_get_style_context(self->header_title_label),
+      GTK_STYLE_CLASS_TITLE);
   gtk_label_set_ellipsize(GTK_LABEL(self->header_title_label),
                           PANGO_ELLIPSIZE_END);
   gtk_label_set_max_width_chars(GTK_LABEL(self->header_title_label),
@@ -2377,6 +2501,8 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   gtk_widget_set_hexpand(self->header_title_label, TRUE);
 
   track_widget_pointer(&self->search_entry, gtk_search_entry_new());
+  gtk_style_context_add_class(gtk_widget_get_style_context(self->search_entry),
+                              kHeaderSearchEntryStyleClass);
   gtk_entry_set_placeholder_text(GTK_ENTRY(self->search_entry), "");
   gtk_entry_set_max_width_chars(GTK_ENTRY(self->search_entry),
                                 kHeaderCenterMaximumWidthChars);
@@ -2482,14 +2608,63 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   return self->titlebar_box;
 }
 
+static gboolean consume_header_bar_modal_input_cb(GtkWidget*,
+                                                  GdkEvent* event,
+                                                  gpointer) {
+  switch (event->type) {
+    case GDK_BUTTON_PRESS:
+    case GDK_2BUTTON_PRESS:
+    case GDK_3BUTTON_PRESS:
+    case GDK_BUTTON_RELEASE:
+    case GDK_MOTION_NOTIFY:
+    case GDK_SCROLL:
+    case GDK_TOUCH_BEGIN:
+    case GDK_TOUCH_UPDATE:
+    case GDK_TOUCH_END:
+    case GDK_TOUCH_CANCEL:
+    case GDK_ENTER_NOTIFY:
+    case GDK_LEAVE_NOTIFY:
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
 static GtkWidget* create_busymax_titlebar_handle(MyApplication* self) {
   track_widget_pointer(&self->titlebar_handle, hdy_window_handle_new());
   gtk_widget_set_hexpand(self->titlebar_handle, TRUE);
   gtk_style_context_add_class(
       gtk_widget_get_style_context(self->titlebar_handle),
       "busymax-titlebar");
-  gtk_container_add(GTK_CONTAINER(self->titlebar_handle),
+
+  track_widget_pointer(&self->titlebar_overlay, gtk_overlay_new());
+  gtk_widget_set_hexpand(self->titlebar_overlay, TRUE);
+  gtk_container_add(GTK_CONTAINER(self->titlebar_overlay),
                     create_busymax_titlebar(self));
+
+  track_widget_pointer(&self->titlebar_modal_barrier, gtk_event_box_new());
+  gtk_event_box_set_visible_window(
+      GTK_EVENT_BOX(self->titlebar_modal_barrier), TRUE);
+  // GtkOverlay allocates an aligned overlay child against the titlebar's
+  // existing allocation. Do not give this transient shield an expand request:
+  // a visible vexpand child propagates through HdyWindowHandle and makes the
+  // titlebar consume the window's spare vertical space while a modal is open.
+  gtk_widget_set_halign(self->titlebar_modal_barrier, GTK_ALIGN_FILL);
+  gtk_widget_set_valign(self->titlebar_modal_barrier, GTK_ALIGN_FILL);
+  gtk_widget_set_no_show_all(self->titlebar_modal_barrier, TRUE);
+  gtk_widget_add_events(self->titlebar_modal_barrier, GDK_ALL_EVENTS_MASK);
+  g_signal_connect(self->titlebar_modal_barrier, "event",
+                   G_CALLBACK(consume_header_bar_modal_input_cb), nullptr);
+  gtk_style_context_add_class(
+      gtk_widget_get_style_context(self->titlebar_modal_barrier),
+      kHeaderModalBarrierStyleClass);
+  gtk_overlay_add_overlay(GTK_OVERLAY(self->titlebar_overlay),
+                          self->titlebar_modal_barrier);
+  gtk_overlay_set_overlay_pass_through(
+      GTK_OVERLAY(self->titlebar_overlay), self->titlebar_modal_barrier, FALSE);
+
+  gtk_container_add(GTK_CONTAINER(self->titlebar_handle),
+                    self->titlebar_overlay);
   return self->titlebar_handle;
 }
 
@@ -2752,7 +2927,6 @@ static const gchar* brightness_for_color(const GdkRGBA* color) {
 
 static FlValue* get_gtk_theme_colors() {
   GtkWidget* window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-  GtkWidget* view = gtk_text_view_new();
   GtkWidget* control = gtk_button_new();
   GtkWidget* separator = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
   GtkWidget* dim_label = gtk_label_new(nullptr);
@@ -2785,10 +2959,12 @@ static FlValue* get_gtk_theme_colors() {
       lookup_context_color(window_context, "theme_bg_color", &window_color) ||
       sample_widget_background(window, GTK_STYLE_CLASS_BACKGROUND,
                                GTK_STATE_FLAG_NORMAL, &window_color);
-  lookup_context_color(window_context, "view_bg_color", &view_color) ||
-      lookup_context_color(window_context, "theme_base_color", &view_color) ||
-      sample_widget_background(view, GTK_STYLE_CLASS_VIEW,
-                               GTK_STATE_FLAG_NORMAL, &view_color);
+  // Publish only the explicit modern view role. GTK 3's theme_base_color and
+  // computed .view background describe editable/list content (normally pure
+  // white), not the application workspace. When the named role is absent,
+  // Dart keeps its semantic view fallback; application workspaces choose the
+  // native window role explicitly.
+  lookup_context_color(window_context, "view_bg_color", &view_color);
   lookup_context_color(window_context, "window_fg_color", &foreground_color) ||
       lookup_context_color(window_context, "theme_fg_color",
                            &foreground_color) ||
@@ -2800,8 +2976,11 @@ static FlValue* get_gtk_theme_colors() {
   lookup_context_color(window_context, "borders", &border_color);
   lookup_context_color(window_context, "sidebar_border_color",
                        &sidebar_border_color);
-  lookup_context_color(window_context, "shade_color", &shade_color) ||
-      lookup_context_color(window_context, "wm_shadow", &shade_color);
+  // `shade_color` is the semantic modal/floating shade. `wm_shadow` is a
+  // substantially stronger window-decoration shadow in GTK 3 Yaru and must
+  // not be exported under this role. If the theme does not publish the modern
+  // name, Dart supplies the matching brightness-aware semantic fallback.
+  lookup_context_color(window_context, "shade_color", &shade_color);
   lookup_context_color(window_context, "accent_bg_color", &accent_color) ||
       lookup_context_color(window_context, "theme_selected_bg_color",
                            &accent_color);
@@ -2874,7 +3053,6 @@ static FlValue* get_gtk_theme_colors() {
   gtk_widget_destroy(dim_label);
   gtk_widget_destroy(separator);
   gtk_widget_destroy(control);
-  gtk_widget_destroy(view);
   gtk_widget_destroy(window);
   return result;
 }
@@ -3712,6 +3890,8 @@ static void my_application_dispose(GObject* object) {
   self->main_window = nullptr;
   clear_widget_pointer(&self->flutter_view);
   clear_widget_pointer(&self->titlebar_handle);
+  clear_widget_pointer(&self->titlebar_overlay);
+  clear_widget_pointer(&self->titlebar_modal_barrier);
   clear_widget_pointer(&self->titlebar_box);
   clear_header_bar_pointer(self);
   clear_widget_pointer(&self->header_start_box);
@@ -3746,6 +3926,9 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_bar_sidebar_border_color, g_free);
   g_clear_pointer(&self->header_bar_foreground_color, g_free);
   g_clear_pointer(&self->header_bar_popover_background_color, g_free);
+  g_clear_pointer(&self->header_bar_popover_shadow_color, g_free);
+  g_clear_pointer(&self->header_bar_menu_hover_color, g_free);
+  g_clear_pointer(&self->header_bar_dialog_background_color, g_free);
   g_clear_pointer(&self->header_bar_dialog_outline_color, g_free);
   g_clear_pointer(&self->header_bar_modal_barrier_color, g_free);
   g_clear_pointer(&self->header_view_mode, g_free);
@@ -3802,6 +3985,9 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_sidebar_border_color = nullptr;
   self->header_bar_foreground_color = nullptr;
   self->header_bar_popover_background_color = nullptr;
+  self->header_bar_popover_shadow_color = nullptr;
+  self->header_bar_menu_hover_color = nullptr;
+  self->header_bar_dialog_background_color = nullptr;
   self->header_bar_dialog_outline_color =
       g_strdup(kDefaultDialogOutlineColor);
   self->header_bar_modal_barrier_color = nullptr;
@@ -3813,6 +3999,8 @@ static void my_application_init(MyApplication* self) {
   self->main_window = nullptr;
   self->flutter_view = nullptr;
   self->titlebar_handle = nullptr;
+  self->titlebar_overlay = nullptr;
+  self->titlebar_modal_barrier = nullptr;
   self->titlebar_box = nullptr;
   self->header_bar = nullptr;
   self->header_start_box = nullptr;

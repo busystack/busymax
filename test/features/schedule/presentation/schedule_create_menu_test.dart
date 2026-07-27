@@ -80,7 +80,10 @@ void main() {
       {'label': 'Task', 'enabled': true, 'selected': false},
     ]);
     expect(arguments['focusFirst'], isFalse);
-    expect(find.byType(PopupMenuItem<int>), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNothing,
+    );
   });
 
   testWidgets('unavailable native host uses an anchored popup-menu fallback', (
@@ -120,7 +123,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsNothing);
-    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNWidgets(2),
+    );
     expect(find.text('Event'), findsOneWidget);
     expect(find.text('Task'), findsOneWidget);
 
@@ -166,13 +172,17 @@ void main() {
     final eventItem = tester.widget<PopupMenuItem<int>>(
       find.ancestor(
         of: find.text('Event'),
-        matching: find.byType(PopupMenuItem<int>),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PopupMenuItem<int>,
+        ),
       ),
     );
     final taskItem = tester.widget<PopupMenuItem<int>>(
       find.ancestor(
         of: find.text('Task'),
-        matching: find.byType(PopupMenuItem<int>),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PopupMenuItem<int>,
+        ),
       ),
     );
     expect(eventItem.enabled, isFalse);
@@ -181,7 +191,10 @@ void main() {
 
     await tester.tap(find.text('Event'));
     await tester.pump();
-    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNWidgets(2),
+    );
 
     await tester.tap(find.text('Task'));
     await tester.pumpAndSettle();
@@ -225,7 +238,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNWidgets(2),
+    );
     expect(Focus.of(tester.element(find.text('Event'))).hasFocus, isTrue);
     expect(focusNode.hasFocus, isFalse);
 
@@ -233,7 +249,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(await result, isNull);
-    expect(find.byType(PopupMenuItem<int>), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNothing,
+    );
     expect(focusNode.hasFocus, isTrue);
   });
 
@@ -258,7 +277,10 @@ void main() {
     await tester.pump();
 
     expect(result, isNull);
-    expect(find.byType(PopupMenuItem<int>), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNothing,
+    );
   });
 
   testWidgets('create chooser does not open without an available choice', (
@@ -291,7 +313,10 @@ void main() {
 
     expect(result, isNull);
     expect(nativeCalls, 0);
-    expect(find.byType(PopupMenuItem<int>), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNothing,
+    );
   });
 
   test('single available creation kind is resolved for direct creation', () {

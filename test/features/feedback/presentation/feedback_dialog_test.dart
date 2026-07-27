@@ -34,6 +34,44 @@ void main() {
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
+  testWidgets('text inputs delegate their surface to the Yaru grouped rows', (
+    tester,
+  ) async {
+    final service = _FakeFeedbackService((_) async {
+      return const FeedbackReceipt(id: 'unused');
+    });
+    await _pumpDialog(tester, service);
+
+    for (final key in const [
+      'feedback-subject',
+      'feedback-message',
+      'feedback-reply-email',
+    ]) {
+      final field = tester.widget<TextField>(find.byKey(Key(key)));
+      final decoration = field.decoration!;
+
+      expect(decoration.filled, isFalse);
+      expect(decoration.fillColor, Colors.transparent);
+      expect(decoration.hoverColor, Colors.transparent);
+      expect(decoration.border, InputBorder.none);
+      expect(decoration.enabledBorder, InputBorder.none);
+      expect(decoration.focusedBorder, InputBorder.none);
+      expect(decoration.disabledBorder, InputBorder.none);
+      expect(decoration.errorBorder, InputBorder.none);
+      expect(decoration.focusedErrorBorder, InputBorder.none);
+      expect(decoration.contentPadding, EdgeInsets.zero);
+
+      final tile = tester.widget<YaruListTile>(
+        find.ancestor(
+          of: find.byKey(Key(key)),
+          matching: find.byType(YaruListTile),
+        ),
+      );
+      expect(tile.onTap, isNull);
+      expect(tile.hoverColor, isNull);
+    }
+  });
+
   testWidgets('shows required-field validation without sending', (
     tester,
   ) async {
@@ -445,7 +483,7 @@ Finder _feedbackCategoryTrigger() {
 Finder _feedbackCategoryMenuItem(String label) {
   return find.ancestor(
     of: find.text(label).last,
-    matching: find.byType(PopupMenuItem<int>),
+    matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
   );
 }
 

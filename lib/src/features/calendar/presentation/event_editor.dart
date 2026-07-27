@@ -95,6 +95,8 @@ class _EventEditorState extends State<EventEditor> {
   var _addingGuest = false;
   var _addingCategory = false;
   var _confirmingCancel = false;
+  var _startTimeValid = true;
+  var _endTimeValid = true;
 
   @override
   void initState() {
@@ -112,7 +114,7 @@ class _EventEditorState extends State<EventEditor> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final dirty = _draft != widget.initialDraft;
+    final dirty = _hasUnsavedChanges;
     CalendarSourceEntity? currentSource;
     for (final source in widget.sources) {
       if (source.id == _draft.sourceId) {
@@ -124,7 +126,9 @@ class _EventEditorState extends State<EventEditor> {
     final title = widget.initialDraft.eventId == null
         ? l10n.newEvent
         : l10n.editEvent;
-    final canSave = dirty && _draft.canSave;
+    final timeFieldsValid =
+        _draft.allDay || (_startTimeValid && _endTimeValid);
+    final canSave = dirty && _draft.canSave && timeFieldsValid;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -151,11 +155,10 @@ class _EventEditorState extends State<EventEditor> {
               filled: true,
               children: [
                 YaruListTile.square(
-                  hoverColor: busyMaxEditorRowHoverColor(context),
                   title: TextFormField(
                     initialValue: _draft.title,
                     autofocus: true,
-                    decoration: _plainEventFieldDecoration(
+                    decoration: busyMaxGroupedTextFieldDecoration(
                       context,
                       labelText: l10n.title,
                     ),
@@ -167,10 +170,9 @@ class _EventEditorState extends State<EventEditor> {
                   ),
                 ),
                 YaruListTile.square(
-                  hoverColor: busyMaxEditorRowHoverColor(context),
                   title: TextFormField(
                     initialValue: _draft.location,
-                    decoration: _plainEventFieldDecoration(
+                    decoration: busyMaxGroupedTextFieldDecoration(
                       context,
                       labelText: l10n.location,
                     ),
@@ -194,6 +196,7 @@ class _EventEditorState extends State<EventEditor> {
               ],
             ),
             BusyMaxGroupedList(
+              title: l10n.startDateTime,
               filled: true,
               children: [
                 DesktopDateValueRow(
@@ -202,7 +205,6 @@ class _EventEditorState extends State<EventEditor> {
                   onChanged: (value) {
                     _setStart(_withDate(_draft.start, value), provider);
                   },
-                  emptyLabel: l10n.noneValue,
                 ),
                 if (!_draft.allDay)
                   DesktopTimeValueRow(
@@ -211,12 +213,17 @@ class _EventEditorState extends State<EventEditor> {
                     onChanged: (value) {
                       _setStart(_withTime(_draft.start, value), provider);
                     },
-                    emptyLabel: '--:--',
                     allowEmpty: false,
+                    onValidityChanged: (valid) {
+                      if (_startTimeValid != valid) {
+                        setState(() => _startTimeValid = valid);
+                      }
+                    },
                   ),
               ],
             ),
             BusyMaxGroupedList(
+              title: l10n.endDateTime,
               filled: true,
               children: [
                 DesktopDateValueRow(
@@ -225,7 +232,6 @@ class _EventEditorState extends State<EventEditor> {
                   onChanged: (value) {
                     _setEnd(_withDate(_draft.end, value));
                   },
-                  emptyLabel: l10n.noneValue,
                 ),
                 if (!_draft.allDay)
                   DesktopTimeValueRow(
@@ -234,8 +240,12 @@ class _EventEditorState extends State<EventEditor> {
                     onChanged: (value) {
                       _setEnd(_withTime(_draft.end, value));
                     },
-                    emptyLabel: '--:--',
                     allowEmpty: false,
+                    onValidityChanged: (valid) {
+                      if (_endTimeValid != valid) {
+                        setState(() => _endTimeValid = valid);
+                      }
+                    },
                   ),
               ],
             ),
@@ -264,7 +274,6 @@ class _EventEditorState extends State<EventEditor> {
               filled: true,
               children: [
                 YaruListTile.square(
-                  hoverColor: busyMaxEditorRowHoverColor(context),
                   title: EventDescriptionEditor(
                     provider: provider,
                     text: _draft.description,
@@ -325,7 +334,7 @@ class _EventEditorState extends State<EventEditor> {
     if (_confirmingCancel) {
       return;
     }
-    if (_draft == widget.initialDraft) {
+    if (!_hasUnsavedChanges) {
       widget.onCancel();
       return;
     }
@@ -584,21 +593,20 @@ class _EventEditorState extends State<EventEditor> {
       rows.add(
         YaruListTile.square(
           leading: const Icon(Icons.person_add_alt_outlined),
-          hoverColor: busyMaxEditorRowHoverColor(context),
+          trailing: YaruIconButton(
+            tooltip: context.l10n.addGuest,
+            icon: const Icon(YaruIcons.plus),
+            onPressed: _addGuest,
+          ),
           title: TextField(
             controller: _guestController,
             autofocus: true,
-            decoration: _plainEventFieldDecoration(
+            decoration: busyMaxGroupedTextFieldDecoration(
               context,
               labelText: context.l10n.addGuestEmail,
               errorText: _guestError,
             ),
             onSubmitted: (_) => _addGuest(),
-          ),
-          trailing: YaruIconButton(
-            tooltip: context.l10n.addGuest,
-            icon: const Icon(YaruIcons.plus),
-            onPressed: _addGuest,
           ),
         ),
       );
@@ -732,6 +740,8 @@ class _EventEditorState extends State<EventEditor> {
     final start = _draft.start;
     final end = _draft.end;
     setState(() {
+      _startTimeValid = true;
+      _endTimeValid = true;
       _draft = _draft.copyWith(
         allDay: allDay,
         end: start != null && !_isValidEventEnd(start, end, allDay)
@@ -739,6 +749,12 @@ class _EventEditorState extends State<EventEditor> {
             : end,
       );
     });
+  }
+
+  bool get _hasUnsavedChanges {
+    final hasInvalidVisibleTime =
+        !_draft.allDay && (!_startTimeValid || !_endTimeValid);
+    return _draft != widget.initialDraft || hasInvalidVisibleTime;
   }
 
   void _setStart(DateTime start, BusyProvider provider) {
@@ -790,39 +806,6 @@ TextStyle? _eventEditorProminentActionStyle(
   return Theme.of(
     context,
   ).textTheme.labelLarge?.copyWith(color: color, fontWeight: fontWeight);
-}
-
-InputDecoration _plainEventFieldDecoration(
-  BuildContext context, {
-  required String labelText,
-  String? errorText,
-  bool alignLabelWithHint = false,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  final labelColor = errorText == null
-      ? colorScheme.onSurfaceVariant
-      : colorScheme.error;
-  final labelStyle = Theme.of(
-    context,
-  ).textTheme.bodyMedium?.copyWith(color: labelColor);
-  return InputDecoration(
-    filled: false,
-    fillColor: Colors.transparent,
-    hoverColor: Colors.transparent,
-    border: InputBorder.none,
-    enabledBorder: InputBorder.none,
-    focusedBorder: InputBorder.none,
-    disabledBorder: InputBorder.none,
-    errorBorder: InputBorder.none,
-    focusedErrorBorder: InputBorder.none,
-    contentPadding: EdgeInsets.zero,
-    labelText: labelText,
-    labelStyle: labelStyle,
-    floatingLabelStyle: labelStyle,
-    floatingLabelBehavior: FloatingLabelBehavior.auto,
-    alignLabelWithHint: alignLabelWithHint,
-    errorText: errorText,
-  );
 }
 
 String? _dateString(DateTime? value) {

@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_dialog_identity.dart';
 import 'package:busymax/src/app/busymax_keyboard_shortcuts_dialog.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaru/yaru.dart';
 
 import '../test_localized_app.dart';
 
@@ -42,8 +44,87 @@ void main() {
     expect(find.text('Ctrl+R'), findsOneWidget);
     expect(find.text('Esc'), findsNWidgets(2));
     expect(find.byIcon(Icons.close), findsWidgets);
+    expect(find.byType(YaruDialogTitleBar), findsOneWidget);
+    expect(find.byType(YaruWindowControl), findsOneWidget);
     expect(find.text('Close'), findsNothing);
+
+    final identity = find.byType(BusyMaxDialogIdentity);
+    final title = tester.widget<Text>(
+      find.descendant(of: identity, matching: find.text('Keyboard Shortcuts')),
+    );
+    final hero = tester.widget<Icon>(
+      find.descendant(
+        of: identity,
+        matching: find.byIcon(YaruIcons.keyboard_shortcuts),
+      ),
+    );
+    expect(identity, findsOneWidget);
+    expect(hero.size, BusyMaxDialogIdentity.visualExtent);
+    expect(title.style?.fontWeight, BusyMaxDialogIdentity.titleWeight);
+
+    final titleBar = tester.widget<YaruDialogTitleBar>(
+      find.byType(YaruDialogTitleBar),
+    );
+    final closeButton = tester.widget<YaruWindowControl>(
+      find.byType(YaruWindowControl),
+    );
+    expect(titleBar.isActive, isTrue);
+    expect(titleBar.border, BorderSide.none);
+    expect(closeButton.type, YaruWindowControlType.close);
+    expect(
+      tester.getSize(find.byType(YaruWindowControl)),
+      const Size.square(kYaruWindowControlSize),
+    );
+
+    final badgeEnds = [
+      'Ctrl+/',
+      'Ctrl+,',
+      'Ctrl+F',
+    ].map((label) => tester.getTopRight(find.text(label)).dx).toList();
+    expect(badgeEnds.every((end) => end == badgeEnds.first), isTrue);
   });
+
+  for (final textScale in [1.0, 2.0]) {
+    testWidgets('keyboard shortcuts remain scrollable in a short window at '
+        '${textScale}x text', (tester) async {
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = const Size(480, 320);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        localizedTestApp(
+          textScaler: TextScaler.linear(textScale),
+          child: const BusyMaxKeyboardShortcutsDialog(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.widget<Dialog>(find.byType(Dialog)).clipBehavior,
+        Clip.antiAlias,
+      );
+      final scrollView = find.byType(SingleChildScrollView);
+      final closeButton = find.byType(YaruWindowControl);
+      expect(scrollView, findsOneWidget);
+      expect(closeButton.hitTestable(), findsOneWidget);
+      final closePosition = tester.getTopLeft(closeButton);
+
+      await tester.scrollUntilVisible(
+        find.text('Compact agenda'),
+        400,
+        scrollable: find.byType(Scrollable),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Compact agenda').hitTestable(), findsOneWidget);
+      expect(closeButton.hitTestable(), findsOneWidget);
+      expect(tester.getTopLeft(closeButton), closePosition);
+    });
+  }
 
   for (final brightness in Brightness.values) {
     testWidgets(
@@ -74,7 +155,18 @@ void main() {
                 matching: find.byType(Material),
               ),
             )
-            .where((material) => material.elevation == BusyMaxElevation.card)
+            .where(
+              (material) =>
+                  material.color?.toARGB32() == expectedGroupedColor.toARGB32(),
+            )
+            .toList();
+        final groupedCards = tester
+            .widgetList<Card>(
+              find.descendant(
+                of: find.byType(BusyMaxGroupedSurface),
+                matching: find.byType(Card),
+              ),
+            )
             .toList();
 
         expect(groupedMaterials, hasLength(6));
@@ -85,6 +177,13 @@ void main() {
           ),
           isTrue,
         );
+        expect(
+          groupedMaterials.every(
+            (material) => material.elevation == theme.cardTheme.elevation,
+          ),
+          isTrue,
+        );
+        expect(groupedCards, hasLength(6));
         final dialog = tester.widget<Dialog>(find.byType(Dialog));
         final dialogShape =
             (dialog.shape ?? theme.dialogTheme.shape)!

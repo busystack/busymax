@@ -301,8 +301,10 @@ void main() {
 
     expect(colors?.brightness, Brightness.dark);
     expect(colors?.window, const Color(0xFF202020));
+    expect(colors?.view, const Color(0xFF212121));
     expect(colors?.sidebar, const Color(0xFF303030));
     expect(colors?.headerbar, const Color(0xFF242424));
+    expect(colors?.headerbarFlat, const Color(0xFF212121));
     expect(colors?.popover, const Color(0xFF383838));
     expect(colors?.control, const Color(0x1AFFFFFF));
     expect(colors?.controlActive, const Color(0x33FFFFFF));

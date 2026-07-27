@@ -84,8 +84,16 @@ void main() {
         surfaces.border,
       );
 
-      final tooltipDecoration = theme.tooltipTheme.decoration! as BoxDecoration;
-      expect(tooltipDecoration.border, isNotNull);
+      final yaruTooltipTheme = switch (theme.brightness) {
+        Brightness.light => createYaruLightTheme(
+          primaryColor: theme.colorScheme.primary,
+        ).tooltipTheme,
+        Brightness.dark => createYaruDarkTheme(
+          primaryColor: theme.colorScheme.primary,
+          highContrast: true,
+        ).tooltipTheme,
+      };
+      expect(theme.tooltipTheme, yaruTooltipTheme);
     }
   });
 

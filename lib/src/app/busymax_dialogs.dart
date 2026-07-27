@@ -31,6 +31,8 @@ class BusyMaxModalShortcutBoundary extends StatelessWidget {
 }
 
 final _modalDepths = Map<LinuxHeaderBarService, int>.identity();
+final _modalBarrierUpdateTails =
+    Map<LinuxHeaderBarService, Future<void>>.identity();
 
 Future<T?> showBusyMaxModalDialog<T>(
   BuildContext context, {
@@ -122,7 +124,7 @@ Future<String?> showBusyMaxTextPrompt(
   String? message,
   Color? barrierColor,
   LinuxHeaderBarService? headerBarService,
-}) async {
+}) {
   return showBusyMaxModalDialog<String>(
     context,
     headerBarService: headerBarService,
@@ -189,8 +191,34 @@ Future<void> acquireBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
   }
   final depth = _modalDepths[service] ?? 0;
   _modalDepths[service] = depth + 1;
-  if (depth == 0) {
-    await service.setModalBarrierVisible(true);
+  final visibilityUpdate = depth == 0
+      ? _enqueueBusyMaxModalBarrierUpdate(service, visible: true)
+      : _modalBarrierUpdateTails[service];
+  if (visibilityUpdate == null) {
+    return;
+  }
+
+  try {
+    // Nested callers that arrive while the first native show is pending must
+    // share its outcome. A dialog must not proceed under a header bar whose
+    // modal shield failed to open.
+    await visibilityUpdate;
+  } on Object catch (error, stackTrace) {
+    final remainingDepth = (_modalDepths[service] ?? 0) - 1;
+    if (remainingDepth > 0) {
+      _modalDepths[service] = remainingDepth;
+    } else {
+      _modalDepths.remove(service);
+      try {
+        // The platform may have applied the visibility change before its
+        // response failed. Restore the safe non-modal state, while preserving
+        // the original acquisition failure for the caller.
+        await _enqueueBusyMaxModalBarrierUpdate(service, visible: false);
+      } on Object {
+        // Best-effort rollback cannot replace the causative exception.
+      }
+    }
+    Error.throwWithStackTrace(error, stackTrace);
   }
 }
 
@@ -202,10 +230,33 @@ Future<void> releaseBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
   final depth = _modalDepths[service] ?? 0;
   if (depth <= 1) {
     _modalDepths.remove(service);
-    await service.setModalBarrierVisible(false);
+    await _enqueueBusyMaxModalBarrierUpdate(service, visible: false);
     return;
   }
   _modalDepths[service] = depth - 1;
+}
+
+Future<void> _enqueueBusyMaxModalBarrierUpdate(
+  LinuxHeaderBarService service, {
+  required bool visible,
+}) {
+  final previous = _modalBarrierUpdateTails[service] ?? Future<void>.value();
+  final ready = previous.then<void>(
+    (_) {},
+    // A failed update belongs to the caller that requested it. It must not
+    // poison the per-service queue and prevent a rollback or later retry.
+    onError: (Object _, StackTrace _) {},
+  );
+  late final Future<void> update;
+  update = ready
+      .then((_) => service.setModalBarrierVisible(visible))
+      .whenComplete(() {
+        if (identical(_modalBarrierUpdateTails[service], update)) {
+          _modalBarrierUpdateTails.remove(service);
+        }
+      });
+  _modalBarrierUpdateTails[service] = update;
+  return update;
 }
 
 LinuxHeaderBarService? _headerBarServiceFrom(BuildContext context) {

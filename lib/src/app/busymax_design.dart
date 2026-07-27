@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -16,8 +17,6 @@ abstract final class BusyMaxSpacing {
   static const double headerInset = 6;
   static const double sm = 8;
   static const double md = 12;
-  static const double tooltipHorizontal = sm;
-  static const double tooltipVertical = 5;
   static const double lg = kYaruPagePadding;
   static const double xl = kYaruPagePadding * 1.5;
   static const double xxl = kYaruPagePadding * 2;
@@ -57,9 +56,13 @@ abstract final class BusyMaxFormLayout {
   static const double comboInlineMaxFraction = 0.46;
 }
 
+/// BusyMax's single deliberate adjustment to Yaru's surface depth.
+///
+/// Grouped cards need a little more separation from the application canvas.
+/// Floating controls keep the elevations supplied by Yaru; feature widgets
+/// must not define their own elevations or shadow geometry.
 abstract final class BusyMaxElevation {
-  static const double card = 2;
-  static const double tooltip = 10;
+  static const double groupedCard = 2;
 }
 
 abstract final class BusyMaxStroke {
@@ -69,7 +72,8 @@ abstract final class BusyMaxStroke {
 abstract final class BusyMaxAlpha {
   static const double calendarGridLight = 0.10;
   static const double calendarGridDark = 0.06;
-  static const double modalBarrier = 0.32;
+  static const double groupedRowLightHoverStrength = 0.50;
+  static const double nativeHeaderMenuShadowOpacity = 0.30;
 }
 
 abstract final class BusyMaxMotion {
@@ -77,26 +81,121 @@ abstract final class BusyMaxMotion {
   static const Curve dialogInsetsCurve = Curves.easeOutCubic;
 }
 
+enum BusyMaxPopoverShadowRole { standard, details }
+
 abstract final class BusyMaxShadow {
   static const double floatingBlur = 24;
   static const Offset floatingOffset = Offset(0, 8);
   static const double windowMargin = 32;
 
-  static Color _scaleAlpha(Color color, double scale) {
-    return color.withValues(
-      alpha: (color.a * scale).clamp(0.0, 1.0).toDouble(),
+  /// The native libadwaita/Yaru card depth used by `.card` and
+  /// `list.boxed-list`.
+  ///
+  /// Flutter's physical elevation shadow is deliberately biased toward the
+  /// bottom edge. Native boxed lists instead combine a quiet perimeter with
+  /// two compact layers, which keeps the top edge legible without making the
+  /// card look detached from the page.
+  static List<BoxShadow> nativeCardShadows(Color semanticShadow) {
+    Color layer(double opacity) {
+      return semanticShadow.withValues(alpha: semanticShadow.a * opacity);
+    }
+
+    // Flutter paints later shadows over earlier ones, so keep the native CSS
+    // perimeter last and the broadest layer first.
+    return [
+      BoxShadow(
+        color: layer(0.03),
+        blurRadius: 6,
+        spreadRadius: 2,
+        offset: const Offset(0, 2),
+      ),
+      BoxShadow(
+        color: layer(0.07),
+        blurRadius: 3,
+        spreadRadius: 1,
+        offset: const Offset(0, 1),
+      ),
+      BoxShadow(color: layer(0.03), spreadRadius: 1),
+    ];
+  }
+
+  static List<BoxShadow> nativeCardShadowsFor(BuildContext context) {
+    final theme = Theme.of(context);
+    return nativeCardShadows(
+      CardTheme.of(context).shadowColor ?? theme.colorScheme.shadow,
     );
+  }
+
+  /// Current libadwaita popover depth, expressed as native CSS layers.
+  ///
+  /// A physical Material elevation uses a directional spot shadow and is
+  /// therefore a poor match for an anchored Linux popover. These two restrained
+  /// layers mirror libadwaita's popover profile: a defined near edge over a
+  /// broad, low-opacity ambient shadow.
+  static List<BoxShadow> nativePopoverShadows(
+    Color semanticShadow, {
+    BusyMaxPopoverShadowRole role = BusyMaxPopoverShadowRole.standard,
+  }) {
+    Color layer(double opacity) {
+      return semanticShadow.withValues(alpha: semanticShadow.a * opacity);
+    }
+
+    final (ambientBlur, nearBlur) = switch (role) {
+      BusyMaxPopoverShadowRole.standard => (14.0, 5.0),
+      // Details carry more visual content than a compact menu. Preserve the
+      // same native depth and semantic color while tightening only the blur
+      // by half a pixel.
+      BusyMaxPopoverShadowRole.details => (13.5, 4.5),
+    };
+
+    // ShapeDecoration paints in declaration order. Put the ambient layer
+    // first so the defined near edge remains above it, matching CSS stacking.
+    return [
+      BoxShadow(
+        color: layer(0.05),
+        blurRadius: ambientBlur,
+        spreadRadius: 3,
+        offset: const Offset(0, 2),
+      ),
+      BoxShadow(
+        color: layer(0.09),
+        blurRadius: nearBlur,
+        spreadRadius: 1,
+        offset: const Offset(0, 1),
+      ),
+    ];
+  }
+
+  static List<BoxShadow> nativePopoverShadowsFor(
+    BuildContext context, {
+    BusyMaxPopoverShadowRole role = BusyMaxPopoverShadowRole.standard,
+  }) {
+    return nativePopoverShadows(
+      Theme.of(context).colorScheme.shadow,
+      role: role,
+    );
+  }
+
+  /// Viewport space required for the farthest libadwaita popover shadow.
+  ///
+  /// Flutter's blur mask extends to roughly three standard deviations. Derive
+  /// the reservation from the shared profile so geometry and paint cannot
+  /// silently drift apart.
+  static double get nativePopoverPaintMargin {
+    final shadows = nativePopoverShadows(const Color(0xFF000000));
+    final extent = shadows.fold<double>(0, (maximum, shadow) {
+      final blurExtent = ui.Shadow.convertRadiusToSigma(shadow.blurRadius) * 3;
+      final offsetExtent = math.max(
+        shadow.offset.dx.abs(),
+        shadow.offset.dy.abs(),
+      );
+      return math.max(maximum, blurExtent + shadow.spreadRadius + offsetExtent);
+    });
+    return extent.ceilToDouble();
   }
 
   static Color floatingColor(BuildContext context) {
     return BusyMaxSurfaceColors.of(context).shade;
-  }
-
-  /// Flutter's physical-elevation renderer applies its own ambient and spot
-  /// opacity. It therefore needs the theme's unattenuated semantic shadow,
-  /// unlike [BoxShadow], which consumes the GTK shade alpha directly.
-  static Color physicalColor(BuildContext context) {
-    return Theme.of(context).colorScheme.shadow;
   }
 
   static List<BoxShadow> floatingShadows(Color color) {
@@ -105,27 +204,8 @@ abstract final class BusyMaxShadow {
     ];
   }
 
-  static List<BoxShadow> tooltipShadows(Color color) {
-    return [
-      BoxShadow(
-        color: _scaleAlpha(color, 1.45),
-        blurRadius: 30,
-        offset: const Offset(0, 10),
-      ),
-      BoxShadow(
-        color: _scaleAlpha(color, 0.9),
-        blurRadius: 8,
-        offset: const Offset(0, 2),
-      ),
-    ];
-  }
-
   static List<BoxShadow> floatingShadowsFor(BuildContext context) {
     return floatingShadows(floatingColor(context));
-  }
-
-  static List<BoxShadow> tooltipShadowsFor(BuildContext context) {
-    return tooltipShadows(floatingColor(context));
   }
 
   static List<BoxShadow> windowShadows(Color color) {
@@ -184,6 +264,7 @@ class BusyMaxPopoverSurface extends StatelessWidget {
     this.arrowSide = BusyMaxPopoverArrowSide.top,
     this.arrowAlignment = 0.5,
     this.padding = EdgeInsets.zero,
+    this.shadowRole = BusyMaxPopoverShadowRole.standard,
   });
 
   final Widget child;
@@ -192,14 +273,22 @@ class BusyMaxPopoverSurface extends StatelessWidget {
   final BusyMaxPopoverArrowSide arrowSide;
   final double arrowAlignment;
   final EdgeInsetsGeometry padding;
+  final BusyMaxPopoverShadowRole shadowRole;
 
   @override
   Widget build(BuildContext context) {
     final arrowHeight = BusyMaxSizes.popoverArrowHeight;
     final alignment = arrowAlignment.clamp(0.0, 1.0).toDouble();
-    final clipper = _BusyMaxPopoverClipper(
-      side: arrowSide,
+    final shape = _BusyMaxPopoverBorder(
+      arrowSide: arrowSide,
       alignment: alignment,
+    );
+    final outlineShape = shape.copyWith(
+      side: BorderSide(
+        color: outlineColor ?? BusyMaxSurfaceColors.of(context).floatingBorder,
+        width: BusyMaxStroke.outline,
+        strokeAlign: BorderSide.strokeAlignInside,
+      ),
     );
     final paddedChild = Padding(
       padding: EdgeInsets.only(
@@ -208,29 +297,33 @@ class BusyMaxPopoverSurface extends StatelessWidget {
       ),
       child: Padding(padding: padding, child: child),
     );
-    final surfaceChild = CustomPaint(
-      foregroundPainter: _BusyMaxPopoverOutlinePainter(
-        clipper: clipper,
-        color: outlineColor ?? BusyMaxSurfaceColors.of(context).floatingBorder,
+    return DecoratedBox(
+      decoration: ShapeDecoration(
+        color: color,
+        shadows: BusyMaxShadow.nativePopoverShadowsFor(
+          context,
+          role: shadowRole,
+        ),
+        shape: shape,
       ),
-      child: paddedChild,
-    );
-    return PhysicalShape(
-      clipper: clipper,
-      color: color,
-      elevation: BusyMaxElevation.tooltip,
-      shadowColor: BusyMaxShadow.physicalColor(context),
-      clipBehavior: Clip.antiAlias,
-      child: surfaceChild,
+      child: ClipPath(
+        clipper: ShapeBorderClipper(shape: shape),
+        clipBehavior: Clip.antiAlias,
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: ShapeDecoration(shape: outlineShape),
+          child: paddedChild,
+        ),
+      ),
     );
   }
 }
 
-/// A rich anchored content surface, distinct from compact GTK-style menus.
+/// A rich anchored-content adapter for the shared GTK-style popover surface.
 ///
-/// Details cards use the shared raised-card fill and the standard floating
-/// perimeter. This keeps their rich content surface distinct from compact
-/// menus while all popovers retain one native edge, geometry, and shadow.
+/// GTK exposes one popover surface role irrespective of the child content.
+/// This adapter contributes only details layout; [BusyMaxPopoverSurface]
+/// supplies the shared semantic fill, perimeter, and libadwaita shadow.
 class BusyMaxContentPopoverSurface extends StatelessWidget {
   const BusyMaxContentPopoverSurface({
     super.key,
@@ -249,93 +342,141 @@ class BusyMaxContentPopoverSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
     return BusyMaxPopoverSurface(
-      color: colors.card,
+      color: colors.popover,
       outlineColor: colors.floatingBorder,
       arrowSide: arrowSide,
       arrowAlignment: arrowAlignment,
       padding: padding,
+      shadowRole: BusyMaxPopoverShadowRole.details,
       child: child,
     );
   }
 }
 
-class _BusyMaxPopoverClipper extends CustomClipper<Path> {
-  const _BusyMaxPopoverClipper({required this.side, required this.alignment});
+class _BusyMaxPopoverBorder extends OutlinedBorder {
+  const _BusyMaxPopoverBorder({
+    required this.arrowSide,
+    required this.alignment,
+    super.side = BorderSide.none,
+  });
 
-  final BusyMaxPopoverArrowSide side;
+  final BusyMaxPopoverArrowSide arrowSide;
   final double alignment;
 
   @override
-  Path getClip(Size size) {
-    final arrowWidth = BusyMaxSizes.popoverArrowWidth;
-    final arrowHeight = BusyMaxSizes.popoverArrowHeight;
-    final radius = Radius.circular(BusyMaxRadius.md);
-    final bodyTop = side == BusyMaxPopoverArrowSide.top ? arrowHeight : 0.0;
-    final bodyBottom = side == BusyMaxPopoverArrowSide.bottom
-        ? size.height - arrowHeight
-        : size.height;
-    final body = RRect.fromRectAndRadius(
-      Rect.fromLTRB(0, bodyTop, size.width, bodyBottom),
-      radius,
+  _BusyMaxPopoverBorder copyWith({BorderSide? side}) {
+    return _BusyMaxPopoverBorder(
+      arrowSide: arrowSide,
+      alignment: alignment,
+      side: side ?? this.side,
     );
-    final minArrowCenter = BusyMaxRadius.md + arrowWidth / 2;
-    final maxArrowCenter = size.width - minArrowCenter;
-    final arrowCenter = (size.width * alignment)
-        .clamp(minArrowCenter, maxArrowCenter)
-        .toDouble();
-
-    final bodyPath = Path()..addRRect(body);
-    final arrowPath = Path();
-    if (side == BusyMaxPopoverArrowSide.top) {
-      arrowPath
-        ..moveTo(arrowCenter - arrowWidth / 2, bodyTop)
-        ..lineTo(arrowCenter, 0)
-        ..lineTo(arrowCenter + arrowWidth / 2, bodyTop)
-        ..close();
-    } else {
-      arrowPath
-        ..moveTo(arrowCenter - arrowWidth / 2, bodyBottom)
-        ..lineTo(arrowCenter, size.height)
-        ..lineTo(arrowCenter + arrowWidth / 2, bodyBottom)
-        ..close();
-    }
-    return Path.combine(PathOperation.union, bodyPath, arrowPath);
   }
 
   @override
-  bool shouldReclip(covariant _BusyMaxPopoverClipper oldClipper) {
-    return oldClipper.side != side || oldClipper.alignment != alignment;
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) {
+    return getOuterPath(rect, textDirection: textDirection);
   }
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
+    return _busyMaxPopoverPath(rect, side: arrowSide, alignment: alignment);
+  }
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    if (side.style == BorderStyle.none || side.width <= 0) {
+      return;
+    }
+    final path = getOuterPath(rect, textDirection: textDirection);
+    canvas
+      ..save()
+      ..clipPath(path)
+      ..drawPath(
+        path,
+        side.toPaint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = side.width * 2,
+      )
+      ..restore();
+  }
+
+  @override
+  _BusyMaxPopoverBorder scale(double t) {
+    return _BusyMaxPopoverBorder(
+      arrowSide: arrowSide,
+      alignment: alignment,
+      side: side.scale(t),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is _BusyMaxPopoverBorder &&
+            other.arrowSide == arrowSide &&
+            other.alignment == alignment &&
+            other.side == side;
+  }
+
+  @override
+  int get hashCode => Object.hash(arrowSide, alignment, side);
 }
 
-class _BusyMaxPopoverOutlinePainter extends CustomPainter {
-  const _BusyMaxPopoverOutlinePainter({
-    required this.clipper,
-    required this.color,
-  });
-
-  final _BusyMaxPopoverClipper clipper;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawPath(
-      clipper.getClip(size),
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        // PhysicalShape clips its child to the same path. Drawing a double
-        // width leaves one semantic outline pixel inside that clip.
-        ..strokeWidth = BusyMaxStroke.outline * 2,
-    );
+Path _busyMaxPopoverPath(
+  Rect rect, {
+  required BusyMaxPopoverArrowSide side,
+  required double alignment,
+}) {
+  if (rect.isEmpty) {
+    return Path();
   }
+  final arrowHalfWidth = math.min(
+    BusyMaxSizes.popoverArrowWidth / 2,
+    rect.width / 2,
+  );
+  final arrowHeight = math.min(
+    BusyMaxSizes.popoverArrowHeight,
+    rect.height / 2,
+  );
+  final bodyHeight = rect.height - arrowHeight;
+  final radius = Radius.circular(
+    math.min(BusyMaxRadius.md, math.min(rect.width, bodyHeight) / 2),
+  );
+  final bodyTop = side == BusyMaxPopoverArrowSide.top
+      ? rect.top + arrowHeight
+      : rect.top;
+  final bodyBottom = side == BusyMaxPopoverArrowSide.bottom
+      ? rect.bottom - arrowHeight
+      : rect.bottom;
+  final body = RRect.fromRectAndRadius(
+    Rect.fromLTRB(rect.left, bodyTop, rect.right, bodyBottom),
+    radius,
+  );
+  final preferredArrowInset = radius.x + arrowHalfWidth;
+  final minArrowCenter = math.min(rect.width / 2, preferredArrowInset);
+  final maxArrowCenter = math.max(minArrowCenter, rect.width - minArrowCenter);
+  final arrowCenter =
+      (rect.width * alignment)
+          .clamp(minArrowCenter, maxArrowCenter)
+          .toDouble() +
+      rect.left;
 
-  @override
-  bool shouldRepaint(covariant _BusyMaxPopoverOutlinePainter oldDelegate) {
-    return oldDelegate.color != color ||
-        oldDelegate.clipper.side != clipper.side ||
-        oldDelegate.clipper.alignment != clipper.alignment;
+  final bodyPath = Path()..addRRect(body);
+  final arrowPath = Path();
+  if (side == BusyMaxPopoverArrowSide.top) {
+    arrowPath
+      ..moveTo(arrowCenter - arrowHalfWidth, bodyTop)
+      ..lineTo(arrowCenter, rect.top)
+      ..lineTo(arrowCenter + arrowHalfWidth, bodyTop)
+      ..close();
+  } else {
+    arrowPath
+      ..moveTo(arrowCenter - arrowHalfWidth, bodyBottom)
+      ..lineTo(arrowCenter, rect.bottom)
+      ..lineTo(arrowCenter + arrowHalfWidth, bodyBottom)
+      ..close();
   }
+  return Path.combine(PathOperation.union, bodyPath, arrowPath);
 }
 
 RoundedRectangleBorder busyMaxHeaderButtonShape() {
@@ -701,10 +842,9 @@ abstract final class BusyMaxPushButton {
 
 /// A contained circular action for compact popover toolbars.
 ///
-/// [YaruIconButton] continues to own focus treatment, hover and press feedback,
-/// and desktop control metrics. Its built-in style is intentionally flat and
-/// cannot be overridden through its `style` argument, so this adapter supplies
-/// the semantic contained surface around it once for every popover action.
+/// Yaru owns focus, hover, press feedback, and desktop control geometry. The
+/// outer semantic surface only adds the persistent containment used by Ubuntu
+/// detail-popover actions.
 class BusyMaxPopoverIconButton extends StatelessWidget {
   const BusyMaxPopoverIconButton({
     super.key,
@@ -722,14 +862,11 @@ class BusyMaxPopoverIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
-    final foreground = destructive
-        ? Theme.of(context).colorScheme.error
-        : colors.foreground;
+    final foreground = destructive ? Theme.of(context).colorScheme.error : null;
     final enabled = onPressed != null;
     return Material(
       color: enabled ? colors.control : colors.disabledControl,
       shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
       child: YaruIconButton(
         icon: Icon(
           icon,
@@ -738,17 +875,15 @@ class BusyMaxPopoverIconButton extends StatelessWidget {
         ),
         iconSize: BusyMaxSizes.popoverActionButton,
         style: const ButtonStyle(
-          fixedSize: WidgetStatePropertyAll(
-            Size.square(BusyMaxSizes.popoverActionButton),
-          ),
           minimumSize: WidgetStatePropertyAll(
             Size.square(BusyMaxSizes.popoverActionButton),
           ),
           maximumSize: WidgetStatePropertyAll(
             Size.square(BusyMaxSizes.popoverActionButton),
           ),
-          padding: WidgetStatePropertyAll(EdgeInsets.zero),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          side: WidgetStatePropertyAll(BorderSide.none),
+          shape: WidgetStatePropertyAll(CircleBorder()),
         ),
         tooltip: tooltip,
         onPressed: onPressed,
@@ -770,17 +905,77 @@ Color busyMaxHoverBackground(BuildContext context) {
 }
 
 Color busyMaxRowHoverColor(BuildContext context) {
-  return Theme.of(context).hoverColor;
+  final theme = Theme.of(context);
+  final hover = theme.hoverColor;
+  if (theme.colorScheme.isHighContrast ||
+      theme.colorScheme.brightness == Brightness.dark) {
+    return hover;
+  }
+  return hover.withValues(
+    alpha: hover.a * BusyMaxAlpha.groupedRowLightHoverStrength,
+  );
 }
 
-Color busyMaxEditorRowHoverColor(BuildContext context) {
-  return busyMaxRowHoverColor(context);
+/// Input decoration inherited by controls hosted in a grouped-list row.
+///
+/// The enclosing [BusyMaxGroupedList] owns the surface, outline, shadow,
+/// padding, and separators. Yaru and Flutter entry controls continue to own
+/// their editing behavior while this theme prevents a second input surface
+/// from being painted inside the native grouped row.
+InputDecorationThemeData busyMaxGroupedInputDecorationTheme(
+  BuildContext context,
+) {
+  final theme = Theme.of(context);
+  final labelColor = theme.colorScheme.onSurfaceVariant;
+  final labelStyle = theme.textTheme.bodyMedium?.copyWith(color: labelColor);
+
+  return theme.inputDecorationTheme.copyWith(
+    filled: false,
+    fillColor: Colors.transparent,
+    hoverColor: Colors.transparent,
+    border: InputBorder.none,
+    enabledBorder: InputBorder.none,
+    focusedBorder: InputBorder.none,
+    disabledBorder: InputBorder.none,
+    errorBorder: InputBorder.none,
+    focusedErrorBorder: InputBorder.none,
+    contentPadding: EdgeInsets.zero,
+    labelStyle: labelStyle,
+    floatingLabelStyle: labelStyle,
+    floatingLabelBehavior: FloatingLabelBehavior.auto,
+  );
+}
+
+InputDecoration busyMaxGroupedTextFieldDecoration(
+  BuildContext context, {
+  required String labelText,
+  String? errorText,
+  bool alignLabelWithHint = false,
+}) {
+  final decoration = InputDecoration(
+    labelText: labelText,
+    errorText: errorText,
+    alignLabelWithHint: alignLabelWithHint,
+  );
+  final defaults = busyMaxGroupedInputDecorationTheme(context);
+  final resolved = decoration.applyDefaults(defaults);
+  if (errorText == null) {
+    return resolved;
+  }
+  final errorLabelStyle = Theme.of(
+    context,
+  ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error);
+  return resolved.copyWith(
+    labelStyle: errorLabelStyle,
+    floatingLabelStyle: errorLabelStyle,
+  );
 }
 
 Color busyMaxModalBarrierColor(BuildContext context) {
-  return Theme.of(
-    context,
-  ).colorScheme.scrim.withValues(alpha: BusyMaxAlpha.modalBarrier);
+  // The semantic shade already carries the toolkit's intended modal opacity.
+  // Consumers must not multiply or cap it and thereby create mode-specific
+  // dimming behavior.
+  return BusyMaxSurfaceColors.of(context).shade;
 }
 
 Color busyMaxPanelBorder(BuildContext context) {
@@ -810,6 +1005,16 @@ TextStyle? busyMaxSectionHeaderStyle(BuildContext context) {
   return theme.textTheme.titleSmall?.copyWith(
     color: theme.colorScheme.onSurfaceVariant,
   );
+}
+
+/// The semantic title style used by Flutter-rendered window headers.
+///
+/// Linux applies GTK's `title` style class to the native header label. The
+/// Flutter fallback keeps the theme's title geometry and color, and mirrors
+/// only that semantic emphasis.
+TextStyle busyMaxHeaderTitleStyle(BuildContext context) {
+  return (Theme.of(context).textTheme.titleMedium ?? const TextStyle())
+      .copyWith(fontWeight: FontWeight.bold);
 }
 
 Widget _busyMaxGroupedRowSubtitle(
@@ -1001,13 +1206,35 @@ class BusyMaxSurface extends StatelessWidget {
     } else {
       shape = fallbackShape.copyWith(side: side ?? BorderSide.none);
     }
+    final surfaceColor = filled
+        ? color ?? cardTheme.color ?? surfaceColors.card
+        : Colors.transparent;
+    if (filled) {
+      final shadowShape = shape is OutlinedBorder
+          ? shape.copyWith(side: BorderSide.none)
+          : shape;
+      return DecoratedBox(
+        decoration: ShapeDecoration(
+          shape: shadowShape,
+          shadows: BusyMaxShadow.nativeCardShadowsFor(context),
+        ),
+        child: Card(
+          margin: EdgeInsets.zero,
+          semanticContainer: false,
+          color: surfaceColor,
+          // Native card depth is painted once by the shared ShapeDecoration
+          // above. Keep Card for Yaru geometry, clipping, and semantics while
+          // suppressing Material's directional duplicate.
+          shadowColor: Colors.transparent,
+          shape: shape,
+          clipBehavior: clipBehavior,
+          child: child,
+        ),
+      );
+    }
     return Material(
-      color: filled
-          ? color ?? cardTheme.color ?? surfaceColors.card
-          : Colors.transparent,
-      elevation: filled ? cardTheme.elevation ?? BusyMaxElevation.card : 0,
-      shadowColor:
-          cardTheme.shadowColor ?? BusyMaxShadow.physicalColor(context),
+      color: Colors.transparent,
+      elevation: 0,
       surfaceTintColor: cardTheme.surfaceTintColor ?? Colors.transparent,
       shape: shape,
       clipBehavior: clipBehavior,
@@ -1614,19 +1841,17 @@ class BusyMaxCalendarValueRow extends StatelessWidget {
   const BusyMaxCalendarValueRow({
     super.key,
     required this.label,
-    required this.value,
+    required this.entry,
     this.leading,
     this.trailingIcons = const [],
-    this.onTap,
     this.enabled = true,
     this.tooltip,
   });
 
   final String label;
-  final String value;
+  final Widget entry;
   final Widget? leading;
   final List<Widget> trailingIcons;
-  final VoidCallback? onTap;
   final bool enabled;
   final String? tooltip;
 
@@ -1634,12 +1859,7 @@ class BusyMaxCalendarValueRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final row = YaruListTile.square(
       leading: leading,
-      title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: _busyMaxGroupedRowSubtitle(
-        context,
-        Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
-        enabled: enabled,
-      ),
+      title: Semantics(container: true, label: label, child: entry),
       trailing: trailingIcons.isEmpty
           ? null
           : Row(
@@ -1653,7 +1873,6 @@ class BusyMaxCalendarValueRow extends StatelessWidget {
               ],
             ),
       enabled: enabled,
-      onTap: enabled ? onTap : null,
     );
 
     if (enabled || tooltip == null) {
@@ -1662,7 +1881,10 @@ class BusyMaxCalendarValueRow extends StatelessWidget {
 
     return Tooltip(
       message: tooltip!,
-      child: Opacity(opacity: 0.6, child: IgnorePointer(child: row)),
+      child: Opacity(
+        opacity: 0.6,
+        child: IgnorePointer(child: ExcludeFocus(child: row)),
+      ),
     );
   }
 }
@@ -2221,14 +2443,16 @@ Future<int?> _showBusyMaxFlutterMenu<T>({
       ? GlobalKey()
       : null;
   final routeKey = session._fallbackRouteKey;
+  final menuHoverColor = BusyMaxSurfaceColors.of(context).controlHover;
   final selection = showMenu<int>(
     context: context,
     position: RelativeRect.fromRect(menuAnchor, Offset.zero & overlay.size),
     items: [
       for (var index = 0; index < entries.length; index += 1)
-        PopupMenuItem<int>(
+        _BusyMaxPopupMenuItem<int>(
           value: index,
           enabled: entries[index].enabled,
+          hoverColor: menuHoverColor,
           child: _busyMaxFocusableFallbackEntry(
             context,
             entries[index],
@@ -2264,6 +2488,40 @@ Future<int?> _showBusyMaxFlutterMenu<T>({
     return await selection;
   } finally {
     session._releaseFallbackRoute();
+  }
+}
+
+/// A framework popup row with BusyMax's GTK menu-hover role in scope.
+///
+/// [PopupMenuItem] otherwise reads the application-wide Material hover color,
+/// which is intentionally much quieter than GTK's menu-row state. Subclassing
+/// keeps the framework's menu semantics, focus handling, keyboard navigation,
+/// geometry, and ink response intact; only the inherited semantic state color
+/// is narrowed to this row.
+class _BusyMaxPopupMenuItem<T> extends PopupMenuItem<T> {
+  const _BusyMaxPopupMenuItem({
+    required super.value,
+    required super.enabled,
+    required this.hoverColor,
+    required super.child,
+  });
+
+  final Color hoverColor;
+
+  @override
+  PopupMenuItemState<T, _BusyMaxPopupMenuItem<T>> createState() =>
+      _BusyMaxPopupMenuItemState<T>();
+}
+
+class _BusyMaxPopupMenuItemState<T>
+    extends PopupMenuItemState<T, _BusyMaxPopupMenuItem<T>> {
+  @override
+  Widget build(BuildContext context) {
+    final menuTheme = Theme.of(context).copyWith(hoverColor: widget.hoverColor);
+    return Theme(
+      data: menuTheme,
+      child: Builder(builder: (context) => super.build(context)),
+    );
   }
 }
 
@@ -2566,7 +2824,7 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
         affordanceContext: _menuAnchorKey.currentContext,
       );
       selection = await showBusyMaxMenu<T>(
-        context: context,
+        context: triggerContext,
         anchorRect: anchor,
         entries: entries,
         nativeMenuService: nativeMenuService,
@@ -3133,6 +3391,47 @@ class BusyMaxInlineBadge extends StatelessWidget {
   }
 }
 
+/// Yaru dialog chrome bound to BusyMax's semantic dialog surface.
+///
+/// Yaru otherwise falls back to [ThemeData.scaffoldBackgroundColor], which is
+/// the application window role and can differ from [DialogThemeData.backgroundColor].
+/// Keeping this adapter shared prevents a dialog title bar and body from
+/// resolving different native surface roles.
+Color busyMaxDialogSurfaceColor(BuildContext context) {
+  return DialogTheme.of(context).backgroundColor ??
+      BusyMaxSurfaceColors.of(context).dialog;
+}
+
+class BusyMaxDialogTitleBar extends StatelessWidget {
+  const BusyMaxDialogTitleBar({
+    super.key,
+    this.title,
+    this.centerTitle = true,
+    this.closeSemanticLabel,
+  });
+
+  final Widget? title;
+  final bool centerTitle;
+  final String? closeSemanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BusyMaxSurfaceColors.of(context);
+    return YaruDialogTitleBar(
+      title: title,
+      centerTitle: centerTitle,
+      isActive: true,
+      backgroundColor: busyMaxDialogSurfaceColor(context),
+      border: theme.colorScheme.isHighContrast
+          ? BorderSide(color: colors.divider)
+          : BorderSide.none,
+      closeSemanticLabel: closeSemanticLabel,
+      heroTag: null,
+    );
+  }
+}
+
 class BusyMaxDialogShell extends StatelessWidget {
   const BusyMaxDialogShell({
     super.key,
@@ -3149,6 +3448,7 @@ class BusyMaxDialogShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dialogSurface = busyMaxDialogSurfaceColor(context);
     return Semantics(
       scopesRoute: true,
       namesRoute: true,
@@ -3157,6 +3457,8 @@ class BusyMaxDialogShell extends StatelessWidget {
       child: BusyMaxSurfaceScope(
         role: BusyMaxSurfaceRole.dialog,
         child: Dialog(
+          backgroundColor: dialogSurface,
+          surfaceTintColor: dialogSurface,
           clipBehavior: Clip.antiAlias,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
@@ -3164,7 +3466,7 @@ class BusyMaxDialogShell extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                YaruDialogTitleBar(title: Text(title), centerTitle: true),
+                BusyMaxDialogTitleBar(title: Text(title)),
                 Flexible(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(BusyMaxSpacing.lg),
@@ -3215,40 +3517,76 @@ class BusyMaxPromptDialog extends StatefulWidget {
 }
 
 class _BusyMaxPromptDialogState extends State<BusyMaxPromptDialog> {
-  late String _value;
+  late final TextEditingController _controller;
+  late bool _canSubmit;
 
   @override
   void initState() {
     super.initState();
-    _value = widget.initialValue ?? '';
+    final initialValue = widget.initialValue ?? '';
+    _controller = TextEditingController(text: initialValue)
+      ..selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: initialValue.length,
+      )
+      ..addListener(_handleTextChanged);
+    _canSubmit = _hasValue;
+  }
+
+  bool get _hasValue => _controller.text.trim().isNotEmpty;
+
+  void _handleTextChanged() {
+    final canSubmit = _hasValue;
+    if (canSubmit != _canSubmit) {
+      setState(() => _canSubmit = canSubmit);
+    }
+  }
+
+  void _submit() {
+    if (_hasValue) {
+      Navigator.of(context).pop(_controller.text);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return BusyMaxDialogShell(
       title: widget.title,
-      maxWidth: 420,
       actions: [
         BusyMaxPushButton.standard(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.l10n.cancel),
         ),
         BusyMaxPushButton.suggested(
-          onPressed: () => Navigator.of(context).pop(_value),
+          onPressed: _canSubmit ? _submit : null,
           child: Text(widget.actionLabel),
         ),
       ],
       children: [
-        if (widget.message != null && widget.message!.isNotEmpty) ...[
+        if (widget.message != null && widget.message!.isNotEmpty)
           Text(widget.message!),
-          const SizedBox(height: BusyMaxSpacing.lg),
-        ],
-        TextFormField(
-          initialValue: widget.initialValue,
-          autofocus: true,
-          decoration: InputDecoration(labelText: widget.label),
-          onChanged: (value) => _value = value,
-          onEditingComplete: () => Navigator.of(context).pop(_value),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            YaruListTile.square(
+              title: TextFormField(
+                controller: _controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: widget.label,
+                ),
+                onFieldSubmitted: (_) => _submit(),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -3271,9 +3609,13 @@ class BusyMaxConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dialogSurface = busyMaxDialogSurfaceColor(context);
     return AlertDialog(
+      backgroundColor: dialogSurface,
+      surfaceTintColor: dialogSurface,
+      scrollable: true,
       titlePadding: EdgeInsets.zero,
-      title: YaruDialogTitleBar(title: Text(title), centerTitle: true),
+      title: BusyMaxDialogTitleBar(title: Text(title)),
       content: Text(message),
       actions: [
         BusyMaxPushButton.standard(

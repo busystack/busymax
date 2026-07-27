@@ -30,6 +30,52 @@ void main() {
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
+  testWidgets('fallback toolbar uses the semantic header title style', (
+    tester,
+  ) async {
+    const inheritedTitleStyle = TextStyle(
+      color: Color(0xFF123456),
+      fontSize: 17,
+      fontWeight: FontWeight.normal,
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: ThemeData(
+          textTheme: const TextTheme(titleMedium: inheritedTitleStyle),
+        ),
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            child: ScheduleToolbar(
+              mode: ScheduleViewMode.week,
+              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              selectedDate: DateTime(2026, 7, 22),
+              onToday: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onModeChanged: (_) {},
+              canCreateEvent: true,
+              canCreateTask: true,
+              onCreateEvent: () {},
+              onCreateTask: () {},
+              onRefresh: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final titleFinder = find.byWidgetPredicate(
+      (widget) => widget is Text && (widget.data?.contains('2026') ?? false),
+    );
+    expect(titleFinder, findsOneWidget);
+    final title = tester.widget<Text>(titleFinder);
+    expect(title.style?.color, inheritedTitleStyle.color);
+    expect(title.style?.fontSize, inheritedTitleStyle.fontSize);
+    expect(title.style?.fontWeight, FontWeight.bold);
+  });
+
   testWidgets('toolbar delegates create selection to the native menu host', (
     tester,
   ) async {
@@ -76,7 +122,10 @@ void main() {
       {'label': 'Event', 'enabled': true, 'selected': false},
       {'label': 'Task', 'enabled': true, 'selected': false},
     ]);
-    expect(find.byType(PopupMenuItem<int>), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNothing,
+    );
   });
 
   testWidgets('fallback toolbar exposes the complete shell command set', (
@@ -125,7 +174,10 @@ void main() {
 
     await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
-    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNWidgets(2),
+    );
     expect(find.byType(YaruRadio<int>), findsNothing);
     expect(find.text('Event'), findsOneWidget);
     expect(find.text('Task'), findsOneWidget);
@@ -137,7 +189,7 @@ void main() {
     await tester.tap(find.byTooltip('Week'));
     await tester.pumpAndSettle();
     expect(
-      find.byType(PopupMenuItem<int>),
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
       findsNWidgets(ScheduleViewMode.values.length),
     );
     expect(
@@ -147,7 +199,9 @@ void main() {
     await tester.tap(
       find.ancestor(
         of: find.text('Month'),
-        matching: find.byType(PopupMenuItem<int>),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PopupMenuItem<int>,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -155,7 +209,10 @@ void main() {
 
     await tester.tap(find.byTooltip('Main Menu'));
     await tester.pumpAndSettle();
-    expect(find.byType(PopupMenuItem<int>), findsNWidgets(3));
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNWidgets(3),
+    );
     expect(find.byType(YaruRadio<int>), findsNothing);
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
@@ -201,7 +258,10 @@ void main() {
     expect(find.byTooltip('Refresh all'), findsNothing);
     await tester.tap(find.byTooltip('Main Menu'));
     await tester.pumpAndSettle();
-    expect(find.byType(PopupMenuItem<int>), findsNWidgets(4));
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNWidgets(4),
+    );
     await tester.tap(find.text('Refresh all'));
     await tester.pumpAndSettle();
 
@@ -242,18 +302,25 @@ void main() {
     await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNWidgets(2),
+    );
     expect(find.byType(YaruRadio<int>), findsNothing);
     final eventItem = tester.widget<PopupMenuItem<int>>(
       find.ancestor(
         of: find.text('Event'),
-        matching: find.byType(PopupMenuItem<int>),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PopupMenuItem<int>,
+        ),
       ),
     );
     final taskItem = tester.widget<PopupMenuItem<int>>(
       find.ancestor(
         of: find.text('Task'),
-        matching: find.byType(PopupMenuItem<int>),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PopupMenuItem<int>,
+        ),
       ),
     );
     expect(eventItem.enabled, isFalse);
@@ -299,7 +366,10 @@ void main() {
       expect(controller.isOpen, isTrue);
       await tester.pumpAndSettle();
 
-      expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+      expect(
+        find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+        findsNWidgets(2),
+      );
       expect(find.text('Event'), findsOneWidget);
       expect(find.text('Task'), findsOneWidget);
 
@@ -315,7 +385,10 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(controller.isOpen, isFalse);
-      expect(find.byType(PopupMenuItem<int>), findsNothing);
+      expect(
+        find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+        findsNothing,
+      );
       expect(find.text('Event'), findsNothing);
       expect(find.text('Task'), findsNothing);
     },
@@ -374,14 +447,20 @@ void main() {
 
     expect(controller.isOpen, isTrue);
     expect(showCalls, 1);
-    expect(find.byType(PopupMenuItem<int>), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNothing,
+    );
 
     controller.close();
     await tester.pumpAndSettle();
 
     expect(dismissCalls, 1);
     expect(controller.isOpen, isFalse);
-    expect(find.byType(PopupMenuItem<int>), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNothing,
+    );
   });
 
   testWidgets('keyboard controller follows a responsive toolbar replacement', (
@@ -437,7 +516,10 @@ void main() {
     expect(controller.openForKeyboard(), isTrue);
     await tester.pumpAndSettle();
 
-    expect(find.byType(PopupMenuItem<int>), findsNWidgets(2));
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNWidgets(2),
+    );
     expect(find.text('Event'), findsOneWidget);
     expect(find.text('Task'), findsOneWidget);
     expect(Focus.of(tester.element(find.text('Event'))).hasFocus, isTrue);
@@ -445,7 +527,10 @@ void main() {
     controller.close();
     await tester.pumpAndSettle();
     expect(controller.isOpen, isFalse);
-    expect(find.byType(PopupMenuItem<int>), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+      findsNothing,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
 
     expect(controller.isAttached, isFalse);

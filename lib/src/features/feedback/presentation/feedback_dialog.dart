@@ -156,7 +156,8 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                       controller: _subjectController,
                       enabled: !_submitting,
                       textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
+                      decoration: busyMaxGroupedTextFieldDecoration(
+                        context,
                         labelText: l10n.feedbackSubject,
                         errorText: subjectInvalid
                             ? l10n.feedbackSubjectLengthError
@@ -173,7 +174,8 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                       minLines: 4,
                       maxLines: 8,
                       keyboardType: TextInputType.multiline,
-                      decoration: InputDecoration(
+                      decoration: busyMaxGroupedTextFieldDecoration(
+                        context,
                         labelText: l10n.feedbackDetailedMessage,
                         alignLabelWithHint: true,
                         errorText: messageInvalid
@@ -190,7 +192,8 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                       enabled: !_submitting,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
+                      decoration: busyMaxGroupedTextFieldDecoration(
+                        context,
                         labelText: l10n.feedbackReplyEmail,
                         errorText: replyEmailInvalid
                             ? l10n.feedbackInvalidEmail

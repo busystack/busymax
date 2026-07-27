@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
@@ -25,10 +28,13 @@ void main() {
   ) async {
     String? selected;
     final controller = BusyMaxMenuController();
-    final theme = BusyMaxYaruTheme.build(
+    final boundaryKey = GlobalKey();
+    final baseTheme = BusyMaxYaruTheme.build(
       brightness: Brightness.dark,
       accentColor: YaruColors.orange,
     );
+    const inheritedHover = Color(0x1A2A7FFF);
+    final theme = baseTheme.copyWith(hoverColor: inheritedHover);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           channel,
@@ -36,28 +42,31 @@ void main() {
         );
 
     await tester.pumpWidget(
-      localizedTestApp(
-        child: Theme(
-          data: theme,
-          child: Scaffold(
-            body: Center(
-              child: BusyMaxMenuButton<String>(
-                tooltip: 'Options',
-                controller: controller,
-                nativeMenuService: const NativeMenuService(channel: channel),
-                onSelected: (value) => selected = value,
-                entries: const [
-                  BusyMaxMenuEntry(
-                    value: 'refresh',
-                    label: 'Refresh calendar',
-                    icon: YaruIcons.refresh,
-                  ),
-                  BusyMaxMenuEntry(
-                    value: 'open',
-                    label: 'Open in provider',
-                    icon: Icons.open_in_browser_outlined,
-                  ),
-                ],
+      RepaintBoundary(
+        key: boundaryKey,
+        child: localizedTestApp(
+          child: Theme(
+            data: theme,
+            child: Scaffold(
+              body: Center(
+                child: BusyMaxMenuButton<String>(
+                  tooltip: 'Options',
+                  controller: controller,
+                  nativeMenuService: const NativeMenuService(channel: channel),
+                  onSelected: (value) => selected = value,
+                  entries: const [
+                    BusyMaxMenuEntry(
+                      value: 'refresh',
+                      label: 'Refresh calendar',
+                      icon: YaruIcons.refresh,
+                    ),
+                    BusyMaxMenuEntry(
+                      value: 'open',
+                      label: 'Open in provider',
+                      icon: Icons.open_in_browser_outlined,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -71,6 +80,7 @@ void main() {
     );
     var trigger = tester.widget<YaruIconButton>(triggerFinder);
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    expect(Theme.of(tester.element(triggerFinder)).hoverColor, inheritedHover);
     expect(trigger.isSelected, isFalse);
     expect(trigger.style, isNull);
     final yaruStyle = trigger.defaultStyleOf(tester.element(triggerFinder));
@@ -84,6 +94,7 @@ void main() {
     expect(find.text('Refresh calendar'), findsOneWidget);
     expect(find.text('Open in provider'), findsOneWidget);
     trigger = tester.widget<YaruIconButton>(triggerFinder);
+    expect(Theme.of(tester.element(triggerFinder)).hoverColor, inheritedHover);
     expect(trigger.isSelected, isTrue);
     expect(
       trigger
@@ -104,12 +115,50 @@ void main() {
           .where((material) => material.color == colors.popover),
       isNotEmpty,
     );
+    final firstFallbackItem = find
+        .ancestor(
+          of: find.text('Refresh calendar'),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is PopupMenuItem<int>,
+          ),
+        )
+        .first;
+    final firstFallbackInkWell = find.descendant(
+      of: firstFallbackItem,
+      matching: find.byType(InkWell),
+    );
+    expect(firstFallbackInkWell, findsOneWidget);
+    expect(
+      Theme.of(tester.element(firstFallbackInkWell)).hoverColor,
+      colors.controlHover,
+    );
+    expect(colors.controlHover, isNot(inheritedHover));
+
+    final firstItemRect = tester.getRect(firstFallbackItem);
+    final hoverProbe = Offset(
+      firstItemRect.right - 12,
+      firstItemRect.center.dy,
+    );
+    final idlePixel = await _capturePixel(tester, boundaryKey, hoverProbe);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(firstFallbackItem));
+    await tester.pumpAndSettle();
+    expect(firstFallbackInkWell, findsOneWidget);
+    final hoveredPixel = await _capturePixel(tester, boundaryKey, hoverProbe);
+    expect(hoveredPixel, isNot(idlePixel));
+    expect(
+      hoveredPixel,
+      _colorCloseTo(Color.alphaBlend(colors.controlHover, colors.popover)),
+    );
 
     controller.close();
     await tester.pumpAndSettle();
 
     trigger = tester.widget<YaruIconButton>(triggerFinder);
     expect(trigger.isSelected, isFalse);
+    expect(Theme.of(tester.element(triggerFinder)).hoverColor, inheritedHover);
     expect(find.text('Refresh calendar'), findsNothing);
     expect(selected, isNull);
 
@@ -349,3 +398,45 @@ void main() {
     await tester.pumpAndSettle();
   });
 }
+
+Future<Color> _capturePixel(
+  WidgetTester tester,
+  GlobalKey boundaryKey,
+  Offset globalPosition,
+) async {
+  final boundary =
+      boundaryKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  final localPosition = boundary.globalToLocal(globalPosition);
+  final image = (await tester.binding.runAsync<ui.Image>(
+    () => boundary.toImage(pixelRatio: 1),
+  ))!;
+  try {
+    final data = (await tester.binding.runAsync<ByteData?>(
+      () => image.toByteData(format: ui.ImageByteFormat.rawStraightRgba),
+    ))!;
+    final bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    );
+    final x = localPosition.dx.floor().clamp(0, image.width - 1).toInt();
+    final y = localPosition.dy.floor().clamp(0, image.height - 1).toInt();
+    final offset = (y * image.width + x) * 4;
+    return Color.fromARGB(
+      bytes[offset + 3],
+      bytes[offset],
+      bytes[offset + 1],
+      bytes[offset + 2],
+    );
+  } finally {
+    image.dispose();
+  }
+}
+
+Matcher _colorCloseTo(Color expected) => predicate<Color>(
+  (actual) =>
+      (actual.r - expected.r).abs() <= 1 / 255 &&
+      (actual.g - expected.g).abs() <= 1 / 255 &&
+      (actual.b - expected.b).abs() <= 1 / 255 &&
+      (actual.a - expected.a).abs() <= 1 / 255,
+  'a color within one 8-bit channel step of $expected',
+);
