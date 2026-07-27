@@ -524,6 +524,7 @@ struct NativeMenuSession {
   FlMethodCall* method_call;
   gulong closed_signal_id;
   guint cleanup_source_id;
+  gint pending_selected_index;
 };
 
 struct NativeMenuHandlerData {
@@ -557,7 +558,6 @@ static void native_menu_session_dispose(NativeMenuSession* session) {
     g_source_remove(session->cleanup_source_id);
     session->cleanup_source_id = 0;
   }
-  native_menu_session_respond(session, -1);
 
   if (session->popover != nullptr) {
     if (session->closed_signal_id != 0) {
@@ -578,6 +578,9 @@ static void native_menu_session_dispose(NativeMenuSession* session) {
   }
   g_clear_object(&session->model);
   g_clear_object(&session->action_group);
+  // Resolve the Dart future only after the native session is fully retired.
+  // A resumed caller may immediately open another menu.
+  native_menu_session_respond(session, session->pending_selected_index);
   g_free(session);
 }
 
@@ -591,9 +594,9 @@ static gboolean native_menu_cleanup_idle_cb(gpointer user_data) {
 static void native_menu_closed_cb(GtkPopover*, gpointer user_data) {
   auto* session = static_cast<NativeMenuSession*>(user_data);
   if (session->cleanup_source_id == 0) {
-    // GtkModelButton normally activates its GAction before closing the
-    // popover. Deferring final cleanup also covers themes/backends that emit
-    // "closed" first, so the action can still win with a selected index.
+    // GtkModelButton can activate just before close begins. Deferring final
+    // cleanup avoids consuming the method response before the selected index is
+    // finalized.
     session->cleanup_source_id = g_idle_add_full(
         G_PRIORITY_DEFAULT_IDLE, native_menu_cleanup_idle_cb, session, nullptr);
   }
@@ -607,7 +610,7 @@ static void native_menu_action_activated_cb(GSimpleAction* action,
       GPOINTER_TO_INT(
           g_object_get_data(G_OBJECT(action), kNativeMenuActionIndexKey)) -
       1;
-  native_menu_session_respond(session, selected_index);
+  session->pending_selected_index = selected_index;
   if (session->popover != nullptr) {
     gtk_popover_popdown(GTK_POPOVER(session->popover));
   }
@@ -631,7 +634,7 @@ static void native_menu_selection_activated_cb(GSimpleAction* action,
   }
 
   g_simple_action_set_state(action, parameter);
-  native_menu_session_respond(session, static_cast<gint>(parsed));
+  session->pending_selected_index = static_cast<gint>(parsed);
   if (session->popover != nullptr) {
     gtk_popover_popdown(GTK_POPOVER(session->popover));
   }
@@ -644,7 +647,6 @@ static gboolean native_menu_dismiss_active(NativeMenuHandlerData* data,
     return FALSE;
   }
 
-  native_menu_session_respond(session, -1);
   if (session->popover != nullptr &&
       gtk_widget_get_visible(session->popover)) {
     gtk_popover_popdown(GTK_POPOVER(session->popover));
@@ -839,6 +841,7 @@ static void show_native_menu(NativeMenuHandlerData* data,
   session->owner = data;
   session->id = session_id;
   session->entry_count = fl_value_get_length(entries);
+  session->pending_selected_index = -1;
   session->method_call =
       FL_METHOD_CALL(g_object_ref(G_OBJECT(method_call)));
   session->action_group = g_simple_action_group_new();
@@ -902,11 +905,10 @@ static void show_native_menu(NativeMenuHandlerData* data,
                                GTK_POPOVER_CONSTRAINT_WINDOW);
   gtk_popover_set_modal(GTK_POPOVER(session->popover), TRUE);
   session->closed_signal_id =
-      g_signal_connect(session->popover, "closed",
-                       G_CALLBACK(native_menu_closed_cb), session);
-  // gtk_popover_popup() is the canonical mapper. Mapping the complete
-  // popover first via gtk_widget_show_all() leaves it in GTK's SHOWN state,
-  // so popup() returns before completing its normal presentation lifecycle.
+      g_signal_connect(session->popover, "closed", G_CALLBACK(native_menu_closed_cb),
+                       session);
+  // Use GTK's popover lifecycle so model-button pseudo states (hover) are
+  // dispatched correctly.
   gtk_popover_popup(GTK_POPOVER(session->popover));
   if (focus_first) {
     gtk_widget_child_focus(session->popover, GTK_DIR_TAB_FORWARD);

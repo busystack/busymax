@@ -2364,6 +2364,12 @@ void main() {
     expect(sidebar, contains('class _AccountSourcesGroupState'));
     expect(sidebar, contains('var _expanded = true'));
     expect(sidebar, contains('class _AccountHeaderRow'));
+    expect(
+      sidebar,
+      contains("key: ValueKey(('schedule-account', account.id))"),
+    );
+    expect(sidebar, contains("'schedule-calendar'"));
+    expect(sidebar, contains("'schedule-task-list'"));
     expect(sidebar, contains('AnimatedRotation'));
     expect(sidebar, contains('YaruIcons.pan_end'));
     expect(sidebar, contains('if (_expanded)'));

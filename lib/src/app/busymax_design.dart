@@ -2855,9 +2855,18 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
 
   void _closeMenu() {
     final session = _activeMenuSession;
-    if (session != null) {
-      unawaited(session.dismiss());
+    if (session == null) {
+      return;
     }
+    // Release the trigger synchronously. Native dismissal and the matching
+    // `show` response travel over separate platform messages, so waiting for
+    // that response would leave this button looking open and make a quick
+    // second click dismiss the same session again instead of reopening.
+    setState(() {
+      _activeMenuSession = null;
+      _menuOpen = false;
+    });
+    unawaited(session.dismiss());
   }
 
   void _attachExternalController() {

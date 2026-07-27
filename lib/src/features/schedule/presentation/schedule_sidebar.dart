@@ -61,7 +61,10 @@ class ScheduleSidebar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
               children: [
                 for (final account in accounts)
-                  _AccountSourcesGroup(account: account),
+                  _AccountSourcesGroup(
+                    key: ValueKey(('schedule-account', account.id)),
+                    account: account,
+                  ),
               ],
             ),
           ),
@@ -72,7 +75,7 @@ class ScheduleSidebar extends ConsumerWidget {
 }
 
 class _SourceRow extends ConsumerWidget {
-  const _SourceRow({required this.source});
+  const _SourceRow({super.key, required this.source});
 
   final CalendarSourceEntity source;
 
@@ -251,7 +254,7 @@ class _SourceVisibilityButton extends StatelessWidget {
 }
 
 class _AccountSourcesGroup extends ConsumerStatefulWidget {
-  const _AccountSourcesGroup({required this.account});
+  const _AccountSourcesGroup({super.key, required this.account});
 
   final AccountEntity account;
 
@@ -296,7 +299,15 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
               return Column(
                 children: [
                   for (final list in lists)
-                    _TaskListScheduleRow(account: account, list: list),
+                    _TaskListScheduleRow(
+                      key: ValueKey((
+                        'schedule-task-list',
+                        list.accountId,
+                        list.id,
+                      )),
+                      account: account,
+                      list: list,
+                    ),
                 ],
               );
             },
@@ -407,7 +418,17 @@ class _AccountCalendarSources extends ConsumerWidget {
           );
         }
         return Column(
-          children: [for (final source in sources) _SourceRow(source: source)],
+          children: [
+            for (final source in sources)
+              _SourceRow(
+                key: ValueKey((
+                  'schedule-calendar',
+                  source.accountId,
+                  source.id,
+                )),
+                source: source,
+              ),
+          ],
         );
       },
     );
@@ -439,7 +460,11 @@ class _SourceDot extends StatelessWidget {
 }
 
 class _TaskListScheduleRow extends ConsumerWidget {
-  const _TaskListScheduleRow({required this.account, required this.list});
+  const _TaskListScheduleRow({
+    super.key,
+    required this.account,
+    required this.list,
+  });
 
   final AccountEntity account;
   final TaskListEntity list;

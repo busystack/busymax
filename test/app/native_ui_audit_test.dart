@@ -1178,6 +1178,17 @@ void main() {
       expect(start, isNonNegative);
       expect(end, greaterThan(start));
       final nativeMenu = runner.substring(start, end);
+      final disposeStart = nativeMenu.indexOf(
+        'static void native_menu_session_dispose',
+      );
+      final disposeEnd = nativeMenu.indexOf(
+        'static gboolean native_menu_cleanup_idle_cb',
+        disposeStart,
+      );
+      expect(disposeStart, isNonNegative);
+      expect(disposeEnd, greaterThan(disposeStart));
+      final dispose = nativeMenu.substring(disposeStart, disposeEnd);
+
       expect(runner, contains('"busymax/native_menus"'));
       expect(nativeMenu, contains('gtk_popover_new_from_model('));
       expect(nativeMenu, contains('gtk_popover_set_pointing_to('));
@@ -1186,13 +1197,37 @@ void main() {
       expect(nativeMenu, contains('g_simple_action_set_enabled('));
       expect(nativeMenu, contains('g_simple_action_new_stateful('));
       expect(nativeMenu, contains('g_object_ref(G_OBJECT(method_call))'));
-      expect(nativeMenu, contains('gtk_popover_popup('));
+      expect(nativeMenu, contains('gtk_popover_popup(session->popover)'));
+      expect(nativeMenu, isNot(contains('gtk_widget_show(session->popover)')));
       expect(
         nativeMenu,
         isNot(contains('gtk_widget_show_all(session->popover)')),
       );
       expect(nativeMenu, isNot(contains('gtk_popover_bind_model(')));
       expect(nativeMenu, contains('gtk_widget_destroy(session->popover)'));
+      final destroyIndex = dispose.indexOf(
+        'gtk_widget_destroy(session->popover)',
+      );
+      final clearActionsIndex = dispose.indexOf(
+        'g_clear_object(&session->action_group)',
+      );
+      final respondIndex = dispose.indexOf('native_menu_session_respond(');
+      final freeIndex = dispose.indexOf('g_free(session)');
+      expect(destroyIndex, isNonNegative);
+      expect(clearActionsIndex, isNonNegative);
+      expect(respondIndex, isNonNegative);
+      expect(freeIndex, isNonNegative);
+      expect(clearActionsIndex, lessThan(respondIndex));
+      expect(respondIndex, lessThan(freeIndex));
+      expect(
+        'native_menu_session_respond('.allMatches(nativeMenu),
+        hasLength(2),
+      );
+      expect(
+        nativeMenu,
+        contains('g_signal_connect(session->popover, "closed"'),
+      );
+      expect(nativeMenu, isNot(contains('"unmap"')));
       expect(
         nativeMenu,
         contains(

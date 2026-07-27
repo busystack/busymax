@@ -288,6 +288,72 @@ void main() {
     expect(controller.isOpen, isFalse);
   });
 
+  testWidgets('a dismissed native session cannot keep the trigger stuck open', (
+    tester,
+  ) async {
+    final nativeSelections = <Completer<int?>>[];
+    final calls = <MethodCall>[];
+    final selections = <String>[];
+    final controller = BusyMaxMenuController();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          if (call.method == 'show') {
+            final selection = Completer<int?>();
+            nativeSelections.add(selection);
+            return selection.future;
+          }
+          if (call.method == 'dismiss') {
+            return true;
+          }
+          throw MissingPluginException();
+        });
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: BusyMaxMenuButton<String>(
+            tooltip: 'Options',
+            controller: controller,
+            nativeMenuService: const NativeMenuService(channel: channel),
+            entries: const [
+              BusyMaxMenuEntry(value: 'refresh', label: 'Refresh'),
+            ],
+            onSelected: selections.add,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Options'));
+    await tester.pump();
+    expect(controller.isOpen, isTrue);
+    expect(nativeSelections, hasLength(1));
+
+    controller.close();
+    expect(controller.isOpen, isFalse);
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Options'));
+    await tester.pump();
+    expect(controller.isOpen, isTrue);
+    expect(nativeSelections, hasLength(2));
+
+    // A late result from the dismissed presentation must neither select an
+    // entry nor retire the replacement session.
+    nativeSelections.first.complete(0);
+    await tester.pump();
+    expect(selections, isEmpty);
+    expect(controller.isOpen, isTrue);
+
+    nativeSelections.last.complete(0);
+    await tester.pumpAndSettle();
+    expect(selections, ['refresh']);
+    expect(controller.isOpen, isFalse);
+    expect(calls.where((call) => call.method == 'show'), hasLength(2));
+    expect(calls.where((call) => call.method == 'dismiss'), hasLength(1));
+  });
+
   testWidgets('an open menu keeps its entry and callback snapshot', (
     tester,
   ) async {
@@ -344,6 +410,77 @@ void main() {
 
     expect(originalSelections, ['second']);
     expect(replacementSelections, isEmpty);
+  });
+
+  testWidgets('keyed menu state follows its owner through a row reorder', (
+    tester,
+  ) async {
+    final nativeSelection = Completer<int?>();
+    final selections = <String>[];
+    late StateSetter rebuild;
+    var reversed = false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'show') {
+            return nativeSelection.future;
+          }
+          if (call.method == 'dismiss') {
+            return true;
+          }
+          throw MissingPluginException();
+        });
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              rebuild = setState;
+              final owners = reversed
+                  ? const ['second', 'first']
+                  : const ['first', 'second'];
+              return Column(
+                children: [
+                  for (final owner in owners)
+                    BusyMaxMenuButton<String>(
+                      key: ValueKey(owner),
+                      tooltip: 'Options $owner',
+                      nativeMenuService: const NativeMenuService(
+                        channel: channel,
+                      ),
+                      entries: [BusyMaxMenuEntry(value: owner, label: owner)],
+                      onSelected: selections.add,
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    YaruIconButton triggerFor(String owner) {
+      return tester.widget<YaruIconButton>(
+        find.ancestor(
+          of: find.byTooltip('Options $owner'),
+          matching: find.byType(YaruIconButton),
+        ),
+      );
+    }
+
+    await tester.tap(find.byTooltip('Options first'));
+    await tester.pump();
+    expect(triggerFor('first').isSelected, isTrue);
+    expect(triggerFor('second').isSelected, isFalse);
+
+    rebuild(() => reversed = true);
+    await tester.pump();
+    expect(triggerFor('first').isSelected, isTrue);
+    expect(triggerFor('second').isSelected, isFalse);
+
+    nativeSelection.complete(0);
+    await tester.pumpAndSettle();
+    expect(selections, ['first']);
   });
 
   testWidgets('fallback dismissal removes its menu, not a newer route', (
