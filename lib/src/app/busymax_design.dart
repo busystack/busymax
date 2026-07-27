@@ -3438,12 +3438,14 @@ class BusyMaxDialogShell extends StatelessWidget {
     required this.title,
     required this.children,
     this.maxWidth = 520,
+    this.header,
     this.actions = const [],
   });
 
   final String title;
   final List<Widget> children;
   final double maxWidth;
+  final Widget? header;
   final List<Widget> actions;
 
   @override
@@ -3466,7 +3468,7 @@ class BusyMaxDialogShell extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                BusyMaxDialogTitleBar(title: Text(title)),
+                header ?? BusyMaxDialogTitleBar(title: Text(title)),
                 Flexible(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(BusyMaxSpacing.lg),
@@ -3558,16 +3560,13 @@ class _BusyMaxPromptDialogState extends State<BusyMaxPromptDialog> {
   Widget build(BuildContext context) {
     return BusyMaxDialogShell(
       title: widget.title,
-      actions: [
-        BusyMaxPushButton.standard(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(context.l10n.cancel),
-        ),
-        BusyMaxPushButton.suggested(
-          onPressed: _canSubmit ? _submit : null,
-          child: Text(widget.actionLabel),
-        ),
-      ],
+      header: BusyMaxEditorHeader(
+        title: widget.title,
+        cancelLabel: context.l10n.cancel,
+        saveLabel: widget.actionLabel,
+        onCancel: () => Navigator.of(context).pop(),
+        onSave: _canSubmit ? _submit : null,
+      ),
       children: [
         if (widget.message != null && widget.message!.isNotEmpty)
           Text(widget.message!),

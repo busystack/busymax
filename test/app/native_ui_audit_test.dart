@@ -1311,6 +1311,9 @@ void main() {
         expect(promptEnd, greaterThan(promptStart));
         final prompt = design.substring(promptStart, promptEnd);
         expect(prompt, contains('BusyMaxDialogShell('));
+        expect(prompt, contains('header: BusyMaxEditorHeader('));
+        expect(prompt, isNot(contains('actions: [')));
+        expect(prompt, isNot(contains('BusyMaxDialogTitleBar(')));
         expect(prompt, contains('BusyMaxGroupedList('));
         expect(prompt, contains('filled: true'));
         expect(prompt, contains('YaruListTile.square('));
@@ -1318,6 +1321,10 @@ void main() {
         expect(prompt, contains('TextEditingController('));
         expect(prompt, contains('_canSubmit ? _submit : null'));
         expect(prompt, contains('onFieldSubmitted: (_) => _submit()'));
+        expect(
+          design,
+          contains('header ?? BusyMaxDialogTitleBar(title: Text(title))'),
+        );
         expect(prompt, isNot(contains('maxWidth:')));
         expect(prompt, isNot(contains('InputDecoration(')));
         expect(prompt, isNot(contains('AlertDialog(')));

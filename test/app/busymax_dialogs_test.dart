@@ -30,7 +30,7 @@ void main() {
   });
 
   testWidgets(
-    'prompt and confirmation title bars share the semantic dialog surface',
+    'prompt action header and confirmation title bar use the dialog surface',
     (tester) async {
       final theme = BusyMaxYaruTheme.build(
         brightness: Brightness.dark,
@@ -50,11 +50,9 @@ void main() {
         ),
       );
 
-      var titleBar = tester.widget<YaruDialogTitleBar>(
-        find.byType(YaruDialogTitleBar),
-      );
+      expect(find.byType(BusyMaxEditorHeader), findsOneWidget);
+      expect(find.byType(YaruDialogTitleBar), findsNothing);
       final dialog = tester.widget<Dialog>(find.byType(Dialog));
-      expect(titleBar.backgroundColor, colors.dialog);
       expect(dialog.backgroundColor, colors.dialog);
       expect(dialog.surfaceTintColor, colors.dialog);
 
@@ -70,7 +68,7 @@ void main() {
         ),
       );
 
-      titleBar = tester.widget<YaruDialogTitleBar>(
+      final titleBar = tester.widget<YaruDialogTitleBar>(
         find.byType(YaruDialogTitleBar),
       );
       final confirmation = tester.widget<AlertDialog>(find.byType(AlertDialog));
@@ -533,6 +531,18 @@ void main() {
       expect(textField.decoration?.labelText, 'Name');
       expect(textField.decoration?.filled, isFalse);
       expect(textField.decoration?.border, InputBorder.none);
+      expect(find.byType(BusyMaxEditorHeader), findsOneWidget);
+      expect(find.byType(YaruDialogTitleBar), findsNothing);
+      expect(find.byType(OverflowBar), findsNothing);
+      final inputGroupRect = tester.getRect(find.byType(BusyMaxGroupedList));
+      final cancelRect = tester.getRect(
+        find.widgetWithText(FilledButton, 'Cancel'),
+      );
+      final renameRect = tester.getRect(
+        find.widgetWithText(ElevatedButton, 'Rename'),
+      );
+      expect(cancelRect.bottom, lessThan(inputGroupRect.top));
+      expect(renameRect.bottom, lessThan(inputGroupRect.top));
 
       await tester.enterText(find.byType(TextField), 'Edited name');
       await tester.tapAt(const Offset(2, 2));
