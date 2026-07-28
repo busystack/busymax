@@ -14,6 +14,8 @@ import 'calendar_day_semantics.dart';
 enum MiniCalendarHeaderStyle { navigation, monthLabel }
 
 const _miniCalendarHeaderControlExtent = 28.0;
+const _miniCalendarMonthControlFlex = 3;
+const _miniCalendarYearControlFlex = 2;
 
 class MiniCalendar extends StatelessWidget {
   const MiniCalendar({
@@ -70,6 +72,7 @@ class MiniCalendar extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
+                    flex: _miniCalendarMonthControlFlex,
                     child: _MiniCalendarStepper(
                       label: DateFormat.MMMM(locale).format(visibleMonth),
                       previousTooltip: l10n.previousMonth,
@@ -88,6 +91,7 @@ class MiniCalendar extends StatelessWidget {
                   ),
                   const SizedBox(width: BusyMaxSpacing.sm),
                   Expanded(
+                    flex: _miniCalendarYearControlFlex,
                     child: _MiniCalendarStepper(
                       label: '${visibleMonth.year}',
                       previousTooltip: l10n.previousYear,
@@ -119,8 +123,9 @@ class MiniCalendar extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final maximumWeekNumberExtent = weekNumbersInteractive
-                  ? BusyMaxSizes.miniCalendarWeekButton
-                  : BusyMaxSizes.miniCalendarWeekButton - BusyMaxSpacing.md;
+                  ? _miniCalendarHeaderControlExtent
+                  : _miniCalendarHeaderControlExtent -
+                        BusyMaxSpacing.headerInset;
               final weekNumberExtent = math.min(
                 maximumWeekNumberExtent,
                 constraints.maxWidth / (DateTime.daysPerWeek + 1),
@@ -280,7 +285,7 @@ class _MiniCalendarWeekNumberButton extends StatelessWidget {
                     busyMaxHeaderIconButtonStyle(
                       context,
                       foregroundColor: colorScheme.onSurfaceVariant,
-                      backgroundColor: busyMaxHeaderButtonBackground(context),
+                      backgroundColor: busyMaxSubtleButtonBackground(context),
                       overlayColor: const WidgetStatePropertyAll(
                         Colors.transparent,
                       ),
@@ -400,6 +405,7 @@ class _MiniCalendarDayButtonState extends State<_MiniCalendarDayButton> {
                   ? null
                   : () => widget.onDoubleTap!(day),
               excludeFromSemantics: true,
+              hoverColor: Colors.transparent,
               customBorder: const CircleBorder(),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

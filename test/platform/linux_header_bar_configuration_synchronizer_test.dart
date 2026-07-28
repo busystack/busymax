@@ -135,13 +135,6 @@ BusyMaxHeaderBarConfiguration _configuration({required bool dark}) {
       popoverShadowColor: Colors.black38,
       dialogBackgroundColor: dark ? Colors.black : Colors.white,
       dialogOutlineColor: dark ? Colors.white : Colors.white10,
-      dialogCancelBackgroundColor: dark ? Colors.white12 : Colors.black12,
-      dialogCancelHoverColor: dark ? Colors.white24 : Colors.black26,
-      dialogCancelActiveColor: dark ? Colors.white30 : Colors.black38,
-      dialogDestructiveBackgroundColor: Colors.red,
-      dialogDestructiveHoverColor: Colors.redAccent,
-      dialogDestructiveActiveColor: Colors.red,
-      dialogDestructiveForegroundColor: Colors.white,
       modalBarrierColor: Colors.black54,
     ),
   );

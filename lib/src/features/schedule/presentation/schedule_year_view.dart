@@ -13,6 +13,7 @@ class ScheduleYearView extends StatelessWidget {
     required this.firstWeekday,
     required this.onDaySelected,
     required this.onMonthSelected,
+    required this.onWeekSelected,
     required this.onCreateAtDay,
     this.compact = false,
     this.backgroundColor,
@@ -23,6 +24,7 @@ class ScheduleYearView extends StatelessWidget {
   final int firstWeekday;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onMonthSelected;
+  final ValueChanged<DateTime> onWeekSelected;
   final ValueChanged<DateTime> onCreateAtDay;
   final bool compact;
   final Color? backgroundColor;
@@ -49,19 +51,24 @@ class ScheduleYearView extends StatelessWidget {
                   for (var index = 0; index < DateTime.monthsPerYear; index++)
                     SizedBox(
                       width: monthWidth,
-                      child: MiniCalendar(
-                        displayedMonth: DateTime(selectedDate.year, index + 1),
-                        selectedDate: selectedDate,
-                        firstWeekday: firstWeekday,
-                        items: items,
-                        headerStyle: MiniCalendarHeaderStyle.monthLabel,
-                        showDayHover: true,
-                        weekNumbersInteractive: false,
-                        onSelected: onDaySelected,
-                        onMonthSelected: onMonthSelected,
-                        onYearSelected: null,
-                        onWeekSelected: null,
-                        onDayDoubleTap: onCreateAtDay,
+                      child: BusyMaxGroupedSurface(
+                        child: MiniCalendar(
+                          displayedMonth: DateTime(
+                            selectedDate.year,
+                            index + 1,
+                          ),
+                          selectedDate: selectedDate,
+                          firstWeekday: firstWeekday,
+                          items: items,
+                          headerStyle: MiniCalendarHeaderStyle.monthLabel,
+                          showDayHover: true,
+                          weekNumbersInteractive: true,
+                          onSelected: onDaySelected,
+                          onMonthSelected: onMonthSelected,
+                          onYearSelected: null,
+                          onWeekSelected: onWeekSelected,
+                          onDayDoubleTap: onCreateAtDay,
+                        ),
                       ),
                     ),
                 ],

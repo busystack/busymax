@@ -45,7 +45,6 @@ abstract final class BusyMaxSizes {
   static const double headerIcon = kYaruIconSize;
   static const double sidebarActionButton = headerIconButton;
   static const double sidebarActionIcon = headerIcon;
-  static const double miniCalendarWeekButton = headerIconButton;
   static const double popoverActionButton = kYaruTitleBarItemHeight;
   static const double popoverActionIcon = iconSm;
   static const double popoverArrowWidth = 18;

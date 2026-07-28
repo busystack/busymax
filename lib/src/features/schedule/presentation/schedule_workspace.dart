@@ -486,6 +486,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               onDaySelected: _setDate,
                               onYearDaySelected: _openDay,
                               onMonthSelected: _setMonth,
+                              onWeekSelected: _setWeek,
                               onEmptySlot: (start) => unawaited(
                                 _openCreateChoice(
                                   accounts,
@@ -2258,6 +2259,7 @@ class _ScheduleBody extends StatelessWidget {
     required this.onDaySelected,
     required this.onYearDaySelected,
     required this.onMonthSelected,
+    required this.onWeekSelected,
     required this.onEmptySlot,
     required this.onCreateAtDay,
     required this.onNewEvent,
@@ -2294,6 +2296,7 @@ class _ScheduleBody extends StatelessWidget {
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onYearDaySelected;
   final ValueChanged<DateTime> onMonthSelected;
+  final ValueChanged<DateTime> onWeekSelected;
   final ValueChanged<DateTime> onEmptySlot;
   final ValueChanged<DateTime> onCreateAtDay;
   final VoidCallback onNewEvent;
@@ -2387,6 +2390,7 @@ class _ScheduleBody extends StatelessWidget {
           firstWeekday: firstWeekday,
           onDaySelected: onYearDaySelected,
           onMonthSelected: onMonthSelected,
+          onWeekSelected: onWeekSelected,
           onCreateAtDay: onCreateAtDay,
         ),
       ),

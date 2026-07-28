@@ -174,7 +174,7 @@ void main() {
     },
   );
 
-  test('Settings owns grouped cards while Year reuses MiniCalendar', () {
+  test('Settings and reused Year calendars use shared grouped cards', () {
     final settings = File(
       'lib/src/features/settings/presentation/settings_screen.dart',
     ).readAsStringSync();
@@ -184,7 +184,7 @@ void main() {
 
     expect(settings, contains('BusyMaxGroupedList('));
     expect(yearView, contains('MiniCalendar('));
-    expect(yearView, isNot(contains('BusyMaxGroupedSurface(')));
+    expect(yearView, contains('BusyMaxGroupedSurface('));
     for (final source in [settings, yearView]) {
       expect(source, isNot(contains('BoxShadow(')));
       expect(source, isNot(contains('elevation:')));
