@@ -76,6 +76,8 @@ constexpr char kHeaderSearchEntryStyleClass[] =
 constexpr char kHeaderModalOpenStyleClass[] = "busymax-modal-open";
 constexpr char kHeaderModalBarrierStyleClass[] = "busymax-modal-barrier";
 constexpr char kNativeDialogStyleClass[] = "busymax-native-dialog";
+// Mirrors Yaru's shared window/dialog radius used by the Flutter fallback.
+constexpr gint kNativeDialogCornerRadius = 14;
 constexpr char kNativePopoverStyleClass[] = "busymax-native-popover";
 constexpr char kHeaderMenuDepthStyleClass[] = "busymax-header-menu-depth";
 
@@ -537,6 +539,11 @@ static void handle_native_confirmation(FlMethodCall* method_call,
   GtkWidget* confirm_button = gtk_dialog_add_button(
       GTK_DIALOG(dialog), confirm_label != nullptr ? confirm_label : "_OK",
       GTK_RESPONSE_ACCEPT);
+  GtkWidget* actions = gtk_widget_get_parent(cancel_button);
+  if (actions != nullptr) {
+    gtk_style_context_add_class(gtk_widget_get_style_context(actions),
+                                "busymax-native-dialog-actions");
+  }
   GtkStyleContext* confirm_context =
       gtk_widget_get_style_context(confirm_button);
   gtk_style_context_add_class(
@@ -1257,12 +1264,20 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "box-shadow: none;"
+      "border-bottom-width: 0;"
+      "border-bottom-style: none;"
+      "border-bottom-color: transparent;"
       "}"
       ".%s .busymax-native-dialog-content,"
       ".%s .busymax-native-dialog-content:backdrop {"
       "background-color: %s;"
       "background-image: none;"
-      "border-radius: 9px;"
+      "border-radius: %dpx;"
+      "}"
+      ".%s .busymax-native-dialog-actions,"
+      ".%s .busymax-native-dialog-actions:backdrop {"
+      "background-color: %s;"
+      "background-image: none;"
       "}"
       ".%s.csd:not(.solid-csd):not(.maximized):not(.fullscreen) {"
       // GTK 3 has no named modern dialog-outline role. Flutter supplies the
@@ -1274,6 +1289,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       dialog_background_color, kNativeDialogStyleClass,
       kNativeDialogStyleClass, dialog_background_color,
       kNativeDialogStyleClass, kNativeDialogStyleClass, dialog_background_color,
+      kNativeDialogCornerRadius, kNativeDialogStyleClass,
+      kNativeDialogStyleClass, dialog_background_color,
       kNativeDialogStyleClass,
       css_color_or(self->header_bar_dialog_outline_color,
                    kDefaultDialogOutlineColor));
