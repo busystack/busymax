@@ -1276,6 +1276,15 @@ class AppLocalizationsEs extends AppLocalizations {
   String get readOnlyCalendar => 'Este calendario es de solo lectura.';
 
   @override
+  String get selectTimeZone => 'Seleccionar zona horaria';
+
+  @override
+  String get searchLocations => 'Buscar ubicaciones';
+
+  @override
+  String get noLocationsFound => 'No se encontraron ubicaciones';
+
+  @override
   String deleteCalendarConfirmation(String title) {
     return '¿Eliminar \"$title\"?';
   }

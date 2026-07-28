@@ -11,32 +11,47 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'calendar_day_semantics.dart';
 
+enum MiniCalendarHeaderStyle { navigation, monthLabel }
+
+const _miniCalendarHeaderControlExtent = 28.0;
+
 class MiniCalendar extends StatelessWidget {
   const MiniCalendar({
     super.key,
     required this.selectedDate,
+    this.displayedMonth,
     required this.firstWeekday,
     this.items = const [],
     required this.onSelected,
     this.showHeader = true,
+    this.headerStyle = MiniCalendarHeaderStyle.navigation,
+    this.showDayHover = false,
+    this.weekNumbersInteractive = true,
     this.onMonthSelected,
     this.onYearSelected,
-    required this.onWeekSelected,
-  });
+    this.onWeekSelected,
+    this.onDayDoubleTap,
+  }) : assert(!weekNumbersInteractive || onWeekSelected != null);
 
   final DateTime selectedDate;
+  final DateTime? displayedMonth;
   final int firstWeekday;
   final List<ScheduleItem> items;
   final ValueChanged<DateTime> onSelected;
   final bool showHeader;
+  final MiniCalendarHeaderStyle headerStyle;
+  final bool showDayHover;
+  final bool weekNumbersInteractive;
   final ValueChanged<DateTime>? onMonthSelected;
   final ValueChanged<DateTime>? onYearSelected;
-  final ValueChanged<DateTime> onWeekSelected;
+  final ValueChanged<DateTime>? onWeekSelected;
+  final ValueChanged<DateTime>? onDayDoubleTap;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final first = DateTime(selectedDate.year, selectedDate.month);
+    final visibleMonth = displayedMonth ?? selectedDate;
+    final first = DateTime(visibleMonth.year, visibleMonth.month);
     final start = _calendarStartForMonth(first, firstWeekday);
     final groupedItems = ScheduleProjection.groupByDay(items);
     final locale = Localizations.localeOf(context).toLanguageTag();
@@ -51,51 +66,63 @@ class MiniCalendar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (showHeader) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _MiniCalendarStepper(
-                    label: DateFormat.MMMM(locale).format(selectedDate),
-                    previousTooltip: l10n.previousMonth,
-                    nextTooltip: l10n.nextMonth,
-                    onPrevious: () => onSelected(
-                      DateTime(selectedDate.year, selectedDate.month - 1),
+            if (headerStyle == MiniCalendarHeaderStyle.navigation)
+              Row(
+                children: [
+                  Expanded(
+                    child: _MiniCalendarStepper(
+                      label: DateFormat.MMMM(locale).format(visibleMonth),
+                      previousTooltip: l10n.previousMonth,
+                      nextTooltip: l10n.nextMonth,
+                      onPrevious: () => onSelected(
+                        DateTime(visibleMonth.year, visibleMonth.month - 1),
+                      ),
+                      onNext: () => onSelected(
+                        DateTime(visibleMonth.year, visibleMonth.month + 1),
+                      ),
+                      labelTooltip: l10n.openMonthView,
+                      onLabelPressed: onMonthSelected == null
+                          ? null
+                          : () => onMonthSelected!(first),
                     ),
-                    onNext: () => onSelected(
-                      DateTime(selectedDate.year, selectedDate.month + 1),
-                    ),
-                    labelTooltip: l10n.openMonthView,
-                    onLabelPressed: onMonthSelected == null
-                        ? null
-                        : () => onMonthSelected!(first),
-                ),
-              ),
-                const SizedBox(width: BusyMaxSpacing.sm),
-                Expanded(
-                  child: _MiniCalendarStepper(
-                    label: '${selectedDate.year}',
-                    previousTooltip: l10n.previousYear,
-                    nextTooltip: l10n.nextYear,
-                    onPrevious: () => onSelected(
-                      DateTime(selectedDate.year - 1, selectedDate.month),
-                    ),
-                    onNext: () => onSelected(
-                      DateTime(selectedDate.year + 1, selectedDate.month),
-                    ),
-                    labelTooltip: l10n.openYearView,
-                    onLabelPressed: onYearSelected == null
-                        ? null
-                        : () => onYearSelected!(DateTime(selectedDate.year)),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: BusyMaxSpacing.sm),
+                  Expanded(
+                    child: _MiniCalendarStepper(
+                      label: '${visibleMonth.year}',
+                      previousTooltip: l10n.previousYear,
+                      nextTooltip: l10n.nextYear,
+                      onPrevious: () => onSelected(
+                        DateTime(visibleMonth.year - 1, visibleMonth.month),
+                      ),
+                      onNext: () => onSelected(
+                        DateTime(visibleMonth.year + 1, visibleMonth.month),
+                      ),
+                      labelTooltip: l10n.openYearView,
+                      onLabelPressed: onYearSelected == null
+                          ? null
+                          : () => onYearSelected!(DateTime(visibleMonth.year)),
+                    ),
+                  ),
+                ],
+              )
+            else
+              _MiniCalendarHeaderLabel(
+                label: DateFormat.yMMMM(locale).format(first),
+                tooltip: l10n.openMonthView,
+                onPressed: onMonthSelected == null
+                    ? null
+                    : () => onMonthSelected!(first),
+              ),
             const SizedBox(height: BusyMaxSpacing.sm),
           ],
           LayoutBuilder(
             builder: (context, constraints) {
+              final maximumWeekNumberExtent = weekNumbersInteractive
+                  ? BusyMaxSizes.miniCalendarWeekButton
+                  : BusyMaxSizes.miniCalendarWeekButton - BusyMaxSpacing.md;
               final weekNumberExtent = math.min(
-                BusyMaxSizes.miniCalendarWeekButton,
+                maximumWeekNumberExtent,
                 constraints.maxWidth / (DateTime.daysPerWeek + 1),
               );
               final dayExtent =
@@ -143,10 +170,15 @@ class MiniCalendar extends StatelessWidget {
                             row * DateTime.daysPerWeek,
                           ),
                           weekNumberExtent: weekNumberExtent,
+                          onWeekSelected: weekNumbersInteractive
+                              ? onWeekSelected
+                              : null,
                           selectedDate: selectedDate,
+                          displayedMonth: first,
                           groupedItems: groupedItems,
+                          showDayHover: showDayHover,
                           onDaySelected: onSelected,
-                          onWeekSelected: onWeekSelected,
+                          onDayDoubleTap: onDayDoubleTap,
                         ),
                       ),
                   ],
@@ -164,18 +196,24 @@ class _MiniCalendarWeekRow extends StatelessWidget {
   const _MiniCalendarWeekRow({
     required this.weekStart,
     required this.weekNumberExtent,
-    required this.selectedDate,
-    required this.groupedItems,
-    required this.onDaySelected,
     required this.onWeekSelected,
+    required this.selectedDate,
+    required this.displayedMonth,
+    required this.groupedItems,
+    required this.showDayHover,
+    required this.onDaySelected,
+    required this.onDayDoubleTap,
   });
 
   final DateTime weekStart;
   final double weekNumberExtent;
+  final ValueChanged<DateTime>? onWeekSelected;
   final DateTime selectedDate;
+  final DateTime displayedMonth;
   final Map<DateTime, List<ScheduleItem>> groupedItems;
+  final bool showDayHover;
   final ValueChanged<DateTime> onDaySelected;
-  final ValueChanged<DateTime> onWeekSelected;
+  final ValueChanged<DateTime>? onDayDoubleTap;
 
   @override
   Widget build(BuildContext context) {
@@ -186,6 +224,7 @@ class _MiniCalendarWeekRow extends StatelessWidget {
           width: weekNumberExtent,
           child: _MiniCalendarWeekNumberButton(
             weekStart: weekStart,
+            buttonWidth: weekNumberExtent,
             onSelected: onWeekSelected,
           ),
         ),
@@ -194,8 +233,11 @@ class _MiniCalendarWeekRow extends StatelessWidget {
             child: _MiniCalendarDayButton(
               day: _addCalendarDays(weekStart, column),
               selectedDate: selectedDate,
+              displayedMonth: displayedMonth,
               groupedItems: groupedItems,
+              showHoverBackground: showDayHover,
               onSelected: onDaySelected,
+              onDoubleTap: onDayDoubleTap,
             ),
           ),
       ],
@@ -206,74 +248,102 @@ class _MiniCalendarWeekRow extends StatelessWidget {
 class _MiniCalendarWeekNumberButton extends StatelessWidget {
   const _MiniCalendarWeekNumberButton({
     required this.weekStart,
+    required this.buttonWidth,
     required this.onSelected,
   });
 
   final DateTime weekStart;
-  final ValueChanged<DateTime> onSelected;
+  final double buttonWidth;
+  final ValueChanged<DateTime>? onSelected;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final weekNumber = _isoWeekNumber(weekStart);
+    final label = Text(
+      '$weekNumber',
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
+      ),
+    );
     return Center(
       child: Tooltip(
         message: context.l10n.weekNumberTooltip(weekNumber),
-        child: TextButton(
-          onPressed: () => onSelected(weekStart),
-          style:
-              busyMaxHeaderIconButtonStyle(
-                context,
-                foregroundColor: colorScheme.onSurfaceVariant,
-                backgroundColor: busyMaxHeaderButtonBackground(context),
-                overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-              ).copyWith(
-                fixedSize: const WidgetStatePropertyAll(
-                  Size.square(BusyMaxSizes.miniCalendarWeekButton),
-                ),
-                minimumSize: const WidgetStatePropertyAll(
-                  Size.square(BusyMaxSizes.miniCalendarWeekButton),
-                ),
-                maximumSize: const WidgetStatePropertyAll(
-                  Size.square(BusyMaxSizes.miniCalendarWeekButton),
-                ),
+        child: onSelected == null
+            ? SizedBox.square(
+                dimension: buttonWidth,
+                child: Center(child: label),
+              )
+            : TextButton(
+                onPressed: () => onSelected!(weekStart),
+                style:
+                    busyMaxHeaderIconButtonStyle(
+                      context,
+                      foregroundColor: colorScheme.onSurfaceVariant,
+                      backgroundColor: busyMaxHeaderButtonBackground(context),
+                      overlayColor: const WidgetStatePropertyAll(
+                        Colors.transparent,
+                      ),
+                    ).copyWith(
+                      fixedSize: WidgetStatePropertyAll(
+                        Size.square(buttonWidth),
+                      ),
+                      minimumSize: WidgetStatePropertyAll(
+                        Size.square(buttonWidth),
+                      ),
+                      maximumSize: WidgetStatePropertyAll(
+                        Size.square(buttonWidth),
+                      ),
+                    ),
+                child: label,
               ),
-          child: Text(
-            '$weekNumber',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
-            ),
-          ),
-        ),
       ),
     );
   }
 }
 
-class _MiniCalendarDayButton extends StatelessWidget {
+class _MiniCalendarDayButton extends StatefulWidget {
   const _MiniCalendarDayButton({
     required this.day,
     required this.selectedDate,
+    required this.displayedMonth,
     required this.groupedItems,
+    required this.showHoverBackground,
     required this.onSelected,
+    required this.onDoubleTap,
   });
 
   final DateTime day;
   final DateTime selectedDate;
+  final DateTime displayedMonth;
   final Map<DateTime, List<ScheduleItem>> groupedItems;
+  final bool showHoverBackground;
   final ValueChanged<DateTime> onSelected;
+  final ValueChanged<DateTime>? onDoubleTap;
+
+  @override
+  State<_MiniCalendarDayButton> createState() => _MiniCalendarDayButtonState();
+}
+
+class _MiniCalendarDayButtonState extends State<_MiniCalendarDayButton> {
+  bool _isHovering = false;
 
   @override
   Widget build(BuildContext context) {
+    final day = widget.day;
+    final selectedDate = widget.selectedDate;
+    final groupedItems = widget.groupedItems;
+    final onSelected = widget.onSelected;
     final colorScheme = Theme.of(context).colorScheme;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
     final selected = _sameDay(day, selectedDate);
     final today = _sameDay(day, DateTime.now());
     final inDisplayedMonth =
-        day.year == selectedDate.year && day.month == selectedDate.month;
+        day.year == widget.displayedMonth.year &&
+        day.month == widget.displayedMonth.month;
     final displayingCurrentMonth =
-        selectedDate.year == DateTime.now().year &&
-        selectedDate.month == DateTime.now().month;
+        widget.displayedMonth.year == DateTime.now().year &&
+        widget.displayedMonth.month == DateTime.now().month;
     final highlightToday = today && displayingCurrentMonth;
     final items =
         groupedItems[ScheduleProjection.day(day)] ?? const <ScheduleItem>[];
@@ -294,57 +364,84 @@ class _MiniCalendarDayButton extends StatelessWidget {
                 (canShowIndicators ? BusyMaxSpacing.xxs : 0),
           );
           final markerSize = math.min(
-            24.0,
+            25.5,
             math.max(0.0, availableMarkerExtent),
           );
-          return InkWell(
-            onTap: () => onSelected(day),
-            excludeFromSemantics: true,
-            customBorder: const CircleBorder(),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox.square(
-                  dimension: markerSize,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? colorScheme.primary
-                          : highlightToday
-                          ? surfaceColors.controlActive
-                          : null,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            color: selected
-                                ? colorScheme.onPrimary
-                                : highlightToday
-                                ? surfaceColors.foreground
-                                : inDisplayedMonth
-                                ? null
-                                : colorScheme.onSurfaceVariant,
-                            fontWeight: selected || highlightToday
-                                ? FontWeight.w600
-                                : null,
+          final hoverColor = Color.alphaBlend(
+            Colors.white.withValues(
+              alpha: Theme.of(context).brightness == Brightness.light
+                  ? 0.48
+                  : 0.12,
+            ),
+            surfaceColors.popover,
+          );
+          final hoveredMarkerSize = math.min(
+            25.5 + 4.0,
+            math.max(0.0, availableMarkerExtent),
+          );
+          final currentMarkerSize =
+              _isHovering && widget.showHoverBackground && !selected
+              ? hoveredMarkerSize
+              : markerSize;
+          final backgroundColor = selected
+              ? colorScheme.primary
+              : highlightToday
+              ? surfaceColors.controlActive
+              : _isHovering && widget.showHoverBackground
+              ? hoverColor
+              : Colors.transparent;
+
+          return MouseRegion(
+            onEnter: (_) => setState(() => _isHovering = true),
+            onExit: (_) => setState(() => _isHovering = false),
+            child: InkWell(
+              onTap: () => onSelected(day),
+              onDoubleTap: widget.onDoubleTap == null
+                  ? null
+                  : () => widget.onDoubleTap!(day),
+              excludeFromSemantics: true,
+              customBorder: const CircleBorder(),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox.square(
+                    dimension: currentMarkerSize,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: backgroundColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: selected
+                                  ? colorScheme.onPrimary
+                                  : highlightToday
+                                  ? surfaceColors.foreground
+                                  : inDisplayedMonth
+                                  ? null
+                                  : colorScheme.onSurfaceVariant,
+                              fontWeight: selected || highlightToday
+                                  ? FontWeight.w600
+                                  : null,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                if (canShowIndicators) ...[
-                  const SizedBox(height: BusyMaxSpacing.xxs),
-                  _MiniCalendarDayIndicators(
-                    items: items,
-                    height: indicatorHeight,
-                  ),
+                  if (canShowIndicators) ...[
+                    const SizedBox(height: BusyMaxSpacing.xxs),
+                    _MiniCalendarDayIndicators(
+                      items: items,
+                      height: indicatorHeight,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           );
         },
@@ -413,7 +510,7 @@ class _MiniCalendarStepper extends StatelessWidget {
       builder: (context, constraints) {
         final compact =
             constraints.maxWidth <
-            BusyMaxSizes.headerIconButton * 2 + BusyMaxSpacing.xs * 2;
+            _miniCalendarHeaderControlExtent * 2 + BusyMaxSpacing.xs * 2;
         if (compact) {
           return Row(
             children: [
@@ -479,48 +576,83 @@ class _MiniCalendarStepper extends StatelessWidget {
   }) {
     return BusyMaxHeaderIconButton(
       tooltip: tooltip,
-      iconSize: BusyMaxSizes.headerIcon,
+      iconSize: BusyMaxSizes.iconSm,
       icon: Icon(icon),
       onPressed: onPressed,
       foregroundColor: colorScheme.onSurfaceVariant,
-      backgroundColor: busyMaxHeaderButtonBackground(context),
+      backgroundColor: busyMaxSubtleButtonBackground(context),
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      fixedSize: const Size.square(_miniCalendarHeaderControlExtent),
+      shape: const CircleBorder(),
     );
   }
 
   Widget _label(BuildContext context) {
-    final action = onLabelPressed;
+    return _MiniCalendarHeaderLabel(
+      label: label,
+      tooltip: labelTooltip,
+      onPressed: onLabelPressed,
+    );
+  }
+}
+
+class _MiniCalendarHeaderLabel extends StatelessWidget {
+  const _MiniCalendarHeaderLabel({
+    required this.label,
+    this.tooltip,
+    this.onPressed,
+  });
+
+  final String label;
+  final String? tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final labelStyle =
-        (busyMaxSectionHeaderStyle(context) ??
-                Theme.of(context).textTheme.titleSmall)
-            ?.copyWith(color: colorScheme.onSurface);
-    if (action == null) {
-      return Text(
-        label,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: labelStyle,
+    final labelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: colorScheme.onSurface,
+      fontWeight: FontWeight.w600,
+    );
+    final labelWidget = Text(
+      label,
+      textAlign: TextAlign.center,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: labelStyle,
+    );
+    if (onPressed == null) {
+      return SizedBox(
+        height: _miniCalendarHeaderControlExtent,
+        child: Center(child: labelWidget),
       );
     }
 
     return Tooltip(
-      message: labelTooltip ?? label,
+      message: tooltip ?? label,
       child: TextButton(
-        onPressed: action,
-        style: busyMaxHeaderTextButtonStyle(
-          context,
-          foregroundColor: colorScheme.onSurface,
-          backgroundColor: busyMaxHeaderButtonBackground(context),
-          overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-        ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: labelStyle,
-        ),
+        onPressed: onPressed,
+        style:
+            busyMaxHeaderTextButtonStyle(
+              context,
+              foregroundColor: colorScheme.onSurface,
+              backgroundColor: busyMaxSubtleButtonBackground(context),
+              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+            ).copyWith(
+              minimumSize: const WidgetStatePropertyAll(
+                Size(
+                  _miniCalendarHeaderControlExtent,
+                  _miniCalendarHeaderControlExtent,
+                ),
+              ),
+              maximumSize: const WidgetStatePropertyAll(
+                Size(double.infinity, _miniCalendarHeaderControlExtent),
+              ),
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: BusyMaxSpacing.headerInset),
+              ),
+            ),
+        child: labelWidget,
       ),
     );
   }

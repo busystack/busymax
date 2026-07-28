@@ -503,6 +503,8 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
     this.foregroundColor,
     this.backgroundColor,
     this.overlayColor,
+    this.fixedSize,
+    this.shape,
   });
 
   final Widget icon;
@@ -512,6 +514,8 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
   final Color? foregroundColor;
   final WidgetStateProperty<Color?>? backgroundColor;
   final WidgetStateProperty<Color?>? overlayColor;
+  final Size? fixedSize;
+  final OutlinedBorder? shape;
 
   @override
   Widget build(BuildContext context) {
@@ -520,12 +524,24 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
       icon: icon,
       iconSize: iconSize,
       onPressed: onPressed,
-      style: busyMaxHeaderIconButtonStyle(
-        context,
-        foregroundColor: foregroundColor,
-        backgroundColor: backgroundColor,
-        overlayColor: overlayColor,
-      ),
+      style:
+          busyMaxHeaderIconButtonStyle(
+            context,
+            foregroundColor: foregroundColor,
+            backgroundColor: backgroundColor,
+            overlayColor: overlayColor,
+          ).copyWith(
+            fixedSize: fixedSize == null
+                ? null
+                : WidgetStatePropertyAll(fixedSize),
+            minimumSize: fixedSize == null
+                ? null
+                : WidgetStatePropertyAll(fixedSize),
+            maximumSize: fixedSize == null
+                ? null
+                : WidgetStatePropertyAll(fixedSize),
+            shape: shape == null ? null : WidgetStatePropertyAll(shape),
+          ),
     );
     return YaruTheme.maybeOf(context)?.focusBorders == true
         ? YaruFocusBorder.primary(
@@ -3417,26 +3433,40 @@ class BusyMaxDialogTitleBar extends StatelessWidget {
     this.title,
     this.centerTitle = true,
     this.closeSemanticLabel,
+    this.showDividerInHighContrast = true,
   });
 
   final Widget? title;
   final bool centerTitle;
   final String? closeSemanticLabel;
+  final bool showDividerInHighContrast;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BusyMaxSurfaceColors.of(context);
-    return YaruDialogTitleBar(
-      title: title,
-      centerTitle: centerTitle,
-      isActive: true,
-      backgroundColor: busyMaxDialogSurfaceColor(context),
-      border: theme.colorScheme.isHighContrast
-          ? BorderSide(color: colors.divider)
-          : BorderSide.none,
-      closeSemanticLabel: closeSemanticLabel,
-      heroTag: null,
+    final dialogSurface = busyMaxDialogSurfaceColor(context);
+    return Theme(
+      data: theme.copyWith(
+        appBarTheme: theme.appBarTheme.copyWith(
+          backgroundColor: dialogSurface,
+          surfaceTintColor: dialogSurface,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+        ),
+      ),
+      child: YaruDialogTitleBar(
+        title: title,
+        centerTitle: centerTitle,
+        isActive: true,
+        backgroundColor: dialogSurface,
+        border: showDividerInHighContrast && theme.colorScheme.isHighContrast
+            ? BorderSide(color: colors.divider)
+            : BorderSide.none,
+        closeSemanticLabel: closeSemanticLabel,
+        heroTag: null,
+      ),
     );
   }
 }
@@ -3623,7 +3653,10 @@ class BusyMaxConfirmDialog extends StatelessWidget {
       surfaceTintColor: dialogSurface,
       scrollable: true,
       titlePadding: EdgeInsets.zero,
-      title: BusyMaxDialogTitleBar(title: Text(title)),
+      title: BusyMaxDialogTitleBar(
+        title: Text(title),
+        showDividerInHighContrast: false,
+      ),
       content: Text(message),
       actions: [
         BusyMaxPushButton.standard(

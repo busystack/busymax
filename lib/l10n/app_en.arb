@@ -407,6 +407,9 @@
   "scheduleItemCount": "{count, plural, =1{1 item} other{{count} items}}",
   "@scheduleItemCount": {"placeholders": {"count": {"type": "int"}}},
   "readOnlyCalendar": "This calendar is read-only.",
+  "selectTimeZone": "Select Timezone",
+  "searchLocations": "Search locations",
+  "noLocationsFound": "No locations found",
   "deleteCalendarConfirmation": "Delete \"{title}\"?",
   "@deleteCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}}
 }

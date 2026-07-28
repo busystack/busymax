@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/core/time/local_time_zone.dart';
+import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
-import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/features/tasks/presentation/time_zone_selection_dialog.dart';
 import 'package:yaru/yaru.dart';
 
 @visibleForTesting
@@ -17,17 +17,16 @@ const nativeDateTimePickerChannelName = 'busymax/native_date_time_picker';
 
 const _nativeDateTimePicker = NativeDateTimePicker();
 const _dateTimePickerMaxWidth = 300.0;
-const _dateTimePickerYearViewMaxHeight = 320.0;
+const _dateTimePickerContentMaxHeight = 320.0;
 const _dateTimePickerPopoverMinimumHeight = 300.0;
 const _dateTimePickerPopoverPadding = EdgeInsets.all(BusyMaxSpacing.lg);
-const _dateTimePickerYearModeHeaderHeight =
-    BusyMaxSizes.headerIconButton +
-    BusyMaxSpacing.headerInset * 3 +
-    BusyMaxSpacing.sm;
 const _timePickerMaxWidth = 260.0;
 const _timePickerMinimumWidth = 240.0;
-const _timePickerPopoverMinimumHeight = 180.0;
-const _timePickerPopoverMaxHeight = 180.0;
+const _timePickerPopoverMinimumHeight = 220.0;
+const _timePickerPopoverPadding = EdgeInsets.all(BusyMaxSpacing.md);
+const _timePickerInputControlSize = BusyMaxSizes.popoverActionButton;
+const _timePickerInputColumnMinWidth = 36.0;
+const _timePickerInputColumnMaxWidth = 38.0;
 
 class NativeDateTimePicker {
   const NativeDateTimePicker();
@@ -302,7 +301,9 @@ Future<String?> showBusyMaxTimeValueDialog(
   required String label,
   required String? initialTime,
   required bool allowEmpty,
+  String? initialTimeZone,
   ValueChanged<String?>? onTimeChanged,
+  ValueChanged<String>? onTimeZoneChanged,
   BuildContext? anchorContext,
 }) {
   return showScheduleAnchoredPopover<String>(
@@ -315,15 +316,15 @@ Future<String?> showBusyMaxTimeValueDialog(
     builder: (context, arrowSide, arrowAlignment) => _DesktopTimeValueDialog(
       label: label,
       initialTime: initialTime,
+      initialTimeZone: initialTimeZone,
       allowEmpty: allowEmpty,
       onTimeChanged: onTimeChanged,
+      onTimeZoneChanged: onTimeZoneChanged,
       arrowSide: arrowSide,
       arrowAlignment: arrowAlignment,
     ),
   );
 }
-
-enum _DesktopDatePickerMode { month, year }
 
 class _DesktopDateValueDialog extends StatefulWidget {
   const _DesktopDateValueDialog({
@@ -346,7 +347,6 @@ class _DesktopDateValueDialog extends StatefulWidget {
 class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
   static final _firstDate = DateTime(1900);
   static final _lastDate = DateTime(2100, 12, 31);
-  var _mode = _DesktopDatePickerMode.month;
   late DateTime _selected;
 
   @override
@@ -360,88 +360,50 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final contentHeight = _calculateDateTimePickerPopupHeight(constraints);
-        final yearModeBodyHeight = _mode == _DesktopDatePickerMode.year
-            ? (contentHeight - _dateTimePickerYearModeHeaderHeight).clamp(
-                0.0,
-                double.infinity,
-              )
-            : contentHeight;
         return BusyMaxContentPopoverSurface(
           arrowSide: widget.arrowSide,
           arrowAlignment: widget.arrowAlignment,
           padding: _dateTimePickerPopoverPadding,
-          child: _mode == _DesktopDatePickerMode.year
-              ? ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: contentHeight,
-                    maxWidth: _dateTimePickerMaxWidth,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildDateModeHeader(context),
-                      SizedBox(
-                        height: yearModeBodyHeight,
-                        child: ScheduleYearView(
-                          selectedDate: _selected,
-                          compact: true,
-                          items: const <ScheduleItem>[],
-                          firstWeekday: _firstWeekday(context),
-                          onDaySelected: (day) => _setSelectedDate(
-                            day,
-                            returnToMonth: true,
-                            submit: true,
-                          ),
-                          onMonthSelected: (_) {},
-                          onCreateAtDay: (day) => _setSelectedDate(
-                            day,
-                            returnToMonth: true,
-                            submit: true,
-                          ),
-                        ),
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: contentHeight),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDateModeHeader(context),
+                    MiniCalendar(
+                      selectedDate: _selected,
+                      firstWeekday: _firstWeekday(context),
+                      items: const <ScheduleItem>[],
+                      showHeader: false,
+                      showDayHover: true,
+                      weekNumbersInteractive: false,
+                      onSelected: (date) => _setSelectedDate(
+                        date,
+                        submit:
+                            date.year == _selected.year &&
+                            date.month == _selected.month,
                       ),
-                    ],
-                  ),
-                )
-              : ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(
-                    context,
-                  ).copyWith(scrollbars: false),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: contentHeight),
-                    child: SingleChildScrollView(
-                      child: MiniCalendar(
-                        selectedDate: _selected,
-                        firstWeekday: _firstWeekday(context),
-                        items: const <ScheduleItem>[],
-                        onSelected: (date) => _setSelectedDate(
-                          date,
-                          returnToMonth: false,
-                          submit:
-                              date.year == _selected.year &&
-                              date.month == _selected.month,
-                        ),
-                        onMonthSelected: null,
-                        onYearSelected: null,
-                        onWeekSelected: (week) => _setSelectedDate(
-                          week,
-                          returnToMonth: false,
-                          submit: true,
-                        ),
-                      ),
+                      onMonthSelected: null,
+                      onYearSelected: null,
+                      onWeekSelected: (week) =>
+                          _setSelectedDate(week, submit: true),
                     ),
-                  ),
+                  ],
                 ),
+              ),
+            ),
+          ),
         );
       },
     );
   }
 
-  void _setSelectedDate(
-    DateTime value, {
-    required bool returnToMonth,
-    bool submit = false,
-  }) {
+  void _setSelectedDate(DateTime value, {bool submit = false}) {
     final preserveDay =
         value.day == 1 &&
         (value.year != _selected.year || value.month != _selected.month);
@@ -453,9 +415,6 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
     final adjusted = _coerceSupportedRange(clamped);
     setState(() {
       _selected = adjusted;
-      if (returnToMonth) {
-        _mode = _DesktopDatePickerMode.month;
-      }
     });
     if (submit) {
       _submit();
@@ -487,11 +446,9 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
               nextTooltip: context.l10n.nextMonth,
               onPrevious: () => _setSelectedDate(
                 DateTime(_selected.year, _selected.month - 1),
-                returnToMonth: false,
               ),
               onNext: () => _setSelectedDate(
                 DateTime(_selected.year, _selected.month + 1),
-                returnToMonth: false,
               ),
               onLabelPressed: null,
             ),
@@ -505,11 +462,9 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
               nextTooltip: context.l10n.nextYear,
               onPrevious: () => _setSelectedDate(
                 DateTime(_selected.year - 1, _selected.month),
-                returnToMonth: false,
               ),
               onNext: () => _setSelectedDate(
                 DateTime(_selected.year + 1, _selected.month),
-                returnToMonth: false,
               ),
               onLabelPressed: null,
             ),
@@ -570,7 +525,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
       icon: Icon(icon),
       onPressed: onPressed,
       foregroundColor: colorScheme.onSurfaceVariant,
-      backgroundColor: busyMaxHeaderButtonBackground(context),
+      backgroundColor: WidgetStatePropertyAll(Colors.transparent),
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
     );
   }
@@ -599,7 +554,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
       style: busyMaxHeaderTextButtonStyle(
         context,
         foregroundColor: colorScheme.onSurface,
-        backgroundColor: busyMaxHeaderButtonBackground(context),
+        backgroundColor: WidgetStatePropertyAll(Colors.transparent),
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
       child: Text(
@@ -649,20 +604,9 @@ double _calculateDateTimePickerPopupHeight(BoxConstraints constraints) {
       (_dateTimePickerPopoverPadding.vertical +
           BusyMaxSizes.popoverArrowHeight);
   if (constraints.maxHeight <= 0 || constraints.maxHeight.isInfinite) {
-    return _dateTimePickerYearViewMaxHeight;
+    return _dateTimePickerContentMaxHeight;
   }
-  return availableHeight.clamp(0, _dateTimePickerYearViewMaxHeight);
-}
-
-double _calculateTimePickerPopupHeight(BoxConstraints constraints) {
-  final availableHeight =
-      constraints.maxHeight -
-      (_dateTimePickerPopoverPadding.vertical +
-          BusyMaxSizes.popoverArrowHeight);
-  if (constraints.maxHeight <= 0 || constraints.maxHeight.isInfinite) {
-    return _timePickerPopoverMaxHeight;
-  }
-  return availableHeight.clamp(0, _timePickerPopoverMaxHeight);
+  return availableHeight.clamp(0, _dateTimePickerContentMaxHeight);
 }
 
 class DesktopTimeField extends StatefulWidget {
@@ -675,6 +619,8 @@ class DesktopTimeField extends StatefulWidget {
     this.allowEmpty = true,
     this.onValidityChanged,
     this.useNativePicker = false,
+    this.timeZone,
+    this.onTimeZoneChanged,
   });
 
   final String label;
@@ -684,6 +630,8 @@ class DesktopTimeField extends StatefulWidget {
   final bool allowEmpty;
   final ValueChanged<bool>? onValidityChanged;
   final bool useNativePicker;
+  final String? timeZone;
+  final ValueChanged<String>? onTimeZoneChanged;
 
   @override
   State<DesktopTimeField> createState() => _DesktopTimeFieldState();
@@ -699,6 +647,8 @@ class DesktopTimeValueRow extends StatelessWidget {
     this.allowEmpty = true,
     this.onValidityChanged,
     this.useNativePicker = false,
+    this.timeZone,
+    this.onTimeZoneChanged,
   });
 
   final String label;
@@ -708,6 +658,8 @@ class DesktopTimeValueRow extends StatelessWidget {
   final bool allowEmpty;
   final ValueChanged<bool>? onValidityChanged;
   final bool useNativePicker;
+  final String? timeZone;
+  final ValueChanged<String>? onTimeZoneChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -719,6 +671,8 @@ class DesktopTimeValueRow extends StatelessWidget {
       allowEmpty: allowEmpty,
       onValidityChanged: onValidityChanged,
       useNativePicker: useNativePicker,
+      timeZone: timeZone,
+      onTimeZoneChanged: onTimeZoneChanged,
     );
   }
 }
@@ -754,6 +708,7 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
   void didUpdateWidget(covariant DesktopTimeField oldWidget) {
     super.didUpdateWidget(oldWidget);
     final timeChanged = oldWidget.time != widget.time;
+    final timeZoneChanged = oldWidget.timeZone != widget.timeZone;
     final policyChanged = oldWidget.allowEmpty != widget.allowEmpty;
     final availabilityChanged = oldWidget.enabled != widget.enabled;
     final validityCallbackAdded =
@@ -762,12 +717,26 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
       _reportedValidity = null;
     }
     if (!timeChanged &&
+        !timeZoneChanged &&
         !policyChanged &&
         !availabilityChanged &&
         !validityCallbackAdded) {
       return;
     }
-    if (!timeChanged && !policyChanged && !availabilityChanged) {
+    if (!timeChanged &&
+        !timeZoneChanged &&
+        !policyChanged &&
+        !availabilityChanged) {
+      _reportValidityAfterBuild();
+      return;
+    }
+    if (timeZoneChanged &&
+        !timeChanged &&
+        !policyChanged &&
+        !availabilityChanged) {
+      if (!_focusNode.hasFocus && _inputValid) {
+        _syncVisibleValue();
+      }
       _reportValidityAfterBuild();
       return;
     }
@@ -866,7 +835,9 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
       label: widget.label,
       initialTime: widget.time,
       allowEmpty: widget.allowEmpty,
+      initialTimeZone: widget.timeZone,
       onTimeChanged: _emitTime,
+      onTimeZoneChanged: widget.onTimeZoneChanged,
       anchorContext: anchorContext,
     );
     if (!context.mounted) {
@@ -901,6 +872,9 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
 
   void _handleFocusChanged() {
     if (_focusNode.hasFocus) {
+      if (_inputValid) {
+        _syncVisibleValue(includeTimeZone: false);
+      }
       return;
     }
     if (_restoreRejectedPendingEmission()) {
@@ -927,9 +901,14 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
     _syncVisibleValue(time: parsed);
   }
 
-  void _syncVisibleValue({TimeOfDay? time}) {
+  void _syncVisibleValue({TimeOfDay? time, bool? includeTimeZone}) {
     final parsed = time ?? parseTimeOfDay(widget.time);
-    final formatted = parsed == null ? '' : formatMaterialTime(context, parsed);
+    final formatted = parsed == null
+        ? ''
+        : _formatVisibleTime(
+            parsed,
+            includeTimeZone: includeTimeZone ?? !_focusNode.hasFocus,
+          );
     if (_controller.text == formatted) {
       return;
     }
@@ -939,6 +918,19 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
       selection: TextSelection.collapsed(offset: formatted.length),
     );
     _syncingText = false;
+  }
+
+  String _formatVisibleTime(TimeOfDay time, {required bool includeTimeZone}) {
+    final formatted = formatMaterialTime(context, time);
+    if (!includeTimeZone) {
+      return formatted;
+    }
+    final timeZone = widget.timeZone;
+    if (timeZone == null || timeZone.isEmpty) {
+      return formatted;
+    }
+    final code = BusyMaxTimeZoneCatalog.location(timeZone).code;
+    return '$formatted ($code)';
   }
 
   void _emitTime(String? value) {
@@ -1004,16 +996,20 @@ class _DesktopTimeValueDialog extends StatefulWidget {
   const _DesktopTimeValueDialog({
     required this.label,
     required this.initialTime,
+    required this.initialTimeZone,
     required this.allowEmpty,
     required this.onTimeChanged,
+    required this.onTimeZoneChanged,
     required this.arrowSide,
     required this.arrowAlignment,
   });
 
   final String label;
   final String? initialTime;
+  final String? initialTimeZone;
   final bool allowEmpty;
   final ValueChanged<String?>? onTimeChanged;
+  final ValueChanged<String>? onTimeZoneChanged;
   final BusyMaxPopoverArrowSide arrowSide;
   final double arrowAlignment;
 
@@ -1027,8 +1023,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   late final TextEditingController _minuteController;
   bool _syncingText = false;
   bool _inputValid = true;
-  static const _timeInputButtonSize = BusyMaxSizes.headerIconButton;
-  static const _timeInputFieldWidth = BusyMaxSizes.headerIconButton;
+  late String _selectedTimeZone;
 
   @override
   void initState() {
@@ -1037,6 +1032,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     _minuteController = TextEditingController();
     _inputValid =
         widget.allowEmpty || parseTimeOfDay(widget.initialTime) != null;
+    _selectedTimeZone = widget.initialTimeZone ?? localIanaTimeZone();
     _syncVisibleValue();
   }
 
@@ -1045,6 +1041,10 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialTime != widget.initialTime) {
       _syncVisibleValue();
+    }
+    if (oldWidget.initialTimeZone != widget.initialTimeZone &&
+        widget.initialTimeZone != null) {
+      _selectedTimeZone = widget.initialTimeZone!;
     }
   }
 
@@ -1059,105 +1059,99 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final contentHeight = _calculateTimePickerPopupHeight(constraints);
+        final timeInputColumnWidth = _calculateTimeInputColumnWidth(
+          constraints,
+        );
         return BusyMaxContentPopoverSurface(
           arrowSide: widget.arrowSide,
           arrowAlignment: widget.arrowAlignment,
-          padding: _dateTimePickerPopoverPadding,
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: contentHeight),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(BusyMaxSpacing.xl),
-                  child: FocusTraversalGroup(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: _timeInputFieldWidth,
-                              child: _timeInputSection(
-                                context: context,
-                                controller: _hourController,
-                                label: 'Hour',
-                                onIncrement: () => _changeHour(1),
-                                onDecrement: () => _changeHour(-1),
-                              ),
-                            ),
-                            const SizedBox(width: BusyMaxSpacing.xs),
-                            Text(
-                              ':',
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            const SizedBox(width: BusyMaxSpacing.xs),
-                            SizedBox(
-                              width: _timeInputFieldWidth,
-                              child: _timeInputSection(
-                                context: context,
-                                controller: _minuteController,
-                                label: 'Minute',
-                                onIncrement: () => _changeMinute(1),
-                                onDecrement: () => _changeMinute(-1),
-                              ),
-                            ),
-                          ],
+          padding: _timePickerPopoverPadding,
+          child: FocusTraversalGroup(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: timeInputColumnWidth,
+                        maxWidth: timeInputColumnWidth,
+                      ),
+                      child: _timeInputSection(
+                        context: context,
+                        buttonWidth: timeInputColumnWidth,
+                        controller: _hourController,
+                        label: 'Hour',
+                        onIncrement: () => _changeHour(1),
+                        onDecrement: () => _changeHour(-1),
+                      ),
+                    ),
+                    const SizedBox(width: BusyMaxSpacing.xs),
+                    SizedBox(
+                      width: BusyMaxSpacing.sm,
+                      child: Center(
+                        child: Text(
+                          ':',
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        if (!_inputValid)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: BusyMaxSpacing.md,
-                              vertical: BusyMaxSpacing.sm,
-                            ),
-                            child: Text(
-                              MaterialLocalizations.of(
-                                context,
-                              ).invalidTimeLabel,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: BusyMaxSpacing.lg),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: BusyMaxPushButton.standard(
-                            onPressed: _openTimezoneDialog,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.max,
-                              children: [
-                                const Icon(
-                                  Icons.public,
-                                  size: BusyMaxSizes.popoverActionIcon,
-                                ),
-                                const SizedBox(width: BusyMaxSpacing.xs),
-                                Flexible(
-                                  child: Text(
-                                    _timezoneDisplayLabel(context),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    softWrap: false,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
+                    ),
+                    const SizedBox(width: BusyMaxSpacing.xs),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: timeInputColumnWidth,
+                        maxWidth: timeInputColumnWidth,
+                      ),
+                      child: _timeInputSection(
+                        context: context,
+                        buttonWidth: timeInputColumnWidth,
+                        controller: _minuteController,
+                        label: 'Minute',
+                        onIncrement: () => _changeMinute(1),
+                        onDecrement: () => _changeMinute(-1),
+                      ),
+                    ),
+                  ],
+                ),
+                if (!_inputValid)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: BusyMaxSpacing.md,
+                      vertical: BusyMaxSpacing.sm,
+                    ),
+                    child: Text(
+                      MaterialLocalizations.of(context).invalidTimeLabel,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
+                const SizedBox(height: BusyMaxSpacing.md),
+                BusyMaxPushButton.standard(
+                  onPressed: _openTimezoneDialog,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.public,
+                        size: BusyMaxSizes.popoverActionIcon,
+                      ),
+                      const SizedBox(width: BusyMaxSpacing.xs),
+                      Flexible(
+                        child: Text(
+                          _timezoneDisplayLabel(context),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         );
@@ -1165,119 +1159,91 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     );
   }
 
-  Future<void> _openTimezoneDialog() async {
-    final timezone = localIanaTimeZone();
-    final code = _timezoneCode(context);
-    final display = code.isEmpty ? timezone : '$timezone ($code)';
-    await showBusyMaxModalDialog<void>(
-      context,
-      builder: (dialogContext) => BusyMaxDialogShell(
-        title: 'Timezone',
-        actions: [
-          BusyMaxPushButton.standard(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(MaterialLocalizations.of(dialogContext).okButtonLabel),
-          ),
-        ],
-        children: [
-          Text(
-            'System timezone',
-            style: Theme.of(dialogContext).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: BusyMaxSpacing.sm),
-          Row(
-            children: [
-              const Icon(Icons.public, size: BusyMaxSizes.popoverActionIcon),
-              const SizedBox(width: BusyMaxSpacing.xs),
-              Text(display, style: Theme.of(dialogContext).textTheme.bodyLarge),
-            ],
-          ),
-        ],
-      ),
+  double _calculateTimeInputColumnWidth(BoxConstraints constraints) {
+    if (!constraints.hasBoundedWidth || constraints.maxWidth <= 0) {
+      return _timePickerInputColumnMaxWidth;
+    }
+    final dividerAndSpacing = BusyMaxSpacing.md + (BusyMaxSpacing.xs * 2);
+    final availablePerColumn = (constraints.maxWidth - dividerAndSpacing) / 2;
+    return availablePerColumn.clamp(
+      _timePickerInputColumnMinWidth,
+      _timePickerInputColumnMaxWidth,
     );
   }
 
-  String _timezoneCode(BuildContext context) {
-    final locale = Localizations.localeOf(context).toLanguageTag();
-    try {
-      return DateFormat('z', locale).format(DateTime.now()).trim();
-    } on Exception {
-      return DateTime.now().timeZoneName;
+  Future<void> _openTimezoneDialog() async {
+    final selected = await showBusyMaxTimeZoneSelectionDialog(
+      context,
+      selectedTimeZone: _selectedTimeZone,
+    );
+    if (!mounted || selected == null || selected == _selectedTimeZone) {
+      return;
     }
+    setState(() => _selectedTimeZone = selected);
+    widget.onTimeZoneChanged?.call(selected);
   }
 
   String _timezoneDisplayLabel(BuildContext context) {
-    final timezone = localIanaTimeZone();
-    final code = _timezoneCode(context);
-    if (code.isEmpty) {
-      return timezone;
-    }
-    return '$timezone ($code)';
+    return BusyMaxTimeZoneCatalog.location(_selectedTimeZone).displayLabel;
   }
 
   Widget _timeInputSection({
     required BuildContext context,
+    required double buttonWidth,
     required TextEditingController controller,
     required String label,
     required VoidCallback onIncrement,
     required VoidCallback onDecrement,
   }) {
-    final buttonStyle = ButtonStyle(
-      minimumSize: const WidgetStatePropertyAll(
-        Size.square(_timeInputButtonSize),
-      ),
-      visualDensity: VisualDensity.compact,
-      padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-      side: const WidgetStatePropertyAll(BorderSide.none),
-      backgroundColor: busyMaxHeaderButtonBackground(context),
-      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-      foregroundColor: WidgetStatePropertyAll(
-        Theme.of(context).colorScheme.onSurface,
-      ),
-      shape: WidgetStatePropertyAll(
-        const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      ),
-    );
     final surfaceColors = BusyMaxSurfaceColors.of(context);
-    final borderColor = Theme.of(context).colorScheme.outlineVariant;
-    final textTheme = Theme.of(context).textTheme;
+    final controlFill = Color.alphaBlend(
+      surfaceColors.control,
+      surfaceColors.popover,
+    );
+    final borderColor = surfaceColors.border;
+    final inputTextStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.normal, height: 1);
 
     return FocusTraversalOrder(
       order: const NumericFocusOrder(0),
       child: Container(
         decoration: BoxDecoration(
-          color: surfaceColors.control,
+          color: controlFill,
           borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
           border: Border.all(color: borderColor),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
+            BusyMaxHeaderIconButton(
               onPressed: onIncrement,
               icon: const Icon(Icons.add),
               tooltip: label,
-              style: buttonStyle.copyWith(
-                shape: WidgetStatePropertyAll(
-                  const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(BusyMaxRadius.sm),
-                      bottom: Radius.zero,
-                    ),
-                  ),
+              iconSize: BusyMaxSizes.popoverActionIcon,
+              fixedSize: Size(buttonWidth, _timePickerInputControlSize),
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: busyMaxSubtleButtonBackground(context),
+              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(BusyMaxRadius.sm),
                 ),
               ),
             ),
-            Divider(height: 0, thickness: 1, color: borderColor),
+            Divider(height: 1, thickness: 1, color: borderColor),
             SizedBox(
-              height: _timeInputButtonSize,
+              height: _timePickerInputControlSize,
               child: TextFormField(
                 controller: controller,
                 textAlign: TextAlign.center,
                 textAlignVertical: TextAlignVertical.center,
                 keyboardType: TextInputType.number,
+                expands: true,
+                minLines: null,
+                maxLines: null,
                 maxLength: 2,
-                style: textTheme.bodyLarge,
+                style: inputTextStyle,
                 decoration:
                     busyMaxGroupedTextFieldDecoration(
                       context,
@@ -1285,7 +1251,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                     ).copyWith(
                       isDense: true,
                       filled: true,
-                      fillColor: surfaceColors.control,
+                      fillColor: controlFill,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
@@ -1304,19 +1270,19 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                 onFieldSubmitted: (_) => _handleTimeInputChanged(),
               ),
             ),
-            Divider(height: 0, thickness: 1, color: borderColor),
-            IconButton(
+            Divider(height: 1, thickness: 1, color: borderColor),
+            BusyMaxHeaderIconButton(
               onPressed: onDecrement,
               icon: const Icon(Icons.remove),
               tooltip: label,
-              style: buttonStyle.copyWith(
-                shape: WidgetStatePropertyAll(
-                  const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.zero,
-                      bottom: Radius.circular(BusyMaxRadius.sm),
-                    ),
-                  ),
+              iconSize: BusyMaxSizes.popoverActionIcon,
+              fixedSize: Size(buttonWidth, _timePickerInputControlSize),
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: busyMaxSubtleButtonBackground(context),
+              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(BusyMaxRadius.sm),
                 ),
               ),
             ),

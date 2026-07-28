@@ -72,9 +72,38 @@ void main() {
         find.byType(YaruDialogTitleBar),
       );
       final confirmation = tester.widget<AlertDialog>(find.byType(AlertDialog));
+      final titleBarTheme = Theme.of(
+        tester.element(find.byType(YaruDialogTitleBar)),
+      ).appBarTheme;
+      final cancelButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Cancel'),
+      );
+      final discardButton = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Discard'),
+      );
+      final standardShape =
+          theme.filledButtonTheme.style!.shape!.resolve({})!
+              as RoundedRectangleBorder;
+      final destructiveShape =
+          theme.elevatedButtonTheme.style!.shape!.resolve({})!
+              as RoundedRectangleBorder;
       expect(titleBar.backgroundColor, colors.dialog);
+      expect(titleBar.border, BorderSide.none);
+      expect(titleBarTheme.backgroundColor, colors.dialog);
+      expect(titleBarTheme.surfaceTintColor, colors.dialog);
+      expect(titleBarTheme.shadowColor, Colors.transparent);
       expect(confirmation.backgroundColor, colors.dialog);
       expect(confirmation.surfaceTintColor, colors.dialog);
+      expect(cancelButton.style, isNull);
+      expect(discardButton.style?.shape?.resolve({}), isNull);
+      expect(
+        standardShape.borderRadius,
+        BorderRadius.circular(kYaruButtonRadius),
+      );
+      expect(
+        destructiveShape.borderRadius,
+        BorderRadius.circular(kYaruButtonRadius),
+      );
     },
   );
 

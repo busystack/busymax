@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:flutter/material.dart';
@@ -50,74 +51,75 @@ void main() {
     );
   });
 
-  testWidgets(
-    'calendar values render populated contextual fields before focus',
-    (tester) async {
-      await tester.pumpWidget(
-        localizedTestApp(
-          child: Scaffold(
-            body: Column(
-              children: [
-                DesktopDateValueRow(
-                  label: 'Start date',
-                  date: '2026-07-22',
-                  onChanged: _ignoreString,
-                ),
-                DesktopTimeValueRow(
-                  label: 'Start time',
-                  time: '09:30',
-                  onChanged: _ignoreNullableString,
-                ),
-              ],
-            ),
+  testWidgets('calendar values render populated contextual fields before focus', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Column(
+            children: [
+              DesktopDateValueRow(
+                label: 'Start date',
+                date: '2026-07-22',
+                onChanged: _ignoreString,
+              ),
+              DesktopTimeValueRow(
+                label: 'Start time',
+                time: '09:30',
+                timeZone: 'America/Vancouver',
+                onChanged: _ignoreNullableString,
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
 
-      final dateTextField = tester.widget<TextField>(
-        find
-            .descendant(
-              of: find.byType(DesktopDateValueRow),
-              matching: find.byType(TextField),
-            )
-            .first,
-      );
-      final timeTextField = tester.widget<TextField>(
-        find
-            .descendant(
-              of: find.byType(DesktopTimeValueRow),
-              matching: find.byType(TextField),
-            )
-            .first,
-      );
-      final dateContext = tester.element(find.byType(DesktopDateValueRow));
-      final timeContext = tester.element(find.byType(DesktopTimeValueRow));
+    final dateTextField = tester.widget<TextField>(
+      find
+          .descendant(
+            of: find.byType(DesktopDateValueRow),
+            matching: find.byType(TextField),
+          )
+          .first,
+    );
+    final timeTextField = tester.widget<TextField>(
+      find
+          .descendant(
+            of: find.byType(DesktopTimeValueRow),
+            matching: find.byType(TextField),
+          )
+          .first,
+    );
+    final dateContext = tester.element(find.byType(DesktopDateValueRow));
+    final timeContext = tester.element(find.byType(DesktopTimeValueRow));
 
-      expect(
-        dateTextField.controller?.text,
-        formatDesktopDate(dateContext, '2026-07-22'),
-      );
-      expect(
-        timeTextField.controller?.text,
-        formatMaterialTime(timeContext, const TimeOfDay(hour: 9, minute: 30)),
-      );
-      expect(dateTextField.decoration?.labelText, 'Start date');
-      expect(timeTextField.decoration?.labelText, 'Start time');
-      expect(
-        dateTextField.decoration?.floatingLabelBehavior,
-        FloatingLabelBehavior.auto,
-      );
-      expect(
-        timeTextField.decoration?.floatingLabelBehavior,
-        FloatingLabelBehavior.auto,
-      );
-      expect(find.text('Enter date'), findsNothing);
-      expect(find.text('Enter time'), findsNothing);
-      expect(find.byIcon(YaruIcons.calendar), findsOneWidget);
-      expect(find.byIcon(YaruIcons.clock), findsOneWidget);
-      expect(find.byIcon(Icons.edit_outlined), findsNothing);
-    },
-  );
+    expect(
+      dateTextField.controller?.text,
+      formatDesktopDate(dateContext, '2026-07-22'),
+    );
+    expect(
+      timeTextField.controller?.text,
+      '${formatMaterialTime(timeContext, const TimeOfDay(hour: 9, minute: 30))} '
+      '(${BusyMaxTimeZoneCatalog.location('America/Vancouver').code})',
+    );
+    expect(dateTextField.decoration?.labelText, 'Start date');
+    expect(timeTextField.decoration?.labelText, 'Start time');
+    expect(
+      dateTextField.decoration?.floatingLabelBehavior,
+      FloatingLabelBehavior.auto,
+    );
+    expect(
+      timeTextField.decoration?.floatingLabelBehavior,
+      FloatingLabelBehavior.auto,
+    );
+    expect(find.text('Enter date'), findsNothing);
+    expect(find.text('Enter time'), findsNothing);
+    expect(find.byIcon(YaruIcons.calendar), findsOneWidget);
+    expect(find.byIcon(YaruIcons.clock), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+  });
 
   testWidgets('disabled date and time entries cannot receive focus', (
     tester,
@@ -281,11 +283,101 @@ void main() {
     expect(find.text(':'), findsOneWidget);
     expect(find.byIcon(Icons.public), findsOneWidget);
 
-    expect(find.byType(FilledButton), findsAny);
-    expect(find.byIcon(Icons.public), findsOneWidget);
+    final picker = find.byType(BusyMaxContentPopoverSurface);
+    final componentFields = find.descendant(
+      of: picker,
+      matching: find.byType(TextFormField),
+    );
+    final editableFields = find.descendant(
+      of: picker,
+      matching: find.byType(EditableText),
+    );
+    expect(componentFields, findsNWidgets(2));
+    expect(editableFields, findsNWidgets(2));
+    expect(
+      tester
+          .widgetList<EditableText>(editableFields)
+          .map((field) => field.controller.text),
+      <String>['09', '30'],
+    );
+    for (final field in tester.widgetList<EditableText>(editableFields)) {
+      expect(field.textAlign, TextAlign.center);
+      expect(field.style.fontWeight, FontWeight.normal);
+    }
+    for (final element in componentFields.evaluate()) {
+      final size = tester.getSize(
+        find.byElementPredicate((candidate) {
+          return identical(candidate, element);
+        }),
+      );
+      expect(size.width, inInclusiveRange(36, 38));
+      expect(size.height, BusyMaxSizes.popoverActionButton);
+    }
+
+    final timezoneButton = find.ancestor(
+      of: find.byIcon(Icons.public),
+      matching: find.byType(FilledButton),
+    );
+    expect(timezoneButton, findsOneWidget);
+    expect(tester.widget<FilledButton>(timezoneButton).style, isNull);
+    expect(tester.getSize(timezoneButton).width, greaterThan(100));
+    expect(tester.takeException(), isNull);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('time picker searches and selects real timezone locations', (
+    tester,
+  ) async {
+    String? selectedTimeZone;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopTimeValueRow(
+            label: 'Due time',
+            time: '09:30',
+            timeZone: 'Etc/UTC',
+            onChanged: (_) {},
+            onTimeZoneChanged: (value) => selectedTimeZone = value,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(YaruIcons.clock));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.public));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select Timezone'), findsOneWidget);
+    final title = tester.widget<Text>(find.text('Select Timezone'));
+    expect(title.textAlign, isNull);
+    expect(title.style?.fontWeight, FontWeight.w600);
+    expect(find.byType(BusyMaxDialogTitleBar), findsOneWidget);
+    expect(
+      tester
+          .widget<BusyMaxDialogTitleBar>(find.byType(BusyMaxDialogTitleBar))
+          .centerTitle,
+      isTrue,
+    );
+
+    final searchField = find.widgetWithText(TextField, 'Search locations');
+    expect(searchField, findsOneWidget);
+    await tester.enterText(searchField, 'Vancouver');
+    await tester.pumpAndSettle();
+
+    expect(find.text('America'), findsOneWidget);
+    expect(find.textContaining('Vancouver ('), findsOneWidget);
+    expect(find.text('America/Vancouver'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Vancouver ('));
+    await tester.pumpAndSettle();
+
+    expect(selectedTimeZone, 'America/Vancouver');
+    expect(find.text('Select Timezone'), findsNothing);
+    expect(find.textContaining('America/Vancouver ('), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('fallback time picker closes when clicking outside', (
@@ -448,7 +540,7 @@ void main() {
     expect(await result, isNull);
   });
 
-  testWidgets('fallback date picker year mode shows month and year headers', (
+  testWidgets('fallback date picker month and year headers are display-only', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -468,15 +560,16 @@ void main() {
     await tester.tap(find.byIcon(YaruIcons.calendar));
     await tester.pumpAndSettle();
     expect(find.byType(MiniCalendar), findsOneWidget);
+    expect(find.text('July'), findsOneWidget);
     expect(find.text('2026'), findsOneWidget);
-    expect(find.byType(TextButton), findsWidgets);
-
-    await tester.tap(find.widgetWithText(TextButton, '2026'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(MiniCalendar), findsOneWidget);
-    expect(find.text('2026'), findsOneWidget);
-    expect(find.byType(TextButton), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(MiniCalendar),
+        matching: find.byType(TextButton),
+      ),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('fallback date picker stays open while paging months', (

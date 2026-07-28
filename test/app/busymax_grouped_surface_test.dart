@@ -174,24 +174,22 @@ void main() {
     },
   );
 
-  test(
-    'Settings and Year view delegate card shadows to the shared surface',
-    () {
-      final settings = File(
-        'lib/src/features/settings/presentation/settings_screen.dart',
-      ).readAsStringSync();
-      final yearView = File(
-        'lib/src/features/schedule/presentation/schedule_year_view.dart',
-      ).readAsStringSync();
+  test('Settings owns grouped cards while Year reuses MiniCalendar', () {
+    final settings = File(
+      'lib/src/features/settings/presentation/settings_screen.dart',
+    ).readAsStringSync();
+    final yearView = File(
+      'lib/src/features/schedule/presentation/schedule_year_view.dart',
+    ).readAsStringSync();
 
-      expect(settings, contains('BusyMaxGroupedList('));
-      expect(yearView, contains('BusyMaxGroupedSurface('));
-      for (final source in [settings, yearView]) {
-        expect(source, isNot(contains('BoxShadow(')));
-        expect(source, isNot(contains('elevation:')));
-      }
-    },
-  );
+    expect(settings, contains('BusyMaxGroupedList('));
+    expect(yearView, contains('MiniCalendar('));
+    expect(yearView, isNot(contains('BusyMaxGroupedSurface(')));
+    for (final source in [settings, yearView]) {
+      expect(source, isNot(contains('BoxShadow(')));
+      expect(source, isNot(contains('elevation:')));
+    }
+  });
 
   for (final brightness in Brightness.values) {
     testWidgets(

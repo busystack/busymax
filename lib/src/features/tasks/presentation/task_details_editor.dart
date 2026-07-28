@@ -258,6 +258,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                             onChanged: (value) => _updateDraft(
                               draft.copyWith(microsoftDueTime: value),
                             ),
+                            timeZone: draft.microsoftDueTimeZone,
+                            onTimeZoneChanged: (value) => _updateDraft(
+                              draft.copyWith(microsoftDueTimeZone: value),
+                            ),
                             onValidityChanged: (valid) => _setTimeFieldValidity(
                               _TaskTimeField.due,
                               valid,
@@ -466,6 +470,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           time: draft.microsoftStartTime,
           onChanged: (value) =>
               _updateDraft(draft.copyWith(microsoftStartTime: value)),
+          timeZone: draft.microsoftStartTimeZone,
+          onTimeZoneChanged: (value) =>
+              _updateDraft(draft.copyWith(microsoftStartTimeZone: value)),
           onValidityChanged: (valid) =>
               _setTimeFieldValidity(_TaskTimeField.start, valid),
           useNativePicker: widget.useNativeDatePicker,
@@ -861,6 +868,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         time: draft.microsoftReminderTime,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderTime: value)),
+        timeZone: draft.microsoftReminderTimeZone,
+        onTimeZoneChanged: (value) =>
+            _updateDraft(draft.copyWith(microsoftReminderTimeZone: value)),
         onValidityChanged: (valid) =>
             _setTimeFieldValidity(_TaskTimeField.reminder, valid),
         useNativePicker: widget.useNativeDatePicker,

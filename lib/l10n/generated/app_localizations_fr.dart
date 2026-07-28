@@ -1275,6 +1275,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get readOnlyCalendar => 'Ce calendrier est en lecture seule.';
 
   @override
+  String get selectTimeZone => 'Sélectionner le fuseau horaire';
+
+  @override
+  String get searchLocations => 'Rechercher des lieux';
+
+  @override
+  String get noLocationsFound => 'Aucun lieu trouvé';
+
+  @override
   String deleteCalendarConfirmation(String title) {
     return 'Supprimer \"$title\" ?';
   }

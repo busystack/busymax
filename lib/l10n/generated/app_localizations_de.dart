@@ -1277,6 +1277,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get readOnlyCalendar => 'Dieser Kalender ist schreibgeschützt.';
 
   @override
+  String get selectTimeZone => 'Zeitzone auswählen';
+
+  @override
+  String get searchLocations => 'Orte suchen';
+
+  @override
+  String get noLocationsFound => 'Keine Orte gefunden';
+
+  @override
   String deleteCalendarConfirmation(String title) {
     return '\"$title\" löschen?';
   }

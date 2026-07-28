@@ -385,6 +385,9 @@
   "scheduleItemCount": "{count, plural, =1{1 elemento} other{{count} elementos}}",
   "@scheduleItemCount": {"placeholders": {"count": {"type": "int"}}},
   "readOnlyCalendar": "Este calendario es de solo lectura.",
+  "selectTimeZone": "Seleccionar zona horaria",
+  "searchLocations": "Buscar ubicaciones",
+  "noLocationsFound": "No se encontraron ubicaciones",
   "deleteCalendarConfirmation": "¿Eliminar \"{title}\"?",
   "@deleteCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}}
 }

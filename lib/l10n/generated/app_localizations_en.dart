@@ -1259,6 +1259,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get readOnlyCalendar => 'This calendar is read-only.';
 
   @override
+  String get selectTimeZone => 'Select Timezone';
+
+  @override
+  String get searchLocations => 'Search locations';
+
+  @override
+  String get noLocationsFound => 'No locations found';
+
+  @override
   String deleteCalendarConfirmation(String title) {
     return 'Delete \"$title\"?';
   }

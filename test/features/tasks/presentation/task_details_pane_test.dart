@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
@@ -26,6 +27,13 @@ import '../../../test_localized_app.dart';
 const _nativePickerChannel = MethodChannel(nativeDateTimePickerChannelName);
 const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+final _vancouverTimeZoneCode = BusyMaxTimeZoneCatalog.location(
+  'America/Vancouver',
+).code;
+
+String _withVancouverTimeZone(String time) {
+  return '$time ($_vancouverTimeZoneCode)';
+}
 
 void main() {
   setUp(() {
@@ -655,7 +663,10 @@ void main() {
 
     expect(_labeledFieldText(tester, 'Due date'), 'Jun 6, 2026');
     expect(_labeledFieldText(tester, 'Start date'), 'Jun 4, 2026');
-    expect(_labeledFieldText(tester, 'Due time'), '14:30');
+    expect(
+      _labeledFieldText(tester, 'Due time'),
+      _withVancouverTimeZone('14:30'),
+    );
     expect(_labeledTextFormFieldFinder('Due date'), findsOneWidget);
     expect(_labeledTextFormFieldFinder('Due time'), findsOneWidget);
     expect(find.text('14:30:00'), findsNothing);
@@ -671,7 +682,10 @@ void main() {
     );
 
     expect(_labeledFieldText(tester, 'Start date'), 'Jun 4, 2026');
-    expect(_labeledFieldText(tester, 'Due time'), '2:30 PM');
+    expect(
+      _labeledFieldText(tester, 'Due time'),
+      _withVancouverTimeZone('2:30 PM'),
+    );
     expect(_labeledTextFormFieldFinder('Start date'), findsOneWidget);
     expect(_labeledTextFormFieldFinder('Due time'), findsOneWidget);
     expect(find.text('Jun 4, 2026 · 7:00 AM'), findsNothing);
@@ -1003,7 +1017,10 @@ void main() {
     expect(_dateRowFinder('Reminder date'), findsOneWidget);
     expect(_timeRowFinder('Reminder time'), findsOneWidget);
     expect(_labeledFieldText(tester, 'Reminder date'), 'Jun 5, 2026');
-    expect(_labeledFieldText(tester, 'Reminder time'), '09:15');
+    expect(
+      _labeledFieldText(tester, 'Reminder time'),
+      _withVancouverTimeZone('09:15'),
+    );
     expect(_labeledTextFormFieldFinder('Reminder date'), findsOneWidget);
     expect(_labeledTextFormFieldFinder('Reminder time'), findsOneWidget);
     expect(find.textContaining('Time zone:'), findsNothing);
@@ -1213,7 +1230,10 @@ void main() {
       );
 
       expect(_labeledTextFormFieldFinder('Due time'), findsOneWidget);
-      expect(_labeledFieldText(tester, 'Due time'), '2:30 PM');
+      expect(
+        _labeledFieldText(tester, 'Due time'),
+        _withVancouverTimeZone('2:30 PM'),
+      );
       expect(find.byType(BusyMaxContentPopoverSurface), findsNothing);
 
       expect(tester.takeException(), isNull);
@@ -1361,7 +1381,10 @@ void main() {
 
     expect(field, findsOneWidget);
     expect(label, findsOneWidget);
-    expect(_labeledFieldText(tester, 'Due time'), '2:30 PM');
+    expect(
+      _labeledFieldText(tester, 'Due time'),
+      _withVancouverTimeZone('2:30 PM'),
+    );
     expect(tester.getCenter(label).dy, lessThan(tester.getCenter(field).dy));
   });
 

@@ -2364,6 +2364,24 @@ abstract class AppLocalizations {
   /// **'This calendar is read-only.'**
   String get readOnlyCalendar;
 
+  /// No description provided for @selectTimeZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Timezone'**
+  String get selectTimeZone;
+
+  /// No description provided for @searchLocations.
+  ///
+  /// In en, this message translates to:
+  /// **'Search locations'**
+  String get searchLocations;
+
+  /// No description provided for @noLocationsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No locations found'**
+  String get noLocationsFound;
+
   /// No description provided for @deleteCalendarConfirmation.
   ///
   /// In en, this message translates to:

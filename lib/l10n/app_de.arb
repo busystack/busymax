@@ -385,6 +385,9 @@
   "scheduleItemCount": "{count, plural, =1{1 Eintrag} other{{count} Einträge}}",
   "@scheduleItemCount": {"placeholders": {"count": {"type": "int"}}},
   "readOnlyCalendar": "Dieser Kalender ist schreibgeschützt.",
+  "selectTimeZone": "Zeitzone auswählen",
+  "searchLocations": "Orte suchen",
+  "noLocationsFound": "Keine Orte gefunden",
   "deleteCalendarConfirmation": "\"{title}\" löschen?",
   "@deleteCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}}
 }

@@ -1710,12 +1710,14 @@ void main() {
       );
       expect(
         'dialog_background_color'.allMatches(nativeDialogCss).length,
-        3,
+        4,
         reason:
-            'dialog and titlebar share body surface styling while dialog content is '
-            'co-styled',
+            'dialog, titlebar, content, and actions share one surface token',
       );
       expect(nativeDialogCss, isNot(contains('window_background_color')));
+      expect(nativeDialogCss, contains('"border-bottom-width: 0;"'));
+      expect(nativeDialogCss, contains('"border-bottom-style: none;"'));
+      expect(nativeDialogCss, contains('"border-bottom-color: transparent;"'));
       expect(nativeDialogCss, contains('"box-shadow: inset 0 0 0 1px %s;"'));
       expect(
         yaruDecorationCss,
@@ -1746,7 +1748,13 @@ void main() {
         ),
       );
       expect(nativeDialogCss, isNot(contains('"border:')));
-      expect(nativeDialogCss, contains('border-radius: 9px;'));
+      expect('border-radius: %dpx;'.allMatches(nativeDialogCss).length, 1);
+      expect(
+        source,
+        contains('constexpr gint kNativeDialogCornerRadius = 14;'),
+      );
+      expect(source, isNot(contains('"busymax-native-dialog-action"')));
+      expect(source, contains('"busymax-native-dialog-actions"'));
       expect(source, contains('style_native_popover(session->popover)'));
       expect(source, isNot(contains('activate_native_menu_host(')));
       expect(

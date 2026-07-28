@@ -126,8 +126,7 @@ class _EventEditorState extends State<EventEditor> {
     final title = widget.initialDraft.eventId == null
         ? l10n.newEvent
         : l10n.editEvent;
-    final timeFieldsValid =
-        _draft.allDay || (_startTimeValid && _endTimeValid);
+    final timeFieldsValid = _draft.allDay || (_startTimeValid && _endTimeValid);
     final canSave = dirty && _draft.canSave && timeFieldsValid;
     return CallbackShortcuts(
       bindings: {
@@ -213,6 +212,12 @@ class _EventEditorState extends State<EventEditor> {
                     onChanged: (value) {
                       _setStart(_withTime(_draft.start, value), provider);
                     },
+                    timeZone: _draft.startTimeZone,
+                    onTimeZoneChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(startTimeZone: value);
+                      });
+                    },
                     allowEmpty: false,
                     onValidityChanged: (valid) {
                       if (_startTimeValid != valid) {
@@ -239,6 +244,12 @@ class _EventEditorState extends State<EventEditor> {
                     time: _timeString(_draft.end),
                     onChanged: (value) {
                       _setEnd(_withTime(_draft.end, value));
+                    },
+                    timeZone: _draft.endTimeZone,
+                    onTimeZoneChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(endTimeZone: value);
+                      });
                     },
                     allowEmpty: false,
                     onValidityChanged: (valid) {

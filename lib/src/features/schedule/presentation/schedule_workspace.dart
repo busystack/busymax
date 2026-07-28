@@ -2339,6 +2339,7 @@ class _ScheduleBody extends StatelessWidget {
     }
     return switch (mode) {
       ScheduleViewMode.day => ScheduleDayWeekView(
+        key: const ValueKey('schedule-day-planner'),
         range: range,
         selectedDate: selectedDate,
         daysShowed: 1,
@@ -2351,6 +2352,7 @@ class _ScheduleBody extends StatelessWidget {
         onTaskCompletionChanged: onTaskCompletionChanged,
       ),
       ScheduleViewMode.week => ScheduleDayWeekView(
+        key: const ValueKey('schedule-week-planner'),
         range: range,
         selectedDate: selectedDate,
         daysShowed: 7,

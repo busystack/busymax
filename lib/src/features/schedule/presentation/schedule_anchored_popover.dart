@@ -286,23 +286,32 @@ class _SchedulePopoverLayout {
       viewport.height,
       preferredMinimumExtent: preferredMinimumHeight,
     );
-    final availableWidth = math.max(0.0, viewport.width - horizontalMargin * 2);
-    final width = availableWidth < minimumWidth
-        ? availableWidth
-        : math.min(preferredWidth, availableWidth);
-    final maximumLeft = math.max(
+    final safeViewportWidth = math.max(1.0, viewport.width);
+    final safeHorizontalMargin = math.min(
       horizontalMargin,
-      viewport.width - width - horizontalMargin,
+      safeViewportWidth / 2,
+    );
+    final availableWidth = math.max(
+      1.0,
+      safeViewportWidth - safeHorizontalMargin * 2,
+    );
+    final width = math.min(preferredWidth, availableWidth).clamp(
+      1.0,
+      availableWidth,
+    );
+    final maximumLeft = math.max(
+      safeHorizontalMargin,
+      safeViewportWidth - width - safeHorizontalMargin,
     );
     if (anchor == null) {
       return _SchedulePopoverLayout(
         anchor: null,
-        left: ((viewport.width - width) / 2)
-            .clamp(horizontalMargin, maximumLeft)
+        left: ((safeViewportWidth - width) / 2)
+            .clamp(safeHorizontalMargin, maximumLeft)
             .toDouble(),
         width: width,
-        maximumHeight: math.max(0, viewport.height - verticalMargin * 2),
-        horizontalMargin: horizontalMargin,
+        maximumHeight: math.max(1.0, viewport.height - verticalMargin * 2),
+        horizontalMargin: safeHorizontalMargin,
         verticalMargin: verticalMargin,
         arrowSide: BusyMaxPopoverArrowSide.top,
         arrowAlignment: 0.5,
@@ -312,7 +321,9 @@ class _SchedulePopoverLayout {
     final preferredLeft = textDirection == TextDirection.rtl
         ? anchor.right - width
         : anchor.left;
-    final left = preferredLeft.clamp(horizontalMargin, maximumLeft).toDouble();
+    final left = preferredLeft
+        .clamp(safeHorizontalMargin, maximumLeft)
+        .toDouble();
     final spaceAbove = math.max(0.0, anchor.top - gap - verticalMargin);
     final spaceBelow = math.max(
       0.0,
@@ -324,11 +335,13 @@ class _SchedulePopoverLayout {
     final arrowAlignment = width <= 0
         ? 0.5
         : ((anchor.center.dx - left) / width).clamp(0.08, 0.92).toDouble();
+    final resolvedMaximumHeight =
+        math.max(1.0, showBelow ? spaceBelow : spaceAbove);
     return _SchedulePopoverLayout(
       anchor: anchor,
       left: left,
       width: width,
-      maximumHeight: showBelow ? spaceBelow : spaceAbove,
+      maximumHeight: resolvedMaximumHeight,
       horizontalMargin: horizontalMargin,
       verticalMargin: verticalMargin,
       arrowSide: showBelow
