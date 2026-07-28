@@ -363,10 +363,31 @@ void main() {
     );
 
     final searchField = find.widgetWithText(TextField, 'Search locations');
+    final content = find.byKey(const ValueKey('timezone-dialog-content'));
     expect(searchField, findsOneWidget);
+    expect(content, findsOneWidget);
+    final initialContentSize = tester.getSize(content);
+    final dialog = find.byType(Dialog);
+    expect(dialog, findsOneWidget);
+    final initialDialogSize = tester.getSize(dialog);
+
+    await tester.enterText(searchField, 'a');
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(content), initialContentSize);
+    expect(tester.getSize(dialog), initialDialogSize);
+    final resultsList = find.byKey(const ValueKey('timezone-results-list'));
+    expect(resultsList, findsOneWidget);
+    expect(
+      tester.widget<ListView>(resultsList).controller!.position.maxScrollExtent,
+      greaterThan(0),
+    );
+
     await tester.enterText(searchField, 'Vancouver');
     await tester.pumpAndSettle();
 
+    expect(tester.getSize(content), initialContentSize);
+    expect(tester.getSize(dialog), initialDialogSize);
     expect(find.text('America'), findsOneWidget);
     expect(find.textContaining('Vancouver ('), findsOneWidget);
     expect(find.text('America/Vancouver'), findsOneWidget);

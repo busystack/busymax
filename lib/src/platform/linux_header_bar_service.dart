@@ -190,6 +190,13 @@ class BusyMaxHeaderBarTheme {
     required this.popoverShadowColor,
     required this.dialogBackgroundColor,
     required this.dialogOutlineColor,
+    required this.dialogCancelBackgroundColor,
+    required this.dialogCancelHoverColor,
+    required this.dialogCancelActiveColor,
+    required this.dialogDestructiveBackgroundColor,
+    required this.dialogDestructiveHoverColor,
+    required this.dialogDestructiveActiveColor,
+    required this.dialogDestructiveForegroundColor,
     required this.modalBarrierColor,
   });
 
@@ -205,6 +212,13 @@ class BusyMaxHeaderBarTheme {
   final Color popoverShadowColor;
   final Color dialogBackgroundColor;
   final Color dialogOutlineColor;
+  final Color dialogCancelBackgroundColor;
+  final Color dialogCancelHoverColor;
+  final Color dialogCancelActiveColor;
+  final Color dialogDestructiveBackgroundColor;
+  final Color dialogDestructiveHoverColor;
+  final Color dialogDestructiveActiveColor;
+  final Color dialogDestructiveForegroundColor;
   final Color modalBarrierColor;
 
   Map<String, Object> toJson() {
@@ -221,6 +235,23 @@ class BusyMaxHeaderBarTheme {
       'popoverShadowColor': busyMaxCssColor(popoverShadowColor),
       'dialogBackgroundColor': busyMaxCssColor(dialogBackgroundColor),
       'dialogOutlineColor': busyMaxCssColor(dialogOutlineColor),
+      'dialogCancelBackgroundColor': busyMaxCssColor(
+        dialogCancelBackgroundColor,
+      ),
+      'dialogCancelHoverColor': busyMaxCssColor(dialogCancelHoverColor),
+      'dialogCancelActiveColor': busyMaxCssColor(dialogCancelActiveColor),
+      'dialogDestructiveBackgroundColor': busyMaxCssColor(
+        dialogDestructiveBackgroundColor,
+      ),
+      'dialogDestructiveHoverColor': busyMaxCssColor(
+        dialogDestructiveHoverColor,
+      ),
+      'dialogDestructiveActiveColor': busyMaxCssColor(
+        dialogDestructiveActiveColor,
+      ),
+      'dialogDestructiveForegroundColor': busyMaxCssColor(
+        dialogDestructiveForegroundColor,
+      ),
       'modalBarrierColor': busyMaxCssColor(modalBarrierColor),
     };
   }
@@ -241,11 +272,21 @@ class BusyMaxHeaderBarTheme {
             other.popoverShadowColor == popoverShadowColor &&
             other.dialogBackgroundColor == dialogBackgroundColor &&
             other.dialogOutlineColor == dialogOutlineColor &&
+            other.dialogCancelBackgroundColor == dialogCancelBackgroundColor &&
+            other.dialogCancelHoverColor == dialogCancelHoverColor &&
+            other.dialogCancelActiveColor == dialogCancelActiveColor &&
+            other.dialogDestructiveBackgroundColor ==
+                dialogDestructiveBackgroundColor &&
+            other.dialogDestructiveHoverColor == dialogDestructiveHoverColor &&
+            other.dialogDestructiveActiveColor ==
+                dialogDestructiveActiveColor &&
+            other.dialogDestructiveForegroundColor ==
+                dialogDestructiveForegroundColor &&
             other.modalBarrierColor == modalBarrierColor;
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     preferDark,
     highContrast,
     windowBackgroundColor,
@@ -258,8 +299,15 @@ class BusyMaxHeaderBarTheme {
     popoverShadowColor,
     dialogBackgroundColor,
     dialogOutlineColor,
+    dialogCancelBackgroundColor,
+    dialogCancelHoverColor,
+    dialogCancelActiveColor,
+    dialogDestructiveBackgroundColor,
+    dialogDestructiveHoverColor,
+    dialogDestructiveActiveColor,
+    dialogDestructiveForegroundColor,
     modalBarrierColor,
-  );
+  ]);
 }
 
 /// The complete, screen-owned presentation state of the native header bar.

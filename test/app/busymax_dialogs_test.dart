@@ -94,8 +94,17 @@ void main() {
       expect(titleBarTheme.shadowColor, Colors.transparent);
       expect(confirmation.backgroundColor, colors.dialog);
       expect(confirmation.surfaceTintColor, colors.dialog);
+      expect(confirmation.clipBehavior, Clip.antiAlias);
       expect(cancelButton.style, isNull);
       expect(discardButton.style?.shape?.resolve({}), isNull);
+      expect(
+        theme.filledButtonTheme.style?.backgroundColor?.resolve({}),
+        colors.control,
+      );
+      expect(
+        discardButton.style?.backgroundColor?.resolve({}),
+        theme.colorScheme.error,
+      );
       expect(
         standardShape.borderRadius,
         BorderRadius.circular(kYaruButtonRadius),

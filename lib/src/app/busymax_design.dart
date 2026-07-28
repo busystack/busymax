@@ -3651,6 +3651,7 @@ class BusyMaxConfirmDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: dialogSurface,
       surfaceTintColor: dialogSurface,
+      clipBehavior: Clip.antiAlias,
       scrollable: true,
       titlePadding: EdgeInsets.zero,
       title: BusyMaxDialogTitleBar(

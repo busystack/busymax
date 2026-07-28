@@ -1277,6 +1277,8 @@ void main() {
       expect(runner, contains('GTK_DIALOG_DESTROY_WITH_PARENT'));
       expect(runner, contains('GTK_STYLE_CLASS_DESTRUCTIVE_ACTION'));
       expect(runner, contains('GTK_STYLE_CLASS_SUGGESTED_ACTION'));
+      expect(runner, contains('kNativeDialogCancelStyleClass'));
+      expect(runner, contains('kNativeDialogDestructiveStyleClass'));
       expect(
         runner,
         contains(
@@ -1297,6 +1299,7 @@ void main() {
       );
       expect(dialogs, contains('NativeDialogService nativeDialogService'));
       expect(confirmBody, contains('return AlertDialog('));
+      expect(confirmBody, contains('clipBehavior: Clip.antiAlias'));
       expect(confirmBody, isNot(contains('return BusyMaxDialogShell(')));
     });
 
@@ -1749,10 +1752,16 @@ void main() {
       );
       expect(nativeDialogCss, isNot(contains('"border:')));
       expect('border-radius: %dpx;'.allMatches(nativeDialogCss).length, 1);
+      expect(nativeDialogCss, contains('"border-radius: 0 0 %dpx %dpx;"'));
       expect(
         source,
         contains('constexpr gint kNativeDialogCornerRadius = 14;'),
       );
+      expect(source, contains('"busymax-native-dialog-cancel"'));
+      expect(source, contains('"busymax-native-dialog-destructive"'));
+      expect(nativeDialogCss, contains('dialog_cancel_background_color'));
+      expect(nativeDialogCss, contains('dialog_destructive_background_color'));
+      expect(nativeDialogCss, contains('dialog_destructive_foreground_color'));
       expect(source, isNot(contains('"busymax-native-dialog-action"')));
       expect(source, contains('"busymax-native-dialog-actions"'));
       expect(source, contains('style_native_popover(session->popover)'));

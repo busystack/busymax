@@ -76,6 +76,10 @@ constexpr char kHeaderSearchEntryStyleClass[] =
 constexpr char kHeaderModalOpenStyleClass[] = "busymax-modal-open";
 constexpr char kHeaderModalBarrierStyleClass[] = "busymax-modal-barrier";
 constexpr char kNativeDialogStyleClass[] = "busymax-native-dialog";
+constexpr char kNativeDialogCancelStyleClass[] =
+    "busymax-native-dialog-cancel";
+constexpr char kNativeDialogDestructiveStyleClass[] =
+    "busymax-native-dialog-destructive";
 // Mirrors Yaru's shared window/dialog radius used by the Flutter fallback.
 constexpr gint kNativeDialogCornerRadius = 14;
 constexpr char kNativePopoverStyleClass[] = "busymax-native-popover";
@@ -108,6 +112,13 @@ struct _MyApplication {
   gchar* header_bar_menu_hover_color;
   gchar* header_bar_dialog_background_color;
   gchar* header_bar_dialog_outline_color;
+  gchar* header_bar_dialog_cancel_background_color;
+  gchar* header_bar_dialog_cancel_hover_color;
+  gchar* header_bar_dialog_cancel_active_color;
+  gchar* header_bar_dialog_destructive_background_color;
+  gchar* header_bar_dialog_destructive_hover_color;
+  gchar* header_bar_dialog_destructive_active_color;
+  gchar* header_bar_dialog_destructive_foreground_color;
   gchar* header_bar_modal_barrier_color;
   gboolean header_bar_high_contrast;
   gint header_bar_sidebar_width;
@@ -544,8 +555,14 @@ static void handle_native_confirmation(FlMethodCall* method_call,
     gtk_style_context_add_class(gtk_widget_get_style_context(actions),
                                 "busymax-native-dialog-actions");
   }
+  gtk_style_context_add_class(gtk_widget_get_style_context(cancel_button),
+                              kNativeDialogCancelStyleClass);
   GtkStyleContext* confirm_context =
       gtk_widget_get_style_context(confirm_button);
+  if (destructive) {
+    gtk_style_context_add_class(confirm_context,
+                                kNativeDialogDestructiveStyleClass);
+  }
   gtk_style_context_add_class(
       confirm_context, destructive ? GTK_STYLE_CLASS_DESTRUCTIVE_ACTION
                                    : GTK_STYLE_CLASS_SUGGESTED_ACTION);
@@ -1258,6 +1275,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       ".%s,.%s:backdrop {"
       "background-color: %s;"
       "background-image: none;"
+      "border-radius: %dpx;"
       "}"
       ".%s headerbar,"
       ".%s headerbar:backdrop {"
@@ -1272,12 +1290,12 @@ static void refresh_header_bar_css(MyApplication* self) {
       ".%s .busymax-native-dialog-content:backdrop {"
       "background-color: %s;"
       "background-image: none;"
-      "border-radius: %dpx;"
       "}"
       ".%s .busymax-native-dialog-actions,"
       ".%s .busymax-native-dialog-actions:backdrop {"
       "background-color: %s;"
       "background-image: none;"
+      "border-radius: 0 0 %dpx %dpx;"
       "}"
       ".%s.csd:not(.solid-csd):not(.maximized):not(.fullscreen) {"
       // GTK 3 has no named modern dialog-outline role. Flutter supplies the
@@ -1286,14 +1304,76 @@ static void refresh_header_bar_css(MyApplication* self) {
       "box-shadow: inset 0 0 0 1px %s;"
       "}",
       kNativeDialogStyleClass, kNativeDialogStyleClass,
-      dialog_background_color, kNativeDialogStyleClass,
+      dialog_background_color, kNativeDialogCornerRadius,
+      kNativeDialogStyleClass,
       kNativeDialogStyleClass, dialog_background_color,
       kNativeDialogStyleClass, kNativeDialogStyleClass, dialog_background_color,
+      kNativeDialogStyleClass, kNativeDialogStyleClass,
+      dialog_background_color, kNativeDialogCornerRadius,
       kNativeDialogCornerRadius, kNativeDialogStyleClass,
-      kNativeDialogStyleClass, dialog_background_color,
-      kNativeDialogStyleClass,
       css_color_or(self->header_bar_dialog_outline_color,
                    kDefaultDialogOutlineColor));
+  const gboolean has_native_dialog_button_colors =
+      is_css_color_token(self->header_bar_dialog_cancel_background_color) &&
+      is_css_color_token(self->header_bar_dialog_cancel_hover_color) &&
+      is_css_color_token(self->header_bar_dialog_cancel_active_color) &&
+      is_css_color_token(
+          self->header_bar_dialog_destructive_background_color) &&
+      is_css_color_token(self->header_bar_dialog_destructive_hover_color) &&
+      is_css_color_token(self->header_bar_dialog_destructive_active_color) &&
+      is_css_color_token(self->header_bar_dialog_destructive_foreground_color);
+  g_autofree gchar* native_dialog_button_css =
+      has_native_dialog_button_colors
+          ? g_strdup_printf(
+                ".%s button.%s,"
+                ".%s button.%s:backdrop {"
+                "background-color: %s;"
+                "background-image: none;"
+                "color: %s;"
+                "}"
+                ".%s button.%s:hover {"
+                "background-color: %s;"
+                "background-image: none;"
+                "}"
+                ".%s button.%s:active {"
+                "background-color: %s;"
+                "background-image: none;"
+                "}"
+                ".%s button.%s,"
+                ".%s button.%s:backdrop {"
+                "background-color: %s;"
+                "background-image: none;"
+                "color: %s;"
+                "}"
+                ".%s button.%s:hover {"
+                "background-color: %s;"
+                "background-image: none;"
+                "}"
+                ".%s button.%s:active {"
+                "background-color: %s;"
+                "background-image: none;"
+                "}",
+                kNativeDialogStyleClass, kNativeDialogCancelStyleClass,
+                kNativeDialogStyleClass, kNativeDialogCancelStyleClass,
+                self->header_bar_dialog_cancel_background_color,
+                foreground_color, kNativeDialogStyleClass,
+                kNativeDialogCancelStyleClass,
+                self->header_bar_dialog_cancel_hover_color,
+                kNativeDialogStyleClass, kNativeDialogCancelStyleClass,
+                self->header_bar_dialog_cancel_active_color,
+                kNativeDialogStyleClass,
+                kNativeDialogDestructiveStyleClass,
+                kNativeDialogStyleClass,
+                kNativeDialogDestructiveStyleClass,
+                self->header_bar_dialog_destructive_background_color,
+                self->header_bar_dialog_destructive_foreground_color,
+                kNativeDialogStyleClass,
+                kNativeDialogDestructiveStyleClass,
+                self->header_bar_dialog_destructive_hover_color,
+                kNativeDialogStyleClass,
+                kNativeDialogDestructiveStyleClass,
+                self->header_bar_dialog_destructive_active_color)
+          : g_strdup("");
   const gchar* modal_barrier_color = css_color_or(
       self->header_bar_modal_barrier_color, kDefaultModalBarrierColor);
   const gboolean use_legacy_yaru_compatibility =
@@ -1391,6 +1471,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}"
+      "%s"
       "%s"
       "%s"
       "%s"
@@ -1526,7 +1607,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-image: none;"
       "}",
       window_background_color, yaru_window_decoration_css,
-      native_dialog_css,
+      native_dialog_css, native_dialog_button_css,
       native_search_geometry_css,
       background_color, foreground_color,
       sidebar_background_color, foreground_color, sidebar_border_color,
@@ -1601,6 +1682,25 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
                       fl_lookup_string_arg(args, "dialogBackgroundColor"));
   set_css_color_field(&self->header_bar_dialog_outline_color,
                       fl_lookup_string_arg(args, "dialogOutlineColor"));
+  set_css_color_field(
+      &self->header_bar_dialog_cancel_background_color,
+      fl_lookup_string_arg(args, "dialogCancelBackgroundColor"));
+  set_css_color_field(&self->header_bar_dialog_cancel_hover_color,
+                      fl_lookup_string_arg(args, "dialogCancelHoverColor"));
+  set_css_color_field(&self->header_bar_dialog_cancel_active_color,
+                      fl_lookup_string_arg(args, "dialogCancelActiveColor"));
+  set_css_color_field(
+      &self->header_bar_dialog_destructive_background_color,
+      fl_lookup_string_arg(args, "dialogDestructiveBackgroundColor"));
+  set_css_color_field(
+      &self->header_bar_dialog_destructive_hover_color,
+      fl_lookup_string_arg(args, "dialogDestructiveHoverColor"));
+  set_css_color_field(
+      &self->header_bar_dialog_destructive_active_color,
+      fl_lookup_string_arg(args, "dialogDestructiveActiveColor"));
+  set_css_color_field(
+      &self->header_bar_dialog_destructive_foreground_color,
+      fl_lookup_string_arg(args, "dialogDestructiveForegroundColor"));
   set_css_color_field(&self->header_bar_modal_barrier_color,
                       fl_lookup_string_arg(args, "modalBarrierColor"));
   set_main_flutter_view_background(self);
@@ -4071,6 +4171,15 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_bar_menu_hover_color, g_free);
   g_clear_pointer(&self->header_bar_dialog_background_color, g_free);
   g_clear_pointer(&self->header_bar_dialog_outline_color, g_free);
+  g_clear_pointer(&self->header_bar_dialog_cancel_background_color, g_free);
+  g_clear_pointer(&self->header_bar_dialog_cancel_hover_color, g_free);
+  g_clear_pointer(&self->header_bar_dialog_cancel_active_color, g_free);
+  g_clear_pointer(&self->header_bar_dialog_destructive_background_color,
+                  g_free);
+  g_clear_pointer(&self->header_bar_dialog_destructive_hover_color, g_free);
+  g_clear_pointer(&self->header_bar_dialog_destructive_active_color, g_free);
+  g_clear_pointer(&self->header_bar_dialog_destructive_foreground_color,
+                  g_free);
   g_clear_pointer(&self->header_bar_modal_barrier_color, g_free);
   g_clear_pointer(&self->header_view_mode, g_free);
   g_clear_pointer(&self->header_day_label, g_free);
@@ -4131,6 +4240,13 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_dialog_background_color = nullptr;
   self->header_bar_dialog_outline_color =
       g_strdup(kDefaultDialogOutlineColor);
+  self->header_bar_dialog_cancel_background_color = nullptr;
+  self->header_bar_dialog_cancel_hover_color = nullptr;
+  self->header_bar_dialog_cancel_active_color = nullptr;
+  self->header_bar_dialog_destructive_background_color = nullptr;
+  self->header_bar_dialog_destructive_hover_color = nullptr;
+  self->header_bar_dialog_destructive_active_color = nullptr;
+  self->header_bar_dialog_destructive_foreground_color = nullptr;
   self->header_bar_modal_barrier_color = nullptr;
   self->header_bar_high_contrast = FALSE;
   self->header_bar_sidebar_width = 300;

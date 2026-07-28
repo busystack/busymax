@@ -205,6 +205,15 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     final modalBarrierColor = busyMaxModalBarrierColor(context);
     final theme = Theme.of(context);
     final preferDark = theme.brightness == Brightness.dark;
+    final destructiveBackground = theme.colorScheme.error;
+    final destructiveForeground = theme.colorScheme.onError;
+    Color destructiveState(double overlayAlpha) {
+      return Color.alphaBlend(
+        destructiveForeground.withValues(alpha: overlayAlpha),
+        destructiveBackground,
+      );
+    }
+
     final labels = BusyMaxHeaderBarLabels(
       today: l10n.today,
       day: l10n.viewDay,
@@ -249,6 +258,13 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           ),
           dialogBackgroundColor: colors.dialog,
           dialogOutlineColor: colors.dialogOutline,
+          dialogCancelBackgroundColor: colors.control,
+          dialogCancelHoverColor: colors.controlHover,
+          dialogCancelActiveColor: colors.controlActive,
+          dialogDestructiveBackgroundColor: destructiveBackground,
+          dialogDestructiveHoverColor: destructiveState(0.08),
+          dialogDestructiveActiveColor: destructiveState(0.12),
+          dialogDestructiveForegroundColor: destructiveForeground,
           modalBarrierColor: modalBarrierColor,
         ),
       ),
