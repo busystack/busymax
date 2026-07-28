@@ -272,14 +272,16 @@ void main() {
         expect(compactAgenda, contains('ScheduleProjection.colorForItem'));
         expect(compactAgenda, contains('leading: _CompactAgendaRowMarker'));
 
-        expect(dateTimeFields, contains('InputDatePickerFormField'));
-        expect(dateTimeFields, contains('fieldLabelText: widget.label'));
-        expect(dateTimeFields, contains('entry: TextFormField('));
+        expect(dateTimeFields, contains('MiniCalendar('));
+        expect(dateTimeFields, contains('items: const <ScheduleItem>[]'));
+        expect(
+          dateTimeFields,
+          contains('onSelected: (date) => _setSelectedDate'),
+        );
         expect(
           'busyMaxGroupedTextFieldDecoration'.allMatches(dateTimeFields).length,
           greaterThanOrEqualTo(2),
         );
-        expect(dateTimeFields, contains('labelText: widget.label'));
         expect(dateTimeFields, contains('parseDesktopTimeInput'));
         expect(dateTimeFields, isNot(contains('_withoutFloatingEntryLabel')));
         expect(dateTimeFields, isNot(contains('_BusyMaxTimeTextEntry')));
@@ -1197,7 +1199,13 @@ void main() {
       expect(nativeMenu, contains('g_simple_action_set_enabled('));
       expect(nativeMenu, contains('g_simple_action_new_stateful('));
       expect(nativeMenu, contains('g_object_ref(G_OBJECT(method_call))'));
-      expect(nativeMenu, contains('gtk_popover_popup(session->popover)'));
+      expect(
+        nativeMenu,
+        anyOf(
+          contains('gtk_popover_popup(session->popover)'),
+          contains('gtk_popover_popup(GTK_POPOVER(session->popover))'),
+        ),
+      );
       expect(nativeMenu, isNot(contains('gtk_widget_show(session->popover)')));
       expect(
         nativeMenu,
@@ -1688,7 +1696,7 @@ void main() {
       expect(headerMenuShadowCss, isNot(contains('border-radius')));
       expect(source, contains('"busymax-native-dialog"'));
       expect(source, contains('style_native_dialog(GtkWidget* dialog)'));
-      expect('style_native_dialog(dialog);'.allMatches(source).length, 2);
+      expect('style_native_dialog(dialog);'.allMatches(source).length, 3);
       expect(
         nativeDialogCss,
         contains('g_autofree gchar* native_dialog_css ='),
@@ -1702,8 +1710,10 @@ void main() {
       );
       expect(
         'dialog_background_color'.allMatches(nativeDialogCss).length,
-        2,
-        reason: 'the native dialog body and titlebar share one surface role',
+        3,
+        reason:
+            'dialog and titlebar share body surface styling while dialog content is '
+            'co-styled',
       );
       expect(nativeDialogCss, isNot(contains('window_background_color')));
       expect(nativeDialogCss, contains('"box-shadow: inset 0 0 0 1px %s;"'));
@@ -1736,7 +1746,7 @@ void main() {
         ),
       );
       expect(nativeDialogCss, isNot(contains('"border:')));
-      expect(nativeDialogCss, isNot(contains('border-radius')));
+      expect(nativeDialogCss, contains('border-radius: 9px;'));
       expect(source, contains('style_native_popover(session->popover)'));
       expect(source, isNot(contains('activate_native_menu_host(')));
       expect(

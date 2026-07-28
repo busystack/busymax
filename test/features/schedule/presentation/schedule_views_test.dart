@@ -257,7 +257,10 @@ void main() {
           .descendant(
             of: find.byType(ScheduleYearView),
             matching: find.byWidgetPredicate(
-              (widget) => widget is ColoredBox && widget.child is GridView,
+              (widget) =>
+                  widget is ColoredBox &&
+                  widget.color == workspaceColor &&
+                  widget.child is Padding,
             ),
           )
           .first,
@@ -3196,8 +3199,11 @@ void main() {
     expect(yearView, contains('ScheduleProjection.groupByDay(items)'));
     expect(yearView, contains('ScheduleProjection.colorForItem'));
     expect(yearView, contains('final monthWidth ='));
-    expect(yearView, contains('_monthPanelHeight(monthWidth)'));
-    expect(yearView, contains('mainAxisExtent: monthHeight'));
+    expect(yearView, contains('_compactMonthPanelHeight('));
+    expect(yearView, contains('Wrap('));
+    expect(yearView, contains('children: ['));
+    expect(yearView, contains('spacing: BusyMaxSpacing.md'));
+    expect(yearView, contains('runSpacing: BusyMaxSpacing.md'));
     expect(yearView, contains('ColoredBox('));
     expect(
       yearView,
@@ -3213,7 +3219,7 @@ void main() {
     expect(yearView, contains('firstWeekday'));
     expect(yearView, contains('onMonthSelected(month)'));
     expect(yearView, isNot(contains('height: 142')));
-    expect(yearView, isNot(contains('availableHeight')));
+    expect(yearView, contains('availableHeight'));
     expect(yearView, isNot(contains('borderColor')));
     expect(yearView, isNot(contains('RoundedRectangleBorder(')));
     expect(yearView, isNot(contains('TextButton(')));

@@ -19,6 +19,7 @@ class ScheduleYearView extends StatelessWidget {
     required this.onDaySelected,
     required this.onMonthSelected,
     required this.onCreateAtDay,
+    this.compact = false,
   });
 
   final DateTime selectedDate;
@@ -27,6 +28,7 @@ class ScheduleYearView extends StatelessWidget {
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onMonthSelected;
   final ValueChanged<DateTime> onCreateAtDay;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -35,37 +37,46 @@ class ScheduleYearView extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = _columnCount(constraints.maxWidth);
+        final columns = _columnCount(constraints.maxWidth, compact: compact);
         final horizontalPadding = BusyMaxSpacing.md * 2;
         final columnGaps = BusyMaxSpacing.md * (columns - 1);
         final monthWidth =
             (constraints.maxWidth - horizontalPadding - columnGaps) / columns;
-        final monthHeight = _monthPanelHeight(monthWidth);
+        final rows = (DateTime.monthsPerYear + columns - 1) ~/ columns;
+        final monthHeight = constraints.maxHeight.isFinite
+            ? _compactMonthPanelHeight(
+                monthWidth: monthWidth,
+                availableHeight: constraints.maxHeight - horizontalPadding,
+                rows: rows,
+                compact: compact,
+              )
+            : _monthPanelHeight(monthWidth);
 
         return ColoredBox(
           color: BusyMaxSurfaceColors.of(context).window,
-          child: GridView.builder(
+          child: Padding(
             padding: const EdgeInsets.all(BusyMaxSpacing.md),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              mainAxisSpacing: BusyMaxSpacing.md,
-              crossAxisSpacing: BusyMaxSpacing.md,
-              mainAxisExtent: monthHeight,
+            child: Wrap(
+              spacing: BusyMaxSpacing.md,
+              runSpacing: BusyMaxSpacing.md,
+              children: [
+                for (var index = 0; index < DateTime.monthsPerYear; index++)
+                  SizedBox(
+                    width: monthWidth,
+                    height: monthHeight,
+                    child: _YearMonthPanel(
+                      month: DateTime(selectedDate.year, index + 1),
+                      selectedDate: selectedDate,
+                      groupedItems: grouped,
+                      firstWeekday: firstWeekday,
+                      locale: locale,
+                      onDaySelected: onDaySelected,
+                      onMonthSelected: onMonthSelected,
+                      onCreateAtDay: onCreateAtDay,
+                    ),
+                  ),
+              ],
             ),
-            itemCount: DateTime.monthsPerYear,
-            itemBuilder: (context, index) {
-              final month = DateTime(selectedDate.year, index + 1);
-              return _YearMonthPanel(
-                month: month,
-                selectedDate: selectedDate,
-                groupedItems: grouped,
-                firstWeekday: firstWeekday,
-                locale: locale,
-                onDaySelected: onDaySelected,
-                onMonthSelected: onMonthSelected,
-                onCreateAtDay: onCreateAtDay,
-              );
-            },
           ),
         );
       },
@@ -96,11 +107,20 @@ class _YearMonthPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final monthLabel = '${DateFormat.MMMM(locale).format(month)} ${month.year}';
     return BusyMaxGroupedSurface(
       child: Column(
         children: [
           BusyMaxActionRow(
-            title: DateFormat.MMMM(locale).format(month),
+            title: monthLabel,
+            titleWidget: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                monthLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             trailing: const Icon(YaruIcons.pan_end, size: BusyMaxSizes.iconSm),
             onTap: () => onMonthSelected(month),
           ),
@@ -344,7 +364,7 @@ class _YearDayIndicators extends StatelessWidget {
   }
 }
 
-int _columnCount(double width) {
+int _columnCount(double width, {required bool compact}) {
   if (width >= 1120) {
     return 4;
   }
@@ -354,11 +374,33 @@ int _columnCount(double width) {
   if (width >= 520) {
     return 2;
   }
+  if (compact) {
+    if (width >= 420) {
+      return 3;
+    }
+    return 2;
+  }
   return 1;
 }
 
 double _monthPanelHeight(double width) {
   return width < 280 ? 276 : math.min(340, math.max(292, width * 0.72));
+}
+
+double _compactMonthPanelHeight({
+  required double monthWidth,
+  required double availableHeight,
+  required int rows,
+  required bool compact,
+}) {
+  if (!compact ||
+      !availableHeight.isFinite ||
+      availableHeight <= 0 ||
+      rows <= 0) {
+    return _monthPanelHeight(monthWidth);
+  }
+  final rowSpacing = BusyMaxSpacing.md * (rows - 1);
+  return (availableHeight - rowSpacing).clamp(0.0, double.infinity) / rows;
 }
 
 List<DateTime?> _monthCells(DateTime month, int firstWeekday) {

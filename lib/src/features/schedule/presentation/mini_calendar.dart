@@ -18,8 +18,9 @@ class MiniCalendar extends StatelessWidget {
     required this.firstWeekday,
     this.items = const [],
     required this.onSelected,
-    required this.onMonthSelected,
-    required this.onYearSelected,
+    this.showHeader = true,
+    this.onMonthSelected,
+    this.onYearSelected,
     required this.onWeekSelected,
   });
 
@@ -27,8 +28,9 @@ class MiniCalendar extends StatelessWidget {
   final int firstWeekday;
   final List<ScheduleItem> items;
   final ValueChanged<DateTime> onSelected;
-  final ValueChanged<DateTime> onMonthSelected;
-  final ValueChanged<DateTime> onYearSelected;
+  final bool showHeader;
+  final ValueChanged<DateTime>? onMonthSelected;
+  final ValueChanged<DateTime>? onYearSelected;
   final ValueChanged<DateTime> onWeekSelected;
 
   @override
@@ -48,43 +50,48 @@ class MiniCalendar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _MiniCalendarStepper(
-                  label: DateFormat.MMMM(locale).format(selectedDate),
-                  previousTooltip: l10n.previousMonth,
-                  nextTooltip: l10n.nextMonth,
-                  onPrevious: () => onSelected(
-                    DateTime(selectedDate.year, selectedDate.month - 1),
-                  ),
-                  onNext: () => onSelected(
-                    DateTime(selectedDate.year, selectedDate.month + 1),
-                  ),
-                  labelTooltip: l10n.openMonthView,
-                  onLabelPressed: () => onMonthSelected(first),
+          if (showHeader) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniCalendarStepper(
+                    label: DateFormat.MMMM(locale).format(selectedDate),
+                    previousTooltip: l10n.previousMonth,
+                    nextTooltip: l10n.nextMonth,
+                    onPrevious: () => onSelected(
+                      DateTime(selectedDate.year, selectedDate.month - 1),
+                    ),
+                    onNext: () => onSelected(
+                      DateTime(selectedDate.year, selectedDate.month + 1),
+                    ),
+                    labelTooltip: l10n.openMonthView,
+                    onLabelPressed: onMonthSelected == null
+                        ? null
+                        : () => onMonthSelected!(first),
                 ),
               ),
-              const SizedBox(width: BusyMaxSpacing.sm),
-              Expanded(
-                child: _MiniCalendarStepper(
-                  label: '${selectedDate.year}',
-                  previousTooltip: l10n.previousYear,
-                  nextTooltip: l10n.nextYear,
-                  onPrevious: () => onSelected(
-                    DateTime(selectedDate.year - 1, selectedDate.month),
+                const SizedBox(width: BusyMaxSpacing.sm),
+                Expanded(
+                  child: _MiniCalendarStepper(
+                    label: '${selectedDate.year}',
+                    previousTooltip: l10n.previousYear,
+                    nextTooltip: l10n.nextYear,
+                    onPrevious: () => onSelected(
+                      DateTime(selectedDate.year - 1, selectedDate.month),
+                    ),
+                    onNext: () => onSelected(
+                      DateTime(selectedDate.year + 1, selectedDate.month),
+                    ),
+                    labelTooltip: l10n.openYearView,
+                    onLabelPressed: onYearSelected == null
+                        ? null
+                        : () => onYearSelected!(DateTime(selectedDate.year)),
                   ),
-                  onNext: () => onSelected(
-                    DateTime(selectedDate.year + 1, selectedDate.month),
-                  ),
-                  labelTooltip: l10n.openYearView,
-                  onLabelPressed: () =>
-                      onYearSelected(DateTime(selectedDate.year)),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: BusyMaxSpacing.sm),
+              ],
+            ),
+            const SizedBox(height: BusyMaxSpacing.sm),
+          ],
           LayoutBuilder(
             builder: (context, constraints) {
               final weekNumberExtent = math.min(
@@ -483,24 +490,28 @@ class _MiniCalendarStepper extends StatelessWidget {
 
   Widget _label(BuildContext context) {
     final action = onLabelPressed;
+    final colorScheme = Theme.of(context).colorScheme;
+    final labelStyle =
+        (busyMaxSectionHeaderStyle(context) ??
+                Theme.of(context).textTheme.titleSmall)
+            ?.copyWith(color: colorScheme.onSurface);
     if (action == null) {
       return Text(
         label,
         textAlign: TextAlign.center,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: busyMaxSectionHeaderStyle(context),
+        style: labelStyle,
       );
     }
 
-    final colorScheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: labelTooltip ?? label,
       child: TextButton(
         onPressed: action,
         style: busyMaxHeaderTextButtonStyle(
           context,
-          foregroundColor: colorScheme.onSurfaceVariant,
+          foregroundColor: colorScheme.onSurface,
           backgroundColor: busyMaxHeaderButtonBackground(context),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         ),
@@ -508,7 +519,7 @@ class _MiniCalendarStepper extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: busyMaxSectionHeaderStyle(context),
+          style: labelStyle,
         ),
       ),
     );

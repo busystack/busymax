@@ -72,7 +72,7 @@ class NewTaskEditorPanel extends ConsumerStatefulWidget {
     this.initialListId,
     this.initialDueUtc,
     this.categorySuggestionsForAccount,
-    this.useNativeDatePicker = true,
+    this.useNativeDatePicker = false,
   });
 
   final List<AccountEntity> accounts;

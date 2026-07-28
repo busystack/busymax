@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
+import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -113,7 +114,7 @@ void main() {
       expect(find.text('Enter date'), findsNothing);
       expect(find.text('Enter time'), findsNothing);
       expect(find.byIcon(YaruIcons.calendar), findsOneWidget);
-      expect(find.byIcon(Icons.schedule), findsNothing);
+      expect(find.byIcon(YaruIcons.clock), findsOneWidget);
       expect(find.byIcon(Icons.edit_outlined), findsNothing);
     },
   );
@@ -214,7 +215,109 @@ void main() {
     expect(changes, isEmpty);
   });
 
-  testWidgets('fallback date picker follows the shared modal policy', (
+  testWidgets('time row uses native time picker channel', (tester) async {
+    const channel = MethodChannel(nativeDateTimePickerChannelName);
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          expect(call.method, 'pickTime');
+          expect(call.arguments, containsPair('initialTime', '09:30'));
+          return Future.value('10:45');
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+
+    String? pickedTime;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopTimeValueRow(
+            label: 'Due time',
+            time: '09:30',
+            useNativePicker: true,
+            onChanged: (value) => pickedTime = value,
+            onValidityChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(YaruIconButton), findsOneWidget);
+    await tester.tap(find.byType(YaruIconButton).first);
+    await tester.pumpAndSettle();
+    expect(calls, hasLength(1));
+    expect(pickedTime, '10:45');
+    expect(calls, hasLength(1));
+    expect(find.byType(BusyMaxDialogShell), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('fallback time picker opens as tooltip-style controls', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopTimeValueRow(
+            label: 'Due time',
+            time: '09:30',
+            onChanged: (_) {},
+            onValidityChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(YaruIcons.clock));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+    expect(find.byType(BusyMaxDialogShell), findsNothing);
+    expect(find.byIcon(Icons.add), findsNWidgets(2));
+    expect(find.byIcon(Icons.remove), findsNWidgets(2));
+    expect(find.text(':'), findsOneWidget);
+    expect(find.byIcon(Icons.public), findsOneWidget);
+
+    expect(find.byType(FilledButton), findsAny);
+    expect(find.byIcon(Icons.public), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('fallback time picker closes when clicking outside', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Center(
+            child: DesktopTimeValueRow(
+              label: 'Due time',
+              time: '09:30',
+              onChanged: (_) {},
+              onValidityChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(YaruIcons.clock));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+
+    final bodySize = tester.getSize(find.byType(Scaffold));
+    await tester.tapAt(Offset(bodySize.width - 1, bodySize.height - 1));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BusyMaxContentPopoverSurface), findsNothing);
+  });
+
+  testWidgets('fallback date picker opens as an anchored popover', (
     tester,
   ) async {
     late BuildContext hostContext;
@@ -236,76 +339,83 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(BusyMaxDialogShell), findsOneWidget);
-    final barriers = tester.widgetList<ModalBarrier>(find.byType(ModalBarrier));
-    expect(
-      barriers.any(
-        (barrier) => barrier.color == busyMaxModalBarrierColor(hostContext),
-      ),
-      isTrue,
-    );
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+    expect(find.byType(ModalBarrier), findsAtLeastNWidgets(1));
 
-    await tester.tap(find.text('Cancel'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(await result, isNull);
   });
 
-  testWidgets(
-    'fallback date entry is populated and contextual before receiving focus',
-    (tester) async {
-      late BuildContext hostContext;
-      await tester.pumpWidget(
-        localizedTestApp(
-          child: Builder(
-            builder: (context) {
-              hostContext = context;
-              return const Scaffold(body: SizedBox());
-            },
+  testWidgets('fallback date picker is positioned from the trigger', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Center(
+            child: DesktopDateValueRow(
+              label: 'Due date',
+              date: '2026-07-22',
+              onChanged: _ignoreString,
+            ),
           ),
         ),
-      );
+      ),
+    );
 
-      final result = showBusyMaxDateValueDialog(
-        hostContext,
-        label: 'Due date',
-        initialDate: '2026-07-22',
-      );
-      await tester.pumpAndSettle();
+    final trigger = find.byType(YaruIconButton).first;
+    final triggerRect = tester.getRect(trigger);
+    await tester.tap(trigger);
+    await tester.pumpAndSettle();
 
-      final entryFinder = find.descendant(
-        of: find.byType(InputDatePickerFormField),
-        matching: find.byType(TextFormField),
-      );
-      final entry = tester.widget<TextFormField>(entryFinder);
-      final textField = tester.widget<TextField>(
-        find.descendant(
-          of: find.byType(InputDatePickerFormField),
-          matching: find.byType(TextField),
+    final popoverRect = tester.getRect(
+      find.byType(BusyMaxContentPopoverSurface).first,
+    );
+    expect(popoverRect.topLeft.dx, greaterThan(0));
+    expect(popoverRect.topLeft.dy, greaterThan(0));
+    expect(
+      (triggerRect.center.dx - popoverRect.center.dx).abs(),
+      lessThan(popoverRect.width / 2 + 10),
+    );
+    expect(
+      (triggerRect.center.dy - popoverRect.center.dy).abs(),
+      greaterThan(0),
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('fallback date picker closes when tapping outside', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Center(
+            child: DesktopDateValueRow(
+              label: 'Due date',
+              date: '2026-07-22',
+              onChanged: _ignoreString,
+            ),
+          ),
         ),
-      );
-      final localizations = MaterialLocalizations.of(
-        tester.element(find.byType(InputDatePickerFormField)),
-      );
+      ),
+    );
 
-      expect(
-        entry.controller?.text,
-        localizations.formatCompactDate(DateTime(2026, 7, 22)),
-      );
-      expect(textField.decoration?.labelText, 'Due date');
-      expect(textField.focusNode?.hasFocus ?? false, isFalse);
-      expect(
-        textField.decoration?.labelText,
-        isNot(localizations.dateInputLabel),
-      );
-      expect(find.text(localizations.dateInputLabel), findsNothing);
+    await tester.tap(find.byIcon(YaruIcons.calendar));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
 
-      await tester.tap(find.text(localizations.cancelButtonLabel));
-      await tester.pumpAndSettle();
-      expect(await result, isNull);
-    },
-  );
+    final bodySize = tester.getSize(find.byType(Scaffold));
+    await tester.tapAt(Offset(bodySize.width - 1, bodySize.height - 1));
+    await tester.pumpAndSettle();
 
-  testWidgets('fallback date dialog submits a valid edited date', (
+    expect(find.byType(BusyMaxContentPopoverSurface), findsNothing);
+  });
+
+  testWidgets('fallback date picker uses mini calendar and labels', (
     tester,
   ) async {
     late BuildContext hostContext;
@@ -327,21 +437,132 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final entryFinder = find.descendant(
-      of: find.byType(InputDatePickerFormField),
-      matching: find.byType(TextFormField),
+    expect(find.byType(MiniCalendar), findsOneWidget);
+    expect(find.text('July'), findsOneWidget);
+    expect(find.text('2026'), findsOneWidget);
+    expect(find.byTooltip('Wednesday, July 22, 2026'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(await result, isNull);
+  });
+
+  testWidgets('fallback date picker year mode shows month and year headers', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Center(
+            child: DesktopDateValueRow(
+              label: 'Due date',
+              date: '2026-07-22',
+              onChanged: _ignoreString,
+            ),
+          ),
+        ),
+      ),
     );
-    final localizations = MaterialLocalizations.of(
-      tester.element(find.byType(InputDatePickerFormField)),
-    );
-    await tester.enterText(
-      entryFinder,
-      localizations.formatCompactDate(DateTime(2027, 8, 14)),
-    );
-    await tester.tap(find.text(localizations.okButtonLabel));
+
+    await tester.tap(find.byIcon(YaruIcons.calendar));
+    await tester.pumpAndSettle();
+    expect(find.byType(MiniCalendar), findsOneWidget);
+    expect(find.text('2026'), findsOneWidget);
+    expect(find.byType(TextButton), findsWidgets);
+
+    await tester.tap(find.widgetWithText(TextButton, '2026'));
     await tester.pumpAndSettle();
 
-    expect(await result, '2027-08-14');
+    expect(find.byType(MiniCalendar), findsOneWidget);
+    expect(find.text('2026'), findsOneWidget);
+    expect(find.byType(TextButton), findsWidgets);
+  });
+
+  testWidgets('fallback date picker stays open while paging months', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopDateValueRow(
+            label: 'Due date',
+            date: '2026-07-22',
+            onChanged: _ignoreString,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(YaruIcons.calendar));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+
+    await tester.tap(find.byIcon(YaruIcons.pan_start).at(0));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+
+    await tester.tap(find.byIcon(YaruIcons.pan_end).at(0));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+  });
+
+  testWidgets('fallback date picker stays open while paging years', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopDateValueRow(
+            label: 'Due date',
+            date: '2026-07-22',
+            onChanged: _ignoreString,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(YaruIcons.calendar));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+
+    await tester.tap(find.byIcon(YaruIcons.pan_start).at(1));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+
+    await tester.tap(find.byIcon(YaruIcons.pan_end).at(1));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+  });
+
+  testWidgets('fallback date dialog submits a selected date', (tester) async {
+    String? picked;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return Center(
+                child: DesktopDateValueRow(
+                  label: 'Due date',
+                  date: '2026-07-22',
+                  onChanged: (date) => picked = date,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(YaruIcons.calendar));
+    await tester.pumpAndSettle();
+    final dayCell = find.text('14');
+    expect(dayCell, findsOneWidget);
+    await tester.tap(dayCell.first);
+    await tester.pumpAndSettle();
+
+    expect(picked, '2026-07-14');
   });
 
   testWidgets(
@@ -366,76 +587,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final entry = tester.widget<TextFormField>(
-        find.descendant(
-          of: find.byType(InputDatePickerFormField),
-          matching: find.byType(TextFormField),
-        ),
-      );
-      final localizations = MaterialLocalizations.of(
-        tester.element(find.byType(InputDatePickerFormField)),
-      );
-      expect(
-        entry.controller?.text,
-        localizations.formatCompactDate(DateTime(2100, 12, 31)),
-      );
+      expect(find.byTooltip('Friday, December 31, 2100'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
-      await tester.tap(find.text(localizations.cancelButtonLabel));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(await result, isNull);
     },
   );
-
-  testWidgets('fallback date dialog rejects malformed and out-of-range dates', (
-    tester,
-  ) async {
-    late BuildContext hostContext;
-    await tester.pumpWidget(
-      localizedTestApp(
-        child: Builder(
-          builder: (context) {
-            hostContext = context;
-            return const Scaffold(body: SizedBox());
-          },
-        ),
-      ),
-    );
-
-    final result = showBusyMaxDateValueDialog(
-      hostContext,
-      label: 'Due date',
-      initialDate: '2026-07-22',
-    );
-    await tester.pumpAndSettle();
-
-    final entryFinder = find.descendant(
-      of: find.byType(InputDatePickerFormField),
-      matching: find.byType(TextFormField),
-    );
-    final localizations = MaterialLocalizations.of(
-      tester.element(find.byType(InputDatePickerFormField)),
-    );
-
-    await tester.enterText(entryFinder, 'not a date');
-    await tester.tap(find.text(localizations.okButtonLabel));
-    await tester.pumpAndSettle();
-    expect(find.byType(BusyMaxDialogShell), findsOneWidget);
-    expect(find.text(localizations.invalidDateFormatLabel), findsOneWidget);
-
-    await tester.enterText(
-      entryFinder,
-      localizations.formatCompactDate(DateTime(1800, 1, 1)),
-    );
-    await tester.tap(find.text(localizations.okButtonLabel));
-    await tester.pumpAndSettle();
-    expect(find.byType(BusyMaxDialogShell), findsOneWidget);
-    expect(find.text(localizations.dateOutOfRangeLabel), findsOneWidget);
-
-    await tester.tap(find.text(localizations.cancelButtonLabel));
-    await tester.pumpAndSettle();
-    expect(await result, isNull);
-  });
 
   testWidgets('invalid time reports validity and uses the native error label', (
     tester,

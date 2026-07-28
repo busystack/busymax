@@ -47,7 +47,7 @@ class TaskDetailsEditor extends StatefulWidget {
     this.showAdvancedActions = true,
     this.showDeleteAction = true,
     this.confirmTaskSwitch = true,
-    this.useNativeDatePicker = true,
+    this.useNativeDatePicker = false,
     this.dialogBarrierColor,
     this.headerBarService,
     this.canSaveDraft,
@@ -262,6 +262,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                               _TaskTimeField.due,
                               valid,
                             ),
+                            useNativePicker: widget.useNativeDatePicker,
                           ),
                       ],
                     ),
@@ -467,6 +468,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
               _updateDraft(draft.copyWith(microsoftStartTime: value)),
           onValidityChanged: (valid) =>
               _setTimeFieldValidity(_TaskTimeField.start, valid),
+          useNativePicker: widget.useNativeDatePicker,
         ),
     ];
   }
@@ -861,6 +863,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
             _updateDraft(draft.copyWith(microsoftReminderTime: value)),
         onValidityChanged: (valid) =>
             _setTimeFieldValidity(_TaskTimeField.reminder, valid),
+        useNativePicker: widget.useNativeDatePicker,
       ),
       BusyMaxActionRow(
         title: l10n.removeReminder,

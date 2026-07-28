@@ -1,15 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_dialogs.dart';
+import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_surface_colors.dart';
+import 'package:busymax/src/core/time/local_time_zone.dart';
 import 'package:busymax/src/l10n/l10n.dart';
+import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:yaru/yaru.dart';
 
 @visibleForTesting
 const nativeDateTimePickerChannelName = 'busymax/native_date_time_picker';
 
 const _nativeDateTimePicker = NativeDateTimePicker();
+const _dateTimePickerMaxWidth = 300.0;
+const _dateTimePickerYearViewMaxHeight = 320.0;
+const _dateTimePickerPopoverMinimumHeight = 300.0;
+const _dateTimePickerPopoverPadding = EdgeInsets.all(BusyMaxSpacing.lg);
+const _dateTimePickerYearModeHeaderHeight =
+    BusyMaxSizes.headerIconButton +
+    BusyMaxSpacing.headerInset * 3 +
+    BusyMaxSpacing.sm;
+const _timePickerMaxWidth = 260.0;
+const _timePickerMinimumWidth = 240.0;
+const _timePickerPopoverMinimumHeight = 180.0;
+const _timePickerPopoverMaxHeight = 180.0;
 
 class NativeDateTimePicker {
   const NativeDateTimePicker();
@@ -30,15 +48,27 @@ class NativeDateTimePicker {
     });
   }
 
+  Future<NativeDatePickResult> pickTime({
+    required String title,
+    required String? initialTime,
+    required String cancelLabel,
+    required String okLabel,
+  }) async {
+    return _invoke('pickTime', {
+      'title': title,
+      'initialTime': initialTime,
+      'cancelLabel': cancelLabel,
+      'okLabel': okLabel,
+    });
+  }
+
   Future<NativeDatePickResult> _invoke(
     String method,
     Map<String, Object?> arguments,
   ) async {
     try {
-      return NativeDatePickResult(
-        available: true,
-        date: await _channel.invokeMethod<String>(method, arguments),
-      );
+      final value = await _channel.invokeMethod<String>(method, arguments);
+      return NativeDatePickResult(available: true, date: value, time: value);
     } on MissingPluginException {
       return const NativeDatePickResult(available: false);
     }
@@ -46,10 +76,11 @@ class NativeDateTimePicker {
 }
 
 class NativeDatePickResult {
-  const NativeDatePickResult({required this.available, this.date});
+  const NativeDatePickResult({required this.available, this.date, this.time});
 
   final bool available;
   final String? date;
+  final String? time;
 }
 
 class DesktopDateField extends StatefulWidget {
@@ -60,7 +91,7 @@ class DesktopDateField extends StatefulWidget {
     required this.onChanged,
     this.enabled = true,
     this.onClear,
-    this.useNativePicker = true,
+    this.useNativePicker = false,
   });
 
   final String label;
@@ -82,7 +113,7 @@ class DesktopDateValueRow extends StatelessWidget {
     required this.onChanged,
     this.enabled = true,
     this.onClear,
-    this.useNativePicker = true,
+    this.useNativePicker = false,
   });
 
   final String label;
@@ -139,17 +170,21 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
     final canClear = widget.date?.isNotEmpty ?? false;
     return BusyMaxCalendarValueRow(
       label: widget.label,
-      entry: TextFormField(
-        controller: _controller,
-        readOnly: true,
-        showCursor: false,
-        enableInteractiveSelection: false,
-        enabled: widget.enabled,
-        decoration: busyMaxGroupedTextFieldDecoration(
-          context,
-          labelText: widget.label,
+      entry: Builder(
+        builder: (fieldContext) => TextFormField(
+          controller: _controller,
+          readOnly: true,
+          showCursor: false,
+          enableInteractiveSelection: false,
+          enabled: widget.enabled,
+          decoration: busyMaxGroupedTextFieldDecoration(
+            context,
+            labelText: widget.label,
+          ),
+          onTap: widget.enabled
+              ? () => _pickNativeDate(context, fieldContext)
+              : null,
         ),
-        onTap: widget.enabled ? () => _pickNativeDate(context) : null,
       ),
       trailingIcons: [
         if (canClear && widget.onClear != null)
@@ -158,10 +193,14 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
             onPressed: widget.enabled ? widget.onClear : null,
             icon: const Icon(YaruIcons.window_close),
           ),
-        YaruIconButton(
-          tooltip: widget.label,
-          onPressed: widget.enabled ? () => _pickNativeDate(context) : null,
-          icon: const Icon(YaruIcons.calendar),
+        Builder(
+          builder: (buttonContext) => YaruIconButton(
+            tooltip: widget.label,
+            onPressed: widget.enabled
+                ? () => _pickNativeDate(context, buttonContext)
+                : null,
+            icon: const Icon(YaruIcons.calendar),
+          ),
         ),
       ],
       enabled: widget.enabled,
@@ -179,7 +218,10 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
     );
   }
 
-  Future<void> _pickNativeDate(BuildContext context) async {
+  Future<void> _pickNativeDate(
+    BuildContext context,
+    BuildContext anchorContext,
+  ) async {
     if (!widget.enabled) {
       return;
     }
@@ -188,6 +230,7 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
         context,
         label: widget.label,
         initialDate: widget.date,
+        anchorContext: anchorContext,
       );
       if (mounted && fallbackPicked != null) {
         _applyPickedDate(fallbackPicked);
@@ -215,6 +258,7 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
       context,
       label: widget.label,
       initialDate: widget.date,
+      anchorContext: anchorContext,
     );
     if (mounted && fallbackPicked != null) {
       _applyPickedDate(fallbackPicked);
@@ -235,23 +279,64 @@ Future<String?> showBusyMaxDateValueDialog(
   BuildContext context, {
   required String label,
   required String? initialDate,
+  BuildContext? anchorContext,
 }) {
-  return showBusyMaxModalDialog<String>(
-    context,
-    builder: (dialogContext) {
-      return _DesktopDateValueDialog(label: label, initialDate: initialDate);
-    },
+  return showScheduleAnchoredPopover<String>(
+    context: context,
+    anchorContext: anchorContext ?? context,
+    semanticLabel: label,
+    preferredWidth: _dateTimePickerMaxWidth,
+    minimumWidth: 280,
+    preferredMinimumHeight: _dateTimePickerPopoverMinimumHeight,
+    builder: (context, arrowSide, arrowAlignment) => _DesktopDateValueDialog(
+      label: label,
+      initialDate: initialDate,
+      arrowSide: arrowSide,
+      arrowAlignment: arrowAlignment,
+    ),
   );
 }
+
+Future<String?> showBusyMaxTimeValueDialog(
+  BuildContext context, {
+  required String label,
+  required String? initialTime,
+  required bool allowEmpty,
+  ValueChanged<String?>? onTimeChanged,
+  BuildContext? anchorContext,
+}) {
+  return showScheduleAnchoredPopover<String>(
+    context: context,
+    anchorContext: anchorContext ?? context,
+    semanticLabel: label,
+    preferredWidth: _timePickerMaxWidth,
+    minimumWidth: _timePickerMinimumWidth,
+    preferredMinimumHeight: _timePickerPopoverMinimumHeight,
+    builder: (context, arrowSide, arrowAlignment) => _DesktopTimeValueDialog(
+      label: label,
+      initialTime: initialTime,
+      allowEmpty: allowEmpty,
+      onTimeChanged: onTimeChanged,
+      arrowSide: arrowSide,
+      arrowAlignment: arrowAlignment,
+    ),
+  );
+}
+
+enum _DesktopDatePickerMode { month, year }
 
 class _DesktopDateValueDialog extends StatefulWidget {
   const _DesktopDateValueDialog({
     required this.label,
     required this.initialDate,
+    required this.arrowSide,
+    required this.arrowAlignment,
   });
 
   final String label;
   final String? initialDate;
+  final BusyMaxPopoverArrowSide arrowSide;
+  final double arrowAlignment;
 
   @override
   State<_DesktopDateValueDialog> createState() =>
@@ -261,8 +346,7 @@ class _DesktopDateValueDialog extends StatefulWidget {
 class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
   static final _firstDate = DateTime(1900);
   static final _lastDate = DateTime(2100, 12, 31);
-
-  final _formKey = GlobalKey<FormState>();
+  var _mode = _DesktopDatePickerMode.month;
   late DateTime _selected;
 
   @override
@@ -273,46 +357,278 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return BusyMaxDialogShell(
-      title: widget.label,
-      maxWidth: 360,
-      actions: [
-        BusyMaxPushButton.standard(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(context.l10n.cancel),
-        ),
-        BusyMaxPushButton.suggested(
-          onPressed: _submit,
-          child: Text(MaterialLocalizations.of(context).okButtonLabel),
-        ),
-      ],
-      children: [
-        Form(
-          key: _formKey,
-          child: InputDatePickerFormField(
-            initialDate: _selected,
-            firstDate: _firstDate,
-            lastDate: _lastDate,
-            fieldLabelText: widget.label,
-            onDateSaved: (date) => _selected = date,
-            onDateSubmitted: _finish,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentHeight = _calculateDateTimePickerPopupHeight(constraints);
+        final yearModeBodyHeight = _mode == _DesktopDatePickerMode.year
+            ? (contentHeight - _dateTimePickerYearModeHeaderHeight).clamp(
+                0.0,
+                double.infinity,
+              )
+            : contentHeight;
+        return BusyMaxContentPopoverSurface(
+          arrowSide: widget.arrowSide,
+          arrowAlignment: widget.arrowAlignment,
+          padding: _dateTimePickerPopoverPadding,
+          child: _mode == _DesktopDatePickerMode.year
+              ? ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: contentHeight,
+                    maxWidth: _dateTimePickerMaxWidth,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildDateModeHeader(context),
+                      SizedBox(
+                        height: yearModeBodyHeight,
+                        child: ScheduleYearView(
+                          selectedDate: _selected,
+                          compact: true,
+                          items: const <ScheduleItem>[],
+                          firstWeekday: _firstWeekday(context),
+                          onDaySelected: (day) => _setSelectedDate(
+                            day,
+                            returnToMonth: true,
+                            submit: true,
+                          ),
+                          onMonthSelected: (_) {},
+                          onCreateAtDay: (day) => _setSelectedDate(
+                            day,
+                            returnToMonth: true,
+                            submit: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: contentHeight),
+                    child: SingleChildScrollView(
+                      child: MiniCalendar(
+                        selectedDate: _selected,
+                        firstWeekday: _firstWeekday(context),
+                        items: const <ScheduleItem>[],
+                        onSelected: (date) => _setSelectedDate(
+                          date,
+                          returnToMonth: false,
+                          submit:
+                              date.year == _selected.year &&
+                              date.month == _selected.month,
+                        ),
+                        onMonthSelected: null,
+                        onYearSelected: null,
+                        onWeekSelected: (week) => _setSelectedDate(
+                          week,
+                          returnToMonth: false,
+                          submit: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
+  void _setSelectedDate(
+    DateTime value, {
+    required bool returnToMonth,
+    bool submit = false,
+  }) {
+    final preserveDay =
+        value.day == 1 &&
+        (value.year != _selected.year || value.month != _selected.month);
+    final nextDay = preserveDay ? _selected.day : value.day;
+    final clamped = _clampMonthAndDay(
+      nextDay,
+      DateTime(value.year, value.month),
+    );
+    final adjusted = _coerceSupportedRange(clamped);
+    setState(() {
+      _selected = adjusted;
+      if (returnToMonth) {
+        _mode = _DesktopDatePickerMode.month;
+      }
+    });
+    if (submit) {
+      _submit();
+    }
+  }
+
+  void _submit() {
+    Navigator.of(context).pop(encodeDateOnly(_selected));
+  }
+
+  Widget _buildDateModeHeader(BuildContext context) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final monthLabel = DateFormat.MMMM(locale).format(_selected);
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        BusyMaxSpacing.headerInset,
+        BusyMaxSpacing.headerInset,
+        BusyMaxSpacing.headerInset,
+        BusyMaxSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildDateModeStepper(
+              context: context,
+              label: monthLabel,
+              previousTooltip: context.l10n.previousMonth,
+              nextTooltip: context.l10n.nextMonth,
+              onPrevious: () => _setSelectedDate(
+                DateTime(_selected.year, _selected.month - 1),
+                returnToMonth: false,
+              ),
+              onNext: () => _setSelectedDate(
+                DateTime(_selected.year, _selected.month + 1),
+                returnToMonth: false,
+              ),
+              onLabelPressed: null,
+            ),
           ),
+          const SizedBox(width: BusyMaxSpacing.sm),
+          Expanded(
+            child: _buildDateModeStepper(
+              context: context,
+              label: '${_selected.year}',
+              previousTooltip: context.l10n.previousYear,
+              nextTooltip: context.l10n.nextYear,
+              onPrevious: () => _setSelectedDate(
+                DateTime(_selected.year - 1, _selected.month),
+                returnToMonth: false,
+              ),
+              onNext: () => _setSelectedDate(
+                DateTime(_selected.year + 1, _selected.month),
+                returnToMonth: false,
+              ),
+              onLabelPressed: null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateModeStepper({
+    required BuildContext context,
+    required String label,
+    required String previousTooltip,
+    required String nextTooltip,
+    required VoidCallback onPrevious,
+    required VoidCallback onNext,
+    VoidCallback? onLabelPressed,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        _stepButton(
+          context,
+          colorScheme: colorScheme,
+          tooltip: previousTooltip,
+          icon: YaruIcons.pan_start,
+          onPressed: onPrevious,
+        ),
+        const SizedBox(width: BusyMaxSpacing.xs),
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: _stepLabel(context, label, onLabelPressed),
+          ),
+        ),
+        const SizedBox(width: BusyMaxSpacing.xs),
+        _stepButton(
+          context,
+          colorScheme: colorScheme,
+          tooltip: nextTooltip,
+          icon: YaruIcons.pan_end,
+          onPressed: onNext,
         ),
       ],
     );
   }
 
-  void _submit() {
-    final form = _formKey.currentState;
-    if (form == null || !form.validate()) {
-      return;
-    }
-    form.save();
-    _finish(_selected);
+  Widget _stepButton(
+    BuildContext context, {
+    required ColorScheme colorScheme,
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return BusyMaxHeaderIconButton(
+      tooltip: tooltip,
+      iconSize: BusyMaxSizes.headerIcon,
+      icon: Icon(icon),
+      onPressed: onPressed,
+      foregroundColor: colorScheme.onSurfaceVariant,
+      backgroundColor: busyMaxHeaderButtonBackground(context),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    );
   }
 
-  void _finish(DateTime selected) {
-    Navigator.of(context).pop(encodeDateOnly(selected));
+  Widget _stepLabel(
+    BuildContext context,
+    String label,
+    VoidCallback? onPressed,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final labelStyle =
+        (busyMaxSectionHeaderStyle(context) ??
+                Theme.of(context).textTheme.titleSmall)
+            ?.copyWith(color: colorScheme.onSurface);
+    if (onPressed == null) {
+      return Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: labelStyle,
+      );
+    }
+    return TextButton(
+      onPressed: onPressed,
+      style: busyMaxHeaderTextButtonStyle(
+        context,
+        foregroundColor: colorScheme.onSurface,
+        backgroundColor: busyMaxHeaderButtonBackground(context),
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: labelStyle,
+      ),
+    );
+  }
+
+  DateTime _clampMonthAndDay(int day, DateTime month) {
+    final maxDay = DateUtils.getDaysInMonth(month.year, month.month);
+    return DateTime(month.year, month.month, day.clamp(1, maxDay));
+  }
+
+  DateTime _coerceSupportedRange(DateTime date) {
+    if (date.isBefore(_firstDate)) {
+      return _firstDate;
+    }
+    if (date.isAfter(_lastDate)) {
+      return _lastDate;
+    }
+    return date;
+  }
+
+  int _firstWeekday(BuildContext context) {
+    final index = MaterialLocalizations.of(context).firstDayOfWeekIndex;
+    return index == 0 ? DateTime.sunday : index;
   }
 
   DateTime _supportedInitialDate(String? encodedDate) {
@@ -327,6 +643,28 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
   }
 }
 
+double _calculateDateTimePickerPopupHeight(BoxConstraints constraints) {
+  final availableHeight =
+      constraints.maxHeight -
+      (_dateTimePickerPopoverPadding.vertical +
+          BusyMaxSizes.popoverArrowHeight);
+  if (constraints.maxHeight <= 0 || constraints.maxHeight.isInfinite) {
+    return _dateTimePickerYearViewMaxHeight;
+  }
+  return availableHeight.clamp(0, _dateTimePickerYearViewMaxHeight);
+}
+
+double _calculateTimePickerPopupHeight(BoxConstraints constraints) {
+  final availableHeight =
+      constraints.maxHeight -
+      (_dateTimePickerPopoverPadding.vertical +
+          BusyMaxSizes.popoverArrowHeight);
+  if (constraints.maxHeight <= 0 || constraints.maxHeight.isInfinite) {
+    return _timePickerPopoverMaxHeight;
+  }
+  return availableHeight.clamp(0, _timePickerPopoverMaxHeight);
+}
+
 class DesktopTimeField extends StatefulWidget {
   const DesktopTimeField({
     super.key,
@@ -336,6 +674,7 @@ class DesktopTimeField extends StatefulWidget {
     this.enabled = true,
     this.allowEmpty = true,
     this.onValidityChanged,
+    this.useNativePicker = false,
   });
 
   final String label;
@@ -344,6 +683,7 @@ class DesktopTimeField extends StatefulWidget {
   final bool enabled;
   final bool allowEmpty;
   final ValueChanged<bool>? onValidityChanged;
+  final bool useNativePicker;
 
   @override
   State<DesktopTimeField> createState() => _DesktopTimeFieldState();
@@ -358,6 +698,7 @@ class DesktopTimeValueRow extends StatelessWidget {
     this.enabled = true,
     this.allowEmpty = true,
     this.onValidityChanged,
+    this.useNativePicker = false,
   });
 
   final String label;
@@ -366,6 +707,7 @@ class DesktopTimeValueRow extends StatelessWidget {
   final bool enabled;
   final bool allowEmpty;
   final ValueChanged<bool>? onValidityChanged;
+  final bool useNativePicker;
 
   @override
   Widget build(BuildContext context) {
@@ -376,6 +718,7 @@ class DesktopTimeValueRow extends StatelessWidget {
       enabled: enabled,
       allowEmpty: allowEmpty,
       onValidityChanged: onValidityChanged,
+      useNativePicker: useNativePicker,
     );
   }
 }
@@ -475,8 +818,64 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
         onChanged: _handleTextChanged,
         onFieldSubmitted: (_) => _normalizeOrRestore(),
       ),
+      trailingIcons: [
+        Builder(
+          builder: (buttonContext) => YaruIconButton(
+            tooltip: widget.label,
+            onPressed: widget.enabled
+                ? () => _pickNativeTime(context, buttonContext)
+                : null,
+            icon: const Icon(YaruIcons.clock),
+          ),
+        ),
+      ],
       enabled: widget.enabled,
     );
+  }
+
+  Future<void> _pickNativeTime(
+    BuildContext context,
+    BuildContext anchorContext,
+  ) async {
+    if (!widget.enabled) {
+      return;
+    }
+    final localizations = MaterialLocalizations.of(context);
+    if (widget.useNativePicker) {
+      final picked = await _nativeDateTimePicker.pickTime(
+        title: widget.label,
+        initialTime: widget.time,
+        cancelLabel: localizations.cancelButtonLabel,
+        okLabel: localizations.okButtonLabel,
+      );
+      if (!context.mounted) {
+        return;
+      }
+      if (picked.time != null) {
+        _emitTime(picked.time!);
+        _focusNode.requestFocus();
+        return;
+      }
+      if (picked.available) {
+        return;
+      }
+    }
+
+    final picked = await showBusyMaxTimeValueDialog(
+      context,
+      label: widget.label,
+      initialTime: widget.time,
+      allowEmpty: widget.allowEmpty,
+      onTimeChanged: _emitTime,
+      anchorContext: anchorContext,
+    );
+    if (!context.mounted) {
+      return;
+    }
+    if (picked != null) {
+      _emitTime(picked);
+      _focusNode.requestFocus();
+    }
   }
 
   void _handleTextChanged(String input) {
@@ -598,6 +997,432 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
     }
     _reportedValidity = valid;
     widget.onValidityChanged?.call(valid);
+  }
+}
+
+class _DesktopTimeValueDialog extends StatefulWidget {
+  const _DesktopTimeValueDialog({
+    required this.label,
+    required this.initialTime,
+    required this.allowEmpty,
+    required this.onTimeChanged,
+    required this.arrowSide,
+    required this.arrowAlignment,
+  });
+
+  final String label;
+  final String? initialTime;
+  final bool allowEmpty;
+  final ValueChanged<String?>? onTimeChanged;
+  final BusyMaxPopoverArrowSide arrowSide;
+  final double arrowAlignment;
+
+  @override
+  State<_DesktopTimeValueDialog> createState() =>
+      _DesktopTimeValueDialogState();
+}
+
+class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
+  late final TextEditingController _hourController;
+  late final TextEditingController _minuteController;
+  bool _syncingText = false;
+  bool _inputValid = true;
+  static const _timeInputButtonSize = BusyMaxSizes.headerIconButton;
+  static const _timeInputFieldWidth = BusyMaxSizes.headerIconButton;
+
+  @override
+  void initState() {
+    super.initState();
+    _hourController = TextEditingController();
+    _minuteController = TextEditingController();
+    _inputValid =
+        widget.allowEmpty || parseTimeOfDay(widget.initialTime) != null;
+    _syncVisibleValue();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DesktopTimeValueDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTime != widget.initialTime) {
+      _syncVisibleValue();
+    }
+  }
+
+  @override
+  void dispose() {
+    _hourController.dispose();
+    _minuteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentHeight = _calculateTimePickerPopupHeight(constraints);
+        return BusyMaxContentPopoverSurface(
+          arrowSide: widget.arrowSide,
+          arrowAlignment: widget.arrowAlignment,
+          padding: _dateTimePickerPopoverPadding,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: contentHeight),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(BusyMaxSpacing.xl),
+                  child: FocusTraversalGroup(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: _timeInputFieldWidth,
+                              child: _timeInputSection(
+                                context: context,
+                                controller: _hourController,
+                                label: 'Hour',
+                                onIncrement: () => _changeHour(1),
+                                onDecrement: () => _changeHour(-1),
+                              ),
+                            ),
+                            const SizedBox(width: BusyMaxSpacing.xs),
+                            Text(
+                              ':',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const SizedBox(width: BusyMaxSpacing.xs),
+                            SizedBox(
+                              width: _timeInputFieldWidth,
+                              child: _timeInputSection(
+                                context: context,
+                                controller: _minuteController,
+                                label: 'Minute',
+                                onIncrement: () => _changeMinute(1),
+                                onDecrement: () => _changeMinute(-1),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (!_inputValid)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: BusyMaxSpacing.md,
+                              vertical: BusyMaxSpacing.sm,
+                            ),
+                            child: Text(
+                              MaterialLocalizations.of(
+                                context,
+                              ).invalidTimeLabel,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: BusyMaxSpacing.lg),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: BusyMaxPushButton.standard(
+                            onPressed: _openTimezoneDialog,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.max,
+                              children: [
+                                const Icon(
+                                  Icons.public,
+                                  size: BusyMaxSizes.popoverActionIcon,
+                                ),
+                                const SizedBox(width: BusyMaxSpacing.xs),
+                                Flexible(
+                                  child: Text(
+                                    _timezoneDisplayLabel(context),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    softWrap: false,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openTimezoneDialog() async {
+    final timezone = localIanaTimeZone();
+    final code = _timezoneCode(context);
+    final display = code.isEmpty ? timezone : '$timezone ($code)';
+    await showBusyMaxModalDialog<void>(
+      context,
+      builder: (dialogContext) => BusyMaxDialogShell(
+        title: 'Timezone',
+        actions: [
+          BusyMaxPushButton.standard(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(MaterialLocalizations.of(dialogContext).okButtonLabel),
+          ),
+        ],
+        children: [
+          Text(
+            'System timezone',
+            style: Theme.of(dialogContext).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: BusyMaxSpacing.sm),
+          Row(
+            children: [
+              const Icon(Icons.public, size: BusyMaxSizes.popoverActionIcon),
+              const SizedBox(width: BusyMaxSpacing.xs),
+              Text(display, style: Theme.of(dialogContext).textTheme.bodyLarge),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _timezoneCode(BuildContext context) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    try {
+      return DateFormat('z', locale).format(DateTime.now()).trim();
+    } on Exception {
+      return DateTime.now().timeZoneName;
+    }
+  }
+
+  String _timezoneDisplayLabel(BuildContext context) {
+    final timezone = localIanaTimeZone();
+    final code = _timezoneCode(context);
+    if (code.isEmpty) {
+      return timezone;
+    }
+    return '$timezone ($code)';
+  }
+
+  Widget _timeInputSection({
+    required BuildContext context,
+    required TextEditingController controller,
+    required String label,
+    required VoidCallback onIncrement,
+    required VoidCallback onDecrement,
+  }) {
+    final buttonStyle = ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(
+        Size.square(_timeInputButtonSize),
+      ),
+      visualDensity: VisualDensity.compact,
+      padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+      side: const WidgetStatePropertyAll(BorderSide.none),
+      backgroundColor: busyMaxHeaderButtonBackground(context),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      foregroundColor: WidgetStatePropertyAll(
+        Theme.of(context).colorScheme.onSurface,
+      ),
+      shape: WidgetStatePropertyAll(
+        const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      ),
+    );
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
+    final borderColor = Theme.of(context).colorScheme.outlineVariant;
+    final textTheme = Theme.of(context).textTheme;
+
+    return FocusTraversalOrder(
+      order: const NumericFocusOrder(0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: surfaceColors.control,
+          borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: onIncrement,
+              icon: const Icon(Icons.add),
+              tooltip: label,
+              style: buttonStyle.copyWith(
+                shape: WidgetStatePropertyAll(
+                  const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(BusyMaxRadius.sm),
+                      bottom: Radius.zero,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Divider(height: 0, thickness: 1, color: borderColor),
+            SizedBox(
+              height: _timeInputButtonSize,
+              child: TextFormField(
+                controller: controller,
+                textAlign: TextAlign.center,
+                textAlignVertical: TextAlignVertical.center,
+                keyboardType: TextInputType.number,
+                maxLength: 2,
+                style: textTheme.bodyLarge,
+                decoration:
+                    busyMaxGroupedTextFieldDecoration(
+                      context,
+                      labelText: '',
+                    ).copyWith(
+                      isDense: true,
+                      filled: true,
+                      fillColor: surfaceColors.control,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      floatingLabelBehavior: FloatingLabelBehavior.never,
+                      labelText: '',
+                    ),
+                buildCounter:
+                    (
+                      BuildContext context, {
+                      required int currentLength,
+                      required int? maxLength,
+                      required bool isFocused,
+                    }) => const SizedBox.shrink(),
+                onChanged: (_) => _handleTimeInputChanged(),
+                onFieldSubmitted: (_) => _handleTimeInputChanged(),
+              ),
+            ),
+            Divider(height: 0, thickness: 1, color: borderColor),
+            IconButton(
+              onPressed: onDecrement,
+              icon: const Icon(Icons.remove),
+              tooltip: label,
+              style: buttonStyle.copyWith(
+                shape: WidgetStatePropertyAll(
+                  const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.zero,
+                      bottom: Radius.circular(BusyMaxRadius.sm),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleTimeInputChanged() {
+    if (_syncingText) {
+      return;
+    }
+    final parsed = _currentSelection();
+    final bothBlank =
+        _hourController.text.trim().isEmpty &&
+        _minuteController.text.trim().isEmpty;
+    if (bothBlank) {
+      _setInputValidity(widget.allowEmpty);
+      if (widget.allowEmpty) {
+        widget.onTimeChanged?.call(null);
+      }
+      return;
+    }
+    _setInputValidity(parsed != null);
+    if (parsed != null) {
+      widget.onTimeChanged?.call(encodeTimeOfDay(parsed));
+    }
+  }
+
+  void _changeHour(int delta) {
+    final next = _normalizeHour(_hourController.text, 0) + delta;
+    final value = next % 24;
+    _setComponent(_hourController, value < 0 ? value + 24 : value);
+  }
+
+  void _changeMinute(int delta) {
+    final next = _normalizeMinute(_minuteController.text, 0) + delta;
+    final value = next % 60;
+    _setComponent(_minuteController, value < 0 ? value + 60 : value);
+    _handleTimeInputChanged();
+  }
+
+  int _normalizeHour(String input, int fallback) {
+    final parsed = int.tryParse(input.trim());
+    if (parsed == null || parsed < 0 || parsed > 23) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  int _normalizeMinute(String input, int fallback) {
+    final parsed = int.tryParse(input.trim());
+    if (parsed == null || parsed < 0 || parsed > 59) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  void _setComponent(TextEditingController controller, int value) {
+    _syncingText = true;
+    _ensureTwoDigits(controller, value);
+    _syncingText = false;
+    _handleTimeInputChanged();
+  }
+
+  void _ensureTwoDigits(TextEditingController controller, int value) {
+    final valueText = value.toString().padLeft(2, '0');
+    if (controller.text == valueText) {
+      return;
+    }
+    controller.value = TextEditingValue(
+      text: valueText,
+      selection: TextSelection.collapsed(offset: valueText.length),
+    );
+  }
+
+  TimeOfDay? _currentSelection() {
+    final hour = _normalizeHour(_hourController.text, -1);
+    final minute = _normalizeMinute(_minuteController.text, -1);
+    if (hour < 0 || minute < 0) {
+      return null;
+    }
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  void _syncVisibleValue() {
+    final initial = parseTimeOfDay(widget.initialTime);
+    _syncingText = true;
+    if (initial == null) {
+      _hourController.text = '';
+      _minuteController.text = '';
+    } else {
+      _hourController.text = initial.hour.toString().padLeft(2, '0');
+      _minuteController.text = initial.minute.toString().padLeft(2, '0');
+    }
+    _syncingText = false;
+  }
+
+  void _setInputValidity(bool valid) {
+    if (_inputValid == valid) {
+      return;
+    }
+    setState(() {
+      _inputValid = valid;
+    });
   }
 }
 

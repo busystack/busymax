@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -1109,25 +1110,23 @@ void main() {
     );
   });
 
-  testWidgets('due date uses native platform picker channel', (tester) async {
+  testWidgets('due date opens in-window date picker', (tester) async {
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativePickerChannel, (call) async {
           calls.add(call);
-          expect(call.method, 'pickDate');
-          expect(call.arguments, containsPair('initialDate', '2026-06-06'));
-          expect(call.arguments, containsPair('cancelLabel', 'Cancel'));
-          expect(call.arguments, containsPair('okLabel', 'OK'));
-          return '2026-06-15';
+          return null;
         });
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
     await _openDatePicker(tester, 'Due date');
 
     expect(tester.takeException(), isNull);
-    expect(calls, hasLength(1));
-    expect(find.text('June 2026'), findsNothing);
-    expect(_labeledFieldText(tester, 'Due date'), 'Jun 15, 2026');
+    expect(calls, isEmpty);
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+    expect(find.byType(CalendarDatePicker), findsNothing);
+    expect(find.text('June'), findsOneWidget);
+    expect(_labeledFieldText(tester, 'Due date'), 'Jun 6, 2026');
   });
 
   testWidgets('date value row can use in-window picker', (tester) async {
@@ -1148,11 +1147,18 @@ void main() {
 
     await _openDatePicker(tester, 'Due date');
 
-    expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
     expect(find.byType(CalendarDatePicker), findsNothing);
     expect(_labeledFieldText(tester, 'Due date'), 'Jun 6, 2026');
 
-    await tester.tap(find.text('OK'));
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(BusyMaxContentPopoverSurface),
+            matching: find.text('6'),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
 
     expect(changed, '2026-06-06');
@@ -1183,7 +1189,8 @@ void main() {
     );
 
     await _openDatePicker(tester, 'Due date');
-    await tester.tap(find.text('OK'));
+    final todayTooltip = DateFormat('EEEE, MMMM d, yyyy').format(now);
+    await tester.tap(find.byTooltip(todayTooltip));
     await tester.pumpAndSettle();
 
     expect(changed, today);
@@ -1207,7 +1214,7 @@ void main() {
 
       expect(_labeledTextFormFieldFinder('Due time'), findsOneWidget);
       expect(_labeledFieldText(tester, 'Due time'), '2:30 PM');
-      expect(find.byType(BusyMaxDialogShell), findsNothing);
+      expect(find.byType(BusyMaxContentPopoverSurface), findsNothing);
 
       expect(tester.takeException(), isNull);
       expect(calls, isEmpty);
@@ -1439,11 +1446,6 @@ void main() {
   testWidgets('Microsoft payload still includes time zone on Save', (
     tester,
   ) async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(_nativePickerChannel, (call) async {
-          expect(call.method, 'pickDate');
-          return '2026-06-15';
-        });
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
@@ -1453,6 +1455,14 @@ void main() {
     );
 
     await _openDatePicker(tester, 'Due date');
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(BusyMaxContentPopoverSurface),
+            matching: find.text('15'),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
 
     expect(repository.patches, isEmpty);
@@ -1470,19 +1480,13 @@ void main() {
   testWidgets('date field does not render a Flutter calendar grid', (
     tester,
   ) async {
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(_nativePickerChannel, (call) async {
-          calls.add(call);
-          return null;
-        });
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
     await _openDatePicker(tester, 'Due date');
 
-    expect(calls.single.method, 'pickDate');
-    expect(find.text('June 2026'), findsNothing);
     expect(find.byType(CalendarDatePicker), findsNothing);
+    expect(find.text('June 2026'), findsNothing);
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
   });
 }
 

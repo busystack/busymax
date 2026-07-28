@@ -303,6 +303,23 @@ static gboolean parse_date(const gchar* value,
   return TRUE;
 }
 
+static gboolean parse_time(const gchar* value, guint* hour, guint* minute) {
+  if (value == nullptr) {
+    return FALSE;
+  }
+  unsigned int parsed_hour = 0;
+  unsigned int parsed_minute = 0;
+  if (sscanf(value, "%u:%u", &parsed_hour, &parsed_minute) != 2) {
+    return FALSE;
+  }
+  if (parsed_hour > 23 || parsed_minute > 59) {
+    return FALSE;
+  }
+  *hour = parsed_hour;
+  *minute = parsed_minute;
+  return TRUE;
+}
+
 static void respond_string(FlMethodCall* method_call, const gchar* value) {
   g_autoptr(FlValue) result =
       value == nullptr ? fl_value_new_null() : fl_value_new_string(value);
@@ -312,6 +329,11 @@ static void respond_string(FlMethodCall* method_call, const gchar* value) {
 static void style_native_dialog(GtkWidget* dialog) {
   gtk_style_context_add_class(gtk_widget_get_style_context(dialog),
                               kNativeDialogStyleClass);
+  if (GTK_IS_DIALOG(dialog)) {
+    GtkStyleContext* content_context =
+        gtk_widget_get_style_context(gtk_dialog_get_content_area(GTK_DIALOG(dialog)));
+    gtk_style_context_add_class(content_context, "busymax-native-dialog-content");
+  }
 }
 
 static void handle_pick_date(FlMethodCall* method_call,
@@ -322,10 +344,17 @@ static void handle_pick_date(FlMethodCall* method_call,
   const gchar* cancel_label = fl_lookup_string_arg(args, "cancelLabel");
   const gchar* ok_label = fl_lookup_string_arg(args, "okLabel");
   GtkWidget* dialog = gtk_dialog_new_with_buttons(
-      title != nullptr ? title : "Date", parent, GTK_DIALOG_MODAL,
-      cancel_label != nullptr ? cancel_label : "_Cancel", GTK_RESPONSE_CANCEL,
-      ok_label != nullptr ? ok_label : "_OK", GTK_RESPONSE_OK, nullptr);
+      title != nullptr ? title : "Date", parent,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT |
+                                  GTK_DIALOG_USE_HEADER_BAR),
+      cancel_label != nullptr && cancel_label[0] != '\0' ? cancel_label : "Cancel",
+      GTK_RESPONSE_CANCEL,
+      ok_label != nullptr && ok_label[0] != '\0' ? ok_label : "OK",
+      GTK_RESPONSE_OK,
+      nullptr);
   style_native_dialog(dialog);
+  gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
   gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
   GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
@@ -356,6 +385,82 @@ static void handle_pick_date(FlMethodCall* method_call,
   gtk_widget_destroy(dialog);
 }
 
+static void handle_pick_time(FlMethodCall* method_call,
+                             FlValue* args,
+                             GtkWindow* parent) {
+  const gchar* title = fl_lookup_string_arg(args, "title");
+  const gchar* initial_time = fl_lookup_string_arg(args, "initialTime");
+  const gchar* cancel_label = fl_lookup_string_arg(args, "cancelLabel");
+  const gchar* ok_label = fl_lookup_string_arg(args, "okLabel");
+
+  GtkWidget* dialog = gtk_dialog_new_with_buttons(
+      title != nullptr ? title : "Time", parent,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT |
+                                  GTK_DIALOG_USE_HEADER_BAR),
+      cancel_label != nullptr && cancel_label[0] != '\0' ? cancel_label : "Cancel",
+      GTK_RESPONSE_CANCEL,
+      ok_label != nullptr && ok_label[0] != '\0' ? ok_label : "OK",
+      GTK_RESPONSE_OK,
+      nullptr);
+  style_native_dialog(dialog);
+  gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
+  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+
+  GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  GtkWidget* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+  gtk_container_set_border_width(GTK_CONTAINER(content), 12);
+  gtk_container_add(GTK_CONTAINER(content), row);
+
+  GtkWidget* hour_input = gtk_spin_button_new_with_range(0.0, 23.0, 1.0);
+  GtkWidget* minute_input = gtk_spin_button_new_with_range(0.0, 59.0, 1.0);
+  gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(hour_input), TRUE);
+  gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(minute_input), TRUE);
+  gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), 0.0);
+  gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), 0.0);
+  gtk_widget_set_size_request(hour_input, 70, -1);
+  gtk_widget_set_size_request(minute_input, 70, -1);
+
+  gtk_container_add(GTK_CONTAINER(row), gtk_label_new("Hour"));
+  gtk_container_add(GTK_CONTAINER(row), hour_input);
+  gtk_container_add(GTK_CONTAINER(row), gtk_label_new(":"));
+  gtk_container_add(GTK_CONTAINER(row), minute_input);
+  gtk_container_add(GTK_CONTAINER(row), gtk_label_new("Min"));
+
+  guint hour = 0;
+  guint minute = 0;
+  if (parse_time(initial_time, &hour, &minute)) {
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), hour);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), minute);
+  } else {
+    GDateTime* now = g_date_time_new_now_local();
+    if (now != nullptr) {
+      hour = g_date_time_get_hour(now);
+      minute = g_date_time_get_minute(now);
+      gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), hour);
+      gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), minute);
+      g_date_time_unref(now);
+    }
+  }
+
+  gtk_widget_show_all(dialog);
+  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+
+  if (response == GTK_RESPONSE_OK) {
+    const gint selected_hour = gtk_spin_button_get_value_as_int(
+        GTK_SPIN_BUTTON(hour_input));
+    const gint selected_minute = gtk_spin_button_get_value_as_int(
+        GTK_SPIN_BUTTON(minute_input));
+    g_autofree gchar* result = g_strdup_printf(
+        "%02d:%02d", selected_hour, selected_minute);
+    respond_string(method_call, result);
+  } else {
+    respond_string(method_call, nullptr);
+  }
+
+  gtk_widget_destroy(dialog);
+}
+
 static void native_date_time_picker_method_call_cb(FlMethodChannel* channel,
                                                    FlMethodCall* method_call,
                                                    gpointer user_data) {
@@ -364,6 +469,8 @@ static void native_date_time_picker_method_call_cb(FlMethodChannel* channel,
   FlValue* args = fl_method_call_get_args(method_call);
   if (strcmp(method, "pickDate") == 0) {
     handle_pick_date(method_call, args, parent);
+  } else if (strcmp(method, "pickTime") == 0) {
+    handle_pick_time(method_call, args, parent);
   } else {
     fl_method_call_respond_not_implemented(method_call, nullptr);
   }
@@ -895,8 +1002,8 @@ static void show_native_menu(NativeMenuHandlerData* data,
   gtk_widget_insert_action_group(
       data->view, kNativeMenuActionNamespace,
       G_ACTION_GROUP(session->action_group));
-  session->popover = gtk_popover_new_from_model(
-      data->view, G_MENU_MODEL(session->model));
+  session->popover = gtk_popover_new_from_model(data->view,
+                                               G_MENU_MODEL(session->model));
   g_object_ref_sink(session->popover);
   style_native_popover(session->popover);
   gtk_popover_set_pointing_to(GTK_POPOVER(session->popover), &anchor);
@@ -1149,6 +1256,13 @@ static void refresh_header_bar_css(MyApplication* self) {
       ".%s headerbar:backdrop {"
       "background-color: %s;"
       "background-image: none;"
+      "box-shadow: none;"
+      "}"
+      ".%s .busymax-native-dialog-content,"
+      ".%s .busymax-native-dialog-content:backdrop {"
+      "background-color: %s;"
+      "background-image: none;"
+      "border-radius: 9px;"
       "}"
       ".%s.csd:not(.solid-csd):not(.maximized):not(.fullscreen) {"
       // GTK 3 has no named modern dialog-outline role. Flutter supplies the
@@ -1159,6 +1273,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       kNativeDialogStyleClass, kNativeDialogStyleClass,
       dialog_background_color, kNativeDialogStyleClass,
       kNativeDialogStyleClass, dialog_background_color,
+      kNativeDialogStyleClass, kNativeDialogStyleClass, dialog_background_color,
       kNativeDialogStyleClass,
       css_color_or(self->header_bar_dialog_outline_color,
                    kDefaultDialogOutlineColor));
@@ -1183,7 +1298,14 @@ static void refresh_header_bar_css(MyApplication* self) {
                 "modelbutton:hover:not(:disabled) {"
                 "background-color: %s;"
                 "background-image: none;"
+                "}"
+                "popover.background.%s "
+                "row:hover:not(:disabled) {"
+                "background-color: %s;"
+                "background-image: none;"
                 "}",
+                kNativePopoverStyleClass,
+                self->header_bar_menu_hover_color,
                 kNativePopoverStyleClass,
                 self->header_bar_menu_hover_color)
           : g_strdup("");
@@ -1246,7 +1368,6 @@ static void refresh_header_bar_css(MyApplication* self) {
   GtkWidget* header_bar = GTK_WIDGET(self->header_bar);
   GtkStyleContext* context = gtk_widget_get_style_context(header_bar);
   gtk_style_context_add_class(context, "busymax-flat-headerbar");
-
   g_autofree gchar* css = g_strdup_printf(
       "window#busymax-window,"
       "window#busymax-window:backdrop {"
@@ -1387,7 +1508,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}",
-      window_background_color, yaru_window_decoration_css, native_dialog_css,
+      window_background_color, yaru_window_decoration_css,
+      native_dialog_css,
       native_search_geometry_css,
       background_color, foreground_color,
       sidebar_background_color, foreground_color, sidebar_border_color,
