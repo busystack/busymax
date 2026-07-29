@@ -84,7 +84,7 @@ void main() {
         expect(source, isNot(contains('configure_rounded_window_shape')));
         expect(source, isNot(contains('CAIRO_OPERATOR_CLEAR')));
         expect(source, isNot(contains('kNativeWindowRadius')));
-        expect(source, isNot(contains('"unified"')));
+        expect(activateBody, isNot(contains('"unified"')));
         expect(app, isNot(contains('_BusyMaxWindowCornerClip')));
       },
     );
@@ -1326,8 +1326,30 @@ void main() {
 
       expect(runner, contains('strcmp(method, "selectTimeZone") == 0'));
       expect(runner, contains('gtk_search_entry_new()'));
+      expect(runner, contains('hdy_window_new()'));
+      expect(runner, contains('hdy_header_bar_new()'));
       expect(runner, contains('hdy_preferences_group_new()'));
       expect(runner, contains('hdy_action_row_new()'));
+      expect(
+        runner,
+        contains(
+          'hdy_header_bar_set_decoration_layout(HDY_HEADER_BAR(header_bar), '
+          '":close")',
+        ),
+      );
+      final selectorStart = runner.indexOf(
+        'static void handle_native_time_zone_selection',
+      );
+      final selectorEnd = runner.indexOf(
+        'struct NativeDialogHandlerData',
+        selectorStart,
+      );
+      expect(selectorStart, isNonNegative);
+      expect(selectorEnd, greaterThan(selectorStart));
+      final nativeSelector = runner.substring(selectorStart, selectorEnd);
+      expect(nativeSelector, isNot(contains('gtk_dialog_new_with_buttons(')));
+      expect(nativeSelector, isNot(contains('gtk_dialog_run(')));
+      expect(nativeSelector, contains('g_main_loop_run(loop)'));
       expect(runner, contains('kNativeTimeZoneDialogContentHeight'));
       expect(runner, contains('kNativeTimeZoneDialogStyleClass'));
       expect(runner, contains('kNativeTimeZoneGroupStyleClass'));
@@ -1749,9 +1771,10 @@ void main() {
       expect(source, contains('style_native_dialog(GtkWidget* dialog)'));
       expect(
         'style_native_dialog(dialog);'.allMatches(source).length,
-        3,
-        reason: 'native date, time, and timezone pickers share dialog styling',
+        2,
+        reason: 'native date and time pickers share dialog styling',
       );
+      expect(source, contains('style_native_dialog(window);'));
       expect(
         nativeDialogCss,
         contains('g_autofree gchar* native_dialog_css ='),
@@ -1813,9 +1836,28 @@ void main() {
       );
       expect(
         nativeTimeZoneDialogCss,
+        contains(
+          '"window.%s.%s.csd:not(.solid-csd):not(.maximized):'
+          'not(.fullscreen),"',
+        ),
+      );
+      expect(
+        nativeTimeZoneDialogCss,
+        contains('"not(.fullscreen) > decoration:backdrop,"'),
+      );
+      expect(
+        nativeTimeZoneDialogCss,
+        contains('"not(.fullscreen) > decoration-overlay:backdrop {"'),
+      );
+      expect(
+        nativeTimeZoneDialogCss,
         contains('"border-radius: 0 0 %dpx %dpx;"'),
       );
       expect(nativeTimeZoneDialogCss, contains('"box-shadow: none;"'));
+      expect(
+        '"border: none;"'.allMatches(nativeTimeZoneDialogCss).length,
+        greaterThanOrEqualTo(3),
+      );
       expect(
         nativeTimeZoneDialogCss,
         contains('"background-color: shade(%s, 1.06);"'),

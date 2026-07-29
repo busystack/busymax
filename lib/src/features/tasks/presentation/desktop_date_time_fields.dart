@@ -26,6 +26,11 @@ const _timePickerPopoverMinimumHeight = 220.0;
 const _timePickerPopoverPadding = EdgeInsets.all(BusyMaxSpacing.md);
 const _timePickerInputControlSize = BusyMaxSizes.popoverActionButton;
 const _timePickerInputColumnWidth = BusyMaxSizes.popoverActionButton;
+const _timePickerEditableCursorWidth = 2.0;
+// RenderEditable reserves this gap plus cursorWidth after a single line.
+const _timePickerEditableCursorGap = 1.0;
+const _timePickerEditableLeadingInset =
+    _timePickerEditableCursorWidth + _timePickerEditableCursorGap;
 
 class NativeDateTimePicker {
   const NativeDateTimePicker();
@@ -1229,28 +1234,35 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                   child: Center(
                     child: SizedBox(
                       width: buttonWidth,
-                      child: EditableText(
-                        controller: controller,
-                        focusNode: focusNode,
-                        textAlign: TextAlign.center,
-                        keyboardType: TextInputType.number,
-                        maxLines: 1,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(2),
-                        ],
-                        style: inputTextStyle,
-                        strutStyle: StrutStyle.fromTextStyle(
-                          inputTextStyle,
-                          forceStrutHeight: true,
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          left: _timePickerEditableLeadingInset,
                         ),
-                        cursorColor: Theme.of(context).colorScheme.primary,
-                        backgroundCursorColor: surfaceColors.disabledForeground,
-                        selectionColor: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.28),
-                        onChanged: (_) => _handleTimeInputChanged(),
-                        onSubmitted: (_) => _handleTimeInputChanged(),
+                        child: EditableText(
+                          controller: controller,
+                          focusNode: focusNode,
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          maxLines: 1,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(2),
+                          ],
+                          style: inputTextStyle,
+                          strutStyle: StrutStyle.fromTextStyle(
+                            inputTextStyle,
+                            forceStrutHeight: true,
+                          ),
+                          cursorWidth: _timePickerEditableCursorWidth,
+                          cursorColor: Theme.of(context).colorScheme.primary,
+                          backgroundCursorColor:
+                              surfaceColors.disabledForeground,
+                          selectionColor: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.28),
+                          onChanged: (_) => _handleTimeInputChanged(),
+                          onSubmitted: (_) => _handleTimeInputChanged(),
+                        ),
                       ),
                     ),
                   ),

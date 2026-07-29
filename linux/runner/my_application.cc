@@ -581,11 +581,12 @@ struct NativeTimeZoneOption {
 };
 
 struct NativeTimeZoneDialogState {
-  GtkWidget* dialog;
+  GtkWidget* window;
   GtkWidget* results;
   GPtrArray* options;
   const gchar* selected_time_zone;
   const gchar* no_results_label;
+  GMainLoop* loop;
   gchar* result;
 };
 
@@ -667,7 +668,43 @@ static void native_time_zone_row_activated_cb(HdyActionRow* row,
   }
   g_free(state->result);
   state->result = g_strdup(id);
-  gtk_dialog_response(GTK_DIALOG(state->dialog), GTK_RESPONSE_ACCEPT);
+  if (g_main_loop_is_running(state->loop)) {
+    g_main_loop_quit(state->loop);
+  }
+}
+
+static gboolean native_time_zone_window_delete_event_cb(
+    GtkWidget*,
+    GdkEvent*,
+    gpointer user_data) {
+  auto* state = static_cast<NativeTimeZoneDialogState*>(user_data);
+  if (g_main_loop_is_running(state->loop)) {
+    g_main_loop_quit(state->loop);
+  }
+  return TRUE;
+}
+
+static gboolean native_time_zone_window_key_press_event_cb(
+    GtkWidget*,
+    GdkEventKey* event,
+    gpointer user_data) {
+  if (event->keyval != GDK_KEY_Escape) {
+    return FALSE;
+  }
+  auto* state = static_cast<NativeTimeZoneDialogState*>(user_data);
+  if (g_main_loop_is_running(state->loop)) {
+    g_main_loop_quit(state->loop);
+  }
+  return TRUE;
+}
+
+static void native_time_zone_window_destroy_cb(GtkWidget*,
+                                               gpointer user_data) {
+  auto* state = static_cast<NativeTimeZoneDialogState*>(user_data);
+  state->window = nullptr;
+  if (g_main_loop_is_running(state->loop)) {
+    g_main_loop_quit(state->loop);
+  }
 }
 
 static void rebuild_native_time_zone_results(
@@ -846,21 +883,42 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
     return;
   }
 
-  GtkWidget* dialog = gtk_dialog_new_with_buttons(
-      title, parent,
-      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
-                                  GTK_DIALOG_DESTROY_WITH_PARENT |
-                                  GTK_DIALOG_USE_HEADER_BAR),
-      nullptr,
-      nullptr);
-  style_native_dialog(dialog);
-  gtk_style_context_add_class(gtk_widget_get_style_context(dialog),
+  GtkWidget* window = hdy_window_new();
+  style_native_dialog(window);
+  GtkStyleContext* dialog_context = gtk_widget_get_style_context(window);
+  gtk_style_context_add_class(dialog_context,
                               kNativeTimeZoneDialogStyleClass);
-  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
-  gtk_window_set_default_size(GTK_WINDOW(dialog),
+  gtk_window_set_title(GTK_WINDOW(window), title);
+  gtk_window_set_transient_for(GTK_WINDOW(window), parent);
+  gtk_window_set_modal(GTK_WINDOW(window), TRUE);
+  gtk_window_set_destroy_with_parent(GTK_WINDOW(window), TRUE);
+  gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_DIALOG);
+  gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ON_PARENT);
+  gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
+  gtk_window_set_default_size(GTK_WINDOW(window),
                               kNativeTimeZoneDialogWidth, -1);
+  GtkApplication* application = gtk_window_get_application(parent);
+  if (application != nullptr) {
+    gtk_window_set_application(GTK_WINDOW(window), application);
+  }
 
-  GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  GtkWidget* window_root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_container_add(GTK_CONTAINER(window), window_root);
+
+  GtkWidget* header_bar = hdy_header_bar_new();
+  hdy_header_bar_set_title(HDY_HEADER_BAR(header_bar), title);
+  hdy_header_bar_set_has_subtitle(HDY_HEADER_BAR(header_bar), FALSE);
+  hdy_header_bar_set_show_close_button(HDY_HEADER_BAR(header_bar), TRUE);
+  hdy_header_bar_set_decoration_layout(HDY_HEADER_BAR(header_bar), ":close");
+  hdy_header_bar_set_centering_policy(HDY_HEADER_BAR(header_bar),
+                                      HDY_CENTERING_POLICY_STRICT);
+  gtk_box_pack_start(GTK_BOX(window_root), header_bar, FALSE, FALSE, 0);
+
+  GtkWidget* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_style_context_add_class(gtk_widget_get_style_context(content),
+                              "busymax-native-dialog-content");
+  gtk_box_pack_start(GTK_BOX(window_root), content, TRUE, TRUE, 0);
+
   GtkWidget* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
   gtk_widget_set_size_request(root, kNativeTimeZoneDialogWidth - 36,
                               kNativeTimeZoneDialogContentHeight);
@@ -884,24 +942,35 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
                               kNativeTimeZoneResultsStyleClass);
   gtk_container_add(GTK_CONTAINER(scrolled), results);
 
+  GMainLoop* loop = g_main_loop_new(nullptr, FALSE);
   NativeTimeZoneDialogState state = {
-      dialog,
+      window,
       results,
       options,
       selected_time_zone,
       no_results_label,
+      loop,
       nullptr,
   };
   g_signal_connect(search, "search-changed",
                    G_CALLBACK(native_time_zone_search_changed_cb), &state);
+  g_signal_connect(window, "delete-event",
+                   G_CALLBACK(native_time_zone_window_delete_event_cb), &state);
+  g_signal_connect(window, "key-press-event",
+                   G_CALLBACK(native_time_zone_window_key_press_event_cb),
+                   &state);
+  g_signal_connect(window, "destroy",
+                   G_CALLBACK(native_time_zone_window_destroy_cb), &state);
 
-  gtk_widget_show_all(dialog);
+  gtk_widget_show_all(window);
   gtk_widget_grab_focus(search);
-  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-  respond_string(method_call,
-                 response == GTK_RESPONSE_ACCEPT ? state.result : nullptr);
+  g_main_loop_run(loop);
+  respond_string(method_call, state.result);
 
-  gtk_widget_destroy(dialog);
+  if (state.window != nullptr) {
+    gtk_widget_destroy(state.window);
+  }
+  g_main_loop_unref(loop);
   g_free(state.result);
   g_ptr_array_unref(options);
 }
@@ -1647,16 +1716,26 @@ static void refresh_header_bar_css(MyApplication* self) {
       css_color_or(self->header_bar_dialog_outline_color,
                    kDefaultDialogOutlineColor));
   g_autofree gchar* native_time_zone_dialog_css = g_strdup_printf(
-      "window.%s.%s,"
-      "window.%s.%s:backdrop {"
+      "window.%s.%s.csd:not(.solid-csd):not(.maximized):not(.fullscreen),"
+      "window.%s.%s.csd:not(.solid-csd):not(.maximized):"
+      "not(.fullscreen):backdrop {"
       "background-color: %s;"
       "background-image: none;"
+      "border: none;"
       "border-radius: %dpx;"
       "box-shadow: none;"
       "}"
       "window.%s.%s.csd:not(.solid-csd):not(.maximized):not(.fullscreen) "
-      "> decoration {"
+      "> decoration,"
+      "window.%s.%s.csd:not(.solid-csd):not(.maximized):"
+      "not(.fullscreen) > decoration:backdrop,"
+      "window.%s.%s.csd:not(.solid-csd):not(.maximized):"
+      "not(.fullscreen) > decoration-overlay,"
+      "window.%s.%s.csd:not(.solid-csd):not(.maximized):"
+      "not(.fullscreen) > decoration-overlay:backdrop {"
+      "border: none;"
       "border-radius: %dpx;"
+      "box-shadow: none;"
       "}"
       "window.%s.%s .busymax-native-dialog-content,"
       "window.%s.%s .busymax-native-dialog-content:backdrop {"
@@ -1696,6 +1775,9 @@ static void refresh_header_bar_css(MyApplication* self) {
       kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
       kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
       dialog_background_color, kNativeDialogCornerRadius,
+      kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
+      kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
+      kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
       kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
       kNativeDialogCornerRadius, kNativeDialogStyleClass,
       kNativeTimeZoneDialogStyleClass, kNativeDialogStyleClass,

@@ -7,6 +7,7 @@ import 'package:busymax/src/core/time/linux_gweather_location_source.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
@@ -306,6 +307,7 @@ void main() {
       expect(field.textAlign, TextAlign.center);
       expect(field.style.fontWeight, FontWeight.normal);
     }
+    final componentCenterOffsets = <double>[];
     for (final label in ['Hour', 'Minute']) {
       final inputSection = find.byKey(ValueKey(('time-input-section', label)));
       final inputCell = find.byKey(ValueKey(('time-input', label)));
@@ -323,6 +325,25 @@ void main() {
       final editable = tester.widget<EditableText>(editableText);
       expect(editable.textAlign, TextAlign.center);
       expect(editable.strutStyle.forceStrutHeight, isTrue);
+      final renderEditableFinder = find.descendant(
+        of: editableText,
+        matching: find.byElementPredicate(
+          (element) => element.renderObject is RenderEditable,
+        ),
+      );
+      expect(renderEditableFinder, findsOneWidget);
+      final renderEditable = tester.renderObject<RenderEditable>(
+        renderEditableFinder,
+      );
+      final editableOrigin = renderEditable.localToGlobal(Offset.zero);
+      final firstCaret = renderEditable.getLocalRectForCaret(
+        const TextPosition(offset: 0),
+      );
+      final lastCaret = renderEditable.getLocalRectForCaret(
+        TextPosition(offset: editable.controller.text.length),
+      );
+      final textRunCenterDx =
+          editableOrigin.dx + (firstCaret.left + lastCaret.left) / 2;
       final dividers = tester.widgetList<Divider>(
         find.descendant(of: inputSection, matching: find.byType(Divider)),
       );
@@ -336,6 +357,13 @@ void main() {
       final inputCellSize = tester.getSize(inputCell);
       expect(inputCellSize.width, BusyMaxSizes.popoverActionButton);
       expect(inputCellSize.height, BusyMaxSizes.popoverActionButton);
+      final componentCenterOffset =
+          textRunCenterDx - tester.getRect(inputCell).center.dx;
+      componentCenterOffsets.add(componentCenterOffset);
+      expect(
+        componentCenterOffset.abs(),
+        lessThanOrEqualTo(1 / tester.view.devicePixelRatio + 1e-9),
+      );
       expect(
         (tester.getRect(inputCell).center.dy -
                 tester.getRect(editableText).center.dy)
@@ -343,6 +371,10 @@ void main() {
         lessThan(1),
       );
     }
+    expect(
+      componentCenterOffsets.first,
+      closeTo(componentCenterOffsets.last, 0.01),
+    );
 
     final timezoneButton = find.ancestor(
       of: find.byIcon(Icons.public),
