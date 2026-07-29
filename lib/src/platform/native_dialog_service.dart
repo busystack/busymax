@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'linux_header_bar_service.dart';
+
 @visibleForTesting
 const nativeDialogChannelName = 'busymax/native_dialogs';
 
@@ -71,6 +73,62 @@ class NativeTimeZoneSelectionResult {
   final String? selectedTimeZone;
 }
 
+/// Semantic presentation values shared with Flutter's grouped-list component.
+///
+/// The Linux host keeps its native GTK input and Handy rows, while these
+/// values prevent the native result groups from developing a separate visual
+/// language from BusyMaxGroupedList.
+@immutable
+class NativeGroupedListStyle {
+  const NativeGroupedListStyle({
+    required this.surfaceColor,
+    required this.dividerColor,
+    required this.sectionHeaderColor,
+    required this.primaryTextColor,
+    required this.secondaryTextColor,
+    required this.hoverColor,
+    required this.shadowColor,
+    required this.outlineColor,
+    required this.highContrast,
+    required this.radius,
+    required this.sectionTopSpacing,
+    required this.sectionHorizontalPadding,
+    required this.titleBottomSpacing,
+  });
+
+  final Color surfaceColor;
+  final Color dividerColor;
+  final Color sectionHeaderColor;
+  final Color primaryTextColor;
+  final Color secondaryTextColor;
+  final Color hoverColor;
+  final Color shadowColor;
+  final Color outlineColor;
+  final bool highContrast;
+  final int radius;
+  final int sectionTopSpacing;
+  final int sectionHorizontalPadding;
+  final int titleBottomSpacing;
+
+  Map<String, Object> toMessage() {
+    return {
+      'surfaceColor': busyMaxCssColor(surfaceColor),
+      'dividerColor': busyMaxCssColor(dividerColor),
+      'sectionHeaderColor': busyMaxCssColor(sectionHeaderColor),
+      'primaryTextColor': busyMaxCssColor(primaryTextColor),
+      'secondaryTextColor': busyMaxCssColor(secondaryTextColor),
+      'hoverColor': busyMaxCssColor(hoverColor),
+      'shadowColor': busyMaxCssColor(shadowColor),
+      'outlineColor': busyMaxCssColor(outlineColor),
+      'highContrast': highContrast,
+      'radius': radius,
+      'sectionTopSpacing': sectionTopSpacing,
+      'sectionHorizontalPadding': sectionHorizontalPadding,
+      'titleBottomSpacing': titleBottomSpacing,
+    };
+  }
+}
+
 /// Presents confirmation UI owned by the host desktop toolkit.
 ///
 /// Linux implements this with a transient `GtkMessageDialog`. Other hosts can
@@ -114,6 +172,7 @@ class NativeDialogService {
     required String noResultsLabel,
     required String selectedTimeZone,
     required List<NativeTimeZoneOption> options,
+    required NativeGroupedListStyle groupedListStyle,
   }) async {
     try {
       final selected = await _channel.invokeMethod<String>('selectTimeZone', {
@@ -122,6 +181,7 @@ class NativeDialogService {
         'noResultsLabel': noResultsLabel,
         'selectedTimeZone': selectedTimeZone,
         'options': options.map((option) => option.toMessage()).toList(),
+        'groupedListStyle': groupedListStyle.toMessage(),
       });
       return NativeTimeZoneSelectionResult(
         available: true,

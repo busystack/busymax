@@ -6,6 +6,21 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const channel = MethodChannel('busymax_test/native_dialogs');
+  const groupedListStyle = NativeGroupedListStyle(
+    surfaceColor: Color(0xFF444444),
+    dividerColor: Color(0x5C000000),
+    sectionHeaderColor: Color(0xFFCCCCCC),
+    primaryTextColor: Color(0xFFEFEFEF),
+    secondaryTextColor: Color(0xFFBBBBBB),
+    hoverColor: Color(0x1FFFFFFF),
+    shadowColor: Color(0xFF000000),
+    outlineColor: Color(0x1FFFFFFF),
+    highContrast: false,
+    radius: 8,
+    sectionTopSpacing: 16,
+    sectionHorizontalPadding: 4,
+    titleBottomSpacing: 8,
+  );
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -103,6 +118,7 @@ void main() {
           searchText: 'Vancouver\nAmerica/Vancouver\nCA',
         ),
       ],
+      groupedListStyle: groupedListStyle,
     );
 
     expect(result.available, isTrue);
@@ -124,6 +140,21 @@ void main() {
           'searchText': 'Vancouver\nAmerica/Vancouver\nCA',
         },
       ],
+      'groupedListStyle': {
+        'surfaceColor': '#444444',
+        'dividerColor': 'rgba(0,0,0,0.36)',
+        'sectionHeaderColor': '#CCCCCC',
+        'primaryTextColor': '#EFEFEF',
+        'secondaryTextColor': '#BBBBBB',
+        'hoverColor': 'rgba(255,255,255,0.12)',
+        'shadowColor': '#000000',
+        'outlineColor': 'rgba(255,255,255,0.12)',
+        'highContrast': false,
+        'radius': 8,
+        'sectionTopSpacing': 16,
+        'sectionHorizontalPadding': 4,
+        'titleBottomSpacing': 8,
+      },
     });
   });
 
@@ -150,6 +181,7 @@ void main() {
             searchText: 'UTC\nEtc/UTC',
           ),
         ],
+        groupedListStyle: groupedListStyle,
       );
 
       expect(result.available, isTrue);

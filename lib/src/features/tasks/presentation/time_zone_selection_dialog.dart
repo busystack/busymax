@@ -6,6 +6,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_surface_colors.dart';
 import '../../../core/time/time_zone_catalog.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/native_dialog_service.dart';
@@ -22,6 +23,8 @@ Future<String?> showBusyMaxTimeZoneSelectionDialog(
       return null;
     }
     final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final surfaceColors = BusyMaxSurfaceColors.of(context);
     final nativeResult = await const NativeDialogService().selectTimeZone(
       title: l10n.selectTimeZone,
       searchPlaceholder: l10n.searchLocations,
@@ -39,6 +42,22 @@ Future<String?> showBusyMaxTimeZoneSelectionDialog(
             searchText: result.searchText,
           ),
       ],
+      groupedListStyle: NativeGroupedListStyle(
+        surfaceColor: busyMaxGroupedSurfaceColor(context),
+        dividerColor: surfaceColors.cardShade,
+        sectionHeaderColor: theme.colorScheme.onSurfaceVariant,
+        primaryTextColor: theme.colorScheme.onSurface,
+        secondaryTextColor: surfaceColors.mutedForeground,
+        hoverColor: busyMaxRowHoverColor(context),
+        shadowColor:
+            CardTheme.of(context).shadowColor ?? theme.colorScheme.shadow,
+        outlineColor: theme.colorScheme.outline,
+        highContrast: MediaQuery.highContrastOf(context),
+        radius: BusyMaxRadius.md.round(),
+        sectionTopSpacing: BusyMaxSpacing.lg.round(),
+        sectionHorizontalPadding: BusyMaxSpacing.xs.round(),
+        titleBottomSpacing: BusyMaxSpacing.sm.round(),
+      ),
     );
     if (nativeResult.available) {
       return nativeResult.selectedTimeZone;

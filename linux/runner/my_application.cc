@@ -88,8 +88,6 @@ constexpr char kNativeTimeZoneRowStyleClass[] = "busymax-time-zone-row";
 constexpr gint kNativeTimeZoneDialogWidth = 520;
 constexpr gint kNativeTimeZoneDialogContentHeight = 420;
 constexpr size_t kNativeTimeZoneResultLimit = 250;
-constexpr gdouble kNativeTimeZonePrimaryTextOpacity = 0.82;
-constexpr gdouble kNativeTimeZoneSecondaryTextOpacity = 0.62;
 constexpr char kNativePopoverStyleClass[] = "busymax-native-popover";
 constexpr char kHeaderMenuDepthStyleClass[] = "busymax-header-menu-depth";
 
@@ -580,6 +578,22 @@ struct NativeTimeZoneOption {
   gint region_match_rank;
 };
 
+struct NativeGroupedListStyle {
+  const gchar* surface_color;
+  const gchar* divider_color;
+  const gchar* section_header_color;
+  const gchar* primary_text_color;
+  const gchar* secondary_text_color;
+  const gchar* hover_color;
+  const gchar* shadow_color;
+  const gchar* outline_color;
+  gboolean high_contrast;
+  gint radius;
+  gint section_top_spacing;
+  gint section_horizontal_padding;
+  gint title_bottom_spacing;
+};
+
 struct NativeTimeZoneDialogState {
   GtkWidget* window;
   GtkWidget* results;
@@ -786,6 +800,8 @@ static void rebuild_native_time_zone_results(
       gtk_style_context_add_class(
           gtk_widget_get_style_context(current_group),
           kNativeTimeZoneGroupStyleClass);
+      gtk_widget_set_hexpand(current_group, TRUE);
+      gtk_widget_set_halign(current_group, GTK_ALIGN_FILL);
       hdy_preferences_group_set_title(
           HDY_PREFERENCES_GROUP(current_group), current_region);
       gtk_box_pack_start(GTK_BOX(state->results), current_group, FALSE, FALSE,
@@ -795,8 +811,12 @@ static void rebuild_native_time_zone_results(
     GtkWidget* row = hdy_action_row_new();
     gtk_style_context_add_class(gtk_widget_get_style_context(row),
                                 kNativeTimeZoneRowStyleClass);
+    gtk_widget_set_hexpand(row, TRUE);
+    gtk_widget_set_halign(row, GTK_ALIGN_FILL);
     hdy_preferences_row_set_title(HDY_PREFERENCES_ROW(row), option->title);
     hdy_action_row_set_subtitle(HDY_ACTION_ROW(row), option->subtitle);
+    hdy_action_row_set_title_lines(HDY_ACTION_ROW(row), 1);
+    hdy_action_row_set_subtitle_lines(HDY_ACTION_ROW(row), 1);
     hdy_action_row_set_icon_name(HDY_ACTION_ROW(row),
                                  "mark-location-symbolic");
     gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), TRUE);
@@ -874,6 +894,158 @@ static GPtrArray* parse_native_time_zone_options(FlValue* args) {
   return options;
 }
 
+static gboolean is_native_grouped_list_color(const gchar* value) {
+  if (value == nullptr) {
+    return FALSE;
+  }
+  GdkRGBA parsed = {};
+  return gdk_rgba_parse(&parsed, value);
+}
+
+static gboolean parse_native_grouped_list_style(
+    FlValue* args,
+    NativeGroupedListStyle* style) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* value = fl_value_lookup_string(args, "groupedListStyle");
+  if (value == nullptr || fl_value_get_type(value) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+
+  style->surface_color = fl_lookup_string_arg(value, "surfaceColor");
+  style->divider_color = fl_lookup_string_arg(value, "dividerColor");
+  style->section_header_color =
+      fl_lookup_string_arg(value, "sectionHeaderColor");
+  style->primary_text_color =
+      fl_lookup_string_arg(value, "primaryTextColor");
+  style->secondary_text_color =
+      fl_lookup_string_arg(value, "secondaryTextColor");
+  style->hover_color = fl_lookup_string_arg(value, "hoverColor");
+  style->shadow_color = fl_lookup_string_arg(value, "shadowColor");
+  style->outline_color = fl_lookup_string_arg(value, "outlineColor");
+
+  gint64 radius = 0;
+  gint64 section_top_spacing = 0;
+  gint64 section_horizontal_padding = 0;
+  gint64 title_bottom_spacing = 0;
+  if (!fl_lookup_optional_bool_arg(value, "highContrast",
+                                   &style->high_contrast) ||
+      !fl_lookup_int_arg(value, "radius", &radius) ||
+      !fl_lookup_int_arg(value, "sectionTopSpacing",
+                         &section_top_spacing) ||
+      !fl_lookup_int_arg(value, "sectionHorizontalPadding",
+                         &section_horizontal_padding) ||
+      !fl_lookup_int_arg(value, "titleBottomSpacing",
+                         &title_bottom_spacing)) {
+    return FALSE;
+  }
+
+  const gchar* colors[] = {
+      style->surface_color,        style->divider_color,
+      style->section_header_color, style->primary_text_color,
+      style->secondary_text_color, style->hover_color,
+      style->shadow_color,         style->outline_color,
+  };
+  for (const gchar* color : colors) {
+    if (!is_native_grouped_list_color(color)) {
+      return FALSE;
+    }
+  }
+
+  if (radius < 0 || radius > 64 ||
+      section_top_spacing < 0 || section_top_spacing > 128 ||
+      section_horizontal_padding < 0 ||
+      section_horizontal_padding > 128 ||
+      title_bottom_spacing < 0 || title_bottom_spacing > 128) {
+    return FALSE;
+  }
+  style->radius = static_cast<gint>(radius);
+  style->section_top_spacing = static_cast<gint>(section_top_spacing);
+  style->section_horizontal_padding =
+      static_cast<gint>(section_horizontal_padding);
+  style->title_bottom_spacing = static_cast<gint>(title_bottom_spacing);
+  return TRUE;
+}
+
+static GtkCssProvider* create_native_grouped_list_provider(
+    const NativeGroupedListStyle* style,
+    GError** error) {
+  g_autofree gchar* css = g_strdup_printf(
+      "window.%s .%s {"
+      "background-color: transparent;"
+      "background-image: none;"
+      "}"
+      "window.%s .%s {"
+      "margin-top: %dpx;"
+      "}"
+      "window.%s .%s > box > label.heading,"
+      "window.%s .%s > box > label.h4 {"
+      "color: %s;"
+      "margin-bottom: %dpx;"
+      "}"
+      "window.%s .%s list {"
+      "background-color: %s;"
+      "background-image: none;"
+      "border: %dpx solid %s;"
+      "border-radius: %dpx;"
+      "box-shadow: 0 2px 6px 2px alpha(%s, 0.03),"
+      "0 1px 3px 1px alpha(%s, 0.07),"
+      "0 0 0 1px alpha(%s, 0.03);"
+      "}"
+      "window.%s row.%s,"
+      "window.%s row.%s:backdrop {"
+      "background-color: transparent;"
+      "background-image: none;"
+      "border: none;"
+      "box-shadow: none;"
+      "color: %s;"
+      "}"
+      "window.%s row.%s:not(:last-child) {"
+      "border-bottom: 1px solid %s;"
+      "}"
+      "window.%s row.%s label.title {"
+      "color: %s;"
+      "}"
+      "window.%s row.%s label.subtitle,"
+      "window.%s row.%s label.dim-label {"
+      "color: %s;"
+      "}"
+      "window.%s row.%s:hover:not(:disabled) {"
+      "background-color: %s;"
+      "background-image: none;"
+      "}",
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneResultsStyleClass,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneGroupStyleClass,
+      style->section_top_spacing,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneGroupStyleClass,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneGroupStyleClass,
+      style->section_header_color, style->title_bottom_spacing,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneGroupStyleClass,
+      style->surface_color, style->high_contrast ? 1 : 0,
+      style->outline_color, style->radius, style->shadow_color,
+      style->shadow_color, style->shadow_color,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      style->primary_text_color,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      style->divider_color,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      style->primary_text_color,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      style->secondary_text_color,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      style->hover_color);
+  GtkCssProvider* provider = gtk_css_provider_new();
+  gtk_css_provider_load_from_data(provider, css, -1, error);
+  if (error != nullptr && *error != nullptr) {
+    g_object_unref(provider);
+    return nullptr;
+  }
+  return provider;
+}
+
 static void handle_native_time_zone_selection(FlMethodCall* method_call,
                                               FlValue* args,
                                               GtkWindow* parent) {
@@ -885,16 +1057,31 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
   const gchar* selected_time_zone =
       fl_lookup_string_arg(args, "selectedTimeZone");
   GPtrArray* options = parse_native_time_zone_options(args);
+  NativeGroupedListStyle grouped_list_style = {};
   if (title == nullptr || search_placeholder == nullptr ||
       no_results_label == nullptr || selected_time_zone == nullptr ||
-      options == nullptr || options->len == 0) {
+      options == nullptr || options->len == 0 ||
+      !parse_native_grouped_list_style(args, &grouped_list_style)) {
     if (options != nullptr) {
       g_ptr_array_unref(options);
     }
     fl_method_call_respond_error(
         method_call, "invalid-arguments",
         "The timezone dialog requires localized labels, a selected timezone, "
-        "and a non-empty option list.",
+        "a non-empty option list, and valid grouped-list presentation values.",
+        nullptr, nullptr);
+    return;
+  }
+
+  g_autoptr(GError) css_error = nullptr;
+  g_autoptr(GtkCssProvider) grouped_list_provider =
+      create_native_grouped_list_provider(&grouped_list_style, &css_error);
+  if (grouped_list_provider == nullptr) {
+    g_ptr_array_unref(options);
+    fl_method_call_respond_error(
+        method_call, "invalid-arguments",
+        css_error != nullptr ? css_error->message
+                             : "The grouped-list presentation is invalid.",
         nullptr, nullptr);
     return;
   }
@@ -915,6 +1102,10 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
   gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
   gtk_window_set_default_size(GTK_WINDOW(window),
                               kNativeTimeZoneDialogWidth, -1);
+  GdkScreen* screen = gtk_widget_get_screen(window);
+  gtk_style_context_add_provider_for_screen(
+      screen, GTK_STYLE_PROVIDER(grouped_list_provider),
+      GTK_STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
 
   GtkWidget* window_root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_container_add(GTK_CONTAINER(window), window_root);
@@ -948,12 +1139,21 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
                                  GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
   gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scrolled),
                                       GTK_SHADOW_NONE);
+  gtk_scrolled_window_set_propagate_natural_width(
+      GTK_SCROLLED_WINDOW(scrolled), FALSE);
+  gtk_scrolled_window_set_max_content_width(
+      GTK_SCROLLED_WINDOW(scrolled), kNativeTimeZoneDialogWidth - 36);
+  gtk_widget_set_hexpand(scrolled, TRUE);
   gtk_widget_set_vexpand(scrolled, TRUE);
   gtk_box_pack_start(GTK_BOX(root), scrolled, TRUE, TRUE, 0);
 
-  GtkWidget* results = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+  GtkWidget* results = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_style_context_add_class(gtk_widget_get_style_context(results),
                               kNativeTimeZoneResultsStyleClass);
+  gtk_widget_set_margin_start(
+      results, grouped_list_style.section_horizontal_padding);
+  gtk_widget_set_margin_end(
+      results, grouped_list_style.section_horizontal_padding);
   gtk_container_add(GTK_CONTAINER(scrolled), results);
 
   GMainLoop* loop = g_main_loop_new(nullptr, FALSE);
@@ -992,6 +1192,8 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
   g_main_loop_unref(loop);
   g_free(state.result);
   g_ptr_array_unref(options);
+  gtk_style_context_remove_provider_for_screen(
+      screen, GTK_STYLE_PROVIDER(grouped_list_provider));
 }
 
 struct NativeDialogHandlerData {
@@ -1761,35 +1963,6 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "border-radius: 0 0 %dpx %dpx;"
-      "}"
-      "window.%s .%s {"
-      "background-color: transparent;"
-      "background-image: none;"
-      "}"
-      "window.%s .%s list {"
-      "background-color: shade(%s, 1.06);"
-      "background-image: none;"
-      "border: none;"
-      "border-radius: 8px;"
-      "box-shadow: none;"
-      "}"
-      "window.%s .%s row,"
-      "window.%s .%s row:backdrop {"
-      "background-color: transparent;"
-      "background-image: none;"
-      "border: none;"
-      "box-shadow: none;"
-      "}"
-      "window.%s .%s label {"
-      "color: alpha(%s, %.2f);"
-      "}"
-      "window.%s .%s label.subtitle,"
-      "window.%s .%s label.dim-label {"
-      "color: alpha(%s, %.2f);"
-      "}"
-      "window.%s .%s row:hover:not(:disabled) {"
-      "background-color: alpha(%s, 0.08);"
-      "background-image: none;"
       "}",
       kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
       kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
@@ -1801,24 +1974,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       kNativeDialogCornerRadius, kNativeDialogStyleClass,
       kNativeTimeZoneDialogStyleClass, kNativeDialogStyleClass,
       kNativeTimeZoneDialogStyleClass, dialog_background_color,
-      kNativeDialogCornerRadius, kNativeDialogCornerRadius,
-      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneResultsStyleClass,
-      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneGroupStyleClass,
-      dialog_background_color, kNativeTimeZoneDialogStyleClass,
-      kNativeTimeZoneRowStyleClass, kNativeTimeZoneDialogStyleClass,
-      kNativeTimeZoneRowStyleClass, kNativeTimeZoneDialogStyleClass,
-      kNativeTimeZoneResultsStyleClass, foreground_color,
-      self->header_bar_high_contrast
-          ? 1.0
-          : kNativeTimeZonePrimaryTextOpacity,
-      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
-      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
-      foreground_color,
-      self->header_bar_high_contrast
-          ? 1.0
-          : kNativeTimeZoneSecondaryTextOpacity,
-      kNativeTimeZoneDialogStyleClass,
-      kNativeTimeZoneRowStyleClass, foreground_color);
+      kNativeDialogCornerRadius, kNativeDialogCornerRadius);
   const gchar* modal_barrier_color = css_color_or(
       self->header_bar_modal_barrier_color, kDefaultModalBarrierColor);
   const gboolean use_legacy_yaru_compatibility =

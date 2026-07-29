@@ -1395,9 +1395,59 @@ void main() {
       expect(runner, contains('native_time_zone_option_match_rank'));
       expect(runner, contains('compare_native_time_zone_options'));
       expect(runner, contains('g_ptr_array_sort_with_data'));
+      expect(runner, contains('parse_native_grouped_list_style'));
+      expect(runner, contains('create_native_grouped_list_provider'));
+      expect(
+        runner,
+        contains('gtk_scrolled_window_set_propagate_natural_width'),
+      );
+      expect(runner, contains('gtk_scrolled_window_set_max_content_width'));
+      expect(
+        runner,
+        contains('hdy_action_row_set_title_lines(HDY_ACTION_ROW(row), 1)'),
+      );
+      expect(
+        runner,
+        contains('hdy_action_row_set_subtitle_lines(HDY_ACTION_ROW(row), 1)'),
+      );
+      expect(
+        nativeSelector,
+        contains(
+          'gtk_widget_set_margin_start(\n'
+          '      results, grouped_list_style.section_horizontal_padding)',
+        ),
+      );
+      expect(
+        nativeSelector,
+        contains(
+          'gtk_widget_set_margin_end(\n'
+          '      results, grouped_list_style.section_horizontal_padding)',
+        ),
+      );
       expect(service, contains("invokeMethod<String>('selectTimeZone'"));
+      expect(service, contains('class NativeGroupedListStyle'));
+      expect(
+        service,
+        contains("'groupedListStyle': groupedListStyle.toMessage()"),
+      );
       expect(selector, contains('NativeDialogService().selectTimeZone('));
       expect(selector, contains('BusyMaxGroupedList('));
+      expect(selector, contains('busyMaxGroupedSurfaceColor(context)'));
+      expect(selector, contains('dividerColor: surfaceColors.cardShade'));
+      expect(selector, contains('busyMaxRowHoverColor(context)'));
+      expect(selector, contains('radius: BusyMaxRadius.md.round()'));
+      expect(
+        selector,
+        contains('sectionTopSpacing: BusyMaxSpacing.lg.round()'),
+      );
+      expect(
+        selector,
+        contains('sectionHorizontalPadding: BusyMaxSpacing.xs.round()'),
+      );
+      expect(
+        selector,
+        contains('titleBottomSpacing: BusyMaxSpacing.sm.round()'),
+      );
     });
 
     test('application activation presents only the application window', () {
@@ -1533,8 +1583,12 @@ void main() {
 
     test('native headerbar CSS uses scoped semantic surfaces and states', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final refreshHeaderCssStart = source.indexOf(
+        'static void refresh_header_bar_css',
+      );
       final headerCssStart = source.indexOf(
         'g_autofree gchar* css = g_strdup_printf(',
+        refreshHeaderCssStart,
       );
       final headerCssEnd = source.indexOf(
         'g_autoptr(GError) error = nullptr;',
@@ -1577,6 +1631,19 @@ void main() {
       final nativeTimeZoneDialogCss = source.substring(
         nativeTimeZoneDialogCssStart,
         nativeTimeZoneDialogCssEnd,
+      );
+      final nativeGroupedListCssStart = source.indexOf(
+        'static GtkCssProvider* create_native_grouped_list_provider',
+      );
+      final nativeGroupedListCssEnd = source.indexOf(
+        'static void handle_native_time_zone_selection',
+        nativeGroupedListCssStart,
+      );
+      expect(nativeGroupedListCssStart, isNonNegative);
+      expect(nativeGroupedListCssEnd, greaterThan(nativeGroupedListCssStart));
+      final nativeGroupedListCss = source.substring(
+        nativeGroupedListCssStart,
+        nativeGroupedListCssEnd,
       );
       final nativeSearchGeometryCssStart = source.indexOf(
         'g_autofree gchar* native_search_geometry_css =',
@@ -1914,22 +1981,38 @@ void main() {
         contains('"border-radius: 0 0 %dpx %dpx;"'),
       );
       expect(nativeTimeZoneDialogCss, contains('"box-shadow: none;"'));
+      expect('"border: none;"'.allMatches(nativeTimeZoneDialogCss).length, 2);
+      expect(nativeTimeZoneDialogCss, isNot(contains('shade(')));
       expect(
-        '"border: none;"'.allMatches(nativeTimeZoneDialogCss).length,
-        greaterThanOrEqualTo(3),
+        nativeTimeZoneDialogCss,
+        isNot(contains('kNativeTimeZoneGroupStyleClass')),
       );
       expect(
         nativeTimeZoneDialogCss,
-        contains('"background-color: shade(%s, 1.06);"'),
+        isNot(contains('kNativeTimeZoneRowStyleClass')),
       );
+      expect(nativeGroupedListCss, contains('style->surface_color'));
+      expect(nativeGroupedListCss, contains('style->divider_color'));
+      expect(nativeGroupedListCss, contains('style->section_header_color'));
+      expect(nativeGroupedListCss, contains('style->primary_text_color'));
+      expect(nativeGroupedListCss, contains('style->secondary_text_color'));
+      expect(nativeGroupedListCss, contains('style->hover_color'));
+      expect(nativeGroupedListCss, contains('style->shadow_color'));
+      expect(nativeGroupedListCss, contains('style->outline_color'));
+      expect(nativeGroupedListCss, contains('style->section_top_spacing'));
       expect(
-        nativeTimeZoneDialogCss,
-        contains('kNativeTimeZoneGroupStyleClass'),
+        nativeGroupedListCss,
+        isNot(contains('style->section_horizontal_padding')),
       );
-      expect(nativeTimeZoneDialogCss, contains('kNativeTimeZoneRowStyleClass'));
-      expect(nativeTimeZoneDialogCss, contains('"color: alpha(%s, %.2f);"'));
-      expect(source, contains('kNativeTimeZonePrimaryTextOpacity = 0.82'));
-      expect(source, contains('kNativeTimeZoneSecondaryTextOpacity = 0.62'));
+      expect(nativeGroupedListCss, contains('style->title_bottom_spacing'));
+      expect(nativeGroupedListCss, contains('"window.%s row.%s,"'));
+      expect(
+        nativeGroupedListCss,
+        contains('"window.%s row.%s:hover:not(:disabled) {"'),
+      );
+      expect(nativeGroupedListCss, isNot(contains('"window.%s .%s row,"')));
+      expect(source, isNot(contains('kNativeTimeZonePrimaryTextOpacity')));
+      expect(source, isNot(contains('kNativeTimeZoneSecondaryTextOpacity')));
       expect(
         source,
         contains('constexpr gint kNativeDialogCornerRadius = 14;'),

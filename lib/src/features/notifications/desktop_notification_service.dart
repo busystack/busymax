@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:desktop_notifications/desktop_notifications.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_settings.dart';
 import '../../core/logging/redacting_logger.dart';
 
@@ -261,87 +262,31 @@ class NotificationStrings {
   });
 
   factory NotificationStrings.forLocale(Locale locale) {
-    return switch (locale.languageCode) {
-      'de' => NotificationStrings.german,
-      'fr' => NotificationStrings.french,
-      'es' => NotificationStrings.spanish,
-      _ => NotificationStrings.english,
-    };
+    final supportedLocale = AppLocalizations.supportedLocales.firstWhere(
+      (candidate) => candidate.languageCode == locale.languageCode,
+      orElse: () => const Locale('en'),
+    );
+    return NotificationStrings.fromLocalizations(
+      lookupAppLocalizations(supportedLocale),
+    );
   }
 
-  static final english = NotificationStrings(
-    syncFailureTitle: 'BusyMax sync failed',
-    conflictTitle: 'BusyMax sync conflict',
-    dueTodayTitle: 'Tasks due today',
-    eventReminderTitle: 'Event reminder',
-    taskReminderTitle: 'Task reminder',
-    detailsHidden: 'Details are hidden by privacy settings.',
-    eventReminderBody: 'Event starts soon.',
-    taskReminderBody: 'Task is due soon.',
-    openAction: 'Open',
-    syncFailureBody: (message) => 'Background sync failed. $message',
-    conflictBody: (summary) => 'A pending local change was blocked. $summary',
-    dueTodayBody: (count) =>
-        count == 1 ? 'One task is due today.' : '$count tasks are due today.',
-  );
-
-  static final german = NotificationStrings(
-    syncFailureTitle: 'BusyMax-Synchronisierung fehlgeschlagen',
-    conflictTitle: 'BusyMax-Synchronisierungskonflikt',
-    dueTodayTitle: 'Heute fällige Aufgaben',
-    eventReminderTitle: 'Terminerinnerung',
-    taskReminderTitle: 'Aufgabenerinnerung',
-    detailsHidden:
-        'Details werden durch Datenschutzeinstellungen ausgeblendet.',
-    eventReminderBody: 'Der Termin beginnt bald.',
-    taskReminderBody: 'Die Aufgabe ist bald fällig.',
-    openAction: 'Öffnen',
-    syncFailureBody: (message) =>
-        'Hintergrundsynchronisierung fehlgeschlagen. $message',
-    conflictBody: (summary) =>
-        'Eine ausstehende lokale Änderung wurde blockiert. $summary',
-    dueTodayBody: (count) => count == 1
-        ? 'Eine Aufgabe ist heute fällig.'
-        : '$count Aufgaben sind heute fällig.',
-  );
-
-  static final french = NotificationStrings(
-    syncFailureTitle: 'Échec de la synchronisation BusyMax',
-    conflictTitle: 'Conflit de synchronisation BusyMax',
-    dueTodayTitle: 'Tâches dues aujourd’hui',
-    eventReminderTitle: 'Rappel d’événement',
-    taskReminderTitle: 'Rappel de tâche',
-    detailsHidden:
-        'Les détails sont masqués par les paramètres de confidentialité.',
-    eventReminderBody: 'L’événement commence bientôt.',
-    taskReminderBody: 'La tâche arrive bientôt à échéance.',
-    openAction: 'Ouvrir',
-    syncFailureBody: (message) =>
-        'La synchronisation en arrière-plan a échoué. $message',
-    conflictBody: (summary) =>
-        'Une modification locale en attente a été bloquée. $summary',
-    dueTodayBody: (count) => count == 1
-        ? 'Une tâche est due aujourd’hui.'
-        : '$count tâches sont dues aujourd’hui.',
-  );
-
-  static final spanish = NotificationStrings(
-    syncFailureTitle: 'Falló la sincronización de BusyMax',
-    conflictTitle: 'Conflicto de sincronización de BusyMax',
-    dueTodayTitle: 'Tareas que vencen hoy',
-    eventReminderTitle: 'Recordatorio de evento',
-    taskReminderTitle: 'Recordatorio de tarea',
-    detailsHidden:
-        'Los detalles están ocultos por la configuración de privacidad.',
-    eventReminderBody: 'El evento empieza pronto.',
-    taskReminderBody: 'La tarea vence pronto.',
-    openAction: 'Abrir',
-    syncFailureBody: (message) =>
-        'Falló la sincronización en segundo plano. $message',
-    conflictBody: (summary) => 'Se bloqueó un cambio local pendiente. $summary',
-    dueTodayBody: (count) =>
-        count == 1 ? 'Una tarea vence hoy.' : '$count tareas vencen hoy.',
-  );
+  factory NotificationStrings.fromLocalizations(AppLocalizations l10n) {
+    return NotificationStrings(
+      syncFailureTitle: l10n.syncFailureNotificationTitle,
+      conflictTitle: l10n.conflictNotificationTitle,
+      dueTodayTitle: l10n.dueTodayNotificationTitle,
+      eventReminderTitle: l10n.eventReminderNotificationTitle,
+      taskReminderTitle: l10n.taskReminderNotificationTitle,
+      detailsHidden: l10n.notificationDetailsHidden,
+      eventReminderBody: l10n.eventReminderNotificationBody,
+      taskReminderBody: l10n.taskReminderNotificationBody,
+      openAction: l10n.notificationOpenAction,
+      syncFailureBody: l10n.syncFailureNotificationBody,
+      conflictBody: l10n.conflictNotificationBody,
+      dueTodayBody: l10n.dueTodayNotificationBody,
+    );
+  }
 
   final String syncFailureTitle;
   final String conflictTitle;

@@ -874,7 +874,6 @@ class _BusyMaxOnboardingControlsState {
       Object.hash(visible, canGoBack, canContinue, backLabel, continueLabel);
 }
 
-@visibleForTesting
 String busyMaxCssColor(Color color) {
   final rgb = color.toARGB32() & 0x00ffffff;
   if (color.a >= 1) {

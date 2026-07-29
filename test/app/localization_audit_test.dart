@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -56,6 +58,33 @@ void main() {
 
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
+
+  test('Finnish is generated and exposed as a supported locale', () {
+    const locale = Locale('fi');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'Asetukset');
+    expect(localizations.today, 'Tänään');
+  });
+
+  test('Russian is generated and exposed as a supported locale', () {
+    const locale = Locale('ru');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'Настройки');
+    expect(localizations.today, 'Сегодня');
+  });
+
+  test('Portuguese is generated and exposed as a supported locale', () {
+    const locale = Locale('pt');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'Definições');
+    expect(localizations.today, 'Hoje');
+  });
 }
 
 const _auditedUiPaths = <String>[
@@ -71,7 +100,10 @@ const _auditedUiPaths = <String>[
 const _translatedArbPaths = <String>[
   'lib/l10n/app_de.arb',
   'lib/l10n/app_es.arb',
+  'lib/l10n/app_fi.arb',
   'lib/l10n/app_fr.arb',
+  'lib/l10n/app_pt.arb',
+  'lib/l10n/app_ru.arb',
 ];
 
 final _userFacingLiteralPattern = RegExp(

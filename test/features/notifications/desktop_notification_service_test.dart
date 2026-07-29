@@ -49,17 +49,52 @@ void main() {
     expect(backend.notifications, isEmpty);
   });
 
-  test('notification strings localize supported locales', () async {
+  test('notification strings use the Finnish ARB catalog', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
       backend: backend,
       settings: AppSettings.defaults().copyWith(notifyDueToday: true),
-      locale: const Locale('es'),
+      locale: const Locale('fi'),
     );
 
     await service.notifyDueToday(2);
 
-    expect(backend.notifications.single.summary, 'Tareas que vencen hoy');
+    expect(backend.notifications.single.summary, 'Tänään erääntyvät tehtävät');
+    expect(backend.notifications.single.body, '2 tehtävää erääntyy tänään.');
+  });
+
+  test('notification strings use Russian plural rules', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('ru'),
+    );
+
+    await service.notifyDueToday(22);
+
+    expect(backend.notifications.single.summary, 'Задачи на сегодня');
+    expect(
+      backend.notifications.single.body,
+      'Сегодня нужно выполнить 22 задачи.',
+    );
+  });
+
+  test('notification strings use the Portuguese ARB catalog', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('pt'),
+    );
+
+    await service.notifyDueToday(2);
+
+    expect(backend.notifications.single.summary, 'Tarefas com prazo para hoje');
+    expect(
+      backend.notifications.single.body,
+      'Há 2 tarefas com prazo para hoje.',
+    );
   });
 
   test('reminder notification details are visible by default', () async {

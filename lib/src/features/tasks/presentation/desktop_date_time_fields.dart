@@ -1067,6 +1067,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final materialLocalizations = MaterialLocalizations.of(context);
     return BusyMaxContentPopoverSurface(
       arrowSide: widget.arrowSide,
       arrowAlignment: widget.arrowAlignment,
@@ -1087,7 +1088,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                     buttonWidth: _timePickerInputColumnWidth,
                     controller: _hourController,
                     focusNode: _hourFocusNode,
-                    label: 'Hour',
+                    label: materialLocalizations.timePickerHourLabel,
                     onIncrement: () => _changeHour(1),
                     onDecrement: () => _changeHour(-1),
                   ),
@@ -1110,7 +1111,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                     buttonWidth: _timePickerInputColumnWidth,
                     controller: _minuteController,
                     focusNode: _minuteFocusNode,
-                    label: 'Minute',
+                    label: materialLocalizations.timePickerMinuteLabel,
                     onIncrement: () => _changeMinute(1),
                     onDecrement: () => _changeMinute(-1),
                   ),
