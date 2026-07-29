@@ -1194,9 +1194,12 @@ class BusyMaxSurfaceScope extends InheritedWidget {
   }
 }
 
-Color busyMaxGroupedSurfaceColor(BuildContext context) {
+Color busyMaxGroupedSurfaceColor(
+  BuildContext context, {
+  BusyMaxSurfaceRole? parentRole,
+}) {
   final colors = BusyMaxSurfaceColors.of(context);
-  final role = BusyMaxSurfaceScope.roleOf(context);
+  final role = parentRole ?? BusyMaxSurfaceScope.roleOf(context);
   if (role == BusyMaxSurfaceRole.window) {
     // The native bridge already resolves the opaque card role against the
     // window. Reuse that authoritative value exactly instead of recomputing
@@ -3349,6 +3352,36 @@ class BusyMaxTimeModeRow extends StatelessWidget {
   }
 }
 
+class BusyMaxEditorScrollBody extends StatelessWidget {
+  const BusyMaxEditorScrollBody({
+    super.key,
+    required this.child,
+    this.maxWidth = 640,
+  });
+
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return YaruScrollViewUndershoot.builder(
+      endUndershoot: false,
+      builder: (context, controller) => BusyMaxClamp(
+        maxWidth: maxWidth,
+        margin: EdgeInsets.zero,
+        padding: const EdgeInsets.fromLTRB(
+          BusyMaxSpacing.lg,
+          BusyMaxSpacing.headerInset,
+          BusyMaxSpacing.lg,
+          0,
+        ),
+        controller: controller,
+        child: child,
+      ),
+    );
+  }
+}
+
 class BusyMaxModalEditorScaffold extends StatelessWidget {
   const BusyMaxModalEditorScaffold({
     super.key,
@@ -3392,19 +3425,12 @@ class BusyMaxModalEditorScaffold extends StatelessWidget {
             saving: saving,
             cancelEnabled: cancelEnabled,
           ),
-          const SizedBox(height: BusyMaxSpacing.headerInset),
           Flexible(
-            child: SingleChildScrollView(
-              child: BusyMaxClamp(
-                maxWidth: contentMaxWidth,
-                margin: EdgeInsets.zero,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: BusyMaxSpacing.lg,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: children,
-                ),
+            child: BusyMaxEditorScrollBody(
+              maxWidth: contentMaxWidth,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
               ),
             ),
           ),

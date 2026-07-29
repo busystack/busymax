@@ -11,6 +11,7 @@ import '../platform/linux_header_bar_configuration_synchronizer.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_window_service.dart';
 import '../platform/main_window_command_bridge.dart';
+import '../l10n/locale_resolution.dart';
 import 'app_bootstrap.dart';
 import 'app_router.dart';
 import 'busymax_keyboard_shortcuts_dialog.dart';
@@ -135,6 +136,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
             ...AppLocalizations.localizationsDelegates,
             ...GlobalUbuntuLocalizations.delegates,
           ],
+          localeResolutionCallback: resolveBusyMaxLocale,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
             final l10n = AppLocalizations.of(context);
