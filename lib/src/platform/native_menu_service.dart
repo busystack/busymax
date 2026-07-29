@@ -75,6 +75,7 @@ class NativeMenuService {
     required Rect anchor,
     required List<NativeMenuEntry> entries,
     bool focusFirst = false,
+    bool preferAbove = false,
   }) async {
     try {
       final selectedIndex = await _channel.invokeMethod<int>('show', {
@@ -87,6 +88,7 @@ class NativeMenuService {
         },
         'entries': [for (final entry in entries) entry._toPlatformMap()],
         'focusFirst': focusFirst,
+        'preferredPosition': preferAbove ? 'top' : 'bottom',
       });
       return NativeMenuResult.available(selectedIndex: selectedIndex);
     } on MissingPluginException {

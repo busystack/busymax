@@ -25,8 +25,7 @@ const _timePickerMinimumWidth = 240.0;
 const _timePickerPopoverMinimumHeight = 220.0;
 const _timePickerPopoverPadding = EdgeInsets.all(BusyMaxSpacing.md);
 const _timePickerInputControlSize = BusyMaxSizes.popoverActionButton;
-const _timePickerInputColumnMinWidth = 36.0;
-const _timePickerInputColumnMaxWidth = 38.0;
+const _timePickerInputColumnWidth = BusyMaxSizes.popoverActionButton;
 
 class NativeDateTimePicker {
   const NativeDateTimePicker();
@@ -1021,6 +1020,8 @@ class _DesktopTimeValueDialog extends StatefulWidget {
 class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   late final TextEditingController _hourController;
   late final TextEditingController _minuteController;
+  late final FocusNode _hourFocusNode;
+  late final FocusNode _minuteFocusNode;
   bool _syncingText = false;
   bool _inputValid = true;
   late String _selectedTimeZone;
@@ -1030,6 +1031,8 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     super.initState();
     _hourController = TextEditingController();
     _minuteController = TextEditingController();
+    _hourFocusNode = FocusNode(debugLabel: 'Time picker hour');
+    _minuteFocusNode = FocusNode(debugLabel: 'Time picker minute');
     _inputValid =
         widget.allowEmpty || parseTimeOfDay(widget.initialTime) != null;
     _selectedTimeZone = widget.initialTimeZone ?? localIanaTimeZone();
@@ -1052,122 +1055,101 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   void dispose() {
     _hourController.dispose();
     _minuteController.dispose();
+    _hourFocusNode.dispose();
+    _minuteFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final timeInputColumnWidth = _calculateTimeInputColumnWidth(
-          constraints,
-        );
-        return BusyMaxContentPopoverSurface(
-          arrowSide: widget.arrowSide,
-          arrowAlignment: widget.arrowAlignment,
-          padding: _timePickerPopoverPadding,
-          child: FocusTraversalGroup(
-            child: Column(
+    return BusyMaxContentPopoverSurface(
+      arrowSide: widget.arrowSide,
+      arrowAlignment: widget.arrowAlignment,
+      padding: _timePickerPopoverPadding,
+      child: FocusTraversalGroup(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minWidth: timeInputColumnWidth,
-                        maxWidth: timeInputColumnWidth,
-                      ),
-                      child: _timeInputSection(
-                        context: context,
-                        buttonWidth: timeInputColumnWidth,
-                        controller: _hourController,
-                        label: 'Hour',
-                        onIncrement: () => _changeHour(1),
-                        onDecrement: () => _changeHour(-1),
-                      ),
-                    ),
-                    const SizedBox(width: BusyMaxSpacing.xs),
-                    SizedBox(
-                      width: BusyMaxSpacing.sm,
-                      child: Center(
-                        child: Text(
-                          ':',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: BusyMaxSpacing.xs),
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minWidth: timeInputColumnWidth,
-                        maxWidth: timeInputColumnWidth,
-                      ),
-                      child: _timeInputSection(
-                        context: context,
-                        buttonWidth: timeInputColumnWidth,
-                        controller: _minuteController,
-                        label: 'Minute',
-                        onIncrement: () => _changeMinute(1),
-                        onDecrement: () => _changeMinute(-1),
-                      ),
-                    ),
-                  ],
+                SizedBox(
+                  width: _timePickerInputColumnWidth,
+                  child: _timeInputSection(
+                    context: context,
+                    buttonWidth: _timePickerInputColumnWidth,
+                    controller: _hourController,
+                    focusNode: _hourFocusNode,
+                    label: 'Hour',
+                    onIncrement: () => _changeHour(1),
+                    onDecrement: () => _changeHour(-1),
+                  ),
                 ),
-                if (!_inputValid)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: BusyMaxSpacing.md,
-                      vertical: BusyMaxSpacing.sm,
-                    ),
+                const SizedBox(width: BusyMaxSpacing.xs),
+                SizedBox(
+                  width: BusyMaxSpacing.sm,
+                  child: Center(
                     child: Text(
-                      MaterialLocalizations.of(context).invalidTimeLabel,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+                      ':',
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
-                const SizedBox(height: BusyMaxSpacing.md),
-                BusyMaxPushButton.standard(
-                  onPressed: _openTimezoneDialog,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.public,
-                        size: BusyMaxSizes.popoverActionIcon,
-                      ),
-                      const SizedBox(width: BusyMaxSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          _timezoneDisplayLabel(context),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                        ),
-                      ),
-                    ],
+                ),
+                const SizedBox(width: BusyMaxSpacing.xs),
+                SizedBox(
+                  width: _timePickerInputColumnWidth,
+                  child: _timeInputSection(
+                    context: context,
+                    buttonWidth: _timePickerInputColumnWidth,
+                    controller: _minuteController,
+                    focusNode: _minuteFocusNode,
+                    label: 'Minute',
+                    onIncrement: () => _changeMinute(1),
+                    onDecrement: () => _changeMinute(-1),
                   ),
                 ),
               ],
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  double _calculateTimeInputColumnWidth(BoxConstraints constraints) {
-    if (!constraints.hasBoundedWidth || constraints.maxWidth <= 0) {
-      return _timePickerInputColumnMaxWidth;
-    }
-    final dividerAndSpacing = BusyMaxSpacing.md + (BusyMaxSpacing.xs * 2);
-    final availablePerColumn = (constraints.maxWidth - dividerAndSpacing) / 2;
-    return availablePerColumn.clamp(
-      _timePickerInputColumnMinWidth,
-      _timePickerInputColumnMaxWidth,
+            if (!_inputValid)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: BusyMaxSpacing.md,
+                  vertical: BusyMaxSpacing.sm,
+                ),
+                child: Text(
+                  MaterialLocalizations.of(context).invalidTimeLabel,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+            const SizedBox(height: BusyMaxSpacing.md),
+            BusyMaxPushButton.standard(
+              onPressed: _openTimezoneDialog,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.public,
+                    size: BusyMaxSizes.popoverActionIcon,
+                  ),
+                  const SizedBox(width: BusyMaxSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      _timezoneDisplayLabel(context),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1191,6 +1173,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     required BuildContext context,
     required double buttonWidth,
     required TextEditingController controller,
+    required FocusNode focusNode,
     required String label,
     required VoidCallback onIncrement,
     required VoidCallback onDecrement,
@@ -1200,18 +1183,21 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
       surfaceColors.control,
       surfaceColors.popover,
     );
-    final borderColor = surfaceColors.border;
-    final inputTextStyle = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.normal, height: 1);
+    final dividerColor = surfaceColors.divider;
+    final inputTextStyle =
+        Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.normal,
+          height: 1,
+        ) ??
+        const TextStyle(fontWeight: FontWeight.normal, height: 1);
 
     return FocusTraversalOrder(
       order: const NumericFocusOrder(0),
       child: Container(
+        key: ValueKey(('time-input-section', label)),
         decoration: BoxDecoration(
           color: controlFill,
           borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-          border: Border.all(color: borderColor),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1231,46 +1217,47 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                 ),
               ),
             ),
-            Divider(height: 1, thickness: 1, color: borderColor),
+            Divider(height: 1, thickness: 1, color: dividerColor),
             SizedBox(
+              key: ValueKey(('time-input', label)),
               height: _timePickerInputControlSize,
-              child: TextFormField(
-                controller: controller,
-                textAlign: TextAlign.center,
-                textAlignVertical: TextAlignVertical.center,
-                keyboardType: TextInputType.number,
-                expands: true,
-                minLines: null,
-                maxLines: null,
-                maxLength: 2,
-                style: inputTextStyle,
-                decoration:
-                    busyMaxGroupedTextFieldDecoration(
-                      context,
-                      labelText: '',
-                    ).copyWith(
-                      isDense: true,
-                      filled: true,
-                      fillColor: controlFill,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      floatingLabelBehavior: FloatingLabelBehavior.never,
-                      labelText: '',
+              child: MouseRegion(
+                cursor: SystemMouseCursors.text,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: focusNode.requestFocus,
+                  child: Center(
+                    child: SizedBox(
+                      width: buttonWidth,
+                      child: EditableText(
+                        controller: controller,
+                        focusNode: focusNode,
+                        textAlign: TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        maxLines: 1,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(2),
+                        ],
+                        style: inputTextStyle,
+                        strutStyle: StrutStyle.fromTextStyle(
+                          inputTextStyle,
+                          forceStrutHeight: true,
+                        ),
+                        cursorColor: Theme.of(context).colorScheme.primary,
+                        backgroundCursorColor: surfaceColors.disabledForeground,
+                        selectionColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.28),
+                        onChanged: (_) => _handleTimeInputChanged(),
+                        onSubmitted: (_) => _handleTimeInputChanged(),
+                      ),
                     ),
-                buildCounter:
-                    (
-                      BuildContext context, {
-                      required int currentLength,
-                      required int? maxLength,
-                      required bool isFocused,
-                    }) => const SizedBox.shrink(),
-                onChanged: (_) => _handleTimeInputChanged(),
-                onFieldSubmitted: (_) => _handleTimeInputChanged(),
+                  ),
+                ),
               ),
             ),
-            Divider(height: 1, thickness: 1, color: borderColor),
+            Divider(height: 1, thickness: 1, color: dividerColor),
             BusyMaxHeaderIconButton(
               onPressed: onDecrement,
               icon: const Icon(Icons.remove),

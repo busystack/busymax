@@ -80,9 +80,39 @@ void main() {
       {'label': 'Task', 'enabled': true, 'selected': false},
     ]);
     expect(arguments['focusFirst'], isFalse);
+    expect(arguments['preferredPosition'], 'bottom');
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
       findsNothing,
+    );
+  });
+
+  testWidgets('create chooser can request placement above its anchor', (
+    tester,
+  ) async {
+    MethodCall? nativeCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, (call) async {
+          nativeCall = call;
+          return null;
+        });
+    late BuildContext hostContext;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Builder(
+          builder: (context) {
+            hostContext = context;
+            return const SizedBox.square(dimension: 32);
+          },
+        ),
+      ),
+    );
+
+    await showScheduleCreateMenu(context: hostContext, preferAbove: true);
+
+    expect(
+      (nativeCall?.arguments as Map<Object?, Object?>)['preferredPosition'],
+      'top',
     );
   });
 

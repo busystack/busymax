@@ -24,6 +24,7 @@ Future<ScheduleCreateChoice?> showScheduleCreateMenu({
   bool canCreateEvent = true,
   bool canCreateTask = true,
   BusyMaxMenuSession? session,
+  bool preferAbove = false,
 }) async {
   if (!canCreateEvent && !canCreateTask) {
     return null;
@@ -35,6 +36,7 @@ Future<ScheduleCreateChoice?> showScheduleCreateMenu({
     anchorPoint: anchorPoint,
     session: session,
     focusFirst: anchorPoint == null,
+    preferAbove: preferAbove,
     entries: [
       BusyMaxMenuEntry(
         value: ScheduleCreateChoice.event,

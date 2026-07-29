@@ -77,4 +77,83 @@ void main() {
     expect(result.available, isFalse);
     expect(result.confirmed, isFalse);
   });
+
+  test('passes timezone content to the native chooser', () async {
+    MethodCall? receivedCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          receivedCall = call;
+          return 'America/Vancouver';
+        });
+    const service = NativeDialogService(channel: channel);
+
+    final result = await service.selectTimeZone(
+      title: 'Select Timezone',
+      searchPlaceholder: 'Search locations',
+      noResultsLabel: 'No locations found',
+      selectedTimeZone: 'Etc/UTC',
+      options: const [
+        NativeTimeZoneOption(
+          id: 'America/Vancouver',
+          region: 'America',
+          name: 'Vancouver',
+          englishName: 'Vancouver',
+          title: 'Vancouver (PDT)',
+          subtitle: 'America/Vancouver - CA',
+          searchText: 'Vancouver\nAmerica/Vancouver\nCA',
+        ),
+      ],
+    );
+
+    expect(result.available, isTrue);
+    expect(result.selectedTimeZone, 'America/Vancouver');
+    expect(receivedCall?.method, 'selectTimeZone');
+    expect(receivedCall?.arguments, {
+      'title': 'Select Timezone',
+      'searchPlaceholder': 'Search locations',
+      'noResultsLabel': 'No locations found',
+      'selectedTimeZone': 'Etc/UTC',
+      'options': [
+        {
+          'id': 'America/Vancouver',
+          'region': 'America',
+          'name': 'Vancouver',
+          'englishName': 'Vancouver',
+          'title': 'Vancouver (PDT)',
+          'subtitle': 'America/Vancouver - CA',
+          'searchText': 'Vancouver\nAmerica/Vancouver\nCA',
+        },
+      ],
+    });
+  });
+
+  test(
+    'distinguishes native timezone cancellation from unavailable host',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (_) async => null);
+      const service = NativeDialogService(channel: channel);
+
+      final result = await service.selectTimeZone(
+        title: 'Select Timezone',
+        searchPlaceholder: 'Search locations',
+        noResultsLabel: 'No locations found',
+        selectedTimeZone: 'Etc/UTC',
+        options: const [
+          NativeTimeZoneOption(
+            id: 'Etc/UTC',
+            region: 'UTC',
+            name: 'UTC',
+            englishName: 'UTC',
+            title: 'UTC (UTC)',
+            subtitle: 'Etc/UTC',
+            searchText: 'UTC\nEtc/UTC',
+          ),
+        ],
+      );
+
+      expect(result.available, isTrue);
+      expect(result.selectedTimeZone, isNull);
+    },
+  );
 }

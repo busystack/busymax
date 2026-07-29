@@ -41,6 +41,18 @@ void main() {
     expect(field.radius, const Radius.circular(kYaruTitleBarItemHeight));
     expect(tester.getSize(find.byType(BusyMaxSearchField)).width, 420);
     expect(
+      tester.getSize(find.byType(BusyMaxSearchField)).height,
+      kYaruTitleBarItemHeight,
+    );
+    expect(
+      tester.getSize(find.byType(YaruSearchField)).height,
+      kYaruTitleBarItemHeight,
+    );
+    expect(
+      tester.getSize(find.byType(TextField)).height,
+      kYaruTitleBarItemHeight,
+    );
+    expect(
       field.clearIconSemanticLabel,
       MaterialLocalizations.of(context).clearButtonTooltip,
     );
@@ -48,6 +60,18 @@ void main() {
     await tester.enterText(find.byType(TextField), 'planning');
     await tester.pump();
     expect(changes, contains('planning'));
+    expect(
+      tester.getSize(find.byType(BusyMaxSearchField)).height,
+      kYaruTitleBarItemHeight,
+    );
+    expect(
+      tester.getSize(find.byType(YaruSearchField)).height,
+      kYaruTitleBarItemHeight,
+    );
+    expect(
+      tester.getSize(find.byType(TextField)).height,
+      kYaruTitleBarItemHeight,
+    );
 
     await tester.tap(find.byIcon(YaruIcons.edit_clear));
     await tester.pump();

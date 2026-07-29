@@ -73,6 +73,7 @@ abstract final class BusyMaxAlpha {
   static const double calendarGridDark = 0.06;
   static const double groupedRowLightHoverStrength = 0.50;
   static const double nativeHeaderMenuShadowOpacity = 0.30;
+  static const double windowBackdropOpacity = 0.50;
 }
 
 abstract final class BusyMaxMotion {
@@ -693,10 +694,14 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
     debugLabel: 'BusyMaxSearchField keyboard listener',
     skipTraversal: true,
   );
+  late TextEditingController _controller;
+  late bool _ownsController;
+  late bool _isEmpty;
 
   @override
   void initState() {
     super.initState();
+    _attachController(widget.controller);
     if (widget.autofocus) {
       _requestTextFocus();
     }
@@ -705,6 +710,10 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
   @override
   void didUpdateWidget(covariant BusyMaxSearchField oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _detachController();
+      _attachController(widget.controller);
+    }
     if (oldWidget.focusRequest != widget.focusRequest) {
       _requestTextFocus();
     }
@@ -712,9 +721,37 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
 
   @override
   void dispose() {
+    _detachController();
     _focusScopeNode.dispose();
     _yaruKeyboardFocusNode.dispose();
     super.dispose();
+  }
+
+  void _attachController(TextEditingController? controller) {
+    _ownsController = controller == null;
+    _controller = controller ?? TextEditingController();
+    _isEmpty = _controller.text.isEmpty;
+    _controller.addListener(_handleControllerChanged);
+  }
+
+  void _detachController() {
+    _controller.removeListener(_handleControllerChanged);
+    if (_ownsController) {
+      _controller.dispose();
+    }
+  }
+
+  void _handleControllerChanged() {
+    final isEmpty = _controller.text.isEmpty;
+    if (_isEmpty == isEmpty || !mounted) {
+      return;
+    }
+    setState(() => _isEmpty = isEmpty);
+  }
+
+  void _clear() {
+    widget.onClear?.call();
+    _controller.clear();
   }
 
   void _requestTextFocus() {
@@ -736,19 +773,62 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
 
   @override
   Widget build(BuildContext context) {
+    final clearLabel =
+        widget.clearButtonSemanticLabel ??
+        MaterialLocalizations.of(context).clearButtonTooltip;
+    final contentPadding = switch (Directionality.of(context)) {
+      TextDirection.ltr => const EdgeInsets.only(
+        left: BusyMaxSpacing.md,
+        right: kYaruTitleBarItemHeight,
+      ),
+      TextDirection.rtl => const EdgeInsets.only(
+        left: kYaruTitleBarItemHeight,
+        right: BusyMaxSpacing.md,
+      ),
+    };
     return FocusScope(
       node: _focusScopeNode,
-      child: YaruSearchField(
-        controller: widget.controller,
-        focusNode: _yaruKeyboardFocusNode,
-        hintText: widget.hintText,
-        autofocus: widget.autofocus,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
-        onClear: widget.onClear,
-        clearIconSemanticLabel:
-            widget.clearButtonSemanticLabel ??
-            MaterialLocalizations.of(context).clearButtonTooltip,
+      child: SizedBox(
+        height: kYaruTitleBarItemHeight,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            YaruSearchField(
+              controller: _controller,
+              focusNode: _yaruKeyboardFocusNode,
+              hintText: widget.hintText,
+              height: kYaruTitleBarItemHeight,
+              contentPadding: contentPadding,
+              autofocus: widget.autofocus,
+              onChanged: widget.onChanged,
+              onSubmitted: widget.onSubmitted,
+              clearIconSemanticLabel: clearLabel,
+            ),
+            if (widget.onClear != null && !_isEmpty)
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    end: BusyMaxSpacing.xxs,
+                  ),
+                  child: BusyMaxHeaderIconButton(
+                    tooltip: clearLabel,
+                    icon: const Icon(YaruIcons.edit_clear),
+                    iconSize: BusyMaxSizes.iconSm,
+                    fixedSize: const Size.square(
+                      kYaruTitleBarItemHeight - BusyMaxSpacing.headerInset,
+                    ),
+                    shape: const CircleBorder(),
+                    backgroundColor: busyMaxSubtleButtonBackground(context),
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                    onPressed: _clear,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -2314,6 +2394,7 @@ Future<BusyMaxMenuSelection<T>?> showBusyMaxMenu<T>({
   NativeMenuService nativeMenuService = const NativeMenuService(),
   BusyMaxMenuSession? session,
   bool focusFirst = false,
+  bool preferAbove = false,
 }) async {
   assert(
     anchorRect == null || (anchorContext == null && anchorPoint == null),
@@ -2340,6 +2421,7 @@ Future<BusyMaxMenuSelection<T>?> showBusyMaxMenu<T>({
     anchor: anchor,
     entries: _nativeMenuEntries(entrySnapshot),
     focusFirst: focusFirst,
+    preferAbove: preferAbove,
   );
   if (presentation._isDismissed) {
     return null;

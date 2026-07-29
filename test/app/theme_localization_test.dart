@@ -1693,6 +1693,45 @@ void main() {
     expect(app.localizationsDelegates, contains(AppLocalizations.delegate));
   });
 
+  testWidgets('BusyMaxApp applies native backdrop opacity when inactive', (
+    tester,
+  ) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    addTearDown(
+      () => tester.binding.handleAppLifecycleStateChanged(
+        AppLifecycleState.resumed,
+      ),
+    );
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        ],
+        child: const BusyMaxApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final backdrop = find.byKey(const ValueKey('busymax-window-backdrop'));
+    expect(tester.widget<Opacity>(backdrop).opacity, 1);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(
+      tester.widget<Opacity>(backdrop).opacity,
+      BusyMaxAlpha.windowBackdropOpacity,
+    );
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(tester.widget<Opacity>(backdrop).opacity, 1);
+  });
+
   testWidgets('tray startup waits for persisted start-minimized settings', (
     tester,
   ) async {

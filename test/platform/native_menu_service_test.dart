@@ -44,6 +44,7 @@ void main() {
         {'label': 'Archived', 'enabled': false, 'selected': false},
       ],
       'focusFirst': false,
+      'preferredPosition': 'bottom',
     });
   });
 
@@ -64,6 +65,25 @@ void main() {
     );
 
     expect(receivedCall?.arguments, containsPair('focusFirst', true));
+  });
+
+  test('can place a native menu above its anchor', () async {
+    MethodCall? receivedCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          receivedCall = call;
+          return null;
+        });
+    const service = NativeMenuService(channel: channel);
+
+    await service.show(
+      session: NativeMenuSession(),
+      anchor: const Rect.fromLTWH(0, 0, 100, 34),
+      entries: const [NativeMenuEntry(label: 'Event')],
+      preferAbove: true,
+    );
+
+    expect(receivedCall?.arguments, containsPair('preferredPosition', 'top'));
   });
 
   test('distinguishes menu dismissal from an unavailable host', () async {

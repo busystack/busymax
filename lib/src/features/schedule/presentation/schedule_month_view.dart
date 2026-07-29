@@ -15,6 +15,9 @@ import 'schedule_item_chip.dart';
 import 'schedule_item_selection.dart';
 import 'schedule_more_popover.dart';
 
+typedef ScheduleDayCreateCallback =
+    void Function(DateTime day, {BuildContext? anchorContext});
+
 class ScheduleMonthView extends StatelessWidget {
   const ScheduleMonthView({
     super.key,
@@ -33,7 +36,7 @@ class ScheduleMonthView extends StatelessWidget {
   final List<ScheduleItem> items;
   final int firstWeekday;
   final ValueChanged<DateTime> onDaySelected;
-  final ValueChanged<DateTime> onCreateAtDay;
+  final ScheduleDayCreateCallback onCreateAtDay;
   final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
@@ -110,7 +113,8 @@ class ScheduleMonthView extends StatelessWidget {
                       selected: DateUtils.isSameDay(day, selectedDate),
                       items: grouped[day] ?? const [],
                       onSelect: () => onDaySelected(day),
-                      onCreate: () => onCreateAtDay(day),
+                      onCreate: (anchorContext) =>
+                          onCreateAtDay(day, anchorContext: anchorContext),
                       onItemSelected: onItemSelected,
                       onTaskCompletionChanged: onTaskCompletionChanged,
                     ),
@@ -142,7 +146,7 @@ class _MonthDayCell extends StatelessWidget {
   final bool selected;
   final List<ScheduleItem> items;
   final VoidCallback onSelect;
-  final VoidCallback onCreate;
+  final ValueChanged<BuildContext> onCreate;
   final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
@@ -163,7 +167,7 @@ class _MonthDayCell extends StatelessWidget {
             : workspaceColor,
         child: InkWell(
           onTap: onSelect,
-          onDoubleTap: onCreate,
+          onDoubleTap: () => onCreate(context),
           excludeFromSemantics: true,
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -228,12 +232,14 @@ class _MonthDayCell extends StatelessWidget {
                         ),
                         const Spacer(),
                         if (selected)
-                          SizedBox.square(
-                            dimension: 24,
-                            child: YaruIconButton(
-                              tooltip: context.l10n.create,
-                              icon: const Icon(YaruIcons.plus, size: 16),
-                              onPressed: onCreate,
+                          Builder(
+                            builder: (anchorContext) => SizedBox.square(
+                              dimension: 24,
+                              child: YaruIconButton(
+                                tooltip: context.l10n.create,
+                                icon: const Icon(YaruIcons.plus, size: 16),
+                                onPressed: () => onCreate(anchorContext),
+                              ),
                             ),
                           ),
                       ],

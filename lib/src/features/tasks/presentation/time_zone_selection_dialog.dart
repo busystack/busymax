@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
@@ -5,13 +8,46 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
 import '../../../core/time/time_zone_catalog.dart';
 import '../../../l10n/l10n.dart';
+import '../../../platform/native_dialog_service.dart';
 
 const _timeZoneDialogContentHeight = 420.0;
 
 Future<String?> showBusyMaxTimeZoneSelectionDialog(
   BuildContext context, {
   required String selectedTimeZone,
-}) {
+}) async {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) {
+    await BusyMaxTimeZoneCatalog.prepareLocationSearch();
+    if (!context.mounted) {
+      return null;
+    }
+    final l10n = context.l10n;
+    final nativeResult = await const NativeDialogService().selectTimeZone(
+      title: l10n.selectTimeZone,
+      searchPlaceholder: l10n.searchLocations,
+      noResultsLabel: l10n.noLocationsFound,
+      selectedTimeZone: selectedTimeZone,
+      options: [
+        for (final result in BusyMaxTimeZoneCatalog.preparedLocationOptions)
+          NativeTimeZoneOption(
+            id: result.location.id,
+            region: result.location.region,
+            name: result.name,
+            englishName: result.englishName ?? result.name,
+            title: result.title,
+            subtitle: result.subtitle,
+            searchText: result.searchText,
+          ),
+      ],
+    );
+    if (nativeResult.available) {
+      return nativeResult.selectedTimeZone;
+    }
+    if (!context.mounted) {
+      return null;
+    }
+  }
+
   return showBusyMaxModalDialog<String>(
     context,
     builder: (dialogContext) =>
@@ -37,6 +73,15 @@ class _BusyMaxTimeZoneSelectionDialogState
   final _searchController = TextEditingController();
   final _resultsController = ScrollController();
   var _query = '';
+  var _searchGeneration = 0;
+  var _isSearching = false;
+  List<BusyMaxTimeZoneSearchResult> _results = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(BusyMaxTimeZoneCatalog.prepareLocationSearch());
+  }
 
   @override
   void dispose() {
@@ -48,10 +93,9 @@ class _BusyMaxTimeZoneSelectionDialogState
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final results = BusyMaxTimeZoneCatalog.search(_query);
-    final sections = <String, List<BusyMaxTimeZoneLocation>>{};
-    for (final location in results) {
-      sections.putIfAbsent(location.region, () => []).add(location);
+    final sections = <String, List<BusyMaxTimeZoneSearchResult>>{};
+    for (final result in _results) {
+      sections.putIfAbsent(result.location.region, () => []).add(result);
     }
 
     return BusyMaxDialogShell(
@@ -76,12 +120,14 @@ class _BusyMaxTimeZoneSelectionDialogState
                 controller: _searchController,
                 hintText: l10n.searchLocations,
                 autofocus: true,
-                onChanged: (value) => setState(() => _query = value),
-                onClear: () => setState(() => _query = ''),
+                onChanged: _search,
+                onClear: () => _search(''),
               ),
               const SizedBox(height: BusyMaxSpacing.md),
               Expanded(
-                child: results.isEmpty
+                child: _isSearching
+                    ? const Center(child: YaruCircularProgressIndicator())
+                    : _results.isEmpty
                     ? _query.trim().isEmpty
                           ? const SizedBox.shrink()
                           : Center(
@@ -110,17 +156,17 @@ class _BusyMaxTimeZoneSelectionDialogState
                                 title: section.key,
                                 filled: true,
                                 children: [
-                                  for (final location in section.value)
+                                  for (final result in section.value)
                                     BusyMaxActionRow(
-                                      title:
-                                          '${location.name} (${location.code})',
-                                      subtitle: location.id,
+                                      title: result.title,
+                                      subtitle: result.subtitle,
                                       leading: const Icon(
                                         Icons.public,
                                         size: BusyMaxSizes.iconSm,
                                       ),
                                       trailing:
-                                          location.id == widget.selectedTimeZone
+                                          result.location.id ==
+                                              widget.selectedTimeZone
                                           ? const Icon(
                                               YaruIcons.checkmark,
                                               size: BusyMaxSizes.iconSm,
@@ -128,7 +174,7 @@ class _BusyMaxTimeZoneSelectionDialogState
                                           : null,
                                       onTap: () => Navigator.of(
                                         context,
-                                      ).pop(location.id),
+                                      ).pop(result.location.id),
                                     ),
                                 ],
                               ),
@@ -141,5 +187,47 @@ class _BusyMaxTimeZoneSelectionDialogState
         ),
       ],
     );
+  }
+
+  void _search(String query) {
+    final generation = ++_searchGeneration;
+    final hasQuery = query.trim().isNotEmpty;
+    if (!hasQuery || BusyMaxTimeZoneCatalog.isLocationSearchReady) {
+      setState(() {
+        _query = query;
+        _isSearching = false;
+        _results = hasQuery
+            ? BusyMaxTimeZoneCatalog.searchPreparedLocations(query)
+            : const [];
+      });
+      _resetResultsScroll();
+      return;
+    }
+
+    setState(() {
+      _query = query;
+      _isSearching = true;
+    });
+    unawaited(_searchAfterLoad(query, generation));
+  }
+
+  Future<void> _searchAfterLoad(String query, int generation) async {
+    final results = await BusyMaxTimeZoneCatalog.searchLocations(query);
+    if (!mounted || generation != _searchGeneration) {
+      return;
+    }
+    setState(() {
+      _results = results;
+      _isSearching = false;
+    });
+    _resetResultsScroll();
+  }
+
+  void _resetResultsScroll() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _resultsController.hasClients) {
+        _resultsController.jumpTo(0);
+      }
+    });
   }
 }

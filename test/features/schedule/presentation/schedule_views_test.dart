@@ -204,7 +204,7 @@ void main() {
               items: _itemsFor(selectedDate),
               firstWeekday: DateTime.monday,
               onDaySelected: (_) {},
-              onCreateAtDay: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
@@ -348,7 +348,7 @@ void main() {
               firstWeekday: DateTime.monday,
               items: const [],
               onDaySelected: (_) {},
-              onCreateAtDay: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
@@ -673,7 +673,7 @@ void main() {
               firstWeekday: DateTime.monday,
               items: _itemsFor(selectedDate),
               onDaySelected: (_) {},
-              onCreateAtDay: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
@@ -685,6 +685,70 @@ void main() {
     expect(find.byType(icv.EventsMonths), findsNothing);
     expect(find.text('Design review'), findsOneWidget);
     expect(find.text('Submit report'), findsOneWidget);
+  });
+
+  testWidgets('month create button reports its own popover anchor', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    DateTime? createdAt;
+    BuildContext? createAnchor;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDaySelected: (_) {},
+              onCreateAtDay: (day, {anchorContext}) {
+                createdAt = day;
+                createAnchor = anchorContext;
+              },
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final createButton = find.byType(YaruIconButton);
+    expect(createButton, findsOneWidget);
+    tester.widget<YaruIconButton>(createButton).onPressed!();
+    await tester.pump();
+
+    expect(createdAt, selectedDate);
+    expect(createAnchor, isNotNull);
+    final renderObject = createAnchor!.findRenderObject()! as RenderBox;
+    final anchorRect =
+        renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    expect(anchorRect, tester.getRect(createButton));
+
+    createdAt = null;
+    createAnchor = null;
+    final selectedCell = find
+        .ancestor(
+          of: find.byKey(
+            ValueKey('month-day-marker-${selectedDate.toIso8601String()}'),
+          ),
+          matching: find.byType(InkWell),
+        )
+        .first;
+    tester.widget<InkWell>(selectedCell).onDoubleTap!();
+    await tester.pump();
+
+    expect(createdAt, selectedDate);
+    expect(createAnchor, isNotNull);
+    final cellRenderObject = createAnchor!.findRenderObject()! as RenderBox;
+    final cellAnchorRect =
+        cellRenderObject.localToGlobal(Offset.zero) & cellRenderObject.size;
+    expect(cellAnchorRect, tester.getRect(selectedCell));
   });
 
   testWidgets('month and year days share accessible date semantics', (
@@ -706,7 +770,7 @@ void main() {
               firstWeekday: DateTime.monday,
               items: const [],
               onDaySelected: (day) => activatedDay = day,
-              onCreateAtDay: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
@@ -799,7 +863,7 @@ void main() {
               firstWeekday: DateTime.monday,
               items: _sameSlotItemsFor(selectedDate),
               onDaySelected: (_) {},
-              onCreateAtDay: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
@@ -830,7 +894,7 @@ void main() {
               firstWeekday: DateTime.monday,
               items: _manyAllDayItemsFor(selectedDate),
               onDaySelected: (_) {},
-              onCreateAtDay: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (anchor, item, [_]) {
                 selectedAnchor = anchor;
                 selectedItem = item;
@@ -2411,6 +2475,7 @@ void main() {
     expect(sidebar, contains('AnimatedRotation'));
     expect(sidebar, contains('YaruIcons.pan_end'));
     expect(sidebar, contains('if (_expanded)'));
+    expect(sidebar, contains('showDayHover: true'));
     expect(sidebar, isNot(contains('BusyMaxGroupedList(')));
     expect(sidebar, isNot(contains('hoverColor: Colors.transparent')));
   });
@@ -2426,7 +2491,10 @@ void main() {
     expect(source, contains('this.onWeekSelected'));
     expect(source, contains('this.weekNumbersInteractive = true'));
     expect(source, contains('required this.firstWeekday'));
-    expect(source, contains('_calendarStartForMonth(first, firstWeekday)'));
+    expect(
+      source,
+      contains('_calendarStartForMonth(first, widget.firstWeekday)'),
+    );
     expect(source, contains('monthWeekdayFromMonday'));
     expect(source, contains('firstWeekdayFromMonday'));
     expect(source, contains('_addCalendarDays('));
@@ -2442,10 +2510,12 @@ void main() {
     expect(source, contains('class _MiniCalendarDayIndicators'));
     expect(
       source,
-      contains('final groupedItems = ScheduleProjection.groupByDay(items)'),
+      contains(
+        'final groupedItems = ScheduleProjection.groupByDay(widget.items)',
+      ),
     );
     expect(source, contains('DateFormat.E('));
-    expect(source, contains('_weekdays(firstWeekday)'));
+    expect(source, contains('_weekdays(widget.firstWeekday)'));
     expect(source, contains('ScheduleProjection.colorForItem'));
     expect(source, contains('height: dayExtent'));
     expect(source, contains('width: double.infinity'));
@@ -2553,7 +2623,9 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('mini calendar day hover is larger and lighter', (tester) async {
+  testWidgets('mini calendar day hover is larger and clearly visible', (
+    tester,
+  ) async {
     final theme = BusyMaxYaruTheme.build(
       brightness: Brightness.light,
       accentColor: const Color(0xFF3584E4),
@@ -2608,9 +2680,11 @@ void main() {
     final hoveredMarker = tester.widget<DecoratedBox>(marker);
     final decoration = hoveredMarker.decoration as BoxDecoration;
     expect(hoveredSize.width, greaterThan(restingSize.width));
+    expect(hoveredSize.width, 32);
     expect(
-      decoration.color!.computeLuminance(),
-      greaterThan(colors.popover.computeLuminance()),
+      (decoration.color!.computeLuminance() - colors.card.computeLuminance())
+          .abs(),
+      greaterThan(0.05),
     );
   });
 
@@ -2674,6 +2748,51 @@ void main() {
       tester.getSize(weekButton).height,
       tester.getSize(monthButton).height,
     );
+  });
+
+  testWidgets('mini calendar header arrows page without selecting a date', (
+    tester,
+  ) async {
+    final selectedDates = <DateTime>[];
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.monday,
+              onSelected: selectedDates.add,
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Next month'));
+    await tester.pump();
+    expect(find.text('February'), findsOneWidget);
+    expect(find.text('2026'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Next year'));
+    await tester.pump();
+    expect(find.text('February'), findsOneWidget);
+    expect(find.text('2027'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Previous month'));
+    await tester.pump();
+    expect(find.text('January'), findsOneWidget);
+    expect(find.text('2027'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Previous year'));
+    await tester.pump();
+    expect(find.text('January'), findsOneWidget);
+    expect(find.text('2026'), findsOneWidget);
+    expect(selectedDates, isEmpty);
   });
 
   testWidgets('mini calendar week number selects that week', (tester) async {
@@ -2856,6 +2975,41 @@ void main() {
     expect(selectedWeek, DateTime(2026, 1, 4));
   });
 
+  testWidgets('January 2026 Sunday rows use ISO weeks 52 and 1', (
+    tester,
+  ) async {
+    final selectedWeeks = <DateTime>[];
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.sunday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: selectedWeeks.add,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip('Week 52'), findsOneWidget);
+    expect(find.byTooltip('Week 1'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Week 52'));
+    await tester.tap(find.byTooltip('Week 1'));
+
+    expect(selectedWeeks, <DateTime>[
+      DateTime(2025, 12, 28),
+      DateTime(2026, 1, 4),
+    ]);
+  });
+
   testWidgets(
     'mini calendar shows previous month day for Sunday-first Monday starts',
     (tester) async {
@@ -2865,7 +3019,7 @@ void main() {
             body: SizedBox(
               width: 300,
               child: MiniCalendar(
-                selectedDate: DateTime(2027, 11, 1),
+                selectedDate: DateTime(2027, 11, 15),
                 firstWeekday: DateTime.sunday,
                 onSelected: (_) {},
                 onMonthSelected: (_) {},
@@ -2900,6 +3054,21 @@ void main() {
         ),
         findsOneWidget,
       );
+      final previousMonthDay = tester.widget<Text>(
+        find.descendant(
+          of: find.byTooltip('Sunday, October 31, 2027'),
+          matching: find.text('31'),
+        ),
+      );
+      final currentMonthDay = tester.widget<Text>(
+        find.descendant(
+          of: find.byTooltip('Monday, November 1, 2027'),
+          matching: find.text('1'),
+        ),
+      );
+      expect(previousMonthDay.style?.color, isNotNull);
+      expect(previousMonthDay.style!.color!.a, lessThan(1));
+      expect(currentMonthDay.style?.color, isNull);
     },
   );
 

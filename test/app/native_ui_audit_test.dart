@@ -1281,7 +1281,7 @@ void main() {
         'static void handle_native_confirmation',
       );
       final nativeConfirmEnd = runner.indexOf(
-        'struct NativeDialogHandlerData',
+        'struct NativeTimeZoneOption',
         nativeConfirmStart,
       );
       final nativeConfirm = runner.substring(
@@ -1315,6 +1315,31 @@ void main() {
       expect(confirmBody, isNot(contains('return BusyMaxDialogShell(')));
     });
 
+    test('timezone selection uses native GTK and Handy controls on Linux', () {
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final service = File(
+        'lib/src/platform/native_dialog_service.dart',
+      ).readAsStringSync();
+      final selector = File(
+        'lib/src/features/tasks/presentation/time_zone_selection_dialog.dart',
+      ).readAsStringSync();
+
+      expect(runner, contains('strcmp(method, "selectTimeZone") == 0'));
+      expect(runner, contains('gtk_search_entry_new()'));
+      expect(runner, contains('hdy_preferences_group_new()'));
+      expect(runner, contains('hdy_action_row_new()'));
+      expect(runner, contains('kNativeTimeZoneDialogContentHeight'));
+      expect(runner, contains('kNativeTimeZoneDialogStyleClass'));
+      expect(runner, contains('kNativeTimeZoneGroupStyleClass'));
+      expect(runner, contains('kNativeTimeZoneRowStyleClass'));
+      expect(runner, contains('native_time_zone_option_match_rank'));
+      expect(runner, contains('compare_native_time_zone_options'));
+      expect(runner, contains('g_ptr_array_sort_with_data'));
+      expect(service, contains("invokeMethod<String>('selectTimeZone'"));
+      expect(selector, contains('NativeDialogService().selectTimeZone('));
+      expect(selector, contains('BusyMaxGroupedList('));
+    });
+
     test(
       'text prompts reuse the shared Yaru grouped form without native reinvention',
       () {
@@ -1332,7 +1357,7 @@ void main() {
         ).readAsStringSync();
         final nativeDialogsStart = runner.indexOf('static void respond_bool(');
         final nativeDialogsEnd = runner.indexOf(
-          'struct NativeDialogHandlerData',
+          'struct NativeTimeZoneOption',
           nativeDialogsStart,
         );
         final promptStart = design.indexOf('class BusyMaxPromptDialog');
@@ -1445,13 +1470,20 @@ void main() {
       );
       final nativeDialogCssStart = nativePopoverCssEnd;
       final nativeDialogCssEnd = source.indexOf(
-        'const gchar* modal_barrier_color',
+        'g_autofree gchar* native_time_zone_dialog_css =',
         nativeDialogCssStart,
+      );
+      final nativeTimeZoneDialogCssStart = nativeDialogCssEnd;
+      final nativeTimeZoneDialogCssEnd = source.indexOf(
+        'const gchar* modal_barrier_color',
+        nativeTimeZoneDialogCssStart,
       );
       expect(nativePopoverCssStart, isNonNegative);
       expect(nativePopoverCssEnd, isNonNegative);
       expect(nativeDialogCssStart, isNonNegative);
       expect(nativeDialogCssEnd, isNonNegative);
+      expect(nativeTimeZoneDialogCssStart, isNonNegative);
+      expect(nativeTimeZoneDialogCssEnd, isNonNegative);
       final nativePopoverCss = source.substring(
         nativePopoverCssStart,
         nativePopoverCssEnd,
@@ -1459,6 +1491,10 @@ void main() {
       final nativeDialogCss = source.substring(
         nativeDialogCssStart,
         nativeDialogCssEnd,
+      );
+      final nativeTimeZoneDialogCss = source.substring(
+        nativeTimeZoneDialogCssStart,
+        nativeTimeZoneDialogCssEnd,
       );
       final nativeSearchGeometryCssStart = source.indexOf(
         'g_autofree gchar* native_search_geometry_css =',
@@ -1711,7 +1747,11 @@ void main() {
       expect(headerMenuShadowCss, isNot(contains('border-radius')));
       expect(source, contains('"busymax-native-dialog"'));
       expect(source, contains('style_native_dialog(GtkWidget* dialog)'));
-      expect('style_native_dialog(dialog);'.allMatches(source).length, 2);
+      expect(
+        'style_native_dialog(dialog);'.allMatches(source).length,
+        3,
+        reason: 'native date, time, and timezone pickers share dialog styling',
+      );
       expect(
         nativeDialogCss,
         contains('g_autofree gchar* native_dialog_css ='),
@@ -1763,6 +1803,31 @@ void main() {
       );
       expect(nativeDialogCss, isNot(contains('"border:')));
       expect('border-radius: %dpx;'.allMatches(nativeDialogCss).length, 1);
+      expect(
+        nativeTimeZoneDialogCss,
+        contains('g_autofree gchar* native_time_zone_dialog_css ='),
+      );
+      expect(
+        nativeTimeZoneDialogCss,
+        contains('kNativeTimeZoneDialogStyleClass'),
+      );
+      expect(
+        nativeTimeZoneDialogCss,
+        contains('"border-radius: 0 0 %dpx %dpx;"'),
+      );
+      expect(nativeTimeZoneDialogCss, contains('"box-shadow: none;"'));
+      expect(
+        nativeTimeZoneDialogCss,
+        contains('"background-color: shade(%s, 1.06);"'),
+      );
+      expect(
+        nativeTimeZoneDialogCss,
+        contains('kNativeTimeZoneGroupStyleClass'),
+      );
+      expect(nativeTimeZoneDialogCss, contains('kNativeTimeZoneRowStyleClass'));
+      expect(nativeTimeZoneDialogCss, contains('"color: alpha(%s, %.2f);"'));
+      expect(source, contains('kNativeTimeZonePrimaryTextOpacity = 0.82'));
+      expect(source, contains('kNativeTimeZoneSecondaryTextOpacity = 0.62'));
       expect(
         source,
         contains('constexpr gint kNativeDialogCornerRadius = 14;'),

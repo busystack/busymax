@@ -17,7 +17,7 @@ const _miniCalendarHeaderControlExtent = 28.0;
 const _miniCalendarMonthControlFlex = 3;
 const _miniCalendarYearControlFlex = 2;
 
-class MiniCalendar extends StatelessWidget {
+class MiniCalendar extends StatefulWidget {
   const MiniCalendar({
     super.key,
     required this.selectedDate,
@@ -50,12 +50,44 @@ class MiniCalendar extends StatelessWidget {
   final ValueChanged<DateTime>? onDayDoubleTap;
 
   @override
+  State<MiniCalendar> createState() => _MiniCalendarState();
+}
+
+class _MiniCalendarState extends State<MiniCalendar> {
+  late DateTime _displayedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayedMonth = _monthOf(widget.displayedMonth ?? widget.selectedDate);
+  }
+
+  @override
+  void didUpdateWidget(covariant MiniCalendar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.displayedMonth != null) {
+      _displayedMonth = _monthOf(widget.displayedMonth!);
+      return;
+    }
+    if (!_sameMonth(oldWidget.selectedDate, widget.selectedDate)) {
+      _displayedMonth = _monthOf(widget.selectedDate);
+    }
+  }
+
+  void _showMonth(DateTime month) {
+    if (widget.displayedMonth != null) {
+      return;
+    }
+    setState(() => _displayedMonth = _monthOf(month));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final visibleMonth = displayedMonth ?? selectedDate;
+    final visibleMonth = widget.displayedMonth ?? _displayedMonth;
     final first = DateTime(visibleMonth.year, visibleMonth.month);
-    final start = _calendarStartForMonth(first, firstWeekday);
-    final groupedItems = ScheduleProjection.groupByDay(items);
+    final start = _calendarStartForMonth(first, widget.firstWeekday);
+    final groupedItems = ScheduleProjection.groupByDay(widget.items);
     final locale = Localizations.localeOf(context).toLanguageTag();
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -67,8 +99,8 @@ class MiniCalendar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (showHeader) ...[
-            if (headerStyle == MiniCalendarHeaderStyle.navigation)
+          if (widget.showHeader) ...[
+            if (widget.headerStyle == MiniCalendarHeaderStyle.navigation)
               Row(
                 children: [
                   Expanded(
@@ -77,16 +109,16 @@ class MiniCalendar extends StatelessWidget {
                       label: DateFormat.MMMM(locale).format(visibleMonth),
                       previousTooltip: l10n.previousMonth,
                       nextTooltip: l10n.nextMonth,
-                      onPrevious: () => onSelected(
+                      onPrevious: () => _showMonth(
                         DateTime(visibleMonth.year, visibleMonth.month - 1),
                       ),
-                      onNext: () => onSelected(
+                      onNext: () => _showMonth(
                         DateTime(visibleMonth.year, visibleMonth.month + 1),
                       ),
                       labelTooltip: l10n.openMonthView,
-                      onLabelPressed: onMonthSelected == null
+                      onLabelPressed: widget.onMonthSelected == null
                           ? null
-                          : () => onMonthSelected!(first),
+                          : () => widget.onMonthSelected!(first),
                     ),
                   ),
                   const SizedBox(width: BusyMaxSpacing.sm),
@@ -96,16 +128,18 @@ class MiniCalendar extends StatelessWidget {
                       label: '${visibleMonth.year}',
                       previousTooltip: l10n.previousYear,
                       nextTooltip: l10n.nextYear,
-                      onPrevious: () => onSelected(
+                      onPrevious: () => _showMonth(
                         DateTime(visibleMonth.year - 1, visibleMonth.month),
                       ),
-                      onNext: () => onSelected(
+                      onNext: () => _showMonth(
                         DateTime(visibleMonth.year + 1, visibleMonth.month),
                       ),
                       labelTooltip: l10n.openYearView,
-                      onLabelPressed: onYearSelected == null
+                      onLabelPressed: widget.onYearSelected == null
                           ? null
-                          : () => onYearSelected!(DateTime(visibleMonth.year)),
+                          : () => widget.onYearSelected!(
+                              DateTime(visibleMonth.year),
+                            ),
                     ),
                   ),
                 ],
@@ -114,15 +148,15 @@ class MiniCalendar extends StatelessWidget {
               _MiniCalendarHeaderLabel(
                 label: DateFormat.yMMMM(locale).format(first),
                 tooltip: l10n.openMonthView,
-                onPressed: onMonthSelected == null
+                onPressed: widget.onMonthSelected == null
                     ? null
-                    : () => onMonthSelected!(first),
+                    : () => widget.onMonthSelected!(first),
               ),
             const SizedBox(height: BusyMaxSpacing.sm),
           ],
           LayoutBuilder(
             builder: (context, constraints) {
-              final maximumWeekNumberExtent = weekNumbersInteractive
+              final maximumWeekNumberExtent = widget.weekNumbersInteractive
                   ? _miniCalendarHeaderControlExtent
                   : _miniCalendarHeaderControlExtent -
                         BusyMaxSpacing.headerInset;
@@ -144,7 +178,7 @@ class MiniCalendar extends StatelessWidget {
                       child: Row(
                         children: [
                           SizedBox(width: weekNumberExtent),
-                          for (final weekday in _weekdays(firstWeekday))
+                          for (final weekday in _weekdays(widget.firstWeekday))
                             Expanded(
                               child: Center(
                                 child: Text(
@@ -175,15 +209,15 @@ class MiniCalendar extends StatelessWidget {
                             row * DateTime.daysPerWeek,
                           ),
                           weekNumberExtent: weekNumberExtent,
-                          onWeekSelected: weekNumbersInteractive
-                              ? onWeekSelected
+                          onWeekSelected: widget.weekNumbersInteractive
+                              ? widget.onWeekSelected
                               : null,
-                          selectedDate: selectedDate,
+                          selectedDate: widget.selectedDate,
                           displayedMonth: first,
                           groupedItems: groupedItems,
-                          showDayHover: showDayHover,
-                          onDaySelected: onSelected,
-                          onDayDoubleTap: onDayDoubleTap,
+                          showDayHover: widget.showDayHover,
+                          onDaySelected: widget.onSelected,
+                          onDayDoubleTap: widget.onDayDoubleTap,
                         ),
                       ),
                   ],
@@ -373,15 +407,15 @@ class _MiniCalendarDayButtonState extends State<_MiniCalendarDayButton> {
             math.max(0.0, availableMarkerExtent),
           );
           final hoverColor = Color.alphaBlend(
-            Colors.white.withValues(
+            surfaceColors.foreground.withValues(
               alpha: Theme.of(context).brightness == Brightness.light
-                  ? 0.48
+                  ? 0.06
                   : 0.12,
             ),
-            surfaceColors.popover,
+            surfaceColors.card,
           );
           final hoveredMarkerSize = math.min(
-            25.5 + 4.0,
+            32.0,
             math.max(0.0, availableMarkerExtent),
           );
           final currentMarkerSize =
@@ -429,7 +463,9 @@ class _MiniCalendarDayButtonState extends State<_MiniCalendarDayButton> {
                                   ? surfaceColors.foreground
                                   : inDisplayedMonth
                                   ? null
-                                  : colorScheme.onSurfaceVariant,
+                                  : colorScheme.onSurfaceVariant.withValues(
+                                      alpha: 0.45,
+                                    ),
                               fontWeight: selected || highlightToday
                                   ? FontWeight.w600
                                   : null,
@@ -667,6 +703,12 @@ class _MiniCalendarHeaderLabel extends StatelessWidget {
 bool _sameDay(DateTime a, DateTime b) {
   return a.year == b.year && a.month == b.month && a.day == b.day;
 }
+
+bool _sameMonth(DateTime a, DateTime b) {
+  return a.year == b.year && a.month == b.month;
+}
+
+DateTime _monthOf(DateTime date) => DateTime(date.year, date.month);
 
 DateTime _calendarStartForMonth(DateTime first, int firstWeekday) {
   final monthWeekdayFromMonday = first.weekday - DateTime.monday;

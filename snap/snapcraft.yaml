@@ -42,6 +42,7 @@ apps:
       - x11
     environment:
       GDK_BACKEND: wayland,x11
+      LIBGWEATHER_LOCATIONS_PATH: $SNAP/usr/lib/x86_64-linux-gnu/libgweather-4/Locations.bin
       SECRET_BACKEND: file
       XDG_CACHE_HOME: $SNAP_USER_DATA/.cache
       XDG_CONFIG_HOME: $SNAP_USER_DATA/.config
@@ -59,6 +60,7 @@ parts:
     source: build/linux/x64/release/bundle
     stage-packages:
       - libhandy-1-0
+      - libgweather-4-0t64
       - liblzma5
       - libsecret-1-0
     override-prime: |

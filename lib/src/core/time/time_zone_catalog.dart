@@ -1,6 +1,8 @@
-import 'package:flutter/foundation.dart';
-import 'package:timezone/data/latest.dart' as time_zone_data;
+import 'package:flutter/foundation.dart' show immutable, visibleForTesting;
+import 'package:timezone/data/latest_all.dart' as time_zone_data;
 import 'package:timezone/timezone.dart' as time_zone;
+
+import 'linux_gweather_location_source.dart';
 
 @immutable
 class BusyMaxTimeZoneLocation {
@@ -30,8 +32,46 @@ class BusyMaxTimeZoneLocation {
   }
 }
 
+@immutable
+class BusyMaxTimeZoneSearchResult {
+  const BusyMaxTimeZoneSearchResult({
+    required this.location,
+    required this.name,
+    this.englishName,
+    this.countryCode,
+  });
+
+  final BusyMaxTimeZoneLocation location;
+  final String name;
+  final String? englishName;
+  final String? countryCode;
+
+  String get title => '$name (${location.code})';
+
+  String get subtitle {
+    final country = countryCode;
+    return country == null ? location.id : '${location.id} - $country';
+  }
+
+  String get searchText => <String>{
+    name,
+    if (englishName != null) englishName!,
+    if (countryCode != null) countryCode!,
+    if (englishName == null) ...[
+      location.id,
+      location.region,
+      location.name,
+      location.code,
+    ],
+  }.join('\n');
+}
+
 abstract final class BusyMaxTimeZoneCatalog {
   static List<BusyMaxTimeZoneLocation>? _locations;
+  static Map<String, BusyMaxTimeZoneLocation>? _locationsById;
+  static List<BusyMaxSystemTimeZoneLocation>? _systemLocations;
+  static Future<List<BusyMaxSystemTimeZoneLocation>>? _systemLocationLoad;
+  static List<BusyMaxTimeZoneSearchResult>? _locationSearchOptions;
 
   static List<BusyMaxTimeZoneLocation> get locations {
     return _locations ??= _buildLocations();
@@ -39,29 +79,172 @@ abstract final class BusyMaxTimeZoneCatalog {
 
   static BusyMaxTimeZoneLocation location(String id) {
     final normalized = id == 'UTC' ? 'Etc/UTC' : id;
-    return locations.firstWhere(
-      (location) => location.id == normalized,
-      orElse: () {
-        final parts = normalized.split('/');
-        return BusyMaxTimeZoneLocation(
-          id: normalized,
-          region: _readableSegment(parts.first),
-          name: parts.skip(1).map(_readableSegment).join(' / '),
-          code: normalized,
-          offset: Duration.zero,
-        );
-      },
+    final knownLocation = _locationMap[normalized];
+    if (knownLocation != null) {
+      return knownLocation;
+    }
+    final parts = normalized.split('/');
+    return BusyMaxTimeZoneLocation(
+      id: normalized,
+      region: _readableSegment(parts.first),
+      name: parts.skip(1).map(_readableSegment).join(' / '),
+      code: normalized,
+      offset: Duration.zero,
     );
   }
 
-  static List<BusyMaxTimeZoneLocation> search(String query, {int limit = 80}) {
+  static List<BusyMaxTimeZoneLocation> search(String query) {
     if (query.trim().isEmpty) {
       return const [];
     }
-    return locations
-        .where((location) => location.matches(query))
-        .take(limit)
-        .toList();
+    return locations.where((location) => location.matches(query)).toList();
+  }
+
+  static bool get isLocationSearchReady => _systemLocations != null;
+
+  static Future<void> prepareLocationSearch() async {
+    final load = _systemLocationLoad ??= loadLinuxSystemTimeZoneLocations();
+    _systemLocations ??= await load;
+  }
+
+  static Future<List<BusyMaxTimeZoneSearchResult>> searchLocations(
+    String query,
+  ) async {
+    await prepareLocationSearch();
+    return searchPreparedLocations(query);
+  }
+
+  static List<BusyMaxTimeZoneSearchResult> get preparedLocationOptions {
+    return _locationSearchOptions ??= _buildLocationSearchOptions();
+  }
+
+  static List<BusyMaxTimeZoneSearchResult> searchPreparedLocations(
+    String query,
+  ) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return const [];
+    }
+
+    final results = <BusyMaxTimeZoneSearchResult>[];
+    final seen = <String>{};
+
+    if (normalized.length >= 2) {
+      for (final systemLocation
+          in _systemLocations ?? const <BusyMaxSystemTimeZoneLocation>[]) {
+        if (!systemLocation.matches(normalized)) {
+          continue;
+        }
+        final result = BusyMaxTimeZoneSearchResult(
+          location: location(systemLocation.timeZoneId),
+          name: systemLocation.name,
+          englishName: systemLocation.englishName,
+          countryCode: systemLocation.countryCode,
+        );
+        if (seen.add(_resultKey(result))) {
+          results.add(result);
+        }
+      }
+    }
+
+    for (final timeZoneLocation in search(query)) {
+      final result = BusyMaxTimeZoneSearchResult(
+        location: timeZoneLocation,
+        name: timeZoneLocation.name,
+      );
+      if (seen.add(_resultKey(result))) {
+        results.add(result);
+      }
+    }
+
+    results.sort((a, b) {
+      final matchOrder = _matchRank(
+        a,
+        normalized,
+      ).compareTo(_matchRank(b, normalized));
+      if (matchOrder != 0) {
+        return matchOrder;
+      }
+      final regionOrder = a.location.region.compareTo(b.location.region);
+      if (regionOrder != 0) {
+        return regionOrder;
+      }
+      final nameOrder = a.name.compareTo(b.name);
+      return nameOrder != 0
+          ? nameOrder
+          : a.location.id.compareTo(b.location.id);
+    });
+    return results;
+  }
+
+  static Map<String, BusyMaxTimeZoneLocation> get _locationMap {
+    return _locationsById ??= {
+      for (final location in locations) location.id: location,
+    };
+  }
+
+  static String _resultKey(BusyMaxTimeZoneSearchResult result) {
+    return '${result.location.id}\u0000${result.name.toLowerCase()}';
+  }
+
+  static int _matchRank(
+    BusyMaxTimeZoneSearchResult result,
+    String normalizedQuery,
+  ) {
+    final names = <String>{
+      result.name.toLowerCase(),
+      if (result.englishName != null) result.englishName!.toLowerCase(),
+    };
+    if (names.contains(normalizedQuery)) {
+      return 0;
+    }
+    if (names.any((name) => name.startsWith(normalizedQuery))) {
+      return 1;
+    }
+    if (names.any((name) => name.contains(normalizedQuery))) {
+      return 2;
+    }
+    return 3;
+  }
+
+  static List<BusyMaxTimeZoneSearchResult> _buildLocationSearchOptions() {
+    final results = <BusyMaxTimeZoneSearchResult>[];
+    final seen = <String>{};
+
+    for (final systemLocation
+        in _systemLocations ?? const <BusyMaxSystemTimeZoneLocation>[]) {
+      final result = BusyMaxTimeZoneSearchResult(
+        location: location(systemLocation.timeZoneId),
+        name: systemLocation.name,
+        englishName: systemLocation.englishName,
+        countryCode: systemLocation.countryCode,
+      );
+      if (seen.add(_resultKey(result))) {
+        results.add(result);
+      }
+    }
+
+    for (final timeZoneLocation in locations) {
+      final result = BusyMaxTimeZoneSearchResult(
+        location: timeZoneLocation,
+        name: timeZoneLocation.name,
+      );
+      if (seen.add(_resultKey(result))) {
+        results.add(result);
+      }
+    }
+
+    results.sort((a, b) {
+      final regionOrder = a.location.region.compareTo(b.location.region);
+      if (regionOrder != 0) {
+        return regionOrder;
+      }
+      final nameOrder = a.name.compareTo(b.name);
+      return nameOrder != 0
+          ? nameOrder
+          : a.location.id.compareTo(b.location.id);
+    });
+    return List.unmodifiable(results);
   }
 
   static List<BusyMaxTimeZoneLocation> _buildLocations() {
@@ -112,11 +295,21 @@ abstract final class BusyMaxTimeZoneCatalog {
     return id.contains('/') &&
         id != 'Etc/UTC' &&
         !id.startsWith('Etc/') &&
-        !id.startsWith('SystemV/') &&
-        !id.startsWith('US/');
+        !id.startsWith('SystemV/');
   }
 
   static String _readableSegment(String value) {
     return value.replaceAll('_', ' ');
+  }
+
+  @visibleForTesting
+  static void setSystemLocationsForTesting(
+    List<BusyMaxSystemTimeZoneLocation>? locations,
+  ) {
+    _systemLocations = locations == null ? null : List.unmodifiable(locations);
+    _locationSearchOptions = null;
+    _systemLocationLoad = locations == null
+        ? null
+        : Future.value(_systemLocations);
   }
 }

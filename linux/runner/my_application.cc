@@ -78,6 +78,18 @@ constexpr char kHeaderModalBarrierStyleClass[] = "busymax-modal-barrier";
 constexpr char kNativeDialogStyleClass[] = "busymax-native-dialog";
 // Mirrors Yaru's shared window/dialog radius used by the Flutter fallback.
 constexpr gint kNativeDialogCornerRadius = 14;
+constexpr char kNativeTimeZoneDialogStyleClass[] =
+    "busymax-time-zone-dialog";
+constexpr char kNativeTimeZoneResultsStyleClass[] =
+    "busymax-time-zone-results";
+constexpr char kNativeTimeZoneGroupStyleClass[] =
+    "busymax-time-zone-group";
+constexpr char kNativeTimeZoneRowStyleClass[] = "busymax-time-zone-row";
+constexpr gint kNativeTimeZoneDialogWidth = 520;
+constexpr gint kNativeTimeZoneDialogContentHeight = 420;
+constexpr size_t kNativeTimeZoneResultLimit = 250;
+constexpr gdouble kNativeTimeZonePrimaryTextOpacity = 0.82;
+constexpr gdouble kNativeTimeZoneSecondaryTextOpacity = 0.62;
 constexpr char kNativePopoverStyleClass[] = "busymax-native-popover";
 constexpr char kHeaderMenuDepthStyleClass[] = "busymax-header-menu-depth";
 
@@ -556,6 +568,344 @@ static void handle_native_confirmation(FlMethodCall* method_call,
   gtk_widget_destroy(dialog);
 }
 
+struct NativeTimeZoneOption {
+  gchar* id;
+  gchar* region;
+  gchar* normalized_name;
+  gchar* normalized_english_name;
+  gchar* title;
+  gchar* subtitle;
+  gchar* search_text;
+  gint match_rank;
+  gint region_match_rank;
+};
+
+struct NativeTimeZoneDialogState {
+  GtkWidget* dialog;
+  GtkWidget* results;
+  GPtrArray* options;
+  const gchar* selected_time_zone;
+  const gchar* no_results_label;
+  gchar* result;
+};
+
+static void native_time_zone_option_free(gpointer data) {
+  auto* option = static_cast<NativeTimeZoneOption*>(data);
+  if (option == nullptr) {
+    return;
+  }
+  g_free(option->id);
+  g_free(option->region);
+  g_free(option->normalized_name);
+  g_free(option->normalized_english_name);
+  g_free(option->title);
+  g_free(option->subtitle);
+  g_free(option->search_text);
+  g_free(option);
+}
+
+static void clear_native_time_zone_results(GtkWidget* results) {
+  GList* children = gtk_container_get_children(GTK_CONTAINER(results));
+  for (GList* child = children; child != nullptr; child = child->next) {
+    gtk_widget_destroy(GTK_WIDGET(child->data));
+  }
+  g_list_free(children);
+}
+
+static gint native_time_zone_option_match_rank(
+    const NativeTimeZoneOption* option,
+    const gchar* normalized_query) {
+  if (g_strcmp0(option->normalized_name, normalized_query) == 0 ||
+      g_strcmp0(option->normalized_english_name, normalized_query) == 0) {
+    return 0;
+  }
+  if (g_str_has_prefix(option->normalized_name, normalized_query) ||
+      g_str_has_prefix(option->normalized_english_name, normalized_query)) {
+    return 1;
+  }
+  if (strstr(option->normalized_name, normalized_query) != nullptr ||
+      strstr(option->normalized_english_name, normalized_query) != nullptr) {
+    return 2;
+  }
+  return strstr(option->search_text, normalized_query) != nullptr ? 3 : -1;
+}
+
+static gint compare_native_time_zone_options(gconstpointer first,
+                                             gconstpointer second,
+                                             gpointer) {
+  const auto* first_option =
+      *static_cast<NativeTimeZoneOption* const*>(first);
+  const auto* second_option =
+      *static_cast<NativeTimeZoneOption* const*>(second);
+  if (first_option->region_match_rank != second_option->region_match_rank) {
+    return first_option->region_match_rank -
+           second_option->region_match_rank;
+  }
+  const gint region_order =
+      g_strcmp0(first_option->region, second_option->region);
+  if (region_order != 0) {
+    return region_order;
+  }
+  if (first_option->match_rank != second_option->match_rank) {
+    return first_option->match_rank - second_option->match_rank;
+  }
+  const gint name_order =
+      g_strcmp0(first_option->normalized_name,
+                second_option->normalized_name);
+  return name_order != 0
+             ? name_order
+             : g_strcmp0(first_option->id, second_option->id);
+}
+
+static void native_time_zone_row_activated_cb(HdyActionRow* row,
+                                              gpointer user_data) {
+  auto* state = static_cast<NativeTimeZoneDialogState*>(user_data);
+  const gchar* id = static_cast<const gchar*>(
+      g_object_get_data(G_OBJECT(row), "busymax-time-zone-id"));
+  if (id == nullptr) {
+    return;
+  }
+  g_free(state->result);
+  state->result = g_strdup(id);
+  gtk_dialog_response(GTK_DIALOG(state->dialog), GTK_RESPONSE_ACCEPT);
+}
+
+static void rebuild_native_time_zone_results(
+    NativeTimeZoneDialogState* state,
+    const gchar* query) {
+  clear_native_time_zone_results(state->results);
+
+  g_autofree gchar* query_copy = g_strdup(query != nullptr ? query : "");
+  const gchar* stripped_query = g_strstrip(query_copy);
+  if (stripped_query[0] == '\0') {
+    gtk_widget_show_all(state->results);
+    return;
+  }
+  g_autofree gchar* normalized_query =
+      g_utf8_casefold(stripped_query, -1);
+
+  GPtrArray* matches = g_ptr_array_new();
+  GHashTable* region_match_ranks =
+      g_hash_table_new(g_str_hash, g_str_equal);
+  for (size_t index = 0; index < state->options->len; index++) {
+    auto* option = static_cast<NativeTimeZoneOption*>(
+        g_ptr_array_index(state->options, index));
+    option->match_rank =
+        native_time_zone_option_match_rank(option, normalized_query);
+    if (option->match_rank < 0) {
+      continue;
+    }
+    g_ptr_array_add(matches, option);
+    const gpointer stored_rank =
+        g_hash_table_lookup(region_match_ranks, option->region);
+    if (stored_rank == nullptr ||
+        option->match_rank < GPOINTER_TO_INT(stored_rank) - 1) {
+      g_hash_table_insert(region_match_ranks, option->region,
+                          GINT_TO_POINTER(option->match_rank + 1));
+    }
+  }
+  for (size_t index = 0; index < matches->len; index++) {
+    auto* option = static_cast<NativeTimeZoneOption*>(
+        g_ptr_array_index(matches, index));
+    option->region_match_rank =
+        GPOINTER_TO_INT(
+            g_hash_table_lookup(region_match_ranks, option->region)) -
+        1;
+  }
+  g_ptr_array_sort_with_data(matches, compare_native_time_zone_options,
+                             nullptr);
+  g_hash_table_unref(region_match_ranks);
+
+  GtkWidget* current_group = nullptr;
+  const gchar* current_region = nullptr;
+  size_t result_count = 0;
+  for (size_t index = 0;
+       index < matches->len &&
+       result_count < kNativeTimeZoneResultLimit;
+       index++) {
+    auto* option = static_cast<NativeTimeZoneOption*>(
+        g_ptr_array_index(matches, index));
+
+    if (current_region == nullptr ||
+        g_strcmp0(current_region, option->region) != 0) {
+      current_region = option->region;
+      current_group = hdy_preferences_group_new();
+      gtk_style_context_add_class(
+          gtk_widget_get_style_context(current_group),
+          kNativeTimeZoneGroupStyleClass);
+      hdy_preferences_group_set_title(
+          HDY_PREFERENCES_GROUP(current_group), current_region);
+      gtk_box_pack_start(GTK_BOX(state->results), current_group, FALSE, FALSE,
+                         0);
+    }
+
+    GtkWidget* row = hdy_action_row_new();
+    gtk_style_context_add_class(gtk_widget_get_style_context(row),
+                                kNativeTimeZoneRowStyleClass);
+    hdy_preferences_row_set_title(HDY_PREFERENCES_ROW(row), option->title);
+    hdy_action_row_set_subtitle(HDY_ACTION_ROW(row), option->subtitle);
+    hdy_action_row_set_icon_name(HDY_ACTION_ROW(row),
+                                 "mark-location-symbolic");
+    gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), TRUE);
+    g_object_set_data_full(G_OBJECT(row), "busymax-time-zone-id",
+                           g_strdup(option->id), g_free);
+    g_signal_connect(row, "activated",
+                     G_CALLBACK(native_time_zone_row_activated_cb), state);
+
+    if (g_strcmp0(option->id, state->selected_time_zone) == 0) {
+      GtkWidget* selected_icon = gtk_image_new_from_icon_name(
+          "emblem-ok-symbolic", GTK_ICON_SIZE_BUTTON);
+      gtk_container_add(GTK_CONTAINER(row), selected_icon);
+    }
+    gtk_container_add(GTK_CONTAINER(current_group), row);
+    result_count++;
+  }
+  g_ptr_array_unref(matches);
+
+  if (result_count == 0) {
+    GtkWidget* no_results = gtk_label_new(state->no_results_label);
+    gtk_widget_set_margin_top(no_results, 72);
+    gtk_style_context_add_class(gtk_widget_get_style_context(no_results),
+                                GTK_STYLE_CLASS_DIM_LABEL);
+    gtk_box_pack_start(GTK_BOX(state->results), no_results, FALSE, FALSE, 0);
+  }
+  gtk_widget_show_all(state->results);
+}
+
+static void native_time_zone_search_changed_cb(GtkSearchEntry* search,
+                                               gpointer user_data) {
+  auto* state = static_cast<NativeTimeZoneDialogState*>(user_data);
+  rebuild_native_time_zone_results(
+      state, gtk_entry_get_text(GTK_ENTRY(search)));
+}
+
+static GPtrArray* parse_native_time_zone_options(FlValue* args) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return nullptr;
+  }
+  FlValue* entries = fl_value_lookup_string(args, "options");
+  if (entries == nullptr ||
+      fl_value_get_type(entries) != FL_VALUE_TYPE_LIST) {
+    return nullptr;
+  }
+
+  GPtrArray* options =
+      g_ptr_array_new_with_free_func(native_time_zone_option_free);
+  for (size_t index = 0; index < fl_value_get_length(entries); index++) {
+    FlValue* entry = fl_value_get_list_value(entries, index);
+    const gchar* id = fl_lookup_string_arg(entry, "id");
+    const gchar* region = fl_lookup_string_arg(entry, "region");
+    const gchar* name = fl_lookup_string_arg(entry, "name");
+    const gchar* english_name =
+        fl_lookup_string_arg(entry, "englishName");
+    const gchar* title = fl_lookup_string_arg(entry, "title");
+    const gchar* subtitle = fl_lookup_string_arg(entry, "subtitle");
+    const gchar* search_text = fl_lookup_string_arg(entry, "searchText");
+    if (id == nullptr || region == nullptr || name == nullptr ||
+        english_name == nullptr || title == nullptr || subtitle == nullptr ||
+        search_text == nullptr) {
+      g_ptr_array_unref(options);
+      return nullptr;
+    }
+
+    auto* option = g_new0(NativeTimeZoneOption, 1);
+    option->id = g_strdup(id);
+    option->region = g_strdup(region);
+    option->normalized_name = g_utf8_casefold(name, -1);
+    option->normalized_english_name = g_utf8_casefold(english_name, -1);
+    option->title = g_strdup(title);
+    option->subtitle = g_strdup(subtitle);
+    option->search_text = g_utf8_casefold(search_text, -1);
+    g_ptr_array_add(options, option);
+  }
+  return options;
+}
+
+static void handle_native_time_zone_selection(FlMethodCall* method_call,
+                                              FlValue* args,
+                                              GtkWindow* parent) {
+  const gchar* title = fl_lookup_string_arg(args, "title");
+  const gchar* search_placeholder =
+      fl_lookup_string_arg(args, "searchPlaceholder");
+  const gchar* no_results_label =
+      fl_lookup_string_arg(args, "noResultsLabel");
+  const gchar* selected_time_zone =
+      fl_lookup_string_arg(args, "selectedTimeZone");
+  GPtrArray* options = parse_native_time_zone_options(args);
+  if (title == nullptr || search_placeholder == nullptr ||
+      no_results_label == nullptr || selected_time_zone == nullptr ||
+      options == nullptr || options->len == 0) {
+    if (options != nullptr) {
+      g_ptr_array_unref(options);
+    }
+    fl_method_call_respond_error(
+        method_call, "invalid-arguments",
+        "The timezone dialog requires localized labels, a selected timezone, "
+        "and a non-empty option list.",
+        nullptr, nullptr);
+    return;
+  }
+
+  GtkWidget* dialog = gtk_dialog_new_with_buttons(
+      title, parent,
+      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
+                                  GTK_DIALOG_DESTROY_WITH_PARENT |
+                                  GTK_DIALOG_USE_HEADER_BAR),
+      nullptr,
+      nullptr);
+  style_native_dialog(dialog);
+  gtk_style_context_add_class(gtk_widget_get_style_context(dialog),
+                              kNativeTimeZoneDialogStyleClass);
+  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+  gtk_window_set_default_size(GTK_WINDOW(dialog),
+                              kNativeTimeZoneDialogWidth, -1);
+
+  GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+  GtkWidget* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+  gtk_widget_set_size_request(root, kNativeTimeZoneDialogWidth - 36,
+                              kNativeTimeZoneDialogContentHeight);
+  gtk_container_set_border_width(GTK_CONTAINER(root), 18);
+  gtk_container_add(GTK_CONTAINER(content), root);
+
+  GtkWidget* search = gtk_search_entry_new();
+  gtk_entry_set_placeholder_text(GTK_ENTRY(search), search_placeholder);
+  gtk_box_pack_start(GTK_BOX(root), search, FALSE, FALSE, 0);
+
+  GtkWidget* scrolled = gtk_scrolled_window_new(nullptr, nullptr);
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
+                                 GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scrolled),
+                                      GTK_SHADOW_NONE);
+  gtk_widget_set_vexpand(scrolled, TRUE);
+  gtk_box_pack_start(GTK_BOX(root), scrolled, TRUE, TRUE, 0);
+
+  GtkWidget* results = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+  gtk_style_context_add_class(gtk_widget_get_style_context(results),
+                              kNativeTimeZoneResultsStyleClass);
+  gtk_container_add(GTK_CONTAINER(scrolled), results);
+
+  NativeTimeZoneDialogState state = {
+      dialog,
+      results,
+      options,
+      selected_time_zone,
+      no_results_label,
+      nullptr,
+  };
+  g_signal_connect(search, "search-changed",
+                   G_CALLBACK(native_time_zone_search_changed_cb), &state);
+
+  gtk_widget_show_all(dialog);
+  gtk_widget_grab_focus(search);
+  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+  respond_string(method_call,
+                 response == GTK_RESPONSE_ACCEPT ? state.result : nullptr);
+
+  gtk_widget_destroy(dialog);
+  g_free(state.result);
+  g_ptr_array_unref(options);
+}
+
 struct NativeDialogHandlerData {
   GtkWindow* window;
 };
@@ -583,6 +933,9 @@ static void native_dialog_method_call_cb(FlMethodChannel* channel,
   if (strcmp(method, "confirm") == 0) {
     handle_native_confirmation(method_call, fl_method_call_get_args(method_call),
                                parent);
+  } else if (strcmp(method, "selectTimeZone") == 0) {
+    handle_native_time_zone_selection(
+        method_call, fl_method_call_get_args(method_call), parent);
   } else {
     fl_method_call_respond_not_implemented(method_call, nullptr);
   }
@@ -896,6 +1249,17 @@ static void show_native_menu(NativeMenuHandlerData* data,
   }
 
   FlValue* entries = fl_value_lookup_string(args, "entries");
+  GtkPositionType preferred_position = GTK_POS_BOTTOM;
+  const gchar* preferred_position_arg =
+      fl_lookup_string_arg(args, "preferredPosition");
+  if (g_strcmp0(preferred_position_arg, "top") == 0) {
+    preferred_position = GTK_POS_TOP;
+  } else if (preferred_position_arg != nullptr &&
+             g_strcmp0(preferred_position_arg, "bottom") != 0) {
+    respond_native_menu_argument_error(
+        method_call, "preferredPosition must be top or bottom.");
+    return;
+  }
   gboolean focus_first = FALSE;
   if (entries == nullptr ||
       fl_value_get_type(entries) != FL_VALUE_TYPE_LIST ||
@@ -1008,7 +1372,8 @@ static void show_native_menu(NativeMenuHandlerData* data,
   g_object_ref_sink(session->popover);
   style_native_popover(session->popover);
   gtk_popover_set_pointing_to(GTK_POPOVER(session->popover), &anchor);
-  gtk_popover_set_position(GTK_POPOVER(session->popover), GTK_POS_BOTTOM);
+  gtk_popover_set_position(GTK_POPOVER(session->popover),
+                           preferred_position);
   gtk_popover_set_constrain_to(GTK_POPOVER(session->popover),
                                GTK_POPOVER_CONSTRAINT_WINDOW);
   gtk_popover_set_modal(GTK_POPOVER(session->popover), TRUE);
@@ -1281,6 +1646,78 @@ static void refresh_header_bar_css(MyApplication* self) {
       kNativeDialogCornerRadius, kNativeDialogStyleClass,
       css_color_or(self->header_bar_dialog_outline_color,
                    kDefaultDialogOutlineColor));
+  g_autofree gchar* native_time_zone_dialog_css = g_strdup_printf(
+      "window.%s.%s,"
+      "window.%s.%s:backdrop {"
+      "background-color: %s;"
+      "background-image: none;"
+      "border-radius: %dpx;"
+      "box-shadow: none;"
+      "}"
+      "window.%s.%s.csd:not(.solid-csd):not(.maximized):not(.fullscreen) "
+      "> decoration {"
+      "border-radius: %dpx;"
+      "}"
+      "window.%s.%s .busymax-native-dialog-content,"
+      "window.%s.%s .busymax-native-dialog-content:backdrop {"
+      "background-color: %s;"
+      "background-image: none;"
+      "border-radius: 0 0 %dpx %dpx;"
+      "}"
+      "window.%s .%s {"
+      "background-color: transparent;"
+      "background-image: none;"
+      "}"
+      "window.%s .%s list {"
+      "background-color: shade(%s, 1.06);"
+      "background-image: none;"
+      "border: none;"
+      "border-radius: 8px;"
+      "box-shadow: none;"
+      "}"
+      "window.%s .%s row,"
+      "window.%s .%s row:backdrop {"
+      "background-color: transparent;"
+      "background-image: none;"
+      "border: none;"
+      "box-shadow: none;"
+      "}"
+      "window.%s .%s label {"
+      "color: alpha(%s, %.2f);"
+      "}"
+      "window.%s .%s label.subtitle,"
+      "window.%s .%s label.dim-label {"
+      "color: alpha(%s, %.2f);"
+      "}"
+      "window.%s .%s row:hover:not(:disabled) {"
+      "background-color: alpha(%s, 0.08);"
+      "background-image: none;"
+      "}",
+      kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
+      kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
+      dialog_background_color, kNativeDialogCornerRadius,
+      kNativeDialogStyleClass, kNativeTimeZoneDialogStyleClass,
+      kNativeDialogCornerRadius, kNativeDialogStyleClass,
+      kNativeTimeZoneDialogStyleClass, kNativeDialogStyleClass,
+      kNativeTimeZoneDialogStyleClass, dialog_background_color,
+      kNativeDialogCornerRadius, kNativeDialogCornerRadius,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneResultsStyleClass,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneGroupStyleClass,
+      dialog_background_color, kNativeTimeZoneDialogStyleClass,
+      kNativeTimeZoneRowStyleClass, kNativeTimeZoneDialogStyleClass,
+      kNativeTimeZoneRowStyleClass, kNativeTimeZoneDialogStyleClass,
+      kNativeTimeZoneResultsStyleClass, foreground_color,
+      self->header_bar_high_contrast
+          ? 1.0
+          : kNativeTimeZonePrimaryTextOpacity,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      kNativeTimeZoneDialogStyleClass, kNativeTimeZoneRowStyleClass,
+      foreground_color,
+      self->header_bar_high_contrast
+          ? 1.0
+          : kNativeTimeZoneSecondaryTextOpacity,
+      kNativeTimeZoneDialogStyleClass,
+      kNativeTimeZoneRowStyleClass, foreground_color);
   const gchar* modal_barrier_color = css_color_or(
       self->header_bar_modal_barrier_color, kDefaultModalBarrierColor);
   const gboolean use_legacy_yaru_compatibility =
@@ -1366,8 +1803,14 @@ static void refresh_header_bar_css(MyApplication* self) {
                 "box-shadow: 0 0 14px 2px rgba(0,0,6,0.03),"
                 "0 0 5px 2px rgba(0,0,6,0.10),"
                 "0 0 0 1px rgba(0,0,0,0.05);"
+                "}"
+                "window.%s.%s.csd:not(.solid-csd):"
+                "not(.maximized):not(.fullscreen) > decoration {"
+                "box-shadow: 0 0 14px 2px rgba(0,0,6,0.03),"
+                "0 0 5px 2px rgba(0,0,6,0.10);"
                 "}",
-                kNativeDialogStyleClass)
+                kNativeDialogStyleClass, kNativeDialogStyleClass,
+                kNativeTimeZoneDialogStyleClass)
           : g_strdup("");
   GtkWidget* header_bar = GTK_WIDGET(self->header_bar);
   GtkStyleContext* context = gtk_widget_get_style_context(header_bar);
@@ -1378,6 +1821,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}"
+      "%s"
       "%s"
       "%s"
       "%s"
@@ -1513,7 +1957,8 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-image: none;"
       "}",
       window_background_color, yaru_window_decoration_css,
-      native_dialog_css, native_search_geometry_css,
+      native_dialog_css, native_time_zone_dialog_css,
+      native_search_geometry_css,
       background_color, foreground_color,
       sidebar_background_color, foreground_color, sidebar_border_color,
       foreground_color, foreground_color, kHeaderBackdropForegroundOpacity,

@@ -495,14 +495,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                   canCreateTask: canCreateTask,
                                 ),
                               ),
-                              onCreateAtDay: (day) => unawaited(
-                                _openCreateChoice(
-                                  accounts,
-                                  visibleSources,
-                                  DateTime(day.year, day.month, day.day, 9),
-                                  canCreateTask: canCreateTask,
-                                ),
-                              ),
+                              onCreateAtDay: (day, {anchorContext}) =>
+                                  unawaited(
+                                    _openCreateChoice(
+                                      accounts,
+                                      visibleSources,
+                                      DateTime(day.year, day.month, day.day, 9),
+                                      canCreateTask: canCreateTask,
+                                      anchorContext: anchorContext,
+                                    ),
+                                  ),
                               onNewEvent: () => unawaited(
                                 _openNewEvent(visibleSources, _selectedDate),
                               ),
@@ -1367,12 +1369,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     List<CalendarSourceEntity> sources,
     DateTime start, {
     required bool canCreateTask,
+    BuildContext? anchorContext,
   }) async {
     if (_createChoiceMenuSession != null) {
       return;
     }
     final writableSources = writableCalendarSources(sources);
-    final anchorPoint = _takeRecentSchedulePointerPosition();
+    final recentAnchorPoint = _takeRecentSchedulePointerPosition();
+    final anchorPoint = anchorContext == null ? recentAnchorPoint : null;
     final canCreateEvent = writableSources.isNotEmpty;
     if (!canCreateEvent && !canCreateTask) {
       return;
@@ -1396,8 +1400,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     try {
       choice = await showScheduleCreateMenu(
         context: context,
-        anchorContext: _createChoiceAnchorContext(),
+        anchorContext: anchorContext?.mounted == true
+            ? anchorContext
+            : _createChoiceAnchorContext(),
         anchorPoint: anchorPoint,
+        preferAbove: anchorContext != null,
         session: menuSession,
       );
     } finally {
@@ -2298,7 +2305,7 @@ class _ScheduleBody extends StatelessWidget {
   final ValueChanged<DateTime> onMonthSelected;
   final ValueChanged<DateTime> onWeekSelected;
   final ValueChanged<DateTime> onEmptySlot;
-  final ValueChanged<DateTime> onCreateAtDay;
+  final ScheduleDayCreateCallback onCreateAtDay;
   final VoidCallback onNewEvent;
   final VoidCallback onNewTask;
   final VoidCallback onPrevious;
@@ -2391,7 +2398,7 @@ class _ScheduleBody extends StatelessWidget {
           onDaySelected: onYearDaySelected,
           onMonthSelected: onMonthSelected,
           onWeekSelected: onWeekSelected,
-          onCreateAtDay: onCreateAtDay,
+          onCreateAtDay: (day) => onCreateAtDay(day),
         ),
       ),
       ScheduleViewMode.agenda => ScheduleAgendaView(

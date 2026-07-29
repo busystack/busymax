@@ -87,7 +87,7 @@ void main() {
                   items: const [],
                   firstWeekday: DateTime.monday,
                   onDaySelected: selectedDays.add,
-                  onCreateAtDay: (_) {},
+                  onCreateAtDay: (_, {anchorContext}) {},
                   onItemSelected: (_, _, [_]) {},
                   onTaskCompletionChanged: (_, _) {},
                 ),

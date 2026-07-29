@@ -50,6 +50,7 @@ class ScheduleSidebar extends ConsumerWidget {
             selectedDate: selectedDate,
             firstWeekday: firstWeekday,
             items: items,
+            showDayHover: true,
             onSelected: onDateSelected,
             onMonthSelected: onMonthSelected,
             onYearSelected: onYearSelected,

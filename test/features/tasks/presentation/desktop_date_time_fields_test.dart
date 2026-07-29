@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/core/time/time_zone_catalog.dart';
+import 'package:busymax/src/core/time/linux_gweather_location_source.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:flutter/material.dart';
@@ -286,13 +288,13 @@ void main() {
     final picker = find.byType(BusyMaxContentPopoverSurface);
     final componentFields = find.descendant(
       of: picker,
-      matching: find.byType(TextFormField),
+      matching: find.byType(TextField),
     );
     final editableFields = find.descendant(
       of: picker,
       matching: find.byType(EditableText),
     );
-    expect(componentFields, findsNWidgets(2));
+    expect(componentFields, findsNothing);
     expect(editableFields, findsNWidgets(2));
     expect(
       tester
@@ -304,14 +306,42 @@ void main() {
       expect(field.textAlign, TextAlign.center);
       expect(field.style.fontWeight, FontWeight.normal);
     }
-    for (final element in componentFields.evaluate()) {
-      final size = tester.getSize(
-        find.byElementPredicate((candidate) {
-          return identical(candidate, element);
-        }),
+    for (final label in ['Hour', 'Minute']) {
+      final inputSection = find.byKey(ValueKey(('time-input-section', label)));
+      final inputCell = find.byKey(ValueKey(('time-input', label)));
+      final editableText = find.descendant(
+        of: inputCell,
+        matching: find.byType(EditableText),
       );
-      expect(size.width, inInclusiveRange(36, 38));
-      expect(size.height, BusyMaxSizes.popoverActionButton);
+      final sectionDecoration =
+          tester.widget<Container>(inputSection).decoration! as BoxDecoration;
+      expect(sectionDecoration.border, isNull);
+      expect(
+        find.descendant(of: inputCell, matching: find.byType(InputDecorator)),
+        findsNothing,
+      );
+      final editable = tester.widget<EditableText>(editableText);
+      expect(editable.textAlign, TextAlign.center);
+      expect(editable.strutStyle.forceStrutHeight, isTrue);
+      final dividers = tester.widgetList<Divider>(
+        find.descendant(of: inputSection, matching: find.byType(Divider)),
+      );
+      expect(dividers, hasLength(2));
+      expect(
+        dividers.map((divider) => divider.color),
+        everyElement(
+          BusyMaxSurfaceColors.of(tester.element(inputSection)).divider,
+        ),
+      );
+      final inputCellSize = tester.getSize(inputCell);
+      expect(inputCellSize.width, BusyMaxSizes.popoverActionButton);
+      expect(inputCellSize.height, BusyMaxSizes.popoverActionButton);
+      expect(
+        (tester.getRect(inputCell).center.dy -
+                tester.getRect(editableText).center.dy)
+            .abs(),
+        lessThan(1),
+      );
     }
 
     final timezoneButton = find.ancestor(
@@ -330,6 +360,18 @@ void main() {
   testWidgets('time picker searches and selects real timezone locations', (
     tester,
   ) async {
+    BusyMaxTimeZoneCatalog.setSystemLocationsForTesting(const [
+      BusyMaxSystemTimeZoneLocation(
+        name: 'Seattle',
+        englishName: 'Seattle',
+        countryCode: 'US',
+        timeZoneId: 'America/Los_Angeles',
+      ),
+    ]);
+    addTearDown(
+      () => BusyMaxTimeZoneCatalog.setSystemLocationsForTesting(null),
+    );
+    await tester.runAsync(BusyMaxTimeZoneCatalog.prepareLocationSearch);
     String? selectedTimeZone;
     await tester.pumpWidget(
       localizedTestApp(
@@ -351,6 +393,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Select Timezone'), findsOneWidget);
+    final nativeSearchField = tester.widget<YaruSearchField>(
+      find.byType(YaruSearchField),
+    );
+    expect(
+      nativeSearchField.contentPadding,
+      const EdgeInsets.only(
+        left: BusyMaxSpacing.md,
+        right: kYaruTitleBarItemHeight,
+      ),
+    );
     final title = tester.widget<Text>(find.text('Select Timezone'));
     expect(title.textAlign, isNull);
     expect(title.style?.fontWeight, FontWeight.w600);
@@ -367,15 +419,17 @@ void main() {
     expect(searchField, findsOneWidget);
     expect(content, findsOneWidget);
     final initialContentSize = tester.getSize(content);
+    final initialSearchSize = tester.getSize(find.byType(BusyMaxSearchField));
+    expect(initialSearchSize.height, kYaruTitleBarItemHeight);
     final dialog = find.byType(Dialog);
     expect(dialog, findsOneWidget);
     final initialDialogSize = tester.getSize(dialog);
 
-    await tester.enterText(searchField, 'a');
-    await tester.pumpAndSettle();
+    await _enterTimeZoneSearch(tester, searchField, 'a');
 
     expect(tester.getSize(content), initialContentSize);
     expect(tester.getSize(dialog), initialDialogSize);
+    expect(tester.getSize(find.byType(BusyMaxSearchField)), initialSearchSize);
     final resultsList = find.byKey(const ValueKey('timezone-results-list'));
     expect(resultsList, findsOneWidget);
     expect(
@@ -383,16 +437,32 @@ void main() {
       greaterThan(0),
     );
 
-    await tester.enterText(searchField, 'Vancouver');
-    await tester.pumpAndSettle();
+    await _enterTimeZoneSearch(tester, searchField, 'Vancouver');
 
     expect(tester.getSize(content), initialContentSize);
     expect(tester.getSize(dialog), initialDialogSize);
     expect(find.text('America'), findsOneWidget);
-    expect(find.textContaining('Vancouver ('), findsOneWidget);
+    expect(find.textContaining('Vancouver ('), findsWidgets);
     expect(find.text('America/Vancouver'), findsOneWidget);
 
-    await tester.tap(find.textContaining('Vancouver ('));
+    await _enterTimeZoneSearch(tester, searchField, 'Montreal');
+
+    expect(find.textContaining('Montreal ('), findsOneWidget);
+    expect(find.text('America/Montreal'), findsOneWidget);
+
+    await _enterTimeZoneSearch(tester, searchField, 'Seattle');
+
+    expect(find.textContaining('Seattle ('), findsOneWidget);
+    expect(find.text('America/Los_Angeles - US'), findsOneWidget);
+
+    await _enterTimeZoneSearch(tester, searchField, 'Vancouver');
+
+    await tester.tap(
+      find.ancestor(
+        of: find.text('America/Vancouver'),
+        matching: find.byType(BusyMaxActionRow),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(selectedTimeZone, 'America/Vancouver');
@@ -1001,3 +1071,13 @@ void main() {
 void _ignoreString(String value) {}
 
 void _ignoreNullableString(String? value) {}
+
+Future<void> _enterTimeZoneSearch(
+  WidgetTester tester,
+  Finder searchField,
+  String query,
+) async {
+  await tester.enterText(searchField, query);
+  await tester.pump();
+  await tester.pump();
+}
