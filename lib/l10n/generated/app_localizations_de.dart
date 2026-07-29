@@ -21,7 +21,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get googlePermissionsRequiredRetry =>
-      'Google Calendar- und Google Tasks-Berechtigungen sind erforderlich. Versuchen Sie es erneut und wählen Sie beide Kontrollkästchen aus.';
+      'Die Berechtigungen für Google Kalender und Google Tasks sind erforderlich. Versuchen Sie es erneut und aktivieren Sie beide Kontrollkästchen.';
 
   @override
   String get finishSetup => 'Einrichtung abschließen';
@@ -136,7 +136,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count weitere';
+    return '+$count mehr';
   }
 
   @override
@@ -154,7 +154,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleNoSourcesDescription =>
-      'Wählen Sie in den Einstellungen aus, was angezeigt werden soll, und aktualisieren Sie anschließend.';
+      'Wählen Sie in den Einstellungen aus, was angezeigt werden soll, und aktualisieren Sie anschließend den Zeitplan.';
 
   @override
   String get scheduleSignInRequired => 'Konto verbinden';
@@ -168,7 +168,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleNoSearchResultsDescription =>
-      'Versuchen Sie eine andere Suche oder löschen Sie die aktuellen Filter.';
+      'Versuchen Sie es mit einer anderen Suche oder setzen Sie die aktuellen Filter zurück.';
 
   @override
   String get trayAgendaLoading => 'Agenda wird geladen...';
@@ -263,7 +263,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleDisplayHoursDescription =>
-      'Tages- und Wochenansicht öffnen innerhalb dieser Zeiten. Frühe und späte Einträge erweitern den Bereich bei Bedarf.';
+      'In der Tages- und Wochenansicht wird zunächst dieser Zeitraum angezeigt. Frühere oder spätere Einträge erweitern ihn bei Bedarf.';
 
   @override
   String get scheduleDayStartsAt => 'Tag beginnt um';
@@ -404,7 +404,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get availabilityOutOfOffice => 'Abwesend';
 
   @override
-  String get availabilityWorkingElsewhere => 'An einem anderen Ort';
+  String get availabilityWorkingElsewhere => 'An einem anderen Ort tätig';
 
   @override
   String get visibilityDefault => 'Standard';
@@ -472,7 +472,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Vorherige Woche in der Wochenansicht, vorheriger Monat in der Monatsansicht usw.';
 
   @override
-  String get shortcutJumpToToday => 'Zu Heute springen';
+  String get shortcutJumpToToday => 'Zum heutigen Tag springen';
 
   @override
   String get shortcutGroupView => 'Ansicht';
@@ -526,7 +526,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get aboutBusyMax => 'Über BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'ToDo und Kalender';
+  String get aboutBusyMaxDescription => 'Aufgaben und Kalender';
 
   @override
   String get website => 'Website';
@@ -570,7 +570,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get feedbackDetailedMessage => 'Ausführliche Nachricht';
 
   @override
-  String get feedbackReplyEmail => 'E-Mail-Adresse für Antwort (optional)';
+  String get feedbackReplyEmail => 'E-Mail-Adresse für Antworten (optional)';
 
   @override
   String get feedbackIncludeTechnicalDetails => 'Technische Details hinzufügen';
@@ -722,7 +722,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get deleteEvent => 'Ereignis löschen';
+  String get deleteEvent => 'Termin löschen';
 
   @override
   String get title => 'Titel';
@@ -765,7 +765,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get selectOrCreateTaskList =>
-      'Wählen oder erstellen Sie eine Aufgabenliste.';
+      'Wählen oder erstellen Sie zunächst eine Aufgabenliste.';
 
   @override
   String get signInToViewTasks => 'Melden Sie sich an, um Aufgaben zu sehen.';
@@ -778,7 +778,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noTasksYetMessage =>
-      'Erstellen Sie eine Aufgabe oder aktualisieren Sie Ihre Konten.';
+      'Erstellen Sie eine Aufgabe oder aktualisieren Sie Ihre Konten, um loszulegen.';
 
   @override
   String get noTasksInList => 'Keine Aufgaben in dieser Liste.';
@@ -965,7 +965,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get createSubtask => 'Unteraufgabe erstellen';
 
   @override
-  String get moveToTop => 'Nach oben verschieben';
+  String get moveToTop => 'Ganz nach oben verschieben';
 
   @override
   String get deleteTask => 'Aufgabe löschen';
@@ -991,7 +991,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get updated => 'Aktualisiert';
 
   @override
-  String get parent => 'Übergeordnet';
+  String get parent => 'Übergeordnete Aufgabe';
 
   @override
   String get position => 'Position';
@@ -1088,7 +1088,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get appearance => 'Darstellung';
 
   @override
-  String get theme => 'Theme';
+  String get theme => 'Design';
 
   @override
   String get themeSystem => 'System';
@@ -1100,10 +1100,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get themeDark => 'Dunkel';
 
   @override
-  String get themeFamily => 'Theme-Familie';
+  String get themeFamily => 'Designfamilie';
 
   @override
-  String get themeFamilyYaru => 'Natives Ubuntu (Yaru)';
+  String get themeFamilyYaru => 'Natives Ubuntu-Design (Yaru)';
 
   @override
   String get localization => 'Lokalisierung';
@@ -1140,10 +1140,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get supportsTasksScopes =>
-      'Unterstützt tasks- und tasks.readonly-Berechtigungen';
+      'Unterstützt die Berechtigungsbereiche tasks und tasks.readonly';
 
   @override
-  String get requiresTasksScope => 'Benötigt tasks-Berechtigung';
+  String get requiresTasksScope => 'Erfordert den Berechtigungsbereich tasks';
 
   @override
   String get blockedPendingOperations => 'Blockierte ausstehende Vorgänge';
@@ -1195,7 +1195,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get discardPendingOperationConfirmation =>
-      'Dies entfernt den blockierten lokalen Vorgang. Die nächste Synchronisierung aktualisiert von Google Tasks.';
+      'Dadurch wird der blockierte lokale Vorgang entfernt. Bei der nächsten Synchronisierung werden die Daten aus Google Tasks neu geladen.';
 
   @override
   String get pendingOperationDiscarded => 'Ausstehender Vorgang verworfen.';
@@ -1230,6 +1230,21 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get eventReminderNotificationTitle => 'Terminerinnerung';
+
+  @override
+  String get taskReminderNotificationTitle => 'Aufgabenerinnerung';
+
+  @override
+  String get eventReminderNotificationBody => 'Der Termin beginnt bald.';
+
+  @override
+  String get taskReminderNotificationBody => 'Die Aufgabe ist bald fällig.';
+
+  @override
+  String get notificationOpenAction => 'Öffnen';
 
   @override
   String get notificationDetailsHidden =>
