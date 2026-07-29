@@ -31,6 +31,7 @@ class ScheduleYearView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final markerColorsByDay = miniCalendarMarkerColorsForItems(context, items);
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = _columnCount(constraints.maxWidth, compact: compact);
@@ -52,20 +53,16 @@ class ScheduleYearView extends StatelessWidget {
                     SizedBox(
                       width: monthWidth,
                       child: BusyMaxGroupedSurface(
-                        child: MiniCalendar(
+                        child: YearMonthMiniCalendar(
                           displayedMonth: DateTime(
                             selectedDate.year,
                             index + 1,
                           ),
                           selectedDate: selectedDate,
                           firstWeekday: firstWeekday,
-                          items: items,
-                          headerStyle: MiniCalendarHeaderStyle.monthLabel,
-                          showDayHover: true,
-                          weekNumbersInteractive: true,
-                          onSelected: onDaySelected,
+                          markerColorsByDay: markerColorsByDay,
+                          onDaySelected: onDaySelected,
                           onMonthSelected: onMonthSelected,
-                          onYearSelected: null,
                           onWeekSelected: onWeekSelected,
                           onDayDoubleTap: onCreateAtDay,
                         ),

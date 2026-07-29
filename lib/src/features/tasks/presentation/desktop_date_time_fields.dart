@@ -8,7 +8,6 @@ import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
-import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/features/tasks/presentation/time_zone_selection_dialog.dart';
 import 'package:yaru/yaru.dart';
 
@@ -352,11 +351,13 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
   static final _firstDate = DateTime(1900);
   static final _lastDate = DateTime(2100, 12, 31);
   late DateTime _selected;
+  late DateTime _displayedMonth;
 
   @override
   void initState() {
     super.initState();
     _selected = _supportedInitialDate(widget.initialDate);
+    _displayedMonth = DateTime(_selected.year, _selected.month);
   }
 
   @override
@@ -379,23 +380,24 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildDateModeHeader(context),
-                    MiniCalendar(
-                      selectedDate: _selected,
-                      firstWeekday: _firstWeekday(context),
-                      items: const <ScheduleItem>[],
-                      showHeader: false,
-                      showDayHover: true,
-                      weekNumbersInteractive: false,
-                      onSelected: (date) => _setSelectedDate(
-                        date,
-                        submit:
-                            date.year == _selected.year &&
-                            date.month == _selected.month,
+                    Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        BusyMaxSpacing.headerInset,
+                        BusyMaxSpacing.headerInset,
+                        BusyMaxSpacing.headerInset,
+                        BusyMaxSpacing.md,
                       ),
-                      onMonthSelected: null,
-                      onYearSelected: null,
-                      onWeekSelected: (week) =>
-                          _setSelectedDate(week, submit: true),
+                      child: MiniCalendarGrid(
+                        displayedMonth: _displayedMonth,
+                        selectedDate: _selected,
+                        firstWeekday: _firstWeekday(context),
+                        onDaySelected: (date) => _setSelectedDate(
+                          date,
+                          submit:
+                              date.year == _displayedMonth.year &&
+                              date.month == _displayedMonth.month,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -408,17 +410,10 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
   }
 
   void _setSelectedDate(DateTime value, {bool submit = false}) {
-    final preserveDay =
-        value.day == 1 &&
-        (value.year != _selected.year || value.month != _selected.month);
-    final nextDay = preserveDay ? _selected.day : value.day;
-    final clamped = _clampMonthAndDay(
-      nextDay,
-      DateTime(value.year, value.month),
-    );
-    final adjusted = _coerceSupportedRange(clamped);
+    final adjusted = _coerceSupportedRange(value);
     setState(() {
       _selected = adjusted;
+      _displayedMonth = DateTime(adjusted.year, adjusted.month);
     });
     if (submit) {
       _submit();
@@ -431,7 +426,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
 
   Widget _buildDateModeHeader(BuildContext context) {
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final monthLabel = DateFormat.MMMM(locale).format(_selected);
+    final monthLabel = DateFormat.MMMM(locale).format(_displayedMonth);
 
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -448,11 +443,11 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
               label: monthLabel,
               previousTooltip: context.l10n.previousMonth,
               nextTooltip: context.l10n.nextMonth,
-              onPrevious: () => _setSelectedDate(
-                DateTime(_selected.year, _selected.month - 1),
+              onPrevious: () => _showMonth(
+                DateTime(_displayedMonth.year, _displayedMonth.month - 1),
               ),
-              onNext: () => _setSelectedDate(
-                DateTime(_selected.year, _selected.month + 1),
+              onNext: () => _showMonth(
+                DateTime(_displayedMonth.year, _displayedMonth.month + 1),
               ),
               onLabelPressed: null,
             ),
@@ -461,14 +456,14 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
           Expanded(
             child: _buildDateModeStepper(
               context: context,
-              label: '${_selected.year}',
+              label: '${_displayedMonth.year}',
               previousTooltip: context.l10n.previousYear,
               nextTooltip: context.l10n.nextYear,
-              onPrevious: () => _setSelectedDate(
-                DateTime(_selected.year - 1, _selected.month),
+              onPrevious: () => _showMonth(
+                DateTime(_displayedMonth.year - 1, _displayedMonth.month),
               ),
-              onNext: () => _setSelectedDate(
-                DateTime(_selected.year + 1, _selected.month),
+              onNext: () => _showMonth(
+                DateTime(_displayedMonth.year + 1, _displayedMonth.month),
               ),
               onLabelPressed: null,
             ),
@@ -476,6 +471,18 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
         ],
       ),
     );
+  }
+
+  void _showMonth(DateTime value) {
+    final firstMonth = DateTime(_firstDate.year, _firstDate.month);
+    final lastMonth = DateTime(_lastDate.year, _lastDate.month);
+    final month = DateTime(value.year, value.month);
+    final adjusted = month.isBefore(firstMonth)
+        ? firstMonth
+        : month.isAfter(lastMonth)
+        ? lastMonth
+        : month;
+    setState(() => _displayedMonth = adjusted);
   }
 
   Widget _buildDateModeStepper({
@@ -568,11 +575,6 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
         style: labelStyle,
       ),
     );
-  }
-
-  DateTime _clampMonthAndDay(int day, DateTime month) {
-    final maxDay = DateUtils.getDaysInMonth(month.year, month.month);
-    return DateTime(month.year, month.month, day.clamp(1, maxDay));
   }
 
   DateTime _coerceSupportedRange(DateTime date) {

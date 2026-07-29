@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/l10n/locale_resolution.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -114,6 +114,68 @@ void main() {
     expect(localizations.today, '오늘');
   });
 
+  test('Arabic is generated and exposed as a supported locale', () {
+    const locale = Locale('ar');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'الإعدادات');
+    expect(localizations.today, 'اليوم');
+  });
+
+  testWidgets('Arabic locale renders right to left', (tester) async {
+    TextDirection? direction;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('ar'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) {
+            direction = Directionality.of(context);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    expect(direction, TextDirection.rtl);
+  });
+
+  test('Persian is generated and exposed as a supported locale', () {
+    const locale = Locale('fa');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'تنظیمات');
+    expect(localizations.today, 'امروز');
+    expect(
+      localizations.dueTodayNotificationBody(0),
+      'امروز هیچ کاری سررسید ندارد.',
+    );
+  });
+
+  testWidgets('Persian locale renders right to left', (tester) async {
+    TextDirection? direction;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('fa'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) {
+            direction = Directionality.of(context);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    expect(direction, TextDirection.rtl);
+  });
+
   test('both Chinese scripts are generated and supported', () {
     const simplified = Locale.fromSubtags(
       languageCode: 'zh',
@@ -168,8 +230,10 @@ const _auditedUiPaths = <String>[
 ];
 
 const _translatedArbPaths = <String>[
+  'lib/l10n/app_ar.arb',
   'lib/l10n/app_de.arb',
   'lib/l10n/app_es.arb',
+  'lib/l10n/app_fa.arb',
   'lib/l10n/app_fi.arb',
   'lib/l10n/app_fr.arb',
   'lib/l10n/app_hi.arb',

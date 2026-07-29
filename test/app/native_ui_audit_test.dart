@@ -275,11 +275,11 @@ void main() {
         expect(compactAgenda, contains('ScheduleProjection.colorForItem'));
         expect(compactAgenda, contains('leading: _CompactAgendaRowMarker'));
 
-        expect(dateTimeFields, contains('MiniCalendar('));
-        expect(dateTimeFields, contains('items: const <ScheduleItem>[]'));
+        expect(dateTimeFields, contains('MiniCalendarGrid('));
+        expect(dateTimeFields, isNot(contains('ScheduleItem')));
         expect(
           dateTimeFields,
-          contains('onSelected: (date) => _setSelectedDate'),
+          contains('onDaySelected: (date) => _setSelectedDate'),
         );
         expect(
           'busyMaxGroupedTextFieldDecoration'.allMatches(dateTimeFields).length,

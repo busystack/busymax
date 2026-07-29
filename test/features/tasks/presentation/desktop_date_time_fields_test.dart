@@ -652,7 +652,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(MiniCalendar), findsOneWidget);
+    expect(find.byType(MiniCalendarGrid), findsOneWidget);
     expect(find.text('July'), findsOneWidget);
     expect(find.text('2026'), findsOneWidget);
     expect(find.byTooltip('Wednesday, July 22, 2026'), findsOneWidget);
@@ -682,12 +682,12 @@ void main() {
 
     await tester.tap(find.byIcon(YaruIcons.calendar));
     await tester.pumpAndSettle();
-    expect(find.byType(MiniCalendar), findsOneWidget);
+    expect(find.byType(MiniCalendarGrid), findsOneWidget);
     expect(find.text('July'), findsOneWidget);
     expect(find.text('2026'), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byType(MiniCalendar),
+        of: find.byType(MiniCalendarGrid),
         matching: find.byType(TextButton),
       ),
       findsNothing,
@@ -714,11 +714,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
 
-    await tester.tap(find.byIcon(YaruIcons.pan_start).at(0));
+    await tester.tap(find.byIcon(YaruIcons.pan_end).at(0));
     await tester.pumpAndSettle();
     expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+    final pagedGrid = tester.widget<MiniCalendarGrid>(
+      find.byType(MiniCalendarGrid),
+    );
+    expect(pagedGrid.displayedMonth, DateTime(2026, 8));
+    expect(pagedGrid.selectedDate, DateTime(2026, 7, 22));
 
-    await tester.tap(find.byIcon(YaruIcons.pan_end).at(0));
+    await tester.tap(find.byIcon(YaruIcons.pan_start).at(0));
     await tester.pumpAndSettle();
     expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
   });

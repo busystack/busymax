@@ -265,7 +265,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(ScheduleYearView),
-        matching: find.byType(MiniCalendar),
+        matching: find.byType(YearMonthMiniCalendar),
       ),
       findsNWidgets(DateTime.monthsPerYear),
     );
@@ -2475,117 +2475,26 @@ void main() {
     expect(sidebar, contains('AnimatedRotation'));
     expect(sidebar, contains('YaruIcons.pan_end'));
     expect(sidebar, contains('if (_expanded)'));
-    expect(sidebar, contains('showDayHover: true'));
+    expect(sidebar, contains('MiniCalendar('));
     expect(sidebar, isNot(contains('BusyMaxGroupedList(')));
     expect(sidebar, isNot(contains('hoverColor: Colors.transparent')));
   });
 
-  test('mini calendar has separate month and year steppers', () {
+  test('mini calendar keeps surface behavior outside the shared grid', () {
     final source = File(
       'lib/src/features/schedule/presentation/mini_calendar.dart',
     ).readAsStringSync();
 
+    expect(source, contains('class MiniCalendar extends StatefulWidget'));
+    expect(source, contains('class YearMonthMiniCalendar'));
+    expect(source, contains('class MiniCalendarGrid extends StatelessWidget'));
     expect(source, contains('class _MiniCalendarStepper'));
-    expect(source, contains('this.onMonthSelected'));
-    expect(source, contains('this.onYearSelected'));
-    expect(source, contains('this.onWeekSelected'));
-    expect(source, contains('this.weekNumbersInteractive = true'));
-    expect(source, contains('required this.firstWeekday'));
+    expect(source, contains('miniCalendarMarkerColorsForItems'));
     expect(
       source,
-      contains('_calendarStartForMonth(first, widget.firstWeekday)'),
+      contains('final groupedItems = ScheduleProjection.groupByDay'),
     );
-    expect(source, contains('monthWeekdayFromMonday'));
-    expect(source, contains('firstWeekdayFromMonday'));
-    expect(source, contains('_addCalendarDays('));
-    expect(source, contains('row * DateTime.daysPerWeek'));
-    expect(source, contains('_addCalendarDays(weekStart, column)'));
-    expect(source, isNot(contains('weekStart.add(Duration(days: column))')));
-    expect(source, contains('final weekNumberExtent = math.min'));
-    expect(source, contains('constraints.maxWidth - weekNumberExtent'));
-    expect(source, isNot(contains('final calendarWidth =')));
-    expect(source, contains('class _MiniCalendarWeekRow'));
-    expect(source, contains('class _MiniCalendarWeekNumberButton'));
-    expect(source, contains('class _MiniCalendarDayButton'));
-    expect(source, contains('class _MiniCalendarDayIndicators'));
-    expect(
-      source,
-      contains(
-        'final groupedItems = ScheduleProjection.groupByDay(widget.items)',
-      ),
-    );
-    expect(source, contains('DateFormat.E('));
-    expect(source, contains('_weekdays(widget.firstWeekday)'));
-    expect(source, contains('ScheduleProjection.colorForItem'));
-    expect(source, contains('height: dayExtent'));
-    expect(source, contains('width: double.infinity'));
-    expect(source, contains('crossAxisAlignment: CrossAxisAlignment.stretch'));
-    expect(source, contains('SizedBox(width: weekNumberExtent)'));
-    expect(
-      source,
-      contains('for (var column = 0; column < DateTime.daysPerWeek; column++)'),
-    );
-    expect(source, isNot(contains('GridView.builder')));
-    expect(source, contains('const SizedBox(width: BusyMaxSpacing.xs)'));
-    expect(
-      source,
-      contains('label: DateFormat.MMMM(locale).format(visibleMonth)'),
-    );
-    expect(source, contains('BusyMaxSpacing.headerInset'));
-    expect(
-      source,
-      isNot(contains('padding: const EdgeInsets.all(BusyMaxSpacing.md)')),
-    );
-    expect(source, contains('labelTooltip: l10n.openMonthView'));
-    expect(source, contains('onMonthSelected!(first)'));
-    expect(source, contains('busyMaxHeaderTextButtonStyle'));
-    expect(source, contains("label: '\${visibleMonth.year}'"));
-    expect(source, contains('labelTooltip: l10n.openYearView'));
-    expect(source, contains('onYearSelected!('));
-    expect(source, isNot(contains('String _monthName(DateTime date)')));
-    expect(
-      source,
-      isNot(contains("return '\${months[date.month - 1]} \${date.year}';")),
-    );
-    expect(source, contains('previousTooltip: l10n.previousMonth'));
-    expect(source, contains('nextTooltip: l10n.nextMonth'));
-    expect(source, contains('previousTooltip: l10n.previousYear'));
-    expect(source, contains('nextTooltip: l10n.nextYear'));
-    expect(source, contains('visibleMonth.year - 1'));
-    expect(source, contains('visibleMonth.year + 1'));
-    expect(source, contains('busyMaxHeaderIconButtonStyle'));
-    expect(source, contains('? _miniCalendarHeaderControlExtent'));
-    expect(source, contains('flex: _miniCalendarMonthControlFlex'));
-    expect(source, contains('flex: _miniCalendarYearControlFlex'));
-    expect(source, contains('busyMaxSubtleButtonBackground(context)'));
-    expect(source, contains('fixedSize: const Size.square('));
-    expect(source, contains('shape: const CircleBorder()'));
-    expect(source, contains('fontWeight: FontWeight.w600'));
-    expect(source, contains('_isoWeekNumber'));
-    expect(source, contains('DateTime.daysPerWeek'));
-    expect(source, contains('TextButton('));
-    expect(source, contains('context.l10n.weekNumberTooltip(weekNumber)'));
-    expect(source, contains('onSelected!(weekStart)'));
-    expect(source, contains('BoxShape.circle'));
-    expect(source, contains('customBorder: const CircleBorder()'));
-    expect(source, contains('final markerSize = math.min'));
-    expect(
-      source,
-      contains('final highlightToday = today && displayingCurrentMonth'),
-    );
-    expect(source, contains('color: selected'));
-    expect(
-      source,
-      contains('widget.displayedMonth.year == DateTime.now().year'),
-    );
-    expect(
-      source,
-      contains('widget.displayedMonth.month == DateTime.now().month'),
-    );
-    expect(source, contains('final selected = _sameDay(day, selectedDate)'));
-    expect(source, isNot(contains('YaruIcons.arrow_left')));
-    expect(source, isNot(contains('YaruIcons.arrow_right')));
-    expect(source, isNot(contains('BorderRadius.circular(BusyMaxRadius.sm)')));
+    expect(source, contains('onWeekSelected == null'));
   });
 
   testWidgets('mini calendar exposes and activates the selected day', (
@@ -2638,14 +2547,11 @@ void main() {
         child: Scaffold(
           body: SizedBox(
             width: 300,
-            child: MiniCalendar(
+            child: MiniCalendarGrid(
+              displayedMonth: DateTime(2026, 1),
               selectedDate: DateTime(2026, 1, 15),
               firstWeekday: DateTime.monday,
-              showDayHover: true,
-              onSelected: (_) {},
-              onMonthSelected: null,
-              onYearSelected: null,
-              onWeekSelected: (_) {},
+              onDaySelected: (_) {},
             ),
           ),
         ),
@@ -2844,7 +2750,7 @@ void main() {
       ),
     );
 
-    final january = find.byType(MiniCalendar).first;
+    final january = find.byType(YearMonthMiniCalendar).first;
     await tester.tap(
       find.descendant(of: january, matching: find.byTooltip('Week 3')),
     );
@@ -2916,21 +2822,16 @@ void main() {
   testWidgets('mini calendar can render week numbers as labels', (
     tester,
   ) async {
-    DateTime? selectedWeek;
-
     await tester.pumpWidget(
       localizedTestApp(
         child: Scaffold(
           body: SizedBox(
             width: 300,
-            child: MiniCalendar(
+            child: MiniCalendarGrid(
+              displayedMonth: DateTime(2026, 1),
               selectedDate: DateTime(2026, 1, 15),
               firstWeekday: DateTime.monday,
-              weekNumbersInteractive: false,
-              onSelected: (_) {},
-              onMonthSelected: null,
-              onYearSelected: null,
-              onWeekSelected: (weekStart) => selectedWeek = weekStart,
+              onDaySelected: (_) {},
             ),
           ),
         ),
@@ -2946,7 +2847,6 @@ void main() {
       findsNothing,
     );
     await tester.tap(find.byTooltip('Week 3'));
-    expect(selectedWeek, isNull);
   });
 
   testWidgets('mini calendar week number honors first weekday', (tester) async {
@@ -3676,17 +3576,16 @@ void main() {
       contains('backgroundColor ?? BusyMaxSurfaceColors.of(context).window'),
     );
     expect(yearView, contains('BusyMaxGroupedSurface('));
-    expect(yearView, contains('MiniCalendar('));
-    expect(
-      yearView,
-      contains('headerStyle: MiniCalendarHeaderStyle.monthLabel'),
-    );
+    expect(yearView, contains('YearMonthMiniCalendar('));
     expect(yearView, contains('displayedMonth: DateTime('));
     expect(yearView, contains('onDayDoubleTap: onCreateAtDay'));
     expect(yearView, contains('firstWeekday'));
     expect(yearView, contains('onMonthSelected: onMonthSelected'));
-    expect(yearView, contains('weekNumbersInteractive: true'));
     expect(yearView, contains('onWeekSelected: onWeekSelected'));
+    expect(
+      yearView,
+      contains('miniCalendarMarkerColorsForItems(context, items)'),
+    );
     expect(yearView, isNot(contains('height: 142')));
     expect(yearView, contains('SingleChildScrollView('));
     expect(yearView, isNot(contains('class _YearMonthGrid')));

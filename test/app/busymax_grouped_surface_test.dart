@@ -183,7 +183,7 @@ void main() {
     ).readAsStringSync();
 
     expect(settings, contains('BusyMaxGroupedList('));
-    expect(yearView, contains('MiniCalendar('));
+    expect(yearView, contains('YearMonthMiniCalendar('));
     expect(yearView, contains('BusyMaxGroupedSurface('));
     for (final source in [settings, yearView]) {
       expect(source, isNot(contains('BoxShadow(')));

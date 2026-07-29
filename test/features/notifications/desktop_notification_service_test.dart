@@ -144,6 +144,48 @@ void main() {
     }
   });
 
+  test('notification strings use Arabic plural rules', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('ar'),
+    );
+
+    for (final count in [1, 2, 3, 11]) {
+      await service.notifyDueToday(count);
+    }
+
+    expect(backend.notifications.map((notification) => notification.body), [
+      'هناك مهمة واحدة مستحقة اليوم.',
+      'هناك مهمتان مستحقتان اليوم.',
+      'هناك 3 مهام مستحقة اليوم.',
+      'هناك 11 مهمة مستحقة اليوم.',
+    ]);
+  });
+
+  test('notification strings use Persian plural rules', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('fa'),
+    );
+
+    for (final count in [1, 2]) {
+      await service.notifyDueToday(count);
+    }
+
+    expect(
+      backend.notifications.map((notification) => notification.summary),
+      everyElement('کارهای دارای سررسید امروز'),
+    );
+    expect(backend.notifications.map((notification) => notification.body), [
+      'امروز یک کار سررسید دارد.',
+      'امروز 2 کار سررسید دارند.',
+    ]);
+  });
+
   test('reminder notification details are visible by default', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
