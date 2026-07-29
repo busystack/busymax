@@ -328,6 +328,45 @@ void main() {
     );
   });
 
+  testWidgets('dialog grouped surface stays raised in dark mode', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    late Color resolvedSurface;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: BusyMaxSurfaceScope(
+          role: BusyMaxSurfaceRole.window,
+          child: Builder(
+            builder: (context) {
+              resolvedSurface = busyMaxGroupedSurfaceColor(
+                context,
+                parentRole: BusyMaxSurfaceRole.dialog,
+              );
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      resolvedSurface.toARGB32(),
+      Color.alphaBlend(colors.groupedSurface, colors.dialog).toARGB32(),
+    );
+    expect(resolvedSurface, isNot(colors.dialog));
+    expect(
+      resolvedSurface.computeLuminance(),
+      greaterThan(colors.dialog.computeLuminance()),
+    );
+  });
+
   testWidgets('disabled grouped subtitles use the semantic disabled role', (
     tester,
   ) async {
@@ -2024,6 +2063,51 @@ void main() {
     expect(dialogSemantics.properties.scopesRoute, isTrue);
     expect(dialogSemantics.properties.namesRoute, isTrue);
     expect(dialogSemantics.explicitChildNodes, isTrue);
+  });
+
+  testWidgets('modal editor shows Yaru undershoot below its fixed header', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testApp(
+        SizedBox(
+          height: 260,
+          child: BusyMaxModalEditorScaffold(
+            title: 'Edit event',
+            cancelLabel: 'Cancel',
+            saveLabel: 'Save',
+            onCancel: () {},
+            onSave: null,
+            children: [
+              for (var index = 0; index < 8; index++)
+                SizedBox(height: 64, child: Text('Editor row $index')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final undershoot = find.byType(YaruScrollViewUndershoot);
+    final shadow = find.descendant(
+      of: undershoot,
+      matching: find.byType(AnimatedOpacity),
+    );
+    final scrollView = find.descendant(
+      of: undershoot,
+      matching: find.byType(SingleChildScrollView),
+    );
+    final titleTop = tester.getTopLeft(find.text('Edit event')).dy;
+
+    expect(undershoot, findsOneWidget);
+    expect(shadow, findsOneWidget);
+    expect(tester.widget<AnimatedOpacity>(shadow).opacity, 0);
+
+    await tester.drag(scrollView, const Offset(0, -120));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<AnimatedOpacity>(shadow).opacity, 1);
+    expect(tester.getTopLeft(find.text('Edit event')).dy, titleTop);
   });
 
   testWidgets('dialog actions wrap at narrow localized text widths', (

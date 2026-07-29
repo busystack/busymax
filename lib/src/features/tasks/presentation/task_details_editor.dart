@@ -188,14 +188,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
               onCancel: _cancel,
               onSave: _save,
             ),
-            const SizedBox(height: BusyMaxSpacing.headerInset),
             Expanded(
-              child: BusyMaxClamp(
-                maxWidth: 640,
-                margin: EdgeInsets.zero,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: BusyMaxSpacing.lg,
-                ),
+              child: BusyMaxEditorScrollBody(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

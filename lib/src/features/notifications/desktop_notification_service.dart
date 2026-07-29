@@ -6,6 +6,7 @@ import 'package:desktop_notifications/desktop_notifications.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_settings.dart';
 import '../../core/logging/redacting_logger.dart';
+import '../../l10n/locale_resolution.dart';
 
 typedef DesktopNotificationActionHandler = Future<void> Function(String action);
 
@@ -262,9 +263,9 @@ class NotificationStrings {
   });
 
   factory NotificationStrings.forLocale(Locale locale) {
-    final supportedLocale = AppLocalizations.supportedLocales.firstWhere(
-      (candidate) => candidate.languageCode == locale.languageCode,
-      orElse: () => const Locale('en'),
+    final supportedLocale = resolveBusyMaxLocale(
+      locale,
+      AppLocalizations.supportedLocales,
     );
     return NotificationStrings.fromLocalizations(
       lookupAppLocalizations(supportedLocale),

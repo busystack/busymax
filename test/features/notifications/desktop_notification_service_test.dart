@@ -97,6 +97,53 @@ void main() {
     );
   });
 
+  test('notification strings use the new Asian ARB catalogs', () async {
+    final cases = <({Locale locale, String summary, String body})>[
+      (
+        locale: const Locale('hi'),
+        summary: 'आज देय कार्य',
+        body: 'आज 2 कार्य देय हैं।',
+      ),
+      (
+        locale: const Locale('ja'),
+        summary: '今日が期限のタスク',
+        body: '今日が期限のタスクが2件あります。',
+      ),
+      (
+        locale: const Locale('ko'),
+        summary: '오늘 마감인 할 일',
+        body: '오늘 마감인 할 일이 2개 있습니다.',
+      ),
+      (
+        locale: const Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hans',
+        ),
+        summary: '今天到期的任务',
+        body: '今天有 2 项任务到期。',
+      ),
+      (
+        locale: const Locale('zh', 'TW'),
+        summary: '今天到期的待辦事項',
+        body: '今天有 2 項待辦事項到期。',
+      ),
+    ];
+
+    for (final testCase in cases) {
+      final backend = _FakeNotificationBackend();
+      final service = DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+        locale: testCase.locale,
+      );
+
+      await service.notifyDueToday(2);
+
+      expect(backend.notifications.single.summary, testCase.summary);
+      expect(backend.notifications.single.body, testCase.body);
+    }
+  });
+
   test('reminder notification details are visible by default', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(

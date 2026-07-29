@@ -64,6 +64,13 @@ void main() {
     expect(find.text('Edit Task'), findsOneWidget);
     expect(find.text('Task details'), findsNothing);
     expect(find.text('Save'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(TaskDetailsEditor),
+        matching: find.byType(YaruScrollViewUndershoot),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Cancel and Save use natural-width themed controls', (

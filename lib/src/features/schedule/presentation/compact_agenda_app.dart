@@ -15,6 +15,7 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/system_accent.dart';
+import '../../../l10n/locale_resolution.dart';
 import '../../../platform/gtk_font_service.dart';
 import '../../../platform/busymax_window_args.dart';
 import '../application/compact_agenda_data.dart';
@@ -327,6 +328,7 @@ class _BusyMaxCompactAgendaAppState
             ...AppLocalizations.localizationsDelegates,
             ...GlobalUbuntuLocalizations.delegates,
           ],
+          localeResolutionCallback: resolveBusyMaxLocale,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const Scaffold(
             backgroundColor: Colors.transparent,

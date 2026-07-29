@@ -186,6 +186,9 @@ void main() {
         ).readAsStringSync();
 
         expect(design, contains('class BusyMaxClamp'));
+        expect(design, contains('class BusyMaxEditorScrollBody'));
+        expect(design, contains('YaruScrollViewUndershoot.builder('));
+        expect(design, contains('endUndershoot: false'));
         expect(design, contains('class BusyMaxGroupedList'));
         expect(design, contains('class BusyMaxActionRow'));
         expect(design, contains('class BusyMaxComboRow'));
@@ -220,7 +223,7 @@ void main() {
         expect(calendarRow, contains('required this.entry'));
         expect(calendarRow, isNot(contains('TextField(')));
 
-        expect(taskDetails, contains('BusyMaxClamp'));
+        expect(taskDetails, contains('BusyMaxEditorScrollBody'));
         expect(taskDetails, contains('BusyMaxGroupedList'));
         expect(taskDetails, contains('BusyMaxActionRow'));
         expect(taskDetails, contains('BusyMaxComboRow'));
@@ -1432,7 +1435,7 @@ void main() {
       );
       expect(selector, contains('NativeDialogService().selectTimeZone('));
       expect(selector, contains('BusyMaxGroupedList('));
-      expect(selector, contains('busyMaxGroupedSurfaceColor(context)'));
+      expect(selector, contains('parentRole: BusyMaxSurfaceRole.dialog'));
       expect(selector, contains('dividerColor: surfaceColors.cardShade'));
       expect(selector, contains('busyMaxRowHoverColor(context)'));
       expect(selector, contains('radius: BusyMaxRadius.md.round()'));

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:busymax/src/l10n/locale_resolution.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -85,6 +86,75 @@ void main() {
     expect(localizations.settings, 'Definições');
     expect(localizations.today, 'Hoje');
   });
+
+  test('Hindi is generated and exposed as a supported locale', () {
+    const locale = Locale('hi');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'सेटिंग्स');
+    expect(localizations.today, 'आज');
+  });
+
+  test('Japanese is generated and exposed as a supported locale', () {
+    const locale = Locale('ja');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, '設定');
+    expect(localizations.today, '今日');
+  });
+
+  test('Korean is generated and exposed as a supported locale', () {
+    const locale = Locale('ko');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, '설정');
+    expect(localizations.today, '오늘');
+  });
+
+  test('both Chinese scripts are generated and supported', () {
+    const simplified = Locale.fromSubtags(
+      languageCode: 'zh',
+      scriptCode: 'Hans',
+    );
+    const traditional = Locale.fromSubtags(
+      languageCode: 'zh',
+      scriptCode: 'Hant',
+    );
+
+    expect(AppLocalizations.supportedLocales, contains(simplified));
+    expect(AppLocalizations.supportedLocales, contains(traditional));
+    expect(lookupAppLocalizations(simplified).settings, '设置');
+    expect(lookupAppLocalizations(traditional).settings, '設定');
+  });
+
+  test('Chinese regions resolve to the appropriate script', () {
+    const simplified = Locale.fromSubtags(
+      languageCode: 'zh',
+      scriptCode: 'Hans',
+    );
+    const traditional = Locale.fromSubtags(
+      languageCode: 'zh',
+      scriptCode: 'Hant',
+    );
+
+    expect(
+      resolveBusyMaxLocale(
+        const Locale('zh', 'CN'),
+        AppLocalizations.supportedLocales,
+      ),
+      simplified,
+    );
+    expect(
+      resolveBusyMaxLocale(
+        const Locale('zh', 'TW'),
+        AppLocalizations.supportedLocales,
+      ),
+      traditional,
+    );
+  });
 }
 
 const _auditedUiPaths = <String>[
@@ -102,8 +172,14 @@ const _translatedArbPaths = <String>[
   'lib/l10n/app_es.arb',
   'lib/l10n/app_fi.arb',
   'lib/l10n/app_fr.arb',
+  'lib/l10n/app_hi.arb',
+  'lib/l10n/app_ja.arb',
+  'lib/l10n/app_ko.arb',
   'lib/l10n/app_pt.arb',
   'lib/l10n/app_ru.arb',
+  'lib/l10n/app_zh.arb',
+  'lib/l10n/app_zh_Hans.arb',
+  'lib/l10n/app_zh_Hant.arb',
 ];
 
 final _userFacingLiteralPattern = RegExp(

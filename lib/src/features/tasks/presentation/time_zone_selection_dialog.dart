@@ -43,7 +43,10 @@ Future<String?> showBusyMaxTimeZoneSelectionDialog(
           ),
       ],
       groupedListStyle: NativeGroupedListStyle(
-        surfaceColor: busyMaxGroupedSurfaceColor(context),
+        surfaceColor: busyMaxGroupedSurfaceColor(
+          context,
+          parentRole: BusyMaxSurfaceRole.dialog,
+        ),
         dividerColor: surfaceColors.cardShade,
         sectionHeaderColor: theme.colorScheme.onSurfaceVariant,
         primaryTextColor: theme.colorScheme.onSurface,
