@@ -1215,6 +1215,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get eventReminderNotificationTitle => 'Event reminder';
+
+  @override
+  String get taskReminderNotificationTitle => 'Task reminder';
+
+  @override
+  String get eventReminderNotificationBody => 'Event starts soon.';
+
+  @override
+  String get taskReminderNotificationBody => 'Task is due soon.';
+
+  @override
+  String get notificationOpenAction => 'Open';
+
+  @override
   String get notificationDetailsHidden =>
       'Details are hidden by privacy settings.';
 

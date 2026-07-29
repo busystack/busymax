@@ -44,7 +44,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get onboardingPreferencesStepDescription =>
-      'Configura el comportamiento de escritorio, recordatorios, detalle de notificaciones y apariencia antes de abrir tu agenda.';
+      'Configura el comportamiento de la aplicación en el escritorio, los recordatorios, el nivel de detalle de las notificaciones y la apariencia antes de abrir tu agenda.';
 
   @override
   String get signInWithGoogle => 'Iniciar sesión con Google';
@@ -122,7 +122,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get refreshCalendar => 'Actualizar calendario';
 
   @override
-  String get openInProvider => 'Abrir en proveedor';
+  String get openInProvider => 'Abrir en el proveedor';
 
   @override
   String get hideFromSchedule => 'Ocultar de la agenda';
@@ -156,7 +156,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get scheduleNoSourcesDescription =>
-      'Elige qué mostrar en Ajustes y, después, actualiza.';
+      'Elige qué mostrar en Configuración y, después, actualiza la agenda.';
 
   @override
   String get scheduleSignInRequired => 'Conectar una cuenta';
@@ -265,7 +265,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get scheduleDisplayHoursDescription =>
-      'Las vistas Día y Semana se abren dentro de este horario. Los elementos tempranos y tardíos amplían el intervalo si hace falta.';
+      'Las vistas de día y semana muestran inicialmente este intervalo horario. Los elementos anteriores o posteriores lo amplían cuando es necesario.';
 
   @override
   String get scheduleDayStartsAt => 'El día empieza a las';
@@ -474,7 +474,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Semana anterior en la vista semanal, mes anterior en la vista mensual, etc.';
 
   @override
-  String get shortcutJumpToToday => 'Ir a hoy';
+  String get shortcutJumpToToday => 'Ir a la fecha de hoy';
 
   @override
   String get shortcutGroupView => 'Vista';
@@ -528,7 +528,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get aboutBusyMax => 'Acerca de BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'ToDo y calendario';
+  String get aboutBusyMaxDescription => 'Tareas y calendario';
 
   @override
   String get website => 'Sitio web';
@@ -571,7 +571,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get feedbackDetailedMessage => 'Mensaje detallado';
 
   @override
-  String get feedbackReplyEmail => 'Correo electrónico de respuesta (opcional)';
+  String get feedbackReplyEmail =>
+      'Correo electrónico para recibir una respuesta (opcional)';
 
   @override
   String get feedbackIncludeTechnicalDetails => 'Incluir detalles técnicos';
@@ -601,7 +602,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get feedbackTimeoutError =>
-      'La solicitud agotó el tiempo de espera. Tus comentarios no se han borrado; inténtalo de nuevo.';
+      'Se agotó el tiempo de espera de la solicitud. Tus comentarios no se han borrado; inténtalo de nuevo.';
 
   @override
   String get feedbackRateLimitedError =>
@@ -621,7 +622,7 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get toggleSidebar => 'Alternar barra lateral';
+  String get toggleSidebar => 'Mostrar u ocultar la barra lateral';
 
   @override
   String get accounts => 'Cuentas';
@@ -683,7 +684,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      'La cuenta se eliminó de este dispositivo, pero BusyMax no pudo revocar el acceso de Google. Puedes revocarlo desde tu cuenta de Google.';
+      'La cuenta se eliminó de este dispositivo, pero BusyMax no pudo revocar su acceso a tu cuenta de Google. Puedes revocarlo desde tu cuenta de Google.';
 
   @override
   String get newList => 'Nueva lista';
@@ -765,7 +766,8 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get selectOrCreateTaskList => 'Selecciona o crea una lista de tareas.';
+  String get selectOrCreateTaskList =>
+      'Selecciona o crea una lista de tareas para empezar.';
 
   @override
   String get signInToViewTasks => 'Inicia sesión para ver las tareas.';
@@ -958,13 +960,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get microsoftMoveUnsupported =>
-      'Mover tareas entre listas no es compatible con las cuentas de Microsoft To Do en esta versión.';
+      'En esta versión, no se pueden mover tareas entre listas en cuentas de Microsoft To Do.';
 
   @override
   String get createSubtask => 'Crear subtarea';
 
   @override
-  String get moveToTop => 'Mover arriba';
+  String get moveToTop => 'Mover al principio';
 
   @override
   String get deleteTask => 'Eliminar tarea';
@@ -990,7 +992,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get updated => 'Actualizada';
 
   @override
-  String get parent => 'Padre';
+  String get parent => 'Tarea principal';
 
   @override
   String get position => 'Posición';
@@ -1049,7 +1051,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get notifyConflicts => 'Notificaciones de conflictos';
 
   @override
-  String get notifyDueToday => 'Notificaciones de tareas para hoy';
+  String get notifyDueToday => 'Notificaciones de tareas que vencen hoy';
 
   @override
   String get eventReminders => 'Recordatorios de eventos';
@@ -1068,17 +1070,17 @@ class AppLocalizationsEs extends AppLocalizations {
   String get notificationDetailNormal => 'Normal';
 
   @override
-  String get quietHours => 'Horario silencioso';
+  String get quietHours => 'Horario de silencio';
 
   @override
   String get quietHoursDescription =>
       'Pausar las notificaciones durante este período.';
 
   @override
-  String get quietHoursStart => 'Inicio del horario silencioso';
+  String get quietHoursStart => 'Inicio del horario de silencio';
 
   @override
-  String get quietHoursEnd => 'Fin del horario silencioso';
+  String get quietHoursEnd => 'Fin del horario de silencio';
 
   @override
   String get notifications => 'Notificaciones';
@@ -1099,10 +1101,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get themeDark => 'Oscuro';
 
   @override
-  String get themeFamily => 'Familia de tema';
+  String get themeFamily => 'Familia de temas';
 
   @override
-  String get themeFamilyYaru => 'Ubuntu nativo (Yaru)';
+  String get themeFamilyYaru => 'Tema nativo de Ubuntu (Yaru)';
 
   @override
   String get localization => 'Localización';
@@ -1156,7 +1158,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'No hay operaciones pendientes bloqueadas.';
 
   @override
-  String get operationActions => 'Acciones de operación';
+  String get operationActions => 'Acciones de la operación';
 
   @override
   String pendingOpListId(String id) {
@@ -1194,7 +1196,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get discardPendingOperationConfirmation =>
-      'Esto elimina la operación local bloqueada. La próxima sincronización actualizará desde Google Tasks.';
+      'Esto elimina la operación local bloqueada. En la próxima sincronización, se volverán a cargar los datos desde Google Tasks.';
 
   @override
   String get pendingOperationDiscarded => 'Operación pendiente descartada.';
@@ -1230,6 +1232,21 @@ class AppLocalizationsEs extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get eventReminderNotificationTitle => 'Recordatorio de evento';
+
+  @override
+  String get taskReminderNotificationTitle => 'Recordatorio de tarea';
+
+  @override
+  String get eventReminderNotificationBody => 'El evento empieza pronto.';
+
+  @override
+  String get taskReminderNotificationBody => 'La tarea vence pronto.';
+
+  @override
+  String get notificationOpenAction => 'Abrir';
 
   @override
   String get notificationDetailsHidden =>

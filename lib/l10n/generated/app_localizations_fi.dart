@@ -44,7 +44,7 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get onboardingPreferencesStepDescription =>
-      'Määritä työpöytätoiminnot, muistutukset, ilmoitusten yksityiskohdat ja ulkoasu ennen aikataulun avaamista.';
+      'Määritä sovelluksen toiminta työpöydällä, muistutukset, ilmoitusten yksityiskohtaisuus ja ulkoasu ennen aikataulun avaamista.';
 
   @override
   String get signInWithGoogle => 'Kirjaudu Google-tilillä';
@@ -122,7 +122,7 @@ class AppLocalizationsFi extends AppLocalizations {
   String get refreshCalendar => 'Päivitä kalenteri';
 
   @override
-  String get openInProvider => 'Avaa palveluntarjoajassa';
+  String get openInProvider => 'Avaa palvelussa';
 
   @override
   String get hideFromSchedule => 'Piilota aikataulusta';
@@ -156,7 +156,7 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get scheduleNoSourcesDescription =>
-      'Valitse asetuksissa näytettävät kohteet ja päivitä sitten.';
+      'Valitse asetuksissa, mitä näytetään, ja päivitä sitten näkymä.';
 
   @override
   String get scheduleSignInRequired => 'Yhdistä tili';
@@ -264,7 +264,7 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get scheduleDisplayHoursDescription =>
-      'Päivä- ja viikkonäkymät avautuvat näiden kellonaikojen välille. Aikaiset ja myöhäiset kohteet laajentavat aluetta tarvittaessa.';
+      'Päivä- ja viikkonäkymät näyttävät aluksi tämän aikavälin. Aikaisemmat ja myöhemmät kohteet laajentavat sitä tarvittaessa.';
 
   @override
   String get scheduleDayStartsAt => 'Päivä alkaa';
@@ -555,7 +555,7 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get feedbackCategoryPrivacySecurity =>
-      'Tietosuoja- tai turvallisuushuoli';
+      'Tietosuojaan tai tietoturvaan liittyvä huoli';
 
   @override
   String get feedbackCategoryUsability => 'Käytettävyyshuoli';
@@ -570,7 +570,8 @@ class AppLocalizationsFi extends AppLocalizations {
   String get feedbackDetailedMessage => 'Yksityiskohtainen viesti';
 
   @override
-  String get feedbackReplyEmail => 'Vastaussähköposti (valinnainen)';
+  String get feedbackReplyEmail =>
+      'Sähköpostiosoite vastausta varten (valinnainen)';
 
   @override
   String get feedbackIncludeTechnicalDetails => 'Sisällytä tekniset tiedot';
@@ -1065,17 +1066,17 @@ class AppLocalizationsFi extends AppLocalizations {
   String get notificationDetailNormal => 'Normaali';
 
   @override
-  String get quietHours => 'Hiljaiset tunnit';
+  String get quietHours => 'Hiljainen aika';
 
   @override
   String get quietHoursDescription =>
       'Keskeytä ilmoitukset tällä ajanjaksolla.';
 
   @override
-  String get quietHoursStart => 'Hiljaisten tuntien alku';
+  String get quietHoursStart => 'Hiljaisen ajan alku';
 
   @override
-  String get quietHoursEnd => 'Hiljaisten tuntien loppu';
+  String get quietHoursEnd => 'Hiljaisen ajan loppu';
 
   @override
   String get notifications => 'Ilmoitukset';
@@ -1152,7 +1153,7 @@ class AppLocalizationsFi extends AppLocalizations {
   String get noBlockedPendingOperations => 'Ei estettyjä odottavia toimintoja.';
 
   @override
-  String get operationActions => 'Toiminnon valinnat';
+  String get operationActions => 'Toiminnot';
 
   @override
   String pendingOpListId(String id) {
@@ -1183,7 +1184,7 @@ class AppLocalizationsFi extends AppLocalizations {
       'Tämä hylkää tehtävän tallentamattomat muutokset.';
 
   @override
-  String get retryCompleted => 'Uudelleenyritys valmis.';
+  String get retryCompleted => 'Uudelleenyritys suoritettu.';
 
   @override
   String get discardPendingOperation => 'Hylätäänkö odottava toiminto?';
