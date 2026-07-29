@@ -44,7 +44,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get onboardingPreferencesStepDescription =>
-      'Настройте поведение на рабочем столе, напоминания, содержимое уведомлений и внешний вид, прежде чем открыть расписание.';
+      'Настройте поведение приложения на рабочем столе, напоминания, уровень детализации уведомлений и внешний вид, прежде чем открыть расписание.';
 
   @override
   String get signInWithGoogle => 'Войти через Google';
@@ -120,7 +120,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get refreshCalendar => 'Обновить календарь';
 
   @override
-  String get openInProvider => 'Открыть у поставщика';
+  String get openInProvider => 'Открыть в сервисе';
 
   @override
   String get hideFromSchedule => 'Скрыть из расписания';
@@ -475,7 +475,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Предыдущая неделя в представлении недели, предыдущий месяц в представлении месяца и так далее';
 
   @override
-  String get shortcutJumpToToday => 'Перейти к сегодняшнему дню';
+  String get shortcutJumpToToday => 'Перейти к сегодняшней дате';
 
   @override
   String get shortcutGroupView => 'Представление';
@@ -496,7 +496,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get shortcutAgendaView => 'Представление повестки';
 
   @override
-  String get shortcutGroupCreateAndEdit => 'Создание и изменение';
+  String get shortcutGroupCreateAndEdit => 'Создание и редактирование';
 
   @override
   String get shortcutSaveItem => 'Сохранить событие или задачу';
@@ -505,14 +505,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get shortcutDeleteItem => 'Удалить событие или задачу';
 
   @override
-  String get shortcutGroupTaskEditing => 'Изменение задач';
+  String get shortcutGroupTaskEditing => 'Редактирование задач';
 
   @override
-  String get shortcutCancelEditing => 'Отменить изменение';
+  String get shortcutCancelEditing => 'Отменить редактирование';
 
   @override
   String get shortcutCancelEditingDescription =>
-      'Закрыть изменение задачи или сведения о ней';
+      'Выйти из режима редактирования задачи или закрыть сведения о ней';
 
   @override
   String get shortcutGroupCompactAgenda => 'Компактная повестка';
@@ -580,7 +580,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Будут добавлены только версия операционной системы Linux и языковой стандарт приложения. Журналы, данные аккаунтов, имена файлов и другие диагностические сведения не включаются.';
+      'Будут добавлены только версия операционной системы Linux и локаль приложения. Журналы, данные аккаунтов, имена файлов и другие диагностические сведения не включаются.';
 
   @override
   String get feedbackCategoryRequired => 'Выберите категорию.';
@@ -666,7 +666,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get removeAccountConfirmation =>
-      'С устройства будут удалены кэшированные задачи, календари, события, напоминания и ожидающие автономные изменения. Несинхронизированные изменения будут потеряны. Из Google и Microsoft ничего не удаляется.';
+      'С этого устройства будут удалены кэшированные задачи, календари, события, напоминания и локальные изменения, ожидающие синхронизации. Несинхронизированные изменения будут потеряны. В Google и Microsoft ничего не будет удалено.';
 
   @override
   String get revokeGoogleAccess =>
@@ -685,7 +685,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      'Аккаунт удалён с устройства, но BusyMax не удалось отозвать доступ Google. Это можно сделать в аккаунте Google.';
+      'Аккаунт удалён с этого устройства, но отозвать доступ BusyMax к Google не удалось. Вы можете отозвать доступ в аккаунте Google.';
 
   @override
   String get newList => 'Новый список';
@@ -855,7 +855,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get dueDate => 'Срок';
 
   @override
-  String get clearDueDate => 'Очистить срок';
+  String get clearDueDate => 'Удалить срок выполнения';
 
   @override
   String get dueTime => 'Время выполнения';
@@ -1060,13 +1060,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get taskReminders => 'Напоминания о задачах';
 
   @override
-  String get notificationDetailLevel => 'Подробность уведомлений';
+  String get notificationDetailLevel => 'Уровень детализации уведомлений';
 
   @override
-  String get notificationDetailPrivate => 'Конфиденциальные';
+  String get notificationDetailPrivate => 'Конфиденциальный';
 
   @override
-  String get notificationDetailNormal => 'Обычные';
+  String get notificationDetailNormal => 'Обычный';
 
   @override
   String get quietHours => 'Период тишины';
@@ -1103,13 +1103,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get themeFamily => 'Семейство тем';
 
   @override
-  String get themeFamilyYaru => 'Родная тема Ubuntu (Yaru)';
+  String get themeFamilyYaru => 'Нативная тема Ubuntu (Yaru)';
 
   @override
   String get localization => 'Локализация';
 
   @override
-  String get currentLocale => 'Текущий языковой стандарт';
+  String get currentLocale => 'Текущая локаль';
 
   @override
   String get privacy => 'Конфиденциальность';

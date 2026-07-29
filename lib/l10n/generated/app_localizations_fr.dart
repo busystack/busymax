@@ -44,7 +44,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get onboardingPreferencesStepDescription =>
-      'Réglez le comportement du bureau, les rappels, le détail des notifications et l’apparence avant d’ouvrir votre planning.';
+      'Réglez le comportement de l’application sur le bureau, les rappels, le niveau de détail des notifications et l’apparence avant d’ouvrir votre planning.';
 
   @override
   String get signInWithGoogle => 'Se connecter avec Google';
@@ -121,7 +121,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get refreshCalendar => 'Actualiser le calendrier';
 
   @override
-  String get openInProvider => 'Ouvrir chez le fournisseur';
+  String get openInProvider => 'Ouvrir dans le service';
 
   @override
   String get hideFromSchedule => 'Masquer du planning';
@@ -264,7 +264,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get scheduleDisplayHoursDescription =>
-      'Les vues Jour et Semaine s’ouvrent dans cette plage horaire. Les éléments tôt ou tardifs l’élargissent si nécessaire.';
+      'Les vues Jour et Semaine s’ouvrent dans cette plage horaire. Les éléments situés avant ou après cette plage l’étendent si nécessaire.';
 
   @override
   String get scheduleDayStartsAt => 'La journée commence à';
@@ -473,7 +473,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Semaine précédente en vue semaine, mois précédent en vue mois, etc.';
 
   @override
-  String get shortcutJumpToToday => 'Aller à aujourd\'hui';
+  String get shortcutJumpToToday => 'Aller à la date du jour';
 
   @override
   String get shortcutGroupView => 'Affichage';
@@ -527,7 +527,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutBusyMax => 'À propos de BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'ToDo et calendrier';
+  String get aboutBusyMaxDescription => 'Tâches et calendrier';
 
   @override
   String get website => 'Site web';
@@ -682,7 +682,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      'Le compte a été supprimé de cet appareil, mais BusyMax n’a pas pu révoquer l’accès Google. Vous pouvez le révoquer dans votre compte Google.';
+      'Le compte a été supprimé de cet appareil, mais BusyMax n’a pas pu révoquer son accès à votre compte Google. Vous pouvez révoquer cet accès depuis votre compte Google.';
 
   @override
   String get newList => 'Nouvelle liste';
@@ -734,7 +734,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get newTask => 'Nouvelle tâche';
 
   @override
-  String get clearCompleted => 'Effacer les terminées';
+  String get clearCompleted => 'Effacer les tâches terminées';
 
   @override
   String get refreshList => 'Actualiser la liste';
@@ -765,7 +765,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get selectOrCreateTaskList =>
-      'Sélectionnez ou créez une liste de tâches.';
+      'Sélectionnez ou créez une liste de tâches pour commencer.';
 
   @override
   String get signInToViewTasks => 'Connectez-vous pour voir les tâches.';
@@ -964,7 +964,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get createSubtask => 'Créer une sous-tâche';
 
   @override
-  String get moveToTop => 'Déplacer en haut';
+  String get moveToTop => 'Déplacer tout en haut';
 
   @override
   String get deleteTask => 'Supprimer la tâche';
@@ -990,7 +990,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get updated => 'Mis à jour';
 
   @override
-  String get parent => 'Parent';
+  String get parent => 'Tâche parente';
 
   @override
   String get position => 'Position';
@@ -999,7 +999,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get webLink => 'Lien web';
 
   @override
-  String get assignment => 'Assignation';
+  String get assignment => 'Attribution';
 
   @override
   String get localState => 'État local';
@@ -1067,17 +1067,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get notificationDetailNormal => 'Normal';
 
   @override
-  String get quietHours => 'Plages horaires silencieuses';
+  String get quietHours => 'Période de silence';
 
   @override
   String get quietHoursDescription =>
       'Mettre les notifications en pause pendant cette période.';
 
   @override
-  String get quietHoursStart => 'Début des plages silencieuses';
+  String get quietHoursStart => 'Début de la période de silence';
 
   @override
-  String get quietHoursEnd => 'Fin des plages silencieuses';
+  String get quietHoursEnd => 'Fin de la période de silence';
 
   @override
   String get notifications => 'Notifications';
@@ -1098,10 +1098,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get themeDark => 'Sombre';
 
   @override
-  String get themeFamily => 'Famille de thème';
+  String get themeFamily => 'Famille de thèmes';
 
   @override
-  String get themeFamilyYaru => 'Ubuntu natif (Yaru)';
+  String get themeFamilyYaru => 'Thème natif d’Ubuntu (Yaru)';
 
   @override
   String get localization => 'Localisation';
@@ -1176,27 +1176,27 @@ class AppLocalizationsFr extends AppLocalizations {
   String get retry => 'Réessayer';
 
   @override
-  String get discard => 'Ignorer';
+  String get discard => 'Abandonner';
 
   @override
-  String get discardChanges => 'Ignorer les modifications ?';
+  String get discardChanges => 'Abandonner les modifications ?';
 
   @override
   String get discardChangesConfirmation =>
-      'Cela ignore les modifications non enregistrées de cette tâche.';
+      'Les modifications non enregistrées apportées à cette tâche seront perdues.';
 
   @override
   String get retryCompleted => 'Nouvelle tentative terminée.';
 
   @override
-  String get discardPendingOperation => 'Ignorer l’opération en attente ?';
+  String get discardPendingOperation => 'Abandonner l’opération en attente ?';
 
   @override
   String get discardPendingOperationConfirmation =>
-      'Cela supprime l’opération locale bloquée. La prochaine synchronisation actualisera depuis Google Tasks.';
+      'Cette action supprime l’opération locale bloquée. Lors de la prochaine synchronisation, les données seront rechargées depuis Google Tasks.';
 
   @override
-  String get pendingOperationDiscarded => 'Opération en attente ignorée.';
+  String get pendingOperationDiscarded => 'Opération en attente abandonnée.';
 
   @override
   String get syncFailureNotificationTitle =>
@@ -1228,6 +1228,22 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get eventReminderNotificationTitle => 'Rappel d’événement';
+
+  @override
+  String get taskReminderNotificationTitle => 'Rappel de tâche';
+
+  @override
+  String get eventReminderNotificationBody => 'L’événement commence bientôt.';
+
+  @override
+  String get taskReminderNotificationBody =>
+      'La tâche arrive bientôt à échéance.';
+
+  @override
+  String get notificationOpenAction => 'Ouvrir';
 
   @override
   String get notificationDetailsHidden =>
@@ -1285,6 +1301,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String deleteCalendarConfirmation(String title) {
-    return 'Supprimer \"$title\" ?';
+    return 'Supprimer « $title » ?';
   }
 }

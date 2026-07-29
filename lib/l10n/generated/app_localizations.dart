@@ -8,7 +8,14 @@ import 'package:intl/intl.dart' as intl;
 import 'app_localizations_de.dart';
 import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
+import 'app_localizations_fi.dart';
 import 'app_localizations_fr.dart';
+import 'app_localizations_hi.dart';
+import 'app_localizations_ja.dart';
+import 'app_localizations_ko.dart';
+import 'app_localizations_pt.dart';
+import 'app_localizations_ru.dart';
+import 'app_localizations_zh.dart';
 
 // ignore_for_file: type=lint
 
@@ -99,7 +106,16 @@ abstract class AppLocalizations {
     Locale('de'),
     Locale('en'),
     Locale('es'),
+    Locale('fi'),
     Locale('fr'),
+    Locale('hi'),
+    Locale('ja'),
+    Locale('ko'),
+    Locale('pt'),
+    Locale('ru'),
+    Locale('zh'),
+    Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+    Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
   /// No description provided for @appTitle.
@@ -2298,6 +2314,36 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{One task is due today.} other{{count} tasks are due today.}}'**
   String dueTodayNotificationBody(int count);
 
+  /// No description provided for @eventReminderNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Event reminder'**
+  String get eventReminderNotificationTitle;
+
+  /// No description provided for @taskReminderNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Task reminder'**
+  String get taskReminderNotificationTitle;
+
+  /// No description provided for @eventReminderNotificationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Event starts soon.'**
+  String get eventReminderNotificationBody;
+
+  /// No description provided for @taskReminderNotificationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Task is due soon.'**
+  String get taskReminderNotificationBody;
+
+  /// No description provided for @notificationOpenAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get notificationOpenAction;
+
   /// No description provided for @notificationDetailsHidden.
   ///
   /// In en, this message translates to:
@@ -2399,14 +2445,39 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['de', 'en', 'es', 'fr'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'de',
+    'en',
+    'es',
+    'fi',
+    'fr',
+    'hi',
+    'ja',
+    'ko',
+    'pt',
+    'ru',
+    'zh',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when language+script codes are specified.
+  switch (locale.languageCode) {
+    case 'zh':
+      {
+        switch (locale.scriptCode) {
+          case 'Hans':
+            return AppLocalizationsZhHans();
+          case 'Hant':
+            return AppLocalizationsZhHant();
+        }
+        break;
+      }
+  }
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'de':
@@ -2415,8 +2486,22 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsEn();
     case 'es':
       return AppLocalizationsEs();
+    case 'fi':
+      return AppLocalizationsFi();
     case 'fr':
       return AppLocalizationsFr();
+    case 'hi':
+      return AppLocalizationsHi();
+    case 'ja':
+      return AppLocalizationsJa();
+    case 'ko':
+      return AppLocalizationsKo();
+    case 'pt':
+      return AppLocalizationsPt();
+    case 'ru':
+      return AppLocalizationsRu();
+    case 'zh':
+      return AppLocalizationsZh();
   }
 
   throw FlutterError(
