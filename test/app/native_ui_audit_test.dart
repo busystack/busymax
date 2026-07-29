@@ -504,9 +504,18 @@ void main() {
       final schedule = File(
         'lib/src/features/schedule/presentation/schedule_workspace.dart',
       ).readAsStringSync();
+      final titlebarHandleStart = source.indexOf(
+        'static GtkWidget* create_busymax_titlebar_handle',
+      );
+      final titlebarHandleEnd = source.indexOf(
+        'static gboolean show_header_create_menu',
+        titlebarHandleStart,
+      );
+      expect(titlebarHandleStart, isNonNegative);
+      expect(titlebarHandleEnd, greaterThan(titlebarHandleStart));
       final headerBarSource = source.substring(
-        0,
-        source.indexOf('static void install_compact_agenda_window_css'),
+        titlebarHandleStart,
+        titlebarHandleEnd,
       );
 
       expect(source, isNot(contains('GtkWidget* brand_box')));
@@ -1350,6 +1359,35 @@ void main() {
       expect(nativeSelector, isNot(contains('gtk_dialog_new_with_buttons(')));
       expect(nativeSelector, isNot(contains('gtk_dialog_run(')));
       expect(nativeSelector, contains('g_main_loop_run(loop)'));
+      expect(
+        nativeSelector,
+        contains(
+          'gtk_window_present_with_time(GTK_WINDOW(window), GDK_CURRENT_TIME)',
+        ),
+      );
+      expect(
+        nativeSelector,
+        contains('gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), TRUE)'),
+      );
+      expect(
+        nativeSelector,
+        contains('gtk_window_set_skip_pager_hint(GTK_WINDOW(window), TRUE)'),
+      );
+      expect(
+        nativeSelector,
+        isNot(contains('gtk_window_set_application(GTK_WINDOW(window)')),
+      );
+      expect(
+        nativeSelector,
+        contains(
+          'G_CALLBACK(native_time_zone_parent_is_active_notify_cb), window',
+        ),
+      );
+      expect(
+        runner,
+        contains('static void native_time_zone_parent_is_active_notify_cb('),
+      );
+      expect(runner, contains('if (!gtk_window_is_active(parent) ||'));
       expect(runner, contains('kNativeTimeZoneDialogContentHeight'));
       expect(runner, contains('kNativeTimeZoneDialogStyleClass'));
       expect(runner, contains('kNativeTimeZoneGroupStyleClass'));
@@ -1360,6 +1398,28 @@ void main() {
       expect(service, contains("invokeMethod<String>('selectTimeZone'"));
       expect(selector, contains('NativeDialogService().selectTimeZone('));
       expect(selector, contains('BusyMaxGroupedList('));
+    });
+
+    test('application activation presents only the application window', () {
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final restoreStart = runner.indexOf('static void restore_main_window');
+      final restoreEnd = runner.indexOf(
+        'static void window_method_call_cb',
+        restoreStart,
+      );
+
+      expect(restoreStart, isNonNegative);
+      expect(restoreEnd, greaterThan(restoreStart));
+
+      final restore = runner.substring(restoreStart, restoreEnd);
+      expect(
+        restore,
+        contains(
+          'gtk_window_present_with_time(self->main_window, GDK_CURRENT_TIME)',
+        ),
+      );
+      expect(restore, isNot(contains('gtk_application_get_windows')));
+      expect(restore, isNot(contains('gtk_window_present(self->main_window)')));
     });
 
     test(

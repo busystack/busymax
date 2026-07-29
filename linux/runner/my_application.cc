@@ -707,6 +707,22 @@ static void native_time_zone_window_destroy_cb(GtkWidget*,
   }
 }
 
+static void native_time_zone_parent_is_active_notify_cb(
+    GtkWindow* parent,
+    GParamSpec*,
+    gpointer user_data) {
+  GtkWindow* window = GTK_WINDOW(user_data);
+  if (!gtk_window_is_active(parent) ||
+      !gtk_widget_get_visible(GTK_WIDGET(window))) {
+    return;
+  }
+
+  // Some compositors reactivate the transient parent when switching back to
+  // the application. Keep the modal as the sole focus owner so both
+  // toplevels enter and leave GTK's :backdrop state consistently.
+  gtk_window_present_with_time(window, GDK_CURRENT_TIME);
+}
+
 static void rebuild_native_time_zone_results(
     NativeTimeZoneDialogState* state,
     const gchar* query) {
@@ -893,14 +909,12 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
   gtk_window_set_modal(GTK_WINDOW(window), TRUE);
   gtk_window_set_destroy_with_parent(GTK_WINDOW(window), TRUE);
   gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_DIALOG);
+  gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), TRUE);
+  gtk_window_set_skip_pager_hint(GTK_WINDOW(window), TRUE);
   gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ON_PARENT);
   gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
   gtk_window_set_default_size(GTK_WINDOW(window),
                               kNativeTimeZoneDialogWidth, -1);
-  GtkApplication* application = gtk_window_get_application(parent);
-  if (application != nullptr) {
-    gtk_window_set_application(GTK_WINDOW(window), application);
-  }
 
   GtkWidget* window_root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_container_add(GTK_CONTAINER(window), window_root);
@@ -961,8 +975,13 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
                    &state);
   g_signal_connect(window, "destroy",
                    G_CALLBACK(native_time_zone_window_destroy_cb), &state);
+  g_signal_connect_object(
+      parent, "notify::is-active",
+      G_CALLBACK(native_time_zone_parent_is_active_notify_cb), window,
+      static_cast<GConnectFlags>(0));
 
   gtk_widget_show_all(window);
+  gtk_window_present_with_time(GTK_WINDOW(window), GDK_CURRENT_TIME);
   gtk_widget_grab_focus(search);
   g_main_loop_run(loop);
   respond_string(method_call, state.result);
@@ -4096,7 +4115,6 @@ static void restore_main_window(MyApplication* self) {
   gtk_widget_show(GTK_WIDGET(self->main_window));
   gtk_window_deiconify(self->main_window);
   gtk_window_present_with_time(self->main_window, GDK_CURRENT_TIME);
-  gtk_window_present(self->main_window);
 }
 
 static void window_method_call_cb(FlMethodChannel* channel,
