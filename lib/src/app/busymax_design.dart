@@ -73,7 +73,6 @@ abstract final class BusyMaxAlpha {
   static const double calendarGridDark = 0.06;
   static const double groupedRowLightHoverStrength = 0.50;
   static const double nativeHeaderMenuShadowOpacity = 0.30;
-  static const double windowBackdropOpacity = 0.50;
 }
 
 abstract final class BusyMaxMotion {

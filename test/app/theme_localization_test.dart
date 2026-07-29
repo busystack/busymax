@@ -21,6 +21,7 @@ import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/platform/linux_window_service.dart';
+import 'package:busymax/src/platform/main_window_command_bridge.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 
 import '../test_localized_app.dart';
@@ -1693,7 +1694,7 @@ void main() {
     expect(app.localizationsDelegates, contains(AppLocalizations.delegate));
   });
 
-  testWidgets('BusyMaxApp applies native backdrop opacity when inactive', (
+  testWidgets('BusyMaxApp does not dim Flutter content when inactive', (
     tester,
   ) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -1717,19 +1718,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final backdrop = find.byKey(const ValueKey('busymax-window-backdrop'));
-    expect(tester.widget<Opacity>(backdrop).opacity, 1);
+    ColoredBox flutterSurface() {
+      final bridge = tester.widget<MainWindowCommandBridge>(
+        find.byType(MainWindowCommandBridge),
+      );
+      return bridge.child as ColoredBox;
+    }
+
+    expect(flutterSurface().child, isNot(isA<Opacity>()));
+    expect(find.byKey(const ValueKey('busymax-window-backdrop')), findsNothing);
 
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     await tester.pump();
-    expect(
-      tester.widget<Opacity>(backdrop).opacity,
-      BusyMaxAlpha.windowBackdropOpacity,
-    );
+    expect(flutterSurface().child, isNot(isA<Opacity>()));
 
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
-    expect(tester.widget<Opacity>(backdrop).opacity, 1);
+    expect(flutterSurface().child, isNot(isA<Opacity>()));
   });
 
   testWidgets('tray startup waits for persisted start-minimized settings', (

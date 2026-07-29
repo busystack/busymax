@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:system_theme/system_theme.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../platform/busymax_tray_service.dart';
 import '../platform/gtk_font_service.dart';
@@ -40,25 +39,18 @@ class BusyMaxApp extends ConsumerStatefulWidget {
   ConsumerState<BusyMaxApp> createState() => _BusyMaxAppState();
 }
 
-class _BusyMaxAppState extends ConsumerState<BusyMaxApp>
-    with WidgetsBindingObserver, WindowListener {
+class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   BusyMaxTrayService? _trayService;
   bool? _lastHideOnClose;
   bool? _lastTrayEnabled;
   bool _startMinimizedHandled = false;
   bool _settingsReady = false;
-  bool _windowActive = true;
   late final BusyMaxHeaderBarConfigurationSynchronizer
   _headerBarConfigurationSynchronizer;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    windowManager.addListener(this);
-    _windowActive = _isActiveLifecycleState(
-      WidgetsBinding.instance.lifecycleState,
-    );
     _headerBarConfigurationSynchronizer =
         BusyMaxHeaderBarConfigurationSynchronizer(
           ref.read(linuxHeaderBarServiceProvider),
@@ -68,32 +60,12 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp>
 
   @override
   void dispose() {
-    windowManager.removeListener(this);
-    WidgetsBinding.instance.removeObserver(this);
     _headerBarConfigurationSynchronizer.dispose();
     final tray = _trayService;
     if (tray != null) {
       unawaited(tray.stop());
     }
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _setWindowActive(_isActiveLifecycleState(state));
-  }
-
-  @override
-  void onWindowFocus() => _setWindowActive(true);
-
-  @override
-  void onWindowBlur() => _setWindowActive(false);
-
-  void _setWindowActive(bool windowActive) {
-    if (_windowActive == windowActive || !mounted) {
-      return;
-    }
-    setState(() => _windowActive = windowActive);
   }
 
   Future<void> _waitForSettings() async {
@@ -214,13 +186,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp>
                 child: MainWindowCommandBridge(
                   child: ColoredBox(
                     color: BusyMaxSurfaceColors.of(context).window,
-                    child: Opacity(
-                      key: const ValueKey('busymax-window-backdrop'),
-                      opacity: _windowActive
-                          ? 1
-                          : BusyMaxAlpha.windowBackdropOpacity,
-                      child: child ?? const SizedBox.shrink(),
-                    ),
+                    child: child ?? const SizedBox.shrink(),
                   ),
                 ),
               ),
@@ -409,10 +375,6 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp>
     _startMinimizedHandled = true;
     await windowService.hideWindow();
   }
-}
-
-bool _isActiveLifecycleState(AppLifecycleState? state) {
-  return state == null || state == AppLifecycleState.resumed;
 }
 
 class _KeyboardShortcutsIntent extends Intent {
