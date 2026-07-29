@@ -44,7 +44,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get onboardingPreferencesStepDescription =>
-      'अपना शेड्यूल खोलने से पहले डेस्कटॉप व्यवहार, रिमाइंडर, सूचना विवरण और दिखावट सेट करें।';
+      'अपना शेड्यूल खोलने से पहले डेस्कटॉप व्यवहार, रिमाइंडर, सूचनाओं के विवरण का स्तर और दिखावट सेट करें।';
 
   @override
   String get signInWithGoogle => 'Google से साइन इन करें';
@@ -122,7 +122,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get refreshCalendar => 'कैलेंडर रीफ़्रेश करें';
 
   @override
-  String get openInProvider => 'प्रदाता में खोलें';
+  String get openInProvider => 'सेवा में खोलें';
 
   @override
   String get hideFromSchedule => 'शेड्यूल से छिपाएँ';
@@ -234,10 +234,12 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get compactAgendaMoreOverdue => 'समय सीमा बीत चुके और कार्य लोड करें';
+  String get compactAgendaMoreOverdue =>
+      'समय-सीमा पार कर चुके अतिरिक्त कार्य लोड करें';
 
   @override
-  String get agendaLoadMoreOverdue => 'समय सीमा बीत चुके और कार्य लोड करें';
+  String get agendaLoadMoreOverdue =>
+      'समय-सीमा पार कर चुके अतिरिक्त कार्य लोड करें';
 
   @override
   String get agendaLoadMoreNoDate => 'बिना तारीख वाले और कार्य लोड करें';
@@ -473,7 +475,7 @@ class AppLocalizationsHi extends AppLocalizations {
       'सप्ताह दृश्य में पिछला सप्ताह, महीने के दृश्य में पिछला महीना, इत्यादि';
 
   @override
-  String get shortcutJumpToToday => 'आज पर जाएँ';
+  String get shortcutJumpToToday => 'आज की तारीख पर जाएँ';
 
   @override
   String get shortcutGroupView => 'दृश्य';
@@ -577,7 +579,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'केवल आपके Linux ऑपरेटिंग सिस्टम का संस्करण और ऐप का स्थान-भाषा जोड़ा जाता है। कोई लॉग, खाता डेटा, फ़ाइल नाम या अन्य निदान शामिल नहीं किया जाता।';
+      'केवल आपके Linux ऑपरेटिंग सिस्टम का संस्करण और ऐप की भाषा व क्षेत्रीय सेटिंग जोड़ी जाती है। लॉग, खाता डेटा, फ़ाइल नाम या अन्य निदान जानकारी शामिल नहीं की जाती।';
 
   @override
   String get feedbackCategoryRequired => 'श्रेणी चुनें।';
@@ -681,7 +683,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      'खाता इस डिवाइस से हटा दिया गया, लेकिन BusyMax Google की पहुँच रद्द नहीं कर सका। आप इसे अपने Google खाते से रद्द कर सकते हैं।';
+      'खाता इस डिवाइस से हटा दिया गया, लेकिन BusyMax की Google खाते तक पहुँच रद्द नहीं की जा सकी। आप यह पहुँच अपने Google खाते से रद्द कर सकते हैं।';
 
   @override
   String get newList => 'नई सूची';
@@ -923,7 +925,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get importanceNormal => 'सामान्य';
 
   @override
-  String get importanceHigh => 'अधिक';
+  String get importanceHigh => 'उच्च';
 
   @override
   String get categories => 'श्रेणियाँ';
@@ -1025,7 +1027,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get showTrayIcon => 'ट्रे आइकन दिखाएँ';
 
   @override
-  String get startMinimizedToTray => 'ट्रे में छोटा होकर शुरू करें';
+  String get startMinimizedToTray => 'ट्रे में मिनिमाइज़ होकर शुरू करें';
 
   @override
   String get requiresTrayIcon => 'ट्रे आइकन आवश्यक है।';
@@ -1054,7 +1056,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get taskReminders => 'कार्य रिमाइंडर';
 
   @override
-  String get notificationDetailLevel => 'सूचना विवरण का स्तर';
+  String get notificationDetailLevel => 'सूचनाओं के विवरण का स्तर';
 
   @override
   String get notificationDetailPrivate => 'निजी';
@@ -1096,13 +1098,13 @@ class AppLocalizationsHi extends AppLocalizations {
   String get themeFamily => 'थीम परिवार';
 
   @override
-  String get themeFamilyYaru => 'मूल Ubuntu (Yaru)';
+  String get themeFamilyYaru => 'Ubuntu की मूल थीम (Yaru)';
 
   @override
   String get localization => 'स्थानीयकरण';
 
   @override
-  String get currentLocale => 'मौजूदा स्थान-भाषा';
+  String get currentLocale => 'मौजूदा भाषा और क्षेत्रीय सेटिंग';
 
   @override
   String get privacy => 'गोपनीयता';
@@ -1169,27 +1171,27 @@ class AppLocalizationsHi extends AppLocalizations {
   String get retry => 'फिर से कोशिश करें';
 
   @override
-  String get discard => 'छोड़ें';
+  String get discard => 'खारिज करें';
 
   @override
-  String get discardChanges => 'बदलाव छोड़ें?';
+  String get discardChanges => 'बदलाव खारिज करें?';
 
   @override
   String get discardChangesConfirmation =>
-      'इससे इस कार्य के सहेजे न गए बदलाव छोड़ दिए जाएँगे।';
+      'इससे इस कार्य में किए गए सहेजे न गए बदलाव खारिज हो जाएँगे।';
 
   @override
   String get retryCompleted => 'दोबारा प्रयास पूरा हुआ।';
 
   @override
-  String get discardPendingOperation => 'लंबित कार्रवाई छोड़ें?';
+  String get discardPendingOperation => 'लंबित कार्रवाई खारिज करें?';
 
   @override
   String get discardPendingOperationConfirmation =>
       'इससे अवरुद्ध स्थानीय कार्रवाई हट जाती है। अगला सिंक Google Tasks से डेटा रीफ़्रेश करेगा।';
 
   @override
-  String get pendingOperationDiscarded => 'लंबित कार्रवाई छोड़ दी गई।';
+  String get pendingOperationDiscarded => 'लंबित कार्रवाई खारिज कर दी गई।';
 
   @override
   String get syncFailureNotificationTitle => 'BusyMax सिंक विफल';
@@ -1200,7 +1202,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get conflictNotificationTitle => 'BusyMax सिंक टकराव';
+  String get conflictNotificationTitle => 'BusyMax सिंक में टकराव';
 
   @override
   String conflictNotificationBody(String summary) {
