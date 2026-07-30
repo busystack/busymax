@@ -59,7 +59,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get microsoftTodoProvider => 'Microsoft To Do';
 
   @override
-  String get providerNotConfigured => '이 공급자는 구성되지 않았습니다.';
+  String get providerNotConfigured => '이 서비스는 설정되어 있지 않습니다.';
 
   @override
   String get waitingForGoogleSignIn => 'Google 로그인을 기다리는 중...';
@@ -120,7 +120,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get refreshCalendar => '캘린더 새로 고침';
 
   @override
-  String get openInProvider => '공급자에서 열기';
+  String get openInProvider => '서비스에서 열기';
 
   @override
   String get hideFromSchedule => '일정에서 숨기기';
@@ -314,7 +314,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get description => '설명';
 
   @override
-  String get availabilityShowAs => '상태 / 다음으로 표시';
+  String get availabilityShowAs => '일정 상태 / 표시 방식';
 
   @override
   String get busy => '바쁨';
@@ -332,7 +332,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noConference => '회의 없음';
 
   @override
-  String get providerCalendar => '공급자 캘린더';
+  String get providerCalendar => '서비스 캘린더';
 
   @override
   String get formatBoldShortLabel => 'B';
@@ -364,7 +364,7 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
-  String get reminderAtStart => '시작 시간';
+  String get reminderAtStart => '시작 시';
 
   @override
   String reminderHoursBefore(int hours) {
@@ -546,7 +546,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get feedbackCategoryPrivacySecurity => '개인정보 보호 또는 보안 우려';
 
   @override
-  String get feedbackCategoryUsability => '사용성 관련 의견';
+  String get feedbackCategoryUsability => '사용 편의성 문제';
 
   @override
   String get feedbackCategoryOther => '기타';
@@ -662,7 +662,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      '이 기기에서 계정은 삭제되었지만 BusyMax가 Google 액세스 권한을 취소하지 못했습니다. Google 계정에서 직접 취소할 수 있습니다.';
+      '계정은 이 기기에서 삭제되었지만 BusyMax가 Google 계정 액세스 권한을 취소하지 못했습니다. Google 계정에서 직접 취소할 수 있습니다.';
 
   @override
   String get newList => '새 목록';
@@ -729,7 +729,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String exportedFile(String path) {
-    return '$path(으)로 내보냈습니다';
+    return '$path에 내보냈습니다';
   }
 
   @override
@@ -816,7 +816,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get statusSection => '상태';
 
   @override
-  String get openStatus => '진행 중';
+  String get openStatus => '미완료';
 
   @override
   String get doneStatus => '완료';
@@ -1101,7 +1101,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String discoveryRevision(String revision) {
-    return '검색 버전: $revision';
+    return 'Discovery 리비전: $revision';
   }
 
   @override
@@ -1123,7 +1123,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noBlockedPendingOperations => '차단된 보류 작업이 없습니다.';
 
   @override
-  String get operationActions => '작업 동작';
+  String get operationActions => '작업별 조치';
 
   @override
   String pendingOpListId(String id) {

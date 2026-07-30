@@ -120,7 +120,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get refreshCalendar => 'カレンダーを更新';
 
   @override
-  String get openInProvider => 'プロバイダーで開く';
+  String get openInProvider => 'サービスで開く';
 
   @override
   String get hideFromSchedule => 'スケジュールから非表示';
@@ -258,7 +258,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleDisplayHoursDescription =>
-      '日表示と週表示では、最初にこの時間範囲が表示されます。必要に応じて、範囲外の早い項目や遅い項目まで表示範囲が広がります。';
+      '日表示と週表示では、最初にこの時間範囲が表示されます。必要に応じて、この範囲より前または後の項目も表示されるように範囲が広がります。';
 
   @override
   String get scheduleDayStartsAt => '一日の開始時刻';
@@ -365,7 +365,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get reminderAtStart => '開始時刻';
+  String get reminderAtStart => '開始時';
 
   @override
   String reminderHoursBefore(int hours) {
@@ -662,7 +662,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      'アカウントはこのデバイスから削除されましたが、BusyMax は Google へのアクセス権を取り消せませんでした。Google アカウントから取り消すことができます。';
+      'アカウントはこのデバイスから削除されましたが、BusyMax は Google アカウントへのアクセス権を取り消せませんでした。Google アカウントの設定から取り消すことができます。';
 
   @override
   String get newList => '新しいリスト';
@@ -1123,7 +1123,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noBlockedPendingOperations => 'ブロックされた保留中の操作はありません。';
 
   @override
-  String get operationActions => '操作のアクション';
+  String get operationActions => '操作への対応';
 
   @override
   String pendingOpListId(String id) {
