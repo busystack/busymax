@@ -439,6 +439,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
       child: Row(
         children: [
           Expanded(
+            flex: BusyMaxCalendarHeaderLayout.monthControlFlex,
             child: _buildDateModeStepper(
               context: context,
               label: monthLabel,
@@ -455,6 +456,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
           ),
           const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
+            flex: BusyMaxCalendarHeaderLayout.yearControlFlex,
             child: _buildDateModeStepper(
               context: context,
               label: '${_displayedMonth.year}',

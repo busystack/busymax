@@ -13,8 +13,6 @@ import '../../../schedule/schedule_projection.dart';
 import 'calendar_day_semantics.dart';
 
 const _miniCalendarHeaderControlExtent = 28.0;
-const _miniCalendarMonthControlFlex = 3;
-const _miniCalendarYearControlFlex = 2;
 
 /// Sidebar calendar with local month paging and schedule-view shortcuts.
 class MiniCalendar extends StatefulWidget {
@@ -81,7 +79,7 @@ class _MiniCalendarState extends State<MiniCalendar> {
           Row(
             children: [
               Expanded(
-                flex: _miniCalendarMonthControlFlex,
+                flex: BusyMaxCalendarHeaderLayout.monthControlFlex,
                 child: _MiniCalendarStepper(
                   label: localizedMonthHeading(locale, visibleMonth),
                   previousTooltip: l10n.previousMonth,
@@ -98,7 +96,7 @@ class _MiniCalendarState extends State<MiniCalendar> {
               ),
               const SizedBox(width: BusyMaxSpacing.sm),
               Expanded(
-                flex: _miniCalendarYearControlFlex,
+                flex: BusyMaxCalendarHeaderLayout.yearControlFlex,
                 child: _MiniCalendarStepper(
                   label: '${visibleMonth.year}',
                   previousTooltip: l10n.previousYear,

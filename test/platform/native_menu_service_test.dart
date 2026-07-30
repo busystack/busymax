@@ -27,7 +27,11 @@ void main() {
       anchor: const Rect.fromLTWH(24, 36, 140, 34),
       entries: const [
         NativeMenuEntry(label: 'Personal'),
-        NativeMenuEntry(label: 'Work'),
+        NativeMenuEntry(
+          label: 'Work',
+          iconName: 'folder-symbolic',
+          shortcut: 'Ctrl+W',
+        ),
         NativeMenuEntry(label: 'Archived', enabled: false),
       ],
     );
@@ -40,7 +44,13 @@ void main() {
       'anchor': {'x': 24.0, 'y': 36.0, 'width': 140.0, 'height': 34.0},
       'entries': [
         {'label': 'Personal', 'enabled': true, 'selected': false},
-        {'label': 'Work', 'enabled': true, 'selected': false},
+        {
+          'label': 'Work',
+          'icon': 'folder-symbolic',
+          'enabled': true,
+          'selected': false,
+          'shortcut': 'Ctrl+W',
+        },
         {'label': 'Archived', 'enabled': false, 'selected': false},
       ],
       'focusFirst': false,

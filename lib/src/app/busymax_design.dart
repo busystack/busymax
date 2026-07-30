@@ -9,6 +9,7 @@ import 'package:yaru/yaru.dart';
 
 import '../l10n/l10n.dart';
 import '../platform/native_menu_service.dart';
+import 'busymax_glyphs.dart';
 import 'busymax_surface_colors.dart';
 
 abstract final class BusyMaxSpacing {
@@ -53,6 +54,11 @@ abstract final class BusyMaxSizes {
 
 abstract final class BusyMaxFormLayout {
   static const double comboInlineMaxFraction = 0.46;
+}
+
+abstract final class BusyMaxCalendarHeaderLayout {
+  static const int monthControlFlex = 3;
+  static const int yearControlFlex = 2;
 }
 
 /// BusyMax's single deliberate adjustment to Yaru's surface depth.
@@ -2296,6 +2302,7 @@ class BusyMaxMenuEntry<T> {
     required this.label,
     this.icon,
     this.child,
+    this.shortcut,
     this.enabled = true,
     this.selected = false,
     this.tooltip,
@@ -2306,6 +2313,7 @@ class BusyMaxMenuEntry<T> {
   final String label;
   final IconData? icon;
   final Widget? child;
+  final String? shortcut;
   final bool enabled;
   final bool selected;
   final String? tooltip;
@@ -2496,8 +2504,10 @@ List<NativeMenuEntry> _nativeMenuEntries<T>(List<BusyMaxMenuEntry<T>> entries) {
     for (final entry in entries)
       NativeMenuEntry(
         label: entry.label,
+        iconName: BusyMaxGlyphs.nativeMenuIconName(entry.icon),
         enabled: entry.enabled,
         selected: entry.selected,
+        shortcut: entry.shortcut,
       ),
   ];
 }
@@ -2668,10 +2678,21 @@ Widget _busyMaxFallbackMenuEntry<T>(
         overflow: TextOverflow.ellipsis,
         style: foreground == null ? null : TextStyle(color: foreground),
       );
-  final content = entry.icon == null && selectionIndicator == null
+  final shortcut = entry.shortcut == null || entry.shortcut!.isEmpty
+      ? null
+      : Directionality(
+          textDirection: TextDirection.ltr,
+          child: Text(
+            entry.shortcut!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        );
+  final content =
+      entry.icon == null && selectionIndicator == null && shortcut == null
       ? label
       : Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             if (selectionIndicator != null) ...[
               selectionIndicator,
@@ -2681,7 +2702,11 @@ Widget _busyMaxFallbackMenuEntry<T>(
               Icon(entry.icon, color: foreground),
               const SizedBox(width: BusyMaxSpacing.sm),
             ],
-            Flexible(child: label),
+            Expanded(child: label),
+            if (shortcut != null) ...[
+              const SizedBox(width: BusyMaxSpacing.md),
+              shortcut,
+            ],
           ],
         );
   if (entry.enabled || entry.tooltip == null) {

@@ -83,6 +83,11 @@ void main() {
         keyboardShortcuts: 'Keyboard Shortcuts',
         reportIssue: 'Report an issue',
         aboutBusyMax: 'About BusyMax',
+        todayShortcut: 'Shift+T',
+        dayShortcut: '1 / D',
+        createEventShortcut: 'E',
+        settingsShortcut: 'Ctrl+,',
+        keyboardShortcutsShortcut: 'Ctrl+/',
       ),
     );
     await service.setSidebarWidth(300);
@@ -141,6 +146,14 @@ void main() {
     );
     expect(calls[1].arguments, containsPair('reportIssue', 'Report an issue'));
     expect(calls[1].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
+    expect(calls[1].arguments, containsPair('todayShortcut', 'Shift+T'));
+    expect(calls[1].arguments, containsPair('dayShortcut', '1 / D'));
+    expect(calls[1].arguments, containsPair('createEventShortcut', 'E'));
+    expect(calls[1].arguments, containsPair('settingsShortcut', 'Ctrl+,'));
+    expect(
+      calls[1].arguments,
+      containsPair('keyboardShortcutsShortcut', 'Ctrl+/'),
+    );
     expect(calls[2].arguments, 300);
     expect(calls[3].arguments, 'rtl');
     expect(calls[4].arguments, containsPair('visible', true));

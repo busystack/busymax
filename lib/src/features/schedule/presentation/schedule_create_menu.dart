@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_shortcuts.dart';
 import '../../../l10n/l10n.dart';
 
 enum ScheduleCreateChoice { event, task }
@@ -41,12 +42,16 @@ Future<ScheduleCreateChoice?> showScheduleCreateMenu({
       BusyMaxMenuEntry(
         value: ScheduleCreateChoice.event,
         label: context.l10n.createEventAtTime,
+        icon: Icons.event_outlined,
         enabled: canCreateEvent,
+        shortcut: BusyMaxShortcutLabels.newEvent,
       ),
       BusyMaxMenuEntry(
         value: ScheduleCreateChoice.task,
         label: context.l10n.createTaskAtDate,
+        icon: Icons.task_alt_outlined,
         enabled: canCreateTask,
+        shortcut: BusyMaxShortcutLabels.newTask,
       ),
     ],
   );

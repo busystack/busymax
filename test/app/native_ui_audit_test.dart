@@ -650,14 +650,13 @@ void main() {
       expect(
         source,
         contains(
-          'g_menu_append(menu, self->header_settings_label, "header.settings")',
+          'append_header_action_item(menu, self->header_settings_label,',
         ),
       );
       expect(
         source,
         contains(
-          'g_menu_append(menu, self->header_report_issue_label,\n'
-          '                "header.report-issue")',
+          'append_header_action_item(menu, self->header_report_issue_label,',
         ),
       );
       expect(
@@ -1217,25 +1216,46 @@ void main() {
       expect(
         source,
         contains(
-          'append_header_view_mode_item(menu, self->header_year_label, "year")',
+          'append_header_view_mode_item(menu, self->header_year_label, "year",',
         ),
       );
+      expect(source, contains('GtkWidget* view_mode_icon;'));
+      expect(source, isNot(contains('GtkWidget* view_mode_label;')));
+      expect(
+        source,
+        contains(
+          'gtk_image_set_from_icon_name(GTK_IMAGE(self->view_mode_icon),',
+        ),
+      );
+      expect(
+        source,
+        contains('header_view_mode_icon_name("week")'),
+      );
+      expect(source, contains('return "view-continuous-symbolic";'));
+      expect(source, contains('return "calendar-week-symbolic";'));
+      expect(source, contains('return "calendar-month-symbolic";'));
+      expect(source, contains('return "view-app-grid-symbolic";'));
+      expect(source, contains('return "view-list-symbolic";'));
+      expect(source, contains('"pan-down-symbolic"'));
       expect(source, contains('return "viewModeYear"'));
       expect(source, contains('list-add-symbolic'));
       expect(
         source,
         contains(
-          'g_menu_append(menu, self->header_create_event_label,\n'
-          '                "header.create-event")',
+          'append_header_action_item(menu, self->header_create_event_label,',
         ),
       );
       expect(
         source,
         contains(
-          'g_menu_append(menu, self->header_create_task_label, '
-          '"header.create-task")',
+          'append_header_action_item(menu, self->header_create_task_label,',
         ),
       );
+      expect(source, contains('kMenuShortcutAttribute'));
+      expect(source, contains('kMenuIconAttribute'));
+      expect(source, contains('g_menu_item_set_icon(item, icon)'));
+      expect(source, contains('gtk_image_new_from_icon_name(icon_name'));
+      expect(source, contains('decorate_model_menu_shortcuts'));
       expect(source, contains('gtk_menu_button_set_menu_model'));
       expect(source, contains('g_simple_action_set_enabled'));
       expect(source, isNot(contains('self->create_button, "create"')));
@@ -1281,7 +1301,15 @@ void main() {
       expect(nativeMenu, contains('gtk_popover_set_pointing_to('));
       expect(nativeMenu, contains('gtk_popover_set_modal('));
       expect(nativeMenu, contains('style_native_popover(session->popover)'));
+      expect(
+        nativeMenu,
+        contains('decorate_model_menu_shortcuts(session->popover'),
+      );
       expect(nativeMenu, contains('g_simple_action_set_enabled('));
+      expect(nativeMenu, contains('g_themed_icon_new(icon_name)'));
+      expect(nativeMenu, contains('g_menu_item_set_icon(item, icon)'));
+      expect(nativeMenu, contains('kMenuIconAttribute'));
+      expect(runner, contains('add_model_button_presentation('));
       expect(nativeMenu, contains('g_simple_action_new_stateful('));
       expect(nativeMenu, contains('g_object_ref(G_OBJECT(method_call))'));
       expect(

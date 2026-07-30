@@ -685,6 +685,20 @@ void main() {
     expect(find.byType(MiniCalendarGrid), findsOneWidget);
     expect(find.text('July'), findsOneWidget);
     expect(find.text('2026'), findsOneWidget);
+    final monthControlWidth =
+        tester.getRect(find.byTooltip('Next month')).right -
+        tester.getRect(find.byTooltip('Previous month')).left;
+    final yearControlWidth =
+        tester.getRect(find.byTooltip('Next year')).right -
+        tester.getRect(find.byTooltip('Previous year')).left;
+    expect(
+      monthControlWidth / yearControlWidth,
+      closeTo(
+        BusyMaxCalendarHeaderLayout.monthControlFlex /
+            BusyMaxCalendarHeaderLayout.yearControlFlex,
+        0.01,
+      ),
+    );
     expect(
       find.descendant(
         of: find.byType(MiniCalendarGrid),

@@ -25,19 +25,25 @@ final class NativeMenuSession {
 final class NativeMenuEntry {
   const NativeMenuEntry({
     required this.label,
+    this.iconName,
     this.enabled = true,
     this.selected = false,
+    this.shortcut,
   });
 
   final String label;
+  final String? iconName;
   final bool enabled;
   final bool selected;
+  final String? shortcut;
 
   Map<String, Object> _toPlatformMap() {
     return <String, Object>{
       'label': label,
+      if (iconName != null && iconName!.isNotEmpty) 'icon': iconName!,
       'enabled': enabled,
       'selected': selected,
+      if (shortcut != null && shortcut!.isNotEmpty) 'shortcut': shortcut!,
     };
   }
 }

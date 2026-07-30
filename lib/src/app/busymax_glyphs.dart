@@ -9,6 +9,76 @@ import 'package:yaru/yaru.dart';
 abstract final class BusyMaxGlyphs {
   const BusyMaxGlyphs._();
 
+  /// Maps Flutter menu glyphs to equivalent freedesktop themed icons.
+  ///
+  /// GTK menu models consume themed-icon names rather than Flutter font
+  /// glyphs, so the native bridge uses this catalog to retain menu artwork.
+  static String? nativeMenuIconName(IconData? icon) {
+    if (icon == null) {
+      return null;
+    }
+    if (icon == YaruIcons.refresh || icon == Icons.refresh) {
+      return 'view-refresh-symbolic';
+    }
+    if (icon == YaruIcons.trash || icon == Icons.delete_outline) {
+      return 'user-trash-symbolic';
+    }
+    if (icon == Icons.open_in_browser_outlined) {
+      return 'external-link-symbolic';
+    }
+    if (icon == Icons.edit_outlined) {
+      return 'document-edit-symbolic';
+    }
+    if (icon == Icons.calendar_view_day_outlined ||
+        icon == YaruIcons.calendar_day) {
+      return 'calendar-app-symbolic';
+    }
+    if (icon == Icons.view_week_outlined) {
+      return 'calendar-week-symbolic';
+    }
+    if (icon == Icons.calendar_view_month) {
+      return 'calendar-month-symbolic';
+    }
+    if (icon == Icons.calendar_today_outlined || icon == Icons.event_outlined) {
+      return 'x-office-calendar-symbolic';
+    }
+    if (icon == Icons.view_agenda_outlined) {
+      return 'calendar-agenda-symbolic';
+    }
+    if (icon == YaruIcons.settings || icon == Icons.settings_outlined) {
+      return 'preferences-system-symbolic';
+    }
+    if (icon == Icons.keyboard_alt_outlined ||
+        icon == YaruIcons.keyboard_shortcuts) {
+      return 'input-keyboard-symbolic';
+    }
+    if (icon == YaruIcons.warning) {
+      return 'dialog-warning-symbolic';
+    }
+    if (icon == Icons.info_outline) {
+      return 'help-about-symbolic';
+    }
+    if (icon == Icons.task_alt_outlined) {
+      return 'checkbox-checked-symbolic';
+    }
+    if (icon == YaruIcons.user) {
+      return 'avatar-default-symbolic';
+    }
+    if (icon == YaruIcons.desktop) {
+      return 'video-display-symbolic';
+    }
+    if (icon == YaruIcons.bell) {
+      return 'preferences-system-notifications-symbolic';
+    }
+    if (icon == YaruIcons.shield_warning) {
+      return 'security-high-symbolic';
+    }
+    if (icon == YaruIcons.monitor) {
+      return 'diagnostics-symbolic';
+    }
+    return null;
+  }
+
   static IconData backFor(TextDirection direction) {
     return direction == TextDirection.rtl
         ? YaruIcons.arrow_right

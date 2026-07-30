@@ -4,6 +4,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
+import '../../../app/busymax_shortcuts.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_range.dart';
@@ -84,23 +85,33 @@ class ScheduleToolbar extends StatelessWidget {
                   ),
                   onPressed: onToggleSidebar,
                 ),
-              BusyMaxPushButton.standard(
-                onPressed: onToday,
-                child: Text(context.l10n.today),
+              Tooltip(
+                message: _shortcutTooltip(
+                  context.l10n.today,
+                  BusyMaxShortcutLabels.today,
+                ),
+                child: BusyMaxPushButton.standard(
+                  onPressed: onToday,
+                  child: Text(context.l10n.today),
+                ),
               ),
               const SizedBox(width: BusyMaxSpacing.sm),
               if (showPaging) ...[
                 YaruIconButton(
-                  tooltip: MaterialLocalizations.of(
-                    context,
-                  ).previousPageTooltip,
+                  tooltip: _shortcutTooltip(
+                    MaterialLocalizations.of(context).previousPageTooltip,
+                    BusyMaxShortcutLabels.previousPeriod,
+                  ),
                   icon: Icon(
                     BusyMaxGlyphs.previousFor(Directionality.of(context)),
                   ),
                   onPressed: onPrevious,
                 ),
                 YaruIconButton(
-                  tooltip: MaterialLocalizations.of(context).nextPageTooltip,
+                  tooltip: _shortcutTooltip(
+                    MaterialLocalizations.of(context).nextPageTooltip,
+                    BusyMaxShortcutLabels.nextPeriod,
+                  ),
                   icon: Icon(BusyMaxGlyphs.nextFor(Directionality.of(context))),
                   onPressed: onNext,
                 ),
@@ -115,7 +126,10 @@ class ScheduleToolbar extends StatelessWidget {
                 ),
               ),
               BusyMaxMenuButton<ScheduleViewMode>(
-                tooltip: _modeLabel(context, mode),
+                tooltip: _shortcutTooltip(
+                  _modeLabel(context, mode),
+                  BusyMaxShortcutLabels.forViewMode(mode),
+                ),
                 icon: Icon(_modeIcon(mode)),
                 entries: [
                   for (final value in ScheduleViewMode.values)
@@ -124,18 +138,25 @@ class ScheduleToolbar extends StatelessWidget {
                       label: _modeLabel(context, value),
                       icon: _modeIcon(value),
                       selected: mode == value,
+                      shortcut: BusyMaxShortcutLabels.forViewMode(value),
                     ),
                 ],
                 onSelected: onModeChanged,
               ),
               if (onSearch != null)
                 YaruIconButton(
-                  tooltip: MaterialLocalizations.of(context).searchFieldLabel,
+                  tooltip: _shortcutTooltip(
+                    MaterialLocalizations.of(context).searchFieldLabel,
+                    BusyMaxShortcutLabels.search,
+                  ),
                   icon: const Icon(YaruIcons.search),
                   onPressed: onSearch,
                 ),
               BusyMaxMenuButton<_ScheduleCreateAction>(
-                tooltip: context.l10n.create,
+                tooltip: _shortcutTooltip(
+                  context.l10n.create,
+                  BusyMaxShortcutLabels.create,
+                ),
                 icon: const Icon(YaruIcons.plus),
                 controller: createMenuController,
                 enabled: canCreateEvent || canCreateTask,
@@ -143,12 +164,16 @@ class ScheduleToolbar extends StatelessWidget {
                   BusyMaxMenuEntry(
                     value: _ScheduleCreateAction.event,
                     label: context.l10n.createEventAtTime,
+                    icon: Icons.event_outlined,
                     enabled: canCreateEvent,
+                    shortcut: BusyMaxShortcutLabels.newEvent,
                   ),
                   BusyMaxMenuEntry(
                     value: _ScheduleCreateAction.task,
                     label: context.l10n.createTaskAtDate,
+                    icon: Icons.task_alt_outlined,
                     enabled: canCreateTask,
+                    shortcut: BusyMaxShortcutLabels.newTask,
                   ),
                 ],
                 onSelected: (value) {
@@ -181,11 +206,13 @@ class ScheduleToolbar extends StatelessWidget {
                       value: ScheduleToolbarMenuAction.settings,
                       label: context.l10n.settings,
                       icon: YaruIcons.settings,
+                      shortcut: BusyMaxShortcutLabels.settings,
                     ),
                     BusyMaxMenuEntry(
                       value: ScheduleToolbarMenuAction.keyboardShortcuts,
                       label: context.l10n.keyboardShortcuts,
                       icon: Icons.keyboard_alt_outlined,
+                      shortcut: BusyMaxShortcutLabels.keyboardShortcuts,
                     ),
                     BusyMaxMenuEntry(
                       value: ScheduleToolbarMenuAction.reportIssue,
@@ -244,3 +271,5 @@ String _modeLabel(BuildContext context, ScheduleViewMode mode) {
     ScheduleViewMode.agenda => context.l10n.viewAgenda,
   };
 }
+
+String _shortcutTooltip(String label, String shortcut) => '$label ($shortcut)';

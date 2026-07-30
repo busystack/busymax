@@ -112,15 +112,27 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Create'));
+    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
     await tester.pumpAndSettle();
 
     expect(events, 0);
     expect(tasks, 1);
     expect(nativeCall?.method, 'show');
     expect((nativeCall?.arguments as Map<Object?, Object?>)['entries'], [
-      {'label': 'Event', 'enabled': true, 'selected': false},
-      {'label': 'Task', 'enabled': true, 'selected': false},
+      {
+        'label': 'Event',
+        'icon': 'x-office-calendar-symbolic',
+        'enabled': true,
+        'selected': false,
+        'shortcut': 'E',
+      },
+      {
+        'label': 'Task',
+        'icon': 'checkbox-checked-symbolic',
+        'enabled': true,
+        'selected': false,
+        'shortcut': 'T',
+      },
     ]);
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
@@ -168,11 +180,11 @@ void main() {
     );
 
     await tester.tap(find.byTooltip('Toggle Sidebar'));
-    await tester.tap(find.byTooltip('Search'));
+    await tester.tap(find.byTooltip('Search (Ctrl+F)'));
     expect(sidebarToggles, 1);
     expect(searches, 1);
 
-    await tester.tap(find.byTooltip('Create'));
+    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
@@ -186,7 +198,7 @@ void main() {
     expect(events, 1);
     expect(tasks, 0);
 
-    await tester.tap(find.byTooltip('Week'));
+    await tester.tap(find.byTooltip('Week (2 / W)'));
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
@@ -306,7 +318,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Create'));
+    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
     await tester.pumpAndSettle();
 
     expect(
@@ -382,7 +394,7 @@ void main() {
 
       final trigger = tester.widget<YaruIconButton>(
         find.ancestor(
-          of: find.byTooltip('Create'),
+          of: find.byTooltip('Create (Ctrl+N)'),
           matching: find.byType(YaruIconButton),
         ),
       );
@@ -573,12 +585,12 @@ void main() {
 
     final trigger = tester.widget<YaruIconButton>(
       find.ancestor(
-        of: find.byTooltip('Create'),
+        of: find.byTooltip('Create (Ctrl+N)'),
         matching: find.byType(YaruIconButton),
       ),
     );
     expect(trigger.onPressed, isNull);
-    await tester.tap(find.byTooltip('Create'));
+    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
     await tester.pumpAndSettle();
     expect(find.text('Event'), findsNothing);
     expect(find.text('Task'), findsNothing);

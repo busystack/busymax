@@ -37,6 +37,40 @@ void main() {
     expect(workspace, contains("ValueKey('schedule-week-planner')"));
   });
 
+  testWidgets('year view uses one month column at narrow desktop widths', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 500,
+            height: 720,
+            child: ScheduleYearView(
+              selectedDate: selectedDate,
+              items: const [],
+              firstWeekday: DateTime.monday,
+              onDaySelected: (_) {},
+              onMonthSelected: (_) {},
+              onWeekSelected: (_) {},
+              onCreateAtDay: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final months = find.byType(YearMonthMiniCalendar);
+    expect(months, findsNWidgets(DateTime.monthsPerYear));
+    final januaryPosition = tester.getTopLeft(months.at(0));
+    final februaryPosition = tester.getTopLeft(months.at(1));
+    expect(februaryPosition.dx, januaryPosition.dx);
+    expect(februaryPosition.dy, greaterThan(januaryPosition.dy));
+  });
+
   testWidgets('day view uses package planner with custom BusyMax items', (
     tester,
   ) async {
@@ -3231,15 +3265,13 @@ void main() {
     expect(
       headerBar,
       contains(
-        'g_menu_append(menu, self->header_create_event_label,\n'
-        '                "header.create-event")',
+        'append_header_action_item(menu, self->header_create_event_label,',
       ),
     );
     expect(
       headerBar,
       contains(
-        'g_menu_append(menu, self->header_create_task_label, '
-        '"header.create-task")',
+        'append_header_action_item(menu, self->header_create_task_label,',
       ),
     );
     expect(headerBar, contains('gtk_menu_button_set_menu_model'));
@@ -3258,7 +3290,7 @@ void main() {
     );
     expect(sidebar, isNot(contains('context.l10n.create')));
     expect(sidebar, isNot(contains('PushButton.filled')));
-    expect(toolbar, contains('tooltip: context.l10n.create'));
+    expect(toolbar, contains('BusyMaxShortcutLabels.create'));
     expect(toolbar, contains('icon: const Icon(YaruIcons.plus)'));
     expect(toolbar, contains('tooltip: context.l10n.refreshAll'));
   });

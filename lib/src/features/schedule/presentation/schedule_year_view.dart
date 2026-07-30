@@ -85,8 +85,8 @@ int _columnCount(double width, {required bool compact}) {
   if (width >= 680) {
     return 3;
   }
-  if (width >= 460) {
+  if (width >= 520) {
     return 2;
   }
-  return compact && width >= 360 ? 2 : 1;
+  return 1;
 }

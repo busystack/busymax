@@ -73,6 +73,12 @@ constexpr char kDefaultModalBarrierColor[] = "rgba(0,0,0,0.25)";
 constexpr char kHeaderControlStyleClass[] = "busymax-header-control";
 constexpr char kHeaderOnboardingTextButtonStyleClass[] =
     "busymax-onboarding-text-button";
+constexpr char kMenuShortcutAttribute[] = "x-busymax-shortcut";
+constexpr char kMenuIconAttribute[] = "x-busymax-icon";
+constexpr char kModelButtonShortcutKey[] =
+    "busymax-model-button-shortcut";
+constexpr char kLtrIsolateStart[] = "\xE2\x81\xA6";
+constexpr char kBidiIsolateEnd[] = "\xE2\x81\xA9";
 constexpr char kHeaderSearchEntryStyleClass[] =
     "busymax-header-search-entry";
 constexpr char kHeaderModalOpenStyleClass[] = "busymax-modal-open";
@@ -160,7 +166,7 @@ struct _MyApplication {
   GtkWidget* previous_button;
   GtkWidget* next_button;
   GtkWidget* view_mode_button;
-  GtkWidget* view_mode_label;
+  GtkWidget* view_mode_icon;
   GtkWidget* view_mode_menu;
   GtkWidget* search_button;
   GtkWidget* create_button;
@@ -182,6 +188,15 @@ struct _MyApplication {
   gchar* header_keyboard_shortcuts_label;
   gchar* header_report_issue_label;
   gchar* header_about_label;
+  gchar* header_day_shortcut;
+  gchar* header_week_shortcut;
+  gchar* header_month_shortcut;
+  gchar* header_year_shortcut;
+  gchar* header_agenda_shortcut;
+  gchar* header_create_event_shortcut;
+  gchar* header_create_task_shortcut;
+  gchar* header_settings_shortcut;
+  gchar* header_keyboard_shortcuts_shortcut;
   gchar* header_search_query;
   gboolean hide_on_close;
   gboolean suppress_header_bar_actions;
@@ -212,6 +227,95 @@ static void style_header_menu_popover(GtkWidget* popover) {
   }
   gtk_style_context_add_class(gtk_widget_get_style_context(popover),
                               kHeaderMenuDepthStyleClass);
+}
+
+static void add_model_button_presentation(GtkWidget* button,
+                                          const gchar* icon_name,
+                                          const gchar* shortcut) {
+  if (button == nullptr || !GTK_IS_MODEL_BUTTON(button) ||
+      ((icon_name == nullptr || icon_name[0] == '\0') &&
+       (shortcut == nullptr || shortcut[0] == '\0')) ||
+      g_object_get_data(G_OBJECT(button), kModelButtonShortcutKey) != nullptr) {
+    return;
+  }
+
+  GtkWidget* content = gtk_bin_get_child(GTK_BIN(button));
+  if (content == nullptr || !GTK_IS_WIDGET(content)) {
+    return;
+  }
+  g_object_ref(content);
+  gtk_container_remove(GTK_CONTAINER(button), content);
+
+  GtkWidget* row =
+      gtk_box_new(GTK_ORIENTATION_HORIZONTAL, kHeaderButtonSpacing);
+  if (icon_name != nullptr && icon_name[0] != '\0') {
+    GtkWidget* icon =
+        gtk_image_new_from_icon_name(icon_name, GTK_ICON_SIZE_MENU);
+    gtk_widget_set_valign(icon, GTK_ALIGN_CENTER);
+    gtk_box_pack_start(GTK_BOX(row), icon, FALSE, FALSE, 0);
+  }
+  gtk_widget_set_hexpand(content, TRUE);
+  gtk_box_pack_start(GTK_BOX(row), content, TRUE, TRUE, 0);
+
+  if (shortcut != nullptr && shortcut[0] != '\0') {
+    GtkWidget* shortcut_label = gtk_label_new(shortcut);
+    gtk_widget_set_direction(shortcut_label, GTK_TEXT_DIR_LTR);
+    gtk_widget_set_halign(shortcut_label, GTK_ALIGN_END);
+    gtk_widget_set_valign(shortcut_label, GTK_ALIGN_CENTER);
+    gtk_label_set_xalign(GTK_LABEL(shortcut_label), 1.0);
+    gtk_style_context_add_class(
+        gtk_widget_get_style_context(shortcut_label), "dim-label");
+    gtk_box_pack_end(GTK_BOX(row), shortcut_label, FALSE, FALSE, 0);
+  }
+
+  gtk_container_add(GTK_CONTAINER(button), row);
+  gtk_widget_show_all(row);
+  g_object_unref(content);
+  g_object_set_data(G_OBJECT(button), kModelButtonShortcutKey,
+                    GINT_TO_POINTER(1));
+}
+
+struct ModelMenuShortcutDecoration {
+  GMenuModel* model;
+  gint item_index;
+};
+
+static void decorate_model_menu_shortcuts_cb(GtkWidget* widget,
+                                             gpointer user_data) {
+  auto* decoration = static_cast<ModelMenuShortcutDecoration*>(user_data);
+  if (GTK_IS_MODEL_BUTTON(widget)) {
+    if (decoration->item_index <
+        g_menu_model_get_n_items(decoration->model)) {
+      g_autoptr(GVariant) value = g_menu_model_get_item_attribute_value(
+          decoration->model, decoration->item_index, kMenuShortcutAttribute,
+          G_VARIANT_TYPE_STRING);
+      g_autoptr(GVariant) icon_value =
+          g_menu_model_get_item_attribute_value(
+              decoration->model, decoration->item_index, kMenuIconAttribute,
+              G_VARIANT_TYPE_STRING);
+      add_model_button_presentation(
+          widget,
+          icon_value != nullptr ? g_variant_get_string(icon_value, nullptr)
+                                : nullptr,
+          value != nullptr ? g_variant_get_string(value, nullptr) : nullptr);
+    }
+    decoration->item_index++;
+    return;
+  }
+  if (GTK_IS_CONTAINER(widget)) {
+    gtk_container_foreach(GTK_CONTAINER(widget),
+                          decorate_model_menu_shortcuts_cb, user_data);
+  }
+}
+
+static void decorate_model_menu_shortcuts(GtkWidget* popover,
+                                          GMenuModel* model) {
+  if (popover == nullptr || !GTK_IS_CONTAINER(popover) || model == nullptr) {
+    return;
+  }
+  ModelMenuShortcutDecoration decoration = {model, 0};
+  gtk_container_foreach(GTK_CONTAINER(popover),
+                        decorate_model_menu_shortcuts_cb, &decoration);
 }
 
 static GdkPixbuf* load_application_icon_at_size(gint size) {
@@ -1597,15 +1701,20 @@ static void show_native_menu(NativeMenuHandlerData* data,
   for (size_t index = 0; index < fl_value_get_length(entries); index++) {
     FlValue* entry = fl_value_get_list_value(entries, index);
     const gchar* label = fl_lookup_string_arg(entry, "label");
+    FlValue* icon = fl_value_lookup_string(entry, "icon");
+    FlValue* shortcut = fl_value_lookup_string(entry, "shortcut");
     gboolean enabled = TRUE;
     gboolean selected = FALSE;
     if (label == nullptr ||
+        (icon != nullptr && fl_value_get_type(icon) != FL_VALUE_TYPE_STRING) ||
+        (shortcut != nullptr &&
+         fl_value_get_type(shortcut) != FL_VALUE_TYPE_STRING) ||
         !fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled) ||
         !fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected)) {
       respond_native_menu_argument_error(
           method_call,
-          "each entry must contain a label and optional boolean enabled and "
-          "selected values.");
+          "each entry must contain a label, optional string icon and shortcut, "
+          "and optional boolean enabled and selected values.");
       return;
     }
     if (selected) {
@@ -1656,10 +1765,20 @@ static void show_native_menu(NativeMenuHandlerData* data,
   for (size_t index = 0; index < fl_value_get_length(entries); index++) {
     FlValue* entry = fl_value_get_list_value(entries, index);
     const gchar* label = fl_lookup_string_arg(entry, "label");
+    const gchar* icon_name = fl_lookup_string_arg(entry, "icon");
+    const gchar* shortcut = fl_lookup_string_arg(entry, "shortcut");
     gboolean enabled = TRUE;
     fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled);
 
     g_autoptr(GMenuItem) item = g_menu_item_new(label, nullptr);
+    if (icon_name != nullptr && icon_name[0] != '\0') {
+      g_autoptr(GIcon) icon = g_themed_icon_new(icon_name);
+      g_menu_item_set_icon(item, icon);
+      g_menu_item_set_attribute(item, kMenuIconAttribute, "s", icon_name);
+    }
+    if (shortcut != nullptr && shortcut[0] != '\0') {
+      g_menu_item_set_attribute(item, kMenuShortcutAttribute, "s", shortcut);
+    }
     if (selected_entry_count == 1) {
       g_autofree gchar* target = g_strdup_printf("%zu", index);
       g_menu_item_set_action_and_target_value(
@@ -1689,6 +1808,8 @@ static void show_native_menu(NativeMenuHandlerData* data,
                                                G_MENU_MODEL(session->model));
   g_object_ref_sink(session->popover);
   style_native_popover(session->popover);
+  decorate_model_menu_shortcuts(session->popover,
+                                G_MENU_MODEL(session->model));
   gtk_popover_set_pointing_to(GTK_POPOVER(session->popover), &anchor);
   gtk_popover_set_position(GTK_POPOVER(session->popover),
                            preferred_position);
@@ -2723,6 +2844,9 @@ static void close_header_menu_button(GtkWidget* menu_button) {
 
 static const gchar* header_view_mode_action(const gchar* mode);
 static void set_header_view_mode(MyApplication* self, const gchar* mode);
+static void set_widget_tooltip_with_shortcut(GtkWidget* widget,
+                                             const gchar* tooltip,
+                                             const gchar* shortcut);
 
 static void replace_header_label(gchar** target, const gchar* value) {
   if (value == nullptr) {
@@ -2752,15 +2876,58 @@ static const gchar* header_view_mode_label(MyApplication* self,
   return "";
 }
 
-static void update_header_view_mode_label(MyApplication* self) {
-  if (self->view_mode_label == nullptr ||
-      !GTK_IS_LABEL(self->view_mode_label)) {
+static const gchar* header_view_mode_icon_name(const gchar* mode) {
+  if (g_strcmp0(mode, "day") == 0) {
+    return "view-continuous-symbolic";
+  }
+  if (g_strcmp0(mode, "week") == 0) {
+    return "calendar-week-symbolic";
+  }
+  if (g_strcmp0(mode, "month") == 0) {
+    return "calendar-month-symbolic";
+  }
+  if (g_strcmp0(mode, "year") == 0) {
+    return "view-app-grid-symbolic";
+  }
+  if (g_strcmp0(mode, "agenda") == 0) {
+    return "view-list-symbolic";
+  }
+  return "calendar-week-symbolic";
+}
+
+static const gchar* header_view_mode_shortcut(MyApplication* self,
+                                              const gchar* mode) {
+  if (g_strcmp0(mode, "day") == 0) {
+    return self->header_day_shortcut;
+  }
+  if (g_strcmp0(mode, "week") == 0) {
+    return self->header_week_shortcut;
+  }
+  if (g_strcmp0(mode, "month") == 0) {
+    return self->header_month_shortcut;
+  }
+  if (g_strcmp0(mode, "year") == 0) {
+    return self->header_year_shortcut;
+  }
+  if (g_strcmp0(mode, "agenda") == 0) {
+    return self->header_agenda_shortcut;
+  }
+  return "";
+}
+
+static void update_header_view_mode_presentation(MyApplication* self) {
+  if (self->view_mode_icon == nullptr ||
+      !GTK_IS_IMAGE(self->view_mode_icon)) {
     return;
   }
   const gchar* mode =
       self->header_view_mode != nullptr ? self->header_view_mode : "week";
-  gtk_label_set_text(GTK_LABEL(self->view_mode_label),
-                     header_view_mode_label(self, mode));
+  const gchar* label = header_view_mode_label(self, mode);
+  gtk_image_set_from_icon_name(GTK_IMAGE(self->view_mode_icon),
+                               header_view_mode_icon_name(mode),
+                               GTK_ICON_SIZE_MENU);
+  set_widget_tooltip_with_shortcut(self->view_mode_button, label,
+                                   header_view_mode_shortcut(self, mode));
 }
 
 static void set_header_menu_button_model(GtkWidget* button,
@@ -2785,13 +2952,41 @@ static void set_header_menu_button_model(GtkWidget* button,
   track_widget_pointer(tracked_popover, GTK_WIDGET(popover));
   style_header_menu_popover(GTK_WIDGET(popover));
   gtk_popover_set_position(popover, GTK_POS_BOTTOM);
+  decorate_model_menu_shortcuts(GTK_WIDGET(popover), model);
+}
+
+static void append_header_action_item(GMenu* menu,
+                                      const gchar* label,
+                                      const gchar* action,
+                                      const gchar* icon_name,
+                                      const gchar* shortcut) {
+  g_autoptr(GMenuItem) item = g_menu_item_new(label, action);
+  if (icon_name != nullptr && icon_name[0] != '\0') {
+    g_autoptr(GIcon) icon = g_themed_icon_new(icon_name);
+    g_menu_item_set_icon(item, icon);
+    g_menu_item_set_attribute(item, kMenuIconAttribute, "s", icon_name);
+  }
+  if (shortcut != nullptr && shortcut[0] != '\0') {
+    g_menu_item_set_attribute(item, kMenuShortcutAttribute, "s", shortcut);
+  }
+  g_menu_append_item(menu, item);
 }
 
 static void append_header_view_mode_item(GMenu* menu,
                                          const gchar* label,
-                                         const gchar* mode) {
+                                         const gchar* mode,
+                                         const gchar* icon_name,
+                                         const gchar* shortcut) {
   g_autoptr(GMenuItem) item = g_menu_item_new(label, nullptr);
   g_menu_item_set_action_and_target(item, "header.view-mode", "s", mode);
+  if (icon_name != nullptr && icon_name[0] != '\0') {
+    g_autoptr(GIcon) icon = g_themed_icon_new(icon_name);
+    g_menu_item_set_icon(item, icon);
+    g_menu_item_set_attribute(item, kMenuIconAttribute, "s", icon_name);
+  }
+  if (shortcut != nullptr && shortcut[0] != '\0') {
+    g_menu_item_set_attribute(item, kMenuShortcutAttribute, "s", shortcut);
+  }
   g_menu_append_item(menu, item);
 }
 
@@ -2800,12 +2995,18 @@ static void rebuild_header_settings_menu_model(MyApplication* self) {
     return;
   }
   g_autoptr(GMenu) menu = g_menu_new();
-  g_menu_append(menu, self->header_settings_label, "header.settings");
-  g_menu_append(menu, self->header_keyboard_shortcuts_label,
-                "header.keyboard-shortcuts");
-  g_menu_append(menu, self->header_report_issue_label,
-                "header.report-issue");
-  g_menu_append(menu, self->header_about_label, "header.about");
+  append_header_action_item(menu, self->header_settings_label,
+                            "header.settings", "preferences-system-symbolic",
+                            self->header_settings_shortcut);
+  append_header_action_item(
+      menu, self->header_keyboard_shortcuts_label,
+      "header.keyboard-shortcuts", "input-keyboard-symbolic",
+      self->header_keyboard_shortcuts_shortcut);
+  append_header_action_item(menu, self->header_report_issue_label,
+                            "header.report-issue", "dialog-warning-symbolic",
+                            nullptr);
+  append_header_action_item(menu, self->header_about_label, "header.about",
+                            "help-about-symbolic", nullptr);
   set_header_menu_button_model(self->settings_menu_button, G_MENU_MODEL(menu),
                                &self->settings_menu);
 }
@@ -2815,14 +3016,24 @@ static void rebuild_header_view_mode_menu_model(MyApplication* self) {
     return;
   }
   g_autoptr(GMenu) menu = g_menu_new();
-  append_header_view_mode_item(menu, self->header_day_label, "day");
-  append_header_view_mode_item(menu, self->header_week_label, "week");
-  append_header_view_mode_item(menu, self->header_month_label, "month");
-  append_header_view_mode_item(menu, self->header_year_label, "year");
-  append_header_view_mode_item(menu, self->header_agenda_label, "agenda");
+  append_header_view_mode_item(menu, self->header_day_label, "day",
+                               header_view_mode_icon_name("day"),
+                               self->header_day_shortcut);
+  append_header_view_mode_item(menu, self->header_week_label, "week",
+                               header_view_mode_icon_name("week"),
+                               self->header_week_shortcut);
+  append_header_view_mode_item(menu, self->header_month_label, "month",
+                               header_view_mode_icon_name("month"),
+                               self->header_month_shortcut);
+  append_header_view_mode_item(menu, self->header_year_label, "year",
+                               header_view_mode_icon_name("year"),
+                               self->header_year_shortcut);
+  append_header_view_mode_item(menu, self->header_agenda_label, "agenda",
+                               header_view_mode_icon_name("agenda"),
+                               self->header_agenda_shortcut);
   set_header_menu_button_model(self->view_mode_button, G_MENU_MODEL(menu),
                                &self->view_mode_menu);
-  update_header_view_mode_label(self);
+  update_header_view_mode_presentation(self);
 }
 
 static void rebuild_header_create_menu_model(MyApplication* self) {
@@ -2830,9 +3041,12 @@ static void rebuild_header_create_menu_model(MyApplication* self) {
     return;
   }
   g_autoptr(GMenu) menu = g_menu_new();
-  g_menu_append(menu, self->header_create_event_label,
-                "header.create-event");
-  g_menu_append(menu, self->header_create_task_label, "header.create-task");
+  append_header_action_item(menu, self->header_create_event_label,
+                            "header.create-event", "x-office-calendar-symbolic",
+                            self->header_create_event_shortcut);
+  append_header_action_item(menu, self->header_create_task_label,
+                            "header.create-task", "checkbox-checked-symbolic",
+                            self->header_create_task_shortcut);
   set_header_menu_button_model(self->create_button, G_MENU_MODEL(menu),
                                &self->create_menu);
 }
@@ -2984,6 +3198,22 @@ static void set_widget_tooltip(GtkWidget* widget, const gchar* tooltip) {
   }
 }
 
+static void set_widget_tooltip_with_shortcut(GtkWidget* widget,
+                                             const gchar* tooltip,
+                                             const gchar* shortcut) {
+  if (widget == nullptr || !GTK_IS_WIDGET(widget) || tooltip == nullptr) {
+    return;
+  }
+  if (shortcut == nullptr || shortcut[0] == '\0') {
+    gtk_widget_set_tooltip_text(widget, tooltip);
+    return;
+  }
+  g_autofree gchar* combined =
+      g_strdup_printf("%s (%s%s%s)", tooltip, kLtrIsolateStart, shortcut,
+                      kBidiIsolateEnd);
+  gtk_widget_set_tooltip_text(widget, combined);
+}
+
 static void set_toggle_button_active(MyApplication* self,
                                      GtkWidget* button,
                                      gboolean active) {
@@ -3065,7 +3295,7 @@ static void set_header_view_mode_labels(MyApplication* self,
   replace_header_label(&self->header_month_label, month);
   replace_header_label(&self->header_year_label, year);
   replace_header_label(&self->header_agenda_label, agenda);
-  update_header_view_mode_label(self);
+  update_header_view_mode_presentation(self);
 }
 
 static void set_header_title(MyApplication* self, const gchar* title) {
@@ -3147,7 +3377,7 @@ static void set_header_view_mode(MyApplication* self, const gchar* mode) {
       g_simple_action_set_state(self->header_view_mode_menu_action, state);
     }
   }
-  update_header_view_mode_label(self);
+  update_header_view_mode_presentation(self);
 }
 
 static void update_header_title_box_geometry(MyApplication* self) {
@@ -3444,22 +3674,62 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
       fl_lookup_string_arg(args, "keyboardShortcuts");
   const gchar* report_issue = fl_lookup_string_arg(args, "reportIssue");
   const gchar* about_busymax = fl_lookup_string_arg(args, "aboutBusyMax");
+  const gchar* today_shortcut =
+      fl_lookup_string_arg(args, "todayShortcut");
+  const gchar* day_shortcut = fl_lookup_string_arg(args, "dayShortcut");
+  const gchar* week_shortcut = fl_lookup_string_arg(args, "weekShortcut");
+  const gchar* month_shortcut = fl_lookup_string_arg(args, "monthShortcut");
+  const gchar* year_shortcut = fl_lookup_string_arg(args, "yearShortcut");
+  const gchar* agenda_shortcut =
+      fl_lookup_string_arg(args, "agendaShortcut");
+  const gchar* search_shortcut =
+      fl_lookup_string_arg(args, "searchShortcut");
+  const gchar* create_shortcut =
+      fl_lookup_string_arg(args, "createShortcut");
+  const gchar* create_event_shortcut =
+      fl_lookup_string_arg(args, "createEventShortcut");
+  const gchar* create_task_shortcut =
+      fl_lookup_string_arg(args, "createTaskShortcut");
+  const gchar* previous_shortcut =
+      fl_lookup_string_arg(args, "previousShortcut");
+  const gchar* next_shortcut = fl_lookup_string_arg(args, "nextShortcut");
+  const gchar* settings_shortcut =
+      fl_lookup_string_arg(args, "settingsShortcut");
+  const gchar* keyboard_shortcuts_shortcut =
+      fl_lookup_string_arg(args, "keyboardShortcutsShortcut");
 
-  set_button_label_and_tooltip(self->today_button, today, today);
+  replace_header_label(&self->header_day_shortcut, day_shortcut);
+  replace_header_label(&self->header_week_shortcut, week_shortcut);
+  replace_header_label(&self->header_month_shortcut, month_shortcut);
+  replace_header_label(&self->header_year_shortcut, year_shortcut);
+  replace_header_label(&self->header_agenda_shortcut, agenda_shortcut);
+  replace_header_label(&self->header_create_event_shortcut,
+                       create_event_shortcut);
+  replace_header_label(&self->header_create_task_shortcut,
+                       create_task_shortcut);
+  replace_header_label(&self->header_settings_shortcut, settings_shortcut);
+  replace_header_label(&self->header_keyboard_shortcuts_shortcut,
+                       keyboard_shortcuts_shortcut);
+
+  set_button_label_and_tooltip(self->today_button, today, nullptr);
+  set_widget_tooltip_with_shortcut(self->today_button, today, today_shortcut);
   set_header_view_mode_labels(self, day, week, month, year, agenda);
   set_widget_tooltip(self->back_button, back);
-  set_widget_tooltip(self->search_button, search);
+  set_widget_tooltip_with_shortcut(self->search_button, search,
+                                   search_shortcut);
   if (self->search_entry != nullptr && GTK_IS_ENTRY(self->search_entry) &&
       search != nullptr) {
     gtk_entry_set_placeholder_text(GTK_ENTRY(self->search_entry), search);
   }
-  set_widget_tooltip(self->create_button, create);
+  set_widget_tooltip_with_shortcut(self->create_button, create,
+                                   create_shortcut);
   replace_header_label(&self->header_create_event_label, create_event);
   replace_header_label(&self->header_create_task_label, create_task);
   set_widget_tooltip(self->settings_menu_button, menu);
   set_widget_tooltip(self->refresh_button, refresh);
-  set_widget_tooltip(self->previous_button, previous);
-  set_widget_tooltip(self->next_button, next);
+  set_widget_tooltip_with_shortcut(self->previous_button, previous,
+                                   previous_shortcut);
+  set_widget_tooltip_with_shortcut(self->next_button, next, next_shortcut);
   set_widget_tooltip(self->sidebar_collapsed_toggle_button, sidebar);
   replace_header_label(&self->header_settings_label, settings);
   replace_header_label(&self->header_keyboard_shortcuts_label,
@@ -3669,13 +3939,14 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
 
   GtkWidget* view_mode_button_box =
       gtk_box_new(GTK_ORIENTATION_HORIZONTAL, kHeaderButtonSpacing);
-  track_widget_pointer(&self->view_mode_label, gtk_label_new(""));
-  gtk_label_set_ellipsize(GTK_LABEL(self->view_mode_label),
-                          PANGO_ELLIPSIZE_END);
+  track_widget_pointer(
+      &self->view_mode_icon,
+      gtk_image_new_from_icon_name(header_view_mode_icon_name("week"),
+                                   GTK_ICON_SIZE_MENU));
   GtkWidget* view_mode_arrow =
       gtk_image_new_from_icon_name("pan-down-symbolic", GTK_ICON_SIZE_MENU);
-  gtk_box_pack_start(GTK_BOX(view_mode_button_box), self->view_mode_label,
-                     TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(view_mode_button_box), self->view_mode_icon,
+                     FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(view_mode_button_box), view_mode_arrow,
                      FALSE, FALSE, 0);
   gtk_container_add(GTK_CONTAINER(self->view_mode_button),
@@ -5067,7 +5338,7 @@ static void my_application_dispose(GObject* object) {
   clear_widget_pointer(&self->previous_button);
   clear_widget_pointer(&self->next_button);
   clear_widget_pointer(&self->view_mode_button);
-  clear_widget_pointer(&self->view_mode_label);
+  clear_widget_pointer(&self->view_mode_icon);
   clear_widget_pointer(&self->view_mode_menu);
   clear_widget_pointer(&self->search_button);
   clear_widget_pointer(&self->create_button);
@@ -5096,6 +5367,15 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_keyboard_shortcuts_label, g_free);
   g_clear_pointer(&self->header_report_issue_label, g_free);
   g_clear_pointer(&self->header_about_label, g_free);
+  g_clear_pointer(&self->header_day_shortcut, g_free);
+  g_clear_pointer(&self->header_week_shortcut, g_free);
+  g_clear_pointer(&self->header_month_shortcut, g_free);
+  g_clear_pointer(&self->header_year_shortcut, g_free);
+  g_clear_pointer(&self->header_agenda_shortcut, g_free);
+  g_clear_pointer(&self->header_create_event_shortcut, g_free);
+  g_clear_pointer(&self->header_create_task_shortcut, g_free);
+  g_clear_pointer(&self->header_settings_shortcut, g_free);
+  g_clear_pointer(&self->header_keyboard_shortcuts_shortcut, g_free);
   g_clear_pointer(&self->header_search_query, g_free);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
@@ -5181,7 +5461,7 @@ static void my_application_init(MyApplication* self) {
   self->previous_button = nullptr;
   self->next_button = nullptr;
   self->view_mode_button = nullptr;
-  self->view_mode_label = nullptr;
+  self->view_mode_icon = nullptr;
   self->view_mode_menu = nullptr;
   self->search_button = nullptr;
   self->create_button = nullptr;
@@ -5203,6 +5483,15 @@ static void my_application_init(MyApplication* self) {
   self->header_keyboard_shortcuts_label = g_strdup("Keyboard Shortcuts");
   self->header_report_issue_label = g_strdup("Report an issue");
   self->header_about_label = g_strdup("About BusyMax");
+  self->header_day_shortcut = g_strdup("1 / D");
+  self->header_week_shortcut = g_strdup("2 / W");
+  self->header_month_shortcut = g_strdup("3 / M");
+  self->header_year_shortcut = g_strdup("4 / Y");
+  self->header_agenda_shortcut = g_strdup("0 / A");
+  self->header_create_event_shortcut = g_strdup("E");
+  self->header_create_task_shortcut = g_strdup("T");
+  self->header_settings_shortcut = g_strdup("Ctrl+,");
+  self->header_keyboard_shortcuts_shortcut = g_strdup("Ctrl+/");
   self->header_search_query = g_strdup("");
   self->header_search_active = FALSE;
   self->header_navigation_visible = TRUE;

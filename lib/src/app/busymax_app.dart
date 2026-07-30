@@ -254,6 +254,20 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       keyboardShortcuts: l10n.keyboardShortcuts,
       reportIssue: l10n.reportAnIssue,
       aboutBusyMax: l10n.aboutBusyMax,
+      todayShortcut: BusyMaxShortcutLabels.today,
+      dayShortcut: BusyMaxShortcutLabels.dayView,
+      weekShortcut: BusyMaxShortcutLabels.weekView,
+      monthShortcut: BusyMaxShortcutLabels.monthView,
+      yearShortcut: BusyMaxShortcutLabels.yearView,
+      agendaShortcut: BusyMaxShortcutLabels.agendaView,
+      searchShortcut: BusyMaxShortcutLabels.search,
+      createShortcut: BusyMaxShortcutLabels.create,
+      createEventShortcut: BusyMaxShortcutLabels.newEvent,
+      createTaskShortcut: BusyMaxShortcutLabels.newTask,
+      previousShortcut: BusyMaxShortcutLabels.previousPeriod,
+      nextShortcut: BusyMaxShortcutLabels.nextPeriod,
+      settingsShortcut: BusyMaxShortcutLabels.settings,
+      keyboardShortcutsShortcut: BusyMaxShortcutLabels.keyboardShortcuts,
     );
     _headerBarConfigurationSynchronizer.schedule(
       BusyMaxHeaderBarConfiguration(

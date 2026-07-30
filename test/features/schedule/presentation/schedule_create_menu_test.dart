@@ -76,8 +76,20 @@ void main() {
       'height': 0.0,
     });
     expect(arguments['entries'], [
-      {'label': 'Event', 'enabled': true, 'selected': false},
-      {'label': 'Task', 'enabled': true, 'selected': false},
+      {
+        'label': 'Event',
+        'icon': 'x-office-calendar-symbolic',
+        'enabled': true,
+        'selected': false,
+        'shortcut': 'E',
+      },
+      {
+        'label': 'Task',
+        'icon': 'checkbox-checked-symbolic',
+        'enabled': true,
+        'selected': false,
+        'shortcut': 'T',
+      },
     ]);
     expect(arguments['focusFirst'], isFalse);
     expect(arguments['preferredPosition'], 'bottom');

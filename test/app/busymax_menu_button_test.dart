@@ -59,6 +59,7 @@ void main() {
                       value: 'refresh',
                       label: 'Refresh calendar',
                       icon: YaruIcons.refresh,
+                      shortcut: 'Ctrl+R',
                     ),
                     BusyMaxMenuEntry(
                       value: 'open',
@@ -92,6 +93,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Refresh calendar'), findsOneWidget);
+    expect(find.text('Ctrl+R'), findsOneWidget);
     expect(find.text('Open in provider'), findsOneWidget);
     trigger = tester.widget<YaruIconButton>(triggerFinder);
     expect(Theme.of(tester.element(triggerFinder)).hoverColor, inheritedHover);
@@ -201,7 +203,9 @@ void main() {
                 BusyMaxMenuEntry(
                   value: 'refresh',
                   label: 'Refresh calendar',
+                  icon: YaruIcons.refresh,
                   selected: true,
+                  shortcut: 'Ctrl+R',
                 ),
                 BusyMaxMenuEntry(value: 'open', label: 'Open in provider'),
               ],
@@ -231,7 +235,13 @@ void main() {
     );
     expect(anchor, triggerRect);
     expect(arguments['entries'], [
-      {'label': 'Refresh calendar', 'enabled': true, 'selected': true},
+      {
+        'label': 'Refresh calendar',
+        'icon': 'view-refresh-symbolic',
+        'enabled': true,
+        'selected': true,
+        'shortcut': 'Ctrl+R',
+      },
       {'label': 'Open in provider', 'enabled': true, 'selected': false},
     ]);
   });

@@ -79,18 +79,24 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
                 title: l10n.shortcutNextPeriod,
                 subtitle: l10n.shortcutNextPeriodDescription,
                 leading: const Icon(Icons.arrow_forward),
-                trailing: const _KeyboardShortcutBadge('Shift+Right'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.nextPeriod,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.shortcutPreviousPeriod,
                 subtitle: l10n.shortcutPreviousPeriodDescription,
                 leading: const Icon(Icons.arrow_back),
-                trailing: const _KeyboardShortcutBadge('Shift+Left'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.previousPeriod,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.shortcutJumpToToday,
                 leading: const Icon(Icons.today_outlined),
-                trailing: const _KeyboardShortcutBadge('Shift+T'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.today,
+                ),
               ),
             ],
           ),
@@ -108,12 +114,16 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
               BusyMaxActionRow(
                 title: l10n.newEvent,
                 leading: const Icon(Icons.event_outlined),
-                trailing: const _KeyboardShortcutBadge('E'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.newEvent,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.newTask,
                 leading: const Icon(Icons.task_alt_outlined),
-                trailing: const _KeyboardShortcutBadge('T'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.newTask,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.shortcutSaveItem,
@@ -146,27 +156,37 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
               BusyMaxActionRow(
                 title: l10n.shortcutDayView,
                 leading: const Icon(Icons.calendar_view_day_outlined),
-                trailing: const _KeyboardShortcutBadge('1 / D'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.dayView,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.shortcutWeekView,
                 leading: const Icon(Icons.view_week_outlined),
-                trailing: const _KeyboardShortcutBadge('2 / W'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.weekView,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.shortcutMonthView,
                 leading: const Icon(Icons.calendar_view_month),
-                trailing: const _KeyboardShortcutBadge('3 / M'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.monthView,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.shortcutYearView,
                 leading: const Icon(Icons.calendar_today_outlined),
-                trailing: const _KeyboardShortcutBadge('4 / Y'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.yearView,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.shortcutAgendaView,
                 leading: const Icon(Icons.view_agenda_outlined),
-                trailing: const _KeyboardShortcutBadge('0 / A'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.agendaView,
+                ),
               ),
             ],
           ),
@@ -178,7 +198,9 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
                 title: l10n.compactAgendaRefresh,
                 subtitle: l10n.shortcutRefreshCompactAgendaDescription,
                 leading: const Icon(Icons.refresh),
-                trailing: const _KeyboardShortcutBadge('Ctrl+R'),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.refreshCompactAgenda,
+                ),
               ),
               BusyMaxActionRow(
                 title: l10n.compactAgendaHide,

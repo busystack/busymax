@@ -84,6 +84,20 @@ class BusyMaxHeaderBarLabels {
     required this.keyboardShortcuts,
     required this.reportIssue,
     required this.aboutBusyMax,
+    this.todayShortcut = '',
+    this.dayShortcut = '',
+    this.weekShortcut = '',
+    this.monthShortcut = '',
+    this.yearShortcut = '',
+    this.agendaShortcut = '',
+    this.searchShortcut = '',
+    this.createShortcut = '',
+    this.createEventShortcut = '',
+    this.createTaskShortcut = '',
+    this.previousShortcut = '',
+    this.nextShortcut = '',
+    this.settingsShortcut = '',
+    this.keyboardShortcutsShortcut = '',
   });
 
   final String today;
@@ -106,6 +120,20 @@ class BusyMaxHeaderBarLabels {
   final String keyboardShortcuts;
   final String reportIssue;
   final String aboutBusyMax;
+  final String todayShortcut;
+  final String dayShortcut;
+  final String weekShortcut;
+  final String monthShortcut;
+  final String yearShortcut;
+  final String agendaShortcut;
+  final String searchShortcut;
+  final String createShortcut;
+  final String createEventShortcut;
+  final String createTaskShortcut;
+  final String previousShortcut;
+  final String nextShortcut;
+  final String settingsShortcut;
+  final String keyboardShortcutsShortcut;
 
   Map<String, String> toJson() {
     return {
@@ -129,6 +157,20 @@ class BusyMaxHeaderBarLabels {
       'keyboardShortcuts': keyboardShortcuts,
       'reportIssue': reportIssue,
       'aboutBusyMax': aboutBusyMax,
+      'todayShortcut': todayShortcut,
+      'dayShortcut': dayShortcut,
+      'weekShortcut': weekShortcut,
+      'monthShortcut': monthShortcut,
+      'yearShortcut': yearShortcut,
+      'agendaShortcut': agendaShortcut,
+      'searchShortcut': searchShortcut,
+      'createShortcut': createShortcut,
+      'createEventShortcut': createEventShortcut,
+      'createTaskShortcut': createTaskShortcut,
+      'previousShortcut': previousShortcut,
+      'nextShortcut': nextShortcut,
+      'settingsShortcut': settingsShortcut,
+      'keyboardShortcutsShortcut': keyboardShortcutsShortcut,
     };
   }
 
@@ -155,11 +197,25 @@ class BusyMaxHeaderBarLabels {
             settings == other.settings &&
             keyboardShortcuts == other.keyboardShortcuts &&
             reportIssue == other.reportIssue &&
-            aboutBusyMax == other.aboutBusyMax;
+            aboutBusyMax == other.aboutBusyMax &&
+            todayShortcut == other.todayShortcut &&
+            dayShortcut == other.dayShortcut &&
+            weekShortcut == other.weekShortcut &&
+            monthShortcut == other.monthShortcut &&
+            yearShortcut == other.yearShortcut &&
+            agendaShortcut == other.agendaShortcut &&
+            searchShortcut == other.searchShortcut &&
+            createShortcut == other.createShortcut &&
+            createEventShortcut == other.createEventShortcut &&
+            createTaskShortcut == other.createTaskShortcut &&
+            previousShortcut == other.previousShortcut &&
+            nextShortcut == other.nextShortcut &&
+            settingsShortcut == other.settingsShortcut &&
+            keyboardShortcutsShortcut == other.keyboardShortcutsShortcut;
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     today,
     day,
     week,
@@ -180,7 +236,21 @@ class BusyMaxHeaderBarLabels {
     keyboardShortcuts,
     reportIssue,
     aboutBusyMax,
-  );
+    todayShortcut,
+    dayShortcut,
+    weekShortcut,
+    monthShortcut,
+    yearShortcut,
+    agendaShortcut,
+    searchShortcut,
+    createShortcut,
+    createEventShortcut,
+    createTaskShortcut,
+    previousShortcut,
+    nextShortcut,
+    settingsShortcut,
+    keyboardShortcutsShortcut,
+  ]);
 }
 
 @immutable
