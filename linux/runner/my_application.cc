@@ -129,6 +129,7 @@ struct _MyApplication {
   gboolean header_bar_sidebar_visible;
   gboolean header_bar_modal_barrier_visible;
   gint header_bar_modal_barrier_depth;
+  gboolean header_bar_theme_received;
   GtkWindow* main_window;
   GtkWindow* header_focus_transient_window;
   GtkWidget* flutter_view;
@@ -2351,6 +2352,7 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
   if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
     return;
   }
+  self->header_bar_theme_received = TRUE;
   gboolean prefer_dark = FALSE;
   if (fl_lookup_optional_bool_arg(args, "preferDark", &prefer_dark)) {
     set_gtk_theme_preference(prefer_dark);
@@ -3130,6 +3132,68 @@ static void update_header_title_box_geometry(MyApplication* self) {
   const gint width =
       onboarding ? self->header_onboarding_content_width : -1;
   gtk_widget_set_size_request(self->header_title_box, width, -1);
+  if (!onboarding) {
+    gtk_widget_set_margin_start(self->header_title_box, 0);
+    gtk_widget_set_margin_end(self->header_title_box, 0);
+  }
+}
+
+static gboolean recenter_onboarding_header_controls_cb(gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (!self->header_onboarding_controls_visible ||
+      self->header_bar == nullptr ||
+      !GTK_IS_WIDGET(self->header_bar) ||
+      self->header_title_box == nullptr ||
+      !GTK_IS_WIDGET(self->header_title_box)) {
+    return G_SOURCE_REMOVE;
+  }
+
+  GtkAllocation header_allocation;
+  GtkAllocation title_allocation;
+  gtk_widget_get_allocation(GTK_WIDGET(self->header_bar),
+                            &header_allocation);
+  gtk_widget_get_allocation(self->header_title_box, &title_allocation);
+  if (header_allocation.width <= 0 || title_allocation.width <= 0) {
+    return G_SOURCE_REMOVE;
+  }
+
+  const gint header_center =
+      header_allocation.x + header_allocation.width / 2;
+  const gint title_center =
+      title_allocation.x + title_allocation.width / 2;
+  const gint physical_delta = header_center - title_center;
+  if (std::abs(physical_delta) <= 1) {
+    return G_SOURCE_REMOVE;
+  }
+
+  const GtkTextDirection direction =
+      gtk_widget_get_direction(self->header_title_box);
+  const gint logical_delta =
+      direction == GTK_TEXT_DIR_RTL ? -physical_delta : physical_delta;
+  const gint current_bias =
+      gtk_widget_get_margin_start(self->header_title_box) -
+      gtk_widget_get_margin_end(self->header_title_box);
+  const gint target_bias =
+      std::clamp(current_bias + logical_delta * 2,
+                 -header_allocation.width, header_allocation.width);
+  const gint start_margin = std::max(target_bias, 0);
+  const gint end_margin = std::max(-target_bias, 0);
+  if (start_margin == gtk_widget_get_margin_start(self->header_title_box) &&
+      end_margin == gtk_widget_get_margin_end(self->header_title_box)) {
+    return G_SOURCE_REMOVE;
+  }
+
+  gtk_widget_set_margin_start(self->header_title_box, start_margin);
+  gtk_widget_set_margin_end(self->header_title_box, end_margin);
+  return G_SOURCE_REMOVE;
+}
+
+static void header_bar_size_allocate_cb(GtkWidget*,
+                                        GtkAllocation*,
+                                        gpointer user_data) {
+  g_idle_add_full(
+      G_PRIORITY_DEFAULT_IDLE, recenter_onboarding_header_controls_cb,
+      g_object_ref(user_data), g_object_unref);
 }
 
 static void update_header_control_visibility(MyApplication* self) {
@@ -3385,6 +3449,8 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   track_header_bar_pointer(self, header_bar);
   gtk_header_bar_set_show_close_button(header_bar, TRUE);
   gtk_widget_set_hexpand(GTK_WIDGET(header_bar), TRUE);
+  g_signal_connect(header_bar, "size-allocate",
+                   G_CALLBACK(header_bar_size_allocate_cb), self);
 
   track_widget_pointer(&self->header_sidebar_brand_box,
                        gtk_box_new(GTK_ORIENTATION_HORIZONTAL,
@@ -4069,6 +4135,32 @@ static FlValue* get_gtk_theme_colors() {
   return result;
 }
 
+static void apply_gtk_theme_to_bootstrap_chrome(MyApplication* self) {
+  g_autoptr(FlValue) colors = get_gtk_theme_colors();
+  const gchar* window_color = fl_lookup_string_arg(colors, "window");
+  const gchar* sidebar_color = fl_lookup_string_arg(colors, "sidebar");
+
+  // Dart sends the complete semantic palette after its first build. Until
+  // then, use GTK's already-resolved active variant so the native titlebar and
+  // Flutter backing surface never expose the runner's dark safety fallback.
+  set_css_color_field(&self->header_bar_window_background_color, window_color);
+  set_css_color_field(&self->header_bar_background_color, window_color);
+  set_css_color_field(
+      &self->header_bar_sidebar_background_color,
+      is_css_color_token(sidebar_color) ? sidebar_color : window_color);
+  set_css_color_field(
+      &self->header_bar_sidebar_border_color,
+      fl_lookup_string_arg(colors, "sidebarBorder"));
+  set_css_color_field(&self->header_bar_foreground_color,
+                      fl_lookup_string_arg(colors, "foreground"));
+  set_css_color_field(&self->header_bar_popover_background_color,
+                      fl_lookup_string_arg(colors, "popover"));
+  set_css_color_field(&self->header_bar_menu_hover_color,
+                      fl_lookup_string_arg(colors, "controlHover"));
+  set_css_color_field(&self->header_bar_dialog_background_color,
+                      fl_lookup_string_arg(colors, "dialog"));
+}
+
 static void gtk_settings_method_call_cb(FlMethodChannel* channel,
                                         FlMethodCall* method_call,
                                         gpointer user_data) {
@@ -4178,6 +4270,10 @@ static void gtk_theme_colors_notify_cb(GObject*,
                                        GParamSpec*,
                                        gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
+  if (!self->header_bar_theme_received) {
+    apply_gtk_theme_to_bootstrap_chrome(self);
+    set_main_flutter_view_background(self);
+  }
   refresh_header_bar_css(self);
   send_gtk_theme_colors_event(self);
 }
@@ -4773,6 +4869,7 @@ static void my_application_activate(GApplication* application) {
     return;
   }
 
+  apply_gtk_theme_to_bootstrap_chrome(self);
   GtkWindow* window = GTK_WINDOW(hdy_application_window_new());
   gtk_application_add_window(GTK_APPLICATION(application), window);
   self->main_window = window;
@@ -5019,6 +5116,7 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_can_show_sidebar = TRUE;
   self->header_bar_sidebar_visible = TRUE;
   self->header_bar_modal_barrier_visible = FALSE;
+  self->header_bar_theme_received = FALSE;
   self->header_bar_modal_barrier_depth = 0;
   self->main_window = nullptr;
   self->header_focus_transient_window = nullptr;

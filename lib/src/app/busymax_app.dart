@@ -30,6 +30,34 @@ typedef BusyMaxTrayServiceFactory =
       Future<void> Function()? onBeforeQuit,
     });
 
+BusyMaxHeaderBarTheme busyMaxHeaderBarThemeFor(
+  ThemeData theme, {
+  required bool highContrast,
+}) {
+  final colors = theme.extension<BusyMaxSurfaceColors>()!;
+  return BusyMaxHeaderBarTheme(
+    preferDark: theme.brightness == Brightness.dark,
+    highContrast: highContrast,
+    windowBackgroundColor: colors.window,
+    // This header is deliberately borderless and visually continuous with
+    // the main workspace, so both use the window surface role.
+    backgroundColor: colors.window,
+    sidebarBackgroundColor: colors.sidebar,
+    foregroundColor: colors.foreground,
+    sidebarBorderColor: colors.sidebarBorder,
+    popoverBackgroundColor: colors.popover,
+    menuHoverColor: colors.controlHover,
+    popoverShadowColor: theme.colorScheme.shadow.withValues(
+      alpha:
+          theme.colorScheme.shadow.a *
+          BusyMaxAlpha.nativeHeaderMenuShadowOpacity,
+    ),
+    dialogBackgroundColor: colors.dialog,
+    dialogOutlineColor: colors.dialogOutline,
+    modalBarrierColor: colors.shade,
+  );
+}
+
 class BusyMaxApp extends ConsumerStatefulWidget {
   const BusyMaxApp({super.key, this.trayServiceFactory});
 
@@ -202,12 +230,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   }
 
   void _configureNativeHeaderBarTheme(BuildContext context) {
-    final colors = BusyMaxSurfaceColors.of(context);
     final l10n = AppLocalizations.of(context);
     final materialL10n = MaterialLocalizations.of(context);
-    final modalBarrierColor = busyMaxModalBarrierColor(context);
     final theme = Theme.of(context);
-    final preferDark = theme.brightness == Brightness.dark;
     final labels = BusyMaxHeaderBarLabels(
       today: l10n.today,
       day: l10n.viewDay,
@@ -234,26 +259,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         labels: labels,
         sidebarWidth: BusyMaxSizes.sidebarWidth,
         textDirection: Directionality.of(context),
-        theme: BusyMaxHeaderBarTheme(
-          preferDark: preferDark,
+        theme: busyMaxHeaderBarThemeFor(
+          theme,
           highContrast: MediaQuery.highContrastOf(context),
-          windowBackgroundColor: colors.window,
-          // This header is deliberately borderless and visually continuous
-          // with the main workspace, so both use the window surface role.
-          backgroundColor: colors.window,
-          sidebarBackgroundColor: colors.sidebar,
-          foregroundColor: colors.foreground,
-          sidebarBorderColor: colors.sidebarBorder,
-          popoverBackgroundColor: colors.popover,
-          menuHoverColor: colors.controlHover,
-          popoverShadowColor: theme.colorScheme.shadow.withValues(
-            alpha:
-                theme.colorScheme.shadow.a *
-                BusyMaxAlpha.nativeHeaderMenuShadowOpacity,
-          ),
-          dialogBackgroundColor: colors.dialog,
-          dialogOutlineColor: colors.dialogOutline,
-          modalBarrierColor: modalBarrierColor,
         ),
       ),
     );

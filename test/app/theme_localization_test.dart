@@ -27,6 +27,21 @@ import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import '../test_localized_app.dart';
 
 void main() {
+  test('native header theme uses the exact first-frame semantic palette', () {
+    final theme = _buildBusyMaxTheme(brightness: Brightness.light);
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    final headerTheme = busyMaxHeaderBarThemeFor(theme, highContrast: false);
+
+    expect(headerTheme.preferDark, isFalse);
+    expect(headerTheme.highContrast, isFalse);
+    expect(headerTheme.windowBackgroundColor, colors.window);
+    expect(headerTheme.backgroundColor, colors.window);
+    expect(headerTheme.sidebarBackgroundColor, colors.sidebar);
+    expect(headerTheme.foregroundColor, colors.foreground);
+    expect(headerTheme.dialogBackgroundColor, colors.dialog);
+    expect(headerTheme.modalBarrierColor, colors.shade);
+  });
+
   test('builds with system accent and tokenized control surfaces', () {
     final light = _buildBusyMaxTheme(brightness: Brightness.light);
     final dark = _buildBusyMaxTheme(brightness: Brightness.dark);
@@ -1600,7 +1615,7 @@ void main() {
 
     expect(
       source,
-      contains('final colors = BusyMaxSurfaceColors.of(context);'),
+      contains('final colors = theme.extension<BusyMaxSurfaceColors>()!;'),
     );
     expect(source, contains('_headerBarConfigurationSynchronizer.schedule('));
     expect(synchronizer, contains('await service.setTheme('));
@@ -1615,7 +1630,7 @@ void main() {
     expect(source, contains('menuHoverColor: colors.controlHover'));
     expect(source, contains('dialogBackgroundColor: colors.dialog'));
     expect(source, isNot(contains('floatingBorderColor:')));
-    expect(source, contains('modalBarrierColor: modalBarrierColor'));
+    expect(source, contains('modalBarrierColor: colors.shade'));
     expect(source, isNot(contains('controlHoverColor: colors.controlHover')));
     expect(source, isNot(contains('accentColor: colorScheme.primary')));
     expect(source, contains('menu: l10n.mainMenu'));
@@ -1639,20 +1654,12 @@ void main() {
     final source = File(
       'lib/src/features/auth/presentation/sign_in_screen.dart',
     ).readAsStringSync();
-    final shellStart = source.indexOf(
-      'constraints: const BoxConstraints(maxWidth: 900)',
-    );
-    final shellEnd = source.indexOf('child: Column(', shellStart);
-    final shellSource = source.substring(shellStart, shellEnd);
 
     expect(source, contains('color: BusyMaxSurfaceColors.of(context).window'));
     expect(
       source,
       isNot(contains('color: BusyMaxSurfaceColors.of(context).view')),
     );
-    expect(shellSource, contains('BusyMaxSurface('));
-    expect(shellSource, contains('filled: false'));
-    expect(shellSource, isNot(contains('filled: true')));
     expect(source, contains('final title = context.l10n.onboardingSetupTitle'));
     expect(source, contains('.claimSession()'));
     expect(source, contains('_headerBarSession.updateState('));
@@ -1661,12 +1668,9 @@ void main() {
     expect(source, isNot(contains('class _OnboardingHeader')));
     expect(source, isNot(contains('class _OnboardingProgressDots')));
     expect(source, isNot(contains('Border(top: BorderSide')));
-    expect(
-      source,
-      contains('constraints: const BoxConstraints(maxWidth: 900)'),
-    );
-    expect(source, contains('constraints: const BoxConstraints('));
-    expect(source, contains('maxWidth: 480'));
+    expect(source, contains("key: const ValueKey('onboarding-content-rail')"));
+    expect(source, contains('busyMaxOnboardingContentMaxWidth'));
+    expect(source, contains('width: contentRailWidth'));
   });
 
   testWidgets('BusyMaxApp wires localization delegates and system theme', (

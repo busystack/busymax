@@ -5,6 +5,7 @@ import 'package:system_theme/system_theme.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'src/app/app_bootstrap.dart';
+import 'src/app/app_theme.dart';
 import 'src/app/busymax_app.dart';
 import 'src/config/build_config.dart';
 import 'src/core/logging/redacting_logger.dart';
@@ -13,6 +14,7 @@ import 'src/features/schedule/application/compact_agenda_data.dart';
 import 'src/features/schedule/presentation/compact_agenda_app.dart';
 import 'src/platform/busymax_window_args.dart';
 import 'src/platform/gtk_font_service.dart';
+import 'src/platform/linux_header_bar_service.dart';
 import 'src/platform/main_window_command_client.dart';
 
 Future<void> main(List<String> args) async {
@@ -49,6 +51,13 @@ Future<void> main(List<String> args) async {
 
   final initialGtkFont = desktopSettings[1] as GtkFontSettings?;
   final initialGtkThemeColors = desktopSettings[2] as GtkThemeColors?;
+  if (windowArgs.kind == BusyMaxWindowKind.main) {
+    await _applyInitialNativeHeaderBarTheme(
+      settings: initialAppSettings,
+      gtkFont: initialGtkFont,
+      gtkThemeColors: initialGtkThemeColors,
+    );
+  }
 
   final overrides = [
     buildConfigProvider.overrideWithValue(buildConfig),
@@ -90,6 +99,38 @@ Future<void> main(List<String> args) async {
           ),
         ),
       );
+  }
+}
+
+Future<void> _applyInitialNativeHeaderBarTheme({
+  required AppSettings settings,
+  required GtkFontSettings? gtkFont,
+  required GtkThemeColors? gtkThemeColors,
+}) async {
+  final platformDispatcher = WidgetsBinding.instance.platformDispatcher;
+  final brightness = switch (settings.themeModePreference) {
+    BusyMaxThemeModePreference.system => platformDispatcher.platformBrightness,
+    BusyMaxThemeModePreference.light => Brightness.light,
+    BusyMaxThemeModePreference.dark => Brightness.dark,
+  };
+  final highContrast = platformDispatcher.accessibilityFeatures.highContrast;
+  final theme = buildBusyMaxTheme(
+    brightness: brightness,
+    accentColor: gtkThemeColors?.accent ?? SystemTheme.accentColor.accent,
+    family: settings.themeFamily,
+    gtkFontFamily: gtkFont?.family,
+    gtkFontSize: gtkFont?.size,
+    gtkThemeColors: gtkThemeColors,
+    highContrast: highContrast,
+  );
+  final headerBarService = LinuxHeaderBarService();
+  try {
+    await headerBarService.initialize();
+    await headerBarService.setTheme(
+      busyMaxHeaderBarThemeFor(theme, highContrast: highContrast),
+    );
+  } finally {
+    headerBarService.dispose();
   }
 }
 

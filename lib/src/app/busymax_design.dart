@@ -3169,7 +3169,7 @@ class BusyMaxEditorHeader extends StatelessWidget {
         BusyMaxSpacing.headerInset,
         BusyMaxSpacing.headerInset,
         BusyMaxSpacing.headerInset,
-        0,
+        BusyMaxSpacing.headerInset,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

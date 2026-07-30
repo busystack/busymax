@@ -2001,6 +2001,11 @@ void main() {
     expect(tester.getSize(save).width, lessThan(slotWidth));
     expect(tester.getSize(cancel).height, kYaruButtonHeight);
     expect(tester.getSize(save).height, kYaruButtonHeight);
+    final headerBottom = tester
+        .getBottomRight(find.byType(BusyMaxEditorHeader))
+        .dy;
+    final actionBottom = tester.getBottomRight(save).dy;
+    expect(headerBottom - actionBottom, BusyMaxSpacing.headerInset);
     final cancelButton = tester.widget<FilledButton>(cancel);
     final saveButton = tester.widget<ElevatedButton>(save);
     final actionTextStyle = Theme.of(tester.element(save)).textTheme.titleSmall;

@@ -537,6 +537,8 @@ void main() {
       expect(source, contains('kHeaderOnboardingSideWidth'));
       expect(source, contains('header_onboarding_content_width'));
       expect(source, contains('"contentWidth"'));
+      expect(source, contains('recenter_onboarding_header_controls_cb'));
+      expect(source, contains('header_bar_size_allocate_cb'));
       expect(source, contains('onboarding_back_slot'));
       expect(source, contains('onboarding_back_button'));
       expect(source, contains('onboarding_continue_slot'));
@@ -1062,6 +1064,7 @@ void main() {
       expect(source, contains('notify::gtk-theme-name'));
       expect(source, contains('notify::gtk-application-prefer-dark-theme'));
       expect(source, contains('get_gtk_theme_colors'));
+      expect(source, contains('apply_gtk_theme_to_bootstrap_chrome'));
       expect(source, contains('lookup_context_color'));
       expect(source, contains('theme_bg_color'));
       expect(
@@ -1101,6 +1104,35 @@ void main() {
         isNot(contains('GtkWidget* popover = gtk_popover_new(nullptr);')),
       );
       expect(source, isNot(contains('GtkWidget* sidebar = gtk_box_new(')));
+
+      final activateStart = source.indexOf(
+        'static void my_application_activate(',
+      );
+      final windowCreation = source.indexOf(
+        'hdy_application_window_new()',
+        activateStart,
+      );
+      final bootstrapTheme = source.indexOf(
+        'apply_gtk_theme_to_bootstrap_chrome(self);',
+        activateStart,
+      );
+      expect(activateStart, isNonNegative);
+      expect(bootstrapTheme, greaterThan(activateStart));
+      expect(windowCreation, greaterThan(bootstrapTheme));
+
+      final themeNotifyStart = source.indexOf(
+        'static void gtk_theme_colors_notify_cb(',
+      );
+      final themeNotifyEnd = source.indexOf(
+        'static void connect_gtk_theme_colors_signals(',
+        themeNotifyStart,
+      );
+      final themeNotify = source.substring(themeNotifyStart, themeNotifyEnd);
+      expect(themeNotify, contains('if (!self->header_bar_theme_received)'));
+      expect(
+        themeNotify,
+        contains('apply_gtk_theme_to_bootstrap_chrome(self);'),
+      );
       expect(
         source,
         isNot(contains('GtkWidget* header = gtk_header_bar_new()')),
@@ -2173,6 +2205,7 @@ void main() {
         'lib/src/platform/gtk_font_service.dart',
       ).readAsStringSync();
       final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
+      final main = File('lib/main.dart').readAsStringSync();
       final compactApp = File(
         'lib/src/features/schedule/presentation/compact_agenda_app.dart',
       ).readAsStringSync();
@@ -2227,13 +2260,9 @@ void main() {
       );
       expect(headerBarService, contains('required this.preferDark'));
       expect(headerBarService, contains("'preferDark': preferDark"));
-      expect(
-        app,
-        contains('final preferDark = theme.brightness == Brightness.dark'),
-      );
+      expect(app, contains('preferDark: theme.brightness == Brightness.dark'));
       expect(app, contains('popoverShadowColor: theme.colorScheme.shadow'));
       expect(app, contains('BusyMaxAlpha.nativeHeaderMenuShadowOpacity'));
-      expect(app, contains('preferDark: preferDark'));
       expect(source, contains('static void set_gtk_theme_preference'));
       expect(
         source,
@@ -2299,6 +2328,14 @@ void main() {
       expect(source, contains('set_gtk_theme_preference(prefer_dark);'));
       expect(source, isNot(contains('prefer_dark_gtk_theme')));
       expect(source, isNot(contains('set_gtk_theme_preference(TRUE)')));
+      final initialThemeStart = main.indexOf(
+        'await _applyInitialNativeHeaderBarTheme(',
+      );
+      final runAppStart = main.indexOf('runApp(');
+      expect(initialThemeStart, isNonNegative);
+      expect(runAppStart, greaterThan(initialThemeStart));
+      expect(main, contains('busyMaxHeaderBarThemeFor('));
+      expect(main, contains('await headerBarService.setTheme('));
     });
 
     test('app code does not bypass centralized typography', () {
