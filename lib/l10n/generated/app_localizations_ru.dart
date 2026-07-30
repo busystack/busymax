@@ -1,3 +1,6 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
@@ -59,7 +62,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get microsoftTodoProvider => 'Microsoft To Do';
 
   @override
-  String get providerNotConfigured => 'Этот поставщик не настроен.';
+  String get providerNotConfigured => 'Этот сервис не настроен.';
 
   @override
   String get waitingForGoogleSignIn => 'Ожидание входа через Google...';
@@ -335,7 +338,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noConference => 'Без конференции';
 
   @override
-  String get providerCalendar => 'Календарь поставщика';
+  String get providerCalendar => 'Календарь сервиса';
 
   @override
   String get formatBoldShortLabel => 'Ж';
@@ -888,7 +891,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get addGuest => 'Добавить гостя';
 
   @override
-  String get addGuestEmail => 'Добавить адрес гостя';
+  String get addGuestEmail => 'Добавить адрес электронной почты гостя';
 
   @override
   String get removeReminder => 'Удалить напоминание';

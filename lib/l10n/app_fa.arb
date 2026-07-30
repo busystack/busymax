@@ -40,7 +40,7 @@
   "showInSchedule": "نمایش در برنامه",
   "noCalendarsSynced": "هنوز هیچ تقویمی همگام نشده است.",
   "allDay": "تمام روز",
-  "moreItems": "+{count} مورد دیگر",
+  "moreItems": "+\u2068{count}\u2069 مورد دیگر",
   "noEventsOrTasks": "هیچ رویداد یا کاری وجود ندارد",
   "scheduleLoading": "در حال بارگیری برنامه...",
   "scheduleUnavailable": "برنامه در دسترس نیست",
@@ -68,7 +68,7 @@
   "compactAgendaAllDay": "تمام روز",
   "compactAgendaDueToday": "سررسید امروز",
   "compactAgendaDueTomorrow": "سررسید فردا",
-  "compactAgendaDueOn": "سررسید: {date}",
+  "compactAgendaDueOn": "سررسید: \u2068{date}\u2069",
   "compactAgendaMoreOverdue": "بارگیری کارهای عقب‌افتادهٔ بیشتر",
   "agendaLoadMoreOverdue": "بارگیری کارهای عقب‌افتادهٔ بیشتر",
   "agendaLoadMoreNoDate": "بارگیری کارهای بدون تاریخ بیشتر",
@@ -111,10 +111,10 @@
   "formatItalicTooltip": "مورب",
   "formatUnderlineShortLabel": "U",
   "formatUnderlineTooltip": "زیرخط",
-  "reminderMinutesBefore": "{minutes, plural, =0{هنگام شروع} =1{یک دقیقه قبل} other{{minutes} دقیقه قبل}}",
+  "reminderMinutesBefore": "{minutes, plural, =0{هنگام شروع} =1{یک دقیقه قبل} other{\u2068{minutes}\u2069 دقیقه قبل}}",
   "reminderAtStart": "هنگام شروع",
-  "reminderHoursBefore": "{hours, plural, =0{هنگام شروع} =1{یک ساعت قبل} other{{hours} ساعت قبل}}",
-  "reminderDaysBefore": "{days, plural, =0{همان روز} =1{یک روز قبل} other{{days} روز قبل}}",
+  "reminderHoursBefore": "{hours, plural, =0{هنگام شروع} =1{یک ساعت قبل} other{\u2068{hours}\u2069 ساعت قبل}}",
+  "reminderDaysBefore": "{days, plural, =0{همان روز} =1{یک روز قبل} other{\u2068{days}\u2069 روز قبل}}",
   "availabilityFree": "آزاد",
   "availabilityTentative": "احتمالی",
   "availabilityOutOfOffice": "خارج از دفتر",
@@ -127,7 +127,7 @@
   "sensitivityPersonal": "شخصی",
   "tasks": "کارها",
   "allTasks": "همهٔ کارها",
-  "tasksInList": "کارهای {title}",
+  "tasksInList": "کارهای \u2068{title}\u2069",
   "taskLists": "فهرست‌های کار",
   "navigation": "پیمایش",
   "mainMenu": "منوی اصلی",
@@ -182,7 +182,7 @@
   "feedbackRateLimitedError": "بازخوردهای بیش از حدی از این شبکه ارسال شده است. کمی صبر کنید و دوباره تلاش کنید.",
   "feedbackRejectedError": "سرور ارسال را رد کرد. فیلدها را بررسی و دوباره تلاش کنید.",
   "feedbackServerError": "BusyStack اکنون نمی‌تواند بازخورد شما را بپذیرد. بازخورد شما پاک نشده است؛ دوباره تلاش کنید.",
-  "feedbackSuccess": "بازخورد ارسال شد. شناسهٔ پیگیری: {id}",
+  "feedbackSuccess": "بازخورد ارسال شد. شناسهٔ پیگیری: \u2068{id}\u2069",
   "toggleSidebar": "نمایش یا پنهان کردن نوار کناری",
   "accounts": "حساب‌ها",
   "currentAccount": "حساب فعلی",
@@ -195,7 +195,7 @@
   "removeAccount": "حذف حساب…",
   "removingAccount": "در حال حذف حساب…",
   "removeAccountDescription": "همگام‌سازی را متوقف و داده‌های این حساب را از این دستگاه حذف کنید.",
-  "removeAccountTitle": "حذف {account} از BusyMax؟",
+  "removeAccountTitle": "حذف \u2068{account}\u2069 از BusyMax؟",
   "removeAccountConfirmation": "با این کار، کارها، تقویم‌ها، رویدادها، یادآورها و تغییرات آفلاین در انتظار از حافظهٔ نهان این دستگاه حذف می‌شوند. تغییرات همگام‌نشده از دست می‌روند. هیچ چیزی از Google یا Microsoft حذف نمی‌شود.",
   "revokeGoogleAccess": "دسترسی BusyMax به این حساب Google نیز لغو شود",
   "revokeGoogleAccessDescription": "پیش از اتصال دوباره باید دسترسی را دوباره اعطا کنید.",
@@ -212,7 +212,7 @@
   "deleteList": "حذف فهرست",
   "builtInMicrosoftList": "داخلی",
   "builtInMicrosoftListCannotRenameDelete": "فهرست‌های داخلی Microsoft To Do را نمی‌توان تغییر نام داد یا حذف کرد.",
-  "deleteListConfirmation": "«{title}» از Google Tasks حذف شود؟",
+  "deleteListConfirmation": "«\u2068{title}\u2069» از Google Tasks حذف شود؟",
   "deleteEvent": "حذف رویداد",
   "title": "عنوان",
   "create": "ایجاد",
@@ -222,9 +222,9 @@
   "refreshAll": "تازه‌سازی همه",
   "listRefreshed": "فهرست تازه‌سازی شد.",
   "allTasksRefreshed": "همهٔ حساب‌ها تازه‌سازی شدند.",
-  "exportedFile": "در {path} خروجی گرفته شد",
-  "exportFailed": "خروجی گرفتن ناموفق بود: {error}",
-  "refreshFailed": "تازه‌سازی ناموفق بود: {error}",
+  "exportedFile": "در \u2068{path}\u2069 خروجی گرفته شد",
+  "exportFailed": "خروجی گرفتن ناموفق بود: \u2068{error}\u2069",
+  "refreshFailed": "تازه‌سازی ناموفق بود: \u2068{error}\u2069",
   "selectOrCreateTaskList": "برای شروع، یک فهرست کار انتخاب یا ایجاد کنید.",
   "signInToViewTasks": "برای دیدن کارها وارد شوید.",
   "noTasks": "هیچ کاری وجود ندارد.",
@@ -237,8 +237,8 @@
   "upcoming": "پیش رو",
   "noDate": "بدون تاریخ",
   "completed": "انجام‌شده",
-  "duePrefix": "سررسید: {date}",
-  "dateTimeDisplay": "{date} · {time}",
+  "duePrefix": "سررسید: \u2068{date}\u2069",
+  "dateTimeDisplay": "\u2068{date}\u2069 · \u2068{time}\u2069",
   "taskDetails": "جزئیات کار",
   "editTask": "ویرایش کار",
   "noTaskSelected": "هیچ کاری انتخاب نشده است.",
@@ -292,7 +292,7 @@
   "moveToTop": "انتقال به بالاترین جایگاه",
   "deleteTask": "حذف کار",
   "newSubtask": "زیرکار جدید",
-  "deleteTaskConfirmation": "«{title}» از Google Tasks حذف شود؟",
+  "deleteTaskConfirmation": "«\u2068{title}\u2069» از Google Tasks حذف شود؟",
   "metadata": "فراداده",
   "id": "شناسه",
   "etag": "ETag",
@@ -312,7 +312,7 @@
   "startMinimizedToTray": "شروع به‌صورت کوچک‌شده در سینی سیستم",
   "requiresTrayIcon": "به نماد سینی سیستم نیاز دارد.",
   "syncComplete": "همگام‌سازی کامل شد.",
-  "syncFailed": "همگام‌سازی ناموفق بود: {error}",
+  "syncFailed": "همگام‌سازی ناموفق بود: \u2068{error}\u2069",
   "notifySyncFailures": "اعلان هنگام شکست همگام‌سازی",
   "notifyConflicts": "اعلان هنگام تداخل",
   "notifyDueToday": "اعلان کارهای دارای سررسید امروز",
@@ -341,7 +341,7 @@
   "diagnostics": "اطلاعات تشخیصی",
   "apiInspectorDisabled": "نمایش بازرس API",
   "googleTasksApi": "رابط Google Tasks API",
-  "discoveryRevision": "بازبینی Discovery: ‏{revision}",
+  "discoveryRevision": "بازبینی Discovery: \u2068{revision}\u2069",
   "implementedMethods": "روش‌های پیاده‌سازی‌شده",
   "supportsTasksScopes": "از محدوده‌های tasks و tasks.readonly پشتیبانی می‌کند",
   "requiresTasksScope": "به محدودهٔ tasks نیاز دارد",
@@ -349,9 +349,9 @@
   "signInToInspectPendingOperations": "برای بررسی عملیات در انتظار وارد شوید.",
   "noBlockedPendingOperations": "هیچ عملیات در انتظار مسدودشده‌ای وجود ندارد.",
   "operationActions": "اقدامات عملیات",
-  "pendingOpListId": "فهرست={id}",
-  "pendingOpTaskId": "کار={id}",
-  "pendingOpAttempts": "تلاش‌ها={count}",
+  "pendingOpListId": "فهرست=\u2068{id}\u2069",
+  "pendingOpTaskId": "کار=\u2068{id}\u2069",
+  "pendingOpAttempts": "تلاش‌ها=\u2068{count}\u2069",
   "retry": "تلاش دوباره",
   "discard": "کنار گذاشتن",
   "discardChanges": "تغییرات کنار گذاشته شوند؟",
@@ -361,11 +361,11 @@
   "discardPendingOperationConfirmation": "با این کار عملیات محلی مسدودشده حذف می‌شود. در همگام‌سازی بعدی، داده‌ها از Google Tasks تازه‌سازی می‌شوند.",
   "pendingOperationDiscarded": "عملیات در انتظار کنار گذاشته شد.",
   "syncFailureNotificationTitle": "همگام‌سازی BusyMax ناموفق بود",
-  "syncFailureNotificationBody": "همگام‌سازی پس‌زمینه ناموفق بود. {message}",
+  "syncFailureNotificationBody": "همگام‌سازی پس‌زمینه ناموفق بود. \u2068{message}\u2069",
   "conflictNotificationTitle": "تداخل همگام‌سازی BusyMax",
-  "conflictNotificationBody": "یک تغییر محلی در انتظار مسدود شد. {summary}",
+  "conflictNotificationBody": "یک تغییر محلی در انتظار مسدود شد. \u2068{summary}\u2069",
   "dueTodayNotificationTitle": "کارهای دارای سررسید امروز",
-  "dueTodayNotificationBody": "{count, plural, =0{امروز هیچ کاری سررسید ندارد.} =1{امروز یک کار سررسید دارد.} other{امروز {count} کار سررسید دارند.}}",
+  "dueTodayNotificationBody": "{count, plural, =0{امروز هیچ کاری سررسید ندارد.} =1{امروز یک کار سررسید دارد.} other{امروز \u2068{count}\u2069 کار سررسید دارند.}}",
   "eventReminderNotificationTitle": "یادآور رویداد",
   "taskReminderNotificationTitle": "یادآور کار",
   "eventReminderNotificationBody": "رویداد به‌زودی شروع می‌شود.",
@@ -378,12 +378,76 @@
   "previousYear": "سال قبل",
   "nextYear": "سال بعد",
   "openYearView": "باز کردن نمای سال",
-  "weekNumberTooltip": "هفتهٔ {number}",
+  "weekNumberTooltip": "هفتهٔ \u2068{number}\u2069",
   "resizeAllDayPanel": "تغییر اندازهٔ پنل تمام‌روز",
-  "scheduleItemCount": "{count, plural, =0{هیچ موردی} =1{یک مورد} other{{count} مورد}}",
+  "scheduleItemCount": "{count, plural, =0{هیچ موردی} =1{یک مورد} other{\u2068{count}\u2069 مورد}}",
   "readOnlyCalendar": "این تقویم فقط‌خواندنی است.",
   "selectTimeZone": "انتخاب منطقهٔ زمانی",
   "searchLocations": "جست‌وجوی مکان‌ها",
   "noLocationsFound": "مکانی پیدا نشد",
-  "deleteCalendarConfirmation": "«{title}» حذف شود؟"
+  "deleteCalendarConfirmation": "«\u2068{title}\u2069» حذف شود؟",
+  "@moreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "@reminderMinutesBefore": {
+    "placeholders": {
+      "minutes": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "@reminderHoursBefore": {
+    "placeholders": {
+      "hours": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "@reminderDaysBefore": {
+    "placeholders": {
+      "days": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "@pendingOpAttempts": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "@dueTodayNotificationBody": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "@weekNumberTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "@scheduleItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  }
 }

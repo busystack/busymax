@@ -1,3 +1,6 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
@@ -186,7 +189,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get compactAgendaTitle => '日程';
 
   @override
-  String get compactAgendaSubtitle => '即将开始';
+  String get compactAgendaSubtitle => '接下来';
 
   @override
   String get compactAgendaOverdue => '已逾期';
@@ -443,7 +446,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shortcutGroupGeneral => '常规';
 
   @override
-  String get shortcutKeyboardShortcutsDescription => '显示此快捷键参考';
+  String get shortcutKeyboardShortcutsDescription => '显示快捷键参考表';
 
   @override
   String get shortcutGroupNavigation => '导航';
@@ -654,7 +657,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      '已从此设备移除该帐户，但 BusyMax 无法撤销 Google 访问权限。您可以在 Google 帐户中撤销。';
+      '该帐户已从此设备移除，但无法撤销 BusyMax 对您的 Google 帐户的访问权限。您可以在 Google 帐户中手动撤销该权限。';
 
   @override
   String get newList => '新建列表';
@@ -762,7 +765,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tomorrow => '明天';
 
   @override
-  String get upcoming => '即将开始';
+  String get upcoming => '即将到期';
 
   @override
   String get noDate => '无日期';
@@ -1441,7 +1444,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get compactAgendaTitle => '日程';
 
   @override
-  String get compactAgendaSubtitle => '即将开始';
+  String get compactAgendaSubtitle => '接下来';
 
   @override
   String get compactAgendaOverdue => '已逾期';
@@ -1698,7 +1701,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get shortcutGroupGeneral => '常规';
 
   @override
-  String get shortcutKeyboardShortcutsDescription => '显示此快捷键参考';
+  String get shortcutKeyboardShortcutsDescription => '显示快捷键参考表';
 
   @override
   String get shortcutGroupNavigation => '导航';
@@ -1909,7 +1912,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      '已从此设备移除该帐户，但 BusyMax 无法撤销 Google 访问权限。您可以在 Google 帐户中撤销。';
+      '该帐户已从此设备移除，但无法撤销 BusyMax 对您的 Google 帐户的访问权限。您可以在 Google 帐户中手动撤销该权限。';
 
   @override
   String get newList => '新建列表';
@@ -2017,7 +2020,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get tomorrow => '明天';
 
   @override
-  String get upcoming => '即将开始';
+  String get upcoming => '即将到期';
 
   @override
   String get noDate => '无日期';
@@ -2696,7 +2699,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get compactAgendaTitle => '行程';
 
   @override
-  String get compactAgendaSubtitle => '即將開始';
+  String get compactAgendaSubtitle => '接下來';
 
   @override
   String get compactAgendaOverdue => '已逾期';
@@ -2953,7 +2956,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get shortcutGroupGeneral => '一般';
 
   @override
-  String get shortcutKeyboardShortcutsDescription => '顯示此快速鍵參考';
+  String get shortcutKeyboardShortcutsDescription => '顯示快速鍵參考表';
 
   @override
   String get shortcutGroupNavigation => '導覽';
@@ -3046,7 +3049,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get feedbackCategoryProblem => '問題或錯誤';
 
   @override
-  String get feedbackCategoryFeature => '功能要求';
+  String get feedbackCategoryFeature => '功能請求';
 
   @override
   String get feedbackCategoryPrivacySecurity => '隱私權或安全性疑慮';
@@ -3164,7 +3167,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      '已從此裝置移除該帳戶，但 BusyMax 無法撤銷 Google 存取權。您可以在 Google 帳戶中撤銷。';
+      '該帳戶已從此裝置移除，但無法撤銷 BusyMax 對您的 Google 帳戶的存取權。您可以在 Google 帳戶中手動撤銷該權限。';
 
   @override
   String get newList => '新增清單';
@@ -3272,7 +3275,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get tomorrow => '明天';
 
   @override
-  String get upcoming => '即將開始';
+  String get upcoming => '即將到期';
 
   @override
   String get noDate => '無日期';
@@ -3625,7 +3628,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get noBlockedPendingOperations => '沒有遭封鎖的待處理作業。';
 
   @override
-  String get operationActions => '作業動作';
+  String get operationActions => '操作選項';
 
   @override
   String pendingOpListId(String id) {

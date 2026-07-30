@@ -1,3 +1,6 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';

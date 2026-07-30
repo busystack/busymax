@@ -1,3 +1,6 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
@@ -24,7 +27,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Sono necessarie le autorizzazioni per Google Calendar e Google Tasks. Riprova e seleziona entrambe le caselle.';
 
   @override
-  String get finishSetup => 'Completa configurazione';
+  String get finishSetup => 'Completa la configurazione';
 
   @override
   String get continueSetup => 'Continua';
@@ -138,7 +141,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count altri';
+    return '+$count in più';
   }
 
   @override
@@ -334,10 +337,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get defaultVisibility => 'Visibilità predefinita';
 
   @override
-  String get conference => 'Riunione';
+  String get conference => 'Conferenza';
 
   @override
-  String get noConference => 'Nessuna riunione';
+  String get noConference => 'Nessuna conferenza';
 
   @override
   String get providerCalendar => 'Calendario del servizio';
@@ -601,7 +604,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get feedbackTimeoutError =>
-      'La richiesta è scaduta. Il feedback non è stato cancellato; riprova.';
+      'La richiesta ha superato il tempo limite. Il feedback non è stato cancellato; riprova.';
 
   @override
   String get feedbackRateLimitedError =>
@@ -683,7 +686,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      'L’account è stato rimosso da questo dispositivo, ma BusyMax non ha potuto revocare l’accesso all’account Google. Puoi revocarlo dalle impostazioni dell’account Google.';
+      'L’account è stato rimosso da questo dispositivo, ma BusyMax non è riuscito a revocare il proprio accesso a Google. Puoi revocarlo dal tuo account Google.';
 
   @override
   String get newList => 'Nuovo elenco';
@@ -1023,7 +1026,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get runInBackgroundWhenClosed =>
-      'Continua l’esecuzione quando la finestra viene chiusa';
+      'Continua a funzionare quando la finestra è chiusa';
 
   @override
   String get showTrayIcon => 'Mostra icona nell’area di notifica';
@@ -1125,7 +1128,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get diagnostics => 'Diagnostica';
 
   @override
-  String get apiInspectorDisabled => 'Mostra controllo API';
+  String get apiInspectorDisabled => 'Mostra l’ispettore API';
 
   @override
   String get googleTasksApi => 'API Google Tasks';

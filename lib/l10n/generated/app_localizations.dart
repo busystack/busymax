@@ -1,3 +1,6 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -9,6 +12,7 @@ import 'app_localizations_ar.dart';
 import 'app_localizations_de.dart';
 import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
+import 'app_localizations_et.dart';
 import 'app_localizations_fa.dart';
 import 'app_localizations_fi.dart';
 import 'app_localizations_fr.dart';
@@ -111,6 +115,7 @@ abstract class AppLocalizations {
     Locale('de'),
     Locale('en'),
     Locale('es'),
+    Locale('et'),
     Locale('fa'),
     Locale('fi'),
     Locale('fr'),
@@ -2458,6 +2463,7 @@ class _AppLocalizationsDelegate
     'de',
     'en',
     'es',
+    'et',
     'fa',
     'fi',
     'fr',
@@ -2500,6 +2506,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsEn();
     case 'es':
       return AppLocalizationsEs();
+    case 'et':
+      return AppLocalizationsEt();
     case 'fa':
       return AppLocalizationsFa();
     case 'fi':
