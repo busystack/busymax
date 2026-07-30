@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_surface_colors.dart';
@@ -691,13 +692,35 @@ void main() {
     final yearControlWidth =
         tester.getRect(find.byTooltip('Next year')).right -
         tester.getRect(find.byTooltip('Previous year')).left;
+    expect(yearControlWidth, lessThan(monthControlWidth));
+    final monthLabelSpace = find.ancestor(
+      of: find.text('July'),
+      matching: find.byType(FittedBox),
+    );
+    final yearLabelSpace = find.ancestor(
+      of: find.text('2026'),
+      matching: find.byType(FittedBox),
+    );
     expect(
-      monthControlWidth / yearControlWidth,
+      tester.getRect(monthLabelSpace).width /
+          tester.getRect(yearLabelSpace).width,
       closeTo(
         BusyMaxCalendarHeaderLayout.monthControlFlex /
             BusyMaxCalendarHeaderLayout.yearControlFlex,
         0.01,
       ),
+    );
+    expect(
+      tester.getRect(find.byTooltip('Previous year')).size,
+      tester.getRect(find.byTooltip('Previous month')).size,
+    );
+    expect(
+      tester.getRect(find.byTooltip('Next year')).size,
+      tester.getRect(find.byTooltip('Next month')).size,
+    );
+    expect(
+      tester.getRect(find.text('2026')).height,
+      closeTo(tester.getRect(find.text('July')).height, 0.01),
     );
     expect(
       find.descendant(
@@ -739,6 +762,45 @@ void main() {
 
     await tester.tap(find.byIcon(YaruIcons.pan_start).at(0));
     await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+  });
+
+  testWidgets('fallback date picker safely pages while a tooltip is open', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: DesktopDateValueRow(
+            label: 'Due date',
+            date: '2026-07-22',
+            onChanged: _ignoreString,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(YaruIcons.calendar));
+    await tester.pumpAndSettle();
+
+    final previousMonth = find.byTooltip('Previous month');
+    final nextYear = find.byTooltip('Next year');
+    expect(find.byType(RawTooltip), findsWidgets);
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(previousMonth));
+    await tester.pump();
+    await mouse.down(tester.getCenter(previousMonth));
+    await mouse.up();
+    await tester.pump();
+    await mouse.moveTo(tester.getCenter(nextYear));
+    await tester.pump();
+    await mouse.down(tester.getCenter(nextYear));
+    await mouse.up();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
     expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
   });
 

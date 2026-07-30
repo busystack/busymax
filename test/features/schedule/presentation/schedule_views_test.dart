@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/features/schedule/presentation/calendar_day_semantics.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_day_week_view.dart';
@@ -880,6 +881,52 @@ void main() {
     await tester.pump();
     expect(activatedDay, selectedDate);
     semantics.dispose();
+  });
+
+  testWidgets('calendar date changes replace native tooltip state', (
+    tester,
+  ) async {
+    var day = DateTime(2026, 1, 15);
+    late StateSetter updateDay;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              updateDay = setState;
+              return Center(
+                child: BusyMaxCalendarDaySemantics(
+                  day: day,
+                  selected: false,
+                  onTap: () {},
+                  child: const SizedBox.square(dimension: 32),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(
+      tester.getCenter(find.byType(BusyMaxCalendarDaySemantics)),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final originalState = tester.state<RawTooltipState>(
+      find.byType(RawTooltip),
+    );
+    updateDay(() => day = DateTime(2026, 2, 15));
+    await tester.pump();
+    final updatedState = tester.state<RawTooltipState>(find.byType(RawTooltip));
+
+    expect(updatedState, isNot(same(originalState)));
+    expect(find.byType(Tooltip), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('month view avoids overflow in very short cells', (tester) async {

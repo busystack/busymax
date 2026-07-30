@@ -16,7 +16,7 @@ import 'package:yaru/yaru.dart';
 const nativeDateTimePickerChannelName = 'busymax/native_date_time_picker';
 
 const _nativeDateTimePicker = NativeDateTimePicker();
-const _dateTimePickerMaxWidth = 300.0;
+const _dateTimePickerMaxWidth = 340.0;
 const _dateTimePickerContentMaxHeight = 320.0;
 const _dateTimePickerPopoverMinimumHeight = 300.0;
 const _dateTimePickerPopoverPadding = EdgeInsets.all(BusyMaxSpacing.lg);
@@ -289,7 +289,7 @@ Future<String?> showBusyMaxDateValueDialog(
     anchorContext: anchorContext ?? context,
     semanticLabel: label,
     preferredWidth: _dateTimePickerMaxWidth,
-    minimumWidth: 280,
+    minimumWidth: _dateTimePickerMaxWidth,
     preferredMinimumHeight: _dateTimePickerPopoverMinimumHeight,
     builder: (context, arrowSide, arrowAlignment) => _DesktopDateValueDialog(
       label: label,
@@ -428,6 +428,8 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
   Widget _buildDateModeHeader(BuildContext context) {
     final locale = Localizations.localeOf(context).toLanguageTag();
     final monthLabel = DateFormat.MMMM(locale).format(_displayedMonth);
+    final colorScheme = Theme.of(context).colorScheme;
+    final direction = Directionality.of(context);
 
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -438,37 +440,55 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
       ),
       child: Row(
         children: [
+          _stepButton(
+            context,
+            colorScheme: colorScheme,
+            tooltip: context.l10n.previousMonth,
+            icon: BusyMaxGlyphs.startFor(direction),
+            onPressed: () => _showMonth(
+              DateTime(_displayedMonth.year, _displayedMonth.month - 1),
+            ),
+          ),
           Expanded(
             flex: BusyMaxCalendarHeaderLayout.monthControlFlex,
-            child: _buildDateModeStepper(
-              context: context,
-              label: monthLabel,
-              previousTooltip: context.l10n.previousMonth,
-              nextTooltip: context.l10n.nextMonth,
-              onPrevious: () => _showMonth(
-                DateTime(_displayedMonth.year, _displayedMonth.month - 1),
-              ),
-              onNext: () => _showMonth(
-                DateTime(_displayedMonth.year, _displayedMonth.month + 1),
-              ),
-              onLabelPressed: null,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _stepLabel(context, monthLabel, null),
+            ),
+          ),
+          _stepButton(
+            context,
+            colorScheme: colorScheme,
+            tooltip: context.l10n.nextMonth,
+            icon: BusyMaxGlyphs.endFor(direction),
+            onPressed: () => _showMonth(
+              DateTime(_displayedMonth.year, _displayedMonth.month + 1),
             ),
           ),
           const SizedBox(width: BusyMaxSpacing.sm),
+          _stepButton(
+            context,
+            colorScheme: colorScheme,
+            tooltip: context.l10n.previousYear,
+            icon: BusyMaxGlyphs.startFor(direction),
+            onPressed: () => _showMonth(
+              DateTime(_displayedMonth.year - 1, _displayedMonth.month),
+            ),
+          ),
           Expanded(
             flex: BusyMaxCalendarHeaderLayout.yearControlFlex,
-            child: _buildDateModeStepper(
-              context: context,
-              label: '${_displayedMonth.year}',
-              previousTooltip: context.l10n.previousYear,
-              nextTooltip: context.l10n.nextYear,
-              onPrevious: () => _showMonth(
-                DateTime(_displayedMonth.year - 1, _displayedMonth.month),
-              ),
-              onNext: () => _showMonth(
-                DateTime(_displayedMonth.year + 1, _displayedMonth.month),
-              ),
-              onLabelPressed: null,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _stepLabel(context, '${_displayedMonth.year}', null),
+            ),
+          ),
+          _stepButton(
+            context,
+            colorScheme: colorScheme,
+            tooltip: context.l10n.nextYear,
+            icon: BusyMaxGlyphs.endFor(direction),
+            onPressed: () => _showMonth(
+              DateTime(_displayedMonth.year + 1, _displayedMonth.month),
             ),
           ),
         ],
@@ -486,44 +506,6 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
         ? lastMonth
         : month;
     setState(() => _displayedMonth = adjusted);
-  }
-
-  Widget _buildDateModeStepper({
-    required BuildContext context,
-    required String label,
-    required String previousTooltip,
-    required String nextTooltip,
-    required VoidCallback onPrevious,
-    required VoidCallback onNext,
-    VoidCallback? onLabelPressed,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        _stepButton(
-          context,
-          colorScheme: colorScheme,
-          tooltip: previousTooltip,
-          icon: BusyMaxGlyphs.startFor(Directionality.of(context)),
-          onPressed: onPrevious,
-        ),
-        const SizedBox(width: BusyMaxSpacing.xs),
-        Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: _stepLabel(context, label, onLabelPressed),
-          ),
-        ),
-        const SizedBox(width: BusyMaxSpacing.xs),
-        _stepButton(
-          context,
-          colorScheme: colorScheme,
-          tooltip: nextTooltip,
-          icon: BusyMaxGlyphs.endFor(Directionality.of(context)),
-          onPressed: onNext,
-        ),
-      ],
-    );
   }
 
   Widget _stepButton(

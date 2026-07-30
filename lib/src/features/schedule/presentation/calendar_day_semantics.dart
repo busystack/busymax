@@ -28,7 +28,12 @@ class BusyMaxCalendarDaySemantics extends StatelessWidget {
       selected: selected,
       label: label,
       onTap: onTap,
-      child: Tooltip(message: label, excludeFromSemantics: true, child: child),
+      child: Tooltip(
+        key: ValueKey((day.year, day.month, day.day)),
+        message: label,
+        excludeFromSemantics: true,
+        child: child,
+      ),
     );
   }
 }
