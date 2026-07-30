@@ -1,5 +1,6 @@
 // coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: text_direction_code_point_in_literal, text_direction_code_point_in_comment
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
@@ -1181,27 +1182,27 @@ class AppLocalizationsRu extends AppLocalizations {
   String get retry => 'Повторить';
 
   @override
-  String get discard => 'Отбросить';
+  String get discard => 'Отменить';
 
   @override
-  String get discardChanges => 'Отбросить изменения?';
+  String get discardChanges => 'Отменить изменения?';
 
   @override
   String get discardChangesConfirmation =>
-      'Несохранённые изменения этой задачи будут отброшены.';
+      'Несохранённые изменения этой задачи будут отменены.';
 
   @override
   String get retryCompleted => 'Повторная попытка завершена.';
 
   @override
-  String get discardPendingOperation => 'Отбросить ожидающую операцию?';
+  String get discardPendingOperation => 'Отменить ожидающую операцию?';
 
   @override
   String get discardPendingOperationConfirmation =>
       'Заблокированная локальная операция будет удалена. При следующей синхронизации данные будут заново загружены из Google Tasks.';
 
   @override
-  String get pendingOperationDiscarded => 'Ожидающая операция отброшена.';
+  String get pendingOperationDiscarded => 'Ожидающая операция отменена.';
 
   @override
   String get syncFailureNotificationTitle => 'Сбой синхронизации BusyMax';

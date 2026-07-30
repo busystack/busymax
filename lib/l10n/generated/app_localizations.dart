@@ -1,5 +1,6 @@
 // coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: text_direction_code_point_in_literal, text_direction_code_point_in_comment
 
 import 'dart:async';
 
