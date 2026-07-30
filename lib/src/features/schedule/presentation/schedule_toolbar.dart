@@ -77,7 +77,12 @@ class ScheduleToolbar extends StatelessWidget {
               const SizedBox(width: BusyMaxSpacing.sm),
               if (canShowSidebar && onToggleSidebar != null)
                 YaruIconButton(
-                  tooltip: context.l10n.toggleSidebar,
+                  tooltip: _shortcutTooltip(
+                    sidebarVisible
+                        ? context.l10n.hideSidebar
+                        : context.l10n.showSidebar,
+                    BusyMaxShortcutLabels.sidebar,
+                  ),
                   icon: Icon(
                     sidebarVisible
                         ? Icons.vertical_split
@@ -118,11 +123,9 @@ class ScheduleToolbar extends StatelessWidget {
                 const SizedBox(width: BusyMaxSpacing.sm),
               ],
               Expanded(
-                child: Text(
+                child: _fittingRangeTitle(
+                  context,
                   _rangeLabel(context, mode, range, selectedDate),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: busyMaxHeaderTitleStyle(context),
                 ),
               ),
               BusyMaxMenuButton<ScheduleViewMode>(
@@ -153,10 +156,7 @@ class ScheduleToolbar extends StatelessWidget {
                   onPressed: onSearch,
                 ),
               BusyMaxMenuButton<_ScheduleCreateAction>(
-                tooltip: _shortcutTooltip(
-                  context.l10n.create,
-                  BusyMaxShortcutLabels.create,
-                ),
+                tooltip: context.l10n.create,
                 icon: const Icon(YaruIcons.plus),
                 controller: createMenuController,
                 enabled: canCreateEvent || canCreateTask,
@@ -234,6 +234,26 @@ class ScheduleToolbar extends StatelessWidget {
       },
     );
   }
+}
+
+Widget _fittingRangeTitle(BuildContext context, String title) {
+  final style = busyMaxHeaderTitleStyle(context);
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final painter = TextPainter(
+        text: TextSpan(text: title, style: style),
+        maxLines: 1,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      final titleFits = painter.width <= constraints.maxWidth;
+      painter.dispose();
+      if (!titleFits) {
+        return const SizedBox.shrink();
+      }
+      return Text(title, maxLines: 1, style: style);
+    },
+  );
 }
 
 IconData _modeIcon(ScheduleViewMode mode) {

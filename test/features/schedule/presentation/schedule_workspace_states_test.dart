@@ -6,6 +6,7 @@ import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_empty_states.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:flutter/material.dart';
@@ -109,6 +110,24 @@ void main() {
     await tester.pump();
 
     expect(find.byType(BusyMaxSearchField), findsNothing);
+  });
+
+  testWidgets('F9 hides and shows the schedule sidebar', (tester) async {
+    await _pumpWorkspace(
+      tester,
+      accountsFactory: () => Stream.value(const <AccountEntity>[]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ScheduleSidebar), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleSidebar), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleSidebar), findsOneWidget);
   });
 
   testWidgets(

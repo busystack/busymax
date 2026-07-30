@@ -187,6 +187,8 @@
   "feedbackServerError": "BusyStack ei voi vastaanottaa palautettasi juuri nyt. Palautettasi ei ole tyhjennetty. Yritä uudelleen.",
   "feedbackSuccess": "Palaute lähetetty. Viite: {id}",
   "toggleSidebar": "Näytä tai piilota sivupalkki",
+  "showSidebar": "Näytä sivupaneeli",
+  "hideSidebar": "Piilota sivupaneeli",
   "accounts": "Tilit",
   "currentAccount": "Nykyinen tili",
   "switchAccount": "Vaihda tiliä",

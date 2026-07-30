@@ -644,6 +644,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get toggleSidebar => 'إظهار الشريط الجانبي أو إخفاؤه';
 
   @override
+  String get showSidebar => 'إظهار اللوحة الجانبية';
+
+  @override
+  String get hideSidebar => 'إخفاء اللوحة الجانبية';
+
+  @override
   String get accounts => 'الحسابات';
 
   @override

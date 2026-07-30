@@ -1254,6 +1254,18 @@ abstract class AppLocalizations {
   /// **'Toggle Sidebar'**
   String get toggleSidebar;
 
+  /// No description provided for @showSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Show sidebar panel'**
+  String get showSidebar;
+
+  /// No description provided for @hideSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide sidebar panel'**
+  String get hideSidebar;
+
   /// No description provided for @accounts.
   ///
   /// In en, this message translates to:

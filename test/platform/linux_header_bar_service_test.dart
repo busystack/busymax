@@ -77,17 +77,19 @@ void main() {
         menu: 'Menu',
         previous: 'Previous',
         next: 'Next',
-        sidebar: 'Toggle Sidebar',
+        showSidebarPanel: 'Show sidebar panel',
+        hideSidebarPanel: 'Hide sidebar panel',
         back: 'Back',
         settings: 'Settings',
         keyboardShortcuts: 'Keyboard Shortcuts',
         reportIssue: 'Report an issue',
         aboutBusyMax: 'About BusyMax',
         todayShortcut: 'Shift+T',
-        dayShortcut: '1 / D',
+        dayShortcut: '1',
+        sidebarShortcut: 'F9',
         createEventShortcut: 'E',
-        settingsShortcut: 'Ctrl+,',
-        keyboardShortcutsShortcut: 'Ctrl+/',
+        settingsShortcut: 'Ctrl+Alt+S',
+        keyboardShortcutsShortcut: 'Ctrl+Alt+K',
       ),
     );
     await service.setSidebarWidth(300);
@@ -137,7 +139,14 @@ void main() {
     expect(calls[1].arguments, containsPair('createEvent', 'Event'));
     expect(calls[1].arguments, containsPair('createTask', 'Task'));
     expect(calls[1].arguments, containsPair('menu', 'Menu'));
-    expect(calls[1].arguments, containsPair('sidebar', 'Toggle Sidebar'));
+    expect(
+      calls[1].arguments,
+      containsPair('showSidebarPanel', 'Show sidebar panel'),
+    );
+    expect(
+      calls[1].arguments,
+      containsPair('hideSidebarPanel', 'Hide sidebar panel'),
+    );
     expect(calls[1].arguments, containsPair('back', 'Back'));
     expect(calls[1].arguments, containsPair('settings', 'Settings'));
     expect(
@@ -147,12 +156,13 @@ void main() {
     expect(calls[1].arguments, containsPair('reportIssue', 'Report an issue'));
     expect(calls[1].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
     expect(calls[1].arguments, containsPair('todayShortcut', 'Shift+T'));
-    expect(calls[1].arguments, containsPair('dayShortcut', '1 / D'));
+    expect(calls[1].arguments, containsPair('dayShortcut', '1'));
+    expect(calls[1].arguments, containsPair('sidebarShortcut', 'F9'));
     expect(calls[1].arguments, containsPair('createEventShortcut', 'E'));
-    expect(calls[1].arguments, containsPair('settingsShortcut', 'Ctrl+,'));
+    expect(calls[1].arguments, containsPair('settingsShortcut', 'Ctrl+Alt+S'));
     expect(
       calls[1].arguments,
-      containsPair('keyboardShortcutsShortcut', 'Ctrl+/'),
+      containsPair('keyboardShortcutsShortcut', 'Ctrl+Alt+K'),
     );
     expect(calls[2].arguments, 300);
     expect(calls[3].arguments, 'rtl');
@@ -620,6 +630,22 @@ void main() {
       ),
     );
     expect(source, contains('kHeaderSearchEntryStyleClass'));
+    expect(
+      source,
+      contains(
+        'set_widget_visible(self->today_button,\n'
+        '                     schedule_controls_visible &&\n'
+        '                         !self->header_search_active);',
+      ),
+    );
+    expect(
+      source,
+      contains(
+        'set_widget_visible(self->header_view_box,\n'
+        '                     schedule_controls_visible &&\n'
+        '                         !self->header_search_active);',
+      ),
+    );
 
     expect(geometryCssStart, isNonNegative);
     expect(geometryCssEnd, greaterThan(geometryCssStart));

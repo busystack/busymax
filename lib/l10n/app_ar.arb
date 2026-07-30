@@ -187,6 +187,8 @@
   "feedbackServerError": "يتعذر على BusyStack قبول ملاحظاتك الآن. لم تُمسح ملاحظاتك؛ حاول مرة أخرى.",
   "feedbackSuccess": "تم إرسال الملاحظات. المرجع: \u2068{id}\u2069",
   "toggleSidebar": "إظهار الشريط الجانبي أو إخفاؤه",
+  "showSidebar": "إظهار اللوحة الجانبية",
+  "hideSidebar": "إخفاء اللوحة الجانبية",
   "accounts": "الحسابات",
   "currentAccount": "الحساب الحالي",
   "switchAccount": "تبديل الحساب",

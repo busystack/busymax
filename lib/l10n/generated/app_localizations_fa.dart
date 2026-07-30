@@ -652,6 +652,12 @@ class AppLocalizationsFa extends AppLocalizations {
   String get toggleSidebar => 'نمایش یا پنهان کردن نوار کناری';
 
   @override
+  String get showSidebar => 'نمایش پنل کناری';
+
+  @override
+  String get hideSidebar => 'پنهان کردن پنل کناری';
+
+  @override
   String get accounts => 'حساب‌ها';
 
   @override

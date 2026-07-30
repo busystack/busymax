@@ -194,6 +194,8 @@
   "feedbackSuccess": "Feedback sent. Reference: {id}",
   "@feedbackSuccess": {"placeholders": {"id": {"type": "String"}}},
   "toggleSidebar": "Toggle Sidebar",
+  "showSidebar": "Show sidebar panel",
+  "hideSidebar": "Hide sidebar panel",
   "accounts": "Accounts",
   "currentAccount": "Current account",
   "switchAccount": "Switch account",

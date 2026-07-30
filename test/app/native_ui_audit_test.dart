@@ -916,7 +916,15 @@ void main() {
       expect(source, contains('args, "canCreateEvent"'));
       expect(source, contains('args, "canCreateTask"'));
       expect(source, contains('args, "searchQuery"'));
+      expect(source, contains('args, "showSidebarPanel"'));
+      expect(source, contains('args, "hideSidebarPanel"'));
+      expect(source, contains('args, "sidebarShortcut"'));
+      expect(source, contains('update_header_sidebar_presentation'));
+      expect(source, isNot(contains('args, "sidebarOverlaysContent"')));
+      expect(source, isNot(contains('args, "compactWindow"')));
       expect(source, contains('gtk_search_entry_new()'));
+      expect(source, contains('PANGO_ELLIPSIZE_NONE'));
+      expect(source, contains('update_header_title_fit'));
       expect(source, contains('gtk_stack_add_named'));
       expect(
         source,
@@ -1227,10 +1235,7 @@ void main() {
           'gtk_image_set_from_icon_name(GTK_IMAGE(self->view_mode_icon),',
         ),
       );
-      expect(
-        source,
-        contains('header_view_mode_icon_name("week")'),
-      );
+      expect(source, contains('header_view_mode_icon_name("week")'));
       expect(source, contains('return "view-continuous-symbolic";'));
       expect(source, contains('return "calendar-week-symbolic";'));
       expect(source, contains('return "calendar-month-symbolic";'));

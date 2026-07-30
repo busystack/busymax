@@ -187,6 +187,8 @@
   "feedbackServerError": "BusyStack अभी आपकी प्रतिक्रिया स्वीकार नहीं कर सका। आपकी प्रतिक्रिया हटाई नहीं गई है; फिर से कोशिश करें।",
   "feedbackSuccess": "प्रतिक्रिया भेज दी गई। संदर्भ: {id}",
   "toggleSidebar": "साइडबार दिखाएँ या छिपाएँ",
+  "showSidebar": "साइडबार पैनल दिखाएँ",
+  "hideSidebar": "साइडबार पैनल छिपाएँ",
   "accounts": "खाते",
   "currentAccount": "मौजूदा खाता",
   "switchAccount": "खाता बदलें",

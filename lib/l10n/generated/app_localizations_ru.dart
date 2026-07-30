@@ -640,6 +640,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get toggleSidebar => 'Показать или скрыть боковую панель';
 
   @override
+  String get showSidebar => 'Показать боковую панель';
+
+  @override
+  String get hideSidebar => 'Скрыть боковую панель';
+
+  @override
   String get accounts => 'Аккаунты';
 
   @override

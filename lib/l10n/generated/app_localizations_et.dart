@@ -634,6 +634,12 @@ class AppLocalizationsEt extends AppLocalizations {
   String get toggleSidebar => 'Kuva või peida külgriba';
 
   @override
+  String get showSidebar => 'Kuva külgpaneel';
+
+  @override
+  String get hideSidebar => 'Peida külgpaneel';
+
+  @override
   String get accounts => 'Kontod';
 
   @override

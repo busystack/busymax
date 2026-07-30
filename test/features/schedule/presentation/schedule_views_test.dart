@@ -550,6 +550,38 @@ void main() {
     expect(activationPosition, isNull);
   });
 
+  testWidgets('interactive task chip uses the event click cursor', (
+    tester,
+  ) async {
+    final task = _itemsFor(
+      DateTime(2026, 1, 15),
+    ).whereType<TaskScheduleItem>().first;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Center(
+            child: ScheduleItemChip(
+              item: task,
+              width: 180,
+              height: 54,
+              onTap: (_, [_]) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final taskInkWell = find.descendant(
+      of: find.byType(ScheduleItemChip),
+      matching: find.byType(InkWell),
+    );
+    expect(
+      tester.widget<InkWell>(taskInkWell).mouseCursor,
+      SystemMouseCursors.click,
+    );
+  });
+
   testWidgets('same-slot day items render in a horizontal strip', (
     tester,
   ) async {
@@ -2324,6 +2356,7 @@ void main() {
     expect(source, contains('BusyMaxHeaderBarAction.viewModeMonth'));
     expect(source, contains('BusyMaxHeaderBarAction.viewModeYear'));
     expect(source, contains('BusyMaxHeaderBarAction.viewModeAgenda'));
+    expect(source, isNot(contains('BusyMaxHeaderBarAction.viewModeCompact')));
     expect(source, contains('BusyMaxHeaderBarAction.refresh'));
     expect(source, contains('allAccountsSyncRunnerProvider'));
     expect(source, contains('context.l10n.allTasksRefreshed'));
@@ -2344,7 +2377,10 @@ void main() {
     expect(source, contains('_ScheduleShortcutAction(this)'));
     expect(source, contains('route != null && !route.isCurrent'));
     expect(source, contains('BusyMaxShortcutActivators.search:'));
-    expect(source, contains('BusyMaxShortcutActivators.create:'));
+    expect(source, contains('BusyMaxShortcutActivators.sidebar:'));
+    expect(source, contains('_ScheduleShortcut.sidebar'));
+    expect(source, contains('_sidebarCollapsed = !_sidebarCollapsed'));
+    expect(source, isNot(contains('BusyMaxShortcutActivators.create:')));
     expect(source, contains('LogicalKeyboardKey.arrowRight'));
     expect(source, contains('_next();'));
     expect(source, contains('LogicalKeyboardKey.arrowLeft'));
@@ -2364,20 +2400,23 @@ void main() {
     );
     expect(source, contains('_goToToday();'));
     expect(source, contains('LogicalKeyboardKey.digit1'));
-    expect(source, contains('LogicalKeyboardKey.keyD'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyD')));
     expect(source, contains('_setMode(ScheduleViewMode.day)'));
     expect(source, contains('LogicalKeyboardKey.digit2'));
-    expect(source, contains('LogicalKeyboardKey.keyW'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyW')));
     expect(source, contains('_setMode(ScheduleViewMode.week)'));
     expect(source, contains('LogicalKeyboardKey.digit3'));
-    expect(source, contains('LogicalKeyboardKey.keyM'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyM')));
     expect(source, contains('_setMode(ScheduleViewMode.month)'));
     expect(source, contains('LogicalKeyboardKey.digit4'));
-    expect(source, contains('LogicalKeyboardKey.keyY'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyY')));
     expect(source, contains('_setMode(ScheduleViewMode.year)'));
-    expect(source, contains('LogicalKeyboardKey.digit0'));
-    expect(source, contains('LogicalKeyboardKey.keyA'));
+    expect(source, contains('LogicalKeyboardKey.digit5'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyA')));
     expect(source, contains('_setMode(ScheduleViewMode.agenda)'));
+    expect(source, isNot(contains('LogicalKeyboardKey.digit0')));
+    expect(source, isNot(contains('LogicalKeyboardKey.numpad0')));
+    expect(source, isNot(contains('ScheduleViewMode.compact')));
     expect(source, contains('focusContext.widget is! EditableText'));
   });
 
@@ -3299,8 +3338,7 @@ void main() {
     expect(workspace, isNot(contains('FloatingActionButton(')));
     expect(workspace, contains('BusyMaxHeaderBarAction.createEvent'));
     expect(workspace, contains('BusyMaxHeaderBarAction.createTask'));
-    expect(workspace, contains('void _openCreateAtSelectedDate()'));
-    expect(workspace, contains('_createMenuController.openForKeyboard()'));
+    expect(workspace, isNot(contains('void _openCreateAtSelectedDate()')));
     expect(
       headerService,
       isNot(contains("'create' => BusyMaxHeaderBarAction.create")),
@@ -3337,7 +3375,8 @@ void main() {
     );
     expect(sidebar, isNot(contains('context.l10n.create')));
     expect(sidebar, isNot(contains('PushButton.filled')));
-    expect(toolbar, contains('BusyMaxShortcutLabels.create'));
+    expect(toolbar, isNot(contains('BusyMaxShortcutLabels.create')));
+    expect(toolbar, contains('tooltip: context.l10n.create'));
     expect(toolbar, contains('icon: const Icon(YaruIcons.plus)'));
     expect(toolbar, contains('tooltip: context.l10n.refreshAll'));
   });
@@ -3585,7 +3624,8 @@ void main() {
     expect(
       source,
       contains(
-        'showNoDateTasks: searchHasQuery || _mode != ScheduleViewMode.agenda',
+        'showNoDateTasks: searchHasQuery || '
+        '_mode != ScheduleViewMode.agenda',
       ),
     );
     expect(

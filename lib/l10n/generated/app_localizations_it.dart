@@ -637,6 +637,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get toggleSidebar => 'Mostra o nascondi la barra laterale';
 
   @override
+  String get showSidebar => 'Mostra il pannello laterale';
+
+  @override
+  String get hideSidebar => 'Nascondi il pannello laterale';
+
+  @override
   String get accounts => 'Account';
 
   @override

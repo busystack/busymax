@@ -637,6 +637,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get toggleSidebar => 'साइडबार दिखाएँ या छिपाएँ';
 
   @override
+  String get showSidebar => 'साइडबार पैनल दिखाएँ';
+
+  @override
+  String get hideSidebar => 'साइडबार पैनल छिपाएँ';
+
+  @override
   String get accounts => 'खाते';
 
   @override

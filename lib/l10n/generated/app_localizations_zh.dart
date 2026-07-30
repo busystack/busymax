@@ -612,6 +612,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toggleSidebar => '显示或隐藏侧边栏';
 
   @override
+  String get showSidebar => '显示侧边栏面板';
+
+  @override
+  String get hideSidebar => '隐藏侧边栏面板';
+
+  @override
   String get accounts => '帐户';
 
   @override
@@ -1876,6 +1882,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get toggleSidebar => '显示或隐藏侧边栏';
 
   @override
+  String get showSidebar => '显示侧边栏面板';
+
+  @override
+  String get hideSidebar => '隐藏侧边栏面板';
+
+  @override
   String get accounts => '帐户';
 
   @override
@@ -3138,6 +3150,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get toggleSidebar => '顯示或隱藏側邊欄';
+
+  @override
+  String get showSidebar => '顯示側邊欄面板';
+
+  @override
+  String get hideSidebar => '隱藏側邊欄面板';
 
   @override
   String get accounts => '帳戶';

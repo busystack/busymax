@@ -187,6 +187,8 @@
   "feedbackServerError": "BusyStack اکنون نمی‌تواند بازخورد شما را بپذیرد. بازخورد شما پاک نشده است؛ دوباره تلاش کنید.",
   "feedbackSuccess": "بازخورد ارسال شد. شناسهٔ پیگیری: \u2068{id}\u2069",
   "toggleSidebar": "نمایش یا پنهان کردن نوار کناری",
+  "showSidebar": "نمایش پنل کناری",
+  "hideSidebar": "پنهان کردن پنل کناری",
   "accounts": "حساب‌ها",
   "currentAccount": "حساب فعلی",
   "switchAccount": "تعویض حساب",

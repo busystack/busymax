@@ -630,6 +630,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toggleSidebar => 'Toggle Sidebar';
 
   @override
+  String get showSidebar => 'Show sidebar panel';
+
+  @override
+  String get hideSidebar => 'Hide sidebar panel';
+
+  @override
   String get accounts => 'Accounts';
 
   @override

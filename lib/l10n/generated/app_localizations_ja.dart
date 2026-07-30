@@ -620,6 +620,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get toggleSidebar => 'サイドバーの表示を切り替え';
 
   @override
+  String get showSidebar => 'サイドバーパネルを表示';
+
+  @override
+  String get hideSidebar => 'サイドバーパネルを非表示';
+
+  @override
   String get accounts => 'アカウント';
 
   @override

@@ -194,6 +194,8 @@
   "feedbackSuccess": "Tagasiside saadetud. Viide: {id}",
   "@feedbackSuccess": {"placeholders": {"id": {"type": "String"}}},
   "toggleSidebar": "Kuva või peida külgriba",
+  "showSidebar": "Kuva külgpaneel",
+  "hideSidebar": "Peida külgpaneel",
   "accounts": "Kontod",
   "currentAccount": "Praegune konto",
   "switchAccount": "Vaheta kontot",

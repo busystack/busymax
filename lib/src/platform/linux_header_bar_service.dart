@@ -78,7 +78,8 @@ class BusyMaxHeaderBarLabels {
     required this.menu,
     required this.previous,
     required this.next,
-    required this.sidebar,
+    required this.showSidebarPanel,
+    required this.hideSidebarPanel,
     required this.back,
     required this.settings,
     required this.keyboardShortcuts,
@@ -91,7 +92,7 @@ class BusyMaxHeaderBarLabels {
     this.yearShortcut = '',
     this.agendaShortcut = '',
     this.searchShortcut = '',
-    this.createShortcut = '',
+    this.sidebarShortcut = '',
     this.createEventShortcut = '',
     this.createTaskShortcut = '',
     this.previousShortcut = '',
@@ -114,7 +115,8 @@ class BusyMaxHeaderBarLabels {
   final String menu;
   final String previous;
   final String next;
-  final String sidebar;
+  final String showSidebarPanel;
+  final String hideSidebarPanel;
   final String back;
   final String settings;
   final String keyboardShortcuts;
@@ -127,7 +129,7 @@ class BusyMaxHeaderBarLabels {
   final String yearShortcut;
   final String agendaShortcut;
   final String searchShortcut;
-  final String createShortcut;
+  final String sidebarShortcut;
   final String createEventShortcut;
   final String createTaskShortcut;
   final String previousShortcut;
@@ -151,7 +153,8 @@ class BusyMaxHeaderBarLabels {
       'menu': menu,
       'previous': previous,
       'next': next,
-      'sidebar': sidebar,
+      'showSidebarPanel': showSidebarPanel,
+      'hideSidebarPanel': hideSidebarPanel,
       'back': back,
       'settings': settings,
       'keyboardShortcuts': keyboardShortcuts,
@@ -164,7 +167,7 @@ class BusyMaxHeaderBarLabels {
       'yearShortcut': yearShortcut,
       'agendaShortcut': agendaShortcut,
       'searchShortcut': searchShortcut,
-      'createShortcut': createShortcut,
+      'sidebarShortcut': sidebarShortcut,
       'createEventShortcut': createEventShortcut,
       'createTaskShortcut': createTaskShortcut,
       'previousShortcut': previousShortcut,
@@ -192,7 +195,8 @@ class BusyMaxHeaderBarLabels {
             menu == other.menu &&
             previous == other.previous &&
             next == other.next &&
-            sidebar == other.sidebar &&
+            showSidebarPanel == other.showSidebarPanel &&
+            hideSidebarPanel == other.hideSidebarPanel &&
             back == other.back &&
             settings == other.settings &&
             keyboardShortcuts == other.keyboardShortcuts &&
@@ -205,7 +209,7 @@ class BusyMaxHeaderBarLabels {
             yearShortcut == other.yearShortcut &&
             agendaShortcut == other.agendaShortcut &&
             searchShortcut == other.searchShortcut &&
-            createShortcut == other.createShortcut &&
+            sidebarShortcut == other.sidebarShortcut &&
             createEventShortcut == other.createEventShortcut &&
             createTaskShortcut == other.createTaskShortcut &&
             previousShortcut == other.previousShortcut &&
@@ -230,7 +234,8 @@ class BusyMaxHeaderBarLabels {
     menu,
     previous,
     next,
-    sidebar,
+    showSidebarPanel,
+    hideSidebarPanel,
     back,
     settings,
     keyboardShortcuts,
@@ -243,7 +248,7 @@ class BusyMaxHeaderBarLabels {
     yearShortcut,
     agendaShortcut,
     searchShortcut,
-    createShortcut,
+    sidebarShortcut,
     createEventShortcut,
     createTaskShortcut,
     previousShortcut,

@@ -637,6 +637,12 @@ class AppLocalizationsPt extends AppLocalizations {
   String get toggleSidebar => 'Mostrar ou ocultar a barra lateral';
 
   @override
+  String get showSidebar => 'Mostrar painel lateral';
+
+  @override
+  String get hideSidebar => 'Ocultar painel lateral';
+
+  @override
   String get accounts => 'Contas';
 
   @override

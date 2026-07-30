@@ -46,9 +46,9 @@ void main() {
         ),
         child: Scaffold(
           body: SizedBox(
-            width: 1000,
+            width: 1200,
             child: ScheduleToolbar(
-              mode: ScheduleViewMode.week,
+              mode: ScheduleViewMode.agenda,
               range: ScheduleRange.week(DateTime(2026, 7, 22)),
               selectedDate: DateTime(2026, 7, 22),
               onToday: () {},
@@ -67,7 +67,7 @@ void main() {
     );
 
     final titleFinder = find.byWidgetPredicate(
-      (widget) => widget is Text && (widget.data?.contains('2026') ?? false),
+      (widget) => widget is Text && widget.data == 'Agenda',
     );
     expect(titleFinder, findsOneWidget);
     final title = tester.widget<Text>(titleFinder);
@@ -112,7 +112,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
+    await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
 
     expect(events, 0);
@@ -140,6 +140,47 @@ void main() {
     );
   });
 
+  testWidgets('fallback toolbar hides a range title that does not fit', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 600,
+            child: ScheduleToolbar(
+              mode: ScheduleViewMode.week,
+              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              selectedDate: DateTime(2026, 7, 22),
+              onToday: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onModeChanged: (_) {},
+              canCreateEvent: true,
+              canCreateTask: true,
+              onCreateEvent: () {},
+              onCreateTask: () {},
+              onRefresh: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Text && (widget.data?.contains('2026') ?? false),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Text && widget.overflow == TextOverflow.ellipsis,
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('fallback toolbar exposes the complete shell command set', (
     tester,
   ) async {
@@ -147,6 +188,7 @@ void main() {
     var searches = 0;
     var events = 0;
     var tasks = 0;
+    var sidebarVisible = true;
     ScheduleViewMode? selectedMode;
     ScheduleToolbarMenuAction? selectedMenuAction;
 
@@ -155,36 +197,43 @@ void main() {
         child: Scaffold(
           body: SizedBox(
             width: 1000,
-            child: ScheduleToolbar(
-              mode: ScheduleViewMode.week,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
-              selectedDate: DateTime(2026, 7, 22),
-              onToday: () {},
-              onPrevious: () {},
-              onNext: () {},
-              onModeChanged: (value) => selectedMode = value,
-              canCreateEvent: true,
-              canCreateTask: true,
-              onCreateEvent: () => events++,
-              onCreateTask: () => tasks++,
-              onRefresh: () {},
-              canShowSidebar: true,
-              sidebarVisible: true,
-              onToggleSidebar: () => sidebarToggles++,
-              onSearch: () => searches++,
-              onMenuSelected: (value) => selectedMenuAction = value,
+            child: StatefulBuilder(
+              builder: (context, setToolbarState) => ScheduleToolbar(
+                mode: ScheduleViewMode.week,
+                range: ScheduleRange.week(DateTime(2026, 7, 22)),
+                selectedDate: DateTime(2026, 7, 22),
+                onToday: () {},
+                onPrevious: () {},
+                onNext: () {},
+                onModeChanged: (value) => selectedMode = value,
+                canCreateEvent: true,
+                canCreateTask: true,
+                onCreateEvent: () => events++,
+                onCreateTask: () => tasks++,
+                onRefresh: () {},
+                canShowSidebar: true,
+                sidebarVisible: sidebarVisible,
+                onToggleSidebar: () {
+                  sidebarToggles++;
+                  setToolbarState(() => sidebarVisible = !sidebarVisible);
+                },
+                onSearch: () => searches++,
+                onMenuSelected: (value) => selectedMenuAction = value,
+              ),
             ),
           ),
         ),
       ),
     );
 
-    await tester.tap(find.byTooltip('Toggle Sidebar'));
+    await tester.tap(find.byTooltip('Hide sidebar panel (F9)'));
+    await tester.pump();
+    expect(find.byTooltip('Show sidebar panel (F9)'), findsOneWidget);
     await tester.tap(find.byTooltip('Search (Ctrl+F)'));
     expect(sidebarToggles, 1);
     expect(searches, 1);
 
-    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
+    await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
@@ -198,7 +247,7 @@ void main() {
     expect(events, 1);
     expect(tasks, 0);
 
-    await tester.tap(find.byTooltip('Week (2 / W)'));
+    await tester.tap(find.byTooltip('Week (2)'));
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
@@ -208,6 +257,7 @@ void main() {
       find.byType(YaruRadio<int>),
       findsNWidgets(ScheduleViewMode.values.length),
     );
+    expect(find.text('Compact'), findsNothing);
     await tester.tap(
       find.ancestor(
         of: find.text('Month'),
@@ -318,7 +368,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
+    await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
 
     expect(
@@ -394,7 +444,7 @@ void main() {
 
       final trigger = tester.widget<YaruIconButton>(
         find.ancestor(
-          of: find.byTooltip('Create (Ctrl+N)'),
+          of: find.byTooltip('Create'),
           matching: find.byType(YaruIconButton),
         ),
       );
@@ -585,12 +635,12 @@ void main() {
 
     final trigger = tester.widget<YaruIconButton>(
       find.ancestor(
-        of: find.byTooltip('Create (Ctrl+N)'),
+        of: find.byTooltip('Create'),
         matching: find.byType(YaruIconButton),
       ),
     );
     expect(trigger.onPressed, isNull);
-    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
+    await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
     expect(find.text('Event'), findsNothing);
     expect(find.text('Task'), findsNothing);

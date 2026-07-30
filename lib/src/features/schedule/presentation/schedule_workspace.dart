@@ -54,7 +54,7 @@ import 'schedule_year_view.dart';
 
 enum _ScheduleShortcut {
   search,
-  create,
+  sidebar,
   dismissSearch,
   previous,
   next,
@@ -78,8 +78,8 @@ const _scheduleShortcuts = <ShortcutActivator, Intent>{
   BusyMaxShortcutActivators.search: _ScheduleShortcutIntent(
     _ScheduleShortcut.search,
   ),
-  BusyMaxShortcutActivators.create: _ScheduleShortcutIntent(
-    _ScheduleShortcut.create,
+  BusyMaxShortcutActivators.sidebar: _ScheduleShortcutIntent(
+    _ScheduleShortcut.sidebar,
   ),
   BusyMaxShortcutActivators.dismiss: _ScheduleShortcutIntent(
     _ScheduleShortcut.dismissSearch,
@@ -102,16 +102,10 @@ const _scheduleShortcuts = <ShortcutActivator, Intent>{
   SingleActivator(LogicalKeyboardKey.numpad1): _ScheduleShortcutIntent(
     _ScheduleShortcut.day,
   ),
-  SingleActivator(LogicalKeyboardKey.keyD): _ScheduleShortcutIntent(
-    _ScheduleShortcut.day,
-  ),
   SingleActivator(LogicalKeyboardKey.digit2): _ScheduleShortcutIntent(
     _ScheduleShortcut.week,
   ),
   SingleActivator(LogicalKeyboardKey.numpad2): _ScheduleShortcutIntent(
-    _ScheduleShortcut.week,
-  ),
-  SingleActivator(LogicalKeyboardKey.keyW): _ScheduleShortcutIntent(
     _ScheduleShortcut.week,
   ),
   SingleActivator(LogicalKeyboardKey.digit3): _ScheduleShortcutIntent(
@@ -120,25 +114,16 @@ const _scheduleShortcuts = <ShortcutActivator, Intent>{
   SingleActivator(LogicalKeyboardKey.numpad3): _ScheduleShortcutIntent(
     _ScheduleShortcut.month,
   ),
-  SingleActivator(LogicalKeyboardKey.keyM): _ScheduleShortcutIntent(
-    _ScheduleShortcut.month,
-  ),
   SingleActivator(LogicalKeyboardKey.digit4): _ScheduleShortcutIntent(
     _ScheduleShortcut.year,
   ),
   SingleActivator(LogicalKeyboardKey.numpad4): _ScheduleShortcutIntent(
     _ScheduleShortcut.year,
   ),
-  SingleActivator(LogicalKeyboardKey.keyY): _ScheduleShortcutIntent(
-    _ScheduleShortcut.year,
-  ),
-  SingleActivator(LogicalKeyboardKey.digit0): _ScheduleShortcutIntent(
+  SingleActivator(LogicalKeyboardKey.digit5): _ScheduleShortcutIntent(
     _ScheduleShortcut.agenda,
   ),
-  SingleActivator(LogicalKeyboardKey.numpad0): _ScheduleShortcutIntent(
-    _ScheduleShortcut.agenda,
-  ),
-  SingleActivator(LogicalKeyboardKey.keyA): _ScheduleShortcutIntent(
+  SingleActivator(LogicalKeyboardKey.numpad5): _ScheduleShortcutIntent(
     _ScheduleShortcut.agenda,
   ),
 };
@@ -399,64 +384,88 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         BusyMaxLayoutRules.showSidebar(
                           MediaQuery.sizeOf(context).width,
                         );
+                    Widget buildSidebar() {
+                      return SizedBox(
+                        width: BusyMaxSizes.sidebarWidth,
+                        child: FutureBuilder<List<ScheduleItem>>(
+                          future: miniCalendarItemsFuture,
+                          builder: (context, miniSnapshot) {
+                            final miniCalendarItems =
+                                ScheduleProjection.filterByScope(
+                                  miniSnapshot.data ?? const <ScheduleItem>[],
+                                  _scope,
+                                );
+                            return ScheduleSidebar(
+                              selectedDate: _selectedDate,
+                              firstWeekday: firstWeekday,
+                              items: miniCalendarItems,
+                              onDateSelected: _openDay,
+                              onMonthSelected: _setMonth,
+                              onYearSelected: _setYear,
+                              onWeekSelected: _setWeek,
+                            );
+                          },
+                        ),
+                      );
+                    }
+
                     final main = Column(
                       children: [
                         if (showFallbackHeader) ...[
-                          ScheduleToolbar(
-                            mode: _mode,
-                            range: range,
-                            selectedDate: _selectedDate,
-                            onToday: _goToToday,
-                            onPrevious: _previous,
-                            onNext: _next,
-                            onModeChanged: _setMode,
-                            canCreateEvent: writableSources.isNotEmpty,
-                            canCreateTask: canCreateTask,
-                            onCreateEvent: () => unawaited(
-                              _openNewEvent(
-                                writableSources,
-                                _defaultSelectedDateStart(),
+                          if (_searchActive)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: BusyMaxSpacing.md,
+                                vertical: BusyMaxSpacing.sm,
                               ),
-                            ),
-                            onCreateTask: () => unawaited(
-                              _openNewTask(
-                                accounts,
-                                due: _day(_defaultSelectedDateStart()),
+                              child: BusyMaxSearchField(
+                                controller: _searchController,
+                                autofocus: true,
+                                focusRequest: _fallbackSearchFocusRequest,
+                                hintText: MaterialLocalizations.of(
+                                  context,
+                                ).searchFieldLabel,
+                                onChanged: _setSearchQuery,
+                                onClear: _clearSearchQuery,
                               ),
+                            )
+                          else
+                            ScheduleToolbar(
+                              mode: _mode,
+                              range: range,
+                              selectedDate: _selectedDate,
+                              onToday: _goToToday,
+                              onPrevious: _previous,
+                              onNext: _next,
+                              onModeChanged: _setMode,
+                              canCreateEvent: writableSources.isNotEmpty,
+                              canCreateTask: canCreateTask,
+                              onCreateEvent: () => unawaited(
+                                _openNewEvent(
+                                  writableSources,
+                                  _defaultSelectedDateStart(),
+                                ),
+                              ),
+                              onCreateTask: () => unawaited(
+                                _openNewTask(
+                                  accounts,
+                                  due: _day(_defaultSelectedDateStart()),
+                                ),
+                              ),
+                              createMenuController: _createMenuController,
+                              onRefresh: () => unawaited(_refreshAll()),
+                              canRefresh: accounts.isNotEmpty,
+                              canShowSidebar: canShowFallbackSidebar,
+                              sidebarVisible:
+                                  canShowFallbackSidebar && !_sidebarCollapsed,
+                              onToggleSidebar: () => _handleHeaderBarAction(
+                                BusyMaxHeaderBarAction.sidebarToggle,
+                              ),
+                              onSearch: () => _handleHeaderBarAction(
+                                BusyMaxHeaderBarAction.search,
+                              ),
+                              onMenuSelected: _handleFallbackToolbarMenu,
                             ),
-                            createMenuController: _createMenuController,
-                            onRefresh: () => unawaited(_refreshAll()),
-                            canRefresh: accounts.isNotEmpty,
-                            canShowSidebar: canShowFallbackSidebar,
-                            sidebarVisible:
-                                canShowFallbackSidebar && !_sidebarCollapsed,
-                            onToggleSidebar: () => _handleHeaderBarAction(
-                              BusyMaxHeaderBarAction.sidebarToggle,
-                            ),
-                            onSearch: () => _handleHeaderBarAction(
-                              BusyMaxHeaderBarAction.search,
-                            ),
-                            onMenuSelected: _handleFallbackToolbarMenu,
-                          ),
-                          const Divider(height: 1),
-                        ],
-                        if (_searchActive && _showFlutterHeaderFallback) ...[
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: BusyMaxSpacing.md,
-                              vertical: BusyMaxSpacing.sm,
-                            ),
-                            child: BusyMaxSearchField(
-                              controller: _searchController,
-                              autofocus: true,
-                              focusRequest: _fallbackSearchFocusRequest,
-                              hintText: MaterialLocalizations.of(
-                                context,
-                              ).searchFieldLabel,
-                              onChanged: _setSearchQuery,
-                              onClear: _clearSearchQuery,
-                            ),
-                          ),
                           const Divider(height: 1),
                         ],
                         Expanded(
@@ -576,29 +585,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               ? main
                               : Row(
                                   children: [
-                                    SizedBox(
-                                      width: BusyMaxSizes.sidebarWidth,
-                                      child: FutureBuilder<List<ScheduleItem>>(
-                                        future: miniCalendarItemsFuture,
-                                        builder: (context, miniSnapshot) {
-                                          final miniCalendarItems =
-                                              ScheduleProjection.filterByScope(
-                                                miniSnapshot.data ??
-                                                    const <ScheduleItem>[],
-                                                _scope,
-                                              );
-                                          return ScheduleSidebar(
-                                            selectedDate: _selectedDate,
-                                            firstWeekday: firstWeekday,
-                                            items: miniCalendarItems,
-                                            onDateSelected: _openDay,
-                                            onMonthSelected: _setMonth,
-                                            onYearSelected: _setYear,
-                                            onWeekSelected: _setWeek,
-                                          );
-                                        },
-                                      ),
-                                    ),
+                                    buildSidebar(),
                                     Expanded(child: main),
                                   ],
                                 );
@@ -1254,8 +1241,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     return switch (command) {
       _ScheduleShortcut.search => true,
-      _ScheduleShortcut.create =>
-        _latestWritableSources.isNotEmpty || _latestCanCreateTask,
+      _ScheduleShortcut.sidebar => _latestCanShowSidebar,
       _ScheduleShortcut.dismissSearch => _searchActive,
       _ScheduleShortcut.newEvent =>
         _canHandleScheduleShortcut() && _latestWritableSources.isNotEmpty,
@@ -1279,8 +1265,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           setState(() => _searchActive = true);
         }
         _focusSearch();
-      case _ScheduleShortcut.create:
-        _openCreateAtSelectedDate();
+      case _ScheduleShortcut.sidebar:
+        setState(() => _sidebarCollapsed = !_sidebarCollapsed);
       case _ScheduleShortcut.dismissSearch:
         _closeSearch();
       case _ScheduleShortcut.previous:
@@ -1476,16 +1462,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     return renderObject is RenderBox && renderObject.hasSize
         ? focusedContext
         : context;
-  }
-
-  void _openCreateAtSelectedDate() {
-    if (_nativeHeaderBarAvailable && _headerBarSession.isCurrent) {
-      unawaited(_headerBarSession.showCreateMenu());
-      return;
-    }
-    if (_showFlutterHeaderFallback) {
-      _createMenuController.openForKeyboard();
-    }
   }
 
   Future<void> _openNewEvent(

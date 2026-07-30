@@ -599,9 +599,11 @@ void main() {
     );
     await tester.pump();
 
-    for (final key in [LogicalKeyboardKey.comma, LogicalKeyboardKey.slash]) {
+    for (final key in [LogicalKeyboardKey.keyS, LogicalKeyboardKey.keyK]) {
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
       await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     }
 

@@ -636,6 +636,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get toggleSidebar => 'Seitenleiste umschalten';
 
   @override
+  String get showSidebar => 'Seitenbereich anzeigen';
+
+  @override
+  String get hideSidebar => 'Seitenbereich ausblenden';
+
+  @override
   String get accounts => 'Konten';
 
   @override

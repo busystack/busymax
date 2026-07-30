@@ -187,6 +187,8 @@
   "feedbackServerError": "O BusyStack não pode aceitar os seus comentários neste momento. Os seus comentários não foram apagados; tente novamente.",
   "feedbackSuccess": "Comentários enviados. Referência: {id}",
   "toggleSidebar": "Mostrar ou ocultar a barra lateral",
+  "showSidebar": "Mostrar painel lateral",
+  "hideSidebar": "Ocultar painel lateral",
   "accounts": "Contas",
   "currentAccount": "Conta atual",
   "switchAccount": "Mudar de conta",

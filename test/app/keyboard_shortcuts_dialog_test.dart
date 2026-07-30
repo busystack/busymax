@@ -25,20 +25,22 @@ void main() {
     expect(find.text('Create and Edit'), findsOneWidget);
     expect(find.text('Task editing'), findsOneWidget);
     expect(find.text('Compact agenda'), findsOneWidget);
-    expect(find.text('Ctrl+/'), findsOneWidget);
-    expect(find.text('Ctrl+,'), findsOneWidget);
+    expect(find.text('Ctrl+Alt+K'), findsOneWidget);
+    expect(find.text('Ctrl+Alt+S'), findsOneWidget);
     expect(find.text('Ctrl+F'), findsOneWidget);
-    expect(find.text('Ctrl+N'), findsOneWidget);
+    expect(find.text('F9'), findsOneWidget);
+    expect(find.text('Ctrl+N'), findsNothing);
     expect(find.text('Shift+Right'), findsOneWidget);
     expect(find.text('Shift+Left'), findsOneWidget);
     expect(find.text('T'), findsOneWidget);
     expect(find.text('Shift+T'), findsOneWidget);
     expect(find.text('E'), findsOneWidget);
-    expect(find.text('1 / D'), findsOneWidget);
-    expect(find.text('2 / W'), findsOneWidget);
-    expect(find.text('3 / M'), findsOneWidget);
-    expect(find.text('4 / Y'), findsOneWidget);
-    expect(find.text('0 / A'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
+    expect(find.text('5'), findsOneWidget);
+    expect(find.text('0'), findsNothing);
     expect(find.text('Ctrl+S'), findsOneWidget);
     expect(find.text('Backspace / Delete'), findsOneWidget);
     expect(find.text('Ctrl+R'), findsOneWidget);
@@ -77,9 +79,10 @@ void main() {
     );
 
     final badgeEnds = [
-      'Ctrl+/',
-      'Ctrl+,',
+      'Ctrl+Alt+K',
+      'Ctrl+Alt+S',
       'Ctrl+F',
+      'F9',
     ].map((label) => tester.getTopRight(find.text(label)).dx).toList();
     expect(badgeEnds.every((end) => end == badgeEnds.first), isTrue);
   });
@@ -216,8 +219,9 @@ void main() {
 
     expect(app, contains('keyboardShortcuts: l10n.keyboardShortcuts'));
     expect(app, contains('BusyMaxShortcutActivators.keyboardShortcuts'));
-    expect(shortcuts, contains('LogicalKeyboardKey.slash'));
-    expect(shortcuts, contains('LogicalKeyboardKey.comma'));
+    expect(shortcuts, contains('LogicalKeyboardKey.keyK'));
+    expect(shortcuts, contains('LogicalKeyboardKey.keyS'));
+    expect(shortcuts, contains('LogicalKeyboardKey.f9'));
     expect(service, contains('keyboardShortcuts'));
     expect(native, contains('"Keyboard Shortcuts"'));
     expect(native, contains('"keyboardShortcuts"'));

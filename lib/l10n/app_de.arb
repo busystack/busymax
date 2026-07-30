@@ -190,6 +190,8 @@
   "feedbackServerError": "BusyStack kann Ihr Feedback derzeit nicht annehmen. Ihr Feedback wurde nicht gelöscht; versuchen Sie es erneut.",
   "feedbackSuccess": "Feedback gesendet. Referenz: {id}",
   "toggleSidebar": "Seitenleiste umschalten",
+  "showSidebar": "Seitenbereich anzeigen",
+  "hideSidebar": "Seitenbereich ausblenden",
   "accounts": "Konten",
   "currentAccount": "Aktuelles Konto",
   "switchAccount": "Konto wechseln",

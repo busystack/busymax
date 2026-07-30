@@ -636,6 +636,12 @@ class AppLocalizationsFi extends AppLocalizations {
   String get toggleSidebar => 'Näytä tai piilota sivupalkki';
 
   @override
+  String get showSidebar => 'Näytä sivupaneeli';
+
+  @override
+  String get hideSidebar => 'Piilota sivupaneeli';
+
+  @override
   String get accounts => 'Tilit';
 
   @override

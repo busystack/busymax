@@ -62,6 +62,9 @@ class ScheduleTaskChip extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
+            mouseCursor: onTap == null
+                ? MouseCursor.defer
+                : SystemMouseCursors.click,
             onTapDown: onTap == null
                 ? null
                 : (details) => pointerDownPosition = details.globalPosition,

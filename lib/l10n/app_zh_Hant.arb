@@ -187,6 +187,8 @@
   "feedbackServerError": "BusyStack 目前無法接收您的意見。您的意見尚未清除，請再試一次。",
   "feedbackSuccess": "意見已傳送。參考編號：{id}",
   "toggleSidebar": "顯示或隱藏側邊欄",
+  "showSidebar": "顯示側邊欄面板",
+  "hideSidebar": "隱藏側邊欄面板",
   "accounts": "帳戶",
   "currentAccount": "目前帳戶",
   "switchAccount": "切換帳戶",

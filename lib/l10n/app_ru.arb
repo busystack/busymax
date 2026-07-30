@@ -187,6 +187,8 @@
   "feedbackServerError": "BusyStack сейчас не может принять ваш отзыв. Текст отзыва сохранён. Повторите попытку.",
   "feedbackSuccess": "Отзыв отправлен. Номер: {id}",
   "toggleSidebar": "Показать или скрыть боковую панель",
+  "showSidebar": "Показать боковую панель",
+  "hideSidebar": "Скрыть боковую панель",
   "accounts": "Аккаунты",
   "currentAccount": "Текущий аккаунт",
   "switchAccount": "Сменить аккаунт",

@@ -187,6 +187,8 @@
   "feedbackServerError": "現在、BusyStack はフィードバックを受け付けられません。フィードバックは消去されていません。もう一度お試しください。",
   "feedbackSuccess": "フィードバックを送信しました。参照番号: {id}",
   "toggleSidebar": "サイドバーの表示を切り替え",
+  "showSidebar": "サイドバーパネルを表示",
+  "hideSidebar": "サイドバーパネルを非表示",
   "accounts": "アカウント",
   "currentAccount": "現在のアカウント",
   "switchAccount": "アカウントを切り替え",

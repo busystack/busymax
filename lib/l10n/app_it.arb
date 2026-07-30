@@ -187,6 +187,8 @@
   "feedbackServerError": "BusyStack non può accettare il feedback in questo momento. Il feedback non è stato cancellato; riprova.",
   "feedbackSuccess": "Feedback inviato. Riferimento: {id}",
   "toggleSidebar": "Mostra o nascondi la barra laterale",
+  "showSidebar": "Mostra il pannello laterale",
+  "hideSidebar": "Nascondi il pannello laterale",
   "accounts": "Account",
   "currentAccount": "Account attuale",
   "switchAccount": "Cambia account",

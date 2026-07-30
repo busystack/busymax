@@ -634,6 +634,12 @@ class AppLocalizationsVi extends AppLocalizations {
   String get toggleSidebar => 'Hiện hoặc ẩn thanh bên';
 
   @override
+  String get showSidebar => 'Hiện bảng bên';
+
+  @override
+  String get hideSidebar => 'Ẩn bảng bên';
+
+  @override
   String get accounts => 'Tài khoản';
 
   @override

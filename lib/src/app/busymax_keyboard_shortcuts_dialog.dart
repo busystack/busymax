@@ -76,6 +76,13 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
             filled: true,
             children: [
               BusyMaxActionRow(
+                title: l10n.toggleSidebar,
+                leading: const Icon(Icons.vertical_split_outlined),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.sidebar,
+                ),
+              ),
+              BusyMaxActionRow(
                 title: l10n.shortcutNextPeriod,
                 subtitle: l10n.shortcutNextPeriodDescription,
                 leading: const Icon(Icons.arrow_forward),
@@ -104,13 +111,6 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
             title: l10n.shortcutGroupCreateAndEdit,
             filled: true,
             children: [
-              BusyMaxActionRow(
-                title: l10n.create,
-                leading: const Icon(Icons.add),
-                trailing: const _KeyboardShortcutBadge(
-                  BusyMaxShortcutLabels.create,
-                ),
-              ),
               BusyMaxActionRow(
                 title: l10n.newEvent,
                 leading: const Icon(Icons.event_outlined),

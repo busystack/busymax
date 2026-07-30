@@ -47,7 +47,7 @@ void main() {
 
     expect(find.text('Created from Schedule'), findsNothing);
 
-    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
+    await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Task'));
     await tester.pumpAndSettle();
@@ -79,7 +79,7 @@ void main() {
       initialTaskListId: _projectListId,
     );
 
-    await tester.tap(find.byTooltip('Create (Ctrl+N)'));
+    await tester.tap(find.byTooltip('Create'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Task'));
     await tester.pumpAndSettle();

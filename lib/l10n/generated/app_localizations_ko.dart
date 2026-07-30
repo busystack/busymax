@@ -620,6 +620,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get toggleSidebar => '사이드바 표시 전환';
 
   @override
+  String get showSidebar => '사이드바 패널 표시';
+
+  @override
+  String get hideSidebar => '사이드바 패널 숨기기';
+
+  @override
   String get accounts => '계정';
 
   @override

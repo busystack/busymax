@@ -187,6 +187,8 @@
   "feedbackServerError": "BusyStack hiện không thể nhận phản hồi của bạn. Phản hồi chưa bị xóa; hãy thử lại.",
   "feedbackSuccess": "Đã gửi phản hồi. Mã tham chiếu: {id}",
   "toggleSidebar": "Hiện hoặc ẩn thanh bên",
+  "showSidebar": "Hiện bảng bên",
+  "hideSidebar": "Ẩn bảng bên",
   "accounts": "Tài khoản",
   "currentAccount": "Tài khoản hiện tại",
   "switchAccount": "Chuyển tài khoản",
