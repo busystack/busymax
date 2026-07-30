@@ -523,7 +523,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get aboutBusyMaxDescription => '캘린더와 할 일';
 
   @override
+  String get license => '라이선스';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => '웹사이트';
+
+  @override
+  String get sourceCode => '소스 코드';
 
   @override
   String get reportAnIssue => '문제 신고';

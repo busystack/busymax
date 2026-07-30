@@ -120,7 +120,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
         child: Focus(
           autofocus: true,
           child: BusyMaxModalEditorScaffold(
-            title: l10n.sendFeedback,
+            title: l10n.reportAnIssue,
             cancelLabel: l10n.cancel,
             saveLabel: l10n.feedbackSubmit,
             onCancel: () => unawaited(_cancel()),

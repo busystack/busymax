@@ -533,7 +533,16 @@ class AppLocalizationsVi extends AppLocalizations {
   String get aboutBusyMaxDescription => 'Lịch và công việc';
 
   @override
+  String get license => 'Giấy phép';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => 'Trang web';
+
+  @override
+  String get sourceCode => 'Mã nguồn';
 
   @override
   String get reportAnIssue => 'Báo cáo sự cố';

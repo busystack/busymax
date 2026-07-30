@@ -551,7 +551,16 @@ class AppLocalizationsFa extends AppLocalizations {
   String get aboutBusyMaxDescription => 'تقویم و کارها';
 
   @override
+  String get license => 'مجوز';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => 'وب‌سایت';
+
+  @override
+  String get sourceCode => 'کد منبع';
 
   @override
   String get reportAnIssue => 'گزارش مشکل';

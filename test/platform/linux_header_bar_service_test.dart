@@ -81,6 +81,7 @@ void main() {
         back: 'Back',
         settings: 'Settings',
         keyboardShortcuts: 'Keyboard Shortcuts',
+        reportIssue: 'Report an issue',
         aboutBusyMax: 'About BusyMax',
       ),
     );
@@ -138,6 +139,7 @@ void main() {
       calls[1].arguments,
       containsPair('keyboardShortcuts', 'Keyboard Shortcuts'),
     );
+    expect(calls[1].arguments, containsPair('reportIssue', 'Report an issue'));
     expect(calls[1].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
     expect(calls[2].arguments, 300);
     expect(calls[3].arguments, 'rtl');
@@ -725,12 +727,13 @@ void main() {
     final session = service.claimSession();
     addTearDown(session.dispose);
 
-    final nextAction = session.actions.take(6).toList();
+    final nextAction = session.actions.take(7).toList();
     await service.handleNativeMethodCall(const MethodCall('createEvent'));
     await service.handleNativeMethodCall(const MethodCall('createTask'));
     await service.handleNativeMethodCall(const MethodCall('continueSetup'));
     await service.handleNativeMethodCall(const MethodCall('settings'));
     await service.handleNativeMethodCall(const MethodCall('keyboardShortcuts'));
+    await service.handleNativeMethodCall(const MethodCall('reportIssue'));
     await service.handleNativeMethodCall(const MethodCall('aboutBusyMax'));
 
     expect(await nextAction, [
@@ -739,6 +742,7 @@ void main() {
       BusyMaxHeaderBarAction.continueSetup,
       BusyMaxHeaderBarAction.settings,
       BusyMaxHeaderBarAction.keyboardShortcuts,
+      BusyMaxHeaderBarAction.reportIssue,
       BusyMaxHeaderBarAction.aboutBusyMax,
     ]);
   });

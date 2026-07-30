@@ -180,6 +180,7 @@ struct _MyApplication {
   gchar* header_create_task_label;
   gchar* header_settings_label;
   gchar* header_keyboard_shortcuts_label;
+  gchar* header_report_issue_label;
   gchar* header_about_label;
   gchar* header_search_query;
   gboolean hide_on_close;
@@ -2795,6 +2796,8 @@ static void rebuild_header_settings_menu_model(MyApplication* self) {
   g_menu_append(menu, self->header_settings_label, "header.settings");
   g_menu_append(menu, self->header_keyboard_shortcuts_label,
                 "header.keyboard-shortcuts");
+  g_menu_append(menu, self->header_report_issue_label,
+                "header.report-issue");
   g_menu_append(menu, self->header_about_label, "header.about");
   set_header_menu_button_model(self->settings_menu_button, G_MENU_MODEL(menu),
                                &self->settings_menu);
@@ -2887,6 +2890,8 @@ static void initialize_header_menu_actions(MyApplication* self) {
       create_header_bridge_action(self, "settings", "settings");
   g_autoptr(GSimpleAction) keyboard_shortcuts = create_header_bridge_action(
       self, "keyboard-shortcuts", "keyboardShortcuts");
+  g_autoptr(GSimpleAction) report_issue =
+      create_header_bridge_action(self, "report-issue", "reportIssue");
   g_autoptr(GSimpleAction) about =
       create_header_bridge_action(self, "about", "aboutBusyMax");
   self->header_create_event_action =
@@ -3430,6 +3435,7 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   const gchar* settings = fl_lookup_string_arg(args, "settings");
   const gchar* keyboard_shortcuts =
       fl_lookup_string_arg(args, "keyboardShortcuts");
+  const gchar* report_issue = fl_lookup_string_arg(args, "reportIssue");
   const gchar* about_busymax = fl_lookup_string_arg(args, "aboutBusyMax");
 
   set_button_label_and_tooltip(self->today_button, today, today);
@@ -3451,6 +3457,7 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   replace_header_label(&self->header_settings_label, settings);
   replace_header_label(&self->header_keyboard_shortcuts_label,
                        keyboard_shortcuts);
+  replace_header_label(&self->header_report_issue_label, report_issue);
   replace_header_label(&self->header_about_label, about_busymax);
   rebuild_header_menu_models(self);
 }
@@ -5080,6 +5087,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_create_task_label, g_free);
   g_clear_pointer(&self->header_settings_label, g_free);
   g_clear_pointer(&self->header_keyboard_shortcuts_label, g_free);
+  g_clear_pointer(&self->header_report_issue_label, g_free);
   g_clear_pointer(&self->header_about_label, g_free);
   g_clear_pointer(&self->header_search_query, g_free);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
@@ -5186,6 +5194,7 @@ static void my_application_init(MyApplication* self) {
   self->header_create_task_label = g_strdup("Task");
   self->header_settings_label = g_strdup("Settings");
   self->header_keyboard_shortcuts_label = g_strdup("Keyboard Shortcuts");
+  self->header_report_issue_label = g_strdup("Report an issue");
   self->header_about_label = g_strdup("About BusyMax");
   self->header_search_query = g_strdup("");
   self->header_search_active = FALSE;

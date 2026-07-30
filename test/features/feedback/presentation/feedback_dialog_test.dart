@@ -42,6 +42,7 @@ void main() {
     });
     await _pumpDialog(tester, service);
 
+    expect(find.text('Report an issue'), findsOneWidget);
     for (final key in const [
       'feedback-subject',
       'feedback-message',

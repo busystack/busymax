@@ -18,6 +18,7 @@ import '../../../app/busymax_surface_colors.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../features/calendar/data/calendar_repository.dart';
+import '../../../features/feedback/presentation/feedback_dialog.dart';
 import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
@@ -712,6 +713,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _handleHeaderBarAction(BusyMaxHeaderBarAction.settings);
       case ScheduleToolbarMenuAction.keyboardShortcuts:
         _handleHeaderBarAction(BusyMaxHeaderBarAction.keyboardShortcuts);
+      case ScheduleToolbarMenuAction.reportIssue:
+        _handleHeaderBarAction(BusyMaxHeaderBarAction.reportIssue);
       case ScheduleToolbarMenuAction.about:
         _handleHeaderBarAction(BusyMaxHeaderBarAction.aboutBusyMax);
     }
@@ -845,13 +848,18 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             headerBarService: ref.read(linuxHeaderBarServiceProvider),
           ),
         );
+      case BusyMaxHeaderBarAction.reportIssue:
+        unawaited(
+          showBusyMaxFeedbackDialog(
+            context,
+            submissionService: ref.read(feedbackSubmissionServiceProvider),
+            headerBarService: ref.read(linuxHeaderBarServiceProvider),
+          ),
+        );
       case BusyMaxHeaderBarAction.aboutBusyMax:
         unawaited(
           showBusyMaxAboutDialog(
             context,
-            feedbackSubmissionService: ref.read(
-              feedbackSubmissionServiceProvider,
-            ),
             headerBarService: ref.read(linuxHeaderBarServiceProvider),
           ),
         );

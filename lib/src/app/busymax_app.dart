@@ -252,6 +252,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       back: materialL10n.backButtonTooltip,
       settings: l10n.settings,
       keyboardShortcuts: l10n.keyboardShortcuts,
+      reportIssue: l10n.reportAnIssue,
       aboutBusyMax: l10n.aboutBusyMax,
     );
     _headerBarConfigurationSynchronizer.schedule(

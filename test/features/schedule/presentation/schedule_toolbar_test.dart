@@ -211,12 +211,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(3),
+      findsNWidgets(4),
     );
     expect(find.byType(YaruRadio<int>), findsNothing);
+    expect(find.text('Report an issue'), findsOneWidget);
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     expect(selectedMenuAction, ScheduleToolbarMenuAction.settings);
+
+    await tester.tap(find.byTooltip('Main Menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report an issue'));
+    await tester.pumpAndSettle();
+    expect(selectedMenuAction, ScheduleToolbarMenuAction.reportIssue);
   });
 
   testWidgets('compact fallback moves refresh into the main menu', (
@@ -260,7 +267,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(4),
+      findsNWidgets(5),
     );
     await tester.tap(find.text('Refresh all'));
     await tester.pumpAndSettle();

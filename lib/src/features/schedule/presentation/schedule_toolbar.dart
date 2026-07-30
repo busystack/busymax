@@ -9,7 +9,13 @@ import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_range.dart';
 import '../../../schedule/schedule_view_mode.dart';
 
-enum ScheduleToolbarMenuAction { refresh, settings, keyboardShortcuts, about }
+enum ScheduleToolbarMenuAction {
+  refresh,
+  settings,
+  keyboardShortcuts,
+  reportIssue,
+  about,
+}
 
 enum _ScheduleCreateAction { event, task }
 
@@ -180,6 +186,11 @@ class ScheduleToolbar extends StatelessWidget {
                       value: ScheduleToolbarMenuAction.keyboardShortcuts,
                       label: context.l10n.keyboardShortcuts,
                       icon: Icons.keyboard_alt_outlined,
+                    ),
+                    BusyMaxMenuEntry(
+                      value: ScheduleToolbarMenuAction.reportIssue,
+                      label: context.l10n.reportAnIssue,
+                      icon: YaruIcons.warning,
                     ),
                     BusyMaxMenuEntry(
                       value: ScheduleToolbarMenuAction.about,

@@ -655,6 +655,23 @@ void main() {
       );
       expect(
         source,
+        contains(
+          'g_menu_append(menu, self->header_report_issue_label,\n'
+          '                "header.report-issue")',
+        ),
+      );
+      expect(
+        source.indexOf('self->header_report_issue_label'),
+        lessThan(source.indexOf('self->header_about_label')),
+      );
+      expect(
+        source,
+        contains(
+          'create_header_bridge_action(self, "report-issue", "reportIssue")',
+        ),
+      );
+      expect(
+        source,
         contains('create_header_bridge_action(self, "about", "aboutBusyMax")'),
       );
       expect(source, isNot(contains('settingsAccounts')));

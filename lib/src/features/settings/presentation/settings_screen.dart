@@ -24,6 +24,7 @@ import '../../../task_providers/task_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
+import '../../feedback/presentation/feedback_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import 'account_removal_dialog.dart';
@@ -384,13 +385,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       );
       return;
     }
+    if (action == BusyMaxHeaderBarAction.reportIssue) {
+      unawaited(
+        showBusyMaxFeedbackDialog(
+          context,
+          submissionService: ref.read(feedbackSubmissionServiceProvider),
+          headerBarService: ref.read(linuxHeaderBarServiceProvider),
+        ),
+      );
+      return;
+    }
     if (action == BusyMaxHeaderBarAction.aboutBusyMax) {
       unawaited(
         showBusyMaxAboutDialog(
           context,
-          feedbackSubmissionService: ref.read(
-            feedbackSubmissionServiceProvider,
-          ),
           headerBarService: ref.read(linuxHeaderBarServiceProvider),
         ),
       );

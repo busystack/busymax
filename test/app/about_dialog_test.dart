@@ -26,10 +26,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('BusyMax'), findsOneWidget);
-    expect(find.text('ToDo and Calendar'), findsOneWidget);
+    expect(find.text('Calendar and tasks'), findsOneWidget);
+    expect(find.text('License'), findsOneWidget);
+    expect(find.text('Apache License 2.0'), findsOneWidget);
     expect(find.text('Website'), findsOneWidget);
-    expect(find.text('Send feedback'), findsOneWidget);
-    expect(find.text('Report an issue'), findsOneWidget);
+    expect(find.text('https://busystack.org'), findsOneWidget);
+    expect(find.text('Source code'), findsOneWidget);
+    expect(find.text('https://github.com/busystack/busymax/'), findsOneWidget);
+    expect(find.text('Send feedback'), findsNothing);
+    expect(find.text('Report an issue'), findsNothing);
     expect(find.text('v1.2.3+45'), findsOneWidget);
     expect(find.byType(YaruDialogTitleBar), findsOneWidget);
     expect(find.byType(YaruWindowControl), findsOneWidget);
@@ -114,7 +119,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
-        expect(find.text('Report an issue').hitTestable(), findsOneWidget);
+        expect(find.text('Source code').hitTestable(), findsOneWidget);
         expect(closeButton.hitTestable(), findsOneWidget);
         expect(tester.getTopLeft(closeButton), closePosition);
       },
@@ -312,13 +317,15 @@ void main() {
     });
   }
 
-  test('about links point to BusyStack repository', () {
+  test('about links match the BusyStack product metadata', () {
     final source = File(
       'lib/src/app/busymax_about_dialog.dart',
     ).readAsStringSync();
 
+    expect(source, contains('https://busystack.org'));
     expect(source, contains('https://github.com/busystack/busymax'));
-    expect(source, contains('https://github.com/busystack/busymax/issues'));
+    expect(source, contains('https://www.apache.org/licenses/LICENSE-2.0'));
+    expect(source, isNot(contains('/issues')));
     expect(source, isNot(contains('https://github.com/albertgee/busymax')));
   });
 

@@ -26,6 +26,7 @@ enum BusyMaxHeaderBarAction {
   refresh,
   settings,
   keyboardShortcuts,
+  reportIssue,
   aboutBusyMax,
 }
 
@@ -81,6 +82,7 @@ class BusyMaxHeaderBarLabels {
     required this.back,
     required this.settings,
     required this.keyboardShortcuts,
+    required this.reportIssue,
     required this.aboutBusyMax,
   });
 
@@ -102,6 +104,7 @@ class BusyMaxHeaderBarLabels {
   final String back;
   final String settings;
   final String keyboardShortcuts;
+  final String reportIssue;
   final String aboutBusyMax;
 
   Map<String, String> toJson() {
@@ -124,6 +127,7 @@ class BusyMaxHeaderBarLabels {
       'back': back,
       'settings': settings,
       'keyboardShortcuts': keyboardShortcuts,
+      'reportIssue': reportIssue,
       'aboutBusyMax': aboutBusyMax,
     };
   }
@@ -150,6 +154,7 @@ class BusyMaxHeaderBarLabels {
             back == other.back &&
             settings == other.settings &&
             keyboardShortcuts == other.keyboardShortcuts &&
+            reportIssue == other.reportIssue &&
             aboutBusyMax == other.aboutBusyMax;
   }
 
@@ -173,6 +178,7 @@ class BusyMaxHeaderBarLabels {
     back,
     settings,
     keyboardShortcuts,
+    reportIssue,
     aboutBusyMax,
   );
 }
@@ -669,6 +675,7 @@ class LinuxHeaderBarService {
       'refresh' => BusyMaxHeaderBarAction.refresh,
       'settings' => BusyMaxHeaderBarAction.settings,
       'keyboardShortcuts' => BusyMaxHeaderBarAction.keyboardShortcuts,
+      'reportIssue' => BusyMaxHeaderBarAction.reportIssue,
       'aboutBusyMax' => BusyMaxHeaderBarAction.aboutBusyMax,
       _ => null,
     };

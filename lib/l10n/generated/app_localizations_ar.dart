@@ -543,7 +543,16 @@ class AppLocalizationsAr extends AppLocalizations {
   String get aboutBusyMaxDescription => 'التقويم والمهام';
 
   @override
+  String get license => 'الترخيص';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => 'الموقع الإلكتروني';
+
+  @override
+  String get sourceCode => 'الشيفرة المصدرية';
 
   @override
   String get reportAnIssue => 'الإبلاغ عن مشكلة';

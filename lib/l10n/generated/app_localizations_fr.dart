@@ -534,7 +534,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutBusyMaxDescription => 'Calendrier et tâches';
 
   @override
+  String get license => 'Licence';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => 'Site web';
+
+  @override
+  String get sourceCode => 'Code source';
 
   @override
   String get reportAnIssue => 'Signaler un problème';

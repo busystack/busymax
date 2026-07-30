@@ -1074,11 +1074,29 @@ abstract class AppLocalizations {
   /// **'Calendar and tasks'**
   String get aboutBusyMaxDescription;
 
+  /// No description provided for @license.
+  ///
+  /// In en, this message translates to:
+  /// **'License'**
+  String get license;
+
+  /// No description provided for @apacheLicenseName.
+  ///
+  /// In en, this message translates to:
+  /// **'Apache License 2.0'**
+  String get apacheLicenseName;
+
   /// No description provided for @website.
   ///
   /// In en, this message translates to:
   /// **'Website'**
   String get website;
+
+  /// No description provided for @sourceCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Source code'**
+  String get sourceCode;
 
   /// No description provided for @reportAnIssue.
   ///

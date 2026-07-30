@@ -537,7 +537,16 @@ class AppLocalizationsRu extends AppLocalizations {
   String get aboutBusyMaxDescription => 'Календарь и задачи';
 
   @override
+  String get license => 'Лицензия';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => 'Веб-сайт';
+
+  @override
+  String get sourceCode => 'Исходный код';
 
   @override
   String get reportAnIssue => 'Сообщить о проблеме';

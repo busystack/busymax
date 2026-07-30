@@ -5,44 +5,29 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yaru/yaru.dart';
 
-import '../features/feedback/data/feedback_api_client.dart';
-import '../features/feedback/presentation/feedback_dialog.dart';
 import '../l10n/l10n.dart';
 import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
 import 'busymax_dialog_identity.dart';
 import 'busymax_dialogs.dart';
-import 'busymax_glyphs.dart';
 
-const _busyMaxWebsiteUri = 'https://github.com/busystack/busymax';
-const _busyMaxIssuesUri = 'https://github.com/busystack/busymax/issues';
+const _busyMaxWebsiteUrl = 'https://busystack.org';
+const _busyMaxRepositoryUrl = 'https://github.com/busystack/busymax/';
+const _apacheLicenseUrl = 'https://www.apache.org/licenses/LICENSE-2.0';
 
 Future<void> showBusyMaxAboutDialog(
   BuildContext context, {
-  required FeedbackSubmissionService feedbackSubmissionService,
   LinuxHeaderBarService? headerBarService,
-}) async {
-  final action = await showBusyMaxModalDialog<_BusyMaxAboutAction>(
+}) {
+  return showBusyMaxModalDialog<void>(
     context,
     headerBarService: headerBarService,
-    builder: (dialogContext) => BusyMaxAboutDialog(
-      onSendFeedback: () =>
-          Navigator.of(dialogContext).pop(_BusyMaxAboutAction.sendFeedback),
-    ),
+    builder: (dialogContext) => const BusyMaxAboutDialog(),
   );
-  if (action == _BusyMaxAboutAction.sendFeedback && context.mounted) {
-    await showBusyMaxFeedbackDialog(
-      context,
-      submissionService: feedbackSubmissionService,
-      headerBarService: headerBarService,
-    );
-  }
 }
 
 class BusyMaxAboutDialog extends StatelessWidget {
-  const BusyMaxAboutDialog({super.key, this.onSendFeedback});
-
-  final VoidCallback? onSendFeedback;
+  const BusyMaxAboutDialog({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -79,38 +64,34 @@ class BusyMaxAboutDialog extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: BusyMaxSpacing.lg),
+          const SizedBox(height: BusyMaxSpacing.md),
           BusyMaxGroupedList(
             filled: true,
             children: [
               BusyMaxActionRow(
+                title: l10n.license,
+                subtitle: l10n.apacheLicenseName,
+                leading: const Icon(YaruIcons.information),
+                trailing: const Icon(YaruIcons.external_link),
+                onTap: () =>
+                    unawaited(_openExternalUri(Uri.parse(_apacheLicenseUrl))),
+              ),
+              BusyMaxActionRow(
                 title: l10n.website,
-                leading: const Icon(Icons.language),
-                trailing: const Icon(
-                  Icons.open_in_new,
-                  size: BusyMaxSizes.iconSm,
-                ),
+                subtitle: _busyMaxWebsiteUrl,
+                leading: const Icon(YaruIcons.home),
+                trailing: const Icon(YaruIcons.external_link),
                 onTap: () =>
-                    unawaited(_openExternalUri(Uri.parse(_busyMaxWebsiteUri))),
+                    unawaited(_openExternalUri(Uri.parse(_busyMaxWebsiteUrl))),
               ),
               BusyMaxActionRow(
-                title: l10n.sendFeedback,
-                leading: const Icon(Icons.feedback_outlined),
-                trailing: Icon(
-                  BusyMaxGlyphs.chevronForwardFor(Directionality.of(context)),
-                  size: BusyMaxSizes.iconSm,
+                title: l10n.sourceCode,
+                subtitle: _busyMaxRepositoryUrl,
+                leading: const Icon(YaruIcons.code),
+                trailing: const Icon(YaruIcons.external_link),
+                onTap: () => unawaited(
+                  _openExternalUri(Uri.parse(_busyMaxRepositoryUrl)),
                 ),
-                onTap: onSendFeedback,
-              ),
-              BusyMaxActionRow(
-                title: l10n.reportAnIssue,
-                leading: const Icon(YaruIcons.warning),
-                trailing: const Icon(
-                  Icons.open_in_new,
-                  size: BusyMaxSizes.iconSm,
-                ),
-                onTap: () =>
-                    unawaited(_openExternalUri(Uri.parse(_busyMaxIssuesUri))),
               ),
             ],
           ),
@@ -119,8 +100,6 @@ class BusyMaxAboutDialog extends StatelessWidget {
     );
   }
 }
-
-enum _BusyMaxAboutAction { sendFeedback }
 
 class _BusyMaxLogo extends StatelessWidget {
   const _BusyMaxLogo();

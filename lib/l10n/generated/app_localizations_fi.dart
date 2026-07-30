@@ -534,7 +534,16 @@ class AppLocalizationsFi extends AppLocalizations {
   String get aboutBusyMaxDescription => 'Kalenteri ja tehtävät';
 
   @override
+  String get license => 'Lisenssi';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => 'Verkkosivusto';
+
+  @override
+  String get sourceCode => 'Lähdekoodi';
 
   @override
   String get reportAnIssue => 'Ilmoita ongelmasta';

@@ -536,7 +536,16 @@ class AppLocalizationsHi extends AppLocalizations {
   String get aboutBusyMaxDescription => 'कैलेंडर और कार्य';
 
   @override
+  String get license => 'लाइसेंस';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => 'वेबसाइट';
+
+  @override
+  String get sourceCode => 'स्रोत कोड';
 
   @override
   String get reportAnIssue => 'समस्या की रिपोर्ट करें';

@@ -119,6 +119,7 @@ BusyMaxHeaderBarConfiguration _configuration({required bool dark}) {
       back: 'Back',
       settings: 'Settings',
       keyboardShortcuts: 'Keyboard shortcuts',
+      reportIssue: 'Report an issue',
       aboutBusyMax: 'About BusyMax',
     ),
     sidebarWidth: 300,

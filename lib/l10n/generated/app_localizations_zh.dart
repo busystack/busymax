@@ -519,7 +519,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutBusyMaxDescription => '日历和任务';
 
   @override
+  String get license => '许可证';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => '网站';
+
+  @override
+  String get sourceCode => '源代码';
 
   @override
   String get reportAnIssue => '报告问题';
@@ -1774,7 +1783,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get aboutBusyMaxDescription => '日历和任务';
 
   @override
+  String get license => '许可证';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => '网站';
+
+  @override
+  String get sourceCode => '源代码';
 
   @override
   String get reportAnIssue => '报告问题';
@@ -3029,7 +3047,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutBusyMaxDescription => '行事曆與待辦事項';
 
   @override
+  String get license => '授權';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
+
+  @override
   String get website => '網站';
+
+  @override
+  String get sourceCode => '原始碼';
 
   @override
   String get reportAnIssue => '回報問題';
