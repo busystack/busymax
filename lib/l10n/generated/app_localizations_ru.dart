@@ -21,11 +21,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get googlePermissionsConsentNotice =>
-      'На экране разрешений Google выберите разрешения и для Календаря, и для Задач.';
+      'На экране запроса доступа Google установите флажки «Google Календарь» и «Google Задачи».';
 
   @override
   String get googlePermissionsRequiredRetry =>
-      'Необходимы разрешения для Google Календаря и Google Tasks. Повторите попытку и установите оба флажка.';
+      'BusyMax требуется доступ к Google Календарю и Google Задачам. Повторите попытку и установите оба флажка.';
 
   @override
   String get finishSetup => 'Завершить настройку';
@@ -174,10 +174,11 @@ class AppLocalizationsRu extends AppLocalizations {
       'Попробуйте изменить запрос или сбросить текущие фильтры.';
 
   @override
-  String get trayAgendaLoading => 'Загрузка повестки...';
+  String get trayAgendaLoading => 'Загрузка расписания...';
 
   @override
-  String get trayAgendaSignInRequired => 'Войдите, чтобы просмотреть повестку.';
+  String get trayAgendaSignInRequired =>
+      'Войдите, чтобы просмотреть расписание.';
 
   @override
   String get trayAgendaNoSources => 'Нет видимых календарей или списков задач.';
@@ -189,10 +190,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get trayAgendaRefresh => 'Обновить';
 
   @override
-  String get trayAgendaError => 'Повестка недоступна';
+  String get trayAgendaError => 'Расписание недоступно';
 
   @override
-  String get compactAgendaTitle => 'Повестка';
+  String get compactAgendaTitle => 'Расписание';
 
   @override
   String get compactAgendaSubtitle => 'Предстоящие';
@@ -201,7 +202,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get compactAgendaOverdue => 'Просроченные';
 
   @override
-  String get compactAgendaClear => 'На ближайшее время всё свободно';
+  String get compactAgendaClear => 'На ближайшее время ничего нет';
 
   @override
   String get compactAgendaOpenBusyMax => 'Открыть BusyMax';
@@ -222,14 +223,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get compactAgendaAllDay => 'Весь день';
 
   @override
-  String get compactAgendaDueToday => 'Срок сегодня';
+  String get compactAgendaDueToday => 'Срок — сегодня';
 
   @override
-  String get compactAgendaDueTomorrow => 'Срок завтра';
+  String get compactAgendaDueTomorrow => 'Срок — завтра';
 
   @override
   String compactAgendaDueOn(String date) {
-    return 'Срок: $date';
+    return 'Срок — $date';
   }
 
   @override
@@ -254,7 +255,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get viewYear => 'Год';
 
   @override
-  String get viewAgenda => 'Повестка';
+  String get viewAgenda => 'Расписание';
 
   @override
   String get scheduleSettings => 'Расписание';
@@ -321,7 +322,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get description => 'Описание';
 
   @override
-  String get availabilityShowAs => 'Доступность / Показывать как';
+  String get availabilityShowAs => 'Показывать как';
 
   @override
   String get busy => 'Занят';
@@ -408,10 +409,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get availabilityTentative => 'Под вопросом';
 
   @override
-  String get availabilityOutOfOffice => 'Не на работе';
+  String get availabilityOutOfOffice => 'Нет на рабочем месте';
 
   @override
-  String get availabilityWorkingElsewhere => 'Работает в другом месте';
+  String get availabilityWorkingElsewhere => 'Работа в другом месте';
 
   @override
   String get visibilityDefault => 'По умолчанию';
@@ -479,7 +480,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Предыдущая неделя в представлении недели, предыдущий месяц в представлении месяца и так далее';
 
   @override
-  String get shortcutJumpToToday => 'Перейти к сегодняшней дате';
+  String get shortcutJumpToToday => 'Перейти к сегодняшнему дню';
 
   @override
   String get shortcutGroupView => 'Представление';
@@ -497,7 +498,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get shortcutYearView => 'Представление года';
 
   @override
-  String get shortcutAgendaView => 'Представление повестки';
+  String get shortcutAgendaView => 'Расписание';
 
   @override
   String get shortcutGroupCreateAndEdit => 'Создание и редактирование';
@@ -519,21 +520,21 @@ class AppLocalizationsRu extends AppLocalizations {
       'Выйти из режима редактирования задачи или закрыть сведения о ней';
 
   @override
-  String get shortcutGroupCompactAgenda => 'Компактная повестка';
+  String get shortcutGroupCompactAgenda => 'Компактное расписание';
 
   @override
   String get shortcutRefreshCompactAgendaDescription =>
-      'Обновить окно компактной повестки';
+      'Обновить окно компактного расписания';
 
   @override
   String get shortcutHideCompactAgendaDescription =>
-      'Скрыть окно компактной повестки';
+      'Скрыть окно компактного расписания';
 
   @override
   String get aboutBusyMax => 'О приложении BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'Задачи и календарь';
+  String get aboutBusyMaxDescription => 'Календарь и задачи';
 
   @override
   String get website => 'Веб-сайт';
@@ -584,7 +585,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Будут добавлены только версия операционной системы Linux и локаль приложения. Журналы, данные аккаунтов, имена файлов и другие диагностические сведения не включаются.';
+      'Будут добавлены только версия Linux и выбранный язык приложения. Журналы, данные аккаунтов, имена файлов и другие диагностические сведения не добавляются.';
 
   @override
   String get feedbackCategoryRequired => 'Выберите категорию.';
@@ -607,7 +608,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get feedbackTimeoutError =>
-      'Время ожидания запроса истекло. Ваш отзыв не был удалён. Повторите попытку.';
+      'Время ожидания запроса истекло. Текст отзыва сохранён. Повторите попытку.';
 
   @override
   String get feedbackRateLimitedError =>
@@ -619,7 +620,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get feedbackServerError =>
-      'BusyStack сейчас не может принять ваш отзыв. Ваш отзыв не был удалён. Повторите попытку.';
+      'BusyStack сейчас не может принять ваш отзыв. Текст отзыва сохранён. Повторите попытку.';
 
   @override
   String feedbackSuccess(String id) {
@@ -741,7 +742,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get newTask => 'Новая задача';
 
   @override
-  String get clearCompleted => 'Удалить завершённые';
+  String get clearCompleted => 'Удалить выполненные';
 
   @override
   String get refreshList => 'Обновить список';
@@ -806,7 +807,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noDate => 'Без даты';
 
   @override
-  String get completed => 'Завершённые';
+  String get completed => 'Выполненные';
 
   @override
   String duePrefix(String date) {
@@ -1064,26 +1065,25 @@ class AppLocalizationsRu extends AppLocalizations {
   String get taskReminders => 'Напоминания о задачах';
 
   @override
-  String get notificationDetailLevel => 'Уровень детализации уведомлений';
+  String get notificationDetailLevel => 'Содержимое уведомлений';
 
   @override
-  String get notificationDetailPrivate => 'Конфиденциальный';
+  String get notificationDetailPrivate => 'Скрывать подробности';
 
   @override
-  String get notificationDetailNormal => 'Обычный';
+  String get notificationDetailNormal => 'Показывать подробности';
 
   @override
-  String get quietHours => 'Период тишины';
+  String get quietHours => 'Период без уведомлений';
 
   @override
-  String get quietHoursDescription =>
-      'Приостановить уведомления на этот период.';
+  String get quietHoursDescription => 'Не показывать уведомления в это время.';
 
   @override
-  String get quietHoursStart => 'Начало периода тишины';
+  String get quietHoursStart => 'Начало периода';
 
   @override
-  String get quietHoursEnd => 'Конец периода тишины';
+  String get quietHoursEnd => 'Конец периода';
 
   @override
   String get notifications => 'Уведомления';
@@ -1107,13 +1107,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get themeFamily => 'Семейство тем';
 
   @override
-  String get themeFamilyYaru => 'Нативная тема Ubuntu (Yaru)';
+  String get themeFamilyYaru => 'Стандартная тема Ubuntu (Yaru)';
 
   @override
-  String get localization => 'Локализация';
+  String get localization => 'Язык';
 
   @override
-  String get currentLocale => 'Текущая локаль';
+  String get currentLocale => 'Язык приложения';
 
   @override
   String get privacy => 'Конфиденциальность';
@@ -1150,15 +1150,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get requiresTasksScope => 'Требуется область разрешений tasks';
 
   @override
-  String get blockedPendingOperations => 'Заблокированные ожидающие операции';
+  String get blockedPendingOperations => 'Заблокированные операции';
 
   @override
   String get signInToInspectPendingOperations =>
       'Войдите, чтобы просмотреть ожидающие операции.';
 
   @override
-  String get noBlockedPendingOperations =>
-      'Заблокированных ожидающих операций нет.';
+  String get noBlockedPendingOperations => 'Заблокированных операций нет.';
 
   @override
   String get operationActions => 'Действия с операцией';
@@ -1195,14 +1194,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get retryCompleted => 'Повторная попытка завершена.';
 
   @override
-  String get discardPendingOperation => 'Отменить ожидающую операцию?';
+  String get discardPendingOperation => 'Удалить заблокированную операцию?';
 
   @override
   String get discardPendingOperationConfirmation =>
       'Заблокированная локальная операция будет удалена. При следующей синхронизации данные будут заново загружены из Google Tasks.';
 
   @override
-  String get pendingOperationDiscarded => 'Ожидающая операция отменена.';
+  String get pendingOperationDiscarded => 'Заблокированная операция удалена.';
 
   @override
   String get syncFailureNotificationTitle => 'Сбой синхронизации BusyMax';
@@ -1217,7 +1216,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return 'Ожидающее локальное изменение было заблокировано. $summary';
+    return 'Локальное изменение не удалось синхронизировать. $summary';
   }
 
   @override
@@ -1280,17 +1279,17 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get resizeAllDayPanel => 'Изменить размер панели событий на весь день';
+  String get resizeAllDayPanel => 'Изменить размер панели «Весь день»';
 
   @override
   String scheduleItemCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count элемента',
-      many: '$count элементов',
-      few: '$count элемента',
-      one: '$count элемент',
+      other: '$count записи',
+      many: '$count записей',
+      few: '$count записи',
+      one: '$count запись',
     );
     return '$_temp0';
   }
@@ -1302,10 +1301,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get selectTimeZone => 'Выберите часовой пояс';
 
   @override
-  String get searchLocations => 'Поиск мест';
+  String get searchLocations => 'Поиск города';
 
   @override
-  String get noLocationsFound => 'Места не найдены';
+  String get noLocationsFound => 'Ничего не найдено';
 
   @override
   String deleteCalendarConfirmation(String title) {

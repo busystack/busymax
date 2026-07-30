@@ -1071,7 +1071,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutBusyMaxDescription.
   ///
   /// In en, this message translates to:
-  /// **'ToDo and Calendar'**
+  /// **'Calendar and tasks'**
   String get aboutBusyMaxDescription;
 
   /// No description provided for @website.

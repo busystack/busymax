@@ -516,7 +516,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutBusyMax => '关于 BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => '任务和日历';
+  String get aboutBusyMaxDescription => '日历和任务';
 
   @override
   String get website => '网站';
@@ -1771,7 +1771,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get aboutBusyMax => '关于 BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => '任务和日历';
+  String get aboutBusyMaxDescription => '日历和任务';
 
   @override
   String get website => '网站';
@@ -3026,7 +3026,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutBusyMax => '關於 BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => '待辦事項和行事曆';
+  String get aboutBusyMaxDescription => '行事曆與待辦事項';
 
   @override
   String get website => '網站';

@@ -520,7 +520,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get aboutBusyMax => 'BusyMax について';
 
   @override
-  String get aboutBusyMaxDescription => 'タスクとカレンダー';
+  String get aboutBusyMaxDescription => 'カレンダーとタスク';
 
   @override
   String get website => 'ウェブサイト';

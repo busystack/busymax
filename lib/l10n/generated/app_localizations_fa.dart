@@ -548,7 +548,7 @@ class AppLocalizationsFa extends AppLocalizations {
   String get aboutBusyMax => 'دربارهٔ BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'کارها و تقویم';
+  String get aboutBusyMaxDescription => 'تقویم و کارها';
 
   @override
   String get website => 'وب‌سایت';

@@ -520,7 +520,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get aboutBusyMax => 'BusyMax 정보';
 
   @override
-  String get aboutBusyMaxDescription => '할 일 및 캘린더';
+  String get aboutBusyMaxDescription => '캘린더와 할 일';
 
   @override
   String get website => '웹사이트';

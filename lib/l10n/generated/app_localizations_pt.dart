@@ -532,7 +532,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get aboutBusyMax => 'Acerca do BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'Tarefas e calendário';
+  String get aboutBusyMaxDescription => 'Calendário e tarefas';
 
   @override
   String get website => 'Site';

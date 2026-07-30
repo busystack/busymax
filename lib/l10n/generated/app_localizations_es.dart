@@ -532,7 +532,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get aboutBusyMax => 'Acerca de BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'Tareas y calendario';
+  String get aboutBusyMaxDescription => 'Calendario y tareas';
 
   @override
   String get website => 'Sitio web';

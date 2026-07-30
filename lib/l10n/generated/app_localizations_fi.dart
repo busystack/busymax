@@ -531,7 +531,7 @@ class AppLocalizationsFi extends AppLocalizations {
   String get aboutBusyMax => 'Tietoja BusyMaxista';
 
   @override
-  String get aboutBusyMaxDescription => 'Tehtävät ja kalenteri';
+  String get aboutBusyMaxDescription => 'Kalenteri ja tehtävät';
 
   @override
   String get website => 'Verkkosivusto';

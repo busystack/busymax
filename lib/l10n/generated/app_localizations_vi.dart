@@ -530,7 +530,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get aboutBusyMax => 'Giới thiệu BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'Công việc và lịch';
+  String get aboutBusyMaxDescription => 'Lịch và công việc';
 
   @override
   String get website => 'Trang web';

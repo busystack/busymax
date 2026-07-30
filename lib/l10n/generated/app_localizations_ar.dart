@@ -540,7 +540,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get aboutBusyMax => 'حول BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'المهام والتقويم';
+  String get aboutBusyMaxDescription => 'التقويم والمهام';
 
   @override
   String get website => 'الموقع الإلكتروني';

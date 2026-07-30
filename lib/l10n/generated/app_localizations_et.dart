@@ -531,7 +531,7 @@ class AppLocalizationsEt extends AppLocalizations {
   String get aboutBusyMax => 'Teave BusyMaxi kohta';
 
   @override
-  String get aboutBusyMaxDescription => 'Ülesanded ja kalender';
+  String get aboutBusyMaxDescription => 'Kalender ja ülesanded';
 
   @override
   String get website => 'Veebisait';
