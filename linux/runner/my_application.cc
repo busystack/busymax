@@ -177,11 +177,14 @@ struct _MyApplication {
   GSimpleAction* header_create_event_action;
   GSimpleAction* header_create_task_action;
   gchar* header_view_mode;
+  gchar* header_title_text;
   gchar* header_day_label;
   gchar* header_week_label;
   gchar* header_month_label;
   gchar* header_year_label;
   gchar* header_agenda_label;
+  gchar* header_show_sidebar_panel_label;
+  gchar* header_hide_sidebar_panel_label;
   gchar* header_create_event_label;
   gchar* header_create_task_label;
   gchar* header_settings_label;
@@ -193,6 +196,7 @@ struct _MyApplication {
   gchar* header_month_shortcut;
   gchar* header_year_shortcut;
   gchar* header_agenda_shortcut;
+  gchar* header_sidebar_shortcut;
   gchar* header_create_event_shortcut;
   gchar* header_create_task_shortcut;
   gchar* header_settings_shortcut;
@@ -211,6 +215,7 @@ struct _MyApplication {
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
 static void schedule_header_bar_focus_state_refresh(MyApplication* self);
+static void update_header_control_visibility(MyApplication* self);
 
 static void style_native_popover(GtkWidget* popover) {
   if (popover == nullptr || !GTK_IS_POPOVER(popover)) {
@@ -3298,11 +3303,43 @@ static void set_header_view_mode_labels(MyApplication* self,
   update_header_view_mode_presentation(self);
 }
 
-static void set_header_title(MyApplication* self, const gchar* title) {
-  if (self->header_title_label != nullptr &&
-      GTK_IS_LABEL(self->header_title_label) && title != nullptr) {
-    gtk_label_set_text(GTK_LABEL(self->header_title_label), title);
+static void update_header_title_fit(MyApplication* self) {
+  if (self->header_title_label == nullptr ||
+      !GTK_IS_LABEL(self->header_title_label) ||
+      self->header_title_text == nullptr || self->header_search_active) {
+    return;
   }
+  const gint available_width =
+      self->header_title_stack != nullptr &&
+              GTK_IS_WIDGET(self->header_title_stack)
+          ? gtk_widget_get_allocated_width(self->header_title_stack)
+          : gtk_widget_get_allocated_width(self->header_title_label);
+  PangoLayout* layout = gtk_widget_create_pango_layout(
+      self->header_title_label, self->header_title_text);
+  gint title_width = 0;
+  pango_layout_get_pixel_size(layout, &title_width, nullptr);
+  g_object_unref(layout);
+  const gchar* visible_title =
+      available_width <= 0 || title_width <= available_width
+          ? self->header_title_text
+          : "";
+  if (g_strcmp0(gtk_label_get_text(GTK_LABEL(self->header_title_label)),
+                visible_title) != 0) {
+    gtk_label_set_text(GTK_LABEL(self->header_title_label), visible_title);
+  }
+}
+
+static gboolean update_header_title_fit_cb(gpointer user_data) {
+  update_header_title_fit(MY_APPLICATION(user_data));
+  return G_SOURCE_REMOVE;
+}
+
+static void set_header_title(MyApplication* self, const gchar* title) {
+  if (title == nullptr) {
+    return;
+  }
+  replace_header_label(&self->header_title_text, title);
+  update_header_title_fit(self);
 }
 
 static gboolean focus_header_search_entry(MyApplication* self) {
@@ -3345,6 +3382,8 @@ static void set_header_search_state(MyApplication* self,
     }
   }
   self->suppress_header_bar_actions = previous_suppression;
+  update_header_control_visibility(self);
+  update_header_title_fit(self);
 
   if (!active_changed) {
     return;
@@ -3453,6 +3492,8 @@ static void header_bar_size_allocate_cb(GtkWidget*,
   g_idle_add_full(
       G_PRIORITY_DEFAULT_IDLE, recenter_onboarding_header_controls_cb,
       g_object_ref(user_data), g_object_unref);
+  g_idle_add_full(G_PRIORITY_DEFAULT_IDLE, update_header_title_fit_cb,
+                  g_object_ref(user_data), g_object_unref);
 }
 
 static void update_header_control_visibility(MyApplication* self) {
@@ -3467,14 +3508,18 @@ static void update_header_control_visibility(MyApplication* self) {
   set_widget_visible(self->sidebar_collapsed_toggle_button,
                      schedule_controls_visible &&
                          self->header_bar_can_show_sidebar);
-  set_widget_visible(self->today_button, schedule_controls_visible);
+  set_widget_visible(self->today_button,
+                     schedule_controls_visible &&
+                         !self->header_search_active);
   set_widget_visible(self->previous_button,
                      schedule_controls_visible &&
                          self->header_navigation_visible);
   set_widget_visible(self->next_button,
                      schedule_controls_visible &&
                          self->header_navigation_visible);
-  set_widget_visible(self->header_view_box, schedule_controls_visible);
+  set_widget_visible(self->header_view_box,
+                     schedule_controls_visible &&
+                         !self->header_search_active);
   set_widget_visible(self->search_button, schedule_controls_visible);
   set_widget_visible(self->create_button, schedule_controls_visible);
   set_widget_visible(self->refresh_button, schedule_controls_visible);
@@ -3530,9 +3575,18 @@ static void set_header_onboarding_controls(MyApplication* self, FlValue* args) {
   update_header_title_box_geometry(self);
 }
 
+static void update_header_sidebar_presentation(MyApplication* self) {
+  const gchar* label = self->header_bar_sidebar_visible
+                           ? self->header_hide_sidebar_panel_label
+                           : self->header_show_sidebar_panel_label;
+  set_widget_tooltip_with_shortcut(self->sidebar_collapsed_toggle_button,
+                                   label, self->header_sidebar_shortcut);
+}
+
 static void set_header_sidebar_visible(MyApplication* self, gboolean visible) {
   self->header_bar_sidebar_visible = visible;
   set_toggle_button_active(self, self->sidebar_collapsed_toggle_button, visible);
+  update_header_sidebar_presentation(self);
   update_header_sidebar_brand_geometry(self);
   refresh_header_bar_css(self);
 }
@@ -3632,6 +3686,7 @@ static void set_header_bar_state(MyApplication* self, FlValue* args) {
   if (fl_lookup_optional_bool_arg(args, "sidebarVisible", &value)) {
     self->header_bar_sidebar_visible = value;
     set_toggle_button_active(self, self->sidebar_collapsed_toggle_button, value);
+    update_header_sidebar_presentation(self);
   }
   if (fl_lookup_optional_bool_arg(args, "navigationVisible", &value)) {
     self->header_navigation_visible = value;
@@ -3667,7 +3722,10 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   const gchar* menu = fl_lookup_string_arg(args, "menu");
   const gchar* previous = fl_lookup_string_arg(args, "previous");
   const gchar* next = fl_lookup_string_arg(args, "next");
-  const gchar* sidebar = fl_lookup_string_arg(args, "sidebar");
+  const gchar* show_sidebar_panel =
+      fl_lookup_string_arg(args, "showSidebarPanel");
+  const gchar* hide_sidebar_panel =
+      fl_lookup_string_arg(args, "hideSidebarPanel");
   const gchar* back = fl_lookup_string_arg(args, "back");
   const gchar* settings = fl_lookup_string_arg(args, "settings");
   const gchar* keyboard_shortcuts =
@@ -3684,8 +3742,8 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
       fl_lookup_string_arg(args, "agendaShortcut");
   const gchar* search_shortcut =
       fl_lookup_string_arg(args, "searchShortcut");
-  const gchar* create_shortcut =
-      fl_lookup_string_arg(args, "createShortcut");
+  const gchar* sidebar_shortcut =
+      fl_lookup_string_arg(args, "sidebarShortcut");
   const gchar* create_event_shortcut =
       fl_lookup_string_arg(args, "createEventShortcut");
   const gchar* create_task_shortcut =
@@ -3703,6 +3761,11 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   replace_header_label(&self->header_month_shortcut, month_shortcut);
   replace_header_label(&self->header_year_shortcut, year_shortcut);
   replace_header_label(&self->header_agenda_shortcut, agenda_shortcut);
+  replace_header_label(&self->header_show_sidebar_panel_label,
+                       show_sidebar_panel);
+  replace_header_label(&self->header_hide_sidebar_panel_label,
+                       hide_sidebar_panel);
+  replace_header_label(&self->header_sidebar_shortcut, sidebar_shortcut);
   replace_header_label(&self->header_create_event_shortcut,
                        create_event_shortcut);
   replace_header_label(&self->header_create_task_shortcut,
@@ -3721,8 +3784,7 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
       search != nullptr) {
     gtk_entry_set_placeholder_text(GTK_ENTRY(self->search_entry), search);
   }
-  set_widget_tooltip_with_shortcut(self->create_button, create,
-                                   create_shortcut);
+  set_widget_tooltip(self->create_button, create);
   replace_header_label(&self->header_create_event_label, create_event);
   replace_header_label(&self->header_create_task_label, create_task);
   set_widget_tooltip(self->settings_menu_button, menu);
@@ -3730,7 +3792,7 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   set_widget_tooltip_with_shortcut(self->previous_button, previous,
                                    previous_shortcut);
   set_widget_tooltip_with_shortcut(self->next_button, next, next_shortcut);
-  set_widget_tooltip(self->sidebar_collapsed_toggle_button, sidebar);
+  update_header_sidebar_presentation(self);
   replace_header_label(&self->header_settings_label, settings);
   replace_header_label(&self->header_keyboard_shortcuts_label,
                        keyboard_shortcuts);
@@ -3869,9 +3931,7 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
       gtk_widget_get_style_context(self->header_title_label),
       GTK_STYLE_CLASS_TITLE);
   gtk_label_set_ellipsize(GTK_LABEL(self->header_title_label),
-                          PANGO_ELLIPSIZE_END);
-  gtk_label_set_max_width_chars(GTK_LABEL(self->header_title_label),
-                                kHeaderCenterMaximumWidthChars);
+                          PANGO_ELLIPSIZE_NONE);
   gtk_label_set_xalign(GTK_LABEL(self->header_title_label), 0.5);
   gtk_widget_set_halign(self->header_title_label, GTK_ALIGN_CENTER);
   gtk_widget_set_hexpand(self->header_title_label, TRUE);
@@ -5356,11 +5416,14 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_bar_dialog_outline_color, g_free);
   g_clear_pointer(&self->header_bar_modal_barrier_color, g_free);
   g_clear_pointer(&self->header_view_mode, g_free);
+  g_clear_pointer(&self->header_title_text, g_free);
   g_clear_pointer(&self->header_day_label, g_free);
   g_clear_pointer(&self->header_week_label, g_free);
   g_clear_pointer(&self->header_month_label, g_free);
   g_clear_pointer(&self->header_year_label, g_free);
   g_clear_pointer(&self->header_agenda_label, g_free);
+  g_clear_pointer(&self->header_show_sidebar_panel_label, g_free);
+  g_clear_pointer(&self->header_hide_sidebar_panel_label, g_free);
   g_clear_pointer(&self->header_create_event_label, g_free);
   g_clear_pointer(&self->header_create_task_label, g_free);
   g_clear_pointer(&self->header_settings_label, g_free);
@@ -5372,6 +5435,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_month_shortcut, g_free);
   g_clear_pointer(&self->header_year_shortcut, g_free);
   g_clear_pointer(&self->header_agenda_shortcut, g_free);
+  g_clear_pointer(&self->header_sidebar_shortcut, g_free);
   g_clear_pointer(&self->header_create_event_shortcut, g_free);
   g_clear_pointer(&self->header_create_task_shortcut, g_free);
   g_clear_pointer(&self->header_settings_shortcut, g_free);
@@ -5472,26 +5536,30 @@ static void my_application_init(MyApplication* self) {
   self->header_create_event_action = nullptr;
   self->header_create_task_action = nullptr;
   self->header_view_mode = nullptr;
+  self->header_title_text = g_strdup("");
   self->header_day_label = g_strdup("Day");
   self->header_week_label = g_strdup("Week");
   self->header_month_label = g_strdup("Month");
   self->header_year_label = g_strdup("Year");
   self->header_agenda_label = g_strdup("Agenda");
+  self->header_show_sidebar_panel_label = g_strdup("Show sidebar panel");
+  self->header_hide_sidebar_panel_label = g_strdup("Hide sidebar panel");
   self->header_create_event_label = g_strdup("Event");
   self->header_create_task_label = g_strdup("Task");
   self->header_settings_label = g_strdup("Settings");
   self->header_keyboard_shortcuts_label = g_strdup("Keyboard Shortcuts");
   self->header_report_issue_label = g_strdup("Report an issue");
   self->header_about_label = g_strdup("About BusyMax");
-  self->header_day_shortcut = g_strdup("1 / D");
-  self->header_week_shortcut = g_strdup("2 / W");
-  self->header_month_shortcut = g_strdup("3 / M");
-  self->header_year_shortcut = g_strdup("4 / Y");
-  self->header_agenda_shortcut = g_strdup("0 / A");
+  self->header_day_shortcut = g_strdup("1");
+  self->header_week_shortcut = g_strdup("2");
+  self->header_month_shortcut = g_strdup("3");
+  self->header_year_shortcut = g_strdup("4");
+  self->header_agenda_shortcut = g_strdup("5");
+  self->header_sidebar_shortcut = g_strdup("F9");
   self->header_create_event_shortcut = g_strdup("E");
   self->header_create_task_shortcut = g_strdup("T");
-  self->header_settings_shortcut = g_strdup("Ctrl+,");
-  self->header_keyboard_shortcuts_shortcut = g_strdup("Ctrl+/");
+  self->header_settings_shortcut = g_strdup("Ctrl+Alt+S");
+  self->header_keyboard_shortcuts_shortcut = g_strdup("Ctrl+Alt+K");
   self->header_search_query = g_strdup("");
   self->header_search_active = FALSE;
   self->header_navigation_visible = TRUE;
