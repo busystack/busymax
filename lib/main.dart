@@ -18,7 +18,8 @@ import 'src/platform/linux_header_bar_service.dart';
 import 'src/platform/main_window_command_client.dart';
 
 Future<void> main(List<String> args) async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+  binding.deferFirstFrame();
   final windowController = await WindowController.fromCurrentEngine();
   final windowArgs = BusyMaxWindowArgs.parse(windowController.arguments);
   final buildConfig = BuildConfig.fromEnvironment();
@@ -100,6 +101,7 @@ Future<void> main(List<String> args) async {
         ),
       );
   }
+  binding.allowFirstFrame();
 }
 
 Future<void> _applyInitialNativeHeaderBarTheme({

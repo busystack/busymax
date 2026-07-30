@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_app.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -108,11 +109,67 @@ void main() {
     }
 
     expectAlignedActions(expectedRailWidth: 480);
+    for (final key in const [
+      ValueKey('onboarding-back-button'),
+      ValueKey('onboarding-continue-button'),
+    ]) {
+      final button = tester.widget<TextButton>(find.byKey(key));
+      expect(
+        button.style?.padding?.resolve(const <WidgetState>{}),
+        EdgeInsets.zero,
+      );
+      expect(
+        button.style?.minimumSize?.resolve(const <WidgetState>{}),
+        Size.zero,
+      );
+      expect(
+        button.style?.backgroundColor?.resolve(const <WidgetState>{}),
+        Colors.transparent,
+      );
+      expect(button.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+    }
 
     tester.view.physicalSize = const Size(420, 720);
     await tester.pumpAndSettle();
 
-    expectAlignedActions(expectedRailWidth: 396);
+    expectAlignedActions(expectedRailWidth: 380);
+    expect(tester.takeException(), null);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('system settings cards retain their complete shadow gutter', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 720);
+    addTearDown(tester.view.reset);
+
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Google account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    final viewport = tester.getRect(
+      find.byKey(const ValueKey('onboarding-scroll-viewport')),
+    );
+    final rail = tester.getRect(
+      find.byKey(const ValueKey('onboarding-content-rail')),
+    );
+    expect(viewport.width, rail.width + BusyMaxSpacing.sm * 2);
+    expect(rail.left - viewport.left, BusyMaxSpacing.sm);
+    expect(viewport.right - rail.right, BusyMaxSpacing.sm);
+
+    final cards = find.byType(BusyMaxGroupedSurface);
+    expect(cards, findsNWidgets(3));
+    for (final card in cards.evaluate()) {
+      final rect = tester.getRect(find.byWidget(card.widget));
+      expect(rect.left, rail.left);
+      expect(rect.right, rail.right);
+      expect(rect.left, greaterThan(viewport.left));
+      expect(rect.right, lessThan(viewport.right));
+    }
     expect(tester.takeException(), null);
     await _disposeApp(tester);
   });

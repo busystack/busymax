@@ -335,6 +335,18 @@ void main() {
       expect(source, contains('gtk_window_set_default_size'));
     });
 
+    test('startup defers native presentation until the app frame is ready', () {
+      final source = File('lib/main.dart').readAsStringSync();
+      final deferFrame = source.indexOf('binding.deferFirstFrame();');
+      final firstRunApp = source.indexOf('runApp(');
+      final firstAllowFrame = source.indexOf('binding.allowFirstFrame();');
+
+      expect(deferFrame, isNonNegative);
+      expect(firstRunApp, greaterThan(deferFrame));
+      expect(firstAllowFrame, greaterThan(firstRunApp));
+      expect('binding.allowFirstFrame();'.allMatches(source), hasLength(1));
+    });
+
     test('snap uses portal-backed secret storage without keyring plug', () {
       final snapcraft = File('snap/snapcraft.yaml').readAsStringSync();
       final bootstrap = File(
@@ -1010,7 +1022,10 @@ void main() {
       expect(source, isNot(contains('busymax-header-view-mode-item-active')));
       expect(source, isNot(contains('create_header_popup_window')));
       expect(source, contains('gtk_menu_button_set_menu_model'));
-      expect(source, contains('GTK_STYLE_CLASS_SUGGESTED_ACTION'));
+      expect(source, isNot(contains('GTK_STYLE_CLASS_SUGGESTED_ACTION')));
+      expect(source, contains('kHeaderOnboardingTextButtonStyleClass'));
+      expect(source, contains('"padding: 0;"'));
+      expect(source, contains('"background-color: transparent;"'));
       expect(source, isNot(contains('busymax-header-primary-button')));
       expect(
         source,

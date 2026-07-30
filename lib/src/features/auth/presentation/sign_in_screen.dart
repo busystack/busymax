@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -97,12 +98,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               final verticalPadding = compact
                   ? BusyMaxSpacing.md
                   : BusyMaxSpacing.xxl;
-              final contentWidth = constraints.constrainWidth(
-                busyMaxOnboardingContentMaxWidth + horizontalPadding * 2,
+              final availableWidth = math.max(
+                0.0,
+                constraints.maxWidth - horizontalPadding * 2,
               );
-              final contentRailWidth = (contentWidth - horizontalPadding * 2)
-                  .clamp(0.0, busyMaxOnboardingContentMaxWidth)
-                  .toDouble();
+              final shadowGutter = math.min(
+                BusyMaxSpacing.sm,
+                availableWidth / 2,
+              );
+              final contentRailWidth = math.min<double>(
+                busyMaxOnboardingContentMaxWidth.toDouble(),
+                math.max(0.0, availableWidth - shadowGutter * 2),
+              );
+              final scrollViewportWidth = contentRailWidth + shadowGutter * 2;
               _updateHeaderBar(
                 canGoBack: canGoBack,
                 canContinue: canContinue,
@@ -118,54 +126,66 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 ),
                 child: Center(
                   child: SizedBox(
-                    key: const ValueKey('onboarding-content-rail'),
-                    width: contentRailWidth,
+                    width: scrollViewportWidth,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Flexible(
                           child: SingleChildScrollView(
-                            child: switch (_step) {
-                              _OnboardingStep.accounts =>
-                                _AccountsOnboardingStep(
-                                  accounts: accounts,
-                                  googleConfigured:
-                                      config.hasGoogleOAuthClientId,
-                                  microsoftConfigured:
-                                      config.hasMicrosoftOAuthClientId,
-                                  isGoogleSigningIn:
-                                      _signingInProvider ==
-                                      _OnboardingProvider.google,
-                                  isMicrosoftSigningIn:
-                                      _signingInProvider ==
-                                      _OnboardingProvider.microsoft,
-                                  errorMessage: _errorMessage,
-                                  missingConfigMessage: kReleaseMode
-                                      ? l10n.providerNotConfigured
-                                      : config.missingClientIdMessage,
-                                  onAddGoogle: () =>
-                                      _signIn(_OnboardingProvider.google),
-                                  onAddMicrosoft: () =>
-                                      _signIn(_OnboardingProvider.microsoft),
-                                  onCancelSignIn: _cancelSignIn,
-                                ),
-                              _OnboardingStep.preferences =>
-                                _PreferencesOnboardingStep(
-                                  settings: settings,
-                                  settingsController: settingsController,
-                                ),
-                            },
+                            key: const ValueKey('onboarding-scroll-viewport'),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: shadowGutter,
+                            ),
+                            child: SizedBox(
+                              key: const ValueKey('onboarding-content-rail'),
+                              width: contentRailWidth,
+                              child: switch (_step) {
+                                _OnboardingStep.accounts =>
+                                  _AccountsOnboardingStep(
+                                    accounts: accounts,
+                                    googleConfigured:
+                                        config.hasGoogleOAuthClientId,
+                                    microsoftConfigured:
+                                        config.hasMicrosoftOAuthClientId,
+                                    isGoogleSigningIn:
+                                        _signingInProvider ==
+                                        _OnboardingProvider.google,
+                                    isMicrosoftSigningIn:
+                                        _signingInProvider ==
+                                        _OnboardingProvider.microsoft,
+                                    errorMessage: _errorMessage,
+                                    missingConfigMessage: kReleaseMode
+                                        ? l10n.providerNotConfigured
+                                        : config.missingClientIdMessage,
+                                    onAddGoogle: () =>
+                                        _signIn(_OnboardingProvider.google),
+                                    onAddMicrosoft: () =>
+                                        _signIn(_OnboardingProvider.microsoft),
+                                    onCancelSignIn: _cancelSignIn,
+                                  ),
+                                _OnboardingStep.preferences =>
+                                  _PreferencesOnboardingStep(
+                                    settings: settings,
+                                    settingsController: settingsController,
+                                  ),
+                              },
+                            ),
                           ),
                         ),
                         if (_showFlutterFooterFallback)
-                          _OnboardingFooter(
-                            canGoBack: canGoBack,
-                            canContinue: canContinue,
-                            backLabel: backLabel,
-                            continueLabel: continueLabel,
-                            onBack: _previousStep,
-                            onContinue: _nextStep,
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: shadowGutter,
+                            ),
+                            child: _OnboardingFooter(
+                              canGoBack: canGoBack,
+                              canContinue: canContinue,
+                              backLabel: backLabel,
+                              continueLabel: continueLabel,
+                              onBack: _previousStep,
+                              onContinue: _nextStep,
+                            ),
                           ),
                       ],
                     ),
@@ -750,21 +770,44 @@ class _OnboardingFooter extends StatelessWidget {
       padding: const EdgeInsets.only(top: BusyMaxSpacing.xl),
       child: Row(
         children: [
-          BusyMaxPushButton.standard(
+          TextButton(
             key: const ValueKey('onboarding-back-button'),
             onPressed: canGoBack ? onBack : null,
+            style: _onboardingTextButtonStyle(context),
             child: Text(backLabel),
           ),
           const Spacer(),
-          BusyMaxPushButton.suggested(
+          TextButton(
             key: const ValueKey('onboarding-continue-button'),
             onPressed: canContinue ? onContinue : null,
+            style: _onboardingTextButtonStyle(context),
             child: Text(continueLabel),
           ),
         ],
       ),
     );
   }
+}
+
+ButtonStyle _onboardingTextButtonStyle(BuildContext context) {
+  final labelStyle = Theme.of(context).textTheme.labelLarge;
+  return ButtonStyle(
+    padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+    minimumSize: const WidgetStatePropertyAll(Size.zero),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    elevation: const WidgetStatePropertyAll(0),
+    textStyle: WidgetStateProperty.resolveWith((states) {
+      final emphasize =
+          !states.contains(WidgetState.disabled) &&
+          (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.focused));
+      return labelStyle?.copyWith(
+        decoration: emphasize ? TextDecoration.underline : TextDecoration.none,
+      );
+    }),
+  );
 }
 
 String _onboardingErrorMessage(BuildContext context, Object error) {

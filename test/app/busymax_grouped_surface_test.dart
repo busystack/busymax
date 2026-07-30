@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
@@ -864,6 +865,42 @@ void main() {
     expect(border, isA<BorderDirectional>());
     expect((border as BorderDirectional).end.color, colors.sidebarBorder);
     expect(border.end.width, BusyMaxStroke.outline);
+  });
+
+  testWidgets('startup view preserves the responsive workspace split', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 720);
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BusyMaxYaruTheme.build(
+          brightness: Brightness.light,
+          accentColor: const Color(0xFF3584E4),
+        ),
+        home: const BusyMaxStartupView(),
+      ),
+    );
+
+    final sidebar = find.byKey(const ValueKey('startup-sidebar'));
+    final content = find.byKey(const ValueKey('startup-content'));
+    final sidebarRect = tester.getRect(sidebar);
+    final contentRect = tester.getRect(content);
+    expect(sidebarRect.width, BusyMaxSizes.sidebarWidth);
+    expect(sidebarRect.left, 0);
+    expect(sidebarRect.right, contentRect.left);
+    expect(sidebarRect.height, 720);
+    expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+    expect(find.byType(YaruCircularProgressIndicator), findsOneWidget);
+
+    tester.view.physicalSize = const Size(600, 720);
+    await tester.pump();
+
+    expect(sidebar, findsNothing);
+    expect(tester.getRect(content), const Rect.fromLTWH(0, 0, 600, 720));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

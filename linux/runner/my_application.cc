@@ -71,6 +71,8 @@ constexpr char kDefaultHeaderMenuShadowColor[] = "rgba(0,0,0,0.3)";
 constexpr char kDefaultDialogOutlineColor[] = "rgba(255,255,255,0.07)";
 constexpr char kDefaultModalBarrierColor[] = "rgba(0,0,0,0.25)";
 constexpr char kHeaderControlStyleClass[] = "busymax-header-control";
+constexpr char kHeaderOnboardingTextButtonStyleClass[] =
+    "busymax-onboarding-text-button";
 constexpr char kHeaderSearchEntryStyleClass[] =
     "busymax-header-search-entry";
 constexpr char kHeaderModalOpenStyleClass[] = "busymax-modal-open";
@@ -2272,6 +2274,21 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: alpha(currentColor, 0.19);"
       "background-image: none;"
       "}"
+      ".busymax-titlebar .busymax-onboarding-text-button,"
+      ".busymax-titlebar .busymax-onboarding-text-button:hover,"
+      ".busymax-titlebar .busymax-onboarding-text-button:active,"
+      ".busymax-titlebar .busymax-onboarding-text-button:disabled {"
+      "min-width: 0;"
+      "min-height: 0;"
+      "padding: 0;"
+      "border: none;"
+      "background-color: transparent;"
+      "background-image: none;"
+      "box-shadow: none;"
+      "}"
+      ".busymax-titlebar .busymax-onboarding-text-button:hover label {"
+      "text-decoration-line: underline;"
+      "}"
       // While a modal route is present, transient and checked control
       // surfaces must not remain painted above the dimmed titlebar. The
       // controls stay sensitive so GTK does not substitute disabled colors;
@@ -3551,6 +3568,9 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
 
   track_widget_pointer(&self->onboarding_back_button,
                        create_header_text_button("Back", "Back"));
+  gtk_style_context_add_class(
+      gtk_widget_get_style_context(self->onboarding_back_button),
+      kHeaderOnboardingTextButtonStyleClass);
   connect_header_bar_action(self, self->onboarding_back_button, "back");
   gtk_widget_set_visible(self->onboarding_back_button, FALSE);
   gtk_box_pack_start(GTK_BOX(self->onboarding_back_slot),
@@ -3609,7 +3629,7 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
                        create_header_text_button("Continue", "Continue"));
   gtk_style_context_add_class(
       gtk_widget_get_style_context(self->onboarding_continue_button),
-      GTK_STYLE_CLASS_SUGGESTED_ACTION);
+      kHeaderOnboardingTextButtonStyleClass);
   connect_header_bar_action(self, self->onboarding_continue_button,
                             "continueSetup");
   gtk_widget_set_visible(self->onboarding_continue_button, FALSE);

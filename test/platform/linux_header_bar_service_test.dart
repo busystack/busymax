@@ -679,7 +679,8 @@ void main() {
     expect(source, contains('g_menu_item_set_action_and_target'));
     expect(source, contains('g_simple_action_new_stateful'));
     expect(source, contains('GTK_STYLE_CLASS_FLAT'));
-    expect(source, contains('GTK_STYLE_CLASS_SUGGESTED_ACTION'));
+    expect(source, isNot(contains('GTK_STYLE_CLASS_SUGGESTED_ACTION')));
+    expect(source, contains('kHeaderOnboardingTextButtonStyleClass'));
     expect(
       source,
       isNot(contains('button.busymax-header-view-mode-button:focus {"')),
