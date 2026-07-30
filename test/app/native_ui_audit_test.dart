@@ -1301,15 +1301,18 @@ void main() {
       final destroyIndex = dispose.indexOf(
         'gtk_widget_destroy(session->popover)',
       );
+      final hideIndex = dispose.indexOf('gtk_widget_hide(session->popover)');
       final clearActionsIndex = dispose.indexOf(
         'g_clear_object(&session->action_group)',
       );
       final respondIndex = dispose.indexOf('native_menu_session_respond(');
       final freeIndex = dispose.indexOf('g_free(session)');
       expect(destroyIndex, isNonNegative);
+      expect(hideIndex, isNonNegative);
       expect(clearActionsIndex, isNonNegative);
       expect(respondIndex, isNonNegative);
       expect(freeIndex, isNonNegative);
+      expect(hideIndex, lessThan(destroyIndex));
       expect(clearActionsIndex, lessThan(respondIndex));
       expect(respondIndex, lessThan(freeIndex));
       expect(

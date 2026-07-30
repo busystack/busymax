@@ -1337,6 +1337,13 @@ static void native_menu_session_dispose(NativeMenuSession* session) {
                                   session->closed_signal_id);
       session->closed_signal_id = 0;
     }
+    // A GtkPopover "closed" signal is emitted when its hide transition
+    // starts, not when the widget is unmapped. Complete the hide synchronously
+    // before destruction so GTK releases the modal grab and pointer state
+    // before a subsequent menu is presented.
+    if (gtk_widget_get_visible(session->popover)) {
+      gtk_widget_hide(session->popover);
+    }
     gtk_widget_destroy(session->popover);
     g_clear_object(&session->popover);
   }
