@@ -12,10 +12,12 @@ import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../google_tasks/oauth/oauth_models.dart';
+import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../task_providers/task_provider.dart';
@@ -27,6 +29,7 @@ import '../../tasks/presentation/desktop_date_time_fields.dart';
 import 'account_removal_dialog.dart';
 
 final _settingsLogger = RedactingLogger(Logger('SettingsScreen'));
+const _systemLocaleTag = 'system';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key, this.initialPage = SettingsPage.accounts});
@@ -164,10 +167,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             labelFor: (value) => _themeModeLabel(context, value),
             onSelected: themeController.setThemeMode,
           ),
-          BusyMaxActionRow(
+          BusyMaxComboRow<String>(
             title: l10n.currentLocale,
             leading: const Icon(Icons.language),
-            subtitle: Localizations.localeOf(context).toLanguageTag(),
+            values: [
+              _systemLocaleTag,
+              for (final option in busyMaxLocaleOptions) option.tag,
+            ],
+            selected: settings.localeTag ?? _systemLocaleTag,
+            labelFor: (tag) => tag == _systemLocaleTag
+                ? l10n.themeSystem
+                : busyMaxLocaleEndonym(tag),
+            onSelected: (tag) => settingsController.setLocaleTag(
+              tag == _systemLocaleTag ? null : tag,
+            ),
           ),
         ],
       ),
@@ -693,7 +706,7 @@ class _SettingsFallbackHeader extends StatelessWidget {
           const SizedBox(width: BusyMaxSpacing.sm),
           YaruIconButton(
             tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-            icon: const Icon(YaruIcons.go_previous),
+            icon: Icon(BusyMaxGlyphs.backFor(Directionality.of(context))),
             onPressed: onBack,
           ),
           const SizedBox(width: BusyMaxSpacing.sm),

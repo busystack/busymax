@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 
 import 'linux_header_bar_service.dart';
 
@@ -10,11 +10,13 @@ final class BusyMaxHeaderBarConfiguration {
   const BusyMaxHeaderBarConfiguration({
     required this.labels,
     required this.sidebarWidth,
+    required this.textDirection,
     required this.theme,
   });
 
   final BusyMaxHeaderBarLabels labels;
   final double sidebarWidth;
+  final TextDirection textDirection;
   final BusyMaxHeaderBarTheme theme;
 
   @override
@@ -23,11 +25,12 @@ final class BusyMaxHeaderBarConfiguration {
         other is BusyMaxHeaderBarConfiguration &&
             labels == other.labels &&
             sidebarWidth == other.sidebarWidth &&
+            textDirection == other.textDirection &&
             theme == other.theme;
   }
 
   @override
-  int get hashCode => Object.hash(labels, sidebarWidth, theme);
+  int get hashCode => Object.hash(labels, sidebarWidth, textDirection, theme);
 }
 
 typedef BusyMaxHeaderBarConfigurationApplier =
@@ -48,6 +51,7 @@ final class BusyMaxHeaderBarConfigurationSynchronizer {
           await service.initialize();
           await service.setLocalizedLabels(configuration.labels);
           await service.setSidebarWidth(configuration.sidebarWidth);
+          await service.setTextDirection(configuration.textDirection);
           await service.setTheme(configuration.theme);
         },
         scheduleAfterFrame: _afterCurrentFrame,

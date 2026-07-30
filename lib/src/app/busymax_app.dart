@@ -95,7 +95,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         final accentColor =
             gtkThemeColors?.accent ?? ubuntuAccentColor ?? systemColor.accent;
         return MaterialApp.router(
-          title: 'BusyMax',
+          onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
           debugShowCheckedModeBanner: false,
           theme: buildBusyMaxTheme(
             brightness: Brightness.light,
@@ -132,11 +132,12 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
             highContrast: true,
           ),
           themeMode: settings.themeMode,
+          locale: settings.locale,
           localizationsDelegates: const [
             ...AppLocalizations.localizationsDelegates,
             ...GlobalUbuntuLocalizations.delegates,
           ],
-          localeResolutionCallback: resolveBusyMaxLocale,
+          localeListResolutionCallback: resolveBusyMaxLocales,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
             final l10n = AppLocalizations.of(context);
@@ -232,6 +233,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       BusyMaxHeaderBarConfiguration(
         labels: labels,
         sidebarWidth: BusyMaxSizes.sidebarWidth,
+        textDirection: Directionality.of(context),
         theme: BusyMaxHeaderBarTheme(
           preferDark: preferDark,
           highContrast: MediaQuery.highContrastOf(context),

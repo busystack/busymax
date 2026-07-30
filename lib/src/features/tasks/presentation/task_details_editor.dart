@@ -7,6 +7,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
@@ -320,7 +321,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         children: [
                           BusyMaxActionRow(
                             title: l10n.createSubtask,
-                            leading: const Icon(Icons.subdirectory_arrow_right),
+                            leading: Icon(
+                              BusyMaxGlyphs.subdirectoryFor(
+                                Directionality.of(context),
+                              ),
+                            ),
                             onTap: _createSubtask,
                           ),
                           BusyMaxActionRow(

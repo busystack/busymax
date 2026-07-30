@@ -12,6 +12,7 @@ import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
 import 'busymax_dialog_identity.dart';
 import 'busymax_dialogs.dart';
+import 'busymax_glyphs.dart';
 
 const _busyMaxWebsiteUri = 'https://github.com/busystack/busymax';
 const _busyMaxIssuesUri = 'https://github.com/busystack/busymax/issues';
@@ -95,8 +96,8 @@ class BusyMaxAboutDialog extends StatelessWidget {
               BusyMaxActionRow(
                 title: l10n.sendFeedback,
                 leading: const Icon(Icons.feedback_outlined),
-                trailing: const Icon(
-                  Icons.chevron_right,
+                trailing: Icon(
+                  BusyMaxGlyphs.chevronForwardFor(Directionality.of(context)),
                   size: BusyMaxSizes.iconSm,
                 ),
                 onTap: onSendFeedback,

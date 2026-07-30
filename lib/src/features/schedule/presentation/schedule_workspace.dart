@@ -20,6 +20,7 @@ import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../features/calendar/data/calendar_repository.dart';
 import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../schedule/schedule_commands.dart';
 import '../../../schedule/schedule_filters.dart';
@@ -2657,17 +2658,6 @@ String _scheduleRangeLabel(
     ScheduleViewMode.month => DateFormat.yMMMM(locale).format(selectedDate),
     ScheduleViewMode.year => DateFormat.y(locale).format(selectedDate),
     ScheduleViewMode.agenda => context.l10n.viewAgenda,
-    ScheduleViewMode.week => _weekRangeLabel(locale, range),
+    ScheduleViewMode.week => localizedScheduleRangeLabel(locale, range),
   };
-}
-
-String _weekRangeLabel(String locale, ScheduleRange range) {
-  final end = range.end.subtract(const Duration(days: 1));
-  if (range.start.year == end.year && range.start.month == end.month) {
-    return '${DateFormat.MMMd(locale).format(range.start)}-${DateFormat.d(locale).format(end)}, ${DateFormat.y(locale).format(end)}';
-  }
-  if (range.start.year == end.year) {
-    return '${DateFormat.MMMd(locale).format(range.start)} - ${DateFormat.MMMd(locale).format(end)}, ${DateFormat.y(locale).format(end)}';
-  }
-  return '${DateFormat.yMMMd(locale).format(range.start)} - ${DateFormat.yMMMd(locale).format(end)}';
 }

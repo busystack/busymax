@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../l10n/l10n.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_header_bar_provider.dart';
-import '../platform/native_dialog_service.dart';
 import 'busymax_design.dart';
 import 'busymax_shortcuts.dart';
 
@@ -148,25 +146,7 @@ Future<bool> showBusyMaxConfirm(
   bool destructive = false,
   Color? barrierColor,
   LinuxHeaderBarService? headerBarService,
-  NativeDialogService nativeDialogService = const NativeDialogService(),
 }) async {
-  final nativeResult = await nativeDialogService.confirm(
-    title: title,
-    message: message,
-    cancelLabel: context.l10n.cancel,
-    confirmLabel: confirmLabel,
-    destructive: destructive,
-  );
-  if (nativeResult.available) {
-    // GTK owns parent modality for its transient dialog. Adding BusyMax's
-    // Flutter/header-bar barrier here would dim only part of the native window
-    // and duplicate the platform's input blocking.
-    return nativeResult.confirmed;
-  }
-  if (!context.mounted) {
-    return false;
-  }
-
   final confirmed = await showBusyMaxModalDialog<bool>(
     context,
     headerBarService: headerBarService,
@@ -190,19 +170,15 @@ Future<void> acquireBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
     return;
   }
   final depth = _modalDepths[service] ?? 0;
-  _modalDepths[service] = depth + 1;
-  final visibilityUpdate = depth == 0
-      ? _enqueueBusyMaxModalBarrierUpdate(service, visible: true)
-      : _modalBarrierUpdateTails[service];
-  if (visibilityUpdate == null) {
-    return;
-  }
+  final nextDepth = depth + 1;
+  _modalDepths[service] = nextDepth;
+  final depthUpdate = _enqueueBusyMaxModalBarrierUpdate(
+    service,
+    depth: nextDepth,
+  );
 
   try {
-    // Nested callers that arrive while the first native show is pending must
-    // share its outcome. A dialog must not proceed under a header bar whose
-    // modal shield failed to open.
-    await visibilityUpdate;
+    await depthUpdate;
   } on Object catch (error, stackTrace) {
     final remainingDepth = (_modalDepths[service] ?? 0) - 1;
     if (remainingDepth > 0) {
@@ -213,7 +189,7 @@ Future<void> acquireBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
         // The platform may have applied the visibility change before its
         // response failed. Restore the safe non-modal state, while preserving
         // the original acquisition failure for the caller.
-        await _enqueueBusyMaxModalBarrierUpdate(service, visible: false);
+        await _enqueueBusyMaxModalBarrierUpdate(service, depth: 0);
       } on Object {
         // Best-effort rollback cannot replace the causative exception.
       }
@@ -230,15 +206,17 @@ Future<void> releaseBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
   final depth = _modalDepths[service] ?? 0;
   if (depth <= 1) {
     _modalDepths.remove(service);
-    await _enqueueBusyMaxModalBarrierUpdate(service, visible: false);
+    await _enqueueBusyMaxModalBarrierUpdate(service, depth: 0);
     return;
   }
-  _modalDepths[service] = depth - 1;
+  final nextDepth = depth - 1;
+  _modalDepths[service] = nextDepth;
+  await _enqueueBusyMaxModalBarrierUpdate(service, depth: nextDepth);
 }
 
 Future<void> _enqueueBusyMaxModalBarrierUpdate(
   LinuxHeaderBarService service, {
-  required bool visible,
+  required int depth,
 }) {
   final previous = _modalBarrierUpdateTails[service] ?? Future<void>.value();
   final ready = previous.then<void>(
@@ -248,13 +226,13 @@ Future<void> _enqueueBusyMaxModalBarrierUpdate(
     onError: (Object _, StackTrace _) {},
   );
   late final Future<void> update;
-  update = ready
-      .then((_) => service.setModalBarrierVisible(visible))
-      .whenComplete(() {
-        if (identical(_modalBarrierUpdateTails[service], update)) {
-          _modalBarrierUpdateTails.remove(service);
-        }
-      });
+  update = ready.then((_) => service.setModalBarrierDepth(depth)).whenComplete(
+    () {
+      if (identical(_modalBarrierUpdateTails[service], update)) {
+        _modalBarrierUpdateTails.remove(service);
+      }
+    },
+  );
   _modalBarrierUpdateTails[service] = update;
   return update;
 }

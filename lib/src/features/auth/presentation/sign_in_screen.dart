@@ -10,6 +10,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../accounts/data/accounts_repository.dart';
@@ -82,13 +83,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           ),
           _OnboardingStep.preferences => true,
         };
-    _updateHeaderBar(
-      canGoBack: canGoBack,
-      canContinue: canContinue,
-      backLabel: backLabel,
-      continueLabel: continueLabel,
-    );
-
     return Scaffold(
       body: ColoredBox(
         color: BusyMaxSurfaceColors.of(context).window,
@@ -97,79 +91,83 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 720;
+              final horizontalPadding = compact
+                  ? BusyMaxSpacing.md
+                  : BusyMaxSpacing.xxl;
+              final verticalPadding = compact
+                  ? BusyMaxSpacing.md
+                  : BusyMaxSpacing.xxl;
+              final contentWidth = constraints.constrainWidth(
+                busyMaxOnboardingContentMaxWidth + horizontalPadding * 2,
+              );
+              final contentRailWidth = (contentWidth - horizontalPadding * 2)
+                  .clamp(0.0, busyMaxOnboardingContentMaxWidth)
+                  .toDouble();
+              _updateHeaderBar(
+                canGoBack: canGoBack,
+                canContinue: canContinue,
+                backLabel: backLabel,
+                continueLabel: continueLabel,
+                contentWidth: contentRailWidth.round(),
+              );
+
               return Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: compact ? BusyMaxSpacing.md : BusyMaxSpacing.xl,
-                  vertical: compact ? BusyMaxSpacing.md : BusyMaxSpacing.xl,
+                  horizontal: horizontalPadding,
+                  vertical: verticalPadding,
                 ),
                 child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
-                    child: BusyMaxSurface(
-                      filled: false,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Flexible(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(
-                                BusyMaxSpacing.xl,
-                                BusyMaxSpacing.xxl,
-                                BusyMaxSpacing.xl,
-                                BusyMaxSpacing.xxl,
-                              ),
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 480,
-                                  ),
-                                  child: switch (_step) {
-                                    _OnboardingStep.accounts =>
-                                      _AccountsOnboardingStep(
-                                        accounts: accounts,
-                                        googleConfigured:
-                                            config.hasGoogleOAuthClientId,
-                                        microsoftConfigured:
-                                            config.hasMicrosoftOAuthClientId,
-                                        isGoogleSigningIn:
-                                            _signingInProvider ==
-                                            _OnboardingProvider.google,
-                                        isMicrosoftSigningIn:
-                                            _signingInProvider ==
-                                            _OnboardingProvider.microsoft,
-                                        errorMessage: _errorMessage,
-                                        missingConfigMessage: kReleaseMode
-                                            ? l10n.providerNotConfigured
-                                            : config.missingClientIdMessage,
-                                        onAddGoogle: () =>
-                                            _signIn(_OnboardingProvider.google),
-                                        onAddMicrosoft: () => _signIn(
-                                          _OnboardingProvider.microsoft,
-                                        ),
-                                        onCancelSignIn: _cancelSignIn,
-                                      ),
-                                    _OnboardingStep.preferences =>
-                                      _PreferencesOnboardingStep(
-                                        settings: settings,
-                                        settingsController: settingsController,
-                                      ),
-                                  },
+                  child: SizedBox(
+                    key: const ValueKey('onboarding-content-rail'),
+                    width: contentRailWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: switch (_step) {
+                              _OnboardingStep.accounts =>
+                                _AccountsOnboardingStep(
+                                  accounts: accounts,
+                                  googleConfigured:
+                                      config.hasGoogleOAuthClientId,
+                                  microsoftConfigured:
+                                      config.hasMicrosoftOAuthClientId,
+                                  isGoogleSigningIn:
+                                      _signingInProvider ==
+                                      _OnboardingProvider.google,
+                                  isMicrosoftSigningIn:
+                                      _signingInProvider ==
+                                      _OnboardingProvider.microsoft,
+                                  errorMessage: _errorMessage,
+                                  missingConfigMessage: kReleaseMode
+                                      ? l10n.providerNotConfigured
+                                      : config.missingClientIdMessage,
+                                  onAddGoogle: () =>
+                                      _signIn(_OnboardingProvider.google),
+                                  onAddMicrosoft: () =>
+                                      _signIn(_OnboardingProvider.microsoft),
+                                  onCancelSignIn: _cancelSignIn,
                                 ),
-                              ),
-                            ),
+                              _OnboardingStep.preferences =>
+                                _PreferencesOnboardingStep(
+                                  settings: settings,
+                                  settingsController: settingsController,
+                                ),
+                            },
                           ),
-                          if (_showFlutterFooterFallback)
-                            _OnboardingFooter(
-                              canGoBack: canGoBack,
-                              canContinue: canContinue,
-                              backLabel: backLabel,
-                              continueLabel: continueLabel,
-                              onBack: _previousStep,
-                              onContinue: _nextStep,
-                            ),
-                        ],
-                      ),
+                        ),
+                        if (_showFlutterFooterFallback)
+                          _OnboardingFooter(
+                            canGoBack: canGoBack,
+                            canContinue: canContinue,
+                            backLabel: backLabel,
+                            continueLabel: continueLabel,
+                            onBack: _previousStep,
+                            onContinue: _nextStep,
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -204,6 +202,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     required bool canContinue,
     required String backLabel,
     required String continueLabel,
+    required int contentWidth,
   }) {
     if (_finishingSetup) {
       return;
@@ -247,6 +246,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           canContinue: canContinue,
           backLabel: backLabel,
           continueLabel: continueLabel,
+          contentWidth: contentWidth,
         );
       }());
     });
@@ -714,7 +714,10 @@ class _ProviderSignInButton extends StatelessWidget {
                   dimension: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(YaruIcons.pan_end, size: BusyMaxSizes.iconSm),
+              : Icon(
+                  BusyMaxGlyphs.collapsedFor(Directionality.of(context)),
+                  size: BusyMaxSizes.iconSm,
+                ),
           enabled: enabled,
           tooltip: effectiveTooltip,
           onTap: onPressed,
@@ -744,18 +747,17 @@ class _OnboardingFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: BusyMaxSpacing.lg,
-        vertical: BusyMaxSpacing.md,
-      ),
+      padding: const EdgeInsets.only(top: BusyMaxSpacing.xl),
       child: Row(
         children: [
           BusyMaxPushButton.standard(
+            key: const ValueKey('onboarding-back-button'),
             onPressed: canGoBack ? onBack : null,
             child: Text(backLabel),
           ),
           const Spacer(),
           BusyMaxPushButton.suggested(
+            key: const ValueKey('onboarding-continue-button'),
             onPressed: canContinue ? onContinue : null,
             child: Text(continueLabel),
           ),

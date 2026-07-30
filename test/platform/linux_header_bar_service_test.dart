@@ -85,6 +85,7 @@ void main() {
       ),
     );
     await service.setSidebarWidth(300);
+    await service.setTextDirection(TextDirection.rtl);
     await session.setOnboardingControls(
       visible: true,
       canGoBack: false,
@@ -92,7 +93,7 @@ void main() {
       backLabel: 'Back',
       continueLabel: 'Continue',
     );
-    await service.setModalBarrierVisible(true);
+    await service.setModalBarrierDepth(2);
     await service.setTheme(
       const BusyMaxHeaderBarTheme(
         preferDark: true,
@@ -118,8 +119,9 @@ void main() {
         'initialize',
         'setLocalizedLabels',
         'setSidebarWidth',
+        'setTextDirection',
         'setOnboardingControls',
-        'setModalBarrierVisible',
+        'setModalBarrierDepth',
         'setTheme',
       ]),
     );
@@ -138,9 +140,15 @@ void main() {
     );
     expect(calls[1].arguments, containsPair('aboutBusyMax', 'About BusyMax'));
     expect(calls[2].arguments, 300);
-    expect(calls[3].arguments, containsPair('visible', true));
-    expect(calls[3].arguments, containsPair('canContinue', true));
-    expect(calls[3].arguments, containsPair('continueLabel', 'Continue'));
+    expect(calls[3].arguments, 'rtl');
+    expect(calls[4].arguments, containsPair('visible', true));
+    expect(calls[4].arguments, containsPair('canContinue', true));
+    expect(calls[4].arguments, containsPair('continueLabel', 'Continue'));
+    expect(
+      calls[4].arguments,
+      containsPair('contentWidth', busyMaxOnboardingContentMaxWidth),
+    );
+    expect(calls[5].arguments, 2);
     expect(
       calls.last.arguments,
       equals({
@@ -192,7 +200,7 @@ void main() {
     await service.initialize();
     expect(service.isAvailable, isTrue);
 
-    await service.setModalBarrierVisible(true);
+    await service.setModalBarrierDepth(1);
     expect(service.isAvailable, isFalse);
   });
 

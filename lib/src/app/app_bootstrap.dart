@@ -138,9 +138,11 @@ final desktopNotificationBackendProvider = Provider<DesktopNotificationBackend>(
 
 final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   (ref) {
+    final settings = ref.watch(appSettingsControllerProvider);
     return DesktopNotificationService(
       backend: ref.watch(desktopNotificationBackendProvider),
-      settings: ref.watch(appSettingsControllerProvider),
+      settings: settings,
+      locale: settings.locale,
     );
   },
 );

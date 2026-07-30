@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../l10n/app_locale.dart';
 import '../schedule/schedule_view_mode.dart';
 
 enum BusyMaxThemeFamily { yaru }
@@ -18,6 +19,7 @@ enum NotificationDetailLevel { private, normal }
 
 const defaultScheduleDayStartMinute = 7 * 60;
 const defaultScheduleDayEndMinute = 22 * 60;
+const Object _unset = Object();
 
 extension BusyMaxThemeModePreferenceX on BusyMaxThemeModePreference {
   ThemeMode get themeMode {
@@ -33,6 +35,7 @@ class AppSettings {
   const AppSettings({
     required this.themeFamily,
     required this.themeModePreference,
+    required this.localeTag,
     required this.notifySyncFailures,
     required this.notifyConflicts,
     required this.notifyDueToday,
@@ -58,6 +61,7 @@ class AppSettings {
     return const AppSettings(
       themeFamily: BusyMaxThemeFamily.yaru,
       themeModePreference: BusyMaxThemeModePreference.system,
+      localeTag: null,
       notifySyncFailures: true,
       notifyConflicts: true,
       notifyDueToday: false,
@@ -142,6 +146,7 @@ class AppSettings {
         json['themeModePreference'],
         defaults.themeModePreference,
       ),
+      localeTag: normalizeBusyMaxLocaleTag(json['localeTag']?.toString()),
       notifySyncFailures:
           json['notifySyncFailures'] as bool? ?? defaults.notifySyncFailures,
       notifyConflicts:
@@ -181,6 +186,7 @@ class AppSettings {
 
   final BusyMaxThemeFamily themeFamily;
   final BusyMaxThemeModePreference themeModePreference;
+  final String? localeTag;
   final bool notifySyncFailures;
   final bool notifyConflicts;
   final bool notifyDueToday;
@@ -203,10 +209,13 @@ class AppSettings {
 
   ThemeMode get themeMode => themeModePreference.themeMode;
 
+  Locale? get locale => busyMaxLocaleFromTag(localeTag);
+
   Map<String, Object?> toJson() {
     return {
       'themeFamily': themeFamily.name,
       'themeModePreference': themeModePreference.name,
+      'localeTag': localeTag,
       'notifySyncFailures': notifySyncFailures,
       'notifyConflicts': notifyConflicts,
       'notifyDueToday': notifyDueToday,
@@ -232,6 +241,7 @@ class AppSettings {
   AppSettings copyWith({
     BusyMaxThemeFamily? themeFamily,
     BusyMaxThemeModePreference? themeModePreference,
+    Object? localeTag = _unset,
     bool? notifySyncFailures,
     bool? notifyConflicts,
     bool? notifyDueToday,
@@ -265,6 +275,9 @@ class AppSettings {
     return AppSettings(
       themeFamily: themeFamily ?? this.themeFamily,
       themeModePreference: themeModePreference ?? this.themeModePreference,
+      localeTag: identical(localeTag, _unset)
+          ? this.localeTag
+          : normalizeBusyMaxLocaleTag(localeTag as String?),
       notifySyncFailures: notifySyncFailures ?? this.notifySyncFailures,
       notifyConflicts: notifyConflicts ?? this.notifyConflicts,
       notifyDueToday: notifyDueToday ?? this.notifyDueToday,
@@ -366,6 +379,10 @@ class AppSettingsController extends StateNotifier<AppSettings> {
     return _mutate(
       (current) => current.copyWith(themeModePreference: preference),
     );
+  }
+
+  Future<void> setLocaleTag(String? localeTag) {
+    return _mutate((current) => current.copyWith(localeTag: localeTag));
   }
 
   Future<void> setScheduleViewMode(ScheduleViewMode mode) {

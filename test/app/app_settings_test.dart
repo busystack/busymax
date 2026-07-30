@@ -1,7 +1,49 @@
 import 'package:busymax/src/app/app_settings.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('language defaults to the complete system locale preference list', () {
+    final settings = AppSettings.defaults();
+
+    expect(settings.localeTag, isNull);
+    expect(settings.locale, isNull);
+    expect(settings.toJson()['localeTag'], isNull);
+  });
+
+  test('language override persists as a canonical supported locale tag', () {
+    final regionalEnglish = AppSettings.fromJson(const {'localeTag': 'en_CA'});
+    final traditionalChinese = AppSettings.fromJson(const {
+      'localeTag': 'zh-TW',
+    });
+    final unsupported = AppSettings.fromJson(const {'localeTag': 'xx-ZZ'});
+
+    expect(regionalEnglish.localeTag, 'en');
+    expect(regionalEnglish.locale, const Locale('en'));
+    expect(traditionalChinese.localeTag, 'zh-Hant');
+    expect(
+      traditionalChinese.locale,
+      const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+    );
+    expect(unsupported.localeTag, isNull);
+    expect(unsupported.locale, isNull);
+  });
+
+  test('language preference can be persisted and reset to system', () async {
+    final store = _MemorySettingsStore();
+    final controller = AppSettingsController(store);
+    addTearDown(controller.dispose);
+    await controller.ready;
+
+    await controller.setLocaleTag('it');
+    expect(controller.state.localeTag, 'it');
+    expect(store.value['localeTag'], 'it');
+
+    await controller.setLocaleTag(null);
+    expect(controller.state.localeTag, isNull);
+    expect(store.value['localeTag'], isNull);
+  });
+
   test(
     'notification detail level is the only persisted runtime setting',
     () async {

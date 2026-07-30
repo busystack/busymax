@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 
@@ -19,12 +20,15 @@ String compactAgendaDayLabel(
     return context.l10n.tomorrow;
   }
   final locale = Localizations.localeOf(context).toString();
-  return DateFormat('EEE, MMM d', locale).format(normalizedDay);
+  return DateFormat.MMMEd(locale).format(normalizedDay);
 }
 
 String compactAgendaTodaySubtitle(BuildContext context, DateTime today) {
   final locale = Localizations.localeOf(context).toString();
-  return '${context.l10n.today} - ${DateFormat.MMMd(locale).format(today)}';
+  return localizedRangeLabel(
+    context.l10n.today,
+    DateFormat.MMMd(locale).format(today),
+  );
 }
 
 String compactAgendaItemMeta(
@@ -53,7 +57,7 @@ String _eventTimeLabel(BuildContext context, ScheduleItem item) {
       ScheduleProjection.day(end) != ScheduleProjection.day(start)) {
     return startText;
   }
-  return '$startText-${_formatTime(context, end)}';
+  return localizedRangeLabel(startText, _formatTime(context, end));
 }
 
 String _taskDueLabel(

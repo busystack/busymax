@@ -6,7 +6,6 @@ import 'package:busymax/src/app/busymax_shortcuts.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -17,17 +16,6 @@ import '../test_localized_app.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const nativeDialogChannel = MethodChannel(nativeDialogChannelName);
-
-  setUp(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(nativeDialogChannel, (_) async => null);
-  });
-
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(nativeDialogChannel, null);
-  });
 
   testWidgets(
     'prompt action header and confirmation title bar use the dialog surface',
@@ -71,7 +59,7 @@ void main() {
       final titleBar = tester.widget<YaruDialogTitleBar>(
         find.byType(YaruDialogTitleBar),
       );
-      final confirmation = tester.widget<AlertDialog>(find.byType(AlertDialog));
+      final confirmation = tester.widget<Dialog>(find.byType(Dialog));
       final titleBarTheme = Theme.of(
         tester.element(find.byType(YaruDialogTitleBar)),
       ).appBarTheme;
@@ -95,6 +83,7 @@ void main() {
       expect(confirmation.backgroundColor, colors.dialog);
       expect(confirmation.surfaceTintColor, colors.dialog);
       expect(confirmation.clipBehavior, Clip.antiAlias);
+      expect(find.byType(BusyMaxDialogShell), findsOneWidget);
       expect(cancelButton.style, isNull);
       expect(discardButton.style?.shape?.resolve({}), isNull);
       expect(
@@ -115,70 +104,6 @@ void main() {
       );
     },
   );
-
-  testWidgets('confirmation uses the native host when available', (
-    tester,
-  ) async {
-    const channel = MethodChannel('busymax_test/native_confirmation');
-    const headerChannel = MethodChannel(
-      'busymax_test/native_confirmation_header',
-    );
-    final calls = <MethodCall>[];
-    final headerCalls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          calls.add(call);
-          return true;
-        });
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(headerChannel, (call) async {
-          headerCalls.add(call);
-          return call.method == 'initialize' ? true : null;
-        });
-    addTearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(headerChannel, null);
-    });
-    final headerBarService = LinuxHeaderBarService(
-      channel: headerChannel,
-      isLinux: true,
-    );
-    addTearDown(headerBarService.dispose);
-    await headerBarService.initialize();
-
-    late BuildContext hostContext;
-    await tester.pumpWidget(
-      localizedTestApp(
-        child: Builder(
-          builder: (context) {
-            hostContext = context;
-            return const SizedBox();
-          },
-        ),
-      ),
-    );
-
-    final result = showBusyMaxConfirm(
-      hostContext,
-      title: 'Discard changes?',
-      message: 'Unsaved changes will be lost.',
-      confirmLabel: 'Discard',
-      destructive: true,
-      headerBarService: headerBarService,
-      nativeDialogService: const NativeDialogService(channel: channel),
-    );
-    await tester.pump();
-
-    expect(await result, isTrue);
-    expect(find.byType(BusyMaxConfirmDialog), findsNothing);
-    expect(calls.single.method, 'confirm');
-    expect(
-      headerCalls.where((call) => call.method == 'setModalBarrierVisible'),
-      isEmpty,
-    );
-  });
 
   testWidgets('modal coordinator synchronizes the native barrier', (
     tester,
@@ -223,24 +148,24 @@ void main() {
 
     expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
     expect(
-      calls.where((call) => call.method == 'setModalBarrierVisible'),
+      calls.where((call) => call.method == 'setModalBarrierDepth'),
       hasLength(1),
     );
-    expect(calls.last.arguments, isTrue);
+    expect(calls.last.arguments, 1);
 
     await tester.tap(find.text('Remove'));
     await tester.pumpAndSettle();
 
     expect(await result, isTrue);
     final barrierCalls = calls
-        .where((call) => call.method == 'setModalBarrierVisible')
+        .where((call) => call.method == 'setModalBarrierDepth')
         .toList();
     expect(barrierCalls, hasLength(2));
-    expect(barrierCalls.first.arguments, isTrue);
-    expect(barrierCalls.last.arguments, isFalse);
+    expect(barrierCalls.first.arguments, 1);
+    expect(barrierCalls.last.arguments, 0);
   });
 
-  testWidgets('confirmation fallback scrolls in a short window at 2x text', (
+  testWidgets('confirmation scrolls in a short window at 2x text', (
     tester,
   ) async {
     tester.view
@@ -273,12 +198,12 @@ void main() {
 
     expect(tester.takeException(), isNull);
     final scrollView = find.descendant(
-      of: find.byType(AlertDialog),
+      of: find.byType(BusyMaxDialogShell),
       matching: find.byType(SingleChildScrollView),
     );
     expect(scrollView, findsOneWidget);
     final scrollable = find.descendant(
-      of: find.byType(AlertDialog),
+      of: find.byType(BusyMaxDialogShell),
       matching: find.byType(Scrollable),
     );
     final position = tester.state<ScrollableState>(scrollable).position;
@@ -336,16 +261,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      calls.where((call) => call.method == 'setModalBarrierVisible'),
-      hasLength(1),
+      calls
+          .where((call) => call.method == 'setModalBarrierDepth')
+          .map((call) => call.arguments),
+      [1, 2],
     );
 
     Navigator.of(hostContext, rootNavigator: true).pop();
     await tester.pumpAndSettle();
     await second;
     expect(
-      calls.where((call) => call.method == 'setModalBarrierVisible'),
-      hasLength(1),
+      calls
+          .where((call) => call.method == 'setModalBarrierDepth')
+          .map((call) => call.arguments),
+      [1, 2, 1],
     );
 
     Navigator.of(hostContext, rootNavigator: true).pop();
@@ -353,10 +282,9 @@ void main() {
     await first;
 
     final barrierCalls = calls
-        .where((call) => call.method == 'setModalBarrierVisible')
+        .where((call) => call.method == 'setModalBarrierDepth')
         .toList();
-    expect(barrierCalls, hasLength(2));
-    expect(barrierCalls.last.arguments, isFalse);
+    expect(barrierCalls.map((call) => call.arguments), [1, 2, 1, 0]);
   });
 
   testWidgets('serializes rapid manual native barrier transitions', (
@@ -364,14 +292,14 @@ void main() {
   ) async {
     const channel = MethodChannel('busymax_test/serialized_modal_barrier');
     final firstUpdate = Completer<void>();
-    final transitions = <bool>[];
+    final transitions = <int>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method == 'initialize') {
             return true;
           }
-          if (call.method == 'setModalBarrierVisible') {
-            transitions.add(call.arguments! as bool);
+          if (call.method == 'setModalBarrierDepth') {
+            transitions.add(call.arguments! as int);
             if (transitions.length == 1) {
               await firstUpdate.future;
             }
@@ -392,20 +320,20 @@ void main() {
 
     final acquire = acquireBusyMaxModalBarrier(service);
     await tester.pump();
-    expect(transitions, [true]);
+    expect(transitions, [1]);
 
     final release = releaseBusyMaxModalBarrier(service);
     await tester.pump();
     expect(
       transitions,
-      [true],
+      [1],
       reason: 'the native hide must wait for the in-flight native show',
     );
 
     firstUpdate.complete();
     await Future.wait([acquire, release]);
 
-    expect(transitions, [true, false]);
+    expect(transitions, [1, 0]);
   });
 
   testWidgets('failed native barrier acquisition rolls back and can retry', (
@@ -420,14 +348,14 @@ void main() {
     );
     expect(
       service.transitions,
-      [true, false],
+      [1, 0],
       reason: 'a failed native show requires a best-effort native rollback',
     );
 
     await acquireBusyMaxModalBarrier(service);
     await releaseBusyMaxModalBarrier(service);
 
-    expect(service.transitions, [true, false, true, false]);
+    expect(service.transitions, [1, 0, 1, 0]);
   });
 
   testWidgets('modal coordinator resolves the service from ProviderScope', (
@@ -474,10 +402,10 @@ void main() {
     expect(calls.first.method, 'initialize');
     expect(
       calls
-          .where((call) => call.method == 'setModalBarrierVisible')
+          .where((call) => call.method == 'setModalBarrierDepth')
           .single
           .arguments,
-      isTrue,
+      1,
     );
 
     await tester.tap(find.text('Cancel'));
@@ -485,9 +413,9 @@ void main() {
 
     expect(await result, isFalse);
     final barrierCalls = calls
-        .where((call) => call.method == 'setModalBarrierVisible')
+        .where((call) => call.method == 'setModalBarrierDepth')
         .toList();
-    expect(barrierCalls.last.arguments, isFalse);
+    expect(barrierCalls.last.arguments, 0);
   });
 
   testWidgets('editor dialog requires an explicit cancel action', (
@@ -688,13 +616,13 @@ class _ApplicationNavigationIntent extends Intent {
 class _FailingModalBarrierService extends LinuxHeaderBarService {
   _FailingModalBarrierService() : super(isLinux: false);
 
-  final transitions = <bool>[];
+  final transitions = <int>[];
   var _failNextShow = true;
 
   @override
-  Future<void> setModalBarrierVisible(bool value) async {
+  Future<void> setModalBarrierDepth(int value) async {
     transitions.add(value);
-    if (value && _failNextShow) {
+    if (value > 0 && _failNextShow) {
       _failNextShow = false;
       throw StateError('simulated native response failure');
     }

@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import '../schedule/schedule_view_mode.dart';
+
+const int busyMaxOnboardingContentMaxWidth = 480;
 
 enum BusyMaxHeaderBarAction {
   back,
@@ -406,8 +408,9 @@ class LinuxHeaderBarService {
   bool _available = false;
   bool _disposed = false;
   _BusyMaxOnboardingControlsState? _onboardingControls;
-  bool? _modalBarrierVisible;
+  int? _modalBarrierDepth;
   double? _sidebarWidth;
+  TextDirection? _textDirection;
   BusyMaxHeaderBarLabels? _labels;
   BusyMaxHeaderBarTheme? _theme;
   BusyMaxHeaderBarState? _state;
@@ -499,12 +502,21 @@ class LinuxHeaderBarService {
     await _invokeIfAvailable('setSidebarWidth', value);
   }
 
+  Future<void> setTextDirection(TextDirection value) async {
+    if (!_available || _textDirection == value) {
+      return;
+    }
+    _textDirection = value;
+    await _invokeIfAvailable('setTextDirection', value.name);
+  }
+
   Future<void> _setOnboardingControls({
     required bool visible,
     required bool canGoBack,
     required bool canContinue,
     required String backLabel,
     required String continueLabel,
+    required int contentWidth,
     bool force = false,
   }) async {
     if (!_available) {
@@ -516,6 +528,7 @@ class LinuxHeaderBarService {
       canContinue: canContinue,
       backLabel: backLabel,
       continueLabel: continueLabel,
+      contentWidth: contentWidth,
     );
     if (!force && _onboardingControls == state) {
       return;
@@ -543,15 +556,20 @@ class LinuxHeaderBarService {
     }
   }
 
-  Future<void> setModalBarrierVisible(bool value) async {
+  Future<void> setModalBarrierDepth(int value) async {
     if (!_available) {
       return;
     }
-    if (_modalBarrierVisible == value) {
+    final depth = value < 0 ? 0 : value;
+    if (_modalBarrierDepth == depth) {
       return;
     }
-    _modalBarrierVisible = value;
-    await _invokeIfAvailable('setModalBarrierVisible', value);
+    _modalBarrierDepth = depth;
+    await _invokeIfAvailable('setModalBarrierDepth', depth);
+  }
+
+  Future<void> setModalBarrierVisible(bool value) {
+    return setModalBarrierDepth(value ? 1 : 0);
   }
 
   Future<void> setTheme(BusyMaxHeaderBarTheme theme) async {
@@ -747,6 +765,7 @@ class LinuxHeaderBarSession {
     required bool canContinue,
     required String backLabel,
     required String continueLabel,
+    int contentWidth = busyMaxOnboardingContentMaxWidth,
     bool force = false,
   }) async {
     if (_disposed) {
@@ -758,6 +777,7 @@ class LinuxHeaderBarSession {
       canContinue: canContinue,
       backLabel: backLabel,
       continueLabel: continueLabel,
+      contentWidth: contentWidth,
     );
     _onboardingControls = state;
     final revision = ++_onboardingRevision;
@@ -771,6 +791,7 @@ class LinuxHeaderBarSession {
       canContinue: state.canContinue,
       backLabel: state.backLabel,
       continueLabel: state.continueLabel,
+      contentWidth: state.contentWidth,
       force: force,
     );
   }
@@ -795,6 +816,7 @@ class LinuxHeaderBarSession {
         canContinue: onboardingControls.canContinue,
         backLabel: onboardingControls.backLabel,
         continueLabel: onboardingControls.continueLabel,
+        contentWidth: onboardingControls.contentWidth,
         force: true,
       );
     }
@@ -840,6 +862,7 @@ class _BusyMaxOnboardingControlsState {
     required this.canContinue,
     required this.backLabel,
     required this.continueLabel,
+    required this.contentWidth,
   });
 
   final bool visible;
@@ -847,6 +870,7 @@ class _BusyMaxOnboardingControlsState {
   final bool canContinue;
   final String backLabel;
   final String continueLabel;
+  final int contentWidth;
 
   Map<String, Object?> toJson() {
     return {
@@ -855,6 +879,7 @@ class _BusyMaxOnboardingControlsState {
       'canContinue': canContinue,
       'backLabel': backLabel,
       'continueLabel': continueLabel,
+      'contentWidth': contentWidth,
     };
   }
 
@@ -866,12 +891,19 @@ class _BusyMaxOnboardingControlsState {
             canGoBack == other.canGoBack &&
             canContinue == other.canContinue &&
             backLabel == other.backLabel &&
-            continueLabel == other.continueLabel;
+            continueLabel == other.continueLabel &&
+            contentWidth == other.contentWidth;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(visible, canGoBack, canContinue, backLabel, continueLabel);
+  int get hashCode => Object.hash(
+    visible,
+    canGoBack,
+    canContinue,
+    backLabel,
+    continueLabel,
+    contentWidth,
+  );
 }
 
 String busyMaxCssColor(Color color) {

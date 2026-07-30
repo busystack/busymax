@@ -63,6 +63,20 @@ void main() {
     expect(backend.notifications.single.body, '2 tehtävää erääntyy tänään.');
   });
 
+  test('notification strings use the Estonian ARB catalog', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('et'),
+    );
+
+    await service.notifyDueToday(2);
+
+    expect(backend.notifications.single.summary, 'Täna tähtuvad ülesanded');
+    expect(backend.notifications.single.body, '2 ülesannet tähtub täna.');
+  });
+
   test('notification strings use Russian plural rules', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
@@ -94,6 +108,37 @@ void main() {
     expect(
       backend.notifications.single.body,
       'Há 2 tarefas com prazo para hoje.',
+    );
+  });
+
+  test('notification strings use the Italian ARB catalog', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('it'),
+    );
+
+    await service.notifyDueToday(2);
+
+    expect(backend.notifications.single.summary, 'Attività in scadenza oggi');
+    expect(backend.notifications.single.body, '2 attività scadono oggi.');
+  });
+
+  test('notification strings use the Vietnamese ARB catalog', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('vi'),
+    );
+
+    await service.notifyDueToday(2);
+
+    expect(backend.notifications.single.summary, 'Công việc đến hạn hôm nay');
+    expect(
+      backend.notifications.single.body,
+      'Có 2 công việc đến hạn hôm nay.',
     );
   });
 
@@ -159,8 +204,8 @@ void main() {
     expect(backend.notifications.map((notification) => notification.body), [
       'هناك مهمة واحدة مستحقة اليوم.',
       'هناك مهمتان مستحقتان اليوم.',
-      'هناك 3 مهام مستحقة اليوم.',
-      'هناك 11 مهمة مستحقة اليوم.',
+      'هناك \u20683\u2069 مهام مستحقة اليوم.',
+      'هناك \u206811\u2069 مهمة مستحقة اليوم.',
     ]);
   });
 
@@ -182,7 +227,7 @@ void main() {
     );
     expect(backend.notifications.map((notification) => notification.body), [
       'امروز یک کار سررسید دارد.',
-      'امروز 2 کار سررسید دارند.',
+      'امروز \u2068۲\u2069 کار سررسید دارند.',
     ]);
   });
 

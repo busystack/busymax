@@ -81,6 +81,42 @@ void main() {
     await _disposeApp(tester);
   });
 
+  testWidgets('onboarding content and actions share one responsive rail', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 720);
+    addTearDown(tester.view.reset);
+
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+
+    void expectAlignedActions({required double expectedRailWidth}) {
+      final rail = tester.getRect(
+        find.byKey(const ValueKey('onboarding-content-rail')),
+      );
+      final back = tester.getRect(
+        find.byKey(const ValueKey('onboarding-back-button')),
+      );
+      final continueButton = tester.getRect(
+        find.byKey(const ValueKey('onboarding-continue-button')),
+      );
+
+      expect(rail.width, closeTo(expectedRailWidth, 0.01));
+      expect(back.left, closeTo(rail.left, 0.01));
+      expect(continueButton.right, closeTo(rail.right, 0.01));
+    }
+
+    expectAlignedActions(expectedRailWidth: 480);
+
+    tester.view.physicalSize = const Size(420, 720);
+    await tester.pumpAndSettle();
+
+    expectAlignedActions(expectedRailWidth: 396);
+    expect(tester.takeException(), null);
+    await _disposeApp(tester);
+  });
+
   test('setup provider actions use BusyMax row patterns', () {
     final source = File(
       'lib/src/features/auth/presentation/sign_in_screen.dart',

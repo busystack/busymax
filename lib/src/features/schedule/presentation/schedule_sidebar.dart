@@ -9,6 +9,7 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
@@ -377,7 +378,10 @@ class _AccountHeaderRow extends StatelessWidget {
             icon: AnimatedRotation(
               turns: expanded ? 0.25 : 0,
               duration: const Duration(milliseconds: 160),
-              child: const Icon(YaruIcons.pan_end, size: 16),
+              child: Icon(
+                BusyMaxGlyphs.collapsedFor(Directionality.of(context)),
+                size: 16,
+              ),
             ),
             onPressed: onToggleExpanded,
             foregroundColor: colorScheme.onSurfaceVariant,

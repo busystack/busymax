@@ -122,6 +122,7 @@ BusyMaxHeaderBarConfiguration _configuration({required bool dark}) {
       aboutBusyMax: 'About BusyMax',
     ),
     sidebarWidth: 300,
+    textDirection: TextDirection.ltr,
     theme: BusyMaxHeaderBarTheme(
       preferDark: dark,
       highContrast: false,

@@ -3,7 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_range.dart';
 import '../../../schedule/schedule_view_mode.dart';
 
@@ -86,12 +88,14 @@ class ScheduleToolbar extends StatelessWidget {
                   tooltip: MaterialLocalizations.of(
                     context,
                   ).previousPageTooltip,
-                  icon: const Icon(YaruIcons.arrow_left),
+                  icon: Icon(
+                    BusyMaxGlyphs.previousFor(Directionality.of(context)),
+                  ),
                   onPressed: onPrevious,
                 ),
                 YaruIconButton(
                   tooltip: MaterialLocalizations.of(context).nextPageTooltip,
-                  icon: const Icon(YaruIcons.arrow_right),
+                  icon: Icon(BusyMaxGlyphs.nextFor(Directionality.of(context))),
                   onPressed: onNext,
                 ),
                 const SizedBox(width: BusyMaxSpacing.sm),
@@ -216,19 +220,8 @@ String _rangeLabel(
     ScheduleViewMode.month => DateFormat.yMMMM(locale).format(selectedDate),
     ScheduleViewMode.year => DateFormat.y(locale).format(selectedDate),
     ScheduleViewMode.agenda => context.l10n.viewAgenda,
-    ScheduleViewMode.week => _weekRange(locale, range),
+    ScheduleViewMode.week => localizedScheduleRangeLabel(locale, range),
   };
-}
-
-String _weekRange(String locale, ScheduleRange range) {
-  final end = range.end.subtract(const Duration(days: 1));
-  if (range.start.year == end.year && range.start.month == end.month) {
-    return '${DateFormat.MMMd(locale).format(range.start)}-${DateFormat.d(locale).format(end)}, ${DateFormat.y(locale).format(end)}';
-  }
-  if (range.start.year == end.year) {
-    return '${DateFormat.MMMd(locale).format(range.start)} - ${DateFormat.MMMd(locale).format(end)}, ${DateFormat.y(locale).format(end)}';
-  }
-  return '${DateFormat.yMMMd(locale).format(range.start)} - ${DateFormat.yMMMd(locale).format(end)}';
 }
 
 String _modeLabel(BuildContext context, ScheduleViewMode mode) {

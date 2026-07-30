@@ -66,9 +66,9 @@ class DesktopNotificationService {
     DateTime Function()? now,
   }) : _backend = backend,
        _settings = settings,
-       _strings = NotificationStrings.forLocale(
-         locale ?? PlatformDispatcher.instance.locale,
-       ),
+       _strings = locale == null
+           ? NotificationStrings.forLocales(PlatformDispatcher.instance.locales)
+           : NotificationStrings.forLocale(locale),
        _syncFailureDebounce = syncFailureDebounce,
        _now = now ?? DateTime.now;
 
@@ -263,8 +263,12 @@ class NotificationStrings {
   });
 
   factory NotificationStrings.forLocale(Locale locale) {
-    final supportedLocale = resolveBusyMaxLocale(
-      locale,
+    return NotificationStrings.forLocales([locale]);
+  }
+
+  factory NotificationStrings.forLocales(List<Locale>? locales) {
+    final supportedLocale = resolveBusyMaxLocales(
+      locales,
       AppLocalizations.supportedLocales,
     );
     return NotificationStrings.fromLocalizations(

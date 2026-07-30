@@ -287,7 +287,10 @@ class _BusyMaxCompactAgendaAppState
         final accentColor =
             gtkThemeColors?.accent ?? ubuntuAccentColor ?? systemColor.accent;
         return MaterialApp(
-          title: 'BusyMax Agenda',
+          onGenerateTitle: (context) {
+            final l10n = AppLocalizations.of(context);
+            return '${l10n.appTitle} — ${l10n.compactAgendaTitle}';
+          },
           debugShowCheckedModeBanner: false,
           theme: buildBusyMaxTheme(
             brightness: Brightness.light,
@@ -324,11 +327,12 @@ class _BusyMaxCompactAgendaAppState
             highContrast: true,
           ),
           themeMode: settings.themeMode,
+          locale: settings.locale,
           localizationsDelegates: const [
             ...AppLocalizations.localizationsDelegates,
             ...GlobalUbuntuLocalizations.delegates,
           ],
-          localeResolutionCallback: resolveBusyMaxLocale,
+          localeListResolutionCallback: resolveBusyMaxLocales,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const Scaffold(
             backgroundColor: Colors.transparent,

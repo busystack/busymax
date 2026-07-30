@@ -2,11 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'calendar_day_semantics.dart';
@@ -82,7 +83,7 @@ class _MiniCalendarState extends State<MiniCalendar> {
               Expanded(
                 flex: _miniCalendarMonthControlFlex,
                 child: _MiniCalendarStepper(
-                  label: DateFormat.MMMM(locale).format(visibleMonth),
+                  label: localizedMonthHeading(locale, visibleMonth),
                   previousTooltip: l10n.previousMonth,
                   nextTooltip: l10n.nextMonth,
                   onPrevious: () => _showMonth(
@@ -624,7 +625,7 @@ class _MiniCalendarStepper extends StatelessWidget {
                     context,
                     colorScheme: colorScheme,
                     tooltip: previousTooltip,
-                    icon: YaruIcons.pan_start,
+                    icon: BusyMaxGlyphs.startFor(Directionality.of(context)),
                     onPressed: onPrevious,
                   ),
                 ),
@@ -636,7 +637,7 @@ class _MiniCalendarStepper extends StatelessWidget {
                     context,
                     colorScheme: colorScheme,
                     tooltip: nextTooltip,
-                    icon: YaruIcons.pan_end,
+                    icon: BusyMaxGlyphs.endFor(Directionality.of(context)),
                     onPressed: onNext,
                   ),
                 ),
@@ -651,7 +652,7 @@ class _MiniCalendarStepper extends StatelessWidget {
               context,
               colorScheme: colorScheme,
               tooltip: previousTooltip,
-              icon: YaruIcons.pan_start,
+              icon: BusyMaxGlyphs.startFor(Directionality.of(context)),
               onPressed: onPrevious,
             ),
             const SizedBox(width: BusyMaxSpacing.xs),
@@ -661,7 +662,7 @@ class _MiniCalendarStepper extends StatelessWidget {
               context,
               colorScheme: colorScheme,
               tooltip: nextTooltip,
-              icon: YaruIcons.pan_end,
+              icon: BusyMaxGlyphs.endFor(Directionality.of(context)),
               onPressed: onNext,
             ),
           ],

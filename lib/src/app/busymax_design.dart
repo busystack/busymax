@@ -3753,18 +3753,8 @@ class BusyMaxConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dialogSurface = busyMaxDialogSurfaceColor(context);
-    return AlertDialog(
-      backgroundColor: dialogSurface,
-      surfaceTintColor: dialogSurface,
-      clipBehavior: Clip.antiAlias,
-      scrollable: true,
-      titlePadding: EdgeInsets.zero,
-      title: BusyMaxDialogTitleBar(
-        title: Text(title),
-        showDividerInHighContrast: false,
-      ),
-      content: Text(message),
+    return BusyMaxDialogShell(
+      title: title,
       actions: [
         BusyMaxPushButton.standard(
           onPressed: () => Navigator.of(context).pop(false),
@@ -3782,6 +3772,7 @@ class BusyMaxConfirmDialog extends StatelessWidget {
             child: Text(confirmLabel),
           ),
       ],
+      children: [Text(message)],
     );
   }
 }

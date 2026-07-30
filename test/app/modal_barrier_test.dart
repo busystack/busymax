@@ -18,12 +18,9 @@ void main() {
     final nativeAlpha = double.parse(match!.group(1)!);
     final dartAlpha = busyMaxFallbackSurfaceColors(Brightness.dark).shade.a;
     expect(nativeAlpha, closeTo(dartAlpha, 0.0001));
-    expect(
-      source,
-      contains(
-        'self->header_bar_modal_barrier_color, kDefaultModalBarrierColor',
-      ),
-    );
+    expect(source, contains('modal_barrier_color_for_depth('));
+    expect(source, contains('self->header_bar_modal_barrier_color'));
+    expect(source, contains('kDefaultModalBarrierColor'));
   });
 
   for (final (brightness, expectedAlpha) in [

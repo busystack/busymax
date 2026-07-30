@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_glyphs.dart';
 import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/core/time/local_time_zone.dart';
 import 'package:busymax/src/core/time/time_zone_catalog.dart';
@@ -501,7 +502,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
           context,
           colorScheme: colorScheme,
           tooltip: previousTooltip,
-          icon: YaruIcons.pan_start,
+          icon: BusyMaxGlyphs.startFor(Directionality.of(context)),
           onPressed: onPrevious,
         ),
         const SizedBox(width: BusyMaxSpacing.xs),
@@ -516,7 +517,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
           context,
           colorScheme: colorScheme,
           tooltip: nextTooltip,
-          icon: YaruIcons.pan_end,
+          icon: BusyMaxGlyphs.endFor(Directionality.of(context)),
           onPressed: onNext,
         ),
       ],

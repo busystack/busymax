@@ -2473,7 +2473,7 @@ void main() {
     expect(sidebar, contains("'schedule-calendar'"));
     expect(sidebar, contains("'schedule-task-list'"));
     expect(sidebar, contains('AnimatedRotation'));
-    expect(sidebar, contains('YaruIcons.pan_end'));
+    expect(sidebar, contains('BusyMaxGlyphs.collapsedFor'));
     expect(sidebar, contains('if (_expanded)'));
     expect(sidebar, contains('MiniCalendar('));
     expect(sidebar, isNot(contains('BusyMaxGroupedList(')));
@@ -2654,6 +2654,34 @@ void main() {
       tester.getSize(weekButton).height,
       tester.getSize(monthButton).height,
     );
+  });
+
+  testWidgets('mini calendar uses a capitalized standalone Russian month', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        locale: const Locale('ru'),
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 7, 15),
+              firstWeekday: DateTime.monday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Июль'), findsOneWidget);
+    expect(find.text('июль'), findsNothing);
+    expect(find.text('июля'), findsNothing);
   });
 
   testWidgets('mini calendar header arrows page without selecting a date', (

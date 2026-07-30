@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
-import 'package:busymax/src/l10n/locale_resolution.dart';
+import 'package:busymax/l10n/generated/app_localizations_ar.dart';
+import 'package:busymax/l10n/generated/app_localizations_fa.dart';
+import 'package:busymax/src/l10n/app_locale.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,14 +12,18 @@ void main() {
   test('localized UI surfaces do not hardcode user-facing text', () {
     final failures = <String>[];
 
-    for (final path in _auditedUiPaths) {
-      final source = File(path).readAsStringSync();
-      for (final match in _userFacingLiteralPattern.allMatches(source)) {
-        final literal = match.group(1)!;
-        if (_isTechnicalLiteral(literal)) {
-          continue;
+    for (final file in _productionUiDartFiles()) {
+      final source = file.readAsStringSync();
+      for (final pattern in _userFacingLiteralPatterns) {
+        for (final match in pattern.allMatches(source)) {
+          final literal = match.group(1)!;
+          if (_isTechnicalLiteral(literal)) {
+            continue;
+          }
+          failures.add(
+            '${file.path}:${_lineForOffset(source, match.start)}: $literal',
+          );
         }
-        failures.add('$path:${_lineForOffset(source, match.start)}: $literal');
       }
     }
 
@@ -30,8 +36,8 @@ void main() {
     final templateMessages = _messages(templateArb);
     final failures = <String>[];
 
-    for (final path in _translatedArbPaths) {
-      final file = File(path);
+    for (final file in _translatedArbFiles()) {
+      final path = file.path;
       final messages = _messages(_decodeArb(file));
       final templateKeys = templateMessages.keys.toSet();
       final translatedKeys = messages.keys.toSet();
@@ -60,6 +66,12 @@ void main() {
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 
+  test('Linux package metadata matches every translated catalog', () {
+    final failures = _metadataTranslationFailures().toList();
+
+    expect(failures, isEmpty, reason: failures.join('\n'));
+  });
+
   test('Finnish is generated and exposed as a supported locale', () {
     const locale = Locale('fi');
     final localizations = lookupAppLocalizations(locale);
@@ -69,6 +81,15 @@ void main() {
     expect(localizations.today, 'Tänään');
   });
 
+  test('Estonian is generated and exposed as a supported locale', () {
+    const locale = Locale('et');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'Seaded');
+    expect(localizations.today, 'Täna');
+  });
+
   test('Russian is generated and exposed as a supported locale', () {
     const locale = Locale('ru');
     final localizations = lookupAppLocalizations(locale);
@@ -76,6 +97,57 @@ void main() {
     expect(AppLocalizations.supportedLocales, contains(locale));
     expect(localizations.settings, 'Настройки');
     expect(localizations.today, 'Сегодня');
+    expect(localizations.viewAgenda, 'Расписание');
+    expect(localizations.currentLocale, 'Язык приложения');
+  });
+
+  test('package metadata uses reviewed product wording in every locale', () {
+    final desktop = File(
+      'linux/io.busystack.busymax.desktop',
+    ).readAsStringSync();
+    final metainfo = File(
+      'linux/io.busystack.busymax.metainfo.xml',
+    ).readAsStringSync();
+
+    const summaries = <String, String>{
+      'ar': 'مدير التقويم والمهام',
+      'de': 'Kalender- und Aufgabenverwaltung',
+      'es': 'Gestor de calendarios y tareas',
+      'et': 'Kalendri- ja ülesannete haldur',
+      'fa': 'مدیر تقویم و کارها',
+      'fi': 'Kalenteri- ja tehtäväsovellus',
+      'fr': 'Gestionnaire de calendriers et de tâches',
+      'hi': 'कैलेंडर और कार्य प्रबंधक',
+      'it': 'Gestore di calendari e attività',
+      'ja': 'カレンダー・タスク管理アプリ',
+      'ko': '캘린더와 할 일 관리',
+      'pt': 'Gestor de calendário e tarefas',
+      'ru': 'Календарь и планировщик задач',
+      'vi': 'Trình quản lý lịch và công việc',
+      'zh': '日历与任务管理工具',
+      'zh_Hans': '日历与任务管理工具',
+      'zh_Hant': '行事曆與待辦事項管理工具',
+    };
+
+    for (final entry in summaries.entries) {
+      expect(
+        desktop,
+        contains('Comment[${entry.key}]=${entry.value}'),
+        reason: 'desktop ${entry.key}',
+      );
+      final appStreamLocale = entry.key.replaceAll('_', '-');
+      expect(
+        metainfo,
+        contains(
+          '<summary xml:lang="$appStreamLocale">${entry.value}</summary>',
+        ),
+        reason: 'AppStream ${entry.key}',
+      );
+    }
+    expect(
+      '$desktop\n$metainfo',
+      isNot(contains('Менеджер календаря и задач')),
+    );
   });
 
   test('Portuguese is generated and exposed as a supported locale', () {
@@ -96,6 +168,15 @@ void main() {
     expect(localizations.today, 'आज');
   });
 
+  test('Italian is generated and exposed as a supported locale', () {
+    const locale = Locale('it');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'Impostazioni');
+    expect(localizations.today, 'Oggi');
+  });
+
   test('Japanese is generated and exposed as a supported locale', () {
     const locale = Locale('ja');
     final localizations = lookupAppLocalizations(locale);
@@ -112,6 +193,15 @@ void main() {
     expect(AppLocalizations.supportedLocales, contains(locale));
     expect(localizations.settings, '설정');
     expect(localizations.today, '오늘');
+  });
+
+  test('Vietnamese is generated and exposed as a supported locale', () {
+    const locale = Locale('vi');
+    final localizations = lookupAppLocalizations(locale);
+
+    expect(AppLocalizations.supportedLocales, contains(locale));
+    expect(localizations.settings, 'Cài đặt');
+    expect(localizations.today, 'Hôm nay');
   });
 
   test('Arabic is generated and exposed as a supported locale', () {
@@ -176,6 +266,40 @@ void main() {
     expect(direction, TextDirection.rtl);
   });
 
+  test('RTL translations isolate dynamic content', () {
+    const fsi = '\u2068';
+    const pdi = '\u2069';
+    final localizations = <AppLocalizations>[
+      AppLocalizationsAr(),
+      AppLocalizationsFa(),
+    ];
+
+    for (final l10n in localizations) {
+      expect(
+        l10n.exportedFile('exports/schedule-v2.ics'),
+        contains('${fsi}exports/schedule-v2.ics$pdi'),
+      );
+      expect(l10n.feedbackSuccess('BM-12345'), contains('${fsi}BM-12345$pdi'));
+      expect(
+        l10n.dateTimeDisplay('2026-07-29', '14:30'),
+        allOf(contains('${fsi}2026-07-29$pdi'), contains('${fsi}14:30$pdi')),
+      );
+    }
+  });
+
+  test('Persian dynamic numbers use Persian digits', () {
+    const fsi = '\u2068';
+    const pdi = '\u2069';
+    final fa = AppLocalizationsFa();
+
+    expect(fa.moreItems(12), contains('$fsi۱۲$pdi'));
+    expect(fa.pendingOpAttempts(42), contains('$fsi۴۲$pdi'));
+    expect(fa.weekNumberTooltip(27), contains('$fsi۲۷$pdi'));
+
+    // package:intl intentionally uses Latin digits for the generic ar locale.
+    expect(AppLocalizationsAr().moreItems(12), contains('${fsi}12$pdi'));
+  });
+
   test('both Chinese scripts are generated and supported', () {
     const simplified = Locale.fromSubtags(
       languageCode: 'zh',
@@ -217,41 +341,119 @@ void main() {
       traditional,
     );
   });
+
+  test('locale resolution considers every system preference', () {
+    expect(
+      resolveBusyMaxLocales(const [
+        Locale('eo'),
+        Locale('de', 'DE'),
+      ], AppLocalizations.supportedLocales),
+      const Locale('de'),
+    );
+  });
+
+  test('unsupported locale lists deliberately fall back to English', () {
+    expect(
+      resolveBusyMaxLocales(const [
+        Locale('eo'),
+        Locale('kl'),
+      ], AppLocalizations.supportedLocales),
+      const Locale('en'),
+    );
+  });
+
+  test('every selectable locale has a generated catalog', () {
+    final generated = AppLocalizations.supportedLocales.toSet()
+      ..remove(const Locale('zh'));
+    final selectable = busyMaxLocaleOptions
+        .map((option) => option.locale)
+        .toSet();
+
+    expect(selectable, generated);
+  });
 }
 
-const _auditedUiPaths = <String>[
-  'lib/src/features/settings/presentation/settings_screen.dart',
-  'lib/src/features/auth/presentation/sign_in_screen.dart',
-  'lib/src/features/calendar/presentation/event_description_editor.dart',
-  'lib/src/features/calendar/presentation/event_editor.dart',
-  'lib/src/features/schedule/presentation/mini_calendar.dart',
-  'lib/src/features/schedule/presentation/schedule_day_week_view.dart',
-  'lib/src/features/schedule/presentation/schedule_sidebar.dart',
-];
+Iterable<File> _productionUiDartFiles() sync* {
+  for (final entity in Directory('lib').listSync(recursive: true)) {
+    if (entity is! File || !entity.path.endsWith('.dart')) {
+      continue;
+    }
+    if (entity.path.contains('/l10n/generated/')) {
+      continue;
+    }
+    if (!entity.path.contains('/presentation/') &&
+        !entity.path.contains('/src/app/')) {
+      continue;
+    }
+    yield entity;
+  }
+}
 
-const _translatedArbPaths = <String>[
-  'lib/l10n/app_ar.arb',
-  'lib/l10n/app_de.arb',
-  'lib/l10n/app_es.arb',
-  'lib/l10n/app_fa.arb',
-  'lib/l10n/app_fi.arb',
-  'lib/l10n/app_fr.arb',
-  'lib/l10n/app_hi.arb',
-  'lib/l10n/app_ja.arb',
-  'lib/l10n/app_ko.arb',
-  'lib/l10n/app_pt.arb',
-  'lib/l10n/app_ru.arb',
-  'lib/l10n/app_zh.arb',
-  'lib/l10n/app_zh_Hans.arb',
-  'lib/l10n/app_zh_Hant.arb',
-];
+Iterable<File> _translatedArbFiles() sync* {
+  for (final entity in Directory('lib/l10n').listSync()) {
+    if (entity is File &&
+        entity.path.endsWith('.arb') &&
+        !entity.path.endsWith('app_en.arb')) {
+      yield entity;
+    }
+  }
+}
 
-final _userFacingLiteralPattern = RegExp(
-  r"(?:\bText\(\s*|\b(?:title|subtitle|tooltip|label|message|description|semanticLabel|labelText|hintText|helperText):\s*)'([^']*[A-Za-z][^']*)'",
-);
+Iterable<String> _metadataTranslationFailures() sync* {
+  final targetLocales = <String>[
+    for (final file in _translatedArbFiles())
+      RegExp(r'app_([A-Za-z_]+)\.arb$').firstMatch(file.path)!.group(1)!,
+  ]..sort();
+  final desktop = File('linux/io.busystack.busymax.desktop').readAsStringSync();
+  final metainfo = File(
+    'linux/io.busystack.busymax.metainfo.xml',
+  ).readAsStringSync();
+  final snap = File('snap/snapcraft.yaml').readAsStringSync();
+
+  if (!snap.contains('Snap Store listing translations are managed outside')) {
+    yield 'snap/snapcraft.yaml: missing external translation note';
+  }
+  for (final locale in targetLocales) {
+    final xmlLocale = locale.replaceAll('_', '-');
+    if (!desktop.contains('Name[$locale]=')) {
+      yield 'linux/io.busystack.busymax.desktop: missing Name[$locale]';
+    }
+    if (!desktop.contains('Comment[$locale]=')) {
+      yield 'linux/io.busystack.busymax.desktop: missing Comment[$locale]';
+    }
+    if (!metainfo.contains('<name xml:lang="$xmlLocale">')) {
+      yield 'linux/io.busystack.busymax.metainfo.xml: missing name for '
+          '$xmlLocale';
+    }
+    if (!metainfo.contains('<summary xml:lang="$xmlLocale">')) {
+      yield 'linux/io.busystack.busymax.metainfo.xml: missing summary for '
+          '$xmlLocale';
+    }
+    if (!metainfo.contains('<p xml:lang="$xmlLocale">')) {
+      yield 'linux/io.busystack.busymax.metainfo.xml: missing description for '
+          '$xmlLocale';
+    }
+  }
+}
+
+final _userFacingLiteralPatterns = <RegExp>[
+  RegExp(r"\bText\(\s*'([^']*[A-Za-z][^']*)'"),
+  RegExp(r"\bSelectableText\(\s*'([^']*[A-Za-z][^']*)'"),
+  RegExp(
+    r"\b(?:title|subtitle|tooltip|label|message|description|semanticLabel|labelText|hintText|helperText):\s*'([^']*[A-Za-z][^']*)'",
+  ),
+];
 
 bool _isTechnicalLiteral(String literal) {
-  return RegExp(r'^\$\{?[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\}?$').hasMatch(literal);
+  final interpolationStripped = literal.replaceAll(
+    RegExp(r'\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*'),
+    '',
+  );
+  return literal == 'BusyMax' ||
+      literal == 'iCalendar' ||
+      literal == 'Ubuntu' ||
+      literal.startsWith(r'$') ||
+      !RegExp(r'[A-Za-z]{3,}').hasMatch(interpolationStripped);
 }
 
 Map<String, Object?> _decodeArb(File file) {

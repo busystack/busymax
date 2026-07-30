@@ -535,6 +535,8 @@ void main() {
       expect(source, isNot(contains('kHeaderWindowControlsBalanceWidth')));
       expect(source, contains('kHeaderOnboardingContentWidth'));
       expect(source, contains('kHeaderOnboardingSideWidth'));
+      expect(source, contains('header_onboarding_content_width'));
+      expect(source, contains('"contentWidth"'));
       expect(source, contains('onboarding_back_slot'));
       expect(source, contains('onboarding_back_button'));
       expect(source, contains('onboarding_continue_slot'));
@@ -873,6 +875,7 @@ void main() {
       expect(source, isNot(contains('padding: 4px;')));
       expect(source, contains('setLocalizedLabels'));
       expect(source, contains('setSidebarWidth'));
+      expect(source, contains('setTextDirection'));
       expect(source, contains('setTheme'));
       expect(source, contains('kHeaderBarStateSchemaVersion = 3'));
       expect(source, contains('fl_lookup_int_arg(args, "schemaVersion"'));
@@ -916,6 +919,12 @@ void main() {
       expect(source, contains('set_header_create_capabilities'));
       expect(source, contains('strcmp(method, "showCreateMenu") == 0'));
       expect(source, contains('setModalBarrierVisible'));
+      expect(source, contains('setModalBarrierDepth'));
+      expect(source, contains('modal_barrier_color_for_depth'));
+      expect(
+        source,
+        contains('1.0 - std::pow(1.0 - barrier.alpha, effective_depth)'),
+      );
       expect(source, contains('busymax-modal-barrier'));
       expect(
         source,
@@ -1275,7 +1284,7 @@ void main() {
       expect(service, contains('on PlatformException'));
     });
 
-    test('Linux confirmations are native GTK dialogs with a Yaru fallback', () {
+    test('confirmations use the shared app dialog surface', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
       final dialogs = File(
         'lib/src/app/busymax_dialogs.dart',
@@ -1285,31 +1294,9 @@ void main() {
       final confirmBody = design.substring(confirmStart);
 
       expect(runner, contains('"busymax/native_dialogs"'));
-      expect(runner, contains('gtk_message_dialog_new('));
-      expect(runner, contains('GTK_DIALOG_DESTROY_WITH_PARENT'));
-      expect(runner, contains('GTK_STYLE_CLASS_DESTRUCTIVE_ACTION'));
-      expect(runner, contains('GTK_STYLE_CLASS_SUGGESTED_ACTION'));
-      final nativeConfirmStart = runner.indexOf(
-        'static void handle_native_confirmation',
-      );
-      final nativeConfirmEnd = runner.indexOf(
-        'struct NativeTimeZoneOption',
-        nativeConfirmStart,
-      );
-      final nativeConfirm = runner.substring(
-        nativeConfirmStart,
-        nativeConfirmEnd,
-      );
-      expect(nativeConfirm, isNot(contains('style_native_dialog(dialog)')));
-      expect(nativeConfirm, isNot(contains('busymax-native-dialog')));
-      expect(nativeConfirm, isNot(contains('background_color')));
-      expect(
-        runner,
-        contains(
-          'gtk_dialog_set_default_response(GTK_DIALOG(dialog), '
-          'GTK_RESPONSE_CANCEL)',
-        ),
-      );
+      expect(runner, isNot(contains('gtk_message_dialog_new(')));
+      expect(runner, isNot(contains('handle_native_confirmation')));
+      expect(runner, isNot(contains('strcmp(method, "confirm")')));
       expect(runner, contains('register_native_dialogs(self, view, window)'));
       expect(
         runner,
@@ -1321,10 +1308,9 @@ void main() {
         runner,
         isNot(contains('native_dialog_method_call_cb, g_object_ref(window)')),
       );
-      expect(dialogs, contains('NativeDialogService nativeDialogService'));
-      expect(confirmBody, contains('return AlertDialog('));
-      expect(confirmBody, contains('clipBehavior: Clip.antiAlias'));
-      expect(confirmBody, isNot(contains('return BusyMaxDialogShell(')));
+      expect(dialogs, isNot(contains('NativeDialogService')));
+      expect(confirmBody, contains('return BusyMaxDialogShell('));
+      expect(confirmBody, isNot(contains('return AlertDialog(')));
     });
 
     test('timezone selection uses native GTK and Handy controls on Linux', () {
@@ -1387,10 +1373,77 @@ void main() {
         ),
       );
       expect(
+        nativeSelector,
+        contains(
+          'application->header_focus_transient_window = GTK_WINDOW(window)',
+        ),
+      );
+      expect(
+        nativeSelector,
+        contains(
+          'window, "notify::is-active",\n'
+          '        G_CALLBACK(header_focus_window_is_active_notify_cb), '
+          'application',
+        ),
+      );
+      expect(
         runner,
         contains('static void native_time_zone_parent_is_active_notify_cb('),
       );
-      expect(runner, contains('if (!gtk_window_is_active(parent) ||'));
+      final headerFocusStart = runner.indexOf(
+        'static gboolean refresh_header_bar_focus_state_cb(',
+      );
+      final headerFocusEnd = runner.indexOf(
+        'static void set_header_bar_modal_barrier_depth(',
+        headerFocusStart,
+      );
+      expect(headerFocusStart, isNonNegative);
+      expect(headerFocusEnd, greaterThan(headerFocusStart));
+      final headerFocus = runner.substring(headerFocusStart, headerFocusEnd);
+      expect(headerFocus, contains('gtk_window_is_active(self->main_window)'));
+      expect(
+        headerFocus,
+        contains('gtk_window_is_active(self->header_focus_transient_window)'),
+      );
+      expect(headerFocus, contains('kHeaderApplicationActiveStyleClass'));
+      expect(headerFocus, contains('kHeaderApplicationBackdropStyleClass'));
+      expect(headerFocus, contains('g_idle_add_full('));
+      expect(headerFocus, contains('gtk_widget_reset_style('));
+      final activationCallbackStart = runner.indexOf(
+        'static void native_time_zone_parent_is_active_notify_cb(',
+      );
+      final activationCallbackEnd = runner.indexOf(
+        'static void rebuild_native_time_zone_results(',
+        activationCallbackStart,
+      );
+      final activationCallback = runner.substring(
+        activationCallbackStart,
+        activationCallbackEnd,
+      );
+      expect(activationCallback, contains('g_idle_add_full('));
+      expect(
+        activationCallback,
+        contains('native_time_zone_present_after_parent_activation_cb'),
+      );
+      expect(
+        activationCallback,
+        isNot(contains('gtk_window_present_with_time(')),
+      );
+      final deferredActivationStart = runner.indexOf(
+        'static gboolean '
+        'native_time_zone_present_after_parent_activation_cb(',
+      );
+      final deferredActivationEnd = activationCallbackStart;
+      final deferredActivation = runner.substring(
+        deferredActivationStart,
+        deferredActivationEnd,
+      );
+      expect(deferredActivation, contains('!gtk_window_is_active(parent)'));
+      expect(deferredActivation, contains('gtk_window_is_active(window)'));
+      expect(
+        deferredActivation,
+        contains('gtk_window_present_with_time(window, GDK_CURRENT_TIME)'),
+      );
       expect(runner, contains('kNativeTimeZoneDialogContentHeight'));
       expect(runner, contains('kNativeTimeZoneDialogStyleClass'));
       expect(runner, contains('kNativeTimeZoneGroupStyleClass'));
@@ -1511,8 +1564,8 @@ void main() {
         expect(nativeDialogs, isNot(contains('respond_native_prompt')));
         expect(nativeDialogs, isNot(contains('gtk_entry_new()')));
         expect(nativeDialogs, isNot(contains('gtk_dialog_new_with_buttons(')));
-        expect(nativeDialogs, contains('gtk_message_dialog_new('));
-        expect(runner, contains('strcmp(method, "confirm") == 0'));
+        expect(nativeDialogs, isNot(contains('gtk_message_dialog_new(')));
+        expect(runner, isNot(contains('strcmp(method, "confirm")')));
         expect(runner, isNot(contains('strcmp(method, "prompt")')));
 
         expect(service, isNot(contains('NativeTextPromptResult')));
@@ -1614,7 +1667,7 @@ void main() {
       );
       final nativeTimeZoneDialogCssStart = nativeDialogCssEnd;
       final nativeTimeZoneDialogCssEnd = source.indexOf(
-        'const gchar* modal_barrier_color',
+        'g_autofree gchar* modal_barrier_color',
         nativeTimeZoneDialogCssStart,
       );
       expect(nativePopoverCssStart, isNonNegative);
@@ -1744,12 +1797,9 @@ void main() {
         headerCss,
         contains('"headerbar button.titlebutton:disabled:backdrop {"'),
       );
-      expect(
-        source,
-        contains(
-          'self->header_bar_modal_barrier_color, kDefaultModalBarrierColor',
-        ),
-      );
+      expect(source, contains('modal_barrier_color_for_depth('));
+      expect(source, contains('self->header_bar_modal_barrier_color'));
+      expect(source, contains('kDefaultModalBarrierColor'));
       expect(headerCss, isNot(contains('linear-gradient(%s, %s)')));
       expect(headerCss, isNot(contains('".busymax-titlebar,"')));
       expect(source, contains('kDefaultWindowBackgroundColor[] = "#2C2C2C"'));

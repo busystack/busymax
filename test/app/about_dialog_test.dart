@@ -189,10 +189,10 @@ void main() {
       );
       expect(
         calls
-            .where((call) => call.method == 'setModalBarrierVisible')
+            .where((call) => call.method == 'setModalBarrierDepth')
             .single
             .arguments,
-        isTrue,
+        1,
       );
 
       await tester.tap(find.byType(YaruWindowControl));
@@ -201,10 +201,10 @@ void main() {
       await result;
       expect(find.byType(BusyMaxAboutDialog), findsNothing);
       final barrierCalls = calls
-          .where((call) => call.method == 'setModalBarrierVisible')
+          .where((call) => call.method == 'setModalBarrierDepth')
           .toList();
       expect(barrierCalls, hasLength(2));
-      expect(barrierCalls.last.arguments, isFalse);
+      expect(barrierCalls.last.arguments, 0);
       expect(tester.takeException(), isNull);
     },
   );
