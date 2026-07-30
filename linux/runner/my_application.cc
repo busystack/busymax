@@ -75,6 +75,10 @@ constexpr char kHeaderSearchEntryStyleClass[] =
     "busymax-header-search-entry";
 constexpr char kHeaderModalOpenStyleClass[] = "busymax-modal-open";
 constexpr char kHeaderModalBarrierStyleClass[] = "busymax-modal-barrier";
+constexpr char kHeaderApplicationActiveStyleClass[] =
+    "busymax-focus-active";
+constexpr char kHeaderApplicationBackdropStyleClass[] =
+    "busymax-focus-backdrop";
 constexpr char kNativeDialogStyleClass[] = "busymax-native-dialog";
 // Mirrors Yaru's shared window/dialog radius used by the Flutter fallback.
 constexpr gint kNativeDialogCornerRadius = 14;
@@ -124,7 +128,9 @@ struct _MyApplication {
   gboolean header_bar_can_show_sidebar;
   gboolean header_bar_sidebar_visible;
   gboolean header_bar_modal_barrier_visible;
+  gint header_bar_modal_barrier_depth;
   GtkWindow* main_window;
+  GtkWindow* header_focus_transient_window;
   GtkWidget* flutter_view;
   GtkWidget* titlebar_handle;
   GtkWidget* titlebar_overlay;
@@ -180,9 +186,12 @@ struct _MyApplication {
   gboolean header_navigation_visible;
   gboolean header_back_visible;
   gboolean header_onboarding_controls_visible;
+  gint header_onboarding_content_width;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+static void schedule_header_bar_focus_state_refresh(MyApplication* self);
 
 static void style_native_popover(GtkWidget* popover) {
   if (popover == nullptr || !GTK_IS_POPOVER(popover)) {
@@ -520,52 +529,6 @@ static void respond_bool(FlMethodCall* method_call, gboolean value) {
   fl_method_call_respond_success(method_call, result, nullptr);
 }
 
-static void handle_native_confirmation(FlMethodCall* method_call,
-                                       FlValue* args,
-                                       GtkWindow* parent) {
-  const gchar* title = fl_lookup_string_arg(args, "title");
-  const gchar* message = fl_lookup_string_arg(args, "message");
-  const gchar* cancel_label = fl_lookup_string_arg(args, "cancelLabel");
-  const gchar* confirm_label = fl_lookup_string_arg(args, "confirmLabel");
-  const gboolean destructive =
-      fl_lookup_bool_arg(args, "destructive", FALSE);
-
-  GtkWidget* dialog = gtk_message_dialog_new(
-      parent,
-      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
-                                  GTK_DIALOG_DESTROY_WITH_PARENT),
-      destructive ? GTK_MESSAGE_WARNING : GTK_MESSAGE_QUESTION,
-      GTK_BUTTONS_NONE, "%s", title != nullptr ? title : "");
-  if (message != nullptr && message[0] != '\0') {
-    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s",
-                                             message);
-  }
-  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
-
-  GtkWidget* cancel_button = gtk_dialog_add_button(
-      GTK_DIALOG(dialog), cancel_label != nullptr ? cancel_label : "_Cancel",
-      GTK_RESPONSE_CANCEL);
-  GtkWidget* confirm_button = gtk_dialog_add_button(
-      GTK_DIALOG(dialog), confirm_label != nullptr ? confirm_label : "_OK",
-      GTK_RESPONSE_ACCEPT);
-  GtkStyleContext* confirm_context =
-      gtk_widget_get_style_context(confirm_button);
-  gtk_style_context_add_class(
-      confirm_context, destructive ? GTK_STYLE_CLASS_DESTRUCTIVE_ACTION
-                                   : GTK_STYLE_CLASS_SUGGESTED_ACTION);
-
-  // Confirmation dialogs default to the safe action. GTK still owns focus
-  // rendering, keyboard behavior, button order, typography, and accent use.
-  gtk_widget_set_can_default(cancel_button, TRUE);
-  gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_CANCEL);
-  gtk_widget_grab_focus(cancel_button);
-
-  gtk_widget_show_all(dialog);
-  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-  respond_bool(method_call, response == GTK_RESPONSE_ACCEPT);
-  gtk_widget_destroy(dialog);
-}
-
 struct NativeTimeZoneOption {
   gchar* id;
   gchar* region;
@@ -595,6 +558,7 @@ struct NativeGroupedListStyle {
 };
 
 struct NativeTimeZoneDialogState {
+  MyApplication* application;
   GtkWidget* window;
   GtkWidget* results;
   GPtrArray* options;
@@ -716,9 +680,33 @@ static void native_time_zone_window_destroy_cb(GtkWidget*,
                                                gpointer user_data) {
   auto* state = static_cast<NativeTimeZoneDialogState*>(user_data);
   state->window = nullptr;
+  if (state->application != nullptr) {
+    schedule_header_bar_focus_state_refresh(state->application);
+  }
   if (g_main_loop_is_running(state->loop)) {
     g_main_loop_quit(state->loop);
   }
+}
+
+static void header_focus_window_is_active_notify_cb(
+    GtkWindow*,
+    GParamSpec*,
+    gpointer user_data) {
+  schedule_header_bar_focus_state_refresh(MY_APPLICATION(user_data));
+}
+
+static gboolean native_time_zone_present_after_parent_activation_cb(
+    gpointer user_data) {
+  GtkWindow* window = GTK_WINDOW(user_data);
+  GtkWindow* parent = gtk_window_get_transient_for(window);
+  if (parent == nullptr || !gtk_window_is_active(parent) ||
+      !gtk_widget_get_visible(GTK_WIDGET(window)) ||
+      gtk_window_is_active(window)) {
+    return G_SOURCE_REMOVE;
+  }
+
+  gtk_window_present_with_time(window, GDK_CURRENT_TIME);
+  return G_SOURCE_REMOVE;
 }
 
 static void native_time_zone_parent_is_active_notify_cb(
@@ -731,10 +719,14 @@ static void native_time_zone_parent_is_active_notify_cb(
     return;
   }
 
-  // Some compositors reactivate the transient parent when switching back to
-  // the application. Keep the modal as the sole focus owner so both
-  // toplevels enter and leave GTK's :backdrop state consistently.
-  gtk_window_present_with_time(window, GDK_CURRENT_TIME);
+  // GTK can briefly activate the transient parent while focus is leaving the
+  // application. Wait until that transition settles before deciding whether
+  // the modal needs focus again, otherwise the dialog steals focus on
+  // alternating activation cycles.
+  g_idle_add_full(
+      G_PRIORITY_DEFAULT_IDLE,
+      native_time_zone_present_after_parent_activation_cb,
+      g_object_ref(window), g_object_unref);
 }
 
 static void rebuild_native_time_zone_results(
@@ -1048,7 +1040,8 @@ static GtkCssProvider* create_native_grouped_list_provider(
 
 static void handle_native_time_zone_selection(FlMethodCall* method_call,
                                               FlValue* args,
-                                              GtkWindow* parent) {
+                                              GtkWindow* parent,
+                                              MyApplication* application) {
   const gchar* title = fl_lookup_string_arg(args, "title");
   const gchar* search_placeholder =
       fl_lookup_string_arg(args, "searchPlaceholder");
@@ -1158,6 +1151,7 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
 
   GMainLoop* loop = g_main_loop_new(nullptr, FALSE);
   NativeTimeZoneDialogState state = {
+      application,
       window,
       results,
       options,
@@ -1175,6 +1169,16 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
                    &state);
   g_signal_connect(window, "destroy",
                    G_CALLBACK(native_time_zone_window_destroy_cb), &state);
+  if (application != nullptr && parent == application->main_window) {
+    application->header_focus_transient_window = GTK_WINDOW(window);
+    g_object_add_weak_pointer(
+        G_OBJECT(window),
+        reinterpret_cast<gpointer*>(
+            &application->header_focus_transient_window));
+    g_signal_connect(
+        window, "notify::is-active",
+        G_CALLBACK(header_focus_window_is_active_notify_cb), application);
+  }
   g_signal_connect_object(
       parent, "notify::is-active",
       G_CALLBACK(native_time_zone_parent_is_active_notify_cb), window,
@@ -1198,6 +1202,7 @@ static void handle_native_time_zone_selection(FlMethodCall* method_call,
 
 struct NativeDialogHandlerData {
   GtkWindow* window;
+  MyApplication* application;
 };
 
 static void native_dialog_handler_data_free(gpointer user_data) {
@@ -1206,6 +1211,11 @@ static void native_dialog_handler_data_free(gpointer user_data) {
     g_object_remove_weak_pointer(
         G_OBJECT(data->window),
         reinterpret_cast<gpointer*>(&data->window));
+  }
+  if (data->application != nullptr) {
+    g_object_remove_weak_pointer(
+        G_OBJECT(data->application),
+        reinterpret_cast<gpointer*>(&data->application));
   }
   g_free(data);
 }
@@ -1220,27 +1230,32 @@ static void native_dialog_method_call_cb(FlMethodChannel* channel,
     return;
   }
   const gchar* method = fl_method_call_get_name(method_call);
-  if (strcmp(method, "confirm") == 0) {
-    handle_native_confirmation(method_call, fl_method_call_get_args(method_call),
-                               parent);
-  } else if (strcmp(method, "selectTimeZone") == 0) {
+  if (strcmp(method, "selectTimeZone") == 0) {
     handle_native_time_zone_selection(
-        method_call, fl_method_call_get_args(method_call), parent);
+        method_call, fl_method_call_get_args(method_call), parent,
+        data->application);
   } else {
     fl_method_call_respond_not_implemented(method_call, nullptr);
   }
 }
 
 static FlMethodChannel* create_native_dialog_channel(FlView* view,
-                                                     GtkWindow* window) {
+                                                     GtkWindow* window,
+                                                     MyApplication* application) {
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   FlMethodChannel* channel = fl_method_channel_new(
       fl_engine_get_binary_messenger(fl_view_get_engine(view)),
       kNativeDialogChannel, FL_METHOD_CODEC(codec));
   auto* data = g_new0(NativeDialogHandlerData, 1);
   data->window = window;
+  data->application = application;
   g_object_add_weak_pointer(G_OBJECT(window),
                             reinterpret_cast<gpointer*>(&data->window));
+  if (application != nullptr) {
+    g_object_add_weak_pointer(
+        G_OBJECT(application),
+        reinterpret_cast<gpointer*>(&data->application));
+  }
   fl_method_channel_set_method_call_handler(
       channel, native_dialog_method_call_cb, data,
       native_dialog_handler_data_free);
@@ -1250,12 +1265,14 @@ static FlMethodChannel* create_native_dialog_channel(FlView* view,
 static void register_native_dialogs(MyApplication* self,
                                     FlView* view,
                                     GtkWindow* window) {
-  self->native_dialog_channel = create_native_dialog_channel(view, window);
+  self->native_dialog_channel =
+      create_native_dialog_channel(view, window, self);
 }
 
 static void register_native_dialogs_for_subwindow(FlView* view,
                                                   GtkWindow* window) {
-  FlMethodChannel* channel = create_native_dialog_channel(view, window);
+  FlMethodChannel* channel =
+      create_native_dialog_channel(view, window, nullptr);
   g_object_set_data_full(G_OBJECT(window), "busymax-native-dialogs", channel,
                          g_object_unref);
 }
@@ -1750,6 +1767,12 @@ static gboolean fl_method_bool_arg(FlValue* args) {
              : FALSE;
 }
 
+static gint fl_method_int_arg(FlValue* args, gint fallback) {
+  return args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_INT
+             ? static_cast<gint>(fl_value_get_int(args))
+             : fallback;
+}
+
 static gdouble fl_method_double_arg(FlValue* args, gdouble fallback) {
   if (args == nullptr) {
     return fallback;
@@ -1822,6 +1845,17 @@ static gboolean is_css_color_token(const gchar* value) {
 
 static const gchar* css_color_or(const gchar* value, const gchar* fallback) {
   return is_css_color_token(value) ? value : fallback;
+}
+
+static gchar* modal_barrier_color_for_depth(const gchar* color, gint depth) {
+  GdkRGBA barrier;
+  if (!gdk_rgba_parse(&barrier, color)) {
+    return g_strdup(color);
+  }
+  const gint effective_depth = std::max(0, depth);
+  barrier.alpha =
+      1.0 - std::pow(1.0 - barrier.alpha, effective_depth);
+  return gdk_rgba_to_string(&barrier);
 }
 
 static void set_flutter_view_background_color(MyApplication* self,
@@ -1975,8 +2009,10 @@ static void refresh_header_bar_css(MyApplication* self) {
       kNativeTimeZoneDialogStyleClass, kNativeDialogStyleClass,
       kNativeTimeZoneDialogStyleClass, dialog_background_color,
       kNativeDialogCornerRadius, kNativeDialogCornerRadius);
-  const gchar* modal_barrier_color = css_color_or(
-      self->header_bar_modal_barrier_color, kDefaultModalBarrierColor);
+  g_autofree gchar* modal_barrier_color = modal_barrier_color_for_depth(
+      css_color_or(self->header_bar_modal_barrier_color,
+                   kDefaultModalBarrierColor),
+      self->header_bar_modal_barrier_depth);
   const gboolean use_legacy_yaru_compatibility =
       !self->header_bar_high_contrast &&
       current_gtk_theme_uses_legacy_yaru_shadow();
@@ -2019,6 +2055,55 @@ static void refresh_header_bar_css(MyApplication* self) {
                 css_color_or(self->header_bar_popover_shadow_color,
                              kDefaultHeaderMenuShadowColor))
           : g_strdup("");
+  g_autofree gchar* header_focus_css = g_strdup_printf(
+      ".busymax-titlebar.%s .busymax-header-brand label,"
+      ".busymax-titlebar.%s .busymax-header-title {"
+      "color: %s;"
+      "}"
+      ".busymax-titlebar.%s .busymax-header-brand label,"
+      ".busymax-titlebar.%s .busymax-header-title {"
+      "color: alpha(%s, %.2f);"
+      "}"
+      ".busymax-titlebar.%s "
+      ".busymax-header-control:not(:disabled),"
+      ".busymax-titlebar.%s "
+      "headerbar button.titlebutton:not(:disabled) {"
+      "color: %s;"
+      "-gtk-icon-effect: none;"
+      "}"
+      ".busymax-titlebar.%s "
+      ".busymax-header-control:not(:disabled),"
+      ".busymax-titlebar.%s "
+      "headerbar button.titlebutton:not(:disabled) {"
+      "color: alpha(%s, %.2f);"
+      "-gtk-icon-effect: none;"
+      "}"
+      ".busymax-titlebar.%s .busymax-header-control:disabled,"
+      ".busymax-titlebar.%s headerbar button.titlebutton:disabled {"
+      "color: alpha(%s, %.2f);"
+      "-gtk-icon-effect: none;"
+      "}"
+      ".busymax-titlebar.%s .busymax-header-control:disabled,"
+      ".busymax-titlebar.%s headerbar button.titlebutton:disabled {"
+      "color: alpha(%s, %.2f);"
+      "-gtk-icon-effect: none;"
+      "}",
+      kHeaderApplicationActiveStyleClass,
+      kHeaderApplicationActiveStyleClass, foreground_color,
+      kHeaderApplicationBackdropStyleClass,
+      kHeaderApplicationBackdropStyleClass, foreground_color,
+      kHeaderBackdropForegroundOpacity,
+      kHeaderApplicationActiveStyleClass,
+      kHeaderApplicationActiveStyleClass, foreground_color,
+      kHeaderApplicationBackdropStyleClass,
+      kHeaderApplicationBackdropStyleClass, foreground_color,
+      kHeaderBackdropForegroundOpacity,
+      kHeaderApplicationActiveStyleClass,
+      kHeaderApplicationActiveStyleClass, foreground_color,
+      kHeaderDisabledForegroundOpacity,
+      kHeaderApplicationBackdropStyleClass,
+      kHeaderApplicationBackdropStyleClass, foreground_color,
+      kHeaderDisabledBackdropForegroundOpacity);
   g_autofree gchar* yaru_window_decoration_css =
       use_legacy_yaru_compatibility
           ? g_strdup_printf(
@@ -2102,6 +2187,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "}"
       ".busymax-titlebar .busymax-header-brand label {"
       "color: %s;"
+      "font-weight: 800;"
       "}"
       ".busymax-titlebar .busymax-header-brand label:backdrop {"
       "color: alpha(%s, %.2f);"
@@ -2145,6 +2231,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "color: alpha(%s, %.2f);"
       "-gtk-icon-effect: none;"
       "}"
+      "%s"
       // Yaru GTK 3 paints pressed and checked buttons with an absolute
       // near-black image. That legacy state is incompatible with BusyMax's
       // semantic header surfaces. Scope modern Yaru/libadwaita current-color
@@ -2223,6 +2310,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       foreground_color, foreground_color, kHeaderBackdropForegroundOpacity,
       foreground_color, kHeaderDisabledForegroundOpacity, foreground_color,
       kHeaderDisabledBackdropForegroundOpacity,
+      header_focus_css,
       kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
       kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
       kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
@@ -2298,9 +2386,50 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
 static void close_header_menu_button(GtkWidget* menu_button);
 static void focus_flutter_view(MyApplication* self);
 
-static void set_header_bar_modal_barrier_visible(MyApplication* self,
-                                                 gboolean visible) {
+static gboolean refresh_header_bar_focus_state_cb(gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (self->titlebar_handle == nullptr ||
+      !GTK_IS_WIDGET(self->titlebar_handle)) {
+    return G_SOURCE_REMOVE;
+  }
+
+  const gboolean application_active =
+      (self->main_window != nullptr &&
+       gtk_window_is_active(self->main_window)) ||
+      (self->header_focus_transient_window != nullptr &&
+       gtk_window_is_active(self->header_focus_transient_window));
+  GtkStyleContext* context =
+      gtk_widget_get_style_context(self->titlebar_handle);
+  gtk_style_context_remove_class(
+      context, kHeaderApplicationActiveStyleClass);
+  gtk_style_context_remove_class(
+      context, kHeaderApplicationBackdropStyleClass);
+  gtk_style_context_add_class(
+      context,
+      application_active ? kHeaderApplicationActiveStyleClass
+                         : kHeaderApplicationBackdropStyleClass);
+
+  // The headerbar is embedded above Flutter rather than installed as
+  // GtkWindow's titlebar. Reset its subtree after the compositor's focus
+  // transfer settles so :backdrop declarations cannot remain one event late.
+  gtk_widget_reset_style(self->titlebar_handle);
+  gtk_widget_queue_draw(self->titlebar_handle);
+  return G_SOURCE_REMOVE;
+}
+
+static void schedule_header_bar_focus_state_refresh(MyApplication* self) {
+  g_idle_add_full(
+      G_PRIORITY_DEFAULT_IDLE, refresh_header_bar_focus_state_cb,
+      g_object_ref(self), g_object_unref);
+}
+
+static void set_header_bar_modal_barrier_depth(MyApplication* self,
+                                               gint depth) {
+  const gint effective_depth = std::max(0, depth);
+  const gboolean visible = effective_depth > 0;
+  self->header_bar_modal_barrier_depth = effective_depth;
   self->header_bar_modal_barrier_visible = visible;
+  refresh_header_bar_css(self);
   if (self->titlebar_handle != nullptr &&
       GTK_IS_WIDGET(self->titlebar_handle)) {
     GtkStyleContext* context =
@@ -2321,6 +2450,11 @@ static void set_header_bar_modal_barrier_visible(MyApplication* self,
     close_header_menu_button(self->create_button);
     focus_flutter_view(self);
   }
+}
+
+static void set_header_bar_modal_barrier_visible(MyApplication* self,
+                                                 gboolean visible) {
+  set_header_bar_modal_barrier_depth(self, visible ? 1 : 0);
 }
 
 static void clear_header_bar_pointer(MyApplication* self) {
@@ -2993,7 +3127,8 @@ static void update_header_title_box_geometry(MyApplication* self) {
   const gboolean onboarding = self->header_onboarding_controls_visible;
   gtk_widget_set_halign(self->header_title_box,
                         onboarding ? GTK_ALIGN_CENTER : GTK_ALIGN_FILL);
-  const gint width = onboarding ? kHeaderOnboardingContentWidth : -1;
+  const gint width =
+      onboarding ? self->header_onboarding_content_width : -1;
   gtk_widget_set_size_request(self->header_title_box, width, -1);
 }
 
@@ -3051,6 +3186,12 @@ static void set_header_onboarding_controls(MyApplication* self, FlValue* args) {
       fl_lookup_bool_arg(args, "canContinue", FALSE);
   const gchar* back_label = fl_lookup_string_arg(args, "backLabel");
   const gchar* continue_label = fl_lookup_string_arg(args, "continueLabel");
+  gint64 content_width = 0;
+  if (fl_lookup_int_arg(args, "contentWidth", &content_width) &&
+      content_width > 0 && content_width <= G_MAXINT) {
+    self->header_onboarding_content_width =
+        static_cast<gint>(content_width);
+  }
 
   self->header_onboarding_controls_visible = visible;
   set_widget_visible(self->onboarding_back_slot, visible);
@@ -3088,6 +3229,42 @@ static void set_header_sidebar_width(MyApplication* self, gdouble width) {
   self->header_bar_sidebar_width = static_cast<gint>(width);
   update_header_sidebar_brand_geometry(self);
   refresh_header_bar_css(self);
+}
+
+static void set_header_text_direction(MyApplication* self,
+                                      const gchar* value) {
+  const GtkTextDirection direction =
+      g_strcmp0(value, "rtl") == 0 ? GTK_TEXT_DIR_RTL : GTK_TEXT_DIR_LTR;
+  GtkWidget* widgets[] = {
+      self->titlebar_handle,
+      self->titlebar_overlay,
+      self->titlebar_box,
+      GTK_WIDGET(self->header_bar),
+      self->header_start_box,
+      self->header_title_box,
+      self->header_title_stack,
+      self->header_sidebar_brand_box,
+      self->settings_menu_button,
+      self->settings_menu,
+      self->header_view_box,
+      self->search_entry,
+      self->back_button,
+      self->sidebar_collapsed_toggle_button,
+      self->today_button,
+      self->previous_button,
+      self->next_button,
+      self->view_mode_button,
+      self->view_mode_menu,
+      self->search_button,
+      self->create_button,
+      self->create_menu,
+      self->refresh_button,
+  };
+  for (GtkWidget* widget : widgets) {
+    if (widget != nullptr && GTK_IS_WIDGET(widget)) {
+      gtk_widget_set_direction(widget, direction);
+    }
+  }
 }
 
 static void set_header_bar_state(MyApplication* self, FlValue* args) {
@@ -3546,6 +3723,9 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
   } else if (strcmp(method, "setSidebarWidth") == 0) {
     set_header_sidebar_width(self, fl_method_double_arg(args, 300));
     respond_success(method_call);
+  } else if (strcmp(method, "setTextDirection") == 0) {
+    set_header_text_direction(self, fl_method_string_arg(args));
+    respond_success(method_call);
   } else if (strcmp(method, "setSearchActive") == 0) {
     set_header_search_state(self, fl_method_bool_arg(args),
                             self->header_search_query);
@@ -3578,6 +3758,9 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
     respond_success(method_call);
   } else if (strcmp(method, "setModalBarrierVisible") == 0) {
     set_header_bar_modal_barrier_visible(self, fl_method_bool_arg(args));
+    respond_success(method_call);
+  } else if (strcmp(method, "setModalBarrierDepth") == 0) {
+    set_header_bar_modal_barrier_depth(self, fl_method_int_arg(args, 0));
     respond_success(method_call);
   } else if (strcmp(method, "setTheme") == 0) {
     set_header_bar_theme(self, args);
@@ -4613,6 +4796,9 @@ static void my_application_activate(GApplication* application) {
                               kMainWindowDefaultHeight);
   g_signal_connect(window, "delete-event", G_CALLBACK(window_delete_event_cb),
                    self);
+  g_signal_connect(
+      window, "notify::is-active",
+      G_CALLBACK(header_focus_window_is_active_notify_cb), self);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
@@ -4650,6 +4836,7 @@ static void my_application_activate(GApplication* application) {
   register_gtk_settings_channel(self, view);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
+  schedule_header_bar_focus_state_refresh(self);
 }
 
 // Implements GApplication::local_command_line.
@@ -4715,6 +4902,13 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->header_create_event_action);
   g_clear_object(&self->header_create_task_action);
   g_clear_object(&self->header_menu_action_group);
+  if (self->header_focus_transient_window != nullptr) {
+    g_object_remove_weak_pointer(
+        G_OBJECT(self->header_focus_transient_window),
+        reinterpret_cast<gpointer*>(
+            &self->header_focus_transient_window));
+    self->header_focus_transient_window = nullptr;
+  }
   self->main_window = nullptr;
   clear_widget_pointer(&self->flutter_view);
   clear_widget_pointer(&self->titlebar_handle);
@@ -4803,6 +4997,7 @@ static void my_application_init(MyApplication* self) {
   self->header_schedule_controls_visible = TRUE;
   self->header_back_visible = FALSE;
   self->header_onboarding_controls_visible = FALSE;
+  self->header_onboarding_content_width = kHeaderOnboardingContentWidth;
   self->header_bar_css_provider = nullptr;
   self->header_bar_window_background_color =
       g_strdup(kDefaultWindowBackgroundColor);
@@ -4824,7 +5019,9 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_can_show_sidebar = TRUE;
   self->header_bar_sidebar_visible = TRUE;
   self->header_bar_modal_barrier_visible = FALSE;
+  self->header_bar_modal_barrier_depth = 0;
   self->main_window = nullptr;
+  self->header_focus_transient_window = nullptr;
   self->flutter_view = nullptr;
   self->titlebar_handle = nullptr;
   self->titlebar_overlay = nullptr;
