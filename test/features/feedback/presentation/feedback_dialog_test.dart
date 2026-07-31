@@ -275,6 +275,13 @@ void main() {
 
     final confirmation = find.byType(BusyMaxConfirmDialog);
     expect(
+      find.descendant(
+        of: confirmation,
+        matching: find.text('Не сохранять изменения?'),
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.descendant(of: confirmation, matching: find.text('Отмена')),
       findsOneWidget,
     );

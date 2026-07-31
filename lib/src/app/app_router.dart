@@ -79,9 +79,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/settings',
-        builder: (context, state) => SettingsScreen(
-          initialPage: settingsPageFromRouteValue(
-            state.uri.queryParameters['page'],
+        pageBuilder: (context, state) => NoTransitionPage<void>(
+          key: state.pageKey,
+          child: SettingsScreen(
+            initialPage: settingsPageFromRouteValue(
+              state.uri.queryParameters['page'],
+            ),
           ),
         ),
       ),

@@ -82,6 +82,14 @@ void main() {
       'Не сохранять',
     );
     expect(
+      lookupAppLocalizations(const Locale('ru')).discardChanges,
+      'Не сохранять изменения?',
+    );
+    expect(
+      lookupAppLocalizations(const Locale('ru')).discardChangesConfirmation,
+      'Несохранённые изменения этой задачи будут потеряны.',
+    );
+    expect(
       lookupAppLocalizations(const Locale('vi')).discardChangesAction,
       'Không lưu',
     );
