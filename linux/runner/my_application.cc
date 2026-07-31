@@ -2161,6 +2161,25 @@ static void refresh_header_bar_css(MyApplication* self) {
                 "}",
                 kHeaderSearchEntryStyleClass)
           : g_strdup("");
+  g_autofree gchar* native_menu_state_css =
+      !self->header_bar_high_contrast &&
+              is_css_color_token(self->header_bar_menu_hover_color)
+          ? g_strdup_printf(
+                "popover.background.%s "
+                "modelbutton:hover:not(:disabled) {"
+                "background-color: %s;"
+                "background-image: none;"
+                "}"
+                "popover.background.%s "
+                "row:hover:not(:disabled) {"
+                "background-color: %s;"
+                "background-image: none;"
+                "}",
+                kNativePopoverStyleClass,
+                self->header_bar_menu_hover_color,
+                kNativePopoverStyleClass,
+                self->header_bar_menu_hover_color)
+          : g_strdup("");
   g_autofree gchar* header_menu_shadow_css =
       use_legacy_yaru_compatibility
           ? g_strdup_printf(
@@ -2427,6 +2446,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "}"
       "%s"
       "%s"
+      "%s"
       ".busymax-titlebar .%s,"
       ".busymax-titlebar .%s:backdrop {"
       "background-color: %s;"
@@ -2446,7 +2466,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
       kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
       kHeaderModalOpenStyleClass, kHeaderModalOpenStyleClass,
-      native_popover_css, header_menu_shadow_css,
+      native_popover_css, native_menu_state_css, header_menu_shadow_css,
       kHeaderModalBarrierStyleClass,
       kHeaderModalBarrierStyleClass, modal_barrier_color);
 

@@ -1310,8 +1310,6 @@ void main() {
         nativeMenu,
         contains('decorate_model_menu_shortcuts(session->popover'),
       );
-      expect(runner, isNot(contains('modelbutton:hover')));
-      expect(nativeMenu, isNot(contains('GTK_STATE_FLAG_PRELIGHT')));
       expect(nativeMenu, contains('g_simple_action_set_enabled('));
       expect(nativeMenu, contains('g_themed_icon_new(icon_name)'));
       expect(nativeMenu, contains('g_menu_item_set_icon(item, icon)'));
@@ -1807,7 +1805,7 @@ void main() {
         'g_autofree gchar* native_search_geometry_css =',
       );
       final nativeSearchGeometryCssEnd = source.indexOf(
-        'g_autofree gchar* header_menu_shadow_css =',
+        'g_autofree gchar* native_menu_state_css =',
         nativeSearchGeometryCssStart,
       );
       expect(nativeSearchGeometryCssStart, isNonNegative);
@@ -1818,6 +1816,17 @@ void main() {
       final nativeSearchGeometryCss = source.substring(
         nativeSearchGeometryCssStart,
         nativeSearchGeometryCssEnd,
+      );
+      final nativeMenuStateCssStart = nativeSearchGeometryCssEnd;
+      final nativeMenuStateCssEnd = source.indexOf(
+        'g_autofree gchar* header_menu_shadow_css =',
+        nativeMenuStateCssStart,
+      );
+      expect(nativeMenuStateCssStart, isNonNegative);
+      expect(nativeMenuStateCssEnd, greaterThan(nativeMenuStateCssStart));
+      final nativeMenuStateCss = source.substring(
+        nativeMenuStateCssStart,
+        nativeMenuStateCssEnd,
       );
       final headerMenuShadowCssStart = source.indexOf(
         'g_autofree gchar* header_menu_shadow_css =',
@@ -1993,9 +2002,37 @@ void main() {
       expect(nativeSearchGeometryCss, isNot(contains('min-height')));
       expect(nativeSearchGeometryCss, isNot(contains('#')));
       expect(nativeSearchGeometryCss, isNot(contains('rgba(')));
-      expect(source, isNot(contains('native_menu_state_css')));
-      expect(source, isNot(contains('modelbutton:hover')));
-      expect(source, isNot(contains('row:hover:not(:disabled)')));
+      expect(nativeMenuStateCss, contains('!self->header_bar_high_contrast'));
+      expect(
+        nativeMenuStateCss,
+        isNot(contains('use_legacy_yaru_compatibility')),
+      );
+      expect(
+        nativeMenuStateCss,
+        contains('is_css_color_token(self->header_bar_menu_hover_color)'),
+      );
+      expect(
+        nativeMenuStateCss,
+        contains(
+          '"popover.background.%s "\n'
+          '                '
+          '"modelbutton:hover:not(:disabled) {"',
+        ),
+      );
+      expect(nativeMenuStateCss, isNot(contains(':not(:backdrop)')));
+      expect(nativeMenuStateCss, isNot(contains('modelbutton.flat')));
+      expect(nativeMenuStateCss, contains('"background-color: %s;"'));
+      expect(nativeMenuStateCss, contains('"background-image: none;"'));
+      expect(nativeMenuStateCss, contains('self->header_bar_menu_hover_color'));
+      expect(nativeMenuStateCss, contains('kNativePopoverStyleClass'));
+      expect(nativeMenuStateCss, isNot(contains('border-radius')));
+      expect(nativeMenuStateCss, isNot(contains('"border:')));
+      expect(nativeMenuStateCss, isNot(contains('box-shadow')));
+      expect(nativeMenuStateCss, isNot(contains('padding')));
+      expect(nativeMenuStateCss, isNot(contains('margin')));
+      expect(nativeMenuStateCss, isNot(contains('min-height')));
+      expect(nativeMenuStateCss, isNot(contains('#')));
+      expect(nativeMenuStateCss, isNot(contains('rgba(')));
       expect(
         headerMenuShadowCss,
         contains('"popover.background.%s.%s:not(:backdrop) {"'),
