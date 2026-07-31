@@ -81,14 +81,54 @@ Future<T?> _showBusyMaxFlutterDialog<T>(
   Color? barrierColor,
   bool barrierDismissible = true,
 }) {
-  return showDialog<T>(
-    context: context,
-    barrierColor: barrierColor ?? busyMaxModalBarrierColor(context),
-    barrierDismissible: barrierDismissible,
-    traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
-    builder: (dialogContext) =>
-        BusyMaxModalShortcutBoundary(child: builder(dialogContext)),
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final themes = InheritedTheme.capture(from: context, to: navigator.context);
+  return navigator.push<T>(
+    _BusyMaxDialogRoute<T>(
+      context: context,
+      builder: builder,
+      themes: themes,
+      fixedBarrierColor: barrierColor,
+      initialBarrierColor: barrierColor ?? busyMaxModalBarrierColor(context),
+      barrierDismissible: barrierDismissible,
+    ),
   );
+}
+
+class _BusyMaxDialogRoute<T> extends DialogRoute<T> {
+  _BusyMaxDialogRoute({
+    required super.context,
+    required WidgetBuilder builder,
+    required CapturedThemes themes,
+    required Color? fixedBarrierColor,
+    required Color initialBarrierColor,
+    required super.barrierDismissible,
+  }) : _fixedBarrierColor = fixedBarrierColor,
+       _initialBarrierColor = initialBarrierColor,
+       super(
+         builder: (dialogContext) =>
+             BusyMaxModalShortcutBoundary(child: builder(dialogContext)),
+         themes: themes,
+         barrierColor: initialBarrierColor,
+         traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
+       );
+
+  final Color? _fixedBarrierColor;
+  final Color _initialBarrierColor;
+
+  /// Unlike [DialogRoute]'s constructor value, this getter is reevaluated
+  /// when the Navigator's inherited theme changes.
+  @override
+  Color? get barrierColor {
+    final fixedColor = _fixedBarrierColor;
+    if (fixedColor != null) {
+      return fixedColor;
+    }
+    final navigatorContext = navigator?.context;
+    return navigatorContext == null
+        ? _initialBarrierColor
+        : busyMaxModalBarrierColor(navigatorContext);
+  }
 }
 
 Future<T?> showBusyMaxModalEditorDialog<T>(

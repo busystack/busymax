@@ -165,6 +165,78 @@ void main() {
     expect(barrierCalls.last.arguments, 0);
   });
 
+  testWidgets('open modal barrier follows live theme changes', (tester) async {
+    const accent = Color(0xFF3584E4);
+    final lightTheme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: accent,
+    );
+    final darkTheme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: accent,
+    );
+    final themeMode = ValueNotifier(ThemeMode.light);
+    addTearDown(themeMode.dispose);
+    late BuildContext hostContext;
+
+    await tester.pumpWidget(
+      ValueListenableBuilder(
+        valueListenable: themeMode,
+        builder: (context, mode, child) {
+          return MaterialApp(
+            theme: lightTheme,
+            darkTheme: darkTheme,
+            themeMode: mode,
+            home: Builder(
+              builder: (context) {
+                hostContext = context;
+                return const SizedBox.shrink();
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    final result = showBusyMaxModalDialog<void>(
+      hostContext,
+      builder: (context) => const Dialog(child: Text('Theme-aware dialog')),
+    );
+    await tester.pumpAndSettle();
+
+    Color? currentBarrierColor() {
+      return tester
+          .widget<AnimatedModalBarrier>(find.byType(AnimatedModalBarrier).last)
+          .color
+          .value;
+    }
+
+    expect(
+      currentBarrierColor(),
+      lightTheme.extension<BusyMaxSurfaceColors>()!.shade,
+    );
+
+    themeMode.value = ThemeMode.dark;
+    await tester.pumpAndSettle();
+
+    expect(
+      currentBarrierColor(),
+      darkTheme.extension<BusyMaxSurfaceColors>()!.shade,
+    );
+
+    themeMode.value = ThemeMode.light;
+    await tester.pumpAndSettle();
+
+    expect(
+      currentBarrierColor(),
+      lightTheme.extension<BusyMaxSurfaceColors>()!.shade,
+    );
+
+    Navigator.of(hostContext, rootNavigator: true).pop();
+    await tester.pumpAndSettle();
+    await result;
+  });
+
   testWidgets('confirmation scrolls in a short window at 2x text', (
     tester,
   ) async {
