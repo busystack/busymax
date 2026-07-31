@@ -780,11 +780,22 @@ void main() {
       expect(source, contains('kDefaultTooltipForeground'));
       expect(source, contains('kDefaultTooltipBorder'));
       expect(source, contains('kDefaultTooltipRadius'));
+      expect(source, contains('kTooltipBorderWidth'));
+      expect(source, contains('kGtkTooltipContainerInset'));
       expect(source, contains('"tooltip.background {"'));
       expect(source, contains('"tooltip decoration,"'));
       expect(source, contains('"tooltip.csd decoration {"'));
-      expect(source, contains('"tooltip > box,"'));
-      expect(source, contains('"tooltip label {"'));
+      expect(source, contains('"tooltip box,"'));
+      expect(source, contains('"tooltip.background box {"'));
+      expect(source, contains('"tooltip label,"'));
+      expect(source, contains('"tooltip.background label {"'));
+      expect(source, contains('"min-width: 0;"'));
+      expect(source, contains('tooltip_label_horizontal_padding'));
+      expect(source, contains('tooltip_label_vertical_padding'));
+      expect(source, contains('tooltip_label_minimum_height'));
+      expect(source, contains('self->header_bar_tooltip_minimum_height -'));
+      expect(source, contains('kGtkTooltipContainerInset * 2'));
+      expect(source, contains('tooltip_label_vertical_padding * 2'));
       expect(source, isNot(contains('kHeaderTooltipVerticalPadding')));
       expect(source, isNot(contains('kHeaderTooltipHorizontalPadding')));
       expect(source, isNot(contains('kYaruGtk3TooltipVerticalPadding')));
@@ -2064,9 +2075,20 @@ void main() {
       expect(tooltipCss, contains('"tooltip.background {"'));
       expect(tooltipCss, contains('"tooltip decoration,"'));
       expect(tooltipCss, contains('"tooltip.csd decoration {"'));
-      expect(tooltipCss, contains('"tooltip > box,"'));
-      expect(tooltipCss, contains('"tooltip label {"'));
+      expect(tooltipCss, contains('"tooltip box,"'));
+      expect(tooltipCss, contains('"tooltip.background box {"'));
+      expect(tooltipCss, contains('"tooltip label,"'));
+      expect(tooltipCss, contains('"tooltip.background label {"'));
+      expect(tooltipCss, contains('"min-width: 0;"'));
+      expect(tooltipCss, contains('tooltip_label_horizontal_padding'));
+      expect(tooltipCss, contains('tooltip_label_vertical_padding'));
+      expect(tooltipCss, contains('tooltip_label_minimum_height'));
       expect(tooltipCss, contains('"padding: %.2fpx %.2fpx;"'));
+      expect(
+        '"padding: %.2fpx %.2fpx;"'.allMatches(tooltipCss).length,
+        1,
+        reason: 'Only the label contributes tooltip content padding',
+      );
       expect(tooltipCss, contains('"font-size: %.2fpx;"'));
       expect(
         '"border-radius: %.2fpx;"'.allMatches(tooltipCss).length,
