@@ -104,6 +104,7 @@ class _SourceRow extends ConsumerWidget {
         ),
         menuButton: BusyMaxMenuButton<String>(
           tooltip: context.l10n.options,
+          highlightWhenOpen: false,
           onSelected: (value) {
             switch (value) {
               case 'refresh':
@@ -502,6 +503,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
         ),
         menuButton: BusyMaxMenuButton<String>(
           tooltip: context.l10n.options,
+          highlightWhenOpen: false,
           onSelected: (value) {
             switch (value) {
               case 'refresh':

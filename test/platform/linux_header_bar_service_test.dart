@@ -589,7 +589,7 @@ void main() {
       'g_autofree gchar* native_search_geometry_css =',
     );
     final geometryCssEnd = source.indexOf(
-      'g_autofree gchar* native_menu_state_css =',
+      'g_autofree gchar* header_menu_shadow_css =',
       geometryCssStart,
     );
 

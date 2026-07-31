@@ -3304,6 +3304,7 @@ void main() {
     expect(sidebar, contains('visibilityButton: _SourceVisibilityButton'));
     expect(sidebar, contains('menuButton: BusyMaxMenuButton'));
     expect(sidebar, contains('tooltip: context.l10n.options'));
+    expect('highlightWhenOpen: false'.allMatches(sidebar), hasLength(2));
     expect(sidebar, contains('value ? context.l10n.hide : context.l10n.show'));
     expect(sidebar, isNot(contains('tooltip: context.l10n.sourceCalendar')));
     expect(sidebar, isNot(contains('tooltip: context.l10n.sourceTaskList')));

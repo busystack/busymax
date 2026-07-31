@@ -2811,6 +2811,7 @@ class BusyMaxMenuButton<T> extends StatefulWidget {
     this.triggerBuilder,
     this.controller,
     this.enabled = true,
+    this.highlightWhenOpen = true,
     this.nativeMenuService = const NativeMenuService(),
   });
 
@@ -2821,6 +2822,7 @@ class BusyMaxMenuButton<T> extends StatefulWidget {
   final BusyMaxMenuTriggerBuilder? triggerBuilder;
   final BusyMaxMenuController? controller;
   final bool enabled;
+  final bool highlightWhenOpen;
   final NativeMenuService nativeMenuService;
 
   @override
@@ -2884,7 +2886,7 @@ class _BusyMaxMenuButtonState<T> extends State<BusyMaxMenuButton<T>> {
               tooltip: widget.tooltip,
               icon: widget.icon,
               focusNode: _triggerFocusNode,
-              isSelected: _menuOpen,
+              isSelected: widget.highlightWhenOpen && _menuOpen,
               onPressed: widget.enabled ? _toggleMenu : null,
             ),
           );

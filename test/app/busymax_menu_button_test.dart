@@ -177,6 +177,49 @@ void main() {
     expect(find.text('Open in provider'), findsNothing);
   });
 
+  testWidgets('menu button can keep a neutral trigger while open', (
+    tester,
+  ) async {
+    final controller = BusyMaxMenuController();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          channel,
+          (_) async => throw MissingPluginException(),
+        );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: BusyMaxMenuButton<String>(
+            tooltip: 'Options',
+            controller: controller,
+            highlightWhenOpen: false,
+            nativeMenuService: const NativeMenuService(channel: channel),
+            entries: const [
+              BusyMaxMenuEntry(value: 'refresh', label: 'Refresh'),
+            ],
+            onSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Options'));
+    await tester.pumpAndSettle();
+
+    final trigger = tester.widget<YaruIconButton>(
+      find.ancestor(
+        of: find.byTooltip('Options'),
+        matching: find.byType(YaruIconButton),
+      ),
+    );
+    expect(controller.isOpen, isTrue);
+    expect(trigger.isSelected, isFalse);
+
+    controller.close();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('menu button maps a native selected index to its domain value', (
     tester,
   ) async {
