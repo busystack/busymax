@@ -201,6 +201,7 @@ class MiniCalendarGrid extends StatelessWidget {
     required this.onDaySelected,
     this.markerColorsByDay = const {},
     this.highlightSelectedDateOutsideMonth = true,
+    this.shrinkToFitHeight = false,
     this.onWeekSelected,
     this.onDayDoubleTap,
   });
@@ -210,6 +211,7 @@ class MiniCalendarGrid extends StatelessWidget {
   final int firstWeekday;
   final Map<DateTime, List<Color>> markerColorsByDay;
   final bool highlightSelectedDateOutsideMonth;
+  final bool shrinkToFitHeight;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime>? onWeekSelected;
   final ValueChanged<DateTime>? onDayDoubleTap;
@@ -228,13 +230,19 @@ class MiniCalendarGrid extends StatelessWidget {
           maximumWeekNumberExtent,
           constraints.maxWidth / (DateTime.daysPerWeek + 1),
         );
-        final dayExtent =
+        final naturalDayExtent =
             math.max(0.0, constraints.maxWidth - weekNumberExtent) /
             DateTime.daysPerWeek;
         const weekdayHeaderHeight = 18.0;
+        const fixedVerticalExtent = weekdayHeaderHeight + BusyMaxSpacing.xs;
+        final fittedDayExtent =
+            shrinkToFitHeight && constraints.hasBoundedHeight
+            ? math.max(0.0, constraints.maxHeight - fixedVerticalExtent) / 6
+            : naturalDayExtent;
+        final dayExtent = math.min(naturalDayExtent, fittedDayExtent);
         return SizedBox(
           width: double.infinity,
-          height: weekdayHeaderHeight + BusyMaxSpacing.xs + dayExtent * 6,
+          height: fixedVerticalExtent + dayExtent * 6,
           child: Column(
             children: [
               SizedBox(

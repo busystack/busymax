@@ -18,6 +18,7 @@ const nativeDateTimePickerChannelName = 'busymax/native_date_time_picker';
 const _nativeDateTimePicker = NativeDateTimePicker();
 const _dateTimePickerMaxWidth = 340.0;
 const _dateTimePickerContentMaxHeight = 320.0;
+const _dateTimePickerMinimumFittedContentHeight = 180.0;
 const _dateTimePickerPopoverMinimumHeight = 300.0;
 const _dateTimePickerPopoverPadding = EdgeInsets.all(BusyMaxSpacing.lg);
 const _timePickerMaxWidth = 260.0;
@@ -366,45 +367,62 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final contentHeight = _calculateDateTimePickerPopupHeight(constraints);
-        return BusyMaxContentPopoverSurface(
-          arrowSide: widget.arrowSide,
-          arrowAlignment: widget.arrowAlignment,
-          padding: _dateTimePickerPopoverPadding,
-          child: ScrollConfiguration(
+        Widget calendarGrid({bool shrinkToFitHeight = false}) {
+          return Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              BusyMaxSpacing.headerInset,
+              BusyMaxSpacing.headerInset,
+              BusyMaxSpacing.headerInset,
+              BusyMaxSpacing.md,
+            ),
+            child: MiniCalendarGrid(
+              displayedMonth: _displayedMonth,
+              selectedDate: _selected,
+              firstWeekday: _firstWeekday(context),
+              shrinkToFitHeight: shrinkToFitHeight,
+              onDaySelected: (date) => _setSelectedDate(
+                date,
+                submit:
+                    date.year == _displayedMonth.year &&
+                    date.month == _displayedMonth.month,
+              ),
+            ),
+          );
+        }
+
+        final content = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [_buildDateModeHeader(context), calendarGrid()],
+        );
+        final Widget pickerContent;
+        if (contentHeight >= _dateTimePickerContentMaxHeight) {
+          pickerContent = content;
+        } else if (contentHeight >= _dateTimePickerMinimumFittedContentHeight) {
+          pickerContent = SizedBox(
+            height: contentHeight,
+            child: Column(
+              children: [
+                _buildDateModeHeader(context),
+                Expanded(child: calendarGrid(shrinkToFitHeight: true)),
+              ],
+            ),
+          );
+        } else {
+          pickerContent = ScrollConfiguration(
             behavior: ScrollConfiguration.of(
               context,
             ).copyWith(scrollbars: false),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: contentHeight),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildDateModeHeader(context),
-                    Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        BusyMaxSpacing.headerInset,
-                        BusyMaxSpacing.headerInset,
-                        BusyMaxSpacing.headerInset,
-                        BusyMaxSpacing.md,
-                      ),
-                      child: MiniCalendarGrid(
-                        displayedMonth: _displayedMonth,
-                        selectedDate: _selected,
-                        firstWeekday: _firstWeekday(context),
-                        onDaySelected: (date) => _setSelectedDate(
-                          date,
-                          submit:
-                              date.year == _displayedMonth.year &&
-                              date.month == _displayedMonth.month,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: SingleChildScrollView(child: content),
             ),
-          ),
+          );
+        }
+        return BusyMaxContentPopoverSurface(
+          arrowSide: widget.arrowSide,
+          arrowAlignment: widget.arrowAlignment,
+          padding: _dateTimePickerPopoverPadding,
+          child: pickerContent,
         );
       },
     );

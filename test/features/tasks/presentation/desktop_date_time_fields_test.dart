@@ -598,6 +598,20 @@ void main() {
       (triggerRect.center.dy - popoverRect.center.dy).abs(),
       greaterThan(0),
     );
+    expect(
+      find.descendant(
+        of: find.byType(BusyMaxContentPopoverSurface),
+        matching: find.byType(SingleChildScrollView),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(BusyMaxContentPopoverSurface),
+        matching: find.byWidgetPredicate((widget) => widget is RawScrollbar),
+      ),
+      findsNothing,
+    );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
