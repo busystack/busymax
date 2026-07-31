@@ -19,8 +19,62 @@ void main() {
     final dartAlpha = busyMaxFallbackSurfaceColors(Brightness.dark).shade.a;
     expect(nativeAlpha, closeTo(dartAlpha, 0.0001));
     expect(source, contains('modal_barrier_color_for_depth('));
+    expect(source, contains('std::pow(1.0 - barrier.alpha'));
+    expect(
+      source,
+      contains(
+        'g_autofree gchar* modal_barrier_color = '
+        'modal_barrier_color_for_depth(',
+      ),
+    );
     expect(source, contains('self->header_bar_modal_barrier_color'));
+    expect(source, contains('self->header_bar_modal_barrier_shade_depth'));
     expect(source, contains('kDefaultModalBarrierColor'));
+  });
+
+  test('native modal blocking and visual shade depth remain independent', () {
+    final source = File('linux/runner/my_application.cc').readAsStringSync();
+
+    expect(source, contains('set_header_bar_modal_barrier_state'));
+    expect(source, contains('set_header_bar_modal_barrier_visible'));
+    expect(
+      source,
+      contains(
+        'set_header_bar_modal_barrier_state(self, visible, visible ? 1 : 0);',
+      ),
+    );
+    expect(
+      source,
+      contains(
+        'self->header_bar_modal_barrier_shade_depth = '
+        'effective_shade_depth;',
+      ),
+    );
+    final setterStart = source.indexOf(
+      'static void set_header_bar_modal_barrier_state(',
+    );
+    final setterEnd = source.indexOf(
+      'static void set_header_bar_modal_barrier_visible(',
+      setterStart,
+    );
+    final setter = source.substring(setterStart, setterEnd);
+    expect(
+      setter,
+      contains('gtk_widget_set_visible(self->titlebar_modal_barrier, visible)'),
+    );
+    expect(setter, contains('if (shade_changed) {'));
+    expect(setter, contains('refresh_header_bar_css(self);'));
+    expect(
+      source,
+      contains(
+        'set_header_bar_modal_barrier_state(\n'
+        '        self, fl_lookup_bool_arg(args, "visible", FALSE),',
+      ),
+    );
+    expect(
+      source,
+      contains('1.0 - std::pow(1.0 - barrier.alpha, effective_depth)'),
+    );
   });
 
   for (final (brightness, expectedAlpha) in [

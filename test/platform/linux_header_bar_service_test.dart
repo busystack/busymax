@@ -139,9 +139,15 @@ void main() {
         'setSidebarWidth',
         'setTextDirection',
         'setOnboardingControls',
-        'setModalBarrierDepth',
+        'setModalBarrierState',
         'setTheme',
       ]),
+    );
+    expect(
+      calls
+          .singleWhere((call) => call.method == 'setModalBarrierState')
+          .arguments,
+      {'visible': true, 'shadeDepth': 2},
     );
     expect(calls[1].arguments, containsPair('today', 'Today'));
     expect(calls[1].arguments, containsPair('year', 'Year'));
@@ -183,7 +189,7 @@ void main() {
       calls[4].arguments,
       containsPair('contentWidth', busyMaxOnboardingContentMaxWidth),
     );
-    expect(calls[5].arguments, 2);
+    expect(calls[5].arguments, {'visible': true, 'shadeDepth': 2});
     expect(
       calls.last.arguments,
       equals({
@@ -245,8 +251,42 @@ void main() {
     await service.initialize();
     expect(service.isAvailable, isTrue);
 
-    await service.setModalBarrierDepth(1);
+    await service.setModalBarrierVisible(true);
     expect(service.isAvailable, isFalse);
+  });
+
+  test('modal depth compatibility preserves visual shade depth', () async {
+    const channel = MethodChannel('busymax_test/headerbar_modal_visibility');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'initialize' ? true : null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+    addTearDown(service.dispose);
+
+    await service.initialize();
+    await service.setModalBarrierDepth(1);
+    await service.setModalBarrierDepth(2);
+    await service.setModalBarrierDepth(1);
+    await service.setModalBarrierDepth(0);
+
+    expect(
+      calls
+          .where((call) => call.method == 'setModalBarrierState')
+          .map((call) => call.arguments),
+      [
+        {'visible': true, 'shadeDepth': 1},
+        {'visible': true, 'shadeDepth': 2},
+        {'visible': true, 'shadeDepth': 1},
+        {'visible': false, 'shadeDepth': 0},
+      ],
+    );
   });
 
   test(

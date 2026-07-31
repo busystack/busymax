@@ -10,6 +10,7 @@ import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
 import 'busymax_dialog_identity.dart';
 import 'busymax_dialogs.dart';
+import 'busymax_surface_colors.dart';
 
 const _busyMaxWebsiteUrl = 'https://busystack.org';
 const _busyMaxRepositoryUrl = 'https://github.com/busystack/busymax/';
@@ -53,16 +54,13 @@ class BusyMaxAboutDialog extends StatelessWidget {
             ),
           ),
           const SizedBox(height: BusyMaxSpacing.sm),
-          Align(
-            alignment: Alignment.center,
-            child: FutureBuilder<PackageInfo>(
-              future: PackageInfo.fromPlatform(),
-              builder: (context, snapshot) {
-                final info = snapshot.data;
-                final version = info == null ? '' : _formatVersion(info);
-                return _VersionTag(version: version);
-              },
-            ),
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              final info = snapshot.data;
+              final version = info == null ? '' : _formatVersion(info);
+              return _VersionTag(version: version);
+            },
           ),
           const SizedBox(height: BusyMaxSpacing.md),
           BusyMaxGroupedList(
@@ -144,24 +142,31 @@ class _VersionTag extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return YaruTranslucentContainer(
-      opacity: 1,
-      border: const Border(),
-      borderRadius: const BorderRadius.all(Radius.circular(kYaruButtonRadius)),
-      color: colorScheme.primary,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: BusyMaxSpacing.sm,
-          vertical: BusyMaxSpacing.xs,
+    final colors = BusyMaxSurfaceColors.of(context);
+    return Center(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.control,
+          borderRadius: BorderRadius.circular(BusyMaxRadius.pill),
+          border: Border.all(color: colors.divider),
         ),
-        child: Text(
-          version,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: colorScheme.onPrimary,
-            fontWeight: FontWeight.w600,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: BusyMaxSpacing.md,
+            vertical: BusyMaxSpacing.xs,
+          ),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Text(
+              version,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colors.foreground,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ),

@@ -194,10 +194,10 @@ void main() {
       );
       expect(
         calls
-            .where((call) => call.method == 'setModalBarrierDepth')
+            .where((call) => call.method == 'setModalBarrierState')
             .single
             .arguments,
-        1,
+        {'visible': true, 'shadeDepth': 1},
       );
 
       await tester.tap(find.byType(YaruWindowControl));
@@ -206,45 +206,78 @@ void main() {
       await result;
       expect(find.byType(BusyMaxAboutDialog), findsNothing);
       final barrierCalls = calls
-          .where((call) => call.method == 'setModalBarrierDepth')
+          .where((call) => call.method == 'setModalBarrierState')
           .toList();
       expect(barrierCalls, hasLength(2));
-      expect(barrierCalls.last.arguments, 0);
+      expect(barrierCalls.last.arguments, {'visible': false, 'shadeDepth': 0});
       expect(tester.takeException(), isNull);
     },
   );
 
   for (final brightness in Brightness.values) {
-    testWidgets(
-      'about version badge keeps accent identity and readable text in '
-      '$brightness',
-      (tester) async {
-        const accent = Color(0xFF3584E4);
-        _setPackageInfo(version: '1.2.3', buildNumber: '');
-        final theme = BusyMaxYaruTheme.build(
-          brightness: brightness,
-          accentColor: accent,
-        );
+    testWidgets('about version badge uses the shared neutral outlined pill in '
+        '$brightness', (tester) async {
+      const accent = Color(0xFF3584E4);
+      _setPackageInfo(version: '1.2.3', buildNumber: '');
+      final theme = BusyMaxYaruTheme.build(
+        brightness: brightness,
+        accentColor: accent,
+      );
 
-        await tester.pumpWidget(
-          localizedTestApp(theme: theme, child: const BusyMaxAboutDialog()),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        localizedTestApp(theme: theme, child: const BusyMaxAboutDialog()),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('v1.2.3'), findsOneWidget);
-        expect(find.text('v1.2.3+'), findsNothing);
-        final badge = tester.widget<YaruTranslucentContainer>(
-          find.byType(YaruTranslucentContainer),
-        );
-        expect(badge.color, theme.colorScheme.primary);
-        expect(badge.opacity, 1);
-        expect((badge.border! as Border).dimensions, EdgeInsets.zero);
-        final versionText = tester.widget<Text>(find.text('v1.2.3'));
-        final textColor = versionText.style!.color!;
-        expect(textColor, theme.colorScheme.onPrimary);
-        expect(versionText.style?.fontWeight, FontWeight.w600);
-      },
-    );
+      expect(find.text('v1.2.3'), findsOneWidget);
+      expect(find.text('v1.2.3+'), findsNothing);
+      final colors = theme.extension<BusyMaxSurfaceColors>()!;
+      final badgeFinder = find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).borderRadius ==
+                BorderRadius.circular(BusyMaxRadius.pill),
+      );
+      final badge = tester.widget<DecoratedBox>(badgeFinder);
+      final decoration = badge.decoration as BoxDecoration;
+      expect(decoration.color, colors.control);
+      expect(
+        decoration.borderRadius,
+        BorderRadius.circular(BusyMaxRadius.pill),
+      );
+      expect((decoration.border! as Border).top.color, colors.divider);
+      expect(
+        find.ancestor(
+          of: find.text('v1.2.3'),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Padding &&
+                widget.padding ==
+                    const EdgeInsets.symmetric(
+                      horizontal: BusyMaxSpacing.md,
+                      vertical: BusyMaxSpacing.xs,
+                    ),
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: badgeFinder,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Directionality &&
+                widget.textDirection == TextDirection.ltr,
+          ),
+        ),
+        findsOneWidget,
+      );
+      final versionText = tester.widget<Text>(find.text('v1.2.3'));
+      final textColor = versionText.style!.color!;
+      expect(textColor, colors.foreground);
+      expect(versionText.style?.fontWeight, FontWeight.w600);
+    });
   }
 
   for (final (brightness, dialogColor, popoverColor) in const [
@@ -343,14 +376,9 @@ void main() {
       expect(source, contains('headerBarService: headerBarService'));
       expect(dialogs, contains('acquireBusyMaxModalBarrier'));
       expect(dialogs, contains('releaseBusyMaxModalBarrier'));
-      expect(
-        dialogs,
-        contains('await acquireBusyMaxModalBarrier(headerBarService)'),
-      );
-      expect(
-        dialogs,
-        contains('await releaseBusyMaxModalBarrier(headerBarService)'),
-      );
+      expect(dialogs, contains('await acquireBusyMaxModalBarrier('));
+      expect(dialogs, contains('await releaseBusyMaxModalBarrier('));
+      expect(dialogs, contains('shadesHeader: shadesHeader'));
       expect(source, isNot(contains('barrierColor: Colors.transparent')));
       expect(source, contains('BusyMaxInformationalDialog('));
       expect(source, isNot(contains('BusyMaxPopoverIconButton(')));

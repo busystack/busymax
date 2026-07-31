@@ -28,7 +28,8 @@ class BusyMaxModalShortcutBoundary extends StatelessWidget {
   }
 }
 
-final _modalDepths = Map<LinuxHeaderBarService, int>.identity();
+final _modalStates =
+    Map<LinuxHeaderBarService, _BusyMaxModalBarrierState>.identity();
 final _modalBarrierUpdateTails =
     Map<LinuxHeaderBarService, Future<void>>.identity();
 
@@ -44,6 +45,7 @@ Future<T?> showBusyMaxModalDialog<T>(
   return _coordinateBusyMaxModal<T>(
     context,
     headerBarService: effectiveHeaderBarService,
+    shadesHeader: barrierColor == null || barrierColor.a > 0,
     showSurface: () => _showBusyMaxFlutterDialog<T>(
       context,
       builder: builder,
@@ -56,19 +58,29 @@ Future<T?> showBusyMaxModalDialog<T>(
 Future<T?> _coordinateBusyMaxModal<T>(
   BuildContext context, {
   required LinuxHeaderBarService? headerBarService,
+  required bool shadesHeader,
   required Future<T?> Function() showSurface,
 }) async {
   final previousFocus = FocusManager.instance.primaryFocus;
-  await acquireBusyMaxModalBarrier(headerBarService);
+  await acquireBusyMaxModalBarrier(
+    headerBarService,
+    shadesHeader: shadesHeader,
+  );
   if (!context.mounted) {
-    await releaseBusyMaxModalBarrier(headerBarService);
+    await releaseBusyMaxModalBarrier(
+      headerBarService,
+      shadesHeader: shadesHeader,
+    );
     return null;
   }
 
   try {
     return await showSurface();
   } finally {
-    await releaseBusyMaxModalBarrier(headerBarService);
+    await releaseBusyMaxModalBarrier(
+      headerBarService,
+      shadesHeader: shadesHeader,
+    );
     if (previousFocus?.context != null && previousFocus!.canRequestFocus) {
       previousFocus.requestFocus();
     }
@@ -205,58 +217,108 @@ Future<bool> showBusyMaxConfirm(
 ///
 /// Every call must be paired with [releaseBusyMaxModalBarrier]. In-page modal
 /// surfaces should use this pair; route dialogs acquire it automatically.
-Future<void> acquireBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
+/// Set [shadesHeader] to false when the matching Flutter barrier is fully
+/// transparent but still blocks interaction.
+Future<void> acquireBusyMaxModalBarrier(
+  LinuxHeaderBarService? service, {
+  bool shadesHeader = true,
+}) async {
   if (service == null) {
     return;
   }
-  final depth = _modalDepths[service] ?? 0;
-  final nextDepth = depth + 1;
-  _modalDepths[service] = nextDepth;
-  final depthUpdate = _enqueueBusyMaxModalBarrierUpdate(
+  final state = _modalStates.putIfAbsent(
     service,
-    depth: nextDepth,
+    _BusyMaxModalBarrierState.new,
   );
+  final previousVisible = state.modalDepth > 0;
+  final previousShadeDepth = state.shadeDepth;
+  state.modalDepth += 1;
+  if (shadesHeader) {
+    state.shadeDepth += 1;
+  }
+  final visible = state.modalDepth > 0;
+  final stateChanged =
+      visible != previousVisible || state.shadeDepth != previousShadeDepth;
+  final stateUpdate = stateChanged
+      ? _enqueueBusyMaxModalBarrierUpdate(
+          service,
+          visible: visible,
+          shadeDepth: state.shadeDepth,
+        )
+      : _modalBarrierUpdateTails[service];
+  if (stateUpdate == null) {
+    return;
+  }
 
   try {
-    await depthUpdate;
+    // A nested transparent route shares the in-flight native state without
+    // adding a shade. A visibly shaded route increments only shadeDepth.
+    await stateUpdate;
   } on Object catch (error, stackTrace) {
-    final remainingDepth = (_modalDepths[service] ?? 0) - 1;
-    if (remainingDepth > 0) {
-      _modalDepths[service] = remainingDepth;
-    } else {
-      _modalDepths.remove(service);
-      try {
-        // The platform may have applied the visibility change before its
-        // response failed. Restore the safe non-modal state, while preserving
-        // the original acquisition failure for the caller.
-        await _enqueueBusyMaxModalBarrierUpdate(service, depth: 0);
-      } on Object {
-        // Best-effort rollback cannot replace the causative exception.
-      }
+    state.modalDepth -= 1;
+    if (shadesHeader) {
+      state.shadeDepth -= 1;
+    }
+    if (state.modalDepth == 0) {
+      _modalStates.remove(service);
+    }
+    try {
+      // The platform may have applied the state before its response failed.
+      // Restore the preceding native state while preserving the cause.
+      await _enqueueBusyMaxModalBarrierUpdate(
+        service,
+        visible: state.modalDepth > 0,
+        shadeDepth: state.shadeDepth,
+      );
+    } on Object {
+      // Best-effort rollback cannot replace the causative exception.
     }
     Error.throwWithStackTrace(error, stackTrace);
   }
 }
 
 /// Releases a barrier acquired by [acquireBusyMaxModalBarrier].
-Future<void> releaseBusyMaxModalBarrier(LinuxHeaderBarService? service) async {
+///
+/// [shadesHeader] must match the value used by the corresponding acquire.
+Future<void> releaseBusyMaxModalBarrier(
+  LinuxHeaderBarService? service, {
+  bool shadesHeader = true,
+}) async {
   if (service == null) {
     return;
   }
-  final depth = _modalDepths[service] ?? 0;
-  if (depth <= 1) {
-    _modalDepths.remove(service);
-    await _enqueueBusyMaxModalBarrierUpdate(service, depth: 0);
+  final state = _modalStates[service];
+  if (state == null || state.modalDepth == 0) {
     return;
   }
-  final nextDepth = depth - 1;
-  _modalDepths[service] = nextDepth;
-  await _enqueueBusyMaxModalBarrierUpdate(service, depth: nextDepth);
+  final previousVisible = state.modalDepth > 0;
+  final previousShadeDepth = state.shadeDepth;
+  state.modalDepth -= 1;
+  if (shadesHeader && state.shadeDepth > 0) {
+    state.shadeDepth -= 1;
+  }
+  final visible = state.modalDepth > 0;
+  if (!visible) {
+    _modalStates.remove(service);
+  }
+  if (visible == previousVisible && state.shadeDepth == previousShadeDepth) {
+    final pending = _modalBarrierUpdateTails[service];
+    if (pending != null) {
+      await pending;
+    }
+    return;
+  }
+  await _enqueueBusyMaxModalBarrierUpdate(
+    service,
+    visible: visible,
+    shadeDepth: state.shadeDepth,
+  );
 }
 
 Future<void> _enqueueBusyMaxModalBarrierUpdate(
   LinuxHeaderBarService service, {
-  required int depth,
+  required bool visible,
+  required int shadeDepth,
 }) {
   final previous = _modalBarrierUpdateTails[service] ?? Future<void>.value();
   final ready = previous.then<void>(
@@ -266,15 +328,25 @@ Future<void> _enqueueBusyMaxModalBarrierUpdate(
     onError: (Object _, StackTrace _) {},
   );
   late final Future<void> update;
-  update = ready.then((_) => service.setModalBarrierDepth(depth)).whenComplete(
-    () {
-      if (identical(_modalBarrierUpdateTails[service], update)) {
-        _modalBarrierUpdateTails.remove(service);
-      }
-    },
-  );
+  update = ready
+      .then(
+        (_) => service.setModalBarrierState(
+          visible: visible,
+          shadeDepth: shadeDepth,
+        ),
+      )
+      .whenComplete(() {
+        if (identical(_modalBarrierUpdateTails[service], update)) {
+          _modalBarrierUpdateTails.remove(service);
+        }
+      });
   _modalBarrierUpdateTails[service] = update;
   return update;
+}
+
+final class _BusyMaxModalBarrierState {
+  int modalDepth = 0;
+  int shadeDepth = 0;
 }
 
 LinuxHeaderBarService? _headerBarServiceFrom(BuildContext context) {

@@ -142,16 +142,22 @@ void main() {
   testWidgets('dirty deep-linked task confirms before Escape closes it', (
     tester,
   ) async {
+    final headerBarService = _RecordingHeaderBarService();
+    addTearDown(headerBarService.dispose);
     await _pumpScheduleWorkspace(
       tester,
       taskTitle: 'Opened from route',
       initialTaskAccountId: _accountId,
       initialTaskListId: _taskListId,
       initialTaskId: 'task-1',
+      headerBarService: headerBarService,
     );
 
     expect(find.text('Edit Task'), findsOneWidget);
     expect(find.text('Opened from route'), findsWidgets);
+    expect(headerBarService.modalBarrierStates, [
+      (visible: true, shadeDepth: 1),
+    ]);
 
     await tester.enterText(find.byType(TextField).first, 'Unsaved route edit');
     await tester.pump();
@@ -160,6 +166,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Discard changes?'), findsOneWidget);
+    final modalBarrierColors = tester
+        .widgetList<ModalBarrier>(find.byType(ModalBarrier))
+        .map((barrier) => barrier.color)
+        .toList();
+    expect(modalBarrierColors.where((color) => color != null && color.a != 0), [
+      busyMaxModalBarrierColor(tester.element(find.byType(ModalBarrier).first)),
+    ]);
+    expect(
+      headerBarService.modalBarrierStates,
+      [(visible: true, shadeDepth: 1)],
+      reason: 'the nested confirmation must not repaint the native headerbar',
+    );
     await tester.tap(find.text('Cancel').last);
     await tester.pumpAndSettle();
     expect(find.text('Edit Task'), findsOneWidget);
@@ -171,6 +189,10 @@ void main() {
 
     expect(find.text('Edit Task'), findsNothing);
     expect(find.text('Opened from route'), findsOneWidget);
+    expect(headerBarService.modalBarrierStates, [
+      (visible: true, shadeDepth: 1),
+      (visible: false, shadeDepth: 0),
+    ]);
   });
 }
 
@@ -180,6 +202,7 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
   String? initialTaskAccountId,
   String? initialTaskListId,
   String? initialTaskId,
+  LinuxHeaderBarService? headerBarService,
 }) async {
   final database = AppDatabase.memoryForTests();
   addTearDown(database.close);
@@ -237,9 +260,11 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
     authState: accountAuthStateSignedIn,
     displayName: 'Schedule test',
   );
-  final headerBarService = LinuxHeaderBarService(isLinux: false);
-  addTearDown(headerBarService.dispose);
-
+  final effectiveHeaderBarService =
+      headerBarService ?? LinuxHeaderBarService(isLinux: false);
+  if (headerBarService == null) {
+    addTearDown(effectiveHeaderBarService.dispose);
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -248,7 +273,9 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
         activeAccountProvider.overrideWithValue(_accountId),
         localTimeZoneProvider.overrideWithValue('UTC'),
         localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
-        linuxHeaderBarServiceProvider.overrideWithValue(headerBarService),
+        linuxHeaderBarServiceProvider.overrideWithValue(
+          effectiveHeaderBarService,
+        ),
         taskListsRepositoryForAccountProvider.overrideWith((ref, accountId) {
           return TaskListsRepository(database: database, accountId: accountId);
         }),
@@ -287,6 +314,20 @@ class _MemorySettingsStore implements LocalSettingsStore {
 
   @override
   Future<void> save(Map<String, Object?> json) async {}
+}
+
+class _RecordingHeaderBarService extends LinuxHeaderBarService {
+  _RecordingHeaderBarService() : super(isLinux: false);
+
+  final modalBarrierStates = <({bool visible, int shadeDepth})>[];
+
+  @override
+  Future<void> setModalBarrierState({
+    required bool visible,
+    required int shadeDepth,
+  }) async {
+    modalBarrierStates.add((visible: visible, shadeDepth: shadeDepth));
+  }
 }
 
 const _accountId = 'google:schedule-test';

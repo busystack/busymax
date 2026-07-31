@@ -554,7 +554,7 @@ class LinuxHeaderBarService {
   bool _available = false;
   bool _disposed = false;
   _BusyMaxOnboardingControlsState? _onboardingControls;
-  int? _modalBarrierDepth;
+  ({bool visible, int shadeDepth})? _modalBarrierState;
   double? _sidebarWidth;
   TextDirection? _textDirection;
   BusyMaxHeaderBarLabels? _labels;
@@ -702,20 +702,32 @@ class LinuxHeaderBarService {
     }
   }
 
-  Future<void> setModalBarrierDepth(int value) async {
+  Future<void> setModalBarrierState({
+    required bool visible,
+    required int shadeDepth,
+  }) async {
     if (!_available) {
       return;
     }
-    final depth = value < 0 ? 0 : value;
-    if (_modalBarrierDepth == depth) {
+    final effectiveShadeDepth = visible ? (shadeDepth < 0 ? 0 : shadeDepth) : 0;
+    final state = (visible: visible, shadeDepth: effectiveShadeDepth);
+    if (_modalBarrierState == state) {
       return;
     }
-    _modalBarrierDepth = depth;
-    await _invokeIfAvailable('setModalBarrierDepth', depth);
+    _modalBarrierState = state;
+    await _invokeIfAvailable('setModalBarrierState', <String, Object>{
+      'visible': state.visible,
+      'shadeDepth': state.shadeDepth,
+    });
   }
 
   Future<void> setModalBarrierVisible(bool value) {
-    return setModalBarrierDepth(value ? 1 : 0);
+    return setModalBarrierState(visible: value, shadeDepth: value ? 1 : 0);
+  }
+
+  Future<void> setModalBarrierDepth(int value) {
+    final depth = value < 0 ? 0 : value;
+    return setModalBarrierState(visible: depth > 0, shadeDepth: depth);
   }
 
   Future<void> setTheme(BusyMaxHeaderBarTheme theme) async {

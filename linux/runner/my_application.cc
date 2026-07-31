@@ -157,7 +157,7 @@ struct _MyApplication {
   gboolean header_bar_can_show_sidebar;
   gboolean header_bar_sidebar_visible;
   gboolean header_bar_modal_barrier_visible;
-  gint header_bar_modal_barrier_depth;
+  gint header_bar_modal_barrier_shade_depth;
   gboolean header_bar_theme_received;
   GtkWindow* main_window;
   GtkWindow* header_focus_transient_window;
@@ -2210,10 +2210,13 @@ static void refresh_header_bar_css(MyApplication* self) {
       kNativeTimeZoneDialogStyleClass, kNativeDialogStyleClass,
       kNativeTimeZoneDialogStyleClass, dialog_background_color,
       kNativeDialogCornerRadius, kNativeDialogCornerRadius);
+  // Modal blocking and visual shade depth are separate. A transparent nested
+  // Flutter barrier must continue blocking the native header without adding
+  // another black layer.
   g_autofree gchar* modal_barrier_color = modal_barrier_color_for_depth(
       css_color_or(self->header_bar_modal_barrier_color,
                    kDefaultModalBarrierColor),
-      self->header_bar_modal_barrier_depth);
+      self->header_bar_modal_barrier_shade_depth);
   const gboolean use_legacy_yaru_compatibility =
       !self->header_bar_high_contrast &&
       current_gtk_theme_uses_legacy_yaru_shadow();
@@ -2719,13 +2722,23 @@ static void schedule_header_bar_focus_state_refresh(MyApplication* self) {
       g_object_ref(self), g_object_unref);
 }
 
-static void set_header_bar_modal_barrier_depth(MyApplication* self,
-                                               gint depth) {
-  const gint effective_depth = std::max(0, depth);
-  const gboolean visible = effective_depth > 0;
-  self->header_bar_modal_barrier_depth = effective_depth;
+static void set_header_bar_modal_barrier_state(MyApplication* self,
+                                               gboolean visible,
+                                               gint shade_depth) {
+  const gint effective_shade_depth =
+      visible ? std::max(0, shade_depth) : 0;
+  if (self->header_bar_modal_barrier_visible == visible &&
+      self->header_bar_modal_barrier_shade_depth ==
+          effective_shade_depth) {
+    return;
+  }
+  const gboolean shade_changed =
+      self->header_bar_modal_barrier_shade_depth != effective_shade_depth;
   self->header_bar_modal_barrier_visible = visible;
-  refresh_header_bar_css(self);
+  self->header_bar_modal_barrier_shade_depth = effective_shade_depth;
+  if (shade_changed) {
+    refresh_header_bar_css(self);
+  }
   if (self->titlebar_handle != nullptr &&
       GTK_IS_WIDGET(self->titlebar_handle)) {
     GtkStyleContext* context =
@@ -2750,7 +2763,14 @@ static void set_header_bar_modal_barrier_depth(MyApplication* self,
 
 static void set_header_bar_modal_barrier_visible(MyApplication* self,
                                                  gboolean visible) {
-  set_header_bar_modal_barrier_depth(self, visible ? 1 : 0);
+  set_header_bar_modal_barrier_state(self, visible, visible ? 1 : 0);
+}
+
+static void set_header_bar_modal_barrier_depth(MyApplication* self,
+                                               gint depth) {
+  const gint effective_depth = std::max(0, depth);
+  set_header_bar_modal_barrier_state(
+      self, effective_depth > 0, effective_depth);
 }
 
 static void clear_header_bar_pointer(MyApplication* self) {
@@ -4336,6 +4356,16 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
   } else if (strcmp(method, "setModalBarrierDepth") == 0) {
     set_header_bar_modal_barrier_depth(self, fl_method_int_arg(args, 0));
     respond_success(method_call);
+  } else if (strcmp(method, "setModalBarrierState") == 0) {
+    gint64 shade_depth = 0;
+    if (!fl_lookup_int_arg(args, "shadeDepth", &shade_depth) ||
+        shade_depth < 0 || shade_depth > G_MAXINT) {
+      shade_depth = 0;
+    }
+    set_header_bar_modal_barrier_state(
+        self, fl_lookup_bool_arg(args, "visible", FALSE),
+        static_cast<gint>(shade_depth));
+    respond_success(method_call);
   } else if (strcmp(method, "setTheme") == 0) {
     set_header_bar_theme(self, args);
     respond_success(method_call);
@@ -5651,8 +5681,8 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_can_show_sidebar = TRUE;
   self->header_bar_sidebar_visible = TRUE;
   self->header_bar_modal_barrier_visible = FALSE;
+  self->header_bar_modal_barrier_shade_depth = 0;
   self->header_bar_theme_received = FALSE;
-  self->header_bar_modal_barrier_depth = 0;
   self->main_window = nullptr;
   self->header_focus_transient_window = nullptr;
   self->flutter_view = nullptr;

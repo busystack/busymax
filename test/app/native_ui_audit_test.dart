@@ -975,6 +975,7 @@ void main() {
       expect(source, contains('strcmp(method, "showCreateMenu") == 0'));
       expect(source, contains('setModalBarrierVisible'));
       expect(source, contains('setModalBarrierDepth'));
+      expect(source, contains('setModalBarrierState'));
       expect(source, contains('modal_barrier_color_for_depth'));
       expect(
         source,
@@ -1511,12 +1512,16 @@ void main() {
         'static gboolean refresh_header_bar_focus_state_cb(',
       );
       final headerFocusEnd = runner.indexOf(
-        'static void set_header_bar_modal_barrier_depth(',
+        'static void set_header_bar_modal_barrier_visible(',
         headerFocusStart,
       );
       expect(headerFocusStart, isNonNegative);
       expect(headerFocusEnd, greaterThan(headerFocusStart));
       final headerFocus = runner.substring(headerFocusStart, headerFocusEnd);
+      expect(
+        headerFocus,
+        isNot(contains('self->header_bar_modal_barrier_visible ||')),
+      );
       expect(headerFocus, contains('gtk_window_is_active(self->main_window)'));
       expect(
         headerFocus,
@@ -1923,6 +1928,7 @@ void main() {
         contains('"headerbar button.titlebutton:disabled:backdrop {"'),
       );
       expect(source, contains('modal_barrier_color_for_depth('));
+      expect(source, contains('header_bar_modal_barrier_shade_depth'));
       expect(source, contains('self->header_bar_modal_barrier_color'));
       expect(source, contains('kDefaultModalBarrierColor'));
       expect(headerCss, isNot(contains('linear-gradient(%s, %s)')));

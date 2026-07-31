@@ -32,6 +32,7 @@ abstract final class BusyMaxRadius {
   static const double lg = kYaruContainerRadius;
   static const double headerButton = kYaruButtonRadius;
   static const double window = kYaruWindowRadius;
+  static const double pill = 999;
 }
 
 abstract final class BusyMaxSizes {
