@@ -259,6 +259,66 @@ class BusyMaxHeaderBarLabels {
 }
 
 @immutable
+class BusyMaxHeaderBarTooltipTheme {
+  const BusyMaxHeaderBarTooltipTheme({
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.borderColor,
+    required this.borderRadius,
+    required this.fontSize,
+    required this.horizontalPadding,
+    required this.verticalPadding,
+    required this.minimumHeight,
+  });
+
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final Color borderColor;
+  final double borderRadius;
+  final double fontSize;
+  final double horizontalPadding;
+  final double verticalPadding;
+  final double minimumHeight;
+
+  Map<String, Object> toJson() => {
+    'backgroundColor': busyMaxCssColor(backgroundColor),
+    'foregroundColor': busyMaxCssColor(foregroundColor),
+    'borderColor': busyMaxCssColor(borderColor),
+    'borderRadius': borderRadius,
+    'fontSize': fontSize,
+    'horizontalPadding': horizontalPadding,
+    'verticalPadding': verticalPadding,
+    'minimumHeight': minimumHeight,
+  };
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is BusyMaxHeaderBarTooltipTheme &&
+            backgroundColor == other.backgroundColor &&
+            foregroundColor == other.foregroundColor &&
+            borderColor == other.borderColor &&
+            borderRadius == other.borderRadius &&
+            fontSize == other.fontSize &&
+            horizontalPadding == other.horizontalPadding &&
+            verticalPadding == other.verticalPadding &&
+            minimumHeight == other.minimumHeight;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    backgroundColor,
+    foregroundColor,
+    borderColor,
+    borderRadius,
+    fontSize,
+    horizontalPadding,
+    verticalPadding,
+    minimumHeight,
+  );
+}
+
+@immutable
 class BusyMaxHeaderBarTheme {
   const BusyMaxHeaderBarTheme({
     required this.preferDark,
@@ -274,6 +334,7 @@ class BusyMaxHeaderBarTheme {
     required this.dialogBackgroundColor,
     required this.dialogOutlineColor,
     required this.modalBarrierColor,
+    required this.tooltip,
   });
 
   final bool preferDark;
@@ -289,6 +350,7 @@ class BusyMaxHeaderBarTheme {
   final Color dialogBackgroundColor;
   final Color dialogOutlineColor;
   final Color modalBarrierColor;
+  final BusyMaxHeaderBarTooltipTheme tooltip;
 
   Map<String, Object> toJson() {
     return <String, Object>{
@@ -305,6 +367,7 @@ class BusyMaxHeaderBarTheme {
       'dialogBackgroundColor': busyMaxCssColor(dialogBackgroundColor),
       'dialogOutlineColor': busyMaxCssColor(dialogOutlineColor),
       'modalBarrierColor': busyMaxCssColor(modalBarrierColor),
+      'tooltip': tooltip.toJson(),
     };
   }
 
@@ -324,7 +387,8 @@ class BusyMaxHeaderBarTheme {
             other.popoverShadowColor == popoverShadowColor &&
             other.dialogBackgroundColor == dialogBackgroundColor &&
             other.dialogOutlineColor == dialogOutlineColor &&
-            other.modalBarrierColor == modalBarrierColor;
+            other.modalBarrierColor == modalBarrierColor &&
+            other.tooltip == tooltip;
   }
 
   @override
@@ -342,6 +406,7 @@ class BusyMaxHeaderBarTheme {
     dialogBackgroundColor,
     dialogOutlineColor,
     modalBarrierColor,
+    tooltip,
   ]);
 }
 

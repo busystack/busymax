@@ -84,16 +84,17 @@ void main() {
         surfaces.border,
       );
 
-      final yaruTooltipTheme = switch (theme.brightness) {
-        Brightness.light => createYaruLightTheme(
-          primaryColor: theme.colorScheme.primary,
-        ).tooltipTheme,
-        Brightness.dark => createYaruDarkTheme(
-          primaryColor: theme.colorScheme.primary,
-          highContrast: true,
-        ).tooltipTheme,
-      };
-      expect(theme.tooltipTheme, yaruTooltipTheme);
+      final tooltipDecoration = theme.tooltipTheme.decoration! as BoxDecoration;
+      final tooltipBorder = tooltipDecoration.border! as Border;
+      expect(tooltipDecoration.color, BusyMaxTooltipStyle.background);
+      expect(tooltipDecoration.borderRadius, BusyMaxTooltipStyle.borderRadius);
+      expect(tooltipBorder.top.color, BusyMaxTooltipStyle.border);
+      expect(
+        theme.tooltipTheme.textStyle?.color,
+        BusyMaxTooltipStyle.foreground,
+      );
+      expect(theme.tooltipTheme.padding, BusyMaxTooltipStyle.padding);
+      expect(theme.tooltipTheme.constraints, BusyMaxTooltipStyle.constraints);
     }
   });
 

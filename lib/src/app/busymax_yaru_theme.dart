@@ -192,6 +192,19 @@ class BusyMaxYaruTheme {
             borderRadius: BorderRadius.circular(BusyMaxRadius.md),
           ),
     );
+    final tooltipTheme = base.tooltipTheme.copyWith(
+      decoration: BoxDecoration(
+        color: BusyMaxTooltipStyle.background,
+        border: Border.all(color: BusyMaxTooltipStyle.border),
+        borderRadius: BusyMaxTooltipStyle.borderRadius,
+      ),
+      textStyle: textTheme.bodyMedium?.copyWith(
+        color: BusyMaxTooltipStyle.foreground,
+      ),
+      padding: BusyMaxTooltipStyle.padding,
+      constraints: BusyMaxTooltipStyle.constraints,
+      waitDuration: BusyMaxMotion.tooltipWait,
+    );
 
     return base.copyWith(
       brightness: brightness,
@@ -366,7 +379,7 @@ class BusyMaxYaruTheme {
           fallback: textTheme.labelLarge,
         ),
       ),
-      tooltipTheme: base.tooltipTheme,
+      tooltipTheme: tooltipTheme,
       snackBarTheme: base.snackBarTheme.copyWith(
         contentTextStyle: normalizer.apply(
           base.snackBarTheme.contentTextStyle,

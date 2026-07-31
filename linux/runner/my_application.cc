@@ -70,6 +70,14 @@ constexpr char kDefaultHeaderBarSidebarBorderColor[] =
 constexpr char kDefaultHeaderMenuShadowColor[] = "rgba(0,0,0,0.3)";
 constexpr char kDefaultDialogOutlineColor[] = "rgba(255,255,255,0.07)";
 constexpr char kDefaultModalBarrierColor[] = "rgba(0,0,0,0.25)";
+constexpr char kDefaultTooltipBackground[] = "rgba(0,0,0,0.8)";
+constexpr char kDefaultTooltipForeground[] = "#FFFFFF";
+constexpr char kDefaultTooltipBorder[] = "rgba(255,255,255,0.1)";
+constexpr gdouble kDefaultTooltipRadius = 8.0;
+constexpr gdouble kDefaultTooltipFontSize = 14.0;
+constexpr gdouble kDefaultTooltipHorizontalPadding = 10.0;
+constexpr gdouble kDefaultTooltipVerticalPadding = 6.0;
+constexpr gdouble kDefaultTooltipMinimumHeight = 30.0;
 constexpr char kHeaderControlStyleClass[] = "busymax-header-control";
 constexpr char kHeaderOnboardingTextButtonStyleClass[] =
     "busymax-onboarding-text-button";
@@ -131,6 +139,14 @@ struct _MyApplication {
   gchar* header_bar_dialog_background_color;
   gchar* header_bar_dialog_outline_color;
   gchar* header_bar_modal_barrier_color;
+  gchar* header_bar_tooltip_background_color;
+  gchar* header_bar_tooltip_foreground_color;
+  gchar* header_bar_tooltip_border_color;
+  gdouble header_bar_tooltip_radius;
+  gdouble header_bar_tooltip_font_size;
+  gdouble header_bar_tooltip_horizontal_padding;
+  gdouble header_bar_tooltip_vertical_padding;
+  gdouble header_bar_tooltip_minimum_height;
   gboolean header_bar_high_contrast;
   gint header_bar_sidebar_width;
   gboolean header_bar_can_show_sidebar;
@@ -412,6 +428,49 @@ static gboolean fl_lookup_int_arg(FlValue* args,
   }
   *value_out = fl_value_get_int(value);
   return TRUE;
+}
+
+static gboolean fl_lookup_double_arg(FlValue* args,
+                                     const gchar* key,
+                                     gdouble* value_out) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  if (value == nullptr) {
+    return FALSE;
+  }
+  if (fl_value_get_type(value) == FL_VALUE_TYPE_FLOAT) {
+    *value_out = fl_value_get_float(value);
+    return TRUE;
+  }
+  if (fl_value_get_type(value) == FL_VALUE_TYPE_INT) {
+    *value_out = static_cast<gdouble>(fl_value_get_int(value));
+    return TRUE;
+  }
+  return FALSE;
+}
+
+static void update_bounded_double_arg(FlValue* args,
+                                      const gchar* key,
+                                      gdouble minimum,
+                                      gdouble maximum,
+                                      gdouble* target) {
+  gdouble value = 0;
+  if (fl_lookup_double_arg(args, key, &value) && value >= minimum &&
+      value <= maximum) {
+    *target = value;
+  }
+}
+
+static FlValue* fl_lookup_map_arg(FlValue* args, const gchar* key) {
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
+    return nullptr;
+  }
+  FlValue* value = fl_value_lookup_string(args, key);
+  return value != nullptr && fl_value_get_type(value) == FL_VALUE_TYPE_MAP
+             ? value
+             : nullptr;
 }
 
 static gboolean parse_date(const gchar* value,
@@ -2192,6 +2251,55 @@ static void refresh_header_bar_css(MyApplication* self) {
                 css_color_or(self->header_bar_popover_shadow_color,
                              kDefaultHeaderMenuShadowColor))
           : g_strdup("");
+  const gchar* tooltip_background = css_color_or(
+      self->header_bar_tooltip_background_color, kDefaultTooltipBackground);
+  const gchar* tooltip_foreground = css_color_or(
+      self->header_bar_tooltip_foreground_color, kDefaultTooltipForeground);
+  const gchar* tooltip_border = css_color_or(
+      self->header_bar_tooltip_border_color, kDefaultTooltipBorder);
+  g_autofree gchar* tooltip_css = g_strdup_printf(
+      "tooltip,"
+      "tooltip.background {"
+      "margin: 0;"
+      "padding: 0;"
+      "min-height: %.2fpx;"
+      "}"
+      "tooltip.background {"
+      "background-color: %s;"
+      "background-image: none;"
+      "background-clip: padding-box;"
+      "border: 1px solid %s;"
+      "border-radius: %.2fpx;"
+      "}"
+      "tooltip decoration,"
+      "tooltip.csd decoration {"
+      "background-color: transparent;"
+      "border-radius: %.2fpx;"
+      "box-shadow: none;"
+      "}"
+      "tooltip > box,"
+      "tooltip.background > box {"
+      "margin: 0;"
+      "padding: 0;"
+      "min-height: 0;"
+      "}"
+      "tooltip * {"
+      "background-color: transparent;"
+      "color: %s;"
+      "}"
+      "tooltip label {"
+      "margin: 0;"
+      "padding: %.2fpx %.2fpx;"
+      "min-height: 0;"
+      "font-size: %.2fpx;"
+      "font-weight: 400;"
+      "}",
+      self->header_bar_tooltip_minimum_height, tooltip_background,
+      tooltip_border, self->header_bar_tooltip_radius,
+      self->header_bar_tooltip_radius, tooltip_foreground,
+      self->header_bar_tooltip_vertical_padding,
+      self->header_bar_tooltip_horizontal_padding,
+      self->header_bar_tooltip_font_size);
   g_autofree gchar* header_focus_css = g_strdup_printf(
       ".busymax-titlebar.%s .busymax-header-brand label,"
       ".busymax-titlebar.%s .busymax-header-title {"
@@ -2300,6 +2408,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: %s;"
       "background-image: none;"
       "}"
+      "%s"
       "%s"
       "%s"
       "%s"
@@ -2454,7 +2563,7 @@ static void refresh_header_bar_css(MyApplication* self) {
       "}",
       window_background_color, yaru_window_decoration_css,
       native_dialog_css, native_time_zone_dialog_css,
-      native_search_geometry_css,
+      native_search_geometry_css, tooltip_css,
       background_color, foreground_color,
       sidebar_background_color, foreground_color, sidebar_border_color,
       foreground_color, foreground_color, kHeaderBackdropForegroundOpacity,
@@ -2532,6 +2641,27 @@ static void set_header_bar_theme(MyApplication* self, FlValue* args) {
                       fl_lookup_string_arg(args, "dialogOutlineColor"));
   set_css_color_field(&self->header_bar_modal_barrier_color,
                       fl_lookup_string_arg(args, "modalBarrierColor"));
+  FlValue* tooltip = fl_lookup_map_arg(args, "tooltip");
+  if (tooltip != nullptr) {
+    set_css_color_field(
+        &self->header_bar_tooltip_background_color,
+        fl_lookup_string_arg(tooltip, "backgroundColor"));
+    set_css_color_field(
+        &self->header_bar_tooltip_foreground_color,
+        fl_lookup_string_arg(tooltip, "foregroundColor"));
+    set_css_color_field(&self->header_bar_tooltip_border_color,
+                        fl_lookup_string_arg(tooltip, "borderColor"));
+    update_bounded_double_arg(tooltip, "borderRadius", 0, 64,
+                              &self->header_bar_tooltip_radius);
+    update_bounded_double_arg(tooltip, "fontSize", 1, 64,
+                              &self->header_bar_tooltip_font_size);
+    update_bounded_double_arg(tooltip, "horizontalPadding", 0, 64,
+                              &self->header_bar_tooltip_horizontal_padding);
+    update_bounded_double_arg(tooltip, "verticalPadding", 0, 64,
+                              &self->header_bar_tooltip_vertical_padding);
+    update_bounded_double_arg(tooltip, "minimumHeight", 1, 128,
+                              &self->header_bar_tooltip_minimum_height);
+  }
   set_main_flutter_view_background(self);
   refresh_header_bar_css(self);
 }
@@ -5415,6 +5545,9 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_bar_dialog_background_color, g_free);
   g_clear_pointer(&self->header_bar_dialog_outline_color, g_free);
   g_clear_pointer(&self->header_bar_modal_barrier_color, g_free);
+  g_clear_pointer(&self->header_bar_tooltip_background_color, g_free);
+  g_clear_pointer(&self->header_bar_tooltip_foreground_color, g_free);
+  g_clear_pointer(&self->header_bar_tooltip_border_color, g_free);
   g_clear_pointer(&self->header_view_mode, g_free);
   g_clear_pointer(&self->header_title_text, g_free);
   g_clear_pointer(&self->header_day_label, g_free);
@@ -5490,6 +5623,16 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_dialog_outline_color =
       g_strdup(kDefaultDialogOutlineColor);
   self->header_bar_modal_barrier_color = nullptr;
+  self->header_bar_tooltip_background_color = nullptr;
+  self->header_bar_tooltip_foreground_color = nullptr;
+  self->header_bar_tooltip_border_color = nullptr;
+  self->header_bar_tooltip_radius = kDefaultTooltipRadius;
+  self->header_bar_tooltip_font_size = kDefaultTooltipFontSize;
+  self->header_bar_tooltip_horizontal_padding =
+      kDefaultTooltipHorizontalPadding;
+  self->header_bar_tooltip_vertical_padding =
+      kDefaultTooltipVerticalPadding;
+  self->header_bar_tooltip_minimum_height = kDefaultTooltipMinimumHeight;
   self->header_bar_high_contrast = FALSE;
   self->header_bar_sidebar_width = 300;
   self->header_bar_can_show_sidebar = TRUE;

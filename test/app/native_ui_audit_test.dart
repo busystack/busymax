@@ -776,9 +776,15 @@ void main() {
       expect(source, isNot(contains('GtkWidget* sidebar_toggle_button;')));
       expect(source, isNot(contains('self->sidebar_toggle_button')));
       expect(source, isNot(contains('kHeaderButtonRadius')));
-      expect(source, isNot(contains('tooltip.background')));
-      expect(source, isNot(contains('"tooltip > box,"')));
-      expect(source, isNot(contains('"tooltip label {"')));
+      expect(source, contains('kDefaultTooltipBackground'));
+      expect(source, contains('kDefaultTooltipForeground'));
+      expect(source, contains('kDefaultTooltipBorder'));
+      expect(source, contains('kDefaultTooltipRadius'));
+      expect(source, contains('"tooltip.background {"'));
+      expect(source, contains('"tooltip decoration,"'));
+      expect(source, contains('"tooltip.csd decoration {"'));
+      expect(source, contains('"tooltip > box,"'));
+      expect(source, contains('"tooltip label {"'));
       expect(source, isNot(contains('kHeaderTooltipVerticalPadding')));
       expect(source, isNot(contains('kHeaderTooltipHorizontalPadding')));
       expect(source, isNot(contains('kYaruGtk3TooltipVerticalPadding')));
@@ -1832,7 +1838,7 @@ void main() {
         'g_autofree gchar* header_menu_shadow_css =',
       );
       final headerMenuShadowCssEnd = source.indexOf(
-        'g_autofree gchar* yaru_window_decoration_css =',
+        'const gchar* tooltip_background =',
         headerMenuShadowCssStart,
       );
       expect(headerMenuShadowCssStart, isNonNegative);
@@ -1841,8 +1847,16 @@ void main() {
         headerMenuShadowCssStart,
         headerMenuShadowCssEnd,
       );
+      final tooltipCssStart = headerMenuShadowCssEnd;
+      final tooltipCssEnd = source.indexOf(
+        'g_autofree gchar* header_focus_css =',
+        tooltipCssStart,
+      );
+      expect(tooltipCssStart, isNonNegative);
+      expect(tooltipCssEnd, greaterThan(tooltipCssStart));
+      final tooltipCss = source.substring(tooltipCssStart, tooltipCssEnd);
       final yaruDecorationCssStart = source.indexOf(
-        'const gboolean use_legacy_yaru_compatibility =',
+        'g_autofree gchar* yaru_window_decoration_css =',
       );
       final yaruDecorationCssEnd = source.indexOf(
         'GtkWidget* header_bar =',
@@ -2047,6 +2061,18 @@ void main() {
       expect(headerMenuShadowCss, contains('kHeaderMenuDepthStyleClass'));
       expect(headerMenuShadowCss, isNot(contains('"border:')));
       expect(headerMenuShadowCss, isNot(contains('border-radius')));
+      expect(tooltipCss, contains('"tooltip.background {"'));
+      expect(tooltipCss, contains('"tooltip decoration,"'));
+      expect(tooltipCss, contains('"tooltip.csd decoration {"'));
+      expect(tooltipCss, contains('"tooltip > box,"'));
+      expect(tooltipCss, contains('"tooltip label {"'));
+      expect(tooltipCss, contains('"padding: %.2fpx %.2fpx;"'));
+      expect(tooltipCss, contains('"font-size: %.2fpx;"'));
+      expect(
+        '"border-radius: %.2fpx;"'.allMatches(tooltipCss).length,
+        2,
+        reason: 'Only the painted tooltip and native window clip are rounded',
+      );
       expect(source, contains('"busymax-native-dialog"'));
       expect(source, contains('style_native_dialog(GtkWidget* dialog)'));
       expect(
@@ -2083,12 +2109,9 @@ void main() {
           '                "not(.maximized):not(.fullscreen) > decoration {"',
         ),
       );
-      expect(
-        yaruDecorationCss,
-        contains('current_gtk_theme_uses_legacy_yaru_shadow()'),
-      );
+      expect(source, contains('current_gtk_theme_uses_legacy_yaru_shadow()'));
       expect(yaruDecorationCss, contains('use_legacy_yaru_compatibility'));
-      expect(yaruDecorationCss, contains('!self->header_bar_high_contrast'));
+      expect(source, contains('!self->header_bar_high_contrast'));
       expect(
         yaruDecorationCss,
         contains('"box-shadow: 0 0 14px 2px rgba(0,0,6,0.03),"'),
@@ -2208,7 +2231,7 @@ void main() {
       expect(headerCss, isNot(contains('alpha(currentColor, 0.30)')));
       expect(headerCss, isNot(contains('#151515')));
       expect(headerCss, isNot(contains('popover.busymax')));
-      expect(headerCss, isNot(contains('tooltip.background')));
+      expect(headerCss, contains('tooltip_css'));
       expect(headerCss, contains(':hover'));
       expect(headerCss, contains(':active'));
       expect(headerCss, contains(':checked'));
@@ -2691,6 +2714,10 @@ bool _hasRawIconButton(File file, String line) {
 
 bool _isAllowedFontSizeException(File file, String line) {
   if (file.path.endsWith('lib/src/app/busymax_yaru_theme.dart')) {
+    return true;
+  }
+  if (file.path.endsWith('lib/src/app/busymax_app.dart') &&
+      line.contains('theme.tooltipTheme.textStyle?.fontSize')) {
     return true;
   }
   return file.path.endsWith(

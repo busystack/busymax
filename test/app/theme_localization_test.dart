@@ -40,6 +40,20 @@ void main() {
     expect(headerTheme.foregroundColor, colors.foreground);
     expect(headerTheme.dialogBackgroundColor, colors.dialog);
     expect(headerTheme.modalBarrierColor, colors.shade);
+    expect(headerTheme.tooltip.backgroundColor, BusyMaxTooltipStyle.background);
+    expect(headerTheme.tooltip.foregroundColor, BusyMaxTooltipStyle.foreground);
+    expect(headerTheme.tooltip.borderColor, BusyMaxTooltipStyle.border);
+    expect(headerTheme.tooltip.borderRadius, BusyMaxRadius.tooltip);
+    expect(
+      headerTheme.tooltip.fontSize,
+      theme.tooltipTheme.textStyle?.fontSize,
+    );
+    expect(
+      headerTheme.tooltip.horizontalPadding,
+      BusyMaxSpacing.tooltipHorizontal,
+    );
+    expect(headerTheme.tooltip.verticalPadding, BusyMaxSpacing.tooltipVertical);
+    expect(headerTheme.tooltip.minimumHeight, BusyMaxSizes.tooltipMinHeight);
   });
 
   test('builds with system accent and tokenized control surfaces', () {
@@ -147,6 +161,74 @@ void main() {
           pair.$2?.overlayColor?.resolve(states),
         );
       }
+    }
+  });
+
+  testWidgets('desktop tooltips use one explicit natural-width geometry', (
+    tester,
+  ) async {
+    Future<({Rect surface, Rect text})> measureTooltip({
+      required Brightness brightness,
+      required String message,
+    }) async {
+      final tooltipKey = GlobalKey<TooltipState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: _buildBusyMaxTheme(brightness: brightness),
+          home: Scaffold(
+            body: Center(
+              child: Tooltip(
+                key: tooltipKey,
+                message: message,
+                child: const SizedBox.square(dimension: 32),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tooltipKey.currentState!.ensureTooltipVisible(), isTrue);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      final messageFinder = find.text(message);
+      expect(messageFinder, findsOneWidget);
+      final textRect = tester.getRect(messageFinder);
+      Rect? surfaceRect;
+      tester.element(messageFinder).visitAncestorElements((element) {
+        if (element.widget case final ConstrainedBox constrained
+            when constrained.constraints == BusyMaxTooltipStyle.constraints) {
+          final box = element.renderObject! as RenderBox;
+          surfaceRect = box.localToGlobal(Offset.zero) & box.size;
+          return false;
+        }
+        return true;
+      });
+      expect(surfaceRect, isNotNull);
+      return (surface: surfaceRect!, text: textRect);
+    }
+
+    for (final brightness in Brightness.values) {
+      final short = await measureTooltip(
+        brightness: brightness,
+        message: 'Main menu',
+      );
+      final long = await measureTooltip(
+        brightness: brightness,
+        message: 'Show sidebar panel',
+      );
+
+      for (final measurement in [short, long]) {
+        expect(measurement.surface.height, BusyMaxSizes.tooltipMinHeight);
+        expect(
+          measurement.surface.width,
+          moreOrLessEquals(
+            measurement.text.width +
+                (BusyMaxSpacing.tooltipHorizontal + BusyMaxStroke.outline) * 2,
+            epsilon: 0.01,
+          ),
+        );
+      }
+      expect(long.surface.width, greaterThan(short.surface.width));
     }
   });
 
@@ -487,8 +569,25 @@ void main() {
       );
     }
     final yaruLight = createYaruLightTheme(primaryColor: _testAccentColor);
-    expect(light.tooltipTheme, yaruLight.tooltipTheme);
-    expect(dark.tooltipTheme, yaruDark.tooltipTheme);
+    for (final theme in [light, dark]) {
+      final decoration = theme.tooltipTheme.decoration! as BoxDecoration;
+      final border = decoration.border! as Border;
+      expect(decoration.color, BusyMaxTooltipStyle.background);
+      expect(decoration.borderRadius, BusyMaxTooltipStyle.borderRadius);
+      expect(border.top.color, BusyMaxTooltipStyle.border);
+      expect(
+        theme.tooltipTheme.textStyle?.color,
+        BusyMaxTooltipStyle.foreground,
+      );
+      expect(theme.tooltipTheme.padding, BusyMaxTooltipStyle.padding);
+      expect(theme.tooltipTheme.constraints, BusyMaxTooltipStyle.constraints);
+      expect(theme.tooltipTheme.waitDuration, BusyMaxMotion.tooltipWait);
+    }
+    expect(
+      light.tooltipTheme.waitDuration,
+      yaruLight.tooltipTheme.waitDuration,
+    );
+    expect(dark.tooltipTheme.waitDuration, yaruDark.tooltipTheme.waitDuration);
   });
 
   test('BusyMaxSurfaceColors copyWith preserves and overrides fields', () {
@@ -706,9 +805,15 @@ void main() {
       family: gtkFamily,
       scale: scale,
     );
-    // Yaru leaves tooltip textStyle unset, so Flutter resolves it from the
-    // already-normalized ambient TextTheme together with its inverse palette.
-    expect(theme.tooltipTheme.textStyle, base.tooltipTheme.textStyle);
+    expect(
+      theme.tooltipTheme.textStyle?.fontFamily,
+      theme.textTheme.bodyMedium?.fontFamily,
+    );
+    expect(
+      theme.tooltipTheme.textStyle?.fontSize,
+      theme.textTheme.bodyMedium?.fontSize,
+    );
+    expect(theme.tooltipTheme.textStyle?.color, BusyMaxTooltipStyle.foreground);
     _expectComponentStyleUsesTypography(
       theme.snackBarTheme.contentTextStyle,
       baseStyle: base.snackBarTheme.contentTextStyle,

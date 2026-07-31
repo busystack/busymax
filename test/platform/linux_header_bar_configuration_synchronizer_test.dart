@@ -139,6 +139,16 @@ BusyMaxHeaderBarConfiguration _configuration({required bool dark}) {
       dialogBackgroundColor: dark ? Colors.black : Colors.white,
       dialogOutlineColor: dark ? Colors.white : Colors.white10,
       modalBarrierColor: Colors.black54,
+      tooltip: const BusyMaxHeaderBarTooltipTheme(
+        backgroundColor: Color.fromRGBO(0, 0, 0, 0.8),
+        foregroundColor: Colors.white,
+        borderColor: Color.fromRGBO(255, 255, 255, 0.1),
+        borderRadius: 8,
+        fontSize: 14,
+        horizontalPadding: 10,
+        verticalPadding: 6,
+        minimumHeight: 30,
+      ),
     ),
   );
 }

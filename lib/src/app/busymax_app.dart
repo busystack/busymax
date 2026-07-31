@@ -55,6 +55,16 @@ BusyMaxHeaderBarTheme busyMaxHeaderBarThemeFor(
     dialogBackgroundColor: colors.dialog,
     dialogOutlineColor: colors.dialogOutline,
     modalBarrierColor: colors.shade,
+    tooltip: BusyMaxHeaderBarTooltipTheme(
+      backgroundColor: BusyMaxTooltipStyle.background,
+      foregroundColor: BusyMaxTooltipStyle.foreground,
+      borderColor: BusyMaxTooltipStyle.border,
+      borderRadius: BusyMaxRadius.tooltip,
+      fontSize: theme.tooltipTheme.textStyle?.fontSize ?? 14,
+      horizontalPadding: BusyMaxSpacing.tooltipHorizontal,
+      verticalPadding: BusyMaxSpacing.tooltipVertical,
+      minimumHeight: BusyMaxSizes.tooltipMinHeight,
+    ),
   );
 }
 

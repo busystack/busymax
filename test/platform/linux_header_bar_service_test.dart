@@ -117,6 +117,16 @@ void main() {
         dialogBackgroundColor: Color(0xFF36363A),
         dialogOutlineColor: Color.fromRGBO(255, 255, 255, 0.07),
         modalBarrierColor: Color.fromRGBO(0, 0, 0, 0.32),
+        tooltip: BusyMaxHeaderBarTooltipTheme(
+          backgroundColor: Color.fromRGBO(0, 0, 0, 0.8),
+          foregroundColor: Color(0xFFFFFFFF),
+          borderColor: Color.fromRGBO(255, 255, 255, 0.1),
+          borderRadius: 8,
+          fontSize: 14,
+          horizontalPadding: 10,
+          verticalPadding: 6,
+          minimumHeight: 30,
+        ),
       ),
     );
 
@@ -190,6 +200,16 @@ void main() {
         'dialogBackgroundColor': '#36363A',
         'dialogOutlineColor': 'rgba(255,255,255,0.07)',
         'modalBarrierColor': 'rgba(0,0,0,0.32)',
+        'tooltip': {
+          'backgroundColor': 'rgba(0,0,0,0.80)',
+          'foregroundColor': '#FFFFFF',
+          'borderColor': 'rgba(255,255,255,0.10)',
+          'borderRadius': 8.0,
+          'fontSize': 14.0,
+          'horizontalPadding': 10.0,
+          'verticalPadding': 6.0,
+          'minimumHeight': 30.0,
+        },
       }),
     );
   });
@@ -589,7 +609,7 @@ void main() {
       'g_autofree gchar* native_search_geometry_css =',
     );
     final geometryCssEnd = source.indexOf(
-      'g_autofree gchar* header_menu_shadow_css =',
+      'g_autofree gchar* native_menu_state_css =',
       geometryCssStart,
     );
 
@@ -732,7 +752,12 @@ void main() {
     expect(source, isNot(contains('popover.busymax-header-popover')));
     expect(source, contains('kNativePopoverStyleClass'));
     expect(source, contains('style_header_menu_popover(GTK_WIDGET(popover))'));
-    expect(source, isNot(contains('tooltip.background')));
+    expect(source, contains('tooltip.background'));
+    expect(source, contains('fl_lookup_map_arg(args, "tooltip")'));
+    expect(
+      source,
+      contains('fl_lookup_string_arg(tooltip, "backgroundColor")'),
+    );
     expect(source, isNot(contains('button.busymax-header-popover-row')));
     expect(source, isNot(contains('busymax-keyboard-focus')));
     expect(source, isNot(contains('gtk_window_get_focus_visible')));

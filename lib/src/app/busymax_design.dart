@@ -21,10 +21,13 @@ abstract final class BusyMaxSpacing {
   static const double lg = kYaruPagePadding;
   static const double xl = kYaruPagePadding * 1.5;
   static const double xxl = kYaruPagePadding * 2;
+  static const double tooltipHorizontal = 10;
+  static const double tooltipVertical = 6;
 }
 
 abstract final class BusyMaxRadius {
   static const double sm = kYaruButtonRadius;
+  static const double tooltip = kYaruButtonRadius;
   static const double md = kYaruContainerRadius;
   static const double lg = kYaruContainerRadius;
   static const double headerButton = kYaruButtonRadius;
@@ -50,6 +53,7 @@ abstract final class BusyMaxSizes {
   static const double popoverActionIcon = iconSm;
   static const double popoverArrowWidth = 18;
   static const double popoverArrowHeight = 10;
+  static const double tooltipMinHeight = 30;
 }
 
 abstract final class BusyMaxFormLayout {
@@ -79,11 +83,39 @@ abstract final class BusyMaxAlpha {
   static const double calendarGridDark = 0.06;
   static const double groupedRowLightHoverStrength = 0.50;
   static const double nativeHeaderMenuShadowOpacity = 0.30;
+  static const double tooltipBackground = 0.80;
+  static const double tooltipBorder = 0.10;
 }
 
 abstract final class BusyMaxMotion {
   static const Duration dialogInsets = Duration(milliseconds: 160);
   static const Curve dialogInsetsCurve = Curves.easeOutCubic;
+  static const Duration tooltipWait = Duration(milliseconds: 500);
+}
+
+/// Cross-toolkit tooltip visuals.
+///
+/// Flutter and the native GTK header bar render separate tooltip widgets.
+/// This contract keeps their surface geometry and palette identical while
+/// allowing both toolkits to retain native positioning and accessibility.
+abstract final class BusyMaxTooltipStyle {
+  static final Color background = Colors.black.withValues(
+    alpha: BusyMaxAlpha.tooltipBackground,
+  );
+  static const Color foreground = Colors.white;
+  static final Color border = Colors.white.withValues(
+    alpha: BusyMaxAlpha.tooltipBorder,
+  );
+  static const EdgeInsets padding = EdgeInsets.symmetric(
+    horizontal: BusyMaxSpacing.tooltipHorizontal,
+    vertical: BusyMaxSpacing.tooltipVertical,
+  );
+  static const BorderRadius borderRadius = BorderRadius.all(
+    Radius.circular(BusyMaxRadius.tooltip),
+  );
+  static const BoxConstraints constraints = BoxConstraints(
+    minHeight: BusyMaxSizes.tooltipMinHeight,
+  );
 }
 
 enum BusyMaxPopoverShadowRole { standard, details }
