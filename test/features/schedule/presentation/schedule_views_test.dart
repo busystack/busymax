@@ -38,7 +38,7 @@ void main() {
     expect(workspace, contains("ValueKey('schedule-week-planner')"));
   });
 
-  testWidgets('year view uses one month column at narrow desktop widths', (
+  testWidgets('year view uses one month column in compact narrow layouts', (
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
@@ -47,7 +47,7 @@ void main() {
       localizedTestApp(
         child: Scaffold(
           body: SizedBox(
-            width: 500,
+            width: 420,
             height: 720,
             child: ScheduleYearView(
               selectedDate: selectedDate,
@@ -57,6 +57,7 @@ void main() {
               onMonthSelected: (_) {},
               onWeekSelected: (_) {},
               onCreateAtDay: (_) {},
+              compact: true,
             ),
           ),
         ),
@@ -71,6 +72,62 @@ void main() {
     expect(februaryPosition.dx, januaryPosition.dx);
     expect(februaryPosition.dy, greaterThan(januaryPosition.dy));
   });
+
+  testWidgets(
+    'year view highlights a selected spillover date only in its own month',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final selectedDate = DateTime(2026, 7, 30);
+
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: SizedBox(
+              width: 1000,
+              height: 720,
+              child: ScheduleYearView(
+                selectedDate: selectedDate,
+                items: const [],
+                firstWeekday: DateTime.monday,
+                onDaySelected: (_) {},
+                onMonthSelected: (_) {},
+                onWeekSelected: (_) {},
+                onCreateAtDay: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final months = find.byType(YearMonthMiniCalendar);
+      final selectedDateKey = ValueKey((
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+      ));
+      final julyDate = find.descendant(
+        of: months.at(DateTime.july - 1),
+        matching: find.byKey(selectedDateKey),
+      );
+      final augustSpilloverDate = find.descendant(
+        of: months.at(DateTime.august - 1),
+        matching: find.byKey(selectedDateKey),
+      );
+
+      expect(julyDate, findsOneWidget);
+      expect(augustSpilloverDate, findsOneWidget);
+      expect(
+        tester.getSemantics(julyDate).flagsCollection.isSelected,
+        ui.Tristate.isTrue,
+      );
+      expect(
+        tester.getSemantics(augustSpilloverDate).flagsCollection.isSelected,
+        ui.Tristate.isFalse,
+      );
+      semantics.dispose();
+    },
+  );
 
   testWidgets('day view uses package planner with custom BusyMax items', (
     tester,

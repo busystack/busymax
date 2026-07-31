@@ -179,6 +179,7 @@ class YearMonthMiniCalendar extends StatelessWidget {
             displayedMonth: month,
             selectedDate: selectedDate,
             firstWeekday: firstWeekday,
+            highlightSelectedDateOutsideMonth: false,
             markerColorsByDay: markerColorsByDay,
             onDaySelected: onDaySelected,
             onWeekSelected: onWeekSelected,
@@ -199,6 +200,7 @@ class MiniCalendarGrid extends StatelessWidget {
     required this.firstWeekday,
     required this.onDaySelected,
     this.markerColorsByDay = const {},
+    this.highlightSelectedDateOutsideMonth = true,
     this.onWeekSelected,
     this.onDayDoubleTap,
   });
@@ -207,6 +209,7 @@ class MiniCalendarGrid extends StatelessWidget {
   final DateTime selectedDate;
   final int firstWeekday;
   final Map<DateTime, List<Color>> markerColorsByDay;
+  final bool highlightSelectedDateOutsideMonth;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime>? onWeekSelected;
   final ValueChanged<DateTime>? onDayDoubleTap;
@@ -271,6 +274,8 @@ class MiniCalendarGrid extends StatelessWidget {
                     onWeekSelected: onWeekSelected,
                     selectedDate: selectedDate,
                     displayedMonth: month,
+                    highlightSelectedDateOutsideMonth:
+                        highlightSelectedDateOutsideMonth,
                     markerColorsByDay: markerColorsByDay,
                     onDaySelected: onDaySelected,
                     onDayDoubleTap: onDayDoubleTap,
@@ -306,6 +311,7 @@ class _MiniCalendarWeekRow extends StatelessWidget {
     required this.onWeekSelected,
     required this.selectedDate,
     required this.displayedMonth,
+    required this.highlightSelectedDateOutsideMonth,
     required this.markerColorsByDay,
     required this.onDaySelected,
     required this.onDayDoubleTap,
@@ -316,6 +322,7 @@ class _MiniCalendarWeekRow extends StatelessWidget {
   final ValueChanged<DateTime>? onWeekSelected;
   final DateTime selectedDate;
   final DateTime displayedMonth;
+  final bool highlightSelectedDateOutsideMonth;
   final Map<DateTime, List<Color>> markerColorsByDay;
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime>? onDayDoubleTap;
@@ -339,6 +346,8 @@ class _MiniCalendarWeekRow extends StatelessWidget {
               day: _addCalendarDays(weekStart, column),
               selectedDate: selectedDate,
               displayedMonth: displayedMonth,
+              highlightSelectedDateOutsideMonth:
+                  highlightSelectedDateOutsideMonth,
               markerColorsByDay: markerColorsByDay,
               onSelected: onDaySelected,
               onDoubleTap: onDayDoubleTap,
@@ -411,6 +420,7 @@ class _MiniCalendarDayButton extends StatefulWidget {
     required this.day,
     required this.selectedDate,
     required this.displayedMonth,
+    required this.highlightSelectedDateOutsideMonth,
     required this.markerColorsByDay,
     required this.onSelected,
     required this.onDoubleTap,
@@ -419,6 +429,7 @@ class _MiniCalendarDayButton extends StatefulWidget {
   final DateTime day;
   final DateTime selectedDate;
   final DateTime displayedMonth;
+  final bool highlightSelectedDateOutsideMonth;
   final Map<DateTime, List<Color>> markerColorsByDay;
   final ValueChanged<DateTime> onSelected;
   final ValueChanged<DateTime>? onDoubleTap;
@@ -437,11 +448,13 @@ class _MiniCalendarDayButtonState extends State<_MiniCalendarDayButton> {
     final onSelected = widget.onSelected;
     final colorScheme = Theme.of(context).colorScheme;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
-    final selected = _sameDay(day, selectedDate);
-    final today = _sameDay(day, DateTime.now());
     final inDisplayedMonth =
         day.year == widget.displayedMonth.year &&
         day.month == widget.displayedMonth.month;
+    final selected =
+        _sameDay(day, selectedDate) &&
+        (inDisplayedMonth || widget.highlightSelectedDateOutsideMonth);
+    final today = _sameDay(day, DateTime.now());
     final displayingCurrentMonth =
         widget.displayedMonth.year == DateTime.now().year &&
         widget.displayedMonth.month == DateTime.now().month;
