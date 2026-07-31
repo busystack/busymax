@@ -1202,11 +1202,11 @@ class AppLocalizationsRu extends AppLocalizations {
   String get discardChangesAction => 'Не сохранять';
 
   @override
-  String get discardChanges => 'Отменить изменения?';
+  String get discardChanges => 'Не сохранять изменения?';
 
   @override
   String get discardChangesConfirmation =>
-      'Несохранённые изменения этой задачи будут отменены.';
+      'Несохранённые изменения этой задачи будут потеряны.';
 
   @override
   String get retryCompleted => 'Повторная попытка завершена.';

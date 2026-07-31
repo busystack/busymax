@@ -409,6 +409,35 @@ void main() {
     await _disposeApp(tester);
   });
 
+  testWidgets('Settings enters and exits without a page transition', (
+    tester,
+  ) async {
+    await _insertAccount(
+      database,
+      id: 'google:existing',
+      provider: TaskProvider.google,
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+
+    final router = GoRouter.of(tester.element(find.byType(ScheduleWorkspace)));
+    unawaited(router.push<void>('/settings'));
+    await tester.pump();
+
+    final settings = find.byType(SettingsScreen);
+    expect(settings, findsOneWidget);
+    final settingsRoute = ModalRoute.of(tester.element(settings))!;
+    expect(settingsRoute.transitionDuration, Duration.zero);
+    expect(settingsRoute.reverseTransitionDuration, Duration.zero);
+
+    router.pop();
+    await tester.pump();
+
+    expect(settings, findsNothing);
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
   testWidgets(
     'adding an account keeps Settings open during and after cancellation',
     (tester) async {
