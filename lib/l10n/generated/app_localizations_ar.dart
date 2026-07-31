@@ -1195,6 +1195,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get discard => 'تجاهل';
 
   @override
+  String get discardChangesAction => 'تجاهل التغييرات';
+
+  @override
   String get discardChanges => 'تجاهل التغييرات؟';
 
   @override

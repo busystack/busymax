@@ -359,6 +359,7 @@
   "pendingOpAttempts": "tentativas={count}",
   "retry": "Tentar novamente",
   "discard": "Descartar",
+  "discardChangesAction": "Descartar",
   "discardChanges": "Descartar alterações?",
   "discardChangesConfirmation": "Esta ação descarta as alterações não guardadas nesta tarefa.",
   "retryCompleted": "Nova tentativa concluída.",

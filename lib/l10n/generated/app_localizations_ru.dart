@@ -1199,6 +1199,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get discard => 'Отменить';
 
   @override
+  String get discardChangesAction => 'Не сохранять';
+
+  @override
   String get discardChanges => 'Отменить изменения?';
 
   @override

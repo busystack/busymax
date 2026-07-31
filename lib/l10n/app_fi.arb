@@ -359,6 +359,7 @@
   "pendingOpAttempts": "yritykset={count}",
   "retry": "Yritä uudelleen",
   "discard": "Hylkää",
+  "discardChangesAction": "Hylkää",
   "discardChanges": "Hylätäänkö muutokset?",
   "discardChangesConfirmation": "Tämä hylkää tehtävän tallentamattomat muutokset.",
   "retryCompleted": "Uudelleenyritys suoritettu.",

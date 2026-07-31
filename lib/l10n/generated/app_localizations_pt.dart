@@ -1199,6 +1199,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get discard => 'Descartar';
 
   @override
+  String get discardChangesAction => 'Descartar';
+
+  @override
   String get discardChanges => 'Descartar alterações?';
 
   @override

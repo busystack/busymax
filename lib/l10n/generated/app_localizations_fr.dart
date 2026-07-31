@@ -1198,6 +1198,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get discard => 'Abandonner';
 
   @override
+  String get discardChangesAction => 'Abandonner';
+
+  @override
   String get discardChanges => 'Abandonner les modifications ?';
 
   @override

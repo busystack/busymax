@@ -254,6 +254,40 @@ void main() {
     expect(cancelCount, 1);
   });
 
+  testWidgets('Russian discard action is distinct from cancel', (tester) async {
+    final service = _FakeFeedbackService((_) async {
+      return const FeedbackReceipt(id: 'unexpected');
+    });
+    var cancelCount = 0;
+    await _pumpDialog(
+      tester,
+      service,
+      locale: const Locale('ru'),
+      onCancel: () => cancelCount += 1,
+    );
+    await tester.enterText(
+      find.byKey(const Key('feedback-subject')),
+      'Черновик',
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    final confirmation = find.byType(BusyMaxConfirmDialog);
+    expect(
+      find.descendant(of: confirmation, matching: find.text('Отмена')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: confirmation, matching: find.text('Не сохранять')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Не сохранять'));
+    await tester.pumpAndSettle();
+    expect(cancelCount, 1);
+  });
+
   testWidgets('clears the form and shows the server reference on success', (
     tester,
   ) async {
@@ -430,10 +464,12 @@ Future<void> _pumpDialog(
   FeedbackSubmissionService service, {
   FeedbackSubmissionIdGenerator? submissionIdGenerator,
   String osVersion = 'Test Linux',
+  Locale locale = const Locale('en'),
   VoidCallback? onCancel,
 }) async {
   await tester.pumpWidget(
     localizedTestApp(
+      locale: locale,
       child: Scaffold(
         body: Center(
           child: SizedBox(

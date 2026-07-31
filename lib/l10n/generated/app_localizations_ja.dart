@@ -1166,6 +1166,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get discard => '破棄';
 
   @override
+  String get discardChangesAction => '破棄';
+
+  @override
   String get discardChanges => '変更を破棄しますか？';
 
   @override

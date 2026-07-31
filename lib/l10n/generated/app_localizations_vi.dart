@@ -1192,6 +1192,9 @@ class AppLocalizationsVi extends AppLocalizations {
   String get discard => 'Hủy bỏ';
 
   @override
+  String get discardChangesAction => 'Không lưu';
+
+  @override
   String get discardChanges => 'Hủy bỏ thay đổi?';
 
   @override

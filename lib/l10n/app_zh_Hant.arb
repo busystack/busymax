@@ -359,6 +359,7 @@
   "pendingOpAttempts": "嘗試次數={count}",
   "retry": "再試一次",
   "discard": "捨棄",
+  "discardChangesAction": "捨棄",
   "discardChanges": "要捨棄變更嗎？",
   "discardChangesConfirmation": "這會捨棄此待辦事項中尚未儲存的編輯內容。",
   "retryCompleted": "重試完成。",

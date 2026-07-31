@@ -1193,6 +1193,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get discard => 'खारिज करें';
 
   @override
+  String get discardChangesAction => 'बदलाव छोड़ें';
+
+  @override
   String get discardChanges => 'बदलाव खारिज करें?';
 
   @override

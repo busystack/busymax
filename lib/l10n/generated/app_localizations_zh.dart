@@ -1157,6 +1157,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discard => '舍弃';
 
   @override
+  String get discardChangesAction => '舍弃';
+
+  @override
   String get discardChanges => '舍弃更改？';
 
   @override
@@ -2425,6 +2428,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get discard => '舍弃';
+
+  @override
+  String get discardChangesAction => '舍弃';
 
   @override
   String get discardChanges => '舍弃更改？';
@@ -3696,6 +3702,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get discard => '捨棄';
+
+  @override
+  String get discardChangesAction => '捨棄';
 
   @override
   String get discardChanges => '要捨棄變更嗎？';

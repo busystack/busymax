@@ -359,6 +359,7 @@
   "pendingOpAttempts": "تلاش‌ها=\u2068{count}\u2069",
   "retry": "تلاش دوباره",
   "discard": "کنار گذاشتن",
+  "discardChangesAction": "ذخیره نشود",
   "discardChanges": "تغییرات کنار گذاشته شوند؟",
   "discardChangesConfirmation": "با این کار ویرایش‌های ذخیره‌نشدهٔ این کار کنار گذاشته می‌شوند.",
   "retryCompleted": "تلاش دوباره کامل شد.",

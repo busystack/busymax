@@ -66,6 +66,27 @@ void main() {
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 
+  test('discard-changes action is distinct from cancel in every locale', () {
+    for (final locale in AppLocalizations.supportedLocales) {
+      final localizations = lookupAppLocalizations(locale);
+      expect(
+        localizations.discardChangesAction,
+        isNot(localizations.cancel),
+        reason:
+            '${locale.toLanguageTag()} must not translate Discard as Cancel',
+      );
+    }
+
+    expect(
+      lookupAppLocalizations(const Locale('ru')).discardChangesAction,
+      'Не сохранять',
+    );
+    expect(
+      lookupAppLocalizations(const Locale('vi')).discardChangesAction,
+      'Không lưu',
+    );
+  });
+
   test('Linux package metadata matches every translated catalog', () {
     final failures = _metadataTranslationFailures().toList();
 

@@ -365,6 +365,7 @@
   "pendingOpAttempts": "tentatives={count}",
   "retry": "Réessayer",
   "discard": "Abandonner",
+  "discardChangesAction": "Abandonner",
   "discardChanges": "Abandonner les modifications ?",
   "discardChangesConfirmation": "Les modifications non enregistrées apportées à cette tâche seront perdues.",
   "retryCompleted": "Nouvelle tentative terminée.",

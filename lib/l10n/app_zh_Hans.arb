@@ -359,6 +359,7 @@
   "pendingOpAttempts": "尝试次数={count}",
   "retry": "重试",
   "discard": "舍弃",
+  "discardChangesAction": "舍弃",
   "discardChanges": "舍弃更改？",
   "discardChangesConfirmation": "这将舍弃对此任务所做的未保存编辑。",
   "retryCompleted": "重试完成。",

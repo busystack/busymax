@@ -384,6 +384,10 @@
   "@pendingOpAttempts": {"placeholders": {"count": {"type": "int"}}},
   "retry": "Retry",
   "discard": "Discard",
+  "discardChangesAction": "Discard",
+  "@discardChangesAction": {
+    "description": "Destructive confirmation button that throws away unsaved edits. Translate it distinctly from Cancel."
+  },
   "discardChanges": "Discard changes?",
   "discardChangesConfirmation": "This discards unsaved edits to this task.",
   "retryCompleted": "Retry completed.",

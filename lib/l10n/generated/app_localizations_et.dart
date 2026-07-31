@@ -1193,6 +1193,9 @@ class AppLocalizationsEt extends AppLocalizations {
   String get discard => 'Hülga';
 
   @override
+  String get discardChangesAction => 'Hülga';
+
+  @override
   String get discardChanges => 'Kas hüljata muudatused?';
 
   @override

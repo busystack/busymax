@@ -1200,6 +1200,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get discard => 'Scarta';
 
   @override
+  String get discardChangesAction => 'Scarta';
+
+  @override
   String get discardChanges => 'Scartare le modifiche?';
 
   @override

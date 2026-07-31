@@ -365,6 +365,7 @@
   "pendingOpAttempts": "intentos={count}",
   "retry": "Reintentar",
   "discard": "Descartar",
+  "discardChangesAction": "Descartar",
   "discardChanges": "¿Descartar cambios?",
   "discardChangesConfirmation": "Esto descarta las ediciones no guardadas de esta tarea.",
   "retryCompleted": "Reintento completado.",

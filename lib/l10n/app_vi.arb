@@ -359,6 +359,7 @@
   "pendingOpAttempts": "số_lần_thử={count}",
   "retry": "Thử lại",
   "discard": "Hủy bỏ",
+  "discardChangesAction": "Không lưu",
   "discardChanges": "Hủy bỏ thay đổi?",
   "discardChangesConfirmation": "Thao tác này sẽ hủy bỏ các chỉnh sửa chưa lưu đối với công việc.",
   "retryCompleted": "Đã thử lại.",

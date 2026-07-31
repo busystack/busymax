@@ -1213,6 +1213,9 @@ class AppLocalizationsFa extends AppLocalizations {
   String get discard => 'کنار گذاشتن';
 
   @override
+  String get discardChangesAction => 'ذخیره نشود';
+
+  @override
   String get discardChanges => 'تغییرات کنار گذاشته شوند؟';
 
   @override

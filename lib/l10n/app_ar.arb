@@ -359,6 +359,7 @@
   "pendingOpAttempts": "المحاولات=\u2068{count}\u2069",
   "retry": "إعادة المحاولة",
   "discard": "تجاهل",
+  "discardChangesAction": "تجاهل التغييرات",
   "discardChanges": "تجاهل التغييرات؟",
   "discardChangesConfirmation": "سيؤدي ذلك إلى تجاهل التعديلات غير المحفوظة على هذه المهمة.",
   "retryCompleted": "اكتملت إعادة المحاولة.",

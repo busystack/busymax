@@ -365,6 +365,7 @@
   "pendingOpAttempts": "Versuche={count}",
   "retry": "Erneut versuchen",
   "discard": "Verwerfen",
+  "discardChangesAction": "Verwerfen",
   "discardChanges": "Änderungen verwerfen?",
   "discardChangesConfirmation": "Dies verwirft ungespeicherte Änderungen an dieser Aufgabe.",
   "retryCompleted": "Erneuter Versuch abgeschlossen.",

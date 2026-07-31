@@ -1184,6 +1184,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get discard => 'Discard';
 
   @override
+  String get discardChangesAction => 'Discard';
+
+  @override
   String get discardChanges => 'Discard changes?';
 
   @override

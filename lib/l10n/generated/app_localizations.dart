@@ -2286,6 +2286,12 @@ abstract class AppLocalizations {
   /// **'Discard'**
   String get discard;
 
+  /// Destructive confirmation button that throws away unsaved edits. Translate it distinctly from Cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get discardChangesAction;
+
   /// No description provided for @discardChanges.
   ///
   /// In en, this message translates to:

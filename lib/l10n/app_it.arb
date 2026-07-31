@@ -359,6 +359,7 @@
   "pendingOpAttempts": "tentativi={count}",
   "retry": "Riprova",
   "discard": "Scarta",
+  "discardChangesAction": "Scarta",
   "discardChanges": "Scartare le modifiche?",
   "discardChangesConfirmation": "Questa azione scarta le modifiche non salvate dell’attività.",
   "retryCompleted": "Nuovo tentativo completato.",

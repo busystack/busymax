@@ -359,6 +359,7 @@
   "pendingOpAttempts": "प्रयास={count}",
   "retry": "फिर से कोशिश करें",
   "discard": "खारिज करें",
+  "discardChangesAction": "बदलाव छोड़ें",
   "discardChanges": "बदलाव खारिज करें?",
   "discardChangesConfirmation": "इससे इस कार्य में किए गए सहेजे न गए बदलाव खारिज हो जाएँगे।",
   "retryCompleted": "दोबारा प्रयास पूरा हुआ।",

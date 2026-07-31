@@ -1196,6 +1196,9 @@ class AppLocalizationsFi extends AppLocalizations {
   String get discard => 'Hylkää';
 
   @override
+  String get discardChangesAction => 'Hylkää';
+
+  @override
   String get discardChanges => 'Hylätäänkö muutokset?';
 
   @override

@@ -1166,6 +1166,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get discard => '버리기';
 
   @override
+  String get discardChangesAction => '변경 사항 버리기';
+
+  @override
   String get discardChanges => '변경 사항을 버릴까요?';
 
   @override

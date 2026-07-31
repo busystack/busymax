@@ -396,7 +396,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       context,
       title: context.l10n.discardChanges,
       message: context.l10n.discardChangesConfirmation,
-      confirmLabel: context.l10n.discard,
+      confirmLabel: context.l10n.discardChangesAction,
       destructive: true,
     );
     if (!mounted) {

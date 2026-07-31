@@ -359,6 +359,7 @@
   "pendingOpAttempts": "시도={count}",
   "retry": "다시 시도",
   "discard": "버리기",
+  "discardChangesAction": "변경 사항 버리기",
   "discardChanges": "변경 사항을 버릴까요?",
   "discardChangesConfirmation": "이 할 일에서 저장하지 않은 편집 내용을 버립니다.",
   "retryCompleted": "다시 시도했습니다.",

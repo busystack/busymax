@@ -359,6 +359,7 @@
   "pendingOpAttempts": "попытки={count}",
   "retry": "Повторить",
   "discard": "Отменить",
+  "discardChangesAction": "Не сохранять",
   "discardChanges": "Отменить изменения?",
   "discardChangesConfirmation": "Несохранённые изменения этой задачи будут отменены.",
   "retryCompleted": "Повторная попытка завершена.",

@@ -1201,6 +1201,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get discard => 'Descartar';
 
   @override
+  String get discardChangesAction => 'Descartar';
+
+  @override
   String get discardChanges => '¿Descartar cambios?';
 
   @override

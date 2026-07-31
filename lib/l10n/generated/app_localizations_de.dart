@@ -1200,6 +1200,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get discard => 'Verwerfen';
 
   @override
+  String get discardChangesAction => 'Verwerfen';
+
+  @override
   String get discardChanges => 'Änderungen verwerfen?';
 
   @override

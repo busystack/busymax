@@ -359,6 +359,7 @@
   "pendingOpAttempts": "試行回数={count}",
   "retry": "再試行",
   "discard": "破棄",
+  "discardChangesAction": "破棄",
   "discardChanges": "変更を破棄しますか？",
   "discardChangesConfirmation": "このタスクの未保存の編集内容を破棄します。",
   "retryCompleted": "再試行が完了しました。",

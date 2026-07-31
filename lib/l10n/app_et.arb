@@ -384,6 +384,7 @@
   "@pendingOpAttempts": {"placeholders": {"count": {"type": "int"}}},
   "retry": "Proovi uuesti",
   "discard": "Hülga",
+  "discardChangesAction": "Hülga",
   "discardChanges": "Kas hüljata muudatused?",
   "discardChangesConfirmation": "See hülgab ülesande salvestamata muudatused.",
   "retryCompleted": "Uuesti proovimine lõpetatud.",
