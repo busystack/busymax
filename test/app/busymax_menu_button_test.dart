@@ -154,6 +154,10 @@ void main() {
       hoveredPixel,
       _colorCloseTo(Color.alphaBlend(colors.controlHover, colors.popover)),
     );
+    await mouse.moveTo(Offset.zero);
+    await tester.pumpAndSettle();
+    final restoredPixel = await _capturePixel(tester, boundaryKey, hoverProbe);
+    expect(restoredPixel, idlePixel);
 
     controller.close();
     await tester.pumpAndSettle();

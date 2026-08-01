@@ -880,7 +880,7 @@ void main() {
       expect(source, isNot(contains('gtk_window_get_focus_visible')));
       expect(source, isNot(contains('configure_header_popover_row')));
       expect(source, isNot(contains('gtk_widget_grab_focus(first_item)')));
-      expect(source, isNot(contains('"object-select-symbolic"')));
+      expect(headerBarSource, isNot(contains('"object-select-symbolic"')));
       expect(source, isNot(contains('gtk_widget_set_opacity(check_widget')));
       expect(source, isNot(contains('gtk_model_button_new()')));
       expect(source, isNot(contains('gtk_check_menu_item_new')));
@@ -1091,7 +1091,7 @@ void main() {
       );
       expect(source, isNot(contains('create_header_popup_box')));
       expect(source, isNot(contains('draw_header_popup_background_cb')));
-      expect('gtk_event_box_new()'.allMatches(source).length, 1);
+      expect('gtk_event_box_new()'.allMatches(source).length, 2);
       expect(source, isNot(contains('gtk_widget_set_app_paintable(popup')));
       expect(headerBarSource, isNot(contains('gtk_window_move')));
       expect(source, isNot(contains('override_header_menu_colors')));
@@ -1297,12 +1297,12 @@ void main() {
       expect(source, isNot(contains('"openMenu"')));
     });
 
-    test('Linux content menus are native GTK model popovers', () {
+    test('Linux content menus use explicit native GTK popover buttons', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
       final service = File(
         'lib/src/platform/native_menu_service.dart',
       ).readAsStringSync();
-      final start = runner.indexOf('constexpr char kNativeMenuActionNamespace');
+      final start = runner.indexOf('constexpr char kNativeMenuItemIndexKey');
       final end = runner.indexOf('static void respond_success', start);
 
       expect(start, isNonNegative);
@@ -1320,51 +1320,102 @@ void main() {
       final dispose = nativeMenu.substring(disposeStart, disposeEnd);
 
       expect(runner, contains('"busymax/native_menus"'));
-      expect(nativeMenu, contains('gtk_popover_new_from_model('));
-      expect(nativeMenu, contains('gtk_popover_set_pointing_to('));
-      expect(nativeMenu, contains('gtk_popover_set_modal('));
+      expect(nativeMenu, contains('struct NativeMenuHostWidgets'));
+      expect(nativeMenu, contains('gtk_event_box_set_above_child('));
+      expect(nativeMenu, contains('gtk_widget_show(data->input_layer)'));
+      expect(
+        nativeMenu,
+        contains('session->popover = gtk_popover_new(data->menu_button)'),
+      );
+      expect(nativeMenu, isNot(contains('gtk_popover_new(data->view)')));
+      expect(nativeMenu, contains('gtk_menu_button_set_popover('));
+      expect(
+        nativeMenu,
+        contains(
+          'gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(data->menu_button), TRUE)',
+        ),
+      );
       expect(nativeMenu, contains('style_native_popover(session->popover)'));
       expect(
         nativeMenu,
-        contains('decorate_model_menu_shortcuts(session->popover'),
+        contains('gtk_container_set_border_width(GTK_CONTAINER(menu_box),'),
       );
-      expect(nativeMenu, contains('g_simple_action_set_enabled('));
-      expect(nativeMenu, contains('g_themed_icon_new(icon_name)'));
-      expect(nativeMenu, contains('g_menu_item_set_icon(item, icon)'));
-      expect(nativeMenu, contains('kMenuIconAttribute'));
-      expect(runner, contains('add_model_button_presentation('));
-      expect(nativeMenu, contains('g_simple_action_new_stateful('));
-      expect(nativeMenu, contains('g_object_ref(G_OBJECT(method_call))'));
+      expect(nativeMenu, contains('kNativeMenuContentPadding'));
+      expect(nativeMenu, contains('gtk_button_new()'));
       expect(
         nativeMenu,
-        anyOf(
-          contains('gtk_popover_popup(session->popover)'),
-          contains('gtk_popover_popup(GTK_POPOVER(session->popover))'),
+        contains('gtk_button_set_relief(GTK_BUTTON(button), GTK_RELIEF_NONE)'),
+      );
+      expect(nativeMenu, contains('GTK_STYLE_CLASS_FLAT'));
+      expect(nativeMenu, contains('kNativeMenuItemStyleClass'));
+      expect(nativeMenu, contains('gtk_radio_button_new(selection_group)'));
+      expect(nativeMenu, contains('gtk_radio_button_get_group('));
+      expect(nativeMenu, contains('gtk_toggle_button_set_active('));
+      expect(
+        nativeMenu,
+        contains('gtk_widget_get_direction(data->view) == GTK_TEXT_DIR_RTL'),
+      );
+      expect(
+        nativeMenu,
+        contains('gtk_widget_set_direction(\n          button,'),
+      );
+      expect(
+        nativeMenu,
+        contains('gtk_widget_set_direction(row, menu_text_direction)'),
+      );
+      expect(nativeMenu, isNot(contains('gtk_drawing_area_new()')));
+      expect(nativeMenu, isNot(contains('gtk_cell_renderer_render(')));
+      expect(nativeMenu, contains('native_menu_item_clicked_cb'));
+      expect(nativeMenu, contains('G_CALLBACK(native_menu_item_clicked_cb)'));
+      expect(nativeMenu, contains('gtk_widget_set_sensitive(button, enabled)'));
+      expect(nativeMenu, isNot(contains('"object-select-symbolic"')));
+      expect(nativeMenu, contains('gtk_image_new_from_icon_name('));
+      expect(nativeMenu, contains('gtk_label_new(shortcut)'));
+      expect(nativeMenu, contains('GTK_STYLE_CLASS_DIM_LABEL'));
+      expect(nativeMenu, contains('gtk_widget_show_all(menu_box)'));
+      expect(nativeMenu, contains('gtk_popover_set_modal('));
+      expect(nativeMenu, isNot(contains('gtk_popover_popup(')));
+      expect(
+        nativeMenu,
+        contains(
+          'gtk_widget_child_focus(session->popover, GTK_DIR_TAB_FORWARD)',
         ),
       );
-      expect(nativeMenu, isNot(contains('gtk_widget_show(session->popover)')));
+      expect(nativeMenu, contains('gtk_overlay_add_overlay('));
+      expect(
+        nativeMenu,
+        isNot(contains('gtk_overlay_set_overlay_pass_through(')),
+      );
+      expect(nativeMenu, contains('gtk_menu_button_new()'));
+      expect(nativeMenu, isNot(contains('gtk_menu_button_set_menu_model(')));
+      expect(nativeMenu, isNot(contains('gtk_menu_new_from_model(')));
+      expect(nativeMenu, isNot(contains('gtk_menu_popup_at_rect(')));
+      expect(nativeMenu, isNot(contains('gtk_popover_new_from_model(')));
+      expect(nativeMenu, isNot(contains('ensure_native_menu_hover_tracking')));
+      expect(nativeMenu, isNot(contains('GTK_STATE_FLAG_PRELIGHT')));
+      expect(nativeMenu, isNot(contains('gtk_widget_set_state_flags')));
+      expect(nativeMenu, contains('g_object_ref(G_OBJECT(method_call))'));
+      expect(nativeMenu, isNot(contains('gtk_popover_bind_model(')));
       expect(
         nativeMenu,
         isNot(contains('gtk_widget_show_all(session->popover)')),
       );
-      expect(nativeMenu, isNot(contains('gtk_popover_bind_model(')));
-      expect(nativeMenu, contains('gtk_widget_destroy(session->popover)'));
+      expect(dispose, contains('gtk_widget_hide(session->popover)'));
+      expect(dispose, contains('gtk_widget_hide(owner->input_layer)'));
+      expect(dispose, contains('gtk_menu_button_set_popover('));
+      expect(dispose, contains('gtk_widget_destroy(session->popover)'));
+      final hideIndex = dispose.indexOf('gtk_widget_hide(session->popover)');
       final destroyIndex = dispose.indexOf(
         'gtk_widget_destroy(session->popover)',
       );
-      final hideIndex = dispose.indexOf('gtk_widget_hide(session->popover)');
-      final clearActionsIndex = dispose.indexOf(
-        'g_clear_object(&session->action_group)',
-      );
       final respondIndex = dispose.indexOf('native_menu_session_respond(');
       final freeIndex = dispose.indexOf('g_free(session)');
-      expect(destroyIndex, isNonNegative);
       expect(hideIndex, isNonNegative);
-      expect(clearActionsIndex, isNonNegative);
+      expect(destroyIndex, isNonNegative);
       expect(respondIndex, isNonNegative);
       expect(freeIndex, isNonNegative);
       expect(hideIndex, lessThan(destroyIndex));
-      expect(clearActionsIndex, lessThan(respondIndex));
+      expect(destroyIndex, lessThan(respondIndex));
       expect(respondIndex, lessThan(freeIndex));
       expect(
         'native_menu_session_respond('.allMatches(nativeMenu),
@@ -1372,23 +1423,9 @@ void main() {
       );
       expect(
         nativeMenu,
-        contains('g_signal_connect(session->popover, "closed"'),
+        contains('"closed", G_CALLBACK(native_menu_closed_cb)'),
       );
       expect(nativeMenu, isNot(contains('"unmap"')));
-      expect(
-        nativeMenu,
-        contains(
-          'gtk_widget_child_focus(session->popover, GTK_DIR_TAB_FORWARD)',
-        ),
-      );
-      expect(
-        nativeMenu,
-        isNot(contains('gtk_widget_grab_focus(session->popover)')),
-      );
-      expect(
-        nativeMenu,
-        isNot(contains('gtk_widget_set_can_focus(session->popover')),
-      );
       expect(nativeMenu, isNot(contains('gtk_dialog_run(')));
       expect(nativeMenu, isNot(contains('gtk_menu_new(')));
       expect(nativeMenu, isNot(contains('gtk_widget_override')));
@@ -2054,6 +2091,11 @@ void main() {
       expect(nativeMenuStateCss, isNot(contains('modelbutton.flat')));
       expect(nativeMenuStateCss, contains('"background-color: %s;"'));
       expect(nativeMenuStateCss, contains('"background-image: none;"'));
+      expect(nativeMenuStateCss, contains('".%s:hover:not(:disabled),"'));
+      expect(nativeMenuStateCss, contains('".%s:focus:not(:disabled) {"'));
+      expect(nativeMenuStateCss, contains('"border-color: transparent;"'));
+      expect(nativeMenuStateCss, contains('"outline-width: 0;"'));
+      expect(nativeMenuStateCss, isNot(contains('"outline-style: none;"')));
       expect(nativeMenuStateCss, contains('self->header_bar_menu_hover_color'));
       expect(nativeMenuStateCss, contains('kNativePopoverStyleClass'));
       expect(nativeMenuStateCss, isNot(contains('border-radius')));
@@ -2064,6 +2106,22 @@ void main() {
       expect(nativeMenuStateCss, isNot(contains('min-height')));
       expect(nativeMenuStateCss, isNot(contains('#')));
       expect(nativeMenuStateCss, isNot(contains('rgba(')));
+      expect(
+        source,
+        contains('constexpr guint kNativeMenuContentPadding = 6;'),
+      );
+      expect(source, contains('g_autofree gchar* native_menu_geometry_css'));
+      expect(source, contains('"popover.background.%s .%s {"'));
+      expect(source, contains('"font-size: 0.92em;"'));
+      expect(source, contains('"padding: 2px 6px;"'));
+      expect(source, isNot(contains('kNativeMenuRadioLtrStyleClass')));
+      expect(source, isNot(contains('kNativeMenuRadioRtlStyleClass')));
+      expect(
+        source,
+        contains(
+          'native_popover_css, native_menu_geometry_css, native_menu_state_css,',
+        ),
+      );
       expect(
         headerMenuShadowCss,
         contains('"popover.background.%s.%s:not(:backdrop) {"'),
