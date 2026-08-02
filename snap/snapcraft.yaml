@@ -59,6 +59,7 @@ parts:
     plugin: dump
     source: build/linux/x64/release/bundle
     stage-packages:
+      - fonts-noto-core
       - libhandy-1-0
       - libgweather-4-0t64
       - liblzma5
