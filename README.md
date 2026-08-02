@@ -85,12 +85,26 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 
 ## Run locally
 
+Register the development launcher once so GNOME can associate BusyMax's native
+Wayland windows with its desktop icon. The helper is idempotent and defaults to
+the Flutter debug bundle:
+
+```bash
+tools/install_linux_dev_desktop.sh
+```
+
+Then run BusyMax normally:
+
 ```bash
 flutter run -d linux \
   --dart-define=GOOGLE_OAUTH_CLIENT_ID=<google-client-id> \
   --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<google-secret-if-needed> \
   --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
 ```
+
+Use `tools/install_linux_dev_desktop.sh --uninstall` to remove the development
+launcher. Remove it before testing an installed Snap so the user-level launcher
+does not take precedence; packaged Snaps register their own launcher.
 
 ## Feedback submissions
 
