@@ -116,7 +116,6 @@ constexpr size_t kNativeTimeZoneResultLimit = 250;
 constexpr char kNativePopoverStyleClass[] = "busymax-native-popover";
 constexpr char kHeaderMenuDepthStyleClass[] = "busymax-header-menu-depth";
 constexpr char kNativeMenuItemStyleClass[] = "busymax-native-menu-item";
-constexpr guint kNativeMenuContentPadding = 6;
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -1456,15 +1455,21 @@ static void register_native_dialogs_for_subwindow(FlView* view,
                          g_object_unref);
 }
 
-constexpr char kNativeMenuItemIndexKey[] = "busymax-native-menu-index";
+constexpr char kNativeMenuActionNamespace[] = "busymax-native-menu";
+constexpr char kNativeMenuActionIndexKey[] = "busymax-native-menu-index";
 
 struct NativeMenuHandlerData;
 
 struct NativeMenuSession {
   NativeMenuHandlerData* owner;
   gint64 id;
+  size_t entry_count;
   GtkWidget* popover;
+  GMenu* model;
+  GSimpleActionGroup* action_group;
   FlMethodCall* method_call;
+  GPtrArray* shortcut_labels;
+  GPtrArray* icon_names;
   gulong closed_signal_id;
   guint cleanup_source_id;
   gint pending_selected_index;
@@ -1520,15 +1525,16 @@ static void native_menu_session_dispose(NativeMenuSession* session) {
     if (gtk_widget_get_visible(session->popover)) {
       gtk_widget_hide(session->popover);
     }
-    if (owner != nullptr && owner->menu_button != nullptr) {
-      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(owner->menu_button),
-                                   FALSE);
-      gtk_menu_button_set_popover(GTK_MENU_BUTTON(owner->menu_button),
-                                  nullptr);
-    }
-    gtk_widget_destroy(session->popover);
-    g_clear_object(&session->popover);
   }
+  if (owner != nullptr && owner->menu_button != nullptr) {
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(owner->menu_button),
+                                 FALSE);
+    gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(owner->menu_button),
+                                   nullptr);
+    gtk_widget_insert_action_group(owner->menu_button,
+                                   kNativeMenuActionNamespace, nullptr);
+  }
+  g_clear_object(&session->popover);
   if (owner != nullptr && owner->input_layer != nullptr) {
     gtk_widget_hide(owner->input_layer);
   }
@@ -1537,6 +1543,10 @@ static void native_menu_session_dispose(NativeMenuSession* session) {
       gtk_widget_grab_focus(owner->view);
     }
   }
+  g_clear_pointer(&session->shortcut_labels, g_ptr_array_unref);
+  g_clear_pointer(&session->icon_names, g_ptr_array_unref);
+  g_clear_object(&session->model);
+  g_clear_object(&session->action_group);
   // Resolve the Dart future only after the native session is fully retired.
   // A resumed caller may immediately open another menu.
   native_menu_session_respond(session, session->pending_selected_index);
@@ -1560,14 +1570,38 @@ static void native_menu_closed_cb(GtkPopover*, gpointer user_data) {
   }
 }
 
-static void native_menu_item_clicked_cb(GtkButton* button,
-                                        gpointer user_data) {
+static void native_menu_action_activated_cb(GSimpleAction* action,
+                                            GVariant*,
+                                            gpointer user_data) {
   auto* session = static_cast<NativeMenuSession*>(user_data);
-  const gint selected_index =
+  session->pending_selected_index =
       GPOINTER_TO_INT(
-          g_object_get_data(G_OBJECT(button), kNativeMenuItemIndexKey)) -
+          g_object_get_data(G_OBJECT(action), kNativeMenuActionIndexKey)) -
       1;
-  session->pending_selected_index = selected_index;
+  if (session->popover != nullptr) {
+    gtk_popover_popdown(GTK_POPOVER(session->popover));
+  }
+}
+
+static void native_menu_selection_activated_cb(GSimpleAction* action,
+                                               GVariant* parameter,
+                                               gpointer user_data) {
+  if (parameter == nullptr ||
+      !g_variant_is_of_type(parameter, G_VARIANT_TYPE_STRING)) {
+    return;
+  }
+  const gchar* target = g_variant_get_string(parameter, nullptr);
+  gchar* end = nullptr;
+  const guint64 parsed = g_ascii_strtoull(target, &end, 10);
+  auto* session = static_cast<NativeMenuSession*>(user_data);
+  if (target[0] == '\0' || end == nullptr || *end != '\0' ||
+      parsed > static_cast<guint64>(G_MAXINT) ||
+      parsed >= session->entry_count) {
+    return;
+  }
+
+  g_simple_action_set_state(action, parameter);
+  session->pending_selected_index = static_cast<gint>(parsed);
   if (session->popover != nullptr) {
     gtk_popover_popdown(GTK_POPOVER(session->popover));
   }
@@ -1699,6 +1733,47 @@ static gboolean parse_native_menu_anchor(FlValue* args,
   return TRUE;
 }
 
+struct NativeMenuShortcutDecoration {
+  GPtrArray* labels;
+  GPtrArray* icon_names;
+  guint index;
+};
+
+static void decorate_native_menu_shortcuts_cb(GtkWidget* widget,
+                                               gpointer user_data) {
+  auto* decoration = static_cast<NativeMenuShortcutDecoration*>(user_data);
+  if (GTK_IS_MODEL_BUTTON(widget)) {
+    gtk_style_context_add_class(gtk_widget_get_style_context(widget),
+                                kNativeMenuItemStyleClass);
+    if (decoration->index < decoration->labels->len) {
+      add_model_button_presentation(
+          widget,
+          static_cast<const gchar*>(
+              g_ptr_array_index(decoration->icon_names, decoration->index)),
+          static_cast<const gchar*>(
+              g_ptr_array_index(decoration->labels, decoration->index)));
+    }
+    decoration->index++;
+    return;
+  }
+  if (GTK_IS_CONTAINER(widget)) {
+    gtk_container_foreach(GTK_CONTAINER(widget),
+                          decorate_native_menu_shortcuts_cb, user_data);
+  }
+}
+
+static void decorate_native_menu_shortcuts(GtkWidget* popover,
+                                           GPtrArray* labels,
+                                           GPtrArray* icon_names) {
+  if (popover == nullptr || !GTK_IS_CONTAINER(popover) || labels == nullptr ||
+      icon_names == nullptr) {
+    return;
+  }
+  NativeMenuShortcutDecoration decoration = {labels, icon_names, 0};
+  gtk_container_foreach(GTK_CONTAINER(popover),
+                        decorate_native_menu_shortcuts_cb, &decoration);
+}
+
 static void show_native_menu(NativeMenuHandlerData* data,
                              FlMethodCall* method_call,
                              FlValue* args) {
@@ -1754,7 +1829,6 @@ static void show_native_menu(NativeMenuHandlerData* data,
 
   size_t selected_entry_count = 0;
   gboolean has_disabled_entry = FALSE;
-  gboolean has_icon = FALSE;
   for (size_t index = 0; index < fl_value_get_length(entries); index++) {
     FlValue* entry = fl_value_get_list_value(entries, index);
     const gchar* label = fl_lookup_string_arg(entry, "label");
@@ -1778,8 +1852,6 @@ static void show_native_menu(NativeMenuHandlerData* data,
       selected_entry_count++;
     }
     has_disabled_entry = has_disabled_entry || !enabled;
-    has_icon = has_icon ||
-               (icon != nullptr && fl_value_get_string(icon)[0] != '\0');
   }
   if (selected_entry_count > 1 ||
       (selected_entry_count == 1 && has_disabled_entry)) {
@@ -1797,115 +1869,116 @@ static void show_native_menu(NativeMenuHandlerData* data,
   auto* session = g_new0(NativeMenuSession, 1);
   session->owner = data;
   session->id = session_id;
+  session->entry_count = fl_value_get_length(entries);
   session->pending_selected_index = -1;
   session->method_call =
       FL_METHOD_CALL(g_object_ref(G_OBJECT(method_call)));
+  session->action_group = g_simple_action_group_new();
+  session->model = g_menu_new();
+  session->shortcut_labels = g_ptr_array_new_with_free_func(g_free);
+  session->icon_names = g_ptr_array_new_with_free_func(g_free);
   data->active = session;
 
-  gtk_fixed_move(GTK_FIXED(data->menu_layer), data->menu_button, anchor.x,
-                 anchor.y);
-  gtk_widget_set_size_request(data->menu_button, anchor.width, anchor.height);
-  gtk_widget_show(data->input_layer);
+  GSimpleAction* selection_action = nullptr;
+  g_autofree gchar* detailed_selection_action = nullptr;
+  if (selected_entry_count == 1) {
+    g_autofree gchar* selected_target = nullptr;
+    for (size_t index = 0; index < fl_value_get_length(entries); index++) {
+      FlValue* entry = fl_value_get_list_value(entries, index);
+      gboolean selected = FALSE;
+      fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected);
+      if (selected) {
+        selected_target = g_strdup_printf("%zu", index);
+        break;
+      }
+    }
+    selection_action = g_simple_action_new_stateful(
+        "select", G_VARIANT_TYPE_STRING,
+        g_variant_new_string(selected_target != nullptr ? selected_target
+                                                        : ""));
+    g_signal_connect(selection_action, "activate",
+                     G_CALLBACK(native_menu_selection_activated_cb), session);
+    g_action_map_add_action(G_ACTION_MAP(session->action_group),
+                            G_ACTION(selection_action));
+    detailed_selection_action =
+        g_strdup_printf("%s.select", kNativeMenuActionNamespace);
+  }
 
-  session->popover = gtk_popover_new(data->menu_button);
-  g_object_ref_sink(session->popover);
-  gtk_menu_button_set_use_popover(GTK_MENU_BUTTON(data->menu_button), TRUE);
-  gtk_menu_button_set_direction(
-      GTK_MENU_BUTTON(data->menu_button),
-      preferred_position == GTK_POS_TOP ? GTK_ARROW_UP : GTK_ARROW_DOWN);
-  gtk_menu_button_set_popover(GTK_MENU_BUTTON(data->menu_button),
-                              session->popover);
-  style_native_popover(session->popover);
-  GtkWidget* menu_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-  gtk_container_set_border_width(GTK_CONTAINER(menu_box),
-                                 kNativeMenuContentPadding);
-  gtk_widget_set_size_request(menu_box, anchor.width, -1);
-  gtk_container_add(GTK_CONTAINER(session->popover), menu_box);
-
-  const GtkTextDirection menu_text_direction =
-      gtk_widget_get_direction(data->view) == GTK_TEXT_DIR_RTL
-          ? GTK_TEXT_DIR_RTL
-          : GTK_TEXT_DIR_LTR;
-  GSList* selection_group = nullptr;
   for (size_t index = 0; index < fl_value_get_length(entries); index++) {
     FlValue* entry = fl_value_get_list_value(entries, index);
     const gchar* label = fl_lookup_string_arg(entry, "label");
     const gchar* icon_name = fl_lookup_string_arg(entry, "icon");
     const gchar* shortcut = fl_lookup_string_arg(entry, "shortcut");
     gboolean enabled = TRUE;
-    gboolean selected = FALSE;
     fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled);
-    fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected);
 
-    GtkWidget* button = selected_entry_count == 1
-                            ? gtk_radio_button_new(selection_group)
-                            : gtk_button_new();
-    if (selected_entry_count == 1) {
-      selection_group =
-          gtk_radio_button_get_group(GTK_RADIO_BUTTON(button));
-      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(button), selected);
-      // Keep the native radio at the trailing edge while the row contents
-      // retain the application's text direction.
-      gtk_widget_set_direction(
-          button, menu_text_direction == GTK_TEXT_DIR_RTL ? GTK_TEXT_DIR_LTR
-                                                           : GTK_TEXT_DIR_RTL);
+    g_autoptr(GMenuItem) item = g_menu_item_new(label, nullptr);
+    if (selection_action != nullptr) {
+      g_autofree gchar* target = g_strdup_printf("%zu", index);
+      g_menu_item_set_action_and_target_value(
+          item, detailed_selection_action, g_variant_new_string(target));
+    } else {
+      g_autofree gchar* action_name = g_strdup_printf("select-%zu", index);
+      GSimpleAction* action = g_simple_action_new(action_name, nullptr);
+      g_simple_action_set_enabled(action, enabled);
+      g_object_set_data(G_OBJECT(action), kNativeMenuActionIndexKey,
+                        GINT_TO_POINTER(static_cast<gint>(index) + 1));
+      g_signal_connect(action, "activate",
+                       G_CALLBACK(native_menu_action_activated_cb), session);
+      g_action_map_add_action(G_ACTION_MAP(session->action_group),
+                              G_ACTION(action));
+      g_autofree gchar* detailed_action =
+          g_strdup_printf("%s.%s", kNativeMenuActionNamespace, action_name);
+      g_menu_item_set_detailed_action(item, detailed_action);
+      g_object_unref(action);
     }
-    gtk_button_set_relief(GTK_BUTTON(button), GTK_RELIEF_NONE);
-    gtk_widget_set_can_default(button, FALSE);
-    gtk_widget_set_hexpand(button, TRUE);
-    gtk_widget_set_sensitive(button, enabled);
-    gtk_style_context_add_class(gtk_widget_get_style_context(button),
-                                GTK_STYLE_CLASS_FLAT);
-    gtk_style_context_add_class(gtk_widget_get_style_context(button),
-                                kNativeMenuItemStyleClass);
-    g_object_set_data(G_OBJECT(button), kNativeMenuItemIndexKey,
-                      GINT_TO_POINTER(static_cast<gint>(index) + 1));
-    g_signal_connect(button, "clicked",
-                     G_CALLBACK(native_menu_item_clicked_cb), session);
-
-    GtkWidget* row =
-        gtk_box_new(GTK_ORIENTATION_HORIZONTAL, kHeaderButtonSpacing);
-    gtk_widget_set_direction(row, menu_text_direction);
-    gtk_widget_set_hexpand(row, TRUE);
-    if (has_icon) {
-      GtkWidget* icon =
-          icon_name != nullptr && icon_name[0] != '\0'
-              ? gtk_image_new_from_icon_name(icon_name, GTK_ICON_SIZE_MENU)
-              : gtk_image_new();
-      gtk_widget_set_size_request(icon, 16, 16);
-      gtk_widget_set_valign(icon, GTK_ALIGN_CENTER);
-      gtk_box_pack_start(GTK_BOX(row), icon, FALSE, FALSE, 0);
+    if (icon_name != nullptr && icon_name[0] != '\0') {
+      g_autoptr(GIcon) icon = g_themed_icon_new(icon_name);
+      g_menu_item_set_icon(item, icon);
     }
-
-    GtkWidget* label_widget = gtk_label_new(label);
-    gtk_label_set_xalign(GTK_LABEL(label_widget), 0.0);
-    gtk_label_set_ellipsize(GTK_LABEL(label_widget), PANGO_ELLIPSIZE_END);
-    gtk_widget_set_hexpand(label_widget, TRUE);
-    gtk_widget_set_halign(label_widget, GTK_ALIGN_FILL);
-    gtk_widget_set_valign(label_widget, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(row), label_widget, TRUE, TRUE, 0);
-
-    if (shortcut != nullptr && shortcut[0] != '\0') {
-      GtkWidget* shortcut_widget = gtk_label_new(shortcut);
-      gtk_widget_set_direction(shortcut_widget, GTK_TEXT_DIR_LTR);
-      gtk_label_set_xalign(GTK_LABEL(shortcut_widget), 1.0);
-      gtk_widget_set_halign(shortcut_widget, GTK_ALIGN_END);
-      gtk_widget_set_valign(shortcut_widget, GTK_ALIGN_CENTER);
-      gtk_style_context_add_class(
-          gtk_widget_get_style_context(shortcut_widget),
-          GTK_STYLE_CLASS_DIM_LABEL);
-      gtk_box_pack_end(GTK_BOX(row), shortcut_widget, FALSE, FALSE, 0);
-    }
-
-    gtk_container_add(GTK_CONTAINER(button), row);
-    gtk_box_pack_start(GTK_BOX(menu_box), button, FALSE, FALSE, 0);
+    g_menu_append_item(session->model, item);
+    g_ptr_array_add(session->shortcut_labels,
+                    g_strdup(shortcut != nullptr ? shortcut : ""));
+    g_ptr_array_add(session->icon_names,
+                    g_strdup(icon_name != nullptr ? icon_name : ""));
+  }
+  if (selection_action != nullptr) {
+    g_object_unref(selection_action);
   }
 
-  gtk_widget_show_all(menu_box);
+  gtk_fixed_move(GTK_FIXED(data->menu_layer), data->menu_button, anchor.x,
+                 anchor.y);
+  gtk_widget_set_size_request(data->menu_button, anchor.width, anchor.height);
+  gtk_widget_show(data->input_layer);
+
+  gtk_menu_button_set_use_popover(GTK_MENU_BUTTON(data->menu_button), TRUE);
+  gtk_menu_button_set_direction(
+      GTK_MENU_BUTTON(data->menu_button),
+      preferred_position == GTK_POS_TOP ? GTK_ARROW_UP : GTK_ARROW_DOWN);
+  gtk_widget_insert_action_group(
+      data->menu_button, kNativeMenuActionNamespace,
+      G_ACTION_GROUP(session->action_group));
+  gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(data->menu_button),
+                                 G_MENU_MODEL(session->model));
+  session->popover =
+      GTK_WIDGET(gtk_menu_button_get_popover(GTK_MENU_BUTTON(data->menu_button)));
+  if (session->popover == nullptr) {
+    fl_method_call_respond_error(method_call, "unavailable",
+                                 "GTK could not create the native menu.",
+                                 nullptr, nullptr);
+    g_clear_object(&session->method_call);
+    native_menu_session_dispose(session);
+    return;
+  }
+  g_object_ref(session->popover);
+  style_native_popover(session->popover);
   gtk_popover_set_position(GTK_POPOVER(session->popover), preferred_position);
   gtk_popover_set_constrain_to(GTK_POPOVER(session->popover),
                                GTK_POPOVER_CONSTRAINT_WINDOW);
   gtk_popover_set_modal(GTK_POPOVER(session->popover), TRUE);
+  decorate_native_menu_shortcuts(session->popover,
+                                 session->shortcut_labels,
+                                 session->icon_names);
   session->closed_signal_id = g_signal_connect(
       session->popover, "closed", G_CALLBACK(native_menu_closed_cb), session);
   // This is the proven Local History path: let a mapped GtkMenuButton own the
