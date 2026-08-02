@@ -172,66 +172,10 @@ class AppLocalizationsJa extends AppLocalizations {
       '別の条件で検索するか、現在のフィルターを解除してください。';
 
   @override
-  String get trayAgendaLoading => '予定一覧を読み込んでいます...';
+  String get refresh => '更新';
 
   @override
-  String get trayAgendaSignInRequired => '予定一覧を表示するにはサインインしてください。';
-
-  @override
-  String get trayAgendaNoSources => '表示できるカレンダーまたはタスクリストがありません。';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'アプリを開く';
-
-  @override
-  String get trayAgendaRefresh => '更新';
-
-  @override
-  String get trayAgendaError => '予定一覧を利用できません';
-
-  @override
-  String get compactAgendaTitle => '予定一覧';
-
-  @override
-  String get compactAgendaSubtitle => '今後の予定';
-
-  @override
-  String get compactAgendaOverdue => '期限超過';
-
-  @override
-  String get compactAgendaClear => '今のところ予定なし';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'BusyMax を開く';
-
-  @override
-  String get compactAgendaHide => '非表示';
-
-  @override
-  String get compactAgendaNewTask => '新しいタスク';
-
-  @override
-  String get compactAgendaRetry => '再試行';
-
-  @override
-  String get compactAgendaRefresh => '更新';
-
-  @override
-  String get compactAgendaAllDay => '終日';
-
-  @override
-  String get compactAgendaDueToday => '今日が期限';
-
-  @override
-  String get compactAgendaDueTomorrow => '明日が期限';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return '期限: $date';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => '期限切れのタスクをさらに読み込む';
+  String get trayOpenBusyMax => 'BusyMax を開く';
 
   @override
   String get agendaLoadMoreOverdue => '期限切れのタスクをさらに読み込む';
@@ -506,15 +450,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get shortcutCancelEditingDescription => 'タスクの編集または詳細を閉じる';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'コンパクト予定一覧';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription => 'コンパクト予定一覧ウィンドウを更新';
-
-  @override
-  String get shortcutHideCompactAgendaDescription => 'コンパクト予定一覧ウィンドウを非表示';
 
   @override
   String get aboutBusyMax => 'BusyMax について';

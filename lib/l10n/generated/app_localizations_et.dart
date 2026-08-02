@@ -176,68 +176,10 @@ class AppLocalizationsEt extends AppLocalizations {
       'Proovige teistsugust otsingut või eemaldage praegused filtrid.';
 
   @override
-  String get trayAgendaLoading => 'Päevakava laadimine...';
+  String get refresh => 'Värskenda';
 
   @override
-  String get trayAgendaSignInRequired => 'Päevakava kuvamiseks logige sisse.';
-
-  @override
-  String get trayAgendaNoSources =>
-      'Nähtavaid kalendreid ega ülesandeloendeid pole.';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'Ava rakendus';
-
-  @override
-  String get trayAgendaRefresh => 'Värskenda';
-
-  @override
-  String get trayAgendaError => 'Päevakava pole saadaval';
-
-  @override
-  String get compactAgendaTitle => 'Päevakava';
-
-  @override
-  String get compactAgendaSubtitle => 'Tulekul';
-
-  @override
-  String get compactAgendaOverdue => 'Tähtaja ületanud';
-
-  @override
-  String get compactAgendaClear => 'Praegu vaba';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'Ava BusyMax';
-
-  @override
-  String get compactAgendaHide => 'Peida';
-
-  @override
-  String get compactAgendaNewTask => 'Uus ülesanne';
-
-  @override
-  String get compactAgendaRetry => 'Proovi uuesti';
-
-  @override
-  String get compactAgendaRefresh => 'Värskenda';
-
-  @override
-  String get compactAgendaAllDay => 'Kogu päev';
-
-  @override
-  String get compactAgendaDueToday => 'Tähtaeg täna';
-
-  @override
-  String get compactAgendaDueTomorrow => 'Tähtaeg homme';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'Tähtaeg $date';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue =>
-      'Laadi veel tähtaja ületanud ülesandeid';
+  String get trayOpenBusyMax => 'Ava BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'Laadi veel tähtaja ületanud ülesandeid';
@@ -515,17 +457,6 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get shortcutCancelEditingDescription =>
       'Sulge ülesande muutmine või ülesande üksikasjad';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'Kompaktne päevakava';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'Värskenda kompaktse päevakava akent';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'Peida kompaktse päevakava aken';
 
   @override
   String get aboutBusyMax => 'Teave BusyMaxi kohta';

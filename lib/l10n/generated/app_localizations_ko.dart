@@ -171,66 +171,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get scheduleNoSearchResultsDescription => '다른 검색어를 사용하거나 현재 필터를 지우세요.';
 
   @override
-  String get trayAgendaLoading => '일정 목록을 불러오는 중...';
+  String get refresh => '새로 고침';
 
   @override
-  String get trayAgendaSignInRequired => '일정 목록을 표시하려면 로그인하세요.';
-
-  @override
-  String get trayAgendaNoSources => '표시할 캘린더 또는 할 일 목록이 없습니다.';
-
-  @override
-  String get trayAgendaOpenBusyMax => '앱 열기';
-
-  @override
-  String get trayAgendaRefresh => '새로 고침';
-
-  @override
-  String get trayAgendaError => '일정 목록을 사용할 수 없습니다';
-
-  @override
-  String get compactAgendaTitle => '일정 목록';
-
-  @override
-  String get compactAgendaSubtitle => '예정';
-
-  @override
-  String get compactAgendaOverdue => '기한 지남';
-
-  @override
-  String get compactAgendaClear => '현재 예정 없음';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'BusyMax 열기';
-
-  @override
-  String get compactAgendaHide => '숨기기';
-
-  @override
-  String get compactAgendaNewTask => '새 할 일';
-
-  @override
-  String get compactAgendaRetry => '다시 시도';
-
-  @override
-  String get compactAgendaRefresh => '새로 고침';
-
-  @override
-  String get compactAgendaAllDay => '하루 종일';
-
-  @override
-  String get compactAgendaDueToday => '오늘 마감';
-
-  @override
-  String get compactAgendaDueTomorrow => '내일 마감';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return '$date 마감';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => '기한이 지난 할 일 더 불러오기';
+  String get trayOpenBusyMax => 'BusyMax 열기';
 
   @override
   String get agendaLoadMoreOverdue => '기한이 지난 할 일 더 불러오기';
@@ -506,15 +450,6 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get shortcutCancelEditingDescription => '할 일 편집 또는 할 일 세부 정보 닫기';
-
-  @override
-  String get shortcutGroupCompactAgenda => '간단 일정 목록';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription => '간단 일정 목록 창 새로 고침';
-
-  @override
-  String get shortcutHideCompactAgendaDescription => '간단 일정 목록 창 숨기기';
 
   @override
   String get aboutBusyMax => 'BusyMax 정보';

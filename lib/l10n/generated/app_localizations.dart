@@ -432,125 +432,17 @@ abstract class AppLocalizations {
   /// **'Try a different search or clear the current filters.'**
   String get scheduleNoSearchResultsDescription;
 
-  /// No description provided for @trayAgendaLoading.
-  ///
-  /// In en, this message translates to:
-  /// **'Loading agenda...'**
-  String get trayAgendaLoading;
-
-  /// No description provided for @trayAgendaSignInRequired.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in to show agenda.'**
-  String get trayAgendaSignInRequired;
-
-  /// No description provided for @trayAgendaNoSources.
-  ///
-  /// In en, this message translates to:
-  /// **'No visible calendars or task lists.'**
-  String get trayAgendaNoSources;
-
-  /// No description provided for @trayAgendaOpenBusyMax.
-  ///
-  /// In en, this message translates to:
-  /// **'Open app'**
-  String get trayAgendaOpenBusyMax;
-
-  /// No description provided for @trayAgendaRefresh.
+  /// No description provided for @refresh.
   ///
   /// In en, this message translates to:
   /// **'Refresh'**
-  String get trayAgendaRefresh;
+  String get refresh;
 
-  /// No description provided for @trayAgendaError.
-  ///
-  /// In en, this message translates to:
-  /// **'Agenda unavailable'**
-  String get trayAgendaError;
-
-  /// No description provided for @compactAgendaTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Agenda'**
-  String get compactAgendaTitle;
-
-  /// No description provided for @compactAgendaSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Upcoming'**
-  String get compactAgendaSubtitle;
-
-  /// No description provided for @compactAgendaOverdue.
-  ///
-  /// In en, this message translates to:
-  /// **'Overdue'**
-  String get compactAgendaOverdue;
-
-  /// No description provided for @compactAgendaClear.
-  ///
-  /// In en, this message translates to:
-  /// **'Clear for now'**
-  String get compactAgendaClear;
-
-  /// No description provided for @compactAgendaOpenBusyMax.
+  /// No description provided for @trayOpenBusyMax.
   ///
   /// In en, this message translates to:
   /// **'Open BusyMax'**
-  String get compactAgendaOpenBusyMax;
-
-  /// No description provided for @compactAgendaHide.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide'**
-  String get compactAgendaHide;
-
-  /// No description provided for @compactAgendaNewTask.
-  ///
-  /// In en, this message translates to:
-  /// **'New task'**
-  String get compactAgendaNewTask;
-
-  /// No description provided for @compactAgendaRetry.
-  ///
-  /// In en, this message translates to:
-  /// **'Retry'**
-  String get compactAgendaRetry;
-
-  /// No description provided for @compactAgendaRefresh.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh'**
-  String get compactAgendaRefresh;
-
-  /// No description provided for @compactAgendaAllDay.
-  ///
-  /// In en, this message translates to:
-  /// **'All day'**
-  String get compactAgendaAllDay;
-
-  /// No description provided for @compactAgendaDueToday.
-  ///
-  /// In en, this message translates to:
-  /// **'Due today'**
-  String get compactAgendaDueToday;
-
-  /// No description provided for @compactAgendaDueTomorrow.
-  ///
-  /// In en, this message translates to:
-  /// **'Due tomorrow'**
-  String get compactAgendaDueTomorrow;
-
-  /// No description provided for @compactAgendaDueOn.
-  ///
-  /// In en, this message translates to:
-  /// **'Due {date}'**
-  String compactAgendaDueOn(String date);
-
-  /// No description provided for @compactAgendaMoreOverdue.
-  ///
-  /// In en, this message translates to:
-  /// **'Load more overdue tasks'**
-  String get compactAgendaMoreOverdue;
+  String get trayOpenBusyMax;
 
   /// No description provided for @agendaLoadMoreOverdue.
   ///
@@ -1043,24 +935,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close task editing or task details'**
   String get shortcutCancelEditingDescription;
-
-  /// No description provided for @shortcutGroupCompactAgenda.
-  ///
-  /// In en, this message translates to:
-  /// **'Compact agenda'**
-  String get shortcutGroupCompactAgenda;
-
-  /// No description provided for @shortcutRefreshCompactAgendaDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh the compact agenda window'**
-  String get shortcutRefreshCompactAgendaDescription;
-
-  /// No description provided for @shortcutHideCompactAgendaDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide the compact agenda window'**
-  String get shortcutHideCompactAgendaDescription;
 
   /// No description provided for @aboutBusyMax.
   ///

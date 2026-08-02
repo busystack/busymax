@@ -4,20 +4,19 @@ import 'package:busymax/src/demo/demo_profile.dart';
 import 'package:busymax/src/demo/demo_seed.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
-import 'package:busymax/src/features/schedule/application/compact_agenda_data.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('demo settings are isolated and disable background effects', () async {
+  test('demo settings keep tray and disable background effects', () async {
     final settings = busyMaxDemoSettings(BusyMaxDemoTheme.dark);
     final store = InMemoryLocalSettingsStore(settings.toJson());
 
     expect(settings.themeModePreference, BusyMaxThemeModePreference.dark);
     expect(settings.runInBackgroundWhenClosed, isFalse);
-    expect(settings.showTrayIcon, isFalse);
+    expect(settings.showTrayIcon, isTrue);
     expect(settings.startMinimizedToTray, isFalse);
     expect(settings.notifySyncFailures, isFalse);
     expect(settings.notifyConflicts, isFalse);
@@ -60,12 +59,10 @@ void main() {
           .then((account) => account.id),
       busyMaxDemoAccountId,
     );
-    final compactAgenda = await container.read(
-      compactAgendaDataProvider.future,
-    );
+    final seededTasks = await database.select(database.tasks).get();
     expect(
-      compactAgenda.items.map((item) => item.title),
-      contains('Product planning'),
+      seededTasks.map((task) => task.title),
+      contains('Polish calendar prototype'),
     );
 
     final authState = await container

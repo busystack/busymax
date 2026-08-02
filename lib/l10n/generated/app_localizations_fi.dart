@@ -177,67 +177,10 @@ class AppLocalizationsFi extends AppLocalizations {
       'Kokeile toista hakua tai tyhjennä nykyiset suodattimet.';
 
   @override
-  String get trayAgendaLoading => 'Ladataan agendaa...';
+  String get refresh => 'Päivitä';
 
   @override
-  String get trayAgendaSignInRequired => 'Kirjaudu sisään nähdäksesi agendan.';
-
-  @override
-  String get trayAgendaNoSources =>
-      'Ei näkyviä kalentereita tai tehtäväluetteloita.';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'Avaa sovellus';
-
-  @override
-  String get trayAgendaRefresh => 'Päivitä';
-
-  @override
-  String get trayAgendaError => 'Agenda ei ole käytettävissä';
-
-  @override
-  String get compactAgendaTitle => 'Agenda';
-
-  @override
-  String get compactAgendaSubtitle => 'Tulossa';
-
-  @override
-  String get compactAgendaOverdue => 'Myöhässä';
-
-  @override
-  String get compactAgendaClear => 'Ei mitään juuri nyt';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'Avaa BusyMax';
-
-  @override
-  String get compactAgendaHide => 'Piilota';
-
-  @override
-  String get compactAgendaNewTask => 'Uusi tehtävä';
-
-  @override
-  String get compactAgendaRetry => 'Yritä uudelleen';
-
-  @override
-  String get compactAgendaRefresh => 'Päivitä';
-
-  @override
-  String get compactAgendaAllDay => 'Koko päivä';
-
-  @override
-  String get compactAgendaDueToday => 'Erääntyy tänään';
-
-  @override
-  String get compactAgendaDueTomorrow => 'Erääntyy huomenna';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'Erääntyy $date';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => 'Lataa lisää myöhässä olevia tehtäviä';
+  String get trayOpenBusyMax => 'Avaa BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'Lataa lisää myöhässä olevia tehtäviä';
@@ -515,17 +458,6 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get shortcutCancelEditingDescription =>
       'Sulje tehtävän muokkaus tai tehtävän tiedot';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'Kompakti agenda';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'Päivitä kompaktin agendan ikkuna';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'Piilota kompaktin agendan ikkuna';
 
   @override
   String get aboutBusyMax => 'Tietoja BusyMaxista';

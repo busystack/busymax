@@ -2096,6 +2096,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       switch (command.kind) {
         case ScheduleWorkspaceCommandKind.today:
           _goToToday();
+        case ScheduleWorkspaceCommandKind.agenda:
+          _setMode(ScheduleViewMode.agenda);
         case ScheduleWorkspaceCommandKind.newEvent:
           unawaited(_openNewEvent(sources, _selectedDate));
         case ScheduleWorkspaceCommandKind.newTask:

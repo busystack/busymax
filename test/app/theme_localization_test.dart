@@ -21,7 +21,7 @@ import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/platform/linux_window_service.dart';
-import 'package:busymax/src/platform/main_window_command_bridge.dart';
+import 'package:busymax/src/schedule/schedule_commands.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 
 import '../test_localized_app.dart';
@@ -1828,10 +1828,14 @@ void main() {
     await tester.pumpAndSettle();
 
     ColoredBox flutterSurface() {
-      final bridge = tester.widget<MainWindowCommandBridge>(
-        find.byType(MainWindowCommandBridge),
-      );
-      return bridge.child as ColoredBox;
+      final shortcuts = tester
+          .widgetList<Shortcuts>(find.byType(Shortcuts))
+          .firstWhere(
+            (widget) =>
+                widget.child is Actions &&
+                (widget.child as Actions).child is ColoredBox,
+          );
+      return (shortcuts.child as Actions).child as ColoredBox;
     }
 
     expect(flutterSurface().child, isNot(isA<Opacity>()));
@@ -1869,7 +1873,6 @@ void main() {
                 required windowService,
                 required labels,
                 required onOpenAgenda,
-                onBeforeQuit,
               }) => trayService,
         ),
       ),
@@ -1895,6 +1898,81 @@ void main() {
     await tester.pump();
     expect(trayService.startCalls, 1);
     expect(windowService.hideWindowCalls, 1);
+  });
+
+  testWidgets('tray Agenda opens the main window in Agenda mode', (
+    tester,
+  ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final windowService = _RecordingWindowService();
+    late _RecordingTrayService trayService;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+          linuxWindowServiceProvider.overrideWithValue(windowService),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory:
+              ({
+                required windowService,
+                required labels,
+                required onOpenAgenda,
+              }) => trayService = _RecordingTrayService(
+                windowService,
+                openAgendaCallback: onOpenAgenda,
+              ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await trayService.openAgenda();
+    await tester.pump();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BusyMaxApp)),
+    );
+    final command = container.read(scheduleWorkspaceCommandProvider);
+    expect(windowService.showWindowCalls, 1);
+    expect(command?.kind, ScheduleWorkspaceCommandKind.agenda);
+  });
+
+  testWidgets('demo mode retains the local tray entry', (tester) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final windowService = _RecordingWindowService();
+    final trayService = _RecordingTrayService(windowService);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_demoConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+          linuxWindowServiceProvider.overrideWithValue(windowService),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory:
+              ({
+                required windowService,
+                required labels,
+                required onOpenAgenda,
+              }) => trayService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(trayService.startCalls, 1);
+    expect(trayService.available, isTrue);
+    expect(windowService.hideWindowCalls, 0);
   });
 
   test('production sources avoid forbidden hardcoded accent colors', () {
@@ -2193,6 +2271,7 @@ class _DelayedSettingsStore implements LocalSettingsStore {
 
 class _RecordingWindowService extends LinuxWindowService {
   var hideWindowCalls = 0;
+  var showWindowCalls = 0;
 
   @override
   Future<void> hideWindow() async {
@@ -2200,20 +2279,30 @@ class _RecordingWindowService extends LinuxWindowService {
   }
 
   @override
+  Future<void> showWindow() async {
+    showWindowCalls += 1;
+  }
+
+  @override
   Future<void> setHideOnClose(bool enabled) async {}
 }
 
 class _RecordingTrayService extends BusyMaxTrayService {
-  _RecordingTrayService(LinuxWindowService windowService)
-    : super(
-        windowService: windowService,
-        labels: const BusyMaxTrayLabels(
-          openBusyMax: 'Open BusyMax',
-          agenda: 'Agenda',
-          quitBusyMax: 'Exit',
-        ),
-        onOpenAgenda: _noop,
-      );
+  _RecordingTrayService(
+    LinuxWindowService windowService, {
+    Future<void> Function() openAgendaCallback = _noop,
+  }) : _onOpenAgenda = openAgendaCallback,
+       super(
+         windowService: windowService,
+         labels: const BusyMaxTrayLabels(
+           openBusyMax: 'Open BusyMax',
+           agenda: 'Agenda',
+           quitBusyMax: 'Exit',
+         ),
+         onOpenAgenda: openAgendaCallback,
+       );
+
+  final Future<void> Function() _onOpenAgenda;
 
   var startCalls = 0;
   var _available = false;
@@ -2234,6 +2323,8 @@ class _RecordingTrayService extends BusyMaxTrayService {
 
   @override
   Future<void> updateLabels(BusyMaxTrayLabels labels) async {}
+
+  Future<void> openAgenda() => _onOpenAgenda();
 }
 
 Future<void> _noop() async {}
@@ -2245,4 +2336,13 @@ const _missingConfig = BuildConfig(
   oauthAuthorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
   oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
   oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+);
+
+const _demoConfig = BuildConfig(
+  googleOAuthClientId: '',
+  googleOAuthClientSecret: '',
+  oauthAuthorizationEndpoint: 'https://example.test/authorize',
+  oauthTokenEndpoint: 'https://example.test/token',
+  oauthRevocationEndpoint: 'https://example.test/revoke',
+  useFakeProviderData: true,
 );

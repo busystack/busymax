@@ -177,69 +177,10 @@ class AppLocalizationsHi extends AppLocalizations {
       'कोई दूसरी खोज आज़माएँ या मौजूदा फ़िल्टर हटाएँ।';
 
   @override
-  String get trayAgendaLoading => 'कार्यसूची लोड हो रही है...';
+  String get refresh => 'रीफ़्रेश करें';
 
   @override
-  String get trayAgendaSignInRequired =>
-      'कार्यसूची दिखाने के लिए साइन इन करें।';
-
-  @override
-  String get trayAgendaNoSources =>
-      'कोई दिखाई देने वाला कैलेंडर या कार्य सूची नहीं।';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'ऐप खोलें';
-
-  @override
-  String get trayAgendaRefresh => 'रीफ़्रेश करें';
-
-  @override
-  String get trayAgendaError => 'कार्यसूची उपलब्ध नहीं है';
-
-  @override
-  String get compactAgendaTitle => 'कार्यसूची';
-
-  @override
-  String get compactAgendaSubtitle => 'आगामी';
-
-  @override
-  String get compactAgendaOverdue => 'समय सीमा बीत चुकी';
-
-  @override
-  String get compactAgendaClear => 'अभी कुछ नहीं';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'BusyMax खोलें';
-
-  @override
-  String get compactAgendaHide => 'छिपाएँ';
-
-  @override
-  String get compactAgendaNewTask => 'नया कार्य';
-
-  @override
-  String get compactAgendaRetry => 'फिर से कोशिश करें';
-
-  @override
-  String get compactAgendaRefresh => 'रीफ़्रेश करें';
-
-  @override
-  String get compactAgendaAllDay => 'पूरे दिन';
-
-  @override
-  String get compactAgendaDueToday => 'आज देय';
-
-  @override
-  String get compactAgendaDueTomorrow => 'कल देय';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return '$date को देय';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue =>
-      'समय-सीमा पार कर चुके अतिरिक्त कार्य लोड करें';
+  String get trayOpenBusyMax => 'BusyMax खोलें';
 
   @override
   String get agendaLoadMoreOverdue =>
@@ -517,17 +458,6 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get shortcutCancelEditingDescription =>
       'कार्य संपादन या कार्य विवरण बंद करें';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'संक्षिप्त कार्यसूची';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'संक्षिप्त कार्यसूची विंडो रीफ़्रेश करें';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'संक्षिप्त कार्यसूची विंडो छिपाएँ';
 
   @override
   String get aboutBusyMax => 'BusyMax के बारे में';

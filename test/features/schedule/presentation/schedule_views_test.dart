@@ -2592,23 +2592,13 @@ void main() {
     final agenda = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
     ).readAsStringSync();
-    final compactAgenda = File(
-      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
-    ).readAsStringSync();
     final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
     expect(agenda, contains('BusyMaxGroupedList('));
-    expect(compactAgenda, contains('BusyMaxGroupedList('));
     expect(agenda, isNot(contains('surfaceColor:')));
-    expect(compactAgenda, isNot(contains('surfaceColor:')));
     expect(agenda, contains('ScheduleProjection.colorForItem'));
-    expect(compactAgenda, contains('ScheduleProjection.colorForItem'));
     expect(
       agenda,
-      contains('BusyMaxSurfaceColors.of(context).mutedForeground'),
-    );
-    expect(
-      compactAgenda,
       contains('BusyMaxSurfaceColors.of(context).mutedForeground'),
     );
     expect(design, isNot(contains('final Color? surfaceColor;')));
@@ -3711,22 +3701,13 @@ void main() {
     final agenda = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
     ).readAsStringSync();
-    final compactAgenda = File(
-      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
-    ).readAsStringSync();
 
     expect(agenda, contains('isTask ? YaruIcons.task_list'));
-    expect(compactAgenda, contains('isTask ? YaruIcons.task_list'));
     expect(agenda, contains('YaruCheckbox('));
-    expect(compactAgenda, contains('YaruCheckbox('));
     expect(agenda, isNot(contains('selectedColor:')));
-    expect(compactAgenda, isNot(contains('selectedColor:')));
     expect(agenda, isNot(contains('checkmarkColor:')));
-    expect(compactAgenda, isNot(contains('checkmarkColor:')));
     expect(agenda, isNot(contains('YaruCheckboxTheme')));
-    expect(compactAgenda, isNot(contains('YaruCheckboxTheme')));
     expect(agenda, isNot(contains('YaruIcons.checkbox')));
-    expect(compactAgenda, isNot(contains('YaruIcons.checkbox')));
   });
 
   test(

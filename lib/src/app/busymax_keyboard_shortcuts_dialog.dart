@@ -190,26 +190,6 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
               ),
             ],
           ),
-          BusyMaxGroupedList(
-            title: l10n.shortcutGroupCompactAgenda,
-            filled: true,
-            children: [
-              BusyMaxActionRow(
-                title: l10n.compactAgendaRefresh,
-                subtitle: l10n.shortcutRefreshCompactAgendaDescription,
-                leading: const Icon(Icons.refresh),
-                trailing: const _KeyboardShortcutBadge(
-                  BusyMaxShortcutLabels.refreshCompactAgenda,
-                ),
-              ),
-              BusyMaxActionRow(
-                title: l10n.compactAgendaHide,
-                subtitle: l10n.shortcutHideCompactAgendaDescription,
-                leading: const Icon(Icons.visibility_off_outlined),
-                trailing: const _KeyboardShortcutBadge('Esc'),
-              ),
-            ],
-          ),
         ],
       ),
     );

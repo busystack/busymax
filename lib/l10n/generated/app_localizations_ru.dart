@@ -174,67 +174,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Попробуйте изменить запрос или сбросить текущие фильтры.';
 
   @override
-  String get trayAgendaLoading => 'Загрузка расписания...';
+  String get refresh => 'Обновить';
 
   @override
-  String get trayAgendaSignInRequired =>
-      'Войдите, чтобы просмотреть расписание.';
-
-  @override
-  String get trayAgendaNoSources => 'Нет видимых календарей или списков задач.';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'Открыть приложение';
-
-  @override
-  String get trayAgendaRefresh => 'Обновить';
-
-  @override
-  String get trayAgendaError => 'Расписание недоступно';
-
-  @override
-  String get compactAgendaTitle => 'Расписание';
-
-  @override
-  String get compactAgendaSubtitle => 'Предстоящие';
-
-  @override
-  String get compactAgendaOverdue => 'Просроченные';
-
-  @override
-  String get compactAgendaClear => 'На ближайшее время ничего нет';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'Открыть BusyMax';
-
-  @override
-  String get compactAgendaHide => 'Скрыть';
-
-  @override
-  String get compactAgendaNewTask => 'Новая задача';
-
-  @override
-  String get compactAgendaRetry => 'Повторить';
-
-  @override
-  String get compactAgendaRefresh => 'Обновить';
-
-  @override
-  String get compactAgendaAllDay => 'Весь день';
-
-  @override
-  String get compactAgendaDueToday => 'Срок — сегодня';
-
-  @override
-  String get compactAgendaDueTomorrow => 'Срок — завтра';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'Срок — $date';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => 'Загрузить ещё просроченные задачи';
+  String get trayOpenBusyMax => 'Открыть BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'Загрузить ещё просроченные задачи';
@@ -518,17 +461,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get shortcutCancelEditingDescription =>
       'Выйти из режима редактирования задачи или закрыть сведения о ней';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'Компактное расписание';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'Обновить окно компактного расписания';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'Скрыть окно компактного расписания';
 
   @override
   String get aboutBusyMax => 'О приложении BusyMax';

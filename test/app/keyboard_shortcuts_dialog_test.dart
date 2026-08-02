@@ -24,7 +24,7 @@ void main() {
     expect(find.text('View'), findsOneWidget);
     expect(find.text('Create and Edit'), findsOneWidget);
     expect(find.text('Task editing'), findsOneWidget);
-    expect(find.text('Compact agenda'), findsOneWidget);
+    expect(find.text('Compact agenda'), findsNothing);
     expect(find.text('Ctrl+Alt+K'), findsOneWidget);
     expect(find.text('Ctrl+Alt+S'), findsOneWidget);
     expect(find.text('Ctrl+F'), findsOneWidget);
@@ -43,8 +43,8 @@ void main() {
     expect(find.text('0'), findsNothing);
     expect(find.text('Ctrl+S'), findsOneWidget);
     expect(find.text('Backspace / Delete'), findsOneWidget);
-    expect(find.text('Ctrl+R'), findsOneWidget);
-    expect(find.text('Esc'), findsNWidgets(2));
+    expect(find.text('Ctrl+R'), findsNothing);
+    expect(find.text('Esc'), findsOneWidget);
     expect(find.byIcon(Icons.close), findsWidgets);
     expect(find.byType(YaruDialogTitleBar), findsOneWidget);
     expect(find.byType(YaruWindowControl), findsOneWidget);
@@ -116,14 +116,14 @@ void main() {
       final closePosition = tester.getTopLeft(closeButton);
 
       await tester.scrollUntilVisible(
-        find.text('Compact agenda'),
+        find.text('Agenda view'),
         400,
         scrollable: find.byType(Scrollable),
       );
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Compact agenda').hitTestable(), findsOneWidget);
+      expect(find.text('Agenda view').hitTestable(), findsOneWidget);
       expect(closeButton.hitTestable(), findsOneWidget);
       expect(tester.getTopLeft(closeButton), closePosition);
     });
@@ -172,7 +172,7 @@ void main() {
             )
             .toList();
 
-        expect(groupedMaterials, hasLength(6));
+        expect(groupedMaterials, hasLength(5));
         expect(
           groupedMaterials.every(
             (material) =>
@@ -186,7 +186,7 @@ void main() {
           ),
           isTrue,
         );
-        expect(groupedCards, hasLength(6));
+        expect(groupedCards, hasLength(5));
         final dialog = tester.widget<Dialog>(find.byType(Dialog));
         final dialogShape =
             (dialog.shape ?? theme.dialogTheme.shape)!

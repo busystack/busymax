@@ -43,15 +43,12 @@ class BusyMaxTrayService {
     required LinuxWindowService windowService,
     required BusyMaxTrayLabels labels,
     required Future<void> Function() onOpenAgenda,
-    Future<void> Function()? onBeforeQuit,
   }) : _windowService = windowService,
        _labels = labels,
-       _onOpenAgenda = onOpenAgenda,
-       _onBeforeQuit = onBeforeQuit;
+       _onOpenAgenda = onOpenAgenda;
 
   final LinuxWindowService _windowService;
   final Future<void> Function() _onOpenAgenda;
-  final Future<void> Function()? _onBeforeQuit;
   BusyMaxTrayLabels _labels;
   final RedactingLogger _logger = RedactingLogger(Logger('BusyMaxTrayService'));
 
@@ -200,7 +197,6 @@ class BusyMaxTrayService {
 
   Future<void> _quit() async {
     _logger.fine('Tray quit requested: action=quitApp');
-    await _onBeforeQuit?.call();
     unawaited(_stopAfterQuitRequest());
     await _windowService.quitApp();
   }

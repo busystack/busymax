@@ -154,7 +154,7 @@ void main() {
     );
   });
 
-  test('agenda action opens compact agenda without restoring main first', () {
+  test('agenda action delegates navigation to the app', () {
     final source = File(
       'lib/src/platform/busymax_tray_service.dart',
     ).readAsStringSync();
@@ -187,7 +187,7 @@ void main() {
         ),
       ),
     );
-    expect(source, contains('await _onBeforeQuit?.call();'));
+    expect(source, isNot(contains('onBeforeQuit')));
   });
 
   test('DBus menu exposes layout, properties, and routes stable IDs', () async {

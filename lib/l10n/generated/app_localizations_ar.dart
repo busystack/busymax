@@ -175,66 +175,10 @@ class AppLocalizationsAr extends AppLocalizations {
       'جرّب بحثًا مختلفًا أو امسح عوامل التصفية الحالية.';
 
   @override
-  String get trayAgendaLoading => 'جارٍ تحميل جدول الأعمال...';
+  String get refresh => 'تحديث';
 
   @override
-  String get trayAgendaSignInRequired => 'سجّل الدخول لإظهار جدول الأعمال.';
-
-  @override
-  String get trayAgendaNoSources => 'لا توجد تقويمات أو قوائم مهام ظاهرة.';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'فتح التطبيق';
-
-  @override
-  String get trayAgendaRefresh => 'تحديث';
-
-  @override
-  String get trayAgendaError => 'جدول الأعمال غير متاح';
-
-  @override
-  String get compactAgendaTitle => 'جدول الأعمال';
-
-  @override
-  String get compactAgendaSubtitle => 'القادم';
-
-  @override
-  String get compactAgendaOverdue => 'متأخرة';
-
-  @override
-  String get compactAgendaClear => 'لا شيء حاليًا';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'فتح BusyMax';
-
-  @override
-  String get compactAgendaHide => 'إخفاء';
-
-  @override
-  String get compactAgendaNewTask => 'مهمة جديدة';
-
-  @override
-  String get compactAgendaRetry => 'إعادة المحاولة';
-
-  @override
-  String get compactAgendaRefresh => 'تحديث';
-
-  @override
-  String get compactAgendaAllDay => 'طوال اليوم';
-
-  @override
-  String get compactAgendaDueToday => 'مستحقة اليوم';
-
-  @override
-  String get compactAgendaDueTomorrow => 'مستحقة غدًا';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'مستحقة في ⁨$date⁩';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => 'تحميل المزيد من المهام المتأخرة';
+  String get trayOpenBusyMax => 'فتح BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'تحميل المزيد من المهام المتأخرة';
@@ -524,17 +468,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get shortcutCancelEditingDescription =>
       'إغلاق تعديل المهمة أو تفاصيلها';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'جدول الأعمال المصغّر';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'تحديث نافذة جدول الأعمال المصغّر';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'إخفاء نافذة جدول الأعمال المصغّر';
 
   @override
   String get aboutBusyMax => 'حول BusyMax';

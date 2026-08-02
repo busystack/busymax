@@ -157,7 +157,7 @@ void main() {
     });
 
     test(
-      'Task Details, Settings, and Agenda use BusyMax Yaru row patterns',
+      'Task Details, Settings, and main Agenda use BusyMax Yaru row patterns',
       () {
         final taskDetails = File(
           'lib/src/features/tasks/presentation/task_details_editor.dart',
@@ -180,9 +180,6 @@ void main() {
         ).readAsStringSync();
         final scheduleAgenda = File(
           'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
-        ).readAsStringSync();
-        final compactAgenda = File(
-          'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
         ).readAsStringSync();
 
         expect(design, contains('class BusyMaxClamp'));
@@ -268,12 +265,6 @@ void main() {
         expect(scheduleAgenda, contains('leading: _AgendaItemMarker'));
         expect(scheduleAgenda, isNot(contains('class _AgendaDayHeader')));
         expect(scheduleAgenda, isNot(contains('class _AgendaPlainHeader')));
-
-        expect(compactAgenda, contains('BusyMaxGroupedList'));
-        expect(compactAgenda, contains('BusyMaxActionRow'));
-        expect(compactAgenda, isNot(contains('scheduleAgendaRowBackground')));
-        expect(compactAgenda, contains('ScheduleProjection.colorForItem'));
-        expect(compactAgenda, contains('leading: _CompactAgendaRowMarker'));
 
         expect(dateTimeFields, contains('MiniCalendarGrid('));
         expect(dateTimeFields, isNot(contains('ScheduleItem')));
@@ -368,147 +359,31 @@ void main() {
       expect(portalStore, contains('Hkdf(hmac: Hmac.sha256()'));
     });
 
-    test('compact agenda uses a separate desktop window', () {
+    test('tray Agenda action reuses the main application window', () {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
       final linuxMain = File('linux/runner/main.cc').readAsStringSync();
-      final tray = File(
-        'lib/src/platform/busymax_tray_service.dart',
+      final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
+      final commands = File(
+        'lib/src/schedule/schedule_commands.dart',
       ).readAsStringSync();
-      final router = File('lib/src/app/app_router.dart').readAsStringSync();
-      final main = File('lib/main.dart').readAsStringSync();
-      final compactApp = File(
-        'lib/src/features/schedule/presentation/compact_agenda_app.dart',
-      ).readAsStringSync();
-      final compactPanel = File(
-        'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
-      ).readAsStringSync();
-      final compactWindowService = File(
-        'lib/src/platform/compact_agenda_window_service.dart',
+      final workspace = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
       ).readAsStringSync();
 
-      expect(pubspec, contains('desktop_multi_window:'));
-      expect(pubspec, contains('window_manager:'));
       expect(linuxMain, contains('gdk_set_allowed_backends("wayland,x11")'));
-      expect(
-        runner,
-        contains('desktop_multi_window_plugin_set_window_created_callback'),
-      );
-      expect(runner, contains('configure_compact_agenda_subwindow'));
-      expect(runner, contains('install_compact_agenda_window_css'));
-      expect(runner, contains('io.busystack.busymax/compact_agenda_window'));
-      expect(runner, contains('kCompactAgendaPanelWidth = 420'));
-      expect(runner, contains('kCompactAgendaWindowShadowMargin = 32'));
-      expect(
-        runner,
-        contains('gtk_window_resize(window, kCompactAgendaWindowWidth'),
-      );
-      expect(runner, contains('move_compact_agenda_window_if_supported'));
-      expect(runner, contains('GDK_IS_X11_DISPLAY(display)'));
-      expect(runner, contains('gtk_window_move(window, x, y)'));
-      expect(runner, contains('"skipped-non-x11"'));
-      expect(
-        runner,
-        contains('gtk_window_set_gravity(window, GDK_GRAVITY_NORTH_EAST)'),
-      );
-      expect(runner, contains('BusyMax compact agenda positioning: phase=%s'));
-      expect(runner, contains('apply_compact_agenda_geometry'));
-      expect(
-        runner,
-        contains(
-          'gtk_window_set_type_hint(window, GDK_WINDOW_TYPE_HINT_UTILITY)',
-        ),
-      );
-      expect(
-        runner,
-        contains('gtk_window_set_skip_taskbar_hint(window, TRUE)'),
-      );
-      expect(runner, contains('gtk_window_set_skip_pager_hint(window, TRUE)'));
-      expect(runner, contains('gtk_window_set_keep_above(window, TRUE)'));
-      expect(runner, contains('register_compact_gtk_settings_channel'));
-      expect(
-        runner,
-        contains('register_native_date_time_picker_for_subwindow'),
-      );
-      expect(runner, contains('register_native_dialogs_for_subwindow'));
-      expect(runner, contains('window#busymax-compact-agenda-window'));
-      expect(runner, contains('gtk_window_get_titlebar(window)'));
-      expect(runner, contains('gtk_widget_hide(titlebar)'));
-      expect(runner, contains('gtk_window_set_decorated(window, FALSE)'));
-      expect(
-        runner,
-        contains('gtk_widget_set_size_request(GTK_WIDGET(window)'),
-      );
-      expect(runner, contains('gtk_widget_set_size_request(GTK_WIDGET(view)'));
-      expect(
-        runner,
-        isNot(contains('gtk_window_set_titlebar(window, nullptr)')),
-      );
-      expect(tray, contains('return _onOpenAgenda();'));
-      expect(tray, isNot(contains('BusyMaxTrayAgendaMenu')));
-      expect(tray, isNot(contains('BusyMaxTrayAgendaEntry')));
-      expect(tray, isNot(contains('onOpenAgendaEntry')));
-      expect(tray, contains('id: _busyMaxTrayAgendaMenuId'));
-      expect(router, isNot(contains('/tray-agenda')));
-      expect(compactApp, isNot(contains('linux_header_bar_service.dart')));
-      expect(compactApp, contains('gtk_font_service.dart'));
-      expect(compactApp, contains('gtkFontSettingsProvider'));
-      expect(compactApp, contains('gtkThemeColorsProvider'));
-      expect(compactApp, isNot(contains('syncSchedulerProvider')));
-      expect(compactApp, isNot(contains('notificationSchedulerProvider')));
-      expect(compactApp, isNot(contains('dueTodayNotificationProvider')));
-      expect(compactApp, contains('const _compactAgendaPanelWidth = 420.0'));
-      expect(compactApp, contains('const _compactAgendaPanelHeight = 680.0'));
-      expect(compactApp, contains('BusyMaxShadow.windowMargin'));
-      expect(
-        compactApp,
-        contains('io.busystack.busymax/compact_agenda_window'),
-      );
-      expect(
-        compactApp,
-        contains('_compactAgendaWindowChannel.invokeMethod<bool>'),
-      );
-      expect(compactApp, contains('unawaited(_destroyWindow());'));
-      expect(compactApp, contains('Future<void> _clearWindowMethodHandler()'));
-      expect(compactApp, contains('Compact agenda positioning: event='));
-      expect(
-        compactApp,
-        contains('await windowManager.setSize(_compactAgendaWindowSize)'),
-      );
-      expect(compactApp, contains('await windowManager.setBounds('));
-      expect(compactApp, isNot(contains('windowManager.setPosition(')));
-      expect(
-        compactApp,
-        contains('final shownNatively = await _showNativeWindow(position);'),
-      );
-      expect(compactApp, isNot(contains('void onWindowBlur()')));
-      expect(compactApp, isNot(contains('_hideAfterBlurDelay')));
-      expect(compactPanel, contains('ClipRRect'));
-      expect(compactPanel, contains('BusyMaxRadius.window'));
-      expect(compactPanel, contains('BusyMaxShadow.windowShadowsFor'));
-      expect(compactWindowService, contains('getPrimaryDisplay()'));
-      expect(compactWindowService, contains('getCursorScreenPoint()'));
-      expect(compactWindowService, contains('getAllDisplays()'));
-      expect(compactWindowService, contains('_compactAgendaWindowFrameWidth'));
-      expect(compactWindowService, contains('_compactAgendaWindowFrameHeight'));
-      expect(compactWindowService, contains('_clampWindowPositionToWorkArea'));
-      expect(compactWindowService, contains('raw_x='));
-      expect(compactWindowService, contains('final_x='));
-      expect(
-        compactWindowService,
-        contains(
-          'workarea.right -\n'
-          '        _compactAgendaWindowFrameWidth -\n'
-          '        _compactAgendaPanelScreenGap',
-        ),
-      );
-      expect(
-        compactWindowService,
-        isNot(contains('panelTop - _compactAgendaWindowShadowMargin')),
-      );
-      expect(compactWindowService, isNot(contains('controller.show()')));
-      expect(main, isNot(contains('waitUntilReadyToShow')));
-      expect(main, isNot(contains('await windowManager.show();')));
+      expect(pubspec, isNot(contains('desktop_multi_window:')));
+      expect(pubspec, isNot(contains('screen_retriever:')));
+      expect(pubspec, isNot(contains('window_manager:')));
+      expect(runner, isNot(contains('desktop_multi_window')));
+      expect(runner, isNot(contains('compact_agenda')));
+      expect(app, contains('Future<void> _openMainAgenda('));
+      expect(app, contains('await windowService.showWindow();'));
+      expect(app, contains('ScheduleWorkspaceCommandKind.agenda'));
+      expect(app, contains("ref.read(appRouterProvider).go('/schedule')"));
+      expect(commands, contains('agenda,'));
+      expect(workspace, contains('case ScheduleWorkspaceCommandKind.agenda:'));
+      expect(workspace, contains('_setMode(ScheduleViewMode.agenda);'));
     });
 
     test('native headerbar keeps sidebar branded with GTK-owned centering', () {
@@ -1438,10 +1313,7 @@ void main() {
       expect(runner, isNot(contains('handle_native_confirmation')));
       expect(runner, isNot(contains('strcmp(method, "confirm")')));
       expect(runner, contains('register_native_dialogs(self, view, window)'));
-      expect(
-        runner,
-        contains('register_native_dialogs_for_subwindow(view, window)'),
-      );
+      expect(runner, isNot(contains('register_native_dialogs_for_subwindow')));
       expect(runner, contains('g_object_add_weak_pointer'));
       expect(runner, contains('native_dialog_handler_data_free'));
       expect(
@@ -2365,9 +2237,6 @@ void main() {
       ).readAsStringSync();
       final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
       final main = File('lib/main.dart').readAsStringSync();
-      final compactApp = File(
-        'lib/src/features/schedule/presentation/compact_agenda_app.dart',
-      ).readAsStringSync();
 
       expect(source, contains('kGtkThemeColorsEventChannel'));
       expect(source, contains('io.busystack.busymax/gtk_theme_colors'));
@@ -2469,12 +2338,6 @@ void main() {
       expect(gtkFontService, contains('final Color? accentForeground;'));
       expect(
         app,
-        contains(
-          'gtkThemeColors?.accent ?? ubuntuAccentColor ?? systemColor.accent',
-        ),
-      );
-      expect(
-        compactApp,
         contains(
           'gtkThemeColors?.accent ?? ubuntuAccentColor ?? systemColor.accent',
         ),

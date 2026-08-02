@@ -36,7 +36,6 @@ import '../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_google_tasks_adapter.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
-import '../platform/compact_agenda_window_service.dart';
 import '../platform/linux_window_service.dart';
 import '../task_providers/task_provider.dart';
 import '../schedule/schedule_commands.dart';
@@ -149,12 +148,6 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
 
 final linuxWindowServiceProvider = Provider<LinuxWindowService>(
   (ref) => const LinuxWindowService(),
-);
-
-final compactAgendaWindowServiceProvider = Provider<CompactAgendaWindowService>(
-  (ref) {
-    return const CompactAgendaWindowService();
-  },
 );
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

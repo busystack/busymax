@@ -176,67 +176,10 @@ class AppLocalizationsVi extends AppLocalizations {
       'Thử tìm kiếm khác hoặc xóa các bộ lọc hiện tại.';
 
   @override
-  String get trayAgendaLoading => 'Đang tải lịch biểu...';
+  String get refresh => 'Làm mới';
 
   @override
-  String get trayAgendaSignInRequired => 'Đăng nhập để hiển thị lịch biểu.';
-
-  @override
-  String get trayAgendaNoSources =>
-      'Không có lịch hoặc danh sách công việc nào đang hiển thị.';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'Mở ứng dụng';
-
-  @override
-  String get trayAgendaRefresh => 'Làm mới';
-
-  @override
-  String get trayAgendaError => 'Lịch biểu không khả dụng';
-
-  @override
-  String get compactAgendaTitle => 'Lịch biểu';
-
-  @override
-  String get compactAgendaSubtitle => 'Sắp tới';
-
-  @override
-  String get compactAgendaOverdue => 'Quá hạn';
-
-  @override
-  String get compactAgendaClear => 'Hiện chưa có lịch';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'Mở BusyMax';
-
-  @override
-  String get compactAgendaHide => 'Ẩn';
-
-  @override
-  String get compactAgendaNewTask => 'Công việc mới';
-
-  @override
-  String get compactAgendaRetry => 'Thử lại';
-
-  @override
-  String get compactAgendaRefresh => 'Làm mới';
-
-  @override
-  String get compactAgendaAllDay => 'Cả ngày';
-
-  @override
-  String get compactAgendaDueToday => 'Đến hạn hôm nay';
-
-  @override
-  String get compactAgendaDueTomorrow => 'Đến hạn ngày mai';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'Đến hạn $date';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => 'Tải thêm công việc quá hạn';
+  String get trayOpenBusyMax => 'Mở BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'Tải thêm công việc quá hạn';
@@ -514,17 +457,6 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get shortcutCancelEditingDescription =>
       'Đóng phần chỉnh sửa hoặc chi tiết công việc';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'Lịch biểu thu gọn';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'Làm mới cửa sổ lịch biểu thu gọn';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'Ẩn cửa sổ lịch biểu thu gọn';
 
   @override
   String get aboutBusyMax => 'Giới thiệu BusyMax';

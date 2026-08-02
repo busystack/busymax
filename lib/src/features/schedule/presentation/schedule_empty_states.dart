@@ -64,7 +64,7 @@ class ScheduleNoSourcesState extends StatelessWidget {
         if (onRefresh != null)
           BusyMaxPushButton.standard(
             onPressed: onRefresh,
-            child: Text(context.l10n.trayAgendaRefresh),
+            child: Text(context.l10n.refresh),
           ),
       ],
     );

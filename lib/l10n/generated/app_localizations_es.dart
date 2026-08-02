@@ -177,68 +177,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'Prueba con otra búsqueda o borra los filtros actuales.';
 
   @override
-  String get trayAgendaLoading => 'Cargando agenda...';
+  String get refresh => 'Actualizar';
 
   @override
-  String get trayAgendaSignInRequired =>
-      'Inicia sesión para mostrar la agenda.';
-
-  @override
-  String get trayAgendaNoSources =>
-      'No hay calendarios ni listas de tareas visibles.';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'Abrir app';
-
-  @override
-  String get trayAgendaRefresh => 'Actualizar';
-
-  @override
-  String get trayAgendaError => 'Agenda no disponible';
-
-  @override
-  String get compactAgendaTitle => 'Agenda';
-
-  @override
-  String get compactAgendaSubtitle => 'Próximamente';
-
-  @override
-  String get compactAgendaOverdue => 'Vencidas';
-
-  @override
-  String get compactAgendaClear => 'Libre por ahora';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'Abrir BusyMax';
-
-  @override
-  String get compactAgendaHide => 'Ocultar';
-
-  @override
-  String get compactAgendaNewTask => 'Nueva tarea';
-
-  @override
-  String get compactAgendaRetry => 'Reintentar';
-
-  @override
-  String get compactAgendaRefresh => 'Actualizar';
-
-  @override
-  String get compactAgendaAllDay => 'Todo el día';
-
-  @override
-  String get compactAgendaDueToday => 'Vence hoy';
-
-  @override
-  String get compactAgendaDueTomorrow => 'Vence mañana';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'Vence $date';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => 'Cargar más tareas vencidas';
+  String get trayOpenBusyMax => 'Abrir BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'Cargar más tareas vencidas';
@@ -516,17 +458,6 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get shortcutCancelEditingDescription =>
       'Cerrar la edición o los detalles de la tarea';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'Agenda compacta';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'Actualizar la ventana de agenda compacta';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'Ocultar la ventana de agenda compacta';
 
   @override
   String get aboutBusyMax => 'Acerca de BusyMax';

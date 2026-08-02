@@ -22,7 +22,7 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 - Calendar views for day, week, month, year, and agenda planning.
 - Task creation with lists, due dates, reminders, and repeat options.
 - Event editing with calendar selection, time controls, repeat rules, and reminders.
-- Compact agenda window for quick access to upcoming work.
+- Tray shortcut for opening the main Agenda view.
 - Integrations with Google Calendar, Google Tasks, Microsoft Calendar, and Microsoft To Do.
 
 ## Screenshots
@@ -65,12 +65,6 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 
 <p>
   <img src="docs/screenshots/main_window_edit_event.png" alt="BusyMax event editor" width="700">
-</p>
-
-<p>
-  <img src="docs/screenshots/agenda_window_agenda.png" alt="BusyMax compact agenda window" width="300">
-  <img src="docs/screenshots/agenda_window_agenda_event_details.png" alt="BusyMax compact agenda event details" width="300">
-  <img src="docs/screenshots/agenda_window_edit_event.png" alt="BusyMax compact agenda event editor" width="300">
 </p>
 
 </details>

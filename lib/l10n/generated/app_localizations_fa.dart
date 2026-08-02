@@ -179,67 +179,10 @@ class AppLocalizationsFa extends AppLocalizations {
       'جست‌وجوی دیگری را امتحان کنید یا پالایه‌های فعلی را پاک کنید.';
 
   @override
-  String get trayAgendaLoading => 'در حال بارگیری برنامه...';
+  String get refresh => 'تازه‌سازی';
 
   @override
-  String get trayAgendaSignInRequired => 'برای نمایش برنامه وارد شوید.';
-
-  @override
-  String get trayAgendaNoSources =>
-      'هیچ تقویم یا فهرست کار قابل نمایشی وجود ندارد.';
-
-  @override
-  String get trayAgendaOpenBusyMax => 'باز کردن برنامه';
-
-  @override
-  String get trayAgendaRefresh => 'تازه‌سازی';
-
-  @override
-  String get trayAgendaError => 'برنامه در دسترس نیست';
-
-  @override
-  String get compactAgendaTitle => 'برنامه';
-
-  @override
-  String get compactAgendaSubtitle => 'پیش رو';
-
-  @override
-  String get compactAgendaOverdue => 'گذشته از موعد';
-
-  @override
-  String get compactAgendaClear => 'فعلاً موردی نیست';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'باز کردن BusyMax';
-
-  @override
-  String get compactAgendaHide => 'پنهان کردن';
-
-  @override
-  String get compactAgendaNewTask => 'کار جدید';
-
-  @override
-  String get compactAgendaRetry => 'تلاش دوباره';
-
-  @override
-  String get compactAgendaRefresh => 'تازه‌سازی';
-
-  @override
-  String get compactAgendaAllDay => 'تمام روز';
-
-  @override
-  String get compactAgendaDueToday => 'سررسید امروز';
-
-  @override
-  String get compactAgendaDueTomorrow => 'سررسید فردا';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'سررسید: ⁨$date⁩';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => 'بارگیری کارهای عقب‌افتادهٔ بیشتر';
+  String get trayOpenBusyMax => 'باز کردن BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'بارگیری کارهای عقب‌افتادهٔ بیشتر';
@@ -532,17 +475,6 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get shortcutCancelEditingDescription => 'بستن ویرایش یا جزئیات کار';
-
-  @override
-  String get shortcutGroupCompactAgenda => 'برنامهٔ فشرده';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'تازه‌سازی پنجرهٔ برنامهٔ فشرده';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'پنهان کردن پنجرهٔ برنامهٔ فشرده';
 
   @override
   String get aboutBusyMax => 'دربارهٔ BusyMax';

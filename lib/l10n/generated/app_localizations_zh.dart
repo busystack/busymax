@@ -169,66 +169,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleNoSearchResultsDescription => '请尝试其他搜索内容或清除当前筛选条件。';
 
   @override
-  String get trayAgendaLoading => '正在加载日程...';
+  String get refresh => '刷新';
 
   @override
-  String get trayAgendaSignInRequired => '请登录以显示日程。';
-
-  @override
-  String get trayAgendaNoSources => '没有可见的日历或任务列表。';
-
-  @override
-  String get trayAgendaOpenBusyMax => '打开应用';
-
-  @override
-  String get trayAgendaRefresh => '刷新';
-
-  @override
-  String get trayAgendaError => '日程不可用';
-
-  @override
-  String get compactAgendaTitle => '日程';
-
-  @override
-  String get compactAgendaSubtitle => '接下来';
-
-  @override
-  String get compactAgendaOverdue => '已逾期';
-
-  @override
-  String get compactAgendaClear => '目前空闲';
-
-  @override
-  String get compactAgendaOpenBusyMax => '打开 BusyMax';
-
-  @override
-  String get compactAgendaHide => '隐藏';
-
-  @override
-  String get compactAgendaNewTask => '新建任务';
-
-  @override
-  String get compactAgendaRetry => '重试';
-
-  @override
-  String get compactAgendaRefresh => '刷新';
-
-  @override
-  String get compactAgendaAllDay => '全天';
-
-  @override
-  String get compactAgendaDueToday => '今天到期';
-
-  @override
-  String get compactAgendaDueTomorrow => '明天到期';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return '$date 到期';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => '加载更多逾期任务';
+  String get trayOpenBusyMax => '打开 BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => '加载更多逾期任务';
@@ -502,15 +446,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shortcutCancelEditingDescription => '关闭任务编辑或任务详情';
-
-  @override
-  String get shortcutGroupCompactAgenda => '紧凑日程';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription => '刷新紧凑日程窗口';
-
-  @override
-  String get shortcutHideCompactAgendaDescription => '隐藏紧凑日程窗口';
 
   @override
   String get aboutBusyMax => '关于 BusyMax';
@@ -1442,66 +1377,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get scheduleNoSearchResultsDescription => '请尝试其他搜索内容或清除当前筛选条件。';
 
   @override
-  String get trayAgendaLoading => '正在加载日程...';
+  String get refresh => '刷新';
 
   @override
-  String get trayAgendaSignInRequired => '请登录以显示日程。';
-
-  @override
-  String get trayAgendaNoSources => '没有可见的日历或任务列表。';
-
-  @override
-  String get trayAgendaOpenBusyMax => '打开应用';
-
-  @override
-  String get trayAgendaRefresh => '刷新';
-
-  @override
-  String get trayAgendaError => '日程不可用';
-
-  @override
-  String get compactAgendaTitle => '日程';
-
-  @override
-  String get compactAgendaSubtitle => '接下来';
-
-  @override
-  String get compactAgendaOverdue => '已逾期';
-
-  @override
-  String get compactAgendaClear => '目前空闲';
-
-  @override
-  String get compactAgendaOpenBusyMax => '打开 BusyMax';
-
-  @override
-  String get compactAgendaHide => '隐藏';
-
-  @override
-  String get compactAgendaNewTask => '新建任务';
-
-  @override
-  String get compactAgendaRetry => '重试';
-
-  @override
-  String get compactAgendaRefresh => '刷新';
-
-  @override
-  String get compactAgendaAllDay => '全天';
-
-  @override
-  String get compactAgendaDueToday => '今天到期';
-
-  @override
-  String get compactAgendaDueTomorrow => '明天到期';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return '$date 到期';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => '加载更多逾期任务';
+  String get trayOpenBusyMax => '打开 BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => '加载更多逾期任务';
@@ -1775,15 +1654,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get shortcutCancelEditingDescription => '关闭任务编辑或任务详情';
-
-  @override
-  String get shortcutGroupCompactAgenda => '紧凑日程';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription => '刷新紧凑日程窗口';
-
-  @override
-  String get shortcutHideCompactAgendaDescription => '隐藏紧凑日程窗口';
 
   @override
   String get aboutBusyMax => '关于 BusyMax';
@@ -2715,66 +2585,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get scheduleNoSearchResultsDescription => '請嘗試其他搜尋內容或清除目前的篩選條件。';
 
   @override
-  String get trayAgendaLoading => '正在載入行程...';
+  String get refresh => '重新整理';
 
   @override
-  String get trayAgendaSignInRequired => '請登入以顯示行程。';
-
-  @override
-  String get trayAgendaNoSources => '沒有可見的行事曆或待辦清單。';
-
-  @override
-  String get trayAgendaOpenBusyMax => '開啟應用程式';
-
-  @override
-  String get trayAgendaRefresh => '重新整理';
-
-  @override
-  String get trayAgendaError => '無法使用行程';
-
-  @override
-  String get compactAgendaTitle => '行程';
-
-  @override
-  String get compactAgendaSubtitle => '接下來';
-
-  @override
-  String get compactAgendaOverdue => '已逾期';
-
-  @override
-  String get compactAgendaClear => '目前沒有安排';
-
-  @override
-  String get compactAgendaOpenBusyMax => '開啟 BusyMax';
-
-  @override
-  String get compactAgendaHide => '隱藏';
-
-  @override
-  String get compactAgendaNewTask => '新增待辦事項';
-
-  @override
-  String get compactAgendaRetry => '再試一次';
-
-  @override
-  String get compactAgendaRefresh => '重新整理';
-
-  @override
-  String get compactAgendaAllDay => '全天';
-
-  @override
-  String get compactAgendaDueToday => '今天到期';
-
-  @override
-  String get compactAgendaDueTomorrow => '明天到期';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return '$date 到期';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => '載入更多逾期待辦事項';
+  String get trayOpenBusyMax => '開啟 BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => '載入更多逾期待辦事項';
@@ -3048,15 +2862,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get shortcutCancelEditingDescription => '關閉待辦事項編輯或詳細資料';
-
-  @override
-  String get shortcutGroupCompactAgenda => '精簡行程';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription => '重新整理精簡行程視窗';
-
-  @override
-  String get shortcutHideCompactAgendaDescription => '隱藏精簡行程視窗';
 
   @override
   String get aboutBusyMax => '關於 BusyMax';

@@ -10,8 +10,8 @@ import '../platform/gtk_font_service.dart';
 import '../platform/linux_header_bar_configuration_synchronizer.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_window_service.dart';
-import '../platform/main_window_command_bridge.dart';
 import '../l10n/locale_resolution.dart';
+import '../schedule/schedule_commands.dart';
 import 'app_bootstrap.dart';
 import 'app_router.dart';
 import 'busymax_keyboard_shortcuts_dialog.dart';
@@ -27,7 +27,6 @@ typedef BusyMaxTrayServiceFactory =
       required LinuxWindowService windowService,
       required BusyMaxTrayLabels labels,
       required Future<void> Function() onOpenAgenda,
-      Future<void> Function()? onBeforeQuit,
     });
 
 BusyMaxHeaderBarTheme busyMaxHeaderBarThemeFor(
@@ -84,6 +83,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   bool? _lastTrayEnabled;
   bool _startMinimizedHandled = false;
   bool _settingsReady = false;
+  var _scheduleCommandSequence = 0;
   late final BusyMaxHeaderBarConfigurationSynchronizer
   _headerBarConfigurationSynchronizer;
 
@@ -184,7 +184,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
               ref,
               settings,
               BusyMaxTrayLabels(
-                openBusyMax: l10n.compactAgendaOpenBusyMax,
+                openBusyMax: l10n.trayOpenBusyMax,
                 agenda: l10n.viewAgenda,
                 quitBusyMax: l10n.exit,
               ),
@@ -224,11 +224,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
                     },
                   ),
                 },
-                child: MainWindowCommandBridge(
-                  child: ColoredBox(
-                    color: BusyMaxSurfaceColors.of(context).window,
-                    child: child ?? const SizedBox.shrink(),
-                  ),
+                child: ColoredBox(
+                  color: BusyMaxSurfaceColors.of(context).window,
+                  child: child ?? const SizedBox.shrink(),
                 ),
               ),
             );
@@ -303,16 +301,6 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     }
 
     final windowService = ref.read(linuxWindowServiceProvider);
-    if (ref.read(buildConfigProvider).useFakeProviderData) {
-      _lastTrayEnabled = false;
-      _setHideOnClose(windowService, false);
-      final tray = _trayService;
-      if (tray != null) {
-        unawaited(tray.stop());
-      }
-      return;
-    }
-
     final trayEnabled =
         settings.showTrayIcon ||
         settings.runInBackgroundWhenClosed ||
@@ -330,12 +318,10 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       return;
     }
     _lastTrayEnabled = trayEnabled;
-    final compactAgendaWindows = ref.read(compactAgendaWindowServiceProvider);
     final tray = _trayService ??= _createTrayService(
       windowService: windowService,
       labels: labels,
-      onOpenAgenda: compactAgendaWindows.toggle,
-      onBeforeQuit: compactAgendaWindows.closeIfOpen,
+      onOpenAgenda: () => _openMainAgenda(ref, windowService),
     );
     if (trayEnabled) {
       unawaited(
@@ -355,7 +341,6 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     required LinuxWindowService windowService,
     required BusyMaxTrayLabels labels,
     required Future<void> Function() onOpenAgenda,
-    Future<void> Function()? onBeforeQuit,
   }) {
     final factory = widget.trayServiceFactory;
     if (factory != null) {
@@ -363,15 +348,27 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         windowService: windowService,
         labels: labels,
         onOpenAgenda: onOpenAgenda,
-        onBeforeQuit: onBeforeQuit,
       );
     }
     return BusyMaxTrayService(
       windowService: windowService,
       labels: labels,
       onOpenAgenda: onOpenAgenda,
-      onBeforeQuit: onBeforeQuit,
     );
+  }
+
+  Future<void> _openMainAgenda(
+    WidgetRef ref,
+    LinuxWindowService windowService,
+  ) async {
+    await windowService.showWindow();
+    ref
+        .read(scheduleWorkspaceCommandProvider.notifier)
+        .state = ScheduleWorkspaceCommand(
+      ScheduleWorkspaceCommandKind.agenda,
+      ++_scheduleCommandSequence,
+    );
+    ref.read(appRouterProvider).go('/schedule');
   }
 
   void _setHideOnClose(LinuxWindowService windowService, bool enabled) {

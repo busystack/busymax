@@ -33,7 +33,7 @@ AppSettings busyMaxDemoSettings(BusyMaxDemoTheme theme) {
     notifyEventReminders: false,
     notifyTaskReminders: false,
     runInBackgroundWhenClosed: false,
-    showTrayIcon: false,
+    showTrayIcon: true,
     startMinimizedToTray: false,
     quitExitsCompletely: true,
   );

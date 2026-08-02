@@ -34,7 +34,6 @@ abstract final class BusyMaxShortcutLabels {
   static const monthView = '3';
   static const yearView = '4';
   static const agendaView = '5';
-  static const refreshCompactAgenda = 'Ctrl+R';
   static const dismiss = 'Esc';
 
   static String forViewMode(ScheduleViewMode mode) {
