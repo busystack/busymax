@@ -295,10 +295,9 @@ class _SchedulePopoverLayout {
       1.0,
       safeViewportWidth - safeHorizontalMargin * 2,
     );
-    final width = math.min(preferredWidth, availableWidth).clamp(
-      1.0,
-      availableWidth,
-    );
+    final width = math
+        .min(preferredWidth, availableWidth)
+        .clamp(1.0, availableWidth);
     final maximumLeft = math.max(
       safeHorizontalMargin,
       safeViewportWidth - width - safeHorizontalMargin,
@@ -335,8 +334,10 @@ class _SchedulePopoverLayout {
     final arrowAlignment = width <= 0
         ? 0.5
         : ((anchor.center.dx - left) / width).clamp(0.08, 0.92).toDouble();
-    final resolvedMaximumHeight =
-        math.max(1.0, showBelow ? spaceBelow : spaceAbove);
+    final resolvedMaximumHeight = math.max(
+      1.0,
+      showBelow ? spaceBelow : spaceAbove,
+    );
     return _SchedulePopoverLayout(
       anchor: anchor,
       left: left,
