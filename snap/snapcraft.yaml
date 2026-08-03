@@ -7,6 +7,7 @@ description: |
 
   It supports Google Calendar, Google Tasks, Microsoft Calendar, and
   Microsoft To Do.
+# Snap Store listing translations are managed outside Snapcraft, via the Snap Store web UI.
 
 license: Apache-2.0
 base: core24
