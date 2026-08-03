@@ -6,19 +6,48 @@ import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ubuntu_widgets/ubuntu_widgets.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+
 void main() {
-  testWidgets('header buttons use compact headerbar sizing', (tester) async {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
+  testWidgets('editor actions use natural-width themed controls', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       localizedTestApp(
+        theme: BusyMaxYaruTheme.build(
+          brightness: Brightness.light,
+          accentColor: const Color(0xFF3584E4),
+        ),
         child: Scaffold(
           body: EventEditor(
             initialDraft: EventEditorDraft.newEvent(
@@ -37,34 +66,105 @@ void main() {
     );
 
     expect(
-      tester.getSize(_headerButtonFinder('Cancel')).width,
-      inInclusiveRange(100, 180),
-    );
-    expect(
-      tester.getSize(_headerButtonFinder('Save')).width,
-      inInclusiveRange(100, 180),
-    );
-    expect(
       tester.getSize(_headerButtonFinder('Cancel')).height,
-      BusyMaxSizes.headerIconButton,
+      kYaruButtonHeight,
     );
     expect(
       tester.getSize(_headerButtonFinder('Save')).height,
-      BusyMaxSizes.headerIconButton,
+      kYaruButtonHeight,
     );
     expect(
       find.ancestor(
         of: find.text('Cancel'),
-        matching: find.byWidgetPredicate((widget) => widget is PushButton),
+        matching: find.byType(FilledButton),
       ),
       findsOneWidget,
     );
     expect(
       find.ancestor(
         of: find.text('Save'),
-        matching: find.byWidgetPredicate((widget) => widget is PushButton),
+        matching: find.byType(ElevatedButton),
       ),
       findsOneWidget,
+    );
+    final cancelButton = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.text('Cancel'),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    final saveButton = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('Save'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(cancelButton.style?.fixedSize, isNull);
+    expect(cancelButton.style?.minimumSize, isNull);
+    expect(saveButton.style?.fixedSize, isNull);
+    expect(saveButton.style?.minimumSize, isNull);
+    final cancelContext = tester.element(find.text('Cancel'));
+    expect(
+      cancelButton.style?.textStyle?.resolve(const {})?.fontWeight,
+      Theme.of(cancelContext).textTheme.titleSmall?.fontWeight,
+    );
+  });
+
+  testWidgets('event editor groups use the contextual semantic card layer', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: BusyMaxModalEditorSurface(
+            maxWidth: 640,
+            maxHeight: 720,
+            child: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                start: DateTime.utc(2026, 6, 8),
+                end: DateTime.utc(2026, 6, 8, 1),
+              ),
+              sources: _sources,
+              onCancel: () {},
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final groupedMaterials = tester.widgetList<Material>(
+      find.descendant(
+        of: find.byType(BusyMaxGroupedSurface),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Material && widget.color == colors.card,
+        ),
+      ),
+    );
+    expect(groupedMaterials, isNotEmpty);
+    expect(colors.groupedSurface.a, lessThan(1));
+    expect(colors.card.a, 1);
+    expect(
+      groupedMaterials.every((material) => material.color?.a == 1),
+      isTrue,
+    );
+    expect(
+      Color.alphaBlend(colors.groupedSurface, colors.window).toARGB32(),
+      colors.card.toARGB32(),
     );
   });
 
@@ -90,10 +190,10 @@ void main() {
       ),
     );
 
-    expect(find.text('Start time'), findsNothing);
-    expect(find.text('End Time'), findsNothing);
-    expect(_plainTextFinder('All Day'), findsOneWidget);
-    expect(_plainTextFinder('Time Slot'), findsOneWidget);
+    expect(_timeRowFinder('Start time'), findsNothing);
+    expect(_timeRowFinder('End Time'), findsNothing);
+    expect(_plainTextFinder('All day'), findsOneWidget);
+    expect(_plainTextFinder('Time slot'), findsOneWidget);
     expect(find.text('No conference'), findsNothing);
     expect(find.text('Delete Event'), findsNothing);
   });
@@ -124,7 +224,7 @@ void main() {
       ),
     );
 
-    await tester.tap(_plainTextFinder('All Day'));
+    await tester.tap(_plainTextFinder('All day'));
     await tester.pump();
     await tester.tap(_headerButtonFinder('Save'));
 
@@ -139,7 +239,7 @@ void main() {
     );
   });
 
-  testWidgets('timed event shows separated end date and end time labels', (
+  testWidgets('timed event gives date and time fields contextual labels', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -161,14 +261,80 @@ void main() {
       ),
     );
 
-    expect(find.text('Start date'), findsOneWidget);
-    expect(find.text('Start time'), findsOneWidget);
-    expect(find.text('End Date'), findsOneWidget);
-    expect(find.text('End Time'), findsOneWidget);
-    expect(find.text('End date/time'), findsNothing);
+    expect(find.text('Start date/time'), findsOneWidget);
+    expect(find.text('End date/time'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DesktopDateValueRow && widget.label == 'Start date',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is DesktopTimeValueRow && widget.label == 'Start time',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is DesktopDateValueRow && widget.label == 'End Date',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is DesktopTimeValueRow && widget.label == 'End Time',
+      ),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('event time popup opens with current time and requires a value', (
+  testWidgets('existing timed event renders all date and time values', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        alwaysUse24HourFormat: true,
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime(2026, 6, 8, 9, 15),
+              end: DateTime(2026, 6, 8, 10, 45),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final startDate = _dateTextField(tester, 'Start date');
+    final startTime = _timeTextField(tester, 'Start time');
+    final endDate = _dateTextField(tester, 'End Date');
+    final endTime = _timeTextField(tester, 'End Time');
+
+    expect(startDate.controller?.text, isNotEmpty);
+    expect(startTime.controller?.text, '09:15');
+    expect(endDate.controller?.text, isNotEmpty);
+    expect(endTime.controller?.text, '10:45');
+    expect(startDate.decoration?.labelText, 'Start date');
+    expect(startTime.decoration?.labelText, 'Start time');
+    expect(endDate.decoration?.labelText, 'End Date');
+    expect(endTime.decoration?.labelText, 'End Time');
+    expect(find.text('Enter date'), findsNothing);
+    expect(find.text('Enter time'), findsNothing);
+  });
+
+  testWidgets('event time entry reports an empty required value', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -190,31 +356,155 @@ void main() {
       ),
     );
 
-    await tester.ensureVisible(find.text('Start time'));
-    await tester.tap(find.text('Start time'));
-    await tester.pumpAndSettle();
-
-    final fieldFinder = _timeTextEntryFinder();
-    final entry = tester.widget<TextFormField>(fieldFinder);
-    expect(entry.controller?.text, '09:00');
+    final fieldFinder = _timeEntryFinder('Start time');
+    await tester.ensureVisible(fieldFinder);
+    var entry = tester.widget<TextFormField>(fieldFinder);
     expect(
-      tester
-          .widgetList<EditableText>(find.byType(EditableText))
-          .any((entry) => entry.controller.text.contains('09:00')),
-      isTrue,
+      parseDesktopTimeInput(
+        tester.element(fieldFinder),
+        entry.controller?.text ?? '',
+      ),
+      const TimeOfDay(hour: 9, minute: 0),
+      reason: 'visible value: ${entry.controller?.text}',
     );
 
-    await tester.enterText(fieldFinder, '');
+    await tester.tap(fieldFinder);
     await tester.pump();
+    await _clearTimeEntry(tester, 'Start time');
 
     expect(tester.takeException(), isNull);
-    expect(tester.widget<TextFormField>(fieldFinder).controller?.text, isEmpty);
+    entry = tester.widget<TextFormField>(fieldFinder);
+    expect(entry.controller?.text, isEmpty);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    entry = tester.widget<TextFormField>(fieldFinder);
+    expect(entry.controller?.text, isEmpty);
+    expect(
+      find.text(
+        MaterialLocalizations.of(tester.element(fieldFinder)).invalidTimeLabel,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('OK'), findsNothing);
   });
 
-  testWidgets('event time popup accepts midnight input', (tester) async {
+  testWidgets(
+    'invalid visible start time disables Save and Ctrl+S and makes Cancel confirm',
+    (tester) async {
+      var saveCalls = 0;
+      var cancelled = false;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ),
+              sources: _sources,
+              onCancel: () => cancelled = true,
+              onSave: (_) => saveCalls += 1,
+            ),
+          ),
+        ),
+      );
+
+      final startTime = _timeEntryFinder('Start time');
+      await tester.enterText(startTime, 'not a time');
+      await tester.pump();
+
+      final saveButton = tester.widget<ButtonStyleButton>(
+        _headerButtonFinder('Save'),
+      );
+      expect(saveButton.onPressed, isNull);
+      expect(
+        find.text(
+          MaterialLocalizations.of(tester.element(startTime)).invalidTimeLabel,
+        ),
+        findsOneWidget,
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      expect(saveCalls, 0);
+
+      await tester.tap(_headerButtonFinder('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(cancelled, isFalse);
+      expect(find.text('Discard changes?'), findsOneWidget);
+
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+
+      expect(cancelled, isTrue);
+      expect(saveCalls, 0);
+    },
+  );
+
+  testWidgets('switching an invalid timed event to all-day clears validity', (
+    tester,
+  ) async {
     EventEditorDraft? saved;
     await tester.pumpWidget(
       localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'event-1',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(_timeEntryFinder('Start time'), 'not a time');
+    await tester.pump();
+    expect(
+      tester.widget<ButtonStyleButton>(_headerButtonFinder('Save')).onPressed,
+      isNull,
+    );
+
+    await tester.tap(_plainTextFinder('All day'));
+    await tester.pumpAndSettle();
+
+    expect(_timeRowFinder('Start time'), findsNothing);
+    expect(_timeRowFinder('End Time'), findsNothing);
+    expect(
+      tester.widget<ButtonStyleButton>(_headerButtonFinder('Save')).onPressed,
+      isNotNull,
+    );
+
+    await tester.tap(_headerButtonFinder('Save'));
+    await tester.pump();
+
+    expect(saved?.allDay, isTrue);
+  });
+
+  testWidgets('event time field accepts midnight input', (tester) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        alwaysUse24HourFormat: true,
         child: Scaffold(
           body: EventEditor(
             initialDraft: EventEditorDraft.newEvent(
@@ -232,12 +522,12 @@ void main() {
       ),
     );
 
-    await tester.ensureVisible(find.text('Start time'));
-    await tester.tap(find.text('Start time'));
-    await tester.pumpAndSettle();
-    await tester.enterText(_timeTextEntryFinder(), '00');
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+    final fieldFinder = _timeEntryFinder('Start time');
+    await tester.ensureVisible(fieldFinder);
+    await tester.tap(fieldFinder);
+    await tester.pump();
+    await _clearTimeEntry(tester, 'Start time');
+    await _enterTime(tester, label: 'Start time', hour: '00', minute: '00');
 
     await tester.tap(_headerButtonFinder('Save'));
 
@@ -904,13 +1194,69 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Add Reminder'), findsNothing);
-    expect(find.text('5 minutes before'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(BusyMaxComboRow<int>),
+        matching: find.text('5 minutes before'),
+      ),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('Microsoft event categories can be selected from suggestions', (
+  testWidgets(
+    'Microsoft event categories use Yaru autocomplete keyboard selection',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'microsoft-account',
+                sourceId: 'microsoft-source',
+                providerCalendarId: 'ms-cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+                categories: const ['Home'],
+              ),
+              sources: _microsoftSources,
+              categorySuggestionsByAccount: const {
+                'microsoft-account': ['Home', 'Work'],
+              },
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      await tester.ensureVisible(find.text('Add category'));
+      expect(find.text('Home'), findsOneWidget);
+
+      await tester.tap(find.text('Add category'));
+      await tester.pumpAndSettle();
+      expect(find.byType(YaruAutocomplete<String>), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('event-category-input')),
+        'work',
+      );
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      await tester.tap(_headerButtonFinder('Save'));
+
+      expect(saved?.categories, ['Home', 'Work']);
+    },
+  );
+
+  testWidgets('Escape cancels category entry without closing event editor', (
     tester,
   ) async {
-    EventEditorDraft? saved;
+    var editorCancelled = false;
     await tester.pumpWidget(
       localizedTestApp(
         child: Scaffold(
@@ -924,31 +1270,33 @@ void main() {
               allDay: false,
               start: DateTime.utc(2026, 6, 8, 9),
               end: DateTime.utc(2026, 6, 8, 10),
-              categories: const ['Home'],
             ),
             sources: _microsoftSources,
-            categorySuggestionsByAccount: const {
-              'microsoft-account': ['Home', 'Work'],
-            },
-            onCancel: () {},
-            onSave: (draft) => saved = draft,
+            onCancel: () => editorCancelled = true,
+            onSave: (_) {},
           ),
         ),
       ),
     );
 
     await tester.ensureVisible(find.text('Add category'));
-    expect(find.text('Home'), findsOneWidget);
-
     await tester.tap(find.text('Add category'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('event-category-input')), 'wo');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Work').last);
-    await tester.pumpAndSettle();
-    await tester.tap(_headerButtonFinder('Save'));
+    expect(find.byKey(const Key('event-category-input')), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('event-category-input')))
+          .focusNode
+          ?.hasFocus,
+      isTrue,
+    );
 
-    expect(saved?.categories, ['Home', 'Work']);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('event-category-input')), findsNothing);
+    expect(find.widgetWithText(ActionChip, 'Add category'), findsOneWidget);
+    expect(editorCancelled, isFalse);
   });
 
   testWidgets('Google event editor does not show categories', (tester) async {
@@ -1013,6 +1361,42 @@ void main() {
     },
   );
 
+  testWidgets('Escape routes dirty event cancellation through confirmation', (
+    tester,
+  ) async {
+    var cancelled = false;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8),
+              end: DateTime.utc(2026, 6, 8, 1),
+            ),
+            sources: _sources,
+            onCancel: () => cancelled = true,
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField).first, 'Changed event');
+    _focusEditorShortcuts(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(cancelled, isFalse);
+    expect(find.text('Discard changes?'), findsOneWidget);
+
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(cancelled, isTrue);
+  });
+
   test('event editor is opened through the shared BusyMax dialog route', () {
     final editor = File(
       'lib/src/features/calendar/presentation/event_editor.dart',
@@ -1025,10 +1409,12 @@ void main() {
     expect(editor, contains('showBusyMaxEventEditorDialog'));
     expect(editor, contains('showBusyMaxModalEditorDialog'));
     expect(editor, isNot(contains('showDialog<EventEditorDialogResult>')));
-    expect(dialogs, contains('setModalBarrierVisible(true)'));
+    expect(dialogs, contains('await acquireBusyMaxModalBarrier('));
+    expect(dialogs, contains('await releaseBusyMaxModalBarrier('));
+    expect(dialogs, contains('shadesHeader: shadesHeader'));
     expect(
       dialogs,
-      contains('barrierColor: busyMaxModalBarrierColor(context)'),
+      contains('barrierColor ?? busyMaxModalBarrierColor(context)'),
     );
     expect(dialogs, contains('BusyMaxModalEditorSurface'));
     expect(workspace, contains('showBusyMaxEventEditorDialog'));
@@ -1045,31 +1431,54 @@ void main() {
     expect(design, contains('class BusyMaxModalEditorScaffold'));
     expect(design, contains('BusyMaxEditorHeader('));
     expect(design, contains('SingleChildScrollView'));
-    expect(design, contains('BusyMaxHeaderPushButton.outlined'));
-    expect(design, contains('BusyMaxHeaderPushButton.filled'));
-    expect(
-      design,
-      contains('EdgeInsets.symmetric(horizontal: BusyMaxSpacing.xl)'),
-    );
+    final headerStart = design.indexOf('class BusyMaxEditorHeader');
+    final headerEnd = design.indexOf('class BusyMaxModeSwitcher');
+    final header = design.substring(headerStart, headerEnd);
+    expect(header, contains('child: Row('));
+    expect(header, contains('AlignmentDirectional.centerStart'));
+    expect(header, contains('child: BusyMaxPushButton.standard('));
+    expect(header, contains('AlignmentDirectional.centerEnd'));
+    expect(header, contains('child: BusyMaxPushButton.suggested('));
+    expect(header, contains('heightFactor: 1'));
+    expect(header, contains('textTheme.titleSmall'));
+    expect(header, isNot(contains('child: FilledButton(')));
+    expect(header, isNot(contains('child: ElevatedButton(')));
+    expect(header, isNot(contains('NavigationToolbar(')));
+    expect(header, isNot(contains('ConstrainedBox(')));
+    expect(header, isNot(contains('kPushButtonSize')));
+    expect(header, isNot(contains('kYaruButtonHeight')));
+    expect(design, isNot(contains('BusyMaxHeaderPushButton')));
     expect(design, contains('textAlign: TextAlign.center'));
     expect(design, contains('textTheme.titleMedium'));
     expect(editor, isNot(contains('BusyMaxDialogCloseButton')));
   });
 
   test(
-    'editor row hover uses subtle foreground overlay, not selected color',
+    'editor rows reuse the shared native hover role, not a control fill',
     () {
       final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
-      final hoverStart = design.indexOf('Color busyMaxEditorRowHoverColor');
+      final editor = File(
+        'lib/src/features/calendar/presentation/event_editor.dart',
+      ).readAsStringSync();
+      final hoverStart = design.indexOf('Color busyMaxRowHoverColor');
       final hoverEnd = design.indexOf('Color busyMaxPanelBorder');
       final hoverSource = design.substring(hoverStart, hoverEnd);
 
-      expect(hoverSource, contains('surfaceColors.foreground.withValues'));
-      expect(hoverSource, contains('Brightness.dark ? 0.045 : 0.055'));
+      expect(hoverSource, contains('final theme = Theme.of(context)'));
+      expect(hoverSource, contains('final hover = theme.hoverColor'));
+      expect(
+        hoverSource,
+        contains('BusyMaxAlpha.groupedRowLightHoverStrength'),
+      );
+      expect(design, contains('groupedRowLightHoverStrength = 0.50'));
+      expect(
+        hoverSource,
+        contains('theme.colorScheme.brightness == Brightness.dark'),
+      );
       expect(hoverSource, isNot(contains('.controlHover')));
-      expect(hoverSource, isNot(contains('Theme.of(context).hoverColor')));
       expect(hoverSource, isNot(contains('primaryContainer')));
       expect(hoverSource, isNot(contains('colorScheme.primary')));
+      expect(editor, isNot(contains('hoverColor:')));
     },
   );
 
@@ -1129,26 +1538,28 @@ void main() {
     );
   });
 
-  test('event editor text fields use plain borderless decoration', () {
+  test('event editor text fields use shared grouped-row decoration', () {
     final editor = File(
       'lib/src/features/calendar/presentation/event_editor.dart',
     ).readAsStringSync();
+    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
-    expect(editor, contains('_plainEventFieldDecoration'));
-    expect(editor, contains('filled: false'));
-    expect(editor, contains('fillColor: Colors.transparent'));
-    expect(editor, contains('hoverColor: Colors.transparent'));
-    expect(editor, contains('labelText: labelText'));
-    expect(editor, contains('labelStyle: labelStyle'));
-    expect(editor, contains('floatingLabelStyle: labelStyle'));
+    expect(editor, contains('busyMaxGroupedTextFieldDecoration'));
+    expect(editor, isNot(contains('_plainEventFieldDecoration')));
+    expect(design, contains('filled: false'));
+    expect(design, contains('fillColor: Colors.transparent'));
+    expect(design, contains('hoverColor: Colors.transparent'));
+    expect(design, contains('labelText: labelText'));
+    expect(design, contains('labelStyle: labelStyle'));
+    expect(design, contains('floatingLabelStyle: labelStyle'));
     expect(
-      editor,
+      design,
       contains('floatingLabelBehavior: FloatingLabelBehavior.auto'),
     );
-    expect(editor, contains('enabledBorder: InputBorder.none'));
-    expect(editor, contains('focusedBorder: InputBorder.none'));
-    expect(editor, contains('errorBorder: InputBorder.none'));
-    expect(editor, contains('focusedErrorBorder: InputBorder.none'));
+    expect(design, contains('enabledBorder: InputBorder.none'));
+    expect(design, contains('focusedBorder: InputBorder.none'));
+    expect(design, contains('errorBorder: InputBorder.none'));
+    expect(design, contains('focusedErrorBorder: InputBorder.none'));
   });
 
   test(
@@ -1162,11 +1573,10 @@ void main() {
       expect(editor, contains('return BusyMaxComboRow<String>'));
       expect(editor, contains('title: context.l10n.calendar'));
       expect(editor, contains('leading: const Icon(YaruIcons.calendar)'));
-      expect(editor, contains('menuItemBuilder: (context, value)'));
-      expect(editor, contains('selectedBuilder: (context, value)'));
-      expect(editor, contains('_calendarSourceSelectedChoice'));
-      expect(editor, contains('mainAxisAlignment: MainAxisAlignment.end'));
-      expect(editor, contains('textAlign: TextAlign.end'));
+      expect(editor, contains('selectorLeadingBuilder: (context, value)'));
+      expect(editor, isNot(contains('menuItemBuilder:')));
+      expect(editor, isNot(contains('selectedBuilder:')));
+      expect(editor, isNot(contains('_calendarSourceSelectedChoice')));
       expect(editor, contains('class _CalendarSourceDot'));
       expect(editor, contains('source.backgroundColor'));
       expect(editor, contains('ScheduleProjection.deterministicSourceColor'));
@@ -1217,18 +1627,14 @@ void main() {
     expect(editor, isNot(contains('title: l10n.delete,')));
   });
 
-  test('event combo selected values are right aligned', () {
+  test('event combos do not overlay custom selected-value rendering', () {
     final editor = File(
       'lib/src/features/calendar/presentation/event_editor.dart',
     ).readAsStringSync();
 
-    expect(editor, contains('Widget _eventEditorSelectedValue'));
-    expect(editor, contains('alignment: Alignment.centerRight'));
-    expect(editor, contains('textAlign: TextAlign.end'));
-    expect(
-      '_eventEditorSelectedValue'.allMatches(editor).length,
-      greaterThanOrEqualTo(4),
-    );
+    expect(editor, isNot(contains('_eventEditorSelectedValue')));
+    expect(editor, isNot(contains('selectedBuilder:')));
+    expect(editor, contains('selectorLeadingBuilder:'));
   });
 
   test('event editor prominent actions use semibold action style', () {
@@ -1243,28 +1649,60 @@ void main() {
     expect(editor, contains('l10n.deleteEvent'));
   });
 
-  testWidgets('combo dropdown trigger is transparent in all states', (
+  testWidgets('combo selector uses a flat native-style row trigger', (
     tester,
   ) async {
-    late BuildContext capturedContext;
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
     await tester.pumpWidget(
       localizedTestApp(
-        child: Builder(
-          builder: (context) {
-            capturedContext = context;
-            return const SizedBox.shrink();
-          },
+        child: Theme(
+          data: theme,
+          child: SizedBox(
+            width: 480,
+            child: BusyMaxComboRow<String>(
+              title: 'Calendar',
+              values: const ['Personal', 'Work'],
+              selected: 'Personal',
+              labelFor: (value) => value,
+              onSelected: (_) {},
+            ),
+          ),
         ),
       ),
     );
 
-    final background = busyMaxDropdownButtonStyle(
-      capturedContext,
-    ).backgroundColor!;
-
-    expect(background.resolve(const {}), Colors.transparent);
-    expect(background.resolve({WidgetState.hovered}), Colors.transparent);
-    expect(background.resolve({WidgetState.pressed}), Colors.transparent);
+    expect(find.byType(BusyMaxMenuButton<String>), findsOneWidget);
+    final triggerFinder = find.descendant(
+      of: find.byType(BusyMaxComboRow<String>),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is YaruListTile && widget.focusNode != null,
+      ),
+    );
+    final trigger = tester.widget<YaruListTile>(triggerFinder);
+    expect(trigger.onTap, isNotNull);
+    expect(
+      tester.getSize(triggerFinder).height,
+      greaterThan(kYaruButtonHeight),
+    );
+    expect(
+      find.descendant(
+        of: find.byType(BusyMaxComboRow<String>),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is ButtonStyleButton && widget is! IconButton,
+        ),
+      ),
+      findsNothing,
+    );
+    final restingSurface = tester.widget<Material>(
+      find.descendant(of: triggerFinder, matching: find.byType(Material)).first,
+    );
+    expect(restingSurface.type, MaterialType.canvas);
+    expect(restingSurface.color, Colors.transparent);
+    expect(restingSurface.color, isNot(colors.control));
   });
 }
 
@@ -1287,10 +1725,51 @@ BusyMaxComboRow<String> _comboRow(WidgetTester tester, String title) {
   );
 }
 
-Finder _timeTextEntryFinder() {
+Finder _timeRowFinder(String label) {
   return find.byWidgetPredicate(
-    (widget) => widget is TextFormField && widget.controller != null,
+    (widget) => widget is DesktopTimeValueRow && widget.label == label,
   );
+}
+
+TextField _dateTextField(WidgetTester tester, String label) {
+  final row = find.byWidgetPredicate(
+    (widget) => widget is DesktopDateValueRow && widget.label == label,
+  );
+  return tester.widget<TextField>(
+    find.descendant(of: row, matching: find.byType(TextField)),
+  );
+}
+
+TextField _timeTextField(WidgetTester tester, String label) {
+  return tester.widget<TextField>(
+    find.descendant(
+      of: _timeRowFinder(label),
+      matching: find.byType(TextField),
+    ),
+  );
+}
+
+Finder _timeEntryFinder(String label) {
+  return find.descendant(
+    of: _timeRowFinder(label),
+    matching: find.byType(TextFormField),
+  );
+}
+
+Future<void> _clearTimeEntry(WidgetTester tester, String label) async {
+  await tester.enterText(_timeEntryFinder(label), '');
+  await tester.pump();
+}
+
+Future<void> _enterTime(
+  WidgetTester tester, {
+  required String label,
+  required String hour,
+  required String minute,
+}) async {
+  final entry = _timeEntryFinder(label);
+  await tester.enterText(entry, '$hour:$minute');
+  await tester.pump();
 }
 
 Finder _plainTextFinder(String label) {

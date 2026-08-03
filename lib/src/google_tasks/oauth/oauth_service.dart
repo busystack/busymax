@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -22,13 +23,9 @@ abstract interface class OAuthGateway {
 
   Future<OAuthTokenSet> refreshActiveToken();
 
-  Future<void> signOut();
-
-  Future<void> signOutAccount(String accountId);
-
-  Future<void> revokeAndSignOut();
-
   Future<void> revokeAndSignOutAccount(String accountId);
+
+  Future<void> revokeAuthorization(String accountId);
 
   Future<void> clearLocalSession({String? accountId});
 
@@ -42,17 +39,20 @@ class OAuthService implements OAuthGateway {
     required OAuthTokenStore tokenStore,
     required OAuthLoopbackFlow loopbackFlow,
     DateTime Function()? nowUtc,
+    Duration authorizationRevocationTimeout = const Duration(seconds: 10),
   }) : _config = config,
        _httpClient = httpClient,
        _tokenStore = tokenStore,
        _loopbackFlow = loopbackFlow,
-       _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
+       _nowUtc = nowUtc ?? (() => DateTime.now().toUtc()),
+       _authorizationRevocationTimeout = authorizationRevocationTimeout;
 
   final BuildConfig _config;
   final http.Client _httpClient;
   final OAuthTokenStore _tokenStore;
   final OAuthLoopbackFlow _loopbackFlow;
   final DateTime Function() _nowUtc;
+  final Duration _authorizationRevocationTimeout;
   final RedactingLogger _logger = RedactingLogger(Logger('OAuthService'));
 
   @override
@@ -147,18 +147,6 @@ class OAuthService implements OAuthGateway {
 
   @override
   Future<void> cancelSignIn() => _loopbackFlow.cancel();
-
-  @override
-  Future<void> signOut() => _tokenStore.clearActiveAccount();
-
-  @override
-  Future<void> signOutAccount(String accountId) async {
-    final active = await _tokenStore.readActiveAccountId();
-    await _tokenStore.clearTokenSet(accountId);
-    if (active == accountId) {
-      await _tokenStore.clearActiveAccount();
-    }
-  }
 
   Future<OAuthTokenSet> exchangeAuthorizationCode({
     required String code,
@@ -292,34 +280,47 @@ class OAuthService implements OAuthGateway {
   }
 
   @override
-  Future<void> revokeAndSignOut() async {
-    final accountId = await _tokenStore.readActiveAccountId();
-    if (accountId == null) {
-      return;
+  Future<void> revokeAndSignOutAccount(String accountId) async {
+    try {
+      await revokeAuthorization(accountId);
+    } finally {
+      await clearLocalSession(accountId: accountId);
     }
-
-    await revokeAndSignOutAccount(accountId);
   }
 
   @override
-  Future<void> revokeAndSignOutAccount(String accountId) async {
-    final active = await _tokenStore.readActiveAccountId();
+  Future<void> revokeAuthorization(String accountId) async {
     final tokenSet = await _tokenStore.readTokenSet(accountId);
     final token = tokenSet?.refreshToken ?? tokenSet?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw const OAuthException(
+        'OAuthRevocationUnavailable',
+        'No local Google authorization is available to revoke.',
+      );
+    }
+
+    late final http.Response response;
     try {
-      if (token != null && token.isNotEmpty) {
-        await _httpClient.post(
-          Uri.parse(
-            _config.oauthRevocationEndpoint,
-          ).replace(queryParameters: {'token': token}),
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        );
-      }
-    } finally {
-      await _tokenStore.clearTokenSet(accountId);
-      if (active == accountId) {
-        await _tokenStore.clearActiveAccount();
-      }
+      response = await _httpClient
+          .post(
+            Uri.parse(_config.oauthRevocationEndpoint),
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: {'token': token},
+          )
+          .timeout(_authorizationRevocationTimeout);
+    } on TimeoutException {
+      throw const OAuthException(
+        'OAuthRevocationTimedOut',
+        'Google authorization revocation timed out.',
+      );
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw OAuthException(
+        'OAuthRevocationFailed',
+        'Google authorization revocation failed '
+            '(HTTP ${response.statusCode}).',
+      );
     }
   }
 

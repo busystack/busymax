@@ -241,14 +241,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.14"
-  desktop_multi_window:
-    dependency: "direct main"
-    description:
-      name: desktop_multi_window
-      sha256: "60ba38725b8887b60e44d15afdcf0c3813568b5da2ccaf1e7f6fd09a380a6e24"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.0"
   desktop_notifications:
     dependency: "direct main"
     description:
@@ -474,14 +466,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  form_field_validator:
-    dependency: transitive
-    description:
-      name: form_field_validator
-      sha256: c1fc6c89b5525288c02fe989a88c6f30bb6072da4f9dded17a04cf68c4abfb87
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.0"
   fuchsia_remote_debug_protocol:
     dependency: transitive
     description: flutter
@@ -756,14 +740,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.0"
-  password_strength:
-    dependency: transitive
-    description:
-      name: password_strength
-      sha256: "0e51e3d864e37873a1347e658147f88b66e141ee36c58e19828dc5637961e1ce"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.0"
   path:
     dependency: "direct main"
     description:
@@ -925,7 +901,7 @@ packages:
     source: hosted
     version: "2.6.1"
   screen_retriever:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: screen_retriever
       sha256: "570dbc8e4f70bac451e0efc9c9bb19fa2d6799a11e6ef04f946d7886d2e23d0c"
@@ -1105,6 +1081,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.11"
+  timezone:
+    dependency: "direct main"
+    description:
+      name: timezone
+      sha256: "981d1020d6ef8fe1e7b3de5054e5b25579ae7c403d7734adc508ffc47668e9cb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.11.1"
   typed_data:
     dependency: transitive
     description:
@@ -1121,14 +1105,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.5.2+3"
-  ubuntu_widgets:
-    dependency: "direct main"
-    description:
-      name: ubuntu_widgets
-      sha256: "7eaa3bcfde7197c8ae18e4546339316fa95d445e3fa8e1fdb2d3c2ea569a5d38"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.8.1"
   url_launcher:
     dependency: "direct main"
     description:
@@ -1274,7 +1250,7 @@ packages:
     source: hosted
     version: "6.3.0"
   window_manager:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: window_manager
       sha256: "7eb6d6c4164ec08e1bf978d6e733f3cebe792e2a23fb07cbca25c2872bfdbdcd"
@@ -1316,10 +1292,10 @@ packages:
     dependency: "direct main"
     description:
       name: yaru
-      sha256: "02475cdb668b96ea6bc11a483cafe3ea80c1aee5c3f2d856361c6ea1352e5849"
+      sha256: "95e801c52dfda458bcb772baee6b2575c711fd951616a24910d6d30e70f5fb0d"
       url: "https://pub.dev"
     source: hosted
-    version: "10.1.0"
+    version: "10.2.0"
   yaru_window:
     dependency: transitive
     description:

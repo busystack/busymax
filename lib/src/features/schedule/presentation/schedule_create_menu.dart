@@ -1,46 +1,59 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_shortcuts.dart';
 import '../../../l10n/l10n.dart';
 
 enum ScheduleCreateChoice { event, task }
 
+ScheduleCreateChoice? singleAvailableScheduleCreateChoice({
+  required bool canCreateEvent,
+  required bool canCreateTask,
+}) {
+  if (canCreateEvent == canCreateTask) {
+    return null;
+  }
+  return canCreateEvent
+      ? ScheduleCreateChoice.event
+      : ScheduleCreateChoice.task;
+}
+
 Future<ScheduleCreateChoice?> showScheduleCreateMenu({
   required BuildContext context,
-}) {
-  return showDialog<ScheduleCreateChoice>(
+  BuildContext? anchorContext,
+  Offset? anchorPoint,
+  bool canCreateEvent = true,
+  bool canCreateTask = true,
+  BusyMaxMenuSession? session,
+  bool preferAbove = false,
+}) async {
+  if (!canCreateEvent && !canCreateTask) {
+    return null;
+  }
+
+  final selection = await showBusyMaxMenu<ScheduleCreateChoice>(
     context: context,
-    builder: (context) {
-      return Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 320),
-          child: Padding(
-            padding: const EdgeInsets.all(BusyMaxSpacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  context.l10n.createChoiceTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: BusyMaxSpacing.md),
-                BusyMaxPushButton.outlined(
-                  onPressed: () =>
-                      Navigator.of(context).pop(ScheduleCreateChoice.event),
-                  child: Text(context.l10n.createEventAtTime),
-                ),
-                const SizedBox(height: BusyMaxSpacing.sm),
-                BusyMaxPushButton.outlined(
-                  onPressed: () =>
-                      Navigator.of(context).pop(ScheduleCreateChoice.task),
-                  child: Text(context.l10n.createTaskAtDate),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
+    anchorContext: anchorContext ?? context,
+    anchorPoint: anchorPoint,
+    session: session,
+    focusFirst: anchorPoint == null,
+    preferAbove: preferAbove,
+    entries: [
+      BusyMaxMenuEntry(
+        value: ScheduleCreateChoice.event,
+        label: context.l10n.createEventAtTime,
+        icon: Icons.event_outlined,
+        enabled: canCreateEvent,
+        shortcut: BusyMaxShortcutLabels.newEvent,
+      ),
+      BusyMaxMenuEntry(
+        value: ScheduleCreateChoice.task,
+        label: context.l10n.createTaskAtDate,
+        icon: Icons.task_alt_outlined,
+        enabled: canCreateTask,
+        shortcut: BusyMaxShortcutLabels.newTask,
+      ),
+    ],
   );
+  return selection?.value;
 }

@@ -1,3 +1,7 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: text_direction_code_point_in_literal, text_direction_code_point_in_comment
+
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
@@ -132,7 +136,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noCalendarsSynced => 'No calendars synced yet.';
 
   @override
-  String get allDay => 'All Day';
+  String get allDay => 'All day';
 
   @override
   String moreItems(int count) {
@@ -143,66 +147,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noEventsOrTasks => 'No events or tasks';
 
   @override
-  String get trayAgendaLoading => 'Loading agenda...';
+  String get scheduleLoading => 'Loading schedule...';
 
   @override
-  String get trayAgendaSignInRequired => 'Sign in to show agenda.';
+  String get scheduleUnavailable => 'Schedule unavailable';
 
   @override
-  String get trayAgendaNoSources => 'No visible calendars or task lists.';
+  String get scheduleNoSources => 'No visible calendars or task lists';
 
   @override
-  String get trayAgendaOpenBusyMax => 'Open app';
+  String get scheduleNoSourcesDescription =>
+      'Choose what to show in Settings, then refresh.';
 
   @override
-  String get trayAgendaRefresh => 'Refresh';
+  String get scheduleSignInRequired => 'Connect an account';
 
   @override
-  String get trayAgendaError => 'Agenda unavailable';
+  String get scheduleSignInDescription =>
+      'Sign in to sync calendars and tasks.';
 
   @override
-  String get compactAgendaTitle => 'Agenda';
+  String get scheduleNoSearchResults => 'No matching events or tasks';
 
   @override
-  String get compactAgendaSubtitle => 'Upcoming';
+  String get scheduleNoSearchResultsDescription =>
+      'Try a different search or clear the current filters.';
 
   @override
-  String get compactAgendaOverdue => 'Overdue';
+  String get refresh => 'Refresh';
 
   @override
-  String get compactAgendaClear => 'Clear for now';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'Open BusyMax';
-
-  @override
-  String get compactAgendaHide => 'Hide';
-
-  @override
-  String get compactAgendaNewTask => 'New task';
-
-  @override
-  String get compactAgendaRetry => 'Retry';
-
-  @override
-  String get compactAgendaRefresh => 'Refresh';
-
-  @override
-  String get compactAgendaAllDay => 'All day';
-
-  @override
-  String get compactAgendaDueToday => 'Due today';
-
-  @override
-  String get compactAgendaDueTomorrow => 'Due tomorrow';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'Due $date';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => 'Load more overdue tasks';
+  String get trayOpenBusyMax => 'Open BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'Load more overdue tasks';
@@ -266,7 +241,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get location => 'Location';
 
   @override
-  String get timeSlot => 'Time Slot';
+  String get timeSlot => 'Time slot';
 
   @override
   String get startDateTime => 'Start date/time';
@@ -309,6 +284,90 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providerCalendar => 'Provider calendar';
+
+  @override
+  String get formatBoldShortLabel => 'B';
+
+  @override
+  String get formatBoldTooltip => 'Bold';
+
+  @override
+  String get formatItalicShortLabel => 'I';
+
+  @override
+  String get formatItalicTooltip => 'Italic';
+
+  @override
+  String get formatUnderlineShortLabel => 'U';
+
+  @override
+  String get formatUnderlineTooltip => 'Underline';
+
+  @override
+  String reminderMinutesBefore(int minutes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      minutes,
+      locale: localeName,
+      other: '$minutes minutes before',
+      one: '1 minute before',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reminderAtStart => 'At start';
+
+  @override
+  String reminderHoursBefore(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: '$hours hours before',
+      one: '1 hour before',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderDaysBefore(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days days before',
+      one: '1 day before',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get availabilityFree => 'Free';
+
+  @override
+  String get availabilityTentative => 'Tentative';
+
+  @override
+  String get availabilityOutOfOffice => 'Out of office';
+
+  @override
+  String get availabilityWorkingElsewhere => 'Working elsewhere';
+
+  @override
+  String get visibilityDefault => 'Default';
+
+  @override
+  String get visibilityPublic => 'Public';
+
+  @override
+  String get visibilityPrivate => 'Private';
+
+  @override
+  String get visibilityConfidential => 'Confidential';
+
+  @override
+  String get sensitivityNormal => 'Normal';
+
+  @override
+  String get sensitivityPersonal => 'Personal';
 
   @override
   String get tasks => 'Tasks';
@@ -398,24 +457,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Close task editing or task details';
 
   @override
-  String get shortcutGroupCompactAgenda => 'Compact agenda';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'Refresh the compact agenda window';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'Hide the compact agenda window';
-
-  @override
   String get aboutBusyMax => 'About BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'ToDo and Calendar';
+  String get aboutBusyMaxDescription => 'Calendar and tasks';
+
+  @override
+  String get license => 'License';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
 
   @override
   String get website => 'Website';
+
+  @override
+  String get sourceCode => 'Source code';
 
   @override
   String get reportAnIssue => 'Report an issue';
@@ -506,6 +563,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toggleSidebar => 'Toggle Sidebar';
 
   @override
+  String get showSidebar => 'Show sidebar panel';
+
+  @override
+  String get hideSidebar => 'Hide sidebar panel';
+
+  @override
   String get accounts => 'Accounts';
 
   @override
@@ -530,17 +593,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signedInAccount => 'Signed in';
 
   @override
-  String get signOutThisAccount => 'Sign out this account';
+  String get removeAccount => 'Remove account…';
 
   @override
-  String get revokeThisAccount => 'Revoke this account';
+  String get removingAccount => 'Removing account…';
 
   @override
-  String get disconnectThisAccount => 'Disconnect this account';
+  String get removeAccountDescription =>
+      'Stop syncing and remove this account’s data from this device.';
 
   @override
-  String get deleteLocalDataForThisAccount =>
-      'Delete local data for this account';
+  String removeAccountTitle(String account) {
+    return 'Remove $account from BusyMax?';
+  }
+
+  @override
+  String get removeAccountConfirmation =>
+      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Nothing will be deleted from Google or Microsoft.';
+
+  @override
+  String get revokeGoogleAccess =>
+      'Also revoke BusyMax’s access to this Google Account';
+
+  @override
+  String get revokeGoogleAccessDescription =>
+      'You will need to grant access again before reconnecting.';
+
+  @override
+  String get removeAccountAction => 'Remove account';
+
+  @override
+  String get removeAccountFailed =>
+      'Could not finish removing the account. Try again.';
+
+  @override
+  String get accountRemovedGoogleRevokeFailed =>
+      'The account was removed from this device, but BusyMax could not revoke Google access. You can revoke it from your Google Account.';
 
   @override
   String get newList => 'New list';
@@ -666,21 +754,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String dateTimeDisplay(String date, String time) {
     return '$date · $time';
   }
-
-  @override
-  String get searchTasks => 'Search tasks';
-
-  @override
-  String get advancedFilters => 'Advanced filters';
-
-  @override
-  String get showCompleted => 'Show completed';
-
-  @override
-  String get showHidden => 'Show hidden';
-
-  @override
-  String get showAssigned => 'Show assigned';
 
   @override
   String get taskDetails => 'Task details';
@@ -884,23 +957,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get account => 'Account';
 
   @override
-  String get signOut => 'Sign out';
-
-  @override
-  String get revokeGoogleAuthorization => 'Revoke Google authorization';
-
-  @override
-  String get deleteLocalData => 'Delete local data';
-
-  @override
-  String get deleteLocalDataConfirmation =>
-      'This removes the local account, synced tasks, and pending offline changes from this device.';
-
-  @override
   String get sync => 'Sync';
 
   @override
   String get manualFullSync => 'Manual full sync';
+
+  @override
+  String get runInBackgroundWhenClosed =>
+      'Continue running when the window is closed';
+
+  @override
+  String get showTrayIcon => 'Show tray icon';
+
+  @override
+  String get startMinimizedToTray => 'Start minimized to the tray';
+
+  @override
+  String get requiresTrayIcon => 'Requires the tray icon.';
 
   @override
   String get syncComplete => 'Sync complete.';
@@ -918,6 +991,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notifyDueToday => 'Due-today notifications';
+
+  @override
+  String get eventReminders => 'Event reminders';
+
+  @override
+  String get taskReminders => 'Task reminders';
+
+  @override
+  String get notificationDetailLevel => 'Notification detail level';
+
+  @override
+  String get notificationDetailPrivate => 'Private';
+
+  @override
+  String get notificationDetailNormal => 'Normal';
+
+  @override
+  String get quietHours => 'Quiet hours';
+
+  @override
+  String get quietHoursDescription => 'Pause notifications during this period.';
+
+  @override
+  String get quietHoursStart => 'Quiet hours start';
+
+  @override
+  String get quietHoursEnd => 'Quiet hours end';
 
   @override
   String get notifications => 'Notifications';
@@ -955,9 +1055,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get redactTaskContentInDiagnostics =>
       'Redact task content in diagnostics';
-
-  @override
-  String get detailedNotifications => 'Detailed notification text';
 
   @override
   String get developerDiagnostics => 'Developer diagnostics';
@@ -1020,6 +1117,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get discard => 'Discard';
 
   @override
+  String get discardChangesAction => 'Discard';
+
+  @override
   String get discardChanges => 'Discard changes?';
 
   @override
@@ -1070,6 +1170,75 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get eventReminderNotificationTitle => 'Event reminder';
+
+  @override
+  String get taskReminderNotificationTitle => 'Task reminder';
+
+  @override
+  String get eventReminderNotificationBody => 'Event starts soon.';
+
+  @override
+  String get taskReminderNotificationBody => 'Task is due soon.';
+
+  @override
+  String get notificationOpenAction => 'Open';
+
+  @override
   String get notificationDetailsHidden =>
       'Details are hidden by privacy settings.';
+
+  @override
+  String get previousMonth => 'Previous month';
+
+  @override
+  String get nextMonth => 'Next month';
+
+  @override
+  String get openMonthView => 'Open month view';
+
+  @override
+  String get previousYear => 'Previous year';
+
+  @override
+  String get nextYear => 'Next year';
+
+  @override
+  String get openYearView => 'Open year view';
+
+  @override
+  String weekNumberTooltip(int number) {
+    return 'Week $number';
+  }
+
+  @override
+  String get resizeAllDayPanel => 'Resize the all-day panel';
+
+  @override
+  String scheduleItemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get readOnlyCalendar => 'This calendar is read-only.';
+
+  @override
+  String get selectTimeZone => 'Select Timezone';
+
+  @override
+  String get searchLocations => 'Search locations';
+
+  @override
+  String get noLocationsFound => 'No locations found';
+
+  @override
+  String deleteCalendarConfirmation(String title) {
+    return 'Delete \"$title\"?';
+  }
 }

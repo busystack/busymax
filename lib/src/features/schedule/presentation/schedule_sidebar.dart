@@ -9,6 +9,7 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
@@ -43,8 +44,7 @@ class ScheduleSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
-    return Material(
-      color: BusyMaxSurfaceColors.of(context).sidebar,
+    return BusyMaxSidebarSurface(
       child: Column(
         children: [
           MiniCalendar(
@@ -62,7 +62,10 @@ class ScheduleSidebar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
               children: [
                 for (final account in accounts)
-                  _AccountSourcesGroup(account: account),
+                  _AccountSourcesGroup(
+                    key: ValueKey(('schedule-account', account.id)),
+                    account: account,
+                  ),
               ],
             ),
           ),
@@ -73,7 +76,7 @@ class ScheduleSidebar extends ConsumerWidget {
 }
 
 class _SourceRow extends ConsumerWidget {
-  const _SourceRow({required this.source});
+  const _SourceRow({super.key, required this.source});
 
   final CalendarSourceEntity source;
 
@@ -101,6 +104,7 @@ class _SourceRow extends ConsumerWidget {
         ),
         menuButton: BusyMaxMenuButton<String>(
           tooltip: context.l10n.options,
+          highlightWhenOpen: false,
           onSelected: (value) {
             switch (value) {
               case 'refresh':
@@ -129,14 +133,14 @@ class _SourceRow extends ConsumerWidget {
               label: context.l10n.rename,
               icon: Icons.edit_outlined,
               enabled: !source.readOnly,
-              tooltip: source.readOnly ? 'Read-only calendar.' : null,
+              tooltip: source.readOnly ? context.l10n.readOnlyCalendar : null,
             ),
             BusyMaxMenuEntry(
               value: 'delete',
               label: context.l10n.delete,
               icon: YaruIcons.trash,
               enabled: !source.readOnly,
-              tooltip: source.readOnly ? 'Read-only calendar.' : null,
+              tooltip: source.readOnly ? context.l10n.readOnlyCalendar : null,
               destructive: true,
             ),
           ],
@@ -238,23 +242,21 @@ class _SourceVisibilityButton extends StatelessWidget {
       checked: value,
       button: true,
       onTap: () => onChanged(!value),
-      child: YaruIconButton(
+      child: BusyMaxHeaderIconButton(
         tooltip: tooltip,
         iconSize: BusyMaxSizes.sidebarActionIcon,
         icon: Icon(YaruIcons.checkmark, color: iconColor),
         onPressed: () => onChanged(!value),
-        style: busyMaxHeaderIconButtonStyle(
-          foregroundColor: iconColor,
-          backgroundColor: busyMaxSubtleButtonBackground(context),
-          overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-        ),
+        foregroundColor: iconColor,
+        backgroundColor: busyMaxSubtleButtonBackground(context),
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
     );
   }
 }
 
 class _AccountSourcesGroup extends ConsumerStatefulWidget {
-  const _AccountSourcesGroup({required this.account});
+  const _AccountSourcesGroup({super.key, required this.account});
 
   final AccountEntity account;
 
@@ -299,7 +301,15 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
               return Column(
                 children: [
                   for (final list in lists)
-                    _TaskListScheduleRow(account: account, list: list),
+                    _TaskListScheduleRow(
+                      key: ValueKey((
+                        'schedule-task-list',
+                        list.accountId,
+                        list.id,
+                      )),
+                      account: account,
+                      list: list,
+                    ),
                 ],
               );
             },
@@ -361,7 +371,7 @@ class _AccountHeaderRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: BusyMaxSpacing.xs),
-          YaruIconButton(
+          BusyMaxHeaderIconButton(
             tooltip: expanded
                 ? MaterialLocalizations.of(context).expandedIconTapHint
                 : MaterialLocalizations.of(context).collapsedIconTapHint,
@@ -369,14 +379,15 @@ class _AccountHeaderRow extends StatelessWidget {
             icon: AnimatedRotation(
               turns: expanded ? 0.25 : 0,
               duration: const Duration(milliseconds: 160),
-              child: const Icon(YaruIcons.pan_end, size: 16),
+              child: Icon(
+                BusyMaxGlyphs.collapsedFor(Directionality.of(context)),
+                size: 16,
+              ),
             ),
             onPressed: onToggleExpanded,
-            style: busyMaxHeaderIconButtonStyle(
-              foregroundColor: colorScheme.onSurfaceVariant,
-              backgroundColor: busyMaxSubtleButtonBackground(context),
-              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-            ),
+            foregroundColor: colorScheme.onSurfaceVariant,
+            backgroundColor: busyMaxSubtleButtonBackground(context),
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           ),
         ],
       ),
@@ -412,7 +423,17 @@ class _AccountCalendarSources extends ConsumerWidget {
           );
         }
         return Column(
-          children: [for (final source in sources) _SourceRow(source: source)],
+          children: [
+            for (final source in sources)
+              _SourceRow(
+                key: ValueKey((
+                  'schedule-calendar',
+                  source.accountId,
+                  source.id,
+                )),
+                source: source,
+              ),
+          ],
         );
       },
     );
@@ -444,7 +465,11 @@ class _SourceDot extends StatelessWidget {
 }
 
 class _TaskListScheduleRow extends ConsumerWidget {
-  const _TaskListScheduleRow({required this.account, required this.list});
+  const _TaskListScheduleRow({
+    super.key,
+    required this.account,
+    required this.list,
+  });
 
   final AccountEntity account;
   final TaskListEntity list;
@@ -456,7 +481,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
       list.accountId,
       list.id,
     );
-    final title = _taskListLabel(account, list);
+    final title = _taskListLabel(context, account, list);
     return _CompactSourceRow(
       title: title,
       leading: _SourceDot(
@@ -478,6 +503,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
         ),
         menuButton: BusyMaxMenuButton<String>(
           tooltip: context.l10n.options,
+          highlightWhenOpen: false,
           onSelected: (value) {
             switch (value) {
               case 'refresh':
@@ -527,10 +553,14 @@ class _TaskListScheduleRow extends ConsumerWidget {
   }
 }
 
-String _taskListLabel(AccountEntity account, TaskListEntity list) {
+String _taskListLabel(
+  BuildContext context,
+  AccountEntity account,
+  TaskListEntity list,
+) {
   final provider = account.provider == BusyProvider.google
-      ? 'Google Tasks'
-      : 'Microsoft To Do';
+      ? context.l10n.googleTasksProvider
+      : context.l10n.microsoftTodoProvider;
   final title = list.title.trim();
   if (title.isEmpty ||
       title.toLowerCase() == provider.toLowerCase() ||
@@ -576,8 +606,8 @@ Future<void> _refreshCalendarSource(
 ) async {
   try {
     await ref
-        .read(calendarSyncEngineForAccountFactoryProvider)(source.accountId)
-        .incrementalSync();
+        .read(accountSyncOperationsProvider)
+        .syncCalendar(source.accountId, full: false);
   } on Object catch (error) {
     if (!context.mounted) {
       return;
@@ -593,8 +623,8 @@ Future<void> _refreshTaskListAccount(
 ) async {
   try {
     await ref
-        .read(syncEngineForAccountFactoryProvider)(accountId)
-        .incrementalSync();
+        .read(accountSyncOperationsProvider)
+        .syncTasks(accountId, full: false);
   } on Object catch (error) {
     if (!context.mounted) {
       return;
@@ -644,8 +674,12 @@ Future<void> _renameCalendar(
     label: context.l10n.title,
     actionLabel: context.l10n.rename,
     initialValue: source.summary,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
-  if (title == null || title.trim().isEmpty || title.trim() == source.summary) {
+  if (!context.mounted ||
+      title == null ||
+      title.trim().isEmpty ||
+      title.trim() == source.summary) {
     return;
   }
   await ref
@@ -661,9 +695,10 @@ Future<void> _deleteCalendar(
   final confirmed = await showBusyMaxConfirm(
     context,
     title: context.l10n.delete,
-    message: 'Delete "${source.summary}"?',
+    message: context.l10n.deleteCalendarConfirmation(source.summary),
     confirmLabel: context.l10n.delete,
     destructive: true,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;
@@ -682,8 +717,12 @@ Future<void> _renameTaskList(
     label: context.l10n.title,
     actionLabel: context.l10n.rename,
     initialValue: list.title,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
-  if (title == null || title.trim().isEmpty || title.trim() == list.title) {
+  if (!context.mounted ||
+      title == null ||
+      title.trim().isEmpty ||
+      title.trim() == list.title) {
     return;
   }
   await ref
@@ -702,6 +741,7 @@ Future<void> _deleteTaskList(
     message: context.l10n.deleteListConfirmation(list.title),
     confirmLabel: context.l10n.delete,
     destructive: true,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;

@@ -62,10 +62,19 @@ class ScheduleTaskChip extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
+            mouseCursor: onTap == null
+                ? MouseCursor.defer
+                : SystemMouseCursors.click,
             onTapDown: onTap == null
                 ? null
                 : (details) => pointerDownPosition = details.globalPosition,
             onTap: onTap == null
+                ? null
+                : () => onTap!(context, pointerDownPosition),
+            onSecondaryTapDown: onTap == null
+                ? null
+                : (details) => pointerDownPosition = details.globalPosition,
+            onSecondaryTap: onTap == null
                 ? null
                 : () => onTap!(context, pointerDownPosition),
             child: Container(
@@ -77,7 +86,7 @@ class ScheduleTaskChip extends StatelessWidget {
                 color: surfaceColors.control,
                 borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
                 border: Border(
-                  left: BorderSide(color: surfaceColors.subtleBorder, width: 3),
+                  left: BorderSide(color: surfaceColors.divider, width: 3),
                 ),
               ),
               child: showContent

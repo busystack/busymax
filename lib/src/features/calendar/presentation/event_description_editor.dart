@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_yaru_theme.dart';
@@ -102,8 +101,8 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
             child: Row(
               children: [
                 _FormatButton(
-                  label: 'B',
-                  tooltip: 'Bold',
+                  label: context.l10n.formatBoldShortLabel,
+                  tooltip: context.l10n.formatBoldTooltip,
                   active: _controller.selectionHasStyle(
                     CalendarDescriptionInlineStyle.bold,
                   ),
@@ -112,8 +111,8 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
                 ),
                 const SizedBox(width: BusyMaxSpacing.xs),
                 _FormatButton(
-                  label: 'I',
-                  tooltip: 'Italic',
+                  label: context.l10n.formatItalicShortLabel,
+                  tooltip: context.l10n.formatItalicTooltip,
                   active: _controller.selectionHasStyle(
                     CalendarDescriptionInlineStyle.italic,
                   ),
@@ -123,8 +122,8 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
                 ),
                 const SizedBox(width: BusyMaxSpacing.xs),
                 _FormatButton(
-                  label: 'U',
-                  tooltip: 'Underline',
+                  label: context.l10n.formatUnderlineShortLabel,
+                  tooltip: context.l10n.formatUnderlineTooltip,
                   active: _controller.selectionHasStyle(
                     CalendarDescriptionInlineStyle.underline,
                   ),
@@ -181,19 +180,17 @@ class _FormatButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: SizedBox.square(
-        dimension: BusyMaxSizes.pushButtonHeight,
-        child: YaruIconButton(
+        dimension: BusyMaxSizes.headerIconButton,
+        child: BusyMaxHeaderIconButton(
           tooltip: tooltip,
           onPressed: onPressed,
-          style: busyMaxHeaderIconButtonStyle(
-            foregroundColor: Theme.of(context).colorScheme.onSurface,
-            backgroundColor: WidgetStateProperty.resolveWith((states) {
-              if (active || states.contains(WidgetState.hovered)) {
-                return surfaceColors.controlHover;
-              }
-              return Colors.transparent;
-            }),
-          ),
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (active || states.contains(WidgetState.hovered)) {
+              return surfaceColors.controlHover;
+            }
+            return Colors.transparent;
+          }),
           icon: Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(

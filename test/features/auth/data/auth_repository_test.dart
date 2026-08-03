@@ -95,6 +95,26 @@ void main() {
     expect(await database.select(database.accounts).get(), isEmpty);
   });
 
+  test('revocation failure does not mask missing-scope guidance', () async {
+    oAuth.nextTokenSet = _tokenSet(scopes: {googleTasksReadOnlyScope});
+    oAuth.revokeAndSignOutError = StateError('revocation unavailable');
+
+    await expectLater(
+      repository.signIn(),
+      throwsA(
+        isA<OAuthException>().having(
+          (error) => error.code,
+          'code',
+          'OAuthMissingRequiredScope',
+        ),
+      ),
+    );
+
+    expect(oAuth.revoked, isTrue);
+    expect(oAuth.revokedAccountId, 'account-1');
+    expect(await database.select(database.accounts).get(), isEmpty);
+  });
+
   test(
     'loadSession does not touch token storage on signed-out startup',
     () async {
@@ -123,29 +143,6 @@ void main() {
     },
   );
 
-  test('revokeAndSignOut marks account signed out', () async {
-    await repository.signIn();
-
-    await repository.revokeAndSignOut();
-
-    final account = await database.select(database.accounts).getSingle();
-    expect(account.authState, 'signed_out');
-    expect(oAuth.revoked, isTrue);
-    expect(oAuth.revokedAccountId, 'account-1');
-  });
-
-  test('signOut marks account signed out without revoking', () async {
-    await repository.signIn();
-
-    await repository.signOut();
-
-    final account = await database.select(database.accounts).getSingle();
-    expect(account.authState, 'signed_out');
-    expect(oAuth.signedOut, isTrue);
-    expect(oAuth.signedOutAccountId, 'account-1');
-    expect(oAuth.revoked, isFalse);
-  });
-
   test(
     'markReconnectRequired keeps account row visible but not syncable',
     () async {
@@ -161,7 +158,7 @@ void main() {
           .watchVisibleAccounts()
           .first;
 
-      expect(oAuth.signedOutAccountId, 'google:g');
+      expect(oAuth.clearedAccountId, 'google:g');
       expect(account.authState, accountAuthStateReauthRequired);
       expect(signedInAccounts, isEmpty);
       expect(visibleAccounts.single.needsReconnect, isTrue);
@@ -183,109 +180,27 @@ void main() {
     expect(notifications.single.title, 'Private google-b reminder');
   });
 
-  test('signOut Google account does not sign out Microsoft account', () async {
-    final microsoftOAuth = _FakeMicrosoftOAuthService();
-    repository = AuthRepository(
-      oAuth: oAuth,
-      database: database,
-      microsoftOAuth: microsoftOAuth,
-      nowUtc: () => DateTime.utc(2026, 6, 4),
-    );
-    await _insertAccount(database, 'google-a', TaskProvider.google);
-    await _insertAccount(database, 'microsoft:m', TaskProvider.microsoft);
-
-    await repository.signOut(accountId: 'google-a');
-
-    final accounts = await database.select(database.accounts).get();
-    expect(oAuth.signedOutAccountId, 'google-a');
-    expect(microsoftOAuth.signOutAccountIds, isEmpty);
-    expect(_authState(accounts, 'google-a'), 'signed_out');
-    expect(_authState(accounts, 'microsoft:m'), 'signed_in');
-  });
-
-  test('signOut removes only the target account notifications', () async {
-    await _insertAccount(database, 'google-a', TaskProvider.google);
-    await _insertAccount(database, 'google-b', TaskProvider.google);
-    await _insertNotification(database, 'google-a');
-    await _insertNotification(database, 'google-b');
-
-    await repository.signOut(accountId: 'google-a');
-
-    final notifications = await database
-        .select(database.notificationSchedule)
-        .get();
-    expect(notifications.map((row) => row.accountId), ['google-b']);
-    expect(notifications.single.title, 'Private google-b reminder');
-  });
-
-  test('signOut Microsoft account does not sign out Google account', () async {
-    final microsoftOAuth = _FakeMicrosoftOAuthService();
-    repository = AuthRepository(
-      oAuth: oAuth,
-      database: database,
-      microsoftOAuth: microsoftOAuth,
-      nowUtc: () => DateTime.utc(2026, 6, 4),
-    );
-    await _insertAccount(database, 'google:g', TaskProvider.google);
-    await _insertAccount(database, 'microsoft:m', TaskProvider.microsoft);
-
-    await repository.signOut(accountId: 'microsoft:m');
-
-    final accounts = await database.select(database.accounts).get();
-    expect(oAuth.signedOut, isFalse);
-    expect(microsoftOAuth.signOutAccountIds, ['microsoft:m']);
-    expect(_authState(accounts, 'google:g'), 'signed_in');
-    expect(_authState(accounts, 'microsoft:m'), 'signed_out');
-  });
-
-  test('deleteLocalAccountData removes account row and local tokens', () async {
-    await repository.signIn();
-
-    await repository.deleteLocalAccountData(accountId: 'account-1');
-
-    expect(await database.select(database.accounts).get(), isEmpty);
-    expect(oAuth.signedOutAccountId, 'account-1');
-  });
-
-  test('deleteLocalAccountData removes only target account row', () async {
-    await repository.signIn();
-    await database
-        .into(database.accounts)
-        .insert(
-          AccountsCompanion.insert(
-            id: 'account-2',
-            createdAtUtc: '2026-06-04T00:00:00.000Z',
-            updatedAtUtc: '2026-06-04T00:00:00.000Z',
-            authState: const Value('signed_in'),
-          ),
-        );
-
-    await repository.deleteLocalAccountData(accountId: 'account-1');
-
-    final accounts = await database.select(database.accounts).get();
-    expect(accounts.map((account) => account.id), ['account-2']);
-    expect(oAuth.signedOutAccountId, 'account-1');
-  });
-
   test(
-    'deleteLocalAccountData removes only target account notifications',
+    'markReconnectRequired selects credential storage by provider',
     () async {
-      await _insertAccount(database, 'google-a', TaskProvider.google);
-      await _insertAccount(database, 'google-b', TaskProvider.google);
-      await _insertNotification(database, 'google-a');
-      await _insertNotification(database, 'google-b');
+      final microsoftOAuth = _FakeMicrosoftOAuthService();
+      repository = AuthRepository(
+        oAuth: oAuth,
+        database: database,
+        microsoftOAuth: microsoftOAuth,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      const opaqueAccountId = 'opaque-account-id';
+      await _insertAccount(database, opaqueAccountId, TaskProvider.microsoft);
 
-      await repository.deleteLocalAccountData(accountId: 'google-a');
+      await repository.markReconnectRequired(opaqueAccountId);
 
-      final notifications = await database
-          .select(database.notificationSchedule)
-          .get();
-      expect(notifications.map((row) => row.accountId), ['google-b']);
-      expect(notifications.single.title, 'Private google-b reminder');
+      expect(microsoftOAuth.signOutAccountIds, [opaqueAccountId]);
+      expect(oAuth.clearedAccountId, null);
     },
   );
 
-  test('revoking Google account does not sign out Microsoft account', () async {
+  test('removeAccount removes only the selected Google account', () async {
     final microsoftOAuth = _FakeMicrosoftOAuthService();
     repository = AuthRepository(
       oAuth: oAuth,
@@ -294,60 +209,151 @@ void main() {
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
     await _insertAccount(database, 'google-a', TaskProvider.google);
-    await _insertAccount(database, 'google-b', TaskProvider.google);
     await _insertAccount(database, 'microsoft:m', TaskProvider.microsoft);
+    await _insertNotification(database, 'google-a');
+    await _insertNotification(database, 'microsoft:m');
 
-    await repository.revokeAndSignOut(accountId: 'google-a');
+    final result = await repository.removeAccount(accountId: 'google-a');
 
     final accounts = await database.select(database.accounts).get();
-    expect(oAuth.revokedAccountId, 'google-a');
-    expect(microsoftOAuth.signOutAccountIds, isEmpty);
-    expect(_authState(accounts, 'google-a'), 'signed_out');
-    expect(_authState(accounts, 'google-b'), 'signed_in');
-    expect(_authState(accounts, 'microsoft:m'), 'signed_in');
-  });
-
-  test('revoke removes only the target account notifications', () async {
-    await _insertAccount(database, 'google-a', TaskProvider.google);
-    await _insertAccount(database, 'google-b', TaskProvider.google);
-    await _insertNotification(database, 'google-a');
-    await _insertNotification(database, 'google-b');
-
-    await repository.revokeAndSignOut(accountId: 'google-a');
-
     final notifications = await database
         .select(database.notificationSchedule)
         .get();
-    expect(notifications.map((row) => row.accountId), ['google-b']);
-    expect(notifications.single.title, 'Private google-b reminder');
+    expect(
+      result.authorizationRevocationStatus,
+      AccountAuthorizationRevocationStatus.notRequested,
+    );
+    expect(oAuth.clearedAccountId, 'google-a');
+    expect(oAuth.revoked, isFalse);
+    expect(microsoftOAuth.signOutAccountIds, isEmpty);
+    expect(accounts.map((account) => account.id), ['microsoft:m']);
+    expect(notifications.map((row) => row.accountId), ['microsoft:m']);
   });
 
-  test('revoking Microsoft account does not revoke Google account', () async {
-    final microsoftOAuth = _FakeMicrosoftOAuthService();
-    repository = AuthRepository(
-      oAuth: oAuth,
-      database: database,
-      microsoftOAuth: microsoftOAuth,
-      nowUtc: () => DateTime.utc(2026, 6, 4),
-    );
-    await _insertAccount(database, 'google:g', TaskProvider.google);
-    await _insertAccount(database, 'microsoft:m', TaskProvider.microsoft);
+  test(
+    'removeAccount clears Microsoft credentials without Google revocation',
+    () async {
+      final microsoftOAuth = _FakeMicrosoftOAuthService();
+      repository = AuthRepository(
+        oAuth: oAuth,
+        database: database,
+        microsoftOAuth: microsoftOAuth,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await _insertAccount(database, 'google:g', TaskProvider.google);
+      await _insertAccount(database, 'microsoft:m', TaskProvider.microsoft);
 
-    await repository.revokeAndSignOut(accountId: 'microsoft:m');
+      final result = await repository.removeAccount(
+        accountId: 'microsoft:m',
+        revokeAuthorization: true,
+      );
 
-    final accounts = await database.select(database.accounts).get();
-    expect(oAuth.revoked, isFalse);
-    expect(microsoftOAuth.signOutAccountIds, ['microsoft:m']);
-    expect(_authState(accounts, 'google:g'), 'signed_in');
-    expect(_authState(accounts, 'microsoft:m'), 'signed_out');
+      final accounts = await database.select(database.accounts).get();
+      expect(
+        result.authorizationRevocationStatus,
+        AccountAuthorizationRevocationStatus.notRequested,
+      );
+      expect(oAuth.revoked, isFalse);
+      expect(oAuth.clearedAccountId, null);
+      expect(microsoftOAuth.signOutAccountIds, ['microsoft:m']);
+      expect(accounts.map((account) => account.id), ['google:g']);
+    },
+  );
+
+  test(
+    'removeAccount can revoke Google authorization before local cleanup',
+    () async {
+      await repository.signIn();
+
+      final result = await repository.removeAccount(
+        accountId: 'account-1',
+        revokeAuthorization: true,
+      );
+
+      expect(await database.select(database.accounts).get(), isEmpty);
+      expect(
+        result.authorizationRevocationStatus,
+        AccountAuthorizationRevocationStatus.succeeded,
+      );
+      expect(oAuth.revokedAccountId, 'account-1');
+      expect(oAuth.clearedAccountId, 'account-1');
+    },
+  );
+
+  test(
+    'removeAccount reports revocation failure but still removes locally',
+    () async {
+      await repository.signIn();
+      oAuth.revocationError = const OAuthException(
+        'OAuthRevocationFailed',
+        'offline',
+      );
+
+      final result = await repository.removeAccount(
+        accountId: 'account-1',
+        revokeAuthorization: true,
+      );
+
+      expect(result.authorizationRevocationFailed, isTrue);
+      expect(oAuth.clearedAccountId, 'account-1');
+      expect(await database.select(database.accounts).get(), isEmpty);
+    },
+  );
+
+  test('removeAccount cascades pending offline operations', () async {
+    await _insertAccount(database, 'google-a', TaskProvider.google);
+    await database
+        .into(database.pendingOps)
+        .insert(
+          PendingOpsCompanion.insert(
+            id: 'pending-1',
+            accountId: 'google-a',
+            entityType: 'task',
+            operation: 'patch_task',
+            requestJson: '{}',
+            createdAtUtc: '2026-06-04T00:00:00.000Z',
+            updatedAtUtc: '2026-06-04T00:00:00.000Z',
+          ),
+        );
+
+    await repository.removeAccount(accountId: 'google-a');
+
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  test(
+    'removeAccount keeps local data when credential cleanup fails',
+    () async {
+      await repository.signIn();
+      oAuth.clearError = const OAuthException(
+        'SecureStorageFailure',
+        'unavailable',
+      );
+
+      await expectLater(
+        repository.removeAccount(accountId: 'account-1'),
+        throwsA(isA<OAuthException>()),
+      );
+
+      expect(await database.select(database.accounts).get(), hasLength(1));
+    },
+  );
+
+  test('removeAccount is idempotent when the row is already absent', () async {
+    final result = await repository.removeAccount(accountId: 'missing');
+
+    expect(result.alreadyRemoved, isTrue);
+    expect(oAuth.clearedAccountId, null);
   });
 }
 
 class FakeOAuthGateway implements OAuthGateway {
   var revoked = false;
-  var signedOut = false;
   String? revokedAccountId;
-  String? signedOutAccountId;
+  String? clearedAccountId;
+  Object? revocationError;
+  Object? revokeAndSignOutError;
+  Object? clearError;
   String? activeId;
   var activeAccountIdReads = 0;
   var readActiveTokenSetCalls = 0;
@@ -381,38 +387,38 @@ class FakeOAuthGateway implements OAuthGateway {
   Future<OAuthTokenSet> refreshActiveToken() async => nextTokenSet;
 
   @override
-  Future<void> signOutAccount(String accountId) async {
-    signedOut = true;
-    signedOutAccountId = accountId;
-    if (activeId == accountId) {
-      activeId = null;
-    }
-  }
-
-  @override
-  Future<void> signOut() async {
-    signedOut = true;
-    activeId = null;
-  }
-
-  @override
   Future<void> revokeAndSignOutAccount(String accountId) async {
     revoked = true;
     revokedAccountId = accountId;
     if (activeId == accountId) {
       activeId = null;
     }
+    final error = revokeAndSignOutError;
+    if (error != null) {
+      throw error;
+    }
   }
 
   @override
-  Future<void> revokeAndSignOut() async {
+  Future<void> revokeAuthorization(String accountId) async {
+    final error = revocationError;
+    if (error != null) {
+      throw error;
+    }
     revoked = true;
-    activeId = null;
+    revokedAccountId = accountId;
   }
 
   @override
   Future<void> clearLocalSession({String? accountId}) async {
-    activeId = null;
+    final error = clearError;
+    if (error != null) {
+      throw error;
+    }
+    clearedAccountId = accountId;
+    if (accountId == null || activeId == accountId) {
+      activeId = null;
+    }
   }
 
   @override
@@ -466,10 +472,6 @@ Future<void> _insertNotification(AppDatabase database, String accountId) {
           updatedAtLocal: 0,
         ),
       );
-}
-
-String _authState(List<Account> accounts, String id) {
-  return accounts.singleWhere((account) => account.id == id).authState;
 }
 
 class _FakeMicrosoftOAuthService extends MicrosoftOAuthService {

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../l10n/app_locale.dart';
 import '../schedule/schedule_view_mode.dart';
 
 enum BusyMaxThemeFamily { yaru }
@@ -18,6 +19,7 @@ enum NotificationDetailLevel { private, normal }
 
 const defaultScheduleDayStartMinute = 7 * 60;
 const defaultScheduleDayEndMinute = 22 * 60;
+const Object _unset = Object();
 
 extension BusyMaxThemeModePreferenceX on BusyMaxThemeModePreference {
   ThemeMode get themeMode {
@@ -33,6 +35,7 @@ class AppSettings {
   const AppSettings({
     required this.themeFamily,
     required this.themeModePreference,
+    required this.localeTag,
     required this.notifySyncFailures,
     required this.notifyConflicts,
     required this.notifyDueToday,
@@ -47,7 +50,6 @@ class AppSettings {
     required this.quietHoursStart,
     required this.quietHoursEnd,
     required this.redactTaskContentInDiagnostics,
-    required this.detailedNotifications,
     required this.lastDueTodayNotificationDate,
     required this.taskListScheduleVisibility,
     required this.scheduleViewMode,
@@ -59,6 +61,7 @@ class AppSettings {
     return const AppSettings(
       themeFamily: BusyMaxThemeFamily.yaru,
       themeModePreference: BusyMaxThemeModePreference.system,
+      localeTag: null,
       notifySyncFailures: true,
       notifyConflicts: true,
       notifyDueToday: false,
@@ -73,7 +76,6 @@ class AppSettings {
       quietHoursStart: '22:00',
       quietHoursEnd: '07:00',
       redactTaskContentInDiagnostics: true,
-      detailedNotifications: false,
       lastDueTodayNotificationDate: null,
       taskListScheduleVisibility: <String, bool>{},
       scheduleViewMode: ScheduleViewMode.week,
@@ -102,16 +104,37 @@ class AppSettings {
       fallbackStart: defaults.scheduleDayStartMinute,
       fallbackEnd: defaults.scheduleDayEndMinute,
     );
-    final detailedNotifications =
-        json['detailedNotifications'] as bool? ??
-        defaults.detailedNotifications;
-    final notificationDetailLevel = detailedNotifications
-        ? NotificationDetailLevel.normal
-        : _enumFromName(
-            NotificationDetailLevel.values,
-            json['notificationDetailLevel'],
-            defaults.notificationDetailLevel,
-          );
+    final notificationDetailLevel =
+        _enumFromNameOrNull(
+          NotificationDetailLevel.values,
+          json['notificationDetailLevel'],
+        ) ??
+        switch (json['detailedNotifications']) {
+          true => NotificationDetailLevel.normal,
+          false => NotificationDetailLevel.private,
+          _ => defaults.notificationDetailLevel,
+        };
+    var quietHoursStart = _normalizedTimeOfDay(
+      json['quietHoursStart'],
+      defaults.quietHoursStart,
+    );
+    var quietHoursEnd = _normalizedTimeOfDay(
+      json['quietHoursEnd'],
+      defaults.quietHoursEnd,
+    );
+    if (quietHoursStart == quietHoursEnd) {
+      quietHoursStart = defaults.quietHoursStart;
+      quietHoursEnd = defaults.quietHoursEnd;
+    }
+    final runInBackgroundWhenClosed =
+        json['runInBackgroundWhenClosed'] as bool? ??
+        defaults.runInBackgroundWhenClosed;
+    final startMinimizedToTray =
+        json['startMinimizedToTray'] as bool? ?? defaults.startMinimizedToTray;
+    final showTrayIcon =
+        (json['showTrayIcon'] as bool? ?? defaults.showTrayIcon) ||
+        runInBackgroundWhenClosed ||
+        startMinimizedToTray;
     return AppSettings(
       themeFamily: _enumFromName(
         BusyMaxThemeFamily.values,
@@ -123,6 +146,7 @@ class AppSettings {
         json['themeModePreference'],
         defaults.themeModePreference,
       ),
+      localeTag: normalizeBusyMaxLocaleTag(json['localeTag']?.toString()),
       notifySyncFailures:
           json['notifySyncFailures'] as bool? ?? defaults.notifySyncFailures,
       notifyConflicts:
@@ -134,26 +158,19 @@ class AppSettings {
           defaults.notifyEventReminders,
       notifyTaskReminders:
           json['notifyTaskReminders'] as bool? ?? defaults.notifyTaskReminders,
-      runInBackgroundWhenClosed:
-          json['runInBackgroundWhenClosed'] as bool? ??
-          defaults.runInBackgroundWhenClosed,
-      showTrayIcon: json['showTrayIcon'] as bool? ?? defaults.showTrayIcon,
-      startMinimizedToTray:
-          json['startMinimizedToTray'] as bool? ??
-          defaults.startMinimizedToTray,
+      runInBackgroundWhenClosed: runInBackgroundWhenClosed,
+      showTrayIcon: showTrayIcon,
+      startMinimizedToTray: startMinimizedToTray,
       quitExitsCompletely:
           json['quitExitsCompletely'] as bool? ?? defaults.quitExitsCompletely,
       notificationDetailLevel: notificationDetailLevel,
       quietHoursEnabled:
           json['quietHoursEnabled'] as bool? ?? defaults.quietHoursEnabled,
-      quietHoursStart:
-          json['quietHoursStart']?.toString() ?? defaults.quietHoursStart,
-      quietHoursEnd:
-          json['quietHoursEnd']?.toString() ?? defaults.quietHoursEnd,
+      quietHoursStart: quietHoursStart,
+      quietHoursEnd: quietHoursEnd,
       redactTaskContentInDiagnostics:
           json['redactTaskContentInDiagnostics'] as bool? ??
           defaults.redactTaskContentInDiagnostics,
-      detailedNotifications: detailedNotifications,
       lastDueTodayNotificationDate: json['lastDueTodayNotificationDate']
           ?.toString(),
       taskListScheduleVisibility: _boolMap(json['taskListScheduleVisibility']),
@@ -169,6 +186,7 @@ class AppSettings {
 
   final BusyMaxThemeFamily themeFamily;
   final BusyMaxThemeModePreference themeModePreference;
+  final String? localeTag;
   final bool notifySyncFailures;
   final bool notifyConflicts;
   final bool notifyDueToday;
@@ -183,7 +201,6 @@ class AppSettings {
   final String quietHoursStart;
   final String quietHoursEnd;
   final bool redactTaskContentInDiagnostics;
-  final bool detailedNotifications;
   final String? lastDueTodayNotificationDate;
   final Map<String, bool> taskListScheduleVisibility;
   final ScheduleViewMode scheduleViewMode;
@@ -192,10 +209,13 @@ class AppSettings {
 
   ThemeMode get themeMode => themeModePreference.themeMode;
 
+  Locale? get locale => busyMaxLocaleFromTag(localeTag);
+
   Map<String, Object?> toJson() {
     return {
       'themeFamily': themeFamily.name,
       'themeModePreference': themeModePreference.name,
+      'localeTag': localeTag,
       'notifySyncFailures': notifySyncFailures,
       'notifyConflicts': notifyConflicts,
       'notifyDueToday': notifyDueToday,
@@ -210,7 +230,6 @@ class AppSettings {
       'quietHoursStart': quietHoursStart,
       'quietHoursEnd': quietHoursEnd,
       'redactTaskContentInDiagnostics': redactTaskContentInDiagnostics,
-      'detailedNotifications': detailedNotifications,
       'lastDueTodayNotificationDate': lastDueTodayNotificationDate,
       'taskListScheduleVisibility': taskListScheduleVisibility,
       'scheduleViewMode': scheduleViewMode.name,
@@ -222,6 +241,7 @@ class AppSettings {
   AppSettings copyWith({
     BusyMaxThemeFamily? themeFamily,
     BusyMaxThemeModePreference? themeModePreference,
+    Object? localeTag = _unset,
     bool? notifySyncFailures,
     bool? notifyConflicts,
     bool? notifyDueToday,
@@ -236,7 +256,6 @@ class AppSettings {
     String? quietHoursStart,
     String? quietHoursEnd,
     bool? redactTaskContentInDiagnostics,
-    bool? detailedNotifications,
     String? lastDueTodayNotificationDate,
     Map<String, bool>? taskListScheduleVisibility,
     ScheduleViewMode? scheduleViewMode,
@@ -256,6 +275,9 @@ class AppSettings {
     return AppSettings(
       themeFamily: themeFamily ?? this.themeFamily,
       themeModePreference: themeModePreference ?? this.themeModePreference,
+      localeTag: identical(localeTag, _unset)
+          ? this.localeTag
+          : normalizeBusyMaxLocaleTag(localeTag as String?),
       notifySyncFailures: notifySyncFailures ?? this.notifySyncFailures,
       notifyConflicts: notifyConflicts ?? this.notifyConflicts,
       notifyDueToday: notifyDueToday ?? this.notifyDueToday,
@@ -273,8 +295,6 @@ class AppSettings {
       quietHoursEnd: quietHoursEnd ?? this.quietHoursEnd,
       redactTaskContentInDiagnostics:
           redactTaskContentInDiagnostics ?? this.redactTaskContentInDiagnostics,
-      detailedNotifications:
-          detailedNotifications ?? this.detailedNotifications,
       lastDueTodayNotificationDate: clearLastDueTodayNotificationDate
           ? null
           : lastDueTodayNotificationDate ?? this.lastDueTodayNotificationDate,
@@ -332,9 +352,15 @@ class JsonFileLocalSettingsStore implements LocalSettingsStore {
 typedef _AppSettingsMutation = AppSettings Function(AppSettings current);
 
 class AppSettingsController extends StateNotifier<AppSettings> {
-  AppSettingsController(this._store) : super(AppSettings.defaults()) {
+  AppSettingsController(this._store, {AppSettings? initialSettings})
+    : super(initialSettings ?? AppSettings.defaults()) {
     _persistenceState = state;
-    _loadFuture = _load();
+    if (initialSettings == null) {
+      _loadFuture = _load();
+    } else {
+      _loadComplete = true;
+      _loadFuture = Future<void>.value();
+    }
     _writeTail = _loadFuture;
   }
 
@@ -353,6 +379,10 @@ class AppSettingsController extends StateNotifier<AppSettings> {
     return _mutate(
       (current) => current.copyWith(themeModePreference: preference),
     );
+  }
+
+  Future<void> setLocaleTag(String? localeTag) {
+    return _mutate((current) => current.copyWith(localeTag: localeTag));
   }
 
   Future<void> setScheduleViewMode(ScheduleViewMode mode) {
@@ -413,17 +443,31 @@ class AppSettingsController extends StateNotifier<AppSettings> {
 
   Future<void> setRunInBackgroundWhenClosed(bool enabled) {
     return _mutate(
-      (current) => current.copyWith(runInBackgroundWhenClosed: enabled),
+      (current) => current.copyWith(
+        runInBackgroundWhenClosed: enabled,
+        showTrayIcon: enabled ? true : current.showTrayIcon,
+      ),
     );
   }
 
   Future<void> setShowTrayIcon(bool enabled) {
-    return _mutate((current) => current.copyWith(showTrayIcon: enabled));
+    return _mutate(
+      (current) => current.copyWith(
+        showTrayIcon: enabled,
+        runInBackgroundWhenClosed: enabled
+            ? current.runInBackgroundWhenClosed
+            : false,
+        startMinimizedToTray: enabled ? current.startMinimizedToTray : false,
+      ),
+    );
   }
 
   Future<void> setStartMinimizedToTray(bool enabled) {
     return _mutate(
-      (current) => current.copyWith(startMinimizedToTray: enabled),
+      (current) => current.copyWith(
+        startMinimizedToTray: enabled,
+        showTrayIcon: enabled ? true : current.showTrayIcon,
+      ),
     );
   }
 
@@ -433,10 +477,7 @@ class AppSettingsController extends StateNotifier<AppSettings> {
 
   Future<void> setNotificationDetailLevel(NotificationDetailLevel level) {
     return _mutate(
-      (current) => current.copyWith(
-        notificationDetailLevel: level,
-        detailedNotifications: level != NotificationDetailLevel.private,
-      ),
+      (current) => current.copyWith(notificationDetailLevel: level),
     );
   }
 
@@ -444,20 +485,29 @@ class AppSettingsController extends StateNotifier<AppSettings> {
     return _mutate((current) => current.copyWith(quietHoursEnabled: enabled));
   }
 
+  Future<void> setQuietHoursStart(String time) {
+    return _mutate((current) {
+      final normalized = _normalizedTimeOfDay(time, current.quietHoursStart);
+      if (normalized == current.quietHoursEnd) {
+        return current;
+      }
+      return current.copyWith(quietHoursStart: normalized);
+    });
+  }
+
+  Future<void> setQuietHoursEnd(String time) {
+    return _mutate((current) {
+      final normalized = _normalizedTimeOfDay(time, current.quietHoursEnd);
+      if (normalized == current.quietHoursStart) {
+        return current;
+      }
+      return current.copyWith(quietHoursEnd: normalized);
+    });
+  }
+
   Future<void> setRedactTaskContentInDiagnostics(bool enabled) {
     return _mutate(
       (current) => current.copyWith(redactTaskContentInDiagnostics: enabled),
-    );
-  }
-
-  Future<void> setDetailedNotifications(bool enabled) {
-    return _mutate(
-      (current) => current.copyWith(
-        detailedNotifications: enabled,
-        notificationDetailLevel: enabled
-            ? NotificationDetailLevel.normal
-            : NotificationDetailLevel.private,
-      ),
     );
   }
 
@@ -480,12 +530,7 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   }
 
   Future<void> _load() async {
-    AppSettings loaded;
-    try {
-      loaded = AppSettings.fromJson(await _store.load());
-    } on Object {
-      loaded = AppSettings.defaults();
-    }
+    final loaded = await loadInitialAppSettings(_store);
 
     _persistenceState = loaded;
     var merged = loaded;
@@ -547,9 +592,14 @@ final localSettingsStoreProvider = Provider<LocalSettingsStore>(
   (ref) => const JsonFileLocalSettingsStore(),
 );
 
+final initialAppSettingsProvider = Provider<AppSettings?>((ref) => null);
+
 final appSettingsControllerProvider =
     StateNotifierProvider<AppSettingsController, AppSettings>((ref) {
-      return AppSettingsController(ref.watch(localSettingsStoreProvider));
+      return AppSettingsController(
+        ref.watch(localSettingsStoreProvider),
+        initialSettings: ref.watch(initialAppSettingsProvider),
+      );
     });
 
 final busyMaxThemeControllerProvider = Provider<BusyMaxThemeController>((ref) {
@@ -558,16 +608,47 @@ final busyMaxThemeControllerProvider = Provider<BusyMaxThemeController>((ref) {
   );
 });
 
+Future<AppSettings> loadInitialAppSettings(LocalSettingsStore store) async {
+  try {
+    return AppSettings.fromJson(await store.load());
+  } on Object {
+    return AppSettings.defaults();
+  }
+}
+
 T _enumFromName<T extends Enum>(List<T> values, Object? name, T fallback) {
+  return _enumFromNameOrNull(values, name) ?? fallback;
+}
+
+T? _enumFromNameOrNull<T extends Enum>(List<T> values, Object? name) {
   if (name == null) {
-    return fallback;
+    return null;
   }
   for (final value in values) {
     if (value.name == name.toString()) {
       return value;
     }
   }
-  return fallback;
+  return null;
+}
+
+String _normalizedTimeOfDay(Object? value, String fallback) {
+  final parts = value?.toString().trim().split(':') ?? const <String>[];
+  if (parts.length != 2) {
+    return fallback;
+  }
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null ||
+      minute == null ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59) {
+    return fallback;
+  }
+  return '${hour.toString().padLeft(2, '0')}:'
+      '${minute.toString().padLeft(2, '0')}';
 }
 
 int _minuteOfDay(Object? value, int fallback, {bool allowEndOfDay = false}) {

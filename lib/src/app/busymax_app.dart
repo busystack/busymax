@@ -2,18 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:system_theme/system_theme.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
 import '../platform/busymax_tray_service.dart';
 import '../platform/gtk_font_service.dart';
+import '../platform/linux_header_bar_configuration_synchronizer.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/linux_window_service.dart';
-import '../platform/main_window_command_bridge.dart';
+import '../l10n/locale_resolution.dart';
+import '../schedule/schedule_commands.dart';
 import 'app_bootstrap.dart';
 import 'app_router.dart';
 import 'busymax_keyboard_shortcuts_dialog.dart';
+import 'busymax_shortcuts.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'busymax_yaru_theme.dart';
 import 'busymax_design.dart';
@@ -25,8 +27,38 @@ typedef BusyMaxTrayServiceFactory =
       required LinuxWindowService windowService,
       required BusyMaxTrayLabels labels,
       required Future<void> Function() onOpenAgenda,
-      Future<void> Function()? onBeforeQuit,
     });
+
+BusyMaxHeaderBarTheme busyMaxHeaderBarThemeFor(
+  ThemeData theme, {
+  required bool highContrast,
+}) {
+  final colors = theme.extension<BusyMaxSurfaceColors>()!;
+  return BusyMaxHeaderBarTheme(
+    preferDark: theme.brightness == Brightness.dark,
+    highContrast: highContrast,
+    windowBackgroundColor: colors.window,
+    // This header is deliberately borderless and visually continuous with
+    // the main workspace, so both use the window surface role.
+    backgroundColor: colors.window,
+    sidebarBackgroundColor: colors.sidebar,
+    foregroundColor: colors.foreground,
+    sidebarBorderColor: colors.sidebarBorder,
+    dialogBackgroundColor: colors.dialog,
+    dialogOutlineColor: colors.dialogOutline,
+    modalBarrierColor: colors.shade,
+    tooltip: BusyMaxHeaderBarTooltipTheme(
+      backgroundColor: BusyMaxTooltipStyle.background,
+      foregroundColor: BusyMaxTooltipStyle.foreground,
+      borderColor: BusyMaxTooltipStyle.border,
+      borderRadius: BusyMaxRadius.tooltip,
+      fontSize: theme.tooltipTheme.textStyle?.fontSize ?? 14,
+      horizontalPadding: BusyMaxSpacing.tooltipHorizontal,
+      verticalPadding: BusyMaxSpacing.tooltipVertical,
+      minimumHeight: BusyMaxSizes.tooltipMinHeight,
+    ),
+  );
+}
 
 class BusyMaxApp extends ConsumerStatefulWidget {
   const BusyMaxApp({super.key, this.trayServiceFactory});
@@ -44,15 +76,23 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   bool? _lastTrayEnabled;
   bool _startMinimizedHandled = false;
   bool _settingsReady = false;
+  var _scheduleCommandSequence = 0;
+  late final BusyMaxHeaderBarConfigurationSynchronizer
+  _headerBarConfigurationSynchronizer;
 
   @override
   void initState() {
     super.initState();
+    _headerBarConfigurationSynchronizer =
+        BusyMaxHeaderBarConfigurationSynchronizer(
+          ref.read(linuxHeaderBarServiceProvider),
+        );
     unawaited(_waitForSettings());
   }
 
   @override
   void dispose() {
+    _headerBarConfigurationSynchronizer.dispose();
     final tray = _trayService;
     if (tray != null) {
       unawaited(tray.stop());
@@ -84,9 +124,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     return SystemThemeBuilder(
       builder: (context, systemColor) {
         final accentColor =
-            ubuntuAccentColor ?? gtkThemeColors?.accent ?? systemColor.accent;
+            gtkThemeColors?.accent ?? ubuntuAccentColor ?? systemColor.accent;
         return MaterialApp.router(
-          title: 'BusyMax',
+          onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
           debugShowCheckedModeBanner: false,
           theme: buildBusyMaxTheme(
             brightness: Brightness.light,
@@ -104,28 +144,49 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
             gtkFontSize: gtkFont?.size,
             gtkThemeColors: gtkThemeColors,
           ),
+          highContrastTheme: buildBusyMaxTheme(
+            brightness: Brightness.light,
+            accentColor: accentColor,
+            family: settings.themeFamily,
+            gtkFontFamily: gtkFont?.family,
+            gtkFontSize: gtkFont?.size,
+            gtkThemeColors: gtkThemeColors,
+            highContrast: true,
+          ),
+          highContrastDarkTheme: buildBusyMaxTheme(
+            brightness: Brightness.dark,
+            accentColor: accentColor,
+            family: settings.themeFamily,
+            gtkFontFamily: gtkFont?.family,
+            gtkFontSize: gtkFont?.size,
+            gtkThemeColors: gtkThemeColors,
+            highContrast: true,
+          ),
           themeMode: settings.themeMode,
+          locale: settings.locale,
           localizationsDelegates: const [
             ...AppLocalizations.localizationsDelegates,
             ...GlobalUbuntuLocalizations.delegates,
           ],
+          localeListResolutionCallback: resolveBusyMaxLocales,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
             final l10n = AppLocalizations.of(context);
-            _configureNativeHeaderBarTheme(context, ref);
+            _configureNativeHeaderBarTheme(context);
             _configureBackgroundServices(
               ref,
               settings,
               BusyMaxTrayLabels(
-                openBusyMax: l10n.compactAgendaOpenBusyMax,
+                openBusyMax: l10n.trayOpenBusyMax,
                 agenda: l10n.viewAgenda,
                 quitBusyMax: l10n.exit,
               ),
             );
             return Shortcuts(
               shortcuts: const {
-                SingleActivator(LogicalKeyboardKey.slash, control: true):
+                BusyMaxShortcutActivators.keyboardShortcuts:
                     _KeyboardShortcutsIntent(),
+                BusyMaxShortcutActivators.settings: _OpenSettingsIntent(),
               },
               child: Actions(
                 actions: {
@@ -147,11 +208,18 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
                           return null;
                         },
                       ),
-                },
-                child: MainWindowCommandBridge(
-                  child: _BusyMaxWindowCornerClip(
-                    child: child ?? const SizedBox.shrink(),
+                  _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
+                    onInvoke: (intent) {
+                      if (router.state.uri.path != '/settings') {
+                        unawaited(router.push<void>('/settings'));
+                      }
+                      return null;
+                    },
                   ),
+                },
+                child: ColoredBox(
+                  color: BusyMaxSurfaceColors.of(context).window,
+                  child: child ?? const SizedBox.shrink(),
                 ),
               ),
             );
@@ -162,15 +230,10 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     );
   }
 
-  void _configureNativeHeaderBarTheme(BuildContext context, WidgetRef ref) {
-    final colors = BusyMaxSurfaceColors.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+  void _configureNativeHeaderBarTheme(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final materialL10n = MaterialLocalizations.of(context);
-    final modalBarrierColor = Theme.of(
-      context,
-    ).colorScheme.scrim.withValues(alpha: 0.32);
-    final preferDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
     final labels = BusyMaxHeaderBarLabels(
       today: l10n.today,
       day: l10n.viewDay,
@@ -180,44 +243,45 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       agenda: l10n.viewAgenda,
       search: materialL10n.searchFieldLabel,
       create: l10n.create,
+      createEvent: l10n.createEventAtTime,
+      createTask: l10n.createTaskAtDate,
       refresh: l10n.refreshAll,
       menu: l10n.mainMenu,
       previous: materialL10n.previousPageTooltip,
       next: materialL10n.nextPageTooltip,
-      sidebar: l10n.toggleSidebar,
+      showSidebarPanel: l10n.showSidebar,
+      hideSidebarPanel: l10n.hideSidebar,
       back: materialL10n.backButtonTooltip,
       settings: l10n.settings,
       keyboardShortcuts: l10n.keyboardShortcuts,
+      reportIssue: l10n.reportAnIssue,
       aboutBusyMax: l10n.aboutBusyMax,
+      todayShortcut: BusyMaxShortcutLabels.today,
+      dayShortcut: BusyMaxShortcutLabels.dayView,
+      weekShortcut: BusyMaxShortcutLabels.weekView,
+      monthShortcut: BusyMaxShortcutLabels.monthView,
+      yearShortcut: BusyMaxShortcutLabels.yearView,
+      agendaShortcut: BusyMaxShortcutLabels.agendaView,
+      searchShortcut: BusyMaxShortcutLabels.search,
+      sidebarShortcut: BusyMaxShortcutLabels.sidebar,
+      createEventShortcut: BusyMaxShortcutLabels.newEvent,
+      createTaskShortcut: BusyMaxShortcutLabels.newTask,
+      previousShortcut: BusyMaxShortcutLabels.previousPeriod,
+      nextShortcut: BusyMaxShortcutLabels.nextPeriod,
+      settingsShortcut: BusyMaxShortcutLabels.settings,
+      keyboardShortcutsShortcut: BusyMaxShortcutLabels.keyboardShortcuts,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final service = ref.read(linuxHeaderBarServiceProvider);
-      unawaited(() async {
-        await service.initialize();
-        await service.setLocalizedLabels(labels);
-        await service.setSidebarWidth(BusyMaxSizes.sidebarWidth);
-        await service.setTheme(
-          BusyMaxHeaderBarTheme(
-            preferDark: preferDark,
-            windowBackgroundColor: colors.window,
-            backgroundColor: colors.view,
-            sidebarBackgroundColor: colors.sidebar,
-            foregroundColor: colors.foreground,
-            mutedForegroundColor: colors.mutedForeground,
-            disabledForegroundColor: colors.disabledForeground,
-            controlColor: colors.control,
-            controlHoverColor: colors.controlHover,
-            controlActiveColor: colors.controlActive,
-            accentColor: colorScheme.primary,
-            accentForegroundColor: colorScheme.onPrimary,
-            popoverBackgroundColor: colors.popover,
-            borderColor: colors.border,
-            shadeColor: colors.shade,
-            modalBarrierColor: modalBarrierColor,
-          ),
-        );
-      }());
-    });
+    _headerBarConfigurationSynchronizer.schedule(
+      BusyMaxHeaderBarConfiguration(
+        labels: labels,
+        sidebarWidth: BusyMaxSizes.sidebarWidth,
+        textDirection: Directionality.of(context),
+        theme: busyMaxHeaderBarThemeFor(
+          theme,
+          highContrast: MediaQuery.highContrastOf(context),
+        ),
+      ),
+    );
   }
 
   void _configureBackgroundServices(
@@ -230,7 +294,6 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     }
 
     final windowService = ref.read(linuxWindowServiceProvider);
-
     final trayEnabled =
         settings.showTrayIcon ||
         settings.runInBackgroundWhenClosed ||
@@ -248,12 +311,10 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       return;
     }
     _lastTrayEnabled = trayEnabled;
-    final compactAgendaWindows = ref.read(compactAgendaWindowServiceProvider);
     final tray = _trayService ??= _createTrayService(
       windowService: windowService,
       labels: labels,
-      onOpenAgenda: compactAgendaWindows.toggle,
-      onBeforeQuit: compactAgendaWindows.closeIfOpen,
+      onOpenAgenda: () => _openMainAgenda(ref, windowService),
     );
     if (trayEnabled) {
       unawaited(
@@ -273,7 +334,6 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     required LinuxWindowService windowService,
     required BusyMaxTrayLabels labels,
     required Future<void> Function() onOpenAgenda,
-    Future<void> Function()? onBeforeQuit,
   }) {
     final factory = widget.trayServiceFactory;
     if (factory != null) {
@@ -281,15 +341,27 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         windowService: windowService,
         labels: labels,
         onOpenAgenda: onOpenAgenda,
-        onBeforeQuit: onBeforeQuit,
       );
     }
     return BusyMaxTrayService(
       windowService: windowService,
       labels: labels,
       onOpenAgenda: onOpenAgenda,
-      onBeforeQuit: onBeforeQuit,
     );
+  }
+
+  Future<void> _openMainAgenda(
+    WidgetRef ref,
+    LinuxWindowService windowService,
+  ) async {
+    await windowService.showWindow();
+    ref
+        .read(scheduleWorkspaceCommandProvider.notifier)
+        .state = ScheduleWorkspaceCommand(
+      ScheduleWorkspaceCommandKind.agenda,
+      ++_scheduleCommandSequence,
+    );
+    ref.read(appRouterProvider).go('/schedule');
   }
 
   void _setHideOnClose(LinuxWindowService windowService, bool enabled) {
@@ -337,22 +409,6 @@ class _KeyboardShortcutsIntent extends Intent {
   const _KeyboardShortcutsIntent();
 }
 
-class _BusyMaxWindowCornerClip extends StatelessWidget {
-  const _BusyMaxWindowCornerClip({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(
-        bottom: Radius.circular(BusyMaxRadius.window),
-      ),
-      clipBehavior: Clip.antiAliasWithSaveLayer,
-      child: ColoredBox(
-        color: BusyMaxSurfaceColors.of(context).window,
-        child: child,
-      ),
-    );
-  }
+class _OpenSettingsIntent extends Intent {
+  const _OpenSettingsIntent();
 }

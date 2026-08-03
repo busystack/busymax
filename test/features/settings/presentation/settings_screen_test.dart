@@ -1,26 +1,69 @@
-import 'dart:io';
+import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:yaru/yaru.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
+import 'package:busymax/src/platform/gtk_font_service.dart';
+import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
-import 'package:busymax/src/features/tasks/presentation/tasks_selection_state.dart';
+import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+
 void main() {
-  testWidgets('Settings sign out passes selected account id', (tester) async {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
+  testWidgets('Settings fallback header uses the semantic title style', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      useFlutterHeader: true,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+
+    final emphasizedAccountTitles = tester
+        .widgetList<Text>(find.text('Accounts'))
+        .where((text) => text.style?.fontWeight == FontWeight.bold);
+    expect(emphasizedAccountTitles, hasLength(1));
+  });
+
+  testWidgets('Settings removes the selected Microsoft account', (
+    tester,
+  ) async {
     final auth = _FakeAuthRepository();
     final container = _container(
       selectedAccountId: 'microsoft:m',
@@ -31,16 +74,18 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    await tester.tap(find.text('Sign out this account').first);
+    await _openAccountRemovalDialog(tester);
+    expect(find.byKey(const Key('revoke-google-authorization')), findsNothing);
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
     await tester.pumpAndSettle();
 
-    expect(auth.signOutAccountIds, ['microsoft:m']);
+    expect(auth.removalCalls, [
+      const _AccountRemovalCall('microsoft:m', revokeAuthorization: false),
+    ]);
     expect(container.read(selectedAccountIdProvider), 'google:g');
-    expect(container.read(selectedTaskListIdProvider), isNull);
-    expect(container.read(selectedTaskIdProvider), isNull);
   });
 
-  testWidgets('Settings disconnect passes selected account id', (tester) async {
+  testWidgets('Settings keeps Google revocation opt-in', (tester) async {
     final auth = _FakeAuthRepository();
     final container = _container(
       selectedAccountId: 'google:g',
@@ -51,14 +96,22 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    await tester.tap(find.text('Disconnect this account').first);
+    await _openAccountRemovalDialog(tester);
+    final revoke = find.byKey(const Key('revoke-google-authorization'));
+    expect(revoke, findsOneWidget);
+    expect(tester.widget<YaruCheckboxListTile>(revoke).value, isFalse);
+    await tester.tap(revoke);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
     await tester.pumpAndSettle();
 
-    expect(auth.revokedAccountIds, ['google:g']);
+    expect(auth.removalCalls, [
+      const _AccountRemovalCall('google:g', revokeAuthorization: true),
+    ]);
     expect(container.read(selectedAccountIdProvider), 'microsoft:m');
   });
 
-  testWidgets('Settings delete local data passes selected account id', (
+  testWidgets('Settings cancels account removal without mutation', (
     tester,
   ) async {
     final auth = _FakeAuthRepository();
@@ -71,16 +124,17 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    await tester.tap(find.text('Delete local data for this account').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete').last);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    expect(auth.deletedAccountIds, ['google:g']);
-    expect(container.read(selectedAccountIdProvider), 'microsoft:m');
+    expect(auth.removalCalls, isEmpty);
+    expect(container.read(selectedAccountIdProvider), 'google:g');
   });
 
-  testWidgets('Settings labels are provider-neutral', (tester) async {
+  testWidgets('Settings exposes one clear account-removal action', (
+    tester,
+  ) async {
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
@@ -90,10 +144,104 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    expect(find.text('Sign out this account'), findsOneWidget);
-    expect(find.text('Disconnect this account'), findsOneWidget);
-    expect(find.text('Delete local data for this account'), findsOneWidget);
-    expect(find.text('Revoke Google authorization'), findsNothing);
+    expect(find.text('Remove account…'), findsOneWidget);
+    expect(
+      find.text(
+        'Stop syncing and remove this account’s data from this device.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Sign out this account'), findsNothing);
+    expect(find.text('Disconnect this account'), findsNothing);
+    expect(find.text('Delete local data for this account'), findsNothing);
+  });
+
+  testWidgets('Settings reports a local account-removal failure in place', (
+    tester,
+  ) async {
+    final auth = _FakeAuthRepository()
+      ..removeError = StateError('local cleanup failed');
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: auth,
+      accounts: const [_googleAccount, _microsoftAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
+    await tester.pumpAndSettle();
+
+    expect(container.read(selectedAccountIdProvider), 'google:g');
+    expect(
+      find.text('Could not finish removing the account. Try again.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Settings prevents duplicate account-removal submission', (
+    tester,
+  ) async {
+    final removal = Completer<AccountRemovalResult>();
+    final auth = _FakeAuthRepository()..removalCompleter = removal;
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: auth,
+      accounts: const [_googleAccount, _microsoftAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
+    await tester.pump();
+
+    expect(auth.removalCalls, hasLength(1));
+    expect(find.text('Removing account…'), findsOneWidget);
+    await tester.tap(find.text('Removing account…'), warnIfMissed: false);
+    await tester.pump();
+    expect(auth.removalCalls, hasLength(1));
+
+    removal.complete(
+      const AccountRemovalResult(
+        authorizationRevocationStatus:
+            AccountAuthorizationRevocationStatus.notRequested,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(container.read(selectedAccountIdProvider), 'microsoft:m');
+  });
+
+  testWidgets('Settings reports partial Google revocation failure', (
+    tester,
+  ) async {
+    final auth = _FakeAuthRepository()
+      ..removalResult = const AccountRemovalResult(
+        authorizationRevocationStatus:
+            AccountAuthorizationRevocationStatus.failed,
+      );
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: auth,
+      accounts: const [_googleAccount, _microsoftAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.byKey(const Key('revoke-google-authorization')));
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'The account was removed from this device, but BusyMax could not '
+        'revoke Google access. You can revoke it from your Google Account.',
+      ),
+      findsOneWidget,
+    );
+    expect(container.read(selectedAccountIdProvider), 'microsoft:m');
   });
 
   testWidgets('Settings shows reconnect-required account state', (
@@ -111,7 +259,10 @@ void main() {
     expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
     expect(find.text(accountReconnectRequiredSyncMessage), findsOneWidget);
     expect(find.text('New list'), findsNothing);
-    expect(find.text('Sign out this account'), findsNothing);
+    expect(find.text('Remove account…'), findsOneWidget);
+
+    await _openAccountRemovalDialog(tester);
+    expect(find.byKey(const Key('revoke-google-authorization')), findsNothing);
   });
 
   testWidgets('Settings exposes add account actions', (tester) async {
@@ -139,7 +290,7 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await _pumpSettings(tester, container);
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
 
     expect(find.text('Add Google account'), findsOneWidget);
     expect(find.text('Theme'), findsNothing);
@@ -164,20 +315,113 @@ void main() {
     expect(find.text('Add Google account'), findsNothing);
   });
 
-  test('Settings sidebar items have native-feeling side padding', () {
-    final source = File(
-      'lib/src/features/settings/presentation/settings_screen.dart',
-    ).readAsStringSync();
+  testWidgets('Settings workspace uses the native window surface', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      buildConfig: _configuredBuildConfig,
+      activeAccountIdOverride: null,
+    );
+    addTearDown(container.dispose);
 
-    expect(source, contains('const SizedBox(width: BusyMaxSpacing.md)'));
-    expect(
-      source,
-      isNot(
-        contains(
-          'const SizedBox(width: BusyMaxSpacing.xs),\n                Icon(',
+    const gtkColors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFF0F1F2),
+      view: Color(0xFFFFFFFF),
+      sidebar: Color(0xFFE5E6E7),
+    );
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: YaruColors.orange,
+      gtkThemeColors: gtkColors,
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: localizedTestApp(
+          child: Theme(data: theme, child: const SettingsScreen()),
         ),
       ),
     );
+    await tester.pumpAndSettle();
+
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, gtkColors.window);
+    expect(scaffold.backgroundColor, isNot(gtkColors.view));
+  });
+
+  testWidgets('Settings uses Yaru master-detail rows with selected semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
+
+    expect(find.byType(BusyMaxSidebarNavigation), findsOneWidget);
+    expect(
+      find.byType(YaruMasterTile),
+      findsNWidgets(SettingsPage.values.length),
+    );
+    expect(find.byType(YaruNavigationRail), findsNothing);
+    expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+    final accountsTile = tester.widget<BusyMaxSidebarNavigationTile>(
+      find.byKey(const ValueKey('settings-navigation-accounts')),
+    );
+    final scheduleTile = tester.widget<BusyMaxSidebarNavigationTile>(
+      find.byKey(const ValueKey('settings-navigation-schedule')),
+    );
+    expect(accountsTile.selected, isTrue);
+    expect(scheduleTile.selected, isFalse);
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey('settings-navigation-accounts')),
+          )
+          .flagsCollection
+          .isSelected,
+      ui.Tristate.isTrue,
+    );
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey('settings-navigation-schedule')),
+          )
+          .flagsCollection
+          .isSelected,
+      ui.Tristate.isFalse,
+    );
+
+    await tester.tap(find.text('Schedule'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<BusyMaxSidebarNavigationTile>(
+            find.byKey(const ValueKey('settings-navigation-schedule')),
+          )
+          .selected,
+      isTrue,
+    );
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey('settings-navigation-schedule')),
+          )
+          .flagsCollection
+          .isSelected,
+      ui.Tristate.isTrue,
+    );
+    semantics.dispose();
   });
 
   testWidgets('Diagnostics stays inside Settings shell', (tester) async {
@@ -190,7 +434,7 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await _pumpSettings(tester, container);
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
 
     await tester.tap(find.text('Diagnostics'));
     await tester.pumpAndSettle();
@@ -202,6 +446,87 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
+  });
+
+  testWidgets('Settings uses single-pane navigation at narrow widths', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      buildConfig: _configuredBuildConfig,
+      activeAccountIdOverride: null,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(640, 700));
+
+    expect(find.text('Accounts'), findsWidgets);
+    expect(find.text('Schedule'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('settings-page-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(_settingsMenuItemWithLabel('Schedule'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Day starts at'), findsOneWidget);
+    expect(find.text('Day ends at'), findsOneWidget);
+  });
+
+  testWidgets('Settings narrow layout supports large text', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(640, 700),
+      textScaler: const TextScaler.linear(2),
+    );
+
+    expect(
+      find.byKey(const ValueKey('settings-page-selector')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Quiet-hour times are exposed and follow the master switch', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 800));
+    await tester.tap(find.text('Notifications'));
+    await tester.pumpAndSettle();
+
+    var timeRows = tester.widgetList<DesktopTimeValueRow>(
+      find.byType(DesktopTimeValueRow),
+    );
+    expect(
+      timeRows.map((row) => row.label),
+      containsAll(<String>['Quiet hours start', 'Quiet hours end']),
+    );
+    expect(timeRows.every((row) => !row.enabled), isTrue);
+
+    await tester.ensureVisible(find.text('Quiet hours'));
+    await tester.tap(find.text('Quiet hours'));
+    await tester.pumpAndSettle();
+
+    timeRows = tester.widgetList<DesktopTimeValueRow>(
+      find.byType(DesktopTimeValueRow),
+    );
+    expect(timeRows.every((row) => row.enabled), isTrue);
   });
 
   test('Schedule display hours persist and keep a valid range', () async {
@@ -249,8 +574,14 @@ void main() {
     await tester.ensureVisible(newListButtons.at(1));
     await tester.tap(newListButtons.at(1));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Client work');
-    await tester.tap(find.text('Create'));
+
+    final promptField = find.descendant(
+      of: find.byType(BusyMaxPromptDialog),
+      matching: find.byType(TextField),
+    );
+    expect(promptField, findsOneWidget);
+    await tester.enterText(promptField, 'Client work');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
     expect(googleLists.createdTitles, isEmpty);
@@ -299,6 +630,38 @@ void main() {
     expect(find.text('schedule route'), findsOneWidget);
   });
 
+  testWidgets('Settings back returns to the route that opened it', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    final router = await _pumpRoutedSettings(
+      tester,
+      container,
+      initialLocation: '/tasks',
+    );
+    unawaited(router.push('/settings'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('settings-page-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(_settingsMenuItemWithLabel('Notifications'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.queryParameters['page'], 'notifications');
+
+    await container
+        .read(linuxHeaderBarServiceProvider)
+        .handleNativeMethodCall(const MethodCall('back'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('tasks route'), findsOneWidget);
+  });
+
   testWidgets('Removing last account routes to sign in cleanly', (
     tester,
   ) async {
@@ -312,13 +675,29 @@ void main() {
 
     await _pumpRoutedSettings(tester, container);
 
-    await tester.tap(find.text('Sign out this account').first);
+    await _openAccountRemovalDialog(tester);
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
     await tester.pumpAndSettle();
 
-    expect(auth.signOutAccountIds, ['google:g']);
+    expect(auth.removalCalls, [
+      const _AccountRemovalCall('google:g', revokeAuthorization: false),
+    ]);
     expect(container.read(selectedAccountIdProvider), isNull);
     expect(find.text('sign in route'), findsOneWidget);
   });
+}
+
+Finder _settingsMenuItemWithLabel(String label) {
+  return find.ancestor(
+    of: find.text(label).last,
+    matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
+  );
+}
+
+Future<void> _openAccountRemovalDialog(WidgetTester tester) async {
+  await tester.tap(find.text('Remove account…').first);
+  await tester.pumpAndSettle();
+  expect(find.textContaining('from BusyMax?'), findsOneWidget);
 }
 
 ProviderContainer _container({
@@ -328,6 +707,7 @@ ProviderContainer _container({
   BuildConfig buildConfig = _emptyBuildConfig,
   Map<String, _FakeTaskListsRepository>? taskListRepositories,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
+  bool useFlutterHeader = false,
 }) {
   return ProviderContainer(
     overrides: [
@@ -345,6 +725,12 @@ ProviderContainer _container({
       localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
       syncEngineProvider.overrideWithValue(null),
       buildConfigProvider.overrideWithValue(buildConfig),
+      if (useFlutterHeader)
+        linuxHeaderBarServiceProvider.overrideWith((ref) {
+          final service = LinuxHeaderBarService(isLinux: false);
+          ref.onDispose(service.dispose);
+          return service;
+        }),
       taskListsRepositoryForAccountProvider.overrideWith((ref, accountId) {
         return taskListRepositories?[accountId] ?? _FakeTaskListsRepository();
       }),
@@ -356,23 +742,40 @@ const _useDefaultActiveAccountId = '__busymax_default_active_account__';
 
 Future<void> _pumpSettings(
   WidgetTester tester,
-  ProviderContainer container,
-) async {
+  ProviderContainer container, {
+  Size? logicalSize,
+  TextScaler? textScaler,
+}) async {
+  if (logicalSize != null) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = logicalSize;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+  }
+  final settings = textScaler == null
+      ? const SettingsScreen()
+      : Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+            child: const SettingsScreen(),
+          ),
+        );
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: localizedTestApp(child: const SettingsScreen()),
+      child: localizedTestApp(child: settings),
     ),
   );
   await tester.pumpAndSettle();
 }
 
-Future<void> _pumpRoutedSettings(
+Future<GoRouter> _pumpRoutedSettings(
   WidgetTester tester,
-  ProviderContainer container,
-) async {
+  ProviderContainer container, {
+  String initialLocation = '/settings',
+}) async {
   final router = GoRouter(
-    initialLocation: '/settings',
+    initialLocation: initialLocation,
     routes: [
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(
@@ -400,30 +803,56 @@ Future<void> _pumpRoutedSettings(
     ),
   );
   await tester.pumpAndSettle();
+  return router;
 }
 
 class _FakeAuthRepository implements AuthRepository {
-  final signOutAccountIds = <String>[];
-  final revokedAccountIds = <String>[];
-  final deletedAccountIds = <String>[];
+  final removalCalls = <_AccountRemovalCall>[];
+  AccountRemovalResult removalResult = const AccountRemovalResult(
+    authorizationRevocationStatus:
+        AccountAuthorizationRevocationStatus.notRequested,
+  );
+  Completer<AccountRemovalResult>? removalCompleter;
+  Object? removeError;
 
   @override
-  Future<void> signOut({String? accountId}) async {
-    signOutAccountIds.add(accountId ?? '');
-  }
-
-  @override
-  Future<void> revokeAndSignOut({String? accountId}) async {
-    revokedAccountIds.add(accountId ?? '');
-  }
-
-  @override
-  Future<void> deleteLocalAccountData({String? accountId}) async {
-    deletedAccountIds.add(accountId ?? '');
+  Future<AccountRemovalResult> removeAccount({
+    required String accountId,
+    bool revokeAuthorization = false,
+  }) async {
+    removalCalls.add(
+      _AccountRemovalCall(accountId, revokeAuthorization: revokeAuthorization),
+    );
+    final error = removeError;
+    if (error != null) {
+      throw error;
+    }
+    final completer = removalCompleter;
+    return completer == null ? removalResult : completer.future;
   }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _AccountRemovalCall {
+  const _AccountRemovalCall(
+    this.accountId, {
+    required this.revokeAuthorization,
+  });
+
+  final String accountId;
+  final bool revokeAuthorization;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _AccountRemovalCall &&
+        other.accountId == accountId &&
+        other.revokeAuthorization == revokeAuthorization;
+  }
+
+  @override
+  int get hashCode => Object.hash(accountId, revokeAuthorization);
 }
 
 class _FakeAccountsRepository implements AccountsRepository {

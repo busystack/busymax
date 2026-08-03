@@ -3,13 +3,14 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_app.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -17,12 +18,16 @@ import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
-import 'package:busymax/src/features/tasks/presentation/tasks_workspace.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
+import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
+
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 
 void main() {
   late AppDatabase database;
@@ -31,9 +36,13 @@ void main() {
   setUp(() {
     database = AppDatabase(NativeDatabase.memory());
     oAuth = _FakeOAuthGateway();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
   });
 
   tearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
     await database.close();
   });
 
@@ -70,6 +79,98 @@ void main() {
     expect(find.text('Accounts'), findsNothing);
     expect(find.textContaining('sync tasks'), findsNothing);
     expect(find.text('Tasks'), findsNothing);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('onboarding content and actions share one responsive rail', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 720);
+    addTearDown(tester.view.reset);
+
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+
+    void expectAlignedActions({required double expectedRailWidth}) {
+      final rail = tester.getRect(
+        find.byKey(const ValueKey('onboarding-content-rail')),
+      );
+      final back = tester.getRect(
+        find.byKey(const ValueKey('onboarding-back-button')),
+      );
+      final continueButton = tester.getRect(
+        find.byKey(const ValueKey('onboarding-continue-button')),
+      );
+
+      expect(rail.width, closeTo(expectedRailWidth, 0.01));
+      expect(back.left, closeTo(rail.left, 0.01));
+      expect(continueButton.right, closeTo(rail.right, 0.01));
+    }
+
+    expectAlignedActions(expectedRailWidth: 480);
+    for (final key in const [
+      ValueKey('onboarding-back-button'),
+      ValueKey('onboarding-continue-button'),
+    ]) {
+      final button = tester.widget<TextButton>(find.byKey(key));
+      expect(
+        button.style?.padding?.resolve(const <WidgetState>{}),
+        EdgeInsets.zero,
+      );
+      expect(
+        button.style?.minimumSize?.resolve(const <WidgetState>{}),
+        Size.zero,
+      );
+      expect(
+        button.style?.backgroundColor?.resolve(const <WidgetState>{}),
+        Colors.transparent,
+      );
+      expect(button.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+    }
+
+    tester.view.physicalSize = const Size(420, 720);
+    await tester.pumpAndSettle();
+
+    expectAlignedActions(expectedRailWidth: 380);
+    expect(tester.takeException(), null);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('system settings cards retain their complete shadow gutter', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 720);
+    addTearDown(tester.view.reset);
+
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Google account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    final viewport = tester.getRect(
+      find.byKey(const ValueKey('onboarding-scroll-viewport')),
+    );
+    final rail = tester.getRect(
+      find.byKey(const ValueKey('onboarding-content-rail')),
+    );
+    expect(viewport.width, rail.width + BusyMaxSpacing.sm * 2);
+    expect(rail.left - viewport.left, BusyMaxSpacing.sm);
+    expect(viewport.right - rail.right, BusyMaxSpacing.sm);
+
+    final cards = find.byType(BusyMaxGroupedSurface);
+    expect(cards, findsNWidgets(3));
+    for (final card in cards.evaluate()) {
+      final rect = tester.getRect(find.byWidget(card.widget));
+      expect(rect.left, rail.left);
+      expect(rect.right, rail.right);
+      expect(rect.left, greaterThan(viewport.left));
+      expect(rect.right, lessThan(viewport.right));
+    }
+    expect(tester.takeException(), null);
     await _disposeApp(tester);
   });
 
@@ -131,6 +232,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Choose system settings'), findsOneWidget);
+    expect(find.text('Notification detail level'), findsOneWidget);
+    expect(find.text('Detailed notification text'), findsNothing);
 
     await tester.tap(find.text('Finish setup'));
     await tester.pumpAndSettle();
@@ -149,13 +252,91 @@ void main() {
     await _completeOnboardingWithGoogle(tester);
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
-    expect(find.byType(TasksWorkspace), findsNothing);
 
     GoRouter.of(tester.element(find.byType(ScheduleWorkspace))).go('/tasks');
     await tester.pumpAndSettle();
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
-    expect(find.byType(TasksWorkspace), findsNothing);
+
+    final accountId = (await database.select(database.accounts).getSingle()).id;
+    await database.taskListsDao.upsertTaskList(
+      TaskListsCompanion.insert(
+        accountId: accountId,
+        id: 'list-1',
+        title: 'Route list',
+        rawJson: '{}',
+        createdLocalAtUtc: '2026-06-04T00:00:00.000Z',
+        updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
+      ),
+    );
+    await database.tasksDao.upsertTask(
+      TasksCompanion.insert(
+        accountId: accountId,
+        taskListId: 'list-1',
+        id: 'task-1',
+        title: 'Route task',
+        status: const Value('needsAction'),
+        rawJson: '{}',
+        createdLocalAtUtc: '2026-06-04T00:00:00.000Z',
+        updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
+      ),
+    );
+    final router = GoRouter.of(tester.element(find.byType(ScheduleWorkspace)));
+    router.go(
+      Uri(
+        pathSegments: ['', 'tasks', accountId, 'list-1', 'task-1'],
+      ).toString(),
+    );
+    await tester.pumpAndSettle();
+
+    final deepLinkedWorkspace = tester.widget<ScheduleWorkspace>(
+      find.byType(ScheduleWorkspace),
+    );
+    expect(deepLinkedWorkspace.initialScope, ScheduleScope.tasks);
+    expect(deepLinkedWorkspace.initialTaskAccountId, accountId);
+    expect(deepLinkedWorkspace.initialTaskListId, 'list-1');
+    expect(deepLinkedWorkspace.initialTaskId, 'task-1');
+    expect(find.text('Edit Task'), findsOneWidget);
+
+    final routedWorkspaceState = tester.state(find.byType(ScheduleWorkspace));
+    final titleField = find.byType(TextField).first;
+    await tester.enterText(titleField, 'Unsaved route title');
+    await tester.pump();
+    router.go(
+      Uri(
+        pathSegments: ['', 'tasks', accountId, 'list-1', 'missing-task'],
+      ).toString(),
+    );
+    await tester.pump();
+    expect(
+      tester.state(find.byType(ScheduleWorkspace)),
+      same(routedWorkspaceState),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(router.routeInformationProvider.value.uri.pathSegments, [
+      'tasks',
+      accountId,
+      'list-1',
+      'task-1',
+    ]);
+    expect(find.text('Edit Task'), findsOneWidget);
+
+    router.go(Uri(pathSegments: ['', 'tasks', accountId, 'list-1']).toString());
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.pathSegments, [
+      'tasks',
+      accountId,
+      'list-1',
+    ]);
+    expect(find.text('Edit Task'), findsNothing);
     await _disposeApp(tester);
   });
 
@@ -225,6 +406,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ScheduleWorkspace), findsNothing);
     expect(find.text('Continue'), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('Settings enters and exits without a page transition', (
+    tester,
+  ) async {
+    await _insertAccount(
+      database,
+      id: 'google:existing',
+      provider: TaskProvider.google,
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+
+    final router = GoRouter.of(tester.element(find.byType(ScheduleWorkspace)));
+    unawaited(router.push<void>('/settings'));
+    await tester.pump();
+
+    final settings = find.byType(SettingsScreen);
+    expect(settings, findsOneWidget);
+    final settingsRoute = ModalRoute.of(tester.element(settings))!;
+    expect(settingsRoute.transitionDuration, Duration.zero);
+    expect(settingsRoute.reverseTransitionDuration, Duration.zero);
+
+    router.pop();
+    await tester.pump();
+
+    expect(settings, findsNothing);
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
     await _disposeApp(tester);
   });
 
@@ -496,6 +706,11 @@ Future<void> _pumpApp(
           onSignedIn ?? (accountId, initial) async {},
         ),
         syncEngineProvider.overrideWithValue(null),
+        linuxHeaderBarServiceProvider.overrideWith((ref) {
+          final service = LinuxHeaderBarService(isLinux: false);
+          ref.onDispose(service.dispose);
+          return service;
+        }),
       ],
       child: const BusyMaxApp(),
     ),
@@ -541,18 +756,6 @@ class _FakeOAuthGateway implements OAuthGateway {
   Future<OAuthTokenSet> refreshActiveToken() async => nextTokenSet;
 
   @override
-  Future<void> signOutAccount(String accountId) async {
-    if (activeId == accountId) {
-      activeId = null;
-    }
-  }
-
-  @override
-  Future<void> signOut() async {
-    activeId = null;
-  }
-
-  @override
   Future<void> revokeAndSignOutAccount(String accountId) async {
     if (activeId == accountId) {
       activeId = null;
@@ -560,9 +763,7 @@ class _FakeOAuthGateway implements OAuthGateway {
   }
 
   @override
-  Future<void> revokeAndSignOut() async {
-    activeId = null;
-  }
+  Future<void> revokeAuthorization(String accountId) async {}
 
   @override
   Future<void> clearLocalSession({String? accountId}) async {

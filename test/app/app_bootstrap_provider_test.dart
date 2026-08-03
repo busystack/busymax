@@ -270,18 +270,6 @@ class _FakeOAuthGateway implements OAuthGateway {
   Future<OAuthTokenSet> refreshActiveToken() async => _tokenSet();
 
   @override
-  Future<void> signOutAccount(String accountId) async {
-    if (activeId == accountId) {
-      activeId = null;
-    }
-  }
-
-  @override
-  Future<void> signOut() async {
-    activeId = null;
-  }
-
-  @override
   Future<void> revokeAndSignOutAccount(String accountId) async {
     if (activeId == accountId) {
       activeId = null;
@@ -289,9 +277,7 @@ class _FakeOAuthGateway implements OAuthGateway {
   }
 
   @override
-  Future<void> revokeAndSignOut() async {
-    activeId = null;
-  }
+  Future<void> revokeAuthorization(String accountId) async {}
 
   @override
   Future<void> clearLocalSession({String? accountId}) async {

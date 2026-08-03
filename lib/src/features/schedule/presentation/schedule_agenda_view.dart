@@ -92,7 +92,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     return NotificationListener<ScrollNotification>(
       onNotification: _handleScroll,
       child: ColoredBox(
-        color: Theme.of(context).colorScheme.surface,
+        color: BusyMaxSurfaceColors.of(context).window,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
             BusyMaxSpacing.lg,
@@ -204,7 +204,6 @@ class _AgendaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
-    Offset? pointerDownPosition;
     final onAnchorAvailable = this.onAnchorAvailable;
     if (onAnchorAvailable != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -227,8 +226,7 @@ class _AgendaRow extends StatelessWidget {
                   ? null
                   : (value) => onTaskCompletionChanged!(value ?? false),
             ),
-      onPointerDown: (position) => pointerDownPosition = position,
-      onTap: () => onTap(context, pointerDownPosition),
+      onActivated: onTap,
     );
   }
 }
@@ -241,7 +239,12 @@ class _AgendaItemMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isTask = item.kind == ScheduleItemKind.task;
-    final color = BusyMaxSurfaceColors.of(context).mutedForeground;
+    final color = isTask
+        ? BusyMaxSurfaceColors.of(context).mutedForeground
+        : ScheduleProjection.colorForItem(
+            item,
+            Theme.of(context).colorScheme.brightness,
+          );
     final icon = isTask ? YaruIcons.task_list : YaruIcons.calendar;
     return Icon(icon, size: BusyMaxSizes.iconSm, color: color);
   }

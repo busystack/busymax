@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../accounts/data/accounts_repository.dart';
@@ -40,16 +42,22 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   var _nativeHeaderBarAvailable = false;
   var _finishingSetup = false;
   var _headerBarUpdateGeneration = 0;
+  late final LinuxHeaderBarSession _headerBarSession;
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
 
   @override
   void initState() {
     super.initState();
+    _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
+    _headerBarActions = _headerBarSession.actions.listen(
+      _handleHeaderBarAction,
+    );
     unawaited(_initializeHeaderBar());
   }
 
   @override
   void dispose() {
+    _headerBarSession.dispose();
     unawaited(_headerBarActions?.cancel());
     super.dispose();
   }
@@ -76,85 +84,101 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           ),
           _OnboardingStep.preferences => true,
         };
-    _updateHeaderBar(
-      canGoBack: canGoBack,
-      canContinue: canContinue,
-      backLabel: backLabel,
-      continueLabel: continueLabel,
-    );
-
     return Scaffold(
       body: ColoredBox(
-        color: BusyMaxSurfaceColors.of(context).view,
+        color: BusyMaxSurfaceColors.of(context).window,
         child: SafeArea(
           top: !Platform.isLinux || !_nativeHeaderBarAvailable,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 720;
+              final horizontalPadding = compact
+                  ? BusyMaxSpacing.md
+                  : BusyMaxSpacing.xxl;
+              final verticalPadding = compact
+                  ? BusyMaxSpacing.md
+                  : BusyMaxSpacing.xxl;
+              final availableWidth = math.max(
+                0.0,
+                constraints.maxWidth - horizontalPadding * 2,
+              );
+              final shadowGutter = math.min(
+                BusyMaxSpacing.sm,
+                availableWidth / 2,
+              );
+              final contentRailWidth = math.min<double>(
+                busyMaxOnboardingContentMaxWidth.toDouble(),
+                math.max(0.0, availableWidth - shadowGutter * 2),
+              );
+              final scrollViewportWidth = contentRailWidth + shadowGutter * 2;
+              _updateHeaderBar(
+                canGoBack: canGoBack,
+                canContinue: canContinue,
+                backLabel: backLabel,
+                continueLabel: continueLabel,
+                contentWidth: contentRailWidth.round(),
+              );
+
               return Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: compact ? BusyMaxSpacing.md : BusyMaxSpacing.xl,
-                  vertical: compact ? BusyMaxSpacing.md : BusyMaxSpacing.xl,
+                  horizontal: horizontalPadding,
+                  vertical: verticalPadding,
                 ),
                 child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
-                    child: BusyMaxSurface(
-                      filled: false,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Flexible(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(
-                                BusyMaxSpacing.xl,
-                                BusyMaxSpacing.xxl,
-                                BusyMaxSpacing.xl,
-                                BusyMaxSpacing.xxl,
-                              ),
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 480,
+                  child: SizedBox(
+                    width: scrollViewportWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Flexible(
+                          child: SingleChildScrollView(
+                            key: const ValueKey('onboarding-scroll-viewport'),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: shadowGutter,
+                            ),
+                            child: SizedBox(
+                              key: const ValueKey('onboarding-content-rail'),
+                              width: contentRailWidth,
+                              child: switch (_step) {
+                                _OnboardingStep.accounts =>
+                                  _AccountsOnboardingStep(
+                                    accounts: accounts,
+                                    googleConfigured:
+                                        config.hasGoogleOAuthClientId,
+                                    microsoftConfigured:
+                                        config.hasMicrosoftOAuthClientId,
+                                    isGoogleSigningIn:
+                                        _signingInProvider ==
+                                        _OnboardingProvider.google,
+                                    isMicrosoftSigningIn:
+                                        _signingInProvider ==
+                                        _OnboardingProvider.microsoft,
+                                    errorMessage: _errorMessage,
+                                    missingConfigMessage: kReleaseMode
+                                        ? l10n.providerNotConfigured
+                                        : config.missingClientIdMessage,
+                                    onAddGoogle: () =>
+                                        _signIn(_OnboardingProvider.google),
+                                    onAddMicrosoft: () =>
+                                        _signIn(_OnboardingProvider.microsoft),
+                                    onCancelSignIn: _cancelSignIn,
                                   ),
-                                  child: switch (_step) {
-                                    _OnboardingStep.accounts =>
-                                      _AccountsOnboardingStep(
-                                        accounts: accounts,
-                                        googleConfigured:
-                                            config.hasGoogleOAuthClientId,
-                                        microsoftConfigured:
-                                            config.hasMicrosoftOAuthClientId,
-                                        isGoogleSigningIn:
-                                            _signingInProvider ==
-                                            _OnboardingProvider.google,
-                                        isMicrosoftSigningIn:
-                                            _signingInProvider ==
-                                            _OnboardingProvider.microsoft,
-                                        errorMessage: _errorMessage,
-                                        missingConfigMessage: kReleaseMode
-                                            ? l10n.providerNotConfigured
-                                            : config.missingClientIdMessage,
-                                        onAddGoogle: () =>
-                                            _signIn(_OnboardingProvider.google),
-                                        onAddMicrosoft: () => _signIn(
-                                          _OnboardingProvider.microsoft,
-                                        ),
-                                        onCancelSignIn: _cancelSignIn,
-                                      ),
-                                    _OnboardingStep.preferences =>
-                                      _PreferencesOnboardingStep(
-                                        settings: settings,
-                                        settingsController: settingsController,
-                                      ),
-                                  },
-                                ),
-                              ),
+                                _OnboardingStep.preferences =>
+                                  _PreferencesOnboardingStep(
+                                    settings: settings,
+                                    settingsController: settingsController,
+                                  ),
+                              },
                             ),
                           ),
-                          if (_showFlutterFooterFallback)
-                            _OnboardingFooter(
+                        ),
+                        if (_showFlutterFooterFallback)
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: shadowGutter,
+                            ),
+                            child: _OnboardingFooter(
                               canGoBack: canGoBack,
                               canContinue: canContinue,
                               backLabel: backLabel,
@@ -162,8 +186,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               onBack: _previousStep,
                               onContinue: _nextStep,
                             ),
-                        ],
-                      ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -176,15 +200,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _initializeHeaderBar() async {
-    final service = ref.read(linuxHeaderBarServiceProvider);
-    await service.initialize();
+    await _headerBarSession.initialize();
     if (!mounted) {
       return;
     }
-    _headerBarActions = service.actions.listen(_handleHeaderBarAction);
     setState(() {
       _headerBarReady = true;
-      _nativeHeaderBarAvailable = service.isAvailable;
+      _nativeHeaderBarAvailable = _headerBarSession.isAvailable;
     });
   }
 
@@ -200,6 +222,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     required bool canContinue,
     required String backLabel,
     required String continueLabel,
+    required int contentWidth,
   }) {
     if (_finishingSetup) {
       return;
@@ -215,39 +238,44 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           generation != _headerBarUpdateGeneration) {
         return;
       }
-      final service = ref.read(linuxHeaderBarServiceProvider);
       unawaited(() async {
-        await service.initialize();
+        await _headerBarSession.updateState(
+          BusyMaxHeaderBarState(
+            title: title,
+            viewMode: ref.read(appSettingsControllerProvider).scheduleViewMode,
+            canRefresh: false,
+            canCreateEvent: false,
+            canCreateTask: false,
+            searchActive: false,
+            searchQuery: '',
+            canShowSidebar: false,
+            sidebarVisible: false,
+            navigationVisible: false,
+            scheduleControlsVisible: false,
+            backVisible: false,
+          ),
+        );
         if (!mounted ||
             _finishingSetup ||
             generation != _headerBarUpdateGeneration) {
           return;
         }
-        await service.setScheduleControlsVisible(false);
-        await service.setBackVisible(false);
-        await service.setSidebarVisible(false);
-        await service.setTitleRange(title);
-        if (!mounted ||
-            _finishingSetup ||
-            generation != _headerBarUpdateGeneration) {
-          return;
-        }
-        await service.setOnboardingControls(
+        await _headerBarSession.setOnboardingControls(
           visible: true,
           canGoBack: canGoBack,
           canContinue: canContinue,
           backLabel: backLabel,
           continueLabel: continueLabel,
+          contentWidth: contentWidth,
         );
-        await service.setCanRefresh(false);
-        await service.setCanCreate(false);
-        await service.setSearchActive(false);
-        await service.setModalBarrierVisible(false);
       }());
     });
   }
 
   void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
+    if (!_headerBarSession.isCurrent) {
+      return;
+    }
     if (action == BusyMaxHeaderBarAction.back) {
       _previousStep();
       return;
@@ -357,9 +385,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _clearOnboardingHeaderBar() async {
-    final service = ref.read(linuxHeaderBarServiceProvider);
-    await service.initialize();
-    await service.setOnboardingControls(
+    await _headerBarSession.initialize();
+    await _headerBarSession.setOnboardingControls(
       visible: false,
       canGoBack: false,
       canContinue: false,
@@ -367,7 +394,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       continueLabel: '',
       force: true,
     );
-    await service.setBackVisible(false);
   }
 }
 
@@ -454,7 +480,7 @@ class _AccountsOnboardingStep extends StatelessWidget {
         ],
         if (isSigningIn) ...[
           const SizedBox(height: BusyMaxSpacing.md),
-          BusyMaxPushButton.outlined(
+          BusyMaxPushButton.standard(
             onPressed: onCancelSignIn,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -587,13 +613,13 @@ class _PreferencesOnboardingStep extends StatelessWidget {
               onSelected: settingsController.setThemeModePreference,
             ),
             BusyMaxSwitchRow(
-              title: 'Run in background when window is closed',
+              title: l10n.runInBackgroundWhenClosed,
               value: settings.runInBackgroundWhenClosed,
               onChanged: settingsController.setRunInBackgroundWhenClosed,
               leading: const Icon(YaruIcons.window),
             ),
             BusyMaxSwitchRow(
-              title: 'Show tray icon',
+              title: l10n.showTrayIcon,
               value: settings.showTrayIcon,
               onChanged: settingsController.setShowTrayIcon,
               leading: const Icon(YaruIcons.pin),
@@ -605,13 +631,13 @@ class _PreferencesOnboardingStep extends StatelessWidget {
           filled: true,
           children: [
             BusyMaxSwitchRow(
-              title: 'Event reminders',
+              title: l10n.eventReminders,
               value: settings.notifyEventReminders,
               onChanged: settingsController.setNotifyEventReminders,
               leading: const Icon(YaruIcons.calendar_day),
             ),
             BusyMaxSwitchRow(
-              title: 'Task reminders',
+              title: l10n.taskReminders,
               value: settings.notifyTaskReminders,
               onChanged: settingsController.setNotifyTaskReminders,
               leading: const Icon(YaruIcons.checkmark),
@@ -628,11 +654,13 @@ class _PreferencesOnboardingStep extends StatelessWidget {
           title: l10n.privacy,
           filled: true,
           children: [
-            BusyMaxSwitchRow(
-              title: l10n.detailedNotifications,
-              value: settings.detailedNotifications,
-              onChanged: settingsController.setDetailedNotifications,
+            BusyMaxComboRow<NotificationDetailLevel>(
+              title: l10n.notificationDetailLevel,
               leading: const Icon(YaruIcons.eye),
+              values: NotificationDetailLevel.values,
+              selected: settings.notificationDetailLevel,
+              labelFor: (value) => _notificationDetailLabel(context, value),
+              onSelected: settingsController.setNotificationDetailLevel,
             ),
             BusyMaxSwitchRow(
               title: l10n.redactTaskContentInDiagnostics,
@@ -706,7 +734,10 @@ class _ProviderSignInButton extends StatelessWidget {
                   dimension: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(YaruIcons.pan_end, size: BusyMaxSizes.iconSm),
+              : Icon(
+                  BusyMaxGlyphs.collapsedFor(Directionality.of(context)),
+                  size: BusyMaxSizes.iconSm,
+                ),
           enabled: enabled,
           tooltip: effectiveTooltip,
           onTap: onPressed,
@@ -736,25 +767,47 @@ class _OnboardingFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: BusyMaxSpacing.lg,
-        vertical: BusyMaxSpacing.md,
-      ),
+      padding: const EdgeInsets.only(top: BusyMaxSpacing.xl),
       child: Row(
         children: [
-          BusyMaxPushButton.outlined(
+          TextButton(
+            key: const ValueKey('onboarding-back-button'),
             onPressed: canGoBack ? onBack : null,
+            style: _onboardingTextButtonStyle(context),
             child: Text(backLabel),
           ),
           const Spacer(),
-          BusyMaxPushButton.filled(
+          TextButton(
+            key: const ValueKey('onboarding-continue-button'),
             onPressed: canContinue ? onContinue : null,
+            style: _onboardingTextButtonStyle(context),
             child: Text(continueLabel),
           ),
         ],
       ),
     );
   }
+}
+
+ButtonStyle _onboardingTextButtonStyle(BuildContext context) {
+  final labelStyle = Theme.of(context).textTheme.labelLarge;
+  return ButtonStyle(
+    padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+    minimumSize: const WidgetStatePropertyAll(Size.zero),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    elevation: const WidgetStatePropertyAll(0),
+    textStyle: WidgetStateProperty.resolveWith((states) {
+      final emphasize =
+          !states.contains(WidgetState.disabled) &&
+          (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.focused));
+      return labelStyle?.copyWith(
+        decoration: emphasize ? TextDecoration.underline : TextDecoration.none,
+      );
+    }),
+  );
 }
 
 String _onboardingErrorMessage(BuildContext context, Object error) {
@@ -795,5 +848,16 @@ String _themeModeLabel(
     BusyMaxThemeModePreference.system => l10n.themeSystem,
     BusyMaxThemeModePreference.light => l10n.themeLight,
     BusyMaxThemeModePreference.dark => l10n.themeDark,
+  };
+}
+
+String _notificationDetailLabel(
+  BuildContext context,
+  NotificationDetailLevel level,
+) {
+  final l10n = context.l10n;
+  return switch (level) {
+    NotificationDetailLevel.private => l10n.notificationDetailPrivate,
+    NotificationDetailLevel.normal => l10n.notificationDetailNormal,
   };
 }

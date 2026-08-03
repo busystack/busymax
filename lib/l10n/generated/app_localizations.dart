@@ -1,3 +1,7 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: text_direction_code_point_in_literal, text_direction_code_point_in_comment
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -5,10 +9,22 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart' as intl;
 
+import 'app_localizations_ar.dart';
 import 'app_localizations_de.dart';
 import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
+import 'app_localizations_et.dart';
+import 'app_localizations_fa.dart';
+import 'app_localizations_fi.dart';
 import 'app_localizations_fr.dart';
+import 'app_localizations_hi.dart';
+import 'app_localizations_it.dart';
+import 'app_localizations_ja.dart';
+import 'app_localizations_ko.dart';
+import 'app_localizations_pt.dart';
+import 'app_localizations_ru.dart';
+import 'app_localizations_vi.dart';
+import 'app_localizations_zh.dart';
 
 // ignore_for_file: type=lint
 
@@ -96,10 +112,24 @@ abstract class AppLocalizations {
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
+    Locale('ar'),
     Locale('de'),
     Locale('en'),
     Locale('es'),
+    Locale('et'),
+    Locale('fa'),
+    Locale('fi'),
     Locale('fr'),
+    Locale('hi'),
+    Locale('it'),
+    Locale('ja'),
+    Locale('ko'),
+    Locale('pt'),
+    Locale('ru'),
+    Locale('vi'),
+    Locale('zh'),
+    Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+    Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
   /// No description provided for @appTitle.
@@ -339,7 +369,7 @@ abstract class AppLocalizations {
   /// No description provided for @allDay.
   ///
   /// In en, this message translates to:
-  /// **'All Day'**
+  /// **'All day'**
   String get allDay;
 
   /// No description provided for @moreItems.
@@ -354,125 +384,65 @@ abstract class AppLocalizations {
   /// **'No events or tasks'**
   String get noEventsOrTasks;
 
-  /// No description provided for @trayAgendaLoading.
+  /// No description provided for @scheduleLoading.
   ///
   /// In en, this message translates to:
-  /// **'Loading agenda...'**
-  String get trayAgendaLoading;
+  /// **'Loading schedule...'**
+  String get scheduleLoading;
 
-  /// No description provided for @trayAgendaSignInRequired.
+  /// No description provided for @scheduleUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to show agenda.'**
-  String get trayAgendaSignInRequired;
+  /// **'Schedule unavailable'**
+  String get scheduleUnavailable;
 
-  /// No description provided for @trayAgendaNoSources.
+  /// No description provided for @scheduleNoSources.
   ///
   /// In en, this message translates to:
-  /// **'No visible calendars or task lists.'**
-  String get trayAgendaNoSources;
+  /// **'No visible calendars or task lists'**
+  String get scheduleNoSources;
 
-  /// No description provided for @trayAgendaOpenBusyMax.
+  /// No description provided for @scheduleNoSourcesDescription.
   ///
   /// In en, this message translates to:
-  /// **'Open app'**
-  String get trayAgendaOpenBusyMax;
+  /// **'Choose what to show in Settings, then refresh.'**
+  String get scheduleNoSourcesDescription;
 
-  /// No description provided for @trayAgendaRefresh.
+  /// No description provided for @scheduleSignInRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect an account'**
+  String get scheduleSignInRequired;
+
+  /// No description provided for @scheduleSignInDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to sync calendars and tasks.'**
+  String get scheduleSignInDescription;
+
+  /// No description provided for @scheduleNoSearchResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching events or tasks'**
+  String get scheduleNoSearchResults;
+
+  /// No description provided for @scheduleNoSearchResultsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a different search or clear the current filters.'**
+  String get scheduleNoSearchResultsDescription;
+
+  /// No description provided for @refresh.
   ///
   /// In en, this message translates to:
   /// **'Refresh'**
-  String get trayAgendaRefresh;
+  String get refresh;
 
-  /// No description provided for @trayAgendaError.
-  ///
-  /// In en, this message translates to:
-  /// **'Agenda unavailable'**
-  String get trayAgendaError;
-
-  /// No description provided for @compactAgendaTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Agenda'**
-  String get compactAgendaTitle;
-
-  /// No description provided for @compactAgendaSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Upcoming'**
-  String get compactAgendaSubtitle;
-
-  /// No description provided for @compactAgendaOverdue.
-  ///
-  /// In en, this message translates to:
-  /// **'Overdue'**
-  String get compactAgendaOverdue;
-
-  /// No description provided for @compactAgendaClear.
-  ///
-  /// In en, this message translates to:
-  /// **'Clear for now'**
-  String get compactAgendaClear;
-
-  /// No description provided for @compactAgendaOpenBusyMax.
+  /// No description provided for @trayOpenBusyMax.
   ///
   /// In en, this message translates to:
   /// **'Open BusyMax'**
-  String get compactAgendaOpenBusyMax;
-
-  /// No description provided for @compactAgendaHide.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide'**
-  String get compactAgendaHide;
-
-  /// No description provided for @compactAgendaNewTask.
-  ///
-  /// In en, this message translates to:
-  /// **'New task'**
-  String get compactAgendaNewTask;
-
-  /// No description provided for @compactAgendaRetry.
-  ///
-  /// In en, this message translates to:
-  /// **'Retry'**
-  String get compactAgendaRetry;
-
-  /// No description provided for @compactAgendaRefresh.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh'**
-  String get compactAgendaRefresh;
-
-  /// No description provided for @compactAgendaAllDay.
-  ///
-  /// In en, this message translates to:
-  /// **'All day'**
-  String get compactAgendaAllDay;
-
-  /// No description provided for @compactAgendaDueToday.
-  ///
-  /// In en, this message translates to:
-  /// **'Due today'**
-  String get compactAgendaDueToday;
-
-  /// No description provided for @compactAgendaDueTomorrow.
-  ///
-  /// In en, this message translates to:
-  /// **'Due tomorrow'**
-  String get compactAgendaDueTomorrow;
-
-  /// No description provided for @compactAgendaDueOn.
-  ///
-  /// In en, this message translates to:
-  /// **'Due {date}'**
-  String compactAgendaDueOn(String date);
-
-  /// No description provided for @compactAgendaMoreOverdue.
-  ///
-  /// In en, this message translates to:
-  /// **'Load more overdue tasks'**
-  String get compactAgendaMoreOverdue;
+  String get trayOpenBusyMax;
 
   /// No description provided for @agendaLoadMoreOverdue.
   ///
@@ -597,7 +567,7 @@ abstract class AppLocalizations {
   /// No description provided for @timeSlot.
   ///
   /// In en, this message translates to:
-  /// **'Time Slot'**
+  /// **'Time slot'**
   String get timeSlot;
 
   /// No description provided for @startDateTime.
@@ -683,6 +653,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Provider calendar'**
   String get providerCalendar;
+
+  /// No description provided for @formatBoldShortLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'B'**
+  String get formatBoldShortLabel;
+
+  /// No description provided for @formatBoldTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Bold'**
+  String get formatBoldTooltip;
+
+  /// No description provided for @formatItalicShortLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'I'**
+  String get formatItalicShortLabel;
+
+  /// No description provided for @formatItalicTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Italic'**
+  String get formatItalicTooltip;
+
+  /// No description provided for @formatUnderlineShortLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'U'**
+  String get formatUnderlineShortLabel;
+
+  /// No description provided for @formatUnderlineTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Underline'**
+  String get formatUnderlineTooltip;
+
+  /// No description provided for @reminderMinutesBefore.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes, plural, =1{1 minute before} other{{minutes} minutes before}}'**
+  String reminderMinutesBefore(int minutes);
+
+  /// No description provided for @reminderAtStart.
+  ///
+  /// In en, this message translates to:
+  /// **'At start'**
+  String get reminderAtStart;
+
+  /// No description provided for @reminderHoursBefore.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours, plural, =1{1 hour before} other{{hours} hours before}}'**
+  String reminderHoursBefore(int hours);
+
+  /// No description provided for @reminderDaysBefore.
+  ///
+  /// In en, this message translates to:
+  /// **'{days, plural, =1{1 day before} other{{days} days before}}'**
+  String reminderDaysBefore(int days);
+
+  /// No description provided for @availabilityFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get availabilityFree;
+
+  /// No description provided for @availabilityTentative.
+  ///
+  /// In en, this message translates to:
+  /// **'Tentative'**
+  String get availabilityTentative;
+
+  /// No description provided for @availabilityOutOfOffice.
+  ///
+  /// In en, this message translates to:
+  /// **'Out of office'**
+  String get availabilityOutOfOffice;
+
+  /// No description provided for @availabilityWorkingElsewhere.
+  ///
+  /// In en, this message translates to:
+  /// **'Working elsewhere'**
+  String get availabilityWorkingElsewhere;
+
+  /// No description provided for @visibilityDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get visibilityDefault;
+
+  /// No description provided for @visibilityPublic.
+  ///
+  /// In en, this message translates to:
+  /// **'Public'**
+  String get visibilityPublic;
+
+  /// No description provided for @visibilityPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Private'**
+  String get visibilityPrivate;
+
+  /// No description provided for @visibilityConfidential.
+  ///
+  /// In en, this message translates to:
+  /// **'Confidential'**
+  String get visibilityConfidential;
+
+  /// No description provided for @sensitivityNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get sensitivityNormal;
+
+  /// No description provided for @sensitivityPersonal.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal'**
+  String get sensitivityPersonal;
 
   /// No description provided for @tasks.
   ///
@@ -846,24 +936,6 @@ abstract class AppLocalizations {
   /// **'Close task editing or task details'**
   String get shortcutCancelEditingDescription;
 
-  /// No description provided for @shortcutGroupCompactAgenda.
-  ///
-  /// In en, this message translates to:
-  /// **'Compact agenda'**
-  String get shortcutGroupCompactAgenda;
-
-  /// No description provided for @shortcutRefreshCompactAgendaDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh the compact agenda window'**
-  String get shortcutRefreshCompactAgendaDescription;
-
-  /// No description provided for @shortcutHideCompactAgendaDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide the compact agenda window'**
-  String get shortcutHideCompactAgendaDescription;
-
   /// No description provided for @aboutBusyMax.
   ///
   /// In en, this message translates to:
@@ -873,14 +945,32 @@ abstract class AppLocalizations {
   /// No description provided for @aboutBusyMaxDescription.
   ///
   /// In en, this message translates to:
-  /// **'ToDo and Calendar'**
+  /// **'Calendar and tasks'**
   String get aboutBusyMaxDescription;
+
+  /// No description provided for @license.
+  ///
+  /// In en, this message translates to:
+  /// **'License'**
+  String get license;
+
+  /// No description provided for @apacheLicenseName.
+  ///
+  /// In en, this message translates to:
+  /// **'Apache License 2.0'**
+  String get apacheLicenseName;
 
   /// No description provided for @website.
   ///
   /// In en, this message translates to:
   /// **'Website'**
   String get website;
+
+  /// No description provided for @sourceCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Source code'**
+  String get sourceCode;
 
   /// No description provided for @reportAnIssue.
   ///
@@ -1038,6 +1128,18 @@ abstract class AppLocalizations {
   /// **'Toggle Sidebar'**
   String get toggleSidebar;
 
+  /// No description provided for @showSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Show sidebar panel'**
+  String get showSidebar;
+
+  /// No description provided for @hideSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide sidebar panel'**
+  String get hideSidebar;
+
   /// No description provided for @accounts.
   ///
   /// In en, this message translates to:
@@ -1086,29 +1188,65 @@ abstract class AppLocalizations {
   /// **'Signed in'**
   String get signedInAccount;
 
-  /// No description provided for @signOutThisAccount.
+  /// No description provided for @removeAccount.
   ///
   /// In en, this message translates to:
-  /// **'Sign out this account'**
-  String get signOutThisAccount;
+  /// **'Remove account…'**
+  String get removeAccount;
 
-  /// No description provided for @revokeThisAccount.
+  /// No description provided for @removingAccount.
   ///
   /// In en, this message translates to:
-  /// **'Revoke this account'**
-  String get revokeThisAccount;
+  /// **'Removing account…'**
+  String get removingAccount;
 
-  /// No description provided for @disconnectThisAccount.
+  /// No description provided for @removeAccountDescription.
   ///
   /// In en, this message translates to:
-  /// **'Disconnect this account'**
-  String get disconnectThisAccount;
+  /// **'Stop syncing and remove this account’s data from this device.'**
+  String get removeAccountDescription;
 
-  /// No description provided for @deleteLocalDataForThisAccount.
+  /// No description provided for @removeAccountTitle.
   ///
   /// In en, this message translates to:
-  /// **'Delete local data for this account'**
-  String get deleteLocalDataForThisAccount;
+  /// **'Remove {account} from BusyMax?'**
+  String removeAccountTitle(String account);
+
+  /// No description provided for @removeAccountConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Nothing will be deleted from Google or Microsoft.'**
+  String get removeAccountConfirmation;
+
+  /// No description provided for @revokeGoogleAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Also revoke BusyMax’s access to this Google Account'**
+  String get revokeGoogleAccess;
+
+  /// No description provided for @revokeGoogleAccessDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'You will need to grant access again before reconnecting.'**
+  String get revokeGoogleAccessDescription;
+
+  /// No description provided for @removeAccountAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove account'**
+  String get removeAccountAction;
+
+  /// No description provided for @removeAccountFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not finish removing the account. Try again.'**
+  String get removeAccountFailed;
+
+  /// No description provided for @accountRemovedGoogleRevokeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The account was removed from this device, but BusyMax could not revoke Google access. You can revoke it from your Google Account.'**
+  String get accountRemovedGoogleRevokeFailed;
 
   /// No description provided for @newList.
   ///
@@ -1331,36 +1469,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{date} · {time}'**
   String dateTimeDisplay(String date, String time);
-
-  /// No description provided for @searchTasks.
-  ///
-  /// In en, this message translates to:
-  /// **'Search tasks'**
-  String get searchTasks;
-
-  /// No description provided for @advancedFilters.
-  ///
-  /// In en, this message translates to:
-  /// **'Advanced filters'**
-  String get advancedFilters;
-
-  /// No description provided for @showCompleted.
-  ///
-  /// In en, this message translates to:
-  /// **'Show completed'**
-  String get showCompleted;
-
-  /// No description provided for @showHidden.
-  ///
-  /// In en, this message translates to:
-  /// **'Show hidden'**
-  String get showHidden;
-
-  /// No description provided for @showAssigned.
-  ///
-  /// In en, this message translates to:
-  /// **'Show assigned'**
-  String get showAssigned;
 
   /// No description provided for @taskDetails.
   ///
@@ -1758,30 +1866,6 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get account;
 
-  /// No description provided for @signOut.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign out'**
-  String get signOut;
-
-  /// No description provided for @revokeGoogleAuthorization.
-  ///
-  /// In en, this message translates to:
-  /// **'Revoke Google authorization'**
-  String get revokeGoogleAuthorization;
-
-  /// No description provided for @deleteLocalData.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete local data'**
-  String get deleteLocalData;
-
-  /// No description provided for @deleteLocalDataConfirmation.
-  ///
-  /// In en, this message translates to:
-  /// **'This removes the local account, synced tasks, and pending offline changes from this device.'**
-  String get deleteLocalDataConfirmation;
-
   /// No description provided for @sync.
   ///
   /// In en, this message translates to:
@@ -1793,6 +1877,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Manual full sync'**
   String get manualFullSync;
+
+  /// No description provided for @runInBackgroundWhenClosed.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue running when the window is closed'**
+  String get runInBackgroundWhenClosed;
+
+  /// No description provided for @showTrayIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'Show tray icon'**
+  String get showTrayIcon;
+
+  /// No description provided for @startMinimizedToTray.
+  ///
+  /// In en, this message translates to:
+  /// **'Start minimized to the tray'**
+  String get startMinimizedToTray;
+
+  /// No description provided for @requiresTrayIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'Requires the tray icon.'**
+  String get requiresTrayIcon;
 
   /// No description provided for @syncComplete.
   ///
@@ -1823,6 +1931,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Due-today notifications'**
   String get notifyDueToday;
+
+  /// No description provided for @eventReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Event reminders'**
+  String get eventReminders;
+
+  /// No description provided for @taskReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Task reminders'**
+  String get taskReminders;
+
+  /// No description provided for @notificationDetailLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification detail level'**
+  String get notificationDetailLevel;
+
+  /// No description provided for @notificationDetailPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Private'**
+  String get notificationDetailPrivate;
+
+  /// No description provided for @notificationDetailNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get notificationDetailNormal;
+
+  /// No description provided for @quietHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet hours'**
+  String get quietHours;
+
+  /// No description provided for @quietHoursDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause notifications during this period.'**
+  String get quietHoursDescription;
+
+  /// No description provided for @quietHoursStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet hours start'**
+  String get quietHoursStart;
+
+  /// No description provided for @quietHoursEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet hours end'**
+  String get quietHoursEnd;
 
   /// No description provided for @notifications.
   ///
@@ -1895,12 +2057,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Redact task content in diagnostics'**
   String get redactTaskContentInDiagnostics;
-
-  /// No description provided for @detailedNotifications.
-  ///
-  /// In en, this message translates to:
-  /// **'Detailed notification text'**
-  String get detailedNotifications;
 
   /// No description provided for @developerDiagnostics.
   ///
@@ -2004,6 +2160,12 @@ abstract class AppLocalizations {
   /// **'Discard'**
   String get discard;
 
+  /// Destructive confirmation button that throws away unsaved edits. Translate it distinctly from Cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get discardChangesAction;
+
   /// No description provided for @discardChanges.
   ///
   /// In en, this message translates to:
@@ -2076,11 +2238,125 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{One task is due today.} other{{count} tasks are due today.}}'**
   String dueTodayNotificationBody(int count);
 
+  /// No description provided for @eventReminderNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Event reminder'**
+  String get eventReminderNotificationTitle;
+
+  /// No description provided for @taskReminderNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Task reminder'**
+  String get taskReminderNotificationTitle;
+
+  /// No description provided for @eventReminderNotificationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Event starts soon.'**
+  String get eventReminderNotificationBody;
+
+  /// No description provided for @taskReminderNotificationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Task is due soon.'**
+  String get taskReminderNotificationBody;
+
+  /// No description provided for @notificationOpenAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get notificationOpenAction;
+
   /// No description provided for @notificationDetailsHidden.
   ///
   /// In en, this message translates to:
   /// **'Details are hidden by privacy settings.'**
   String get notificationDetailsHidden;
+
+  /// No description provided for @previousMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous month'**
+  String get previousMonth;
+
+  /// No description provided for @nextMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'Next month'**
+  String get nextMonth;
+
+  /// No description provided for @openMonthView.
+  ///
+  /// In en, this message translates to:
+  /// **'Open month view'**
+  String get openMonthView;
+
+  /// No description provided for @previousYear.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous year'**
+  String get previousYear;
+
+  /// No description provided for @nextYear.
+  ///
+  /// In en, this message translates to:
+  /// **'Next year'**
+  String get nextYear;
+
+  /// No description provided for @openYearView.
+  ///
+  /// In en, this message translates to:
+  /// **'Open year view'**
+  String get openYearView;
+
+  /// No description provided for @weekNumberTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Week {number}'**
+  String weekNumberTooltip(int number);
+
+  /// No description provided for @resizeAllDayPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'Resize the all-day panel'**
+  String get resizeAllDayPanel;
+
+  /// No description provided for @scheduleItemCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 item} other{{count} items}}'**
+  String scheduleItemCount(int count);
+
+  /// No description provided for @readOnlyCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'This calendar is read-only.'**
+  String get readOnlyCalendar;
+
+  /// No description provided for @selectTimeZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Timezone'**
+  String get selectTimeZone;
+
+  /// No description provided for @searchLocations.
+  ///
+  /// In en, this message translates to:
+  /// **'Search locations'**
+  String get searchLocations;
+
+  /// No description provided for @noLocationsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No locations found'**
+  String get noLocationsFound;
+
+  /// No description provided for @deleteCalendarConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete \"{title}\"?'**
+  String deleteCalendarConfirmation(String title);
 }
 
 class _AppLocalizationsDelegate
@@ -2093,24 +2369,78 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['de', 'en', 'es', 'fr'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'ar',
+    'de',
+    'en',
+    'es',
+    'et',
+    'fa',
+    'fi',
+    'fr',
+    'hi',
+    'it',
+    'ja',
+    'ko',
+    'pt',
+    'ru',
+    'vi',
+    'zh',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when language+script codes are specified.
+  switch (locale.languageCode) {
+    case 'zh':
+      {
+        switch (locale.scriptCode) {
+          case 'Hans':
+            return AppLocalizationsZhHans();
+          case 'Hant':
+            return AppLocalizationsZhHant();
+        }
+        break;
+      }
+  }
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
+    case 'ar':
+      return AppLocalizationsAr();
     case 'de':
       return AppLocalizationsDe();
     case 'en':
       return AppLocalizationsEn();
     case 'es':
       return AppLocalizationsEs();
+    case 'et':
+      return AppLocalizationsEt();
+    case 'fa':
+      return AppLocalizationsFa();
+    case 'fi':
+      return AppLocalizationsFi();
     case 'fr':
       return AppLocalizationsFr();
+    case 'hi':
+      return AppLocalizationsHi();
+    case 'it':
+      return AppLocalizationsIt();
+    case 'ja':
+      return AppLocalizationsJa();
+    case 'ko':
+      return AppLocalizationsKo();
+    case 'pt':
+      return AppLocalizationsPt();
+    case 'ru':
+      return AppLocalizationsRu();
+    case 'vi':
+      return AppLocalizationsVi();
+    case 'zh':
+      return AppLocalizationsZh();
   }
 
   throw FlutterError(

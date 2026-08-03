@@ -7,7 +7,8 @@ OAuth-enabled Flutter build must run first.
 ## Prepare
 
 Required: Linux amd64, the Flutter Linux toolchain, snapd, Snapcraft with LXD,
-`unsquashfs` from `squashfs-tools`, and BusyMax Store access for publishing.
+the `libhandy-1-dev` build package, `unsquashfs` from `squashfs-tools`, and
+BusyMax Store access for publishing.
 
 Check that the package versions match:
 
@@ -113,12 +114,14 @@ snap run busymax
 
 Before upload, verify:
 
-- Desktop search shows one BusyMax launcher; both main and Agenda windows open.
+- Desktop search shows one BusyMax launcher; the tray Agenda action opens the
+  Agenda view in the main window.
 - Google and Microsoft sign-in complete successfully.
 - Tasks and events can be created, edited, completed, and deleted; a task
   created in Agenda appears immediately without manual refresh.
 - Accounts, settings, and data survive restart.
-- Notifications and tray actions, including Agenda and Quit, work.
+- Notifications and tray actions, including opening Agenda in the main window
+  and Quit, work.
 
 ## Upload To Beta
 

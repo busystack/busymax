@@ -2,32 +2,59 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
-import 'package:ubuntu_widgets/ubuntu_widgets.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
 const _nativePickerChannel = MethodChannel(nativeDateTimePickerChannelName);
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+final _vancouverTimeZoneCode = BusyMaxTimeZoneCatalog.location(
+  'America/Vancouver',
+).code;
+
+String _withVancouverTimeZone(String time) {
+  return '$time ($_vancouverTimeZoneCode)';
+}
 
 void main() {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativePickerChannel, (_) async {
           throw MissingPluginException();
         });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
   testWidgets('Task Details header shows Cancel and Save', (tester) async {
@@ -37,45 +64,188 @@ void main() {
     expect(find.text('Edit Task'), findsOneWidget);
     expect(find.text('Task details'), findsNothing);
     expect(find.text('Save'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(TaskDetailsEditor),
+        matching: find.byType(YaruScrollViewUndershoot),
+      ),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('Cancel and Save are compact PushButtons', (tester) async {
+  testWidgets('Cancel and Save use natural-width themed controls', (
+    tester,
+  ) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
     expect(
       find.ancestor(
         of: find.text('Cancel'),
-        matching: find.byWidgetPredicate((widget) => widget is PushButton),
+        matching: find.byType(FilledButton),
       ),
       findsOneWidget,
     );
     expect(
       find.ancestor(
         of: find.text('Save'),
-        matching: find.byWidgetPredicate((widget) => widget is PushButton),
+        matching: find.byType(ElevatedButton),
       ),
       findsOneWidget,
     );
+    final cancelButton = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.text('Cancel'),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    final saveButton = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('Save'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(cancelButton.style?.fixedSize, isNull);
+    expect(cancelButton.style?.minimumSize, isNull);
+    expect(saveButton.style?.fixedSize, isNull);
+    expect(saveButton.style?.minimumSize, isNull);
   });
 
-  testWidgets('header buttons use compact headerbar sizing', (tester) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+  testWidgets('task editor groups use the contextual semantic card layer', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      theme: theme,
+      modalEditorSurface: true,
+    );
+
+    final groupedMaterials = tester.widgetList<Material>(
+      find.descendant(
+        of: find.byType(BusyMaxGroupedSurface),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Material && widget.color == colors.card,
+        ),
+      ),
+    );
+    expect(groupedMaterials, isNotEmpty);
+    expect(colors.groupedSurface.a, lessThan(1));
+    expect(colors.card.a, 1);
+    expect(
+      groupedMaterials.every((material) => material.color?.a == 1),
+      isTrue,
+    );
+    expect(
+      Color.alphaBlend(colors.groupedSurface, colors.window).toARGB32(),
+      colors.card.toARGB32(),
+    );
+  });
+
+  testWidgets('task selectors use native combo-row triggers', (tester) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      theme: theme,
+      modalEditorSurface: true,
+    );
+
+    final comboRows = find.byType(BusyMaxComboRow<String>);
+    final comboCount = comboRows.evaluate().length;
+    expect(comboCount, greaterThanOrEqualTo(2));
+    expect(
+      find.descendant(
+        of: comboRows,
+        matching: find.byType(BusyMaxMenuButton<String>),
+      ),
+      findsNWidgets(comboCount),
+    );
+    expect(
+      find.descendant(
+        of: comboRows,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is ButtonStyleButton && widget is! IconButton,
+        ),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: comboRows, matching: find.byType(OutlinedButton)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: comboRows,
+        matching: find.byType(YaruPopupMenuButton),
+      ),
+      findsNothing,
+    );
+    final triggers = find.descendant(
+      of: comboRows,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is YaruListTile && widget.focusNode != null,
+      ),
+    );
+    expect(triggers, findsNWidgets(comboCount));
+    for (var index = 0; index < comboCount; index += 1) {
+      final triggerFinder = triggers.at(index);
+      final trigger = tester.widget<YaruListTile>(triggerFinder);
+      expect(trigger.onTap, isNotNull);
+      expect(
+        trigger.hoverColor,
+        busyMaxRowHoverColor(tester.element(triggerFinder)),
+      );
+      final restingSurface = tester.widget<Material>(
+        find
+            .descendant(of: triggerFinder, matching: find.byType(Material))
+            .first,
+      );
+      expect(restingSurface.type, MaterialType.canvas);
+      expect(restingSurface.color, Colors.transparent);
+      expect(restingSurface.color, isNot(colors.control));
+    }
+  });
+
+  test('task selector content mirrors with text direction', () {
+    final source = File(
+      'lib/src/features/tasks/presentation/task_details_editor.dart',
+    ).readAsStringSync();
+
+    expect(source, isNot(contains('_taskEditorSelectedValue')));
+    expect(source, isNot(contains('_TaskEditorAccountIdentity')));
+    expect(source, isNot(contains('alignment: Alignment.centerRight')));
+    expect(source, isNot(contains('alignment: Alignment.centerLeft')));
+  });
+
+  testWidgets('editor actions keep native height without forced width', (
+    tester,
+  ) async {
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      theme: BusyMaxYaruTheme.build(
+        brightness: Brightness.light,
+        accentColor: const Color(0xFF3584E4),
+      ),
+    );
 
     expect(
-      tester.getSize(_headerButtonFinder(tester, 'Cancel')).width,
-      inInclusiveRange(100, 180),
-    );
-    expect(
-      tester.getSize(_headerButtonFinder(tester, 'Save')).width,
-      inInclusiveRange(100, 180),
-    );
-    expect(
       tester.getSize(_headerButtonFinder(tester, 'Cancel')).height,
-      BusyMaxSizes.headerIconButton,
+      kYaruButtonHeight,
     );
     expect(
       tester.getSize(_headerButtonFinder(tester, 'Save')).height,
-      BusyMaxSizes.headerIconButton,
+      kYaruButtonHeight,
     );
   });
 
@@ -172,6 +342,52 @@ void main() {
     expect(repository.patches, hasLength(1));
     expect(repository.patches.single.fields, {'title': 'Renamed task'});
   });
+
+  testWidgets(
+    'invalid visible due time disables Save and Ctrl+S and makes Cancel confirm',
+    (tester) async {
+      final repository = _FakeTasksRepository();
+      var closed = false;
+      await _pumpDetails(
+        tester,
+        microsoftTaskProviderCapabilities,
+        repository: repository,
+        onClose: () => closed = true,
+      );
+
+      final dueTime = _labeledTextFormFieldFinder('Due time');
+      await tester.enterText(dueTime, 'not a time');
+      await tester.pump();
+
+      expect(_headerButtonOnPressed(tester, 'Save'), isNull);
+      expect(
+        find.text(
+          MaterialLocalizations.of(tester.element(dueTime)).invalidTimeLabel,
+        ),
+        findsOneWidget,
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      expect(repository.patches, isEmpty);
+      expect(closed, isFalse);
+
+      await tester.tap(_headerButtonFinder(tester, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(closed, isFalse);
+      expect(find.text('Discard changes?'), findsOneWidget);
+
+      await tester.tap(_confirmDialogButton('Discard'));
+      await tester.pumpAndSettle();
+
+      expect(closed, isTrue);
+      expect(repository.patches, isEmpty);
+    },
+  );
 
   testWidgets('Save closes editor after successful save', (tester) async {
     final repository = _FakeTasksRepository();
@@ -304,12 +520,49 @@ void main() {
     expect(_firstTextFieldText(tester), 'New task');
   });
 
+  testWidgets('invalid visible due time makes a task switch confirm discard', (
+    tester,
+  ) async {
+    final repository = _SwitchingTasksRepository();
+    addTearDown(repository.dispose);
+    TaskEntity? restoredTask;
+    await _pumpSwitchingDetails(
+      tester,
+      repository,
+      taskId: 'task-1',
+      onTaskSwitchCancelled: (task) => restoredTask = task,
+    );
+    repository.emit(_switchTimedTask('task-1', 'Old task'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      _labeledTextFormFieldFinder('Due time'),
+      'not a time',
+    );
+    await tester.pump();
+
+    await _pumpSwitchingDetails(
+      tester,
+      repository,
+      taskId: 'task-2',
+      onTaskSwitchCancelled: (task) => restoredTask = task,
+    );
+    repository.emit(_switchTimedTask('task-2', 'New task'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(_confirmDialogButton('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(restoredTask?.id, 'task-1');
+    expect(_labeledFieldText(tester, 'Due time'), 'not a time');
+  });
+
   testWidgets('status controls are absent from Task Details', (tester) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
     expect(find.text('Open'), findsNothing);
     expect(find.text('Done'), findsNothing);
-    expect(find.byType(SegmentedButton<bool>), findsNothing);
   });
 
   testWidgets('no visible timezone helper text or UTC appears', (tester) async {
@@ -415,10 +668,14 @@ void main() {
       alwaysUse24HourFormat: true,
     );
 
-    expect(find.text('Jun 6, 2026'), findsOneWidget);
-    expect(find.text('14:30'), findsOneWidget);
-    expect(find.byType(YaruDateTimeEntry), findsNothing);
-    expect(find.byType(YaruTimeEntry), findsNothing);
+    expect(_labeledFieldText(tester, 'Due date'), 'Jun 6, 2026');
+    expect(_labeledFieldText(tester, 'Start date'), 'Jun 4, 2026');
+    expect(
+      _labeledFieldText(tester, 'Due time'),
+      _withVancouverTimeZone('14:30'),
+    );
+    expect(_labeledTextFormFieldFinder('Due date'), findsOneWidget);
+    expect(_labeledTextFormFieldFinder('Due time'), findsOneWidget);
     expect(find.text('14:30:00'), findsNothing);
   });
 
@@ -431,10 +688,13 @@ void main() {
       alwaysUse24HourFormat: false,
     );
 
-    expect(find.text('2:30 PM'), findsOneWidget);
-    expect(find.text('Jun 4, 2026'), findsOneWidget);
-    expect(find.byType(YaruDateTimeEntry), findsNothing);
-    expect(find.byType(YaruTimeEntry), findsNothing);
+    expect(_labeledFieldText(tester, 'Start date'), 'Jun 4, 2026');
+    expect(
+      _labeledFieldText(tester, 'Due time'),
+      _withVancouverTimeZone('2:30 PM'),
+    );
+    expect(_labeledTextFormFieldFinder('Start date'), findsOneWidget);
+    expect(_labeledTextFormFieldFinder('Due time'), findsOneWidget);
     expect(find.text('Jun 4, 2026 · 7:00 AM'), findsNothing);
   });
 
@@ -448,7 +708,7 @@ void main() {
       alwaysUse24HourFormat: true,
     );
 
-    expect(find.byType(YaruDateTimeEntry), findsNothing);
+    expect(_renderedDateFieldTexts(tester), ['6. Juni 2026', '4. Juni 2026']);
     expect(find.textContaining('June'), findsNothing);
     expect(find.textContaining('Jun 4'), findsNothing);
   });
@@ -463,7 +723,7 @@ void main() {
       alwaysUse24HourFormat: true,
     );
 
-    expect(find.byType(YaruDateTimeEntry), findsNothing);
+    expect(_renderedDateFieldTexts(tester), ['6 juin 2026', '4 juin 2026']);
     expect(find.textContaining('June'), findsNothing);
     expect(find.textContaining('Jun 4'), findsNothing);
   });
@@ -478,7 +738,7 @@ void main() {
       alwaysUse24HourFormat: true,
     );
 
-    expect(find.byType(YaruDateTimeEntry), findsNothing);
+    expect(_renderedDateFieldTexts(tester), ['6 jun 2026', '4 jun 2026']);
     expect(find.textContaining('June'), findsNothing);
     expect(find.textContaining('Jun 4'), findsNothing);
   });
@@ -510,12 +770,12 @@ void main() {
     await _pumpDetails(tester, googleTaskProviderCapabilities);
 
     expect(find.text('Due'), findsOneWidget);
-    expect(find.text('Due date'), findsOneWidget);
-    expect(find.text('All Day'), findsNothing);
-    expect(find.text('Time Slot'), findsNothing);
-    expect(find.text('Due time'), findsNothing);
+    expect(_dateRowFinder('Due date'), findsOneWidget);
+    expect(find.text('All day'), findsNothing);
+    expect(find.text('Time slot'), findsNothing);
+    expect(_timeRowFinder('Due time'), findsNothing);
     expect(find.text('Start'), findsNothing);
-    expect(find.text('Start date'), findsNothing);
+    expect(_dateRowFinder('Start date'), findsNothing);
     expect(find.text('Reminder'), findsNothing);
     expect(find.text('Repeat'), findsNothing);
     expect(find.text('Organization'), findsNothing);
@@ -540,6 +800,88 @@ void main() {
     expect(find.text('Google Tasks'), findsWidgets);
   });
 
+  testWidgets(
+    'opaque Microsoft account id waits for and preserves stored provider',
+    (tester) async {
+      final accounts = StreamController<List<AccountEntity>>();
+      addTearDown(accounts.close);
+      const accountId = 'opaque-account-id';
+
+      await _pumpDetails(
+        tester,
+        microsoftTaskProviderCapabilities,
+        accountIdOverride: accountId,
+        accountsStream: accounts.stream,
+      );
+
+      expect(find.byType(TaskDetailsEditor), findsNothing);
+
+      accounts.add([
+        const AccountEntity(
+          id: accountId,
+          provider: TaskProvider.microsoft,
+          authState: 'signed_in',
+          displayName: 'Microsoft User',
+          email: 'microsoft@example.com',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start'), findsOneWidget);
+      expect(find.text('Reminder'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).first, 'Unsaved task');
+      await tester.pump();
+      accounts.add(const []);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unsaved task'), findsOneWidget);
+      expect(find.text('Start'), findsOneWidget);
+      expect(find.text('Reminder'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'account stream errors preserve the pane and definitive removal closes it',
+    (tester) async {
+      final accounts = StreamController<List<AccountEntity>>();
+      addTearDown(accounts.close);
+      const accountId = 'opaque-account-id';
+      var closeCalls = 0;
+
+      await _pumpDetails(
+        tester,
+        microsoftTaskProviderCapabilities,
+        accountIdOverride: accountId,
+        accountsStream: accounts.stream,
+        onClose: () => closeCalls += 1,
+      );
+
+      expect(closeCalls, 0);
+      accounts.add([
+        const AccountEntity(
+          id: accountId,
+          provider: TaskProvider.microsoft,
+          authState: 'signed_in',
+          displayName: 'Microsoft User',
+          email: 'microsoft@example.com',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskDetailsEditor), findsOneWidget);
+
+      accounts.addError(StateError('temporary account stream failure'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskDetailsEditor), findsOneWidget);
+      expect(closeCalls, 0);
+
+      accounts.add(const []);
+      await tester.pumpAndSettle();
+      expect(closeCalls, 1);
+      expect(find.byType(TaskDetailsEditor), findsNothing);
+    },
+  );
+
   testWidgets('unsupported provider text is not rendered for Google', (
     tester,
   ) async {
@@ -547,8 +889,8 @@ void main() {
 
     expect(find.text('Provider features'), findsNothing);
     expect(find.text('Not supported by Google Tasks.'), findsNothing);
-    expect(find.text('Start date'), findsNothing);
-    expect(find.text('Start time'), findsNothing);
+    expect(_dateRowFinder('Start date'), findsNothing);
+    expect(_timeRowFinder('Start time'), findsNothing);
     expect(find.text('Add Reminder'), findsNothing);
     expect(find.text('Importance'), findsNothing);
     expect(find.text('Categories'), findsNothing);
@@ -562,7 +904,7 @@ void main() {
       expect(find.text('Due'), findsOneWidget);
       expect(find.text('Start'), findsOneWidget);
       expect(find.text('Reminder'), findsOneWidget);
-      expect(find.text('Repeat'), findsNWidgets(2));
+      expect(find.text('Repeat'), findsOneWidget);
       expect(find.text('Organization'), findsOneWidget);
       expect(find.text('Provider features'), findsNothing);
     },
@@ -578,10 +920,12 @@ void main() {
       repository: repository,
     );
 
-    expect(find.text('Home'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'Home'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, 'Add category'), findsOneWidget);
 
     await tester.tap(find.text('Add category'));
     await tester.pump();
+    expect(find.byType(YaruAutocomplete<String>), findsOneWidget);
     await tester.enterText(
       find.byKey(const Key('task-category-input')),
       'Work',
@@ -603,9 +947,11 @@ void main() {
     expect(repository.patches.single.fields['categories'], ['Work']);
   });
 
-  testWidgets('Microsoft category suggestions can be selected', (tester) async {
+  testWidgets('Microsoft category suggestions use Yaru autocomplete', (
+    tester,
+  ) async {
     final repository = _FakeTasksRepository(
-      categorySuggestions: const ['Home', 'Work'],
+      categorySuggestions: const ['Home', 'Work', 'Workshop'],
     );
     await _pumpDetails(
       tester,
@@ -619,18 +965,23 @@ void main() {
     await tester.pumpAndSettle();
     final input = find.byKey(const Key('task-category-input'));
     final field = tester.widget<TextField>(input);
-    expect(field.decoration?.border, InputBorder.none);
-    expect(field.decoration?.focusedBorder, InputBorder.none);
+    expect(find.byType(YaruAutocomplete<String>), findsOneWidget);
+    expect(field.decoration?.border, isNull);
+    expect(field.decoration?.focusedBorder, isNull);
     expect(
       tester.getTopLeft(find.text('Work').last).dy,
       greaterThanOrEqualTo(tester.getBottomLeft(input).dy - 1),
     );
-    await tester.tap(find.text('Work').last);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(repository.patches.single.fields['categories'], ['Home', 'Work']);
+    expect(repository.patches.single.fields['categories'], [
+      'Home',
+      'Workshop',
+    ]);
   });
 
   testWidgets('Due group appears before separate Start group', (tester) async {
@@ -638,8 +989,8 @@ void main() {
 
     final dueTop = tester.getTopLeft(find.text('Due')).dy;
     final startTop = tester.getTopLeft(find.text('Start')).dy;
-    final dueDateTop = tester.getTopLeft(find.text('Due date')).dy;
-    final startDateTop = tester.getTopLeft(find.text('Start date')).dy;
+    final dueDateTop = tester.getTopLeft(_dateRowFinder('Due date')).dy;
+    final startDateTop = tester.getTopLeft(_dateRowFinder('Start date')).dy;
 
     expect(dueTop, lessThan(dueDateTop));
     expect(dueDateTop, lessThan(startTop));
@@ -670,12 +1021,15 @@ void main() {
       alwaysUse24HourFormat: true,
     );
 
-    expect(find.text('Reminder date'), findsOneWidget);
-    expect(find.text('Reminder time'), findsOneWidget);
-    expect(find.text('Jun 5, 2026'), findsOneWidget);
-    expect(find.text('09:15'), findsOneWidget);
-    expect(find.byType(YaruDateTimeEntry), findsNothing);
-    expect(find.byType(YaruTimeEntry), findsNothing);
+    expect(_dateRowFinder('Reminder date'), findsOneWidget);
+    expect(_timeRowFinder('Reminder time'), findsOneWidget);
+    expect(_labeledFieldText(tester, 'Reminder date'), 'Jun 5, 2026');
+    expect(
+      _labeledFieldText(tester, 'Reminder time'),
+      _withVancouverTimeZone('09:15'),
+    );
+    expect(_labeledTextFormFieldFinder('Reminder date'), findsOneWidget);
+    expect(_labeledTextFormFieldFinder('Reminder time'), findsOneWidget);
     expect(find.textContaining('Time zone:'), findsNothing);
     expect(find.text('UTC'), findsNothing);
   });
@@ -780,25 +1134,23 @@ void main() {
     );
   });
 
-  testWidgets('due date uses native platform picker channel', (tester) async {
+  testWidgets('due date opens in-window date picker', (tester) async {
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativePickerChannel, (call) async {
           calls.add(call);
-          expect(call.method, 'pickDate');
-          expect(call.arguments, containsPair('initialDate', '2026-06-06'));
-          expect(call.arguments, containsPair('cancelLabel', 'Cancel'));
-          expect(call.arguments, containsPair('okLabel', 'OK'));
-          return '2026-06-15';
+          return null;
         });
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
-    await _openRowMenu(tester, 'Due date');
+    await _openDatePicker(tester, 'Due date');
 
     expect(tester.takeException(), isNull);
-    expect(calls, hasLength(1));
-    expect(find.text('June 2026'), findsNothing);
-    expect(find.text('Jun 15, 2026'), findsOneWidget);
+    expect(calls, isEmpty);
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+    expect(find.byType(CalendarDatePicker), findsNothing);
+    expect(find.text('June'), findsOneWidget);
+    expect(_labeledFieldText(tester, 'Due date'), 'Jun 6, 2026');
   });
 
   testWidgets('date value row can use in-window picker', (tester) async {
@@ -817,12 +1169,20 @@ void main() {
       ),
     );
 
-    await _openRowMenu(tester, 'Due date');
+    await _openDatePicker(tester, 'Due date');
 
-    expect(find.byType(YaruDateTimeEntry), findsOneWidget);
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
     expect(find.byType(CalendarDatePicker), findsNothing);
+    expect(_labeledFieldText(tester, 'Due date'), 'Jun 6, 2026');
 
-    await tester.tap(find.text('OK'));
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(BusyMaxContentPopoverSurface),
+            matching: find.text('6'),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
 
     expect(changed, '2026-06-06');
@@ -852,8 +1212,9 @@ void main() {
       ),
     );
 
-    await _openRowMenu(tester, 'Due date');
-    await tester.tap(find.text('OK'));
+    await _openDatePicker(tester, 'Due date');
+    final todayTooltip = DateFormat('EEEE, MMMM d, yyyy').format(now);
+    await tester.tap(find.byTooltip(todayTooltip));
     await tester.pumpAndSettle();
 
     expect(changed, today);
@@ -861,7 +1222,7 @@ void main() {
   });
 
   testWidgets(
-    'due time uses in-app time entry instead of custom picker channel',
+    'due time uses an inline labeled field without a picker channel',
     (tester) async {
       final calls = <MethodCall>[];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -875,10 +1236,12 @@ void main() {
         alwaysUse24HourFormat: false,
       );
 
-      expect(_timeTextEntryFinder(), findsNothing);
-      await _openRowMenu(tester, 'Due time');
-
-      expect(_timeTextEntryFinder(), findsOneWidget);
+      expect(_labeledTextFormFieldFinder('Due time'), findsOneWidget);
+      expect(
+        _labeledFieldText(tester, 'Due time'),
+        _withVancouverTimeZone('2:30 PM'),
+      );
+      expect(find.byType(BusyMaxContentPopoverSurface), findsNothing);
 
       expect(tester.takeException(), isNull);
       expect(calls, isEmpty);
@@ -896,16 +1259,16 @@ void main() {
     );
 
     expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
-    expect(find.text('All Day'), findsOneWidget);
-    expect(find.text('Time Slot'), findsOneWidget);
-    expect(find.text('Due time'), findsOneWidget);
-    expect(find.text('Start time'), findsOneWidget);
+    expect(find.text('All day'), findsOneWidget);
+    expect(find.text('Time slot'), findsOneWidget);
+    expect(_timeRowFinder('Due time'), findsOneWidget);
+    expect(_timeRowFinder('Start time'), findsOneWidget);
 
-    await tester.tap(find.text('All Day'));
+    await tester.tap(find.text('All day'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Due time'), findsNothing);
-    expect(find.text('Start time'), findsNothing);
+    expect(_timeRowFinder('Due time'), findsNothing);
+    expect(_timeRowFinder('Start time'), findsNothing);
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -923,6 +1286,36 @@ void main() {
     });
   });
 
+  testWidgets('all-day mode clears stale invalid scheduled-time state', (
+    tester,
+  ) async {
+    final repository = _FakeTasksRepository();
+    await _pumpDetails(
+      tester,
+      microsoftTaskProviderCapabilities,
+      repository: repository,
+    );
+
+    await tester.enterText(
+      _labeledTextFormFieldFinder('Due time'),
+      'not a time',
+    );
+    await tester.pump();
+    expect(_headerButtonOnPressed(tester, 'Save'), isNull);
+
+    await tester.tap(find.text('All day'));
+    await tester.pumpAndSettle();
+
+    expect(_timeRowFinder('Due time'), findsNothing);
+    expect(_timeRowFinder('Start time'), findsNothing);
+    expect(_headerButtonOnPressed(tester, 'Save'), isNotNull);
+
+    await tester.tap(_headerButtonFinder(tester, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(repository.patches, hasLength(1));
+  });
+
   testWidgets(
     'Microsoft all-day scheduled tasks can be switched to time slot',
     (tester) async {
@@ -937,14 +1330,14 @@ void main() {
       );
 
       expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
-      expect(find.text('Due time'), findsNothing);
-      expect(find.text('Start time'), findsNothing);
+      expect(_timeRowFinder('Due time'), findsNothing);
+      expect(_timeRowFinder('Start time'), findsNothing);
 
-      await tester.tap(find.text('Time Slot'));
+      await tester.tap(find.text('Time slot'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Due time'), findsWidgets);
-      expect(find.text('Start time'), findsOneWidget);
+      expect(_timeRowFinder('Due time'), findsOneWidget);
+      expect(_timeRowFinder('Start time'), findsOneWidget);
 
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
@@ -975,10 +1368,10 @@ void main() {
     );
 
     expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
-    expect(find.text('Due time'), findsOneWidget);
-    expect(find.text('Start time'), findsOneWidget);
-    expect(find.text('All Day'), findsOneWidget);
-    expect(find.text('Time Slot'), findsOneWidget);
+    expect(_timeRowFinder('Due time'), findsOneWidget);
+    expect(_timeRowFinder('Start time'), findsOneWidget);
+    expect(find.text('All day'), findsOneWidget);
+    expect(find.text('Time slot'), findsOneWidget);
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -986,25 +1379,28 @@ void main() {
     expect(repository.patches, isEmpty);
   });
 
-  testWidgets('time entries do not show redundant internal input label', (
+  testWidgets('populated time field renders its floating label and value', (
     tester,
   ) async {
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
-    await _openRowMenu(tester, 'Due time');
+    final field = _labeledTextFormFieldFinder('Due time');
+    final label = find.text('Due time');
 
-    final entryContext = tester.element(_timeTextEntryFinder().first);
-    final decorationTheme = Theme.of(entryContext).inputDecorationTheme;
-
-    expect(decorationTheme.floatingLabelBehavior, FloatingLabelBehavior.never);
-    expect(decorationTheme.labelStyle?.fontSize, 0);
-    expect(decorationTheme.floatingLabelStyle?.fontSize, 0);
+    expect(field, findsOneWidget);
+    expect(label, findsOneWidget);
+    expect(
+      _labeledFieldText(tester, 'Due time'),
+      _withVancouverTimeZone('2:30 PM'),
+    );
+    expect(tester.getCenter(label).dy, lessThan(tester.getCenter(field).dy));
   });
 
   testWidgets(
-    'empty time field uses time placeholder instead of None subtitle',
+    'empty time field stays empty and floats its label when focused',
     (tester) async {
       await tester.pumpWidget(
         localizedTestApp(
+          alwaysUse24HourFormat: true,
           child: Scaffold(
             body: DesktopTimeField(
               label: 'Due time',
@@ -1015,11 +1411,19 @@ void main() {
         ),
       );
 
-      expect(find.text('Due time'), findsWidgets);
+      expect(find.byType(DesktopTimeField), findsOneWidget);
       expect(find.text('None'), findsNothing);
-      final entry = tester.widget<TextFormField>(_timeTextEntryFinder());
-      expect(entry.controller?.text, isEmpty);
-      expect(find.text('--:--'), findsOneWidget);
+      final field = _labeledTextFormFieldFinder('Due time');
+      final label = find.text('Due time');
+      final restingLabelTop = tester.getTopLeft(label).dy;
+
+      expect(_labeledFieldText(tester, 'Due time'), isEmpty);
+
+      await tester.tap(field);
+      await tester.pumpAndSettle();
+
+      expect(_labeledFieldText(tester, 'Due time'), isEmpty);
+      expect(tester.getTopLeft(label).dy, lessThan(restingLabelTop));
     },
   );
 
@@ -1027,54 +1431,51 @@ void main() {
     String? changed;
     await tester.pumpWidget(
       localizedTestApp(
+        alwaysUse24HourFormat: true,
         child: Scaffold(
-          body: DesktopTimeField(
+          body: _ControlledTimeField(
             label: 'Due time',
-            time: '09:30',
+            initialTime: '09:30',
             onChanged: (time) => changed = time,
           ),
         ),
       ),
     );
 
-    await tester.enterText(_timeTextEntryFinder(), '00:00');
-    await tester.pump();
+    await _enterTime(tester, label: 'Due time', value: '00:00');
 
     expect(changed, '00:00');
+    expect(_labeledFieldText(tester, 'Due time'), '00:00');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('time field formats compact numeric input', (tester) async {
+  testWidgets('time field accepts a complete localized time value', (
+    tester,
+  ) async {
     String? changed;
     await tester.pumpWidget(
       localizedTestApp(
+        alwaysUse24HourFormat: true,
         child: Scaffold(
-          body: DesktopTimeField(
+          body: _ControlledTimeField(
             label: 'Due time',
-            time: null,
+            initialTime: null,
             onChanged: (time) => changed = time,
           ),
         ),
       ),
     );
 
-    await tester.enterText(_timeTextEntryFinder(), '0517');
-    await tester.pump();
+    await _enterTime(tester, label: 'Due time', value: '05:17');
 
-    final entry = tester.widget<TextFormField>(_timeTextEntryFinder());
-    expect(entry.controller?.text, '05:17');
     expect(changed, '05:17');
+    expect(_labeledFieldText(tester, 'Due time'), '05:17');
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('Microsoft payload still includes time zone on Save', (
     tester,
   ) async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(_nativePickerChannel, (call) async {
-          expect(call.method, 'pickDate');
-          return '2026-06-15';
-        });
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
@@ -1083,7 +1484,15 @@ void main() {
       repository: repository,
     );
 
-    await _openRowMenu(tester, 'Due date');
+    await _openDatePicker(tester, 'Due date');
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(BusyMaxContentPopoverSurface),
+            matching: find.text('15'),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
 
     expect(repository.patches, isEmpty);
@@ -1101,19 +1510,13 @@ void main() {
   testWidgets('date field does not render a Flutter calendar grid', (
     tester,
   ) async {
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(_nativePickerChannel, (call) async {
-          calls.add(call);
-          return null;
-        });
     await _pumpDetails(tester, microsoftTaskProviderCapabilities);
 
-    await _openRowMenu(tester, 'Due date');
+    await _openDatePicker(tester, 'Due date');
 
-    expect(calls.single.method, 'pickDate');
-    expect(find.text('June 2026'), findsNothing);
     expect(find.byType(CalendarDatePicker), findsNothing);
+    expect(find.text('June 2026'), findsNothing);
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
   });
 }
 
@@ -1136,6 +1539,9 @@ Future<void> _pumpDetails(
   bool includeAccountIdentity = true,
   String? displayName,
   String? email,
+  Stream<List<AccountEntity>>? accountsStream,
+  ThemeData? theme,
+  bool modalEditorSurface = false,
 }) async {
   final accountId =
       accountIdOverride ??
@@ -1173,15 +1579,16 @@ Future<void> _pumpDetails(
         selectedAccountCapabilitiesProvider.overrideWithValue(capabilities),
         localTimeZoneProvider.overrideWithValue('UTC'),
         accountsStreamProvider.overrideWith((ref) {
-          return Stream.value([
-            AccountEntity(
-              id: accountId,
-              provider: provider,
-              authState: 'signed_in',
-              displayName: accountDisplayName,
-              email: accountEmail,
-            ),
-          ]);
+          return accountsStream ??
+              Stream.value([
+                AccountEntity(
+                  id: accountId,
+                  provider: provider,
+                  authState: 'signed_in',
+                  displayName: accountDisplayName,
+                  email: accountEmail,
+                ),
+              ]);
         }),
         tasksRepositoryForAccountProvider.overrideWith((ref, requestedId) {
           expect(requestedId, accountId);
@@ -1199,13 +1606,25 @@ Future<void> _pumpDetails(
       child: localizedTestApp(
         locale: locale,
         alwaysUse24HourFormat: alwaysUse24HourFormat,
+        theme: theme,
         child: Scaffold(
-          body: TaskDetailsPane(
-            accountId: accountId,
-            taskListId: 'list-1',
-            taskId: 'task-1',
-            onClose: onClose,
-          ),
+          body: modalEditorSurface
+              ? BusyMaxModalEditorSurface(
+                  maxWidth: 640,
+                  maxHeight: 1000,
+                  child: TaskDetailsPane(
+                    accountId: accountId,
+                    taskListId: 'list-1',
+                    taskId: 'task-1',
+                    onClose: onClose,
+                  ),
+                )
+              : TaskDetailsPane(
+                  accountId: accountId,
+                  taskListId: 'list-1',
+                  taskId: 'task-1',
+                  onClose: onClose,
+                ),
         ),
       ),
     ),
@@ -1300,23 +1719,100 @@ void _focusEditorShortcuts(WidgetTester tester) {
   focusWidget.focusNode!.requestFocus();
 }
 
-Future<void> _openRowMenu(WidgetTester tester, String label) async {
-  final row = find
-      .ancestor(
-        of: find.text(label).first,
-        matching: find.byType(BusyMaxCalendarValueRow),
-      )
-      .first;
+Finder _dateRowFinder(String label) {
+  return find.byWidgetPredicate(
+    (widget) => widget is DesktopDateValueRow && widget.label == label,
+  );
+}
+
+Finder _timeRowFinder(String label) {
+  return find.byWidgetPredicate(
+    (widget) => widget is DesktopTimeValueRow && widget.label == label,
+  );
+}
+
+Finder _labeledTextFormFieldFinder(String label) {
+  return find.ancestor(
+    of: find.text(label),
+    matching: find.byType(TextFormField),
+  );
+}
+
+String _labeledFieldText(WidgetTester tester, String label) {
+  return tester
+          .widget<TextFormField>(_labeledTextFormFieldFinder(label).first)
+          .controller
+          ?.text ??
+      '';
+}
+
+List<String> _renderedDateFieldTexts(WidgetTester tester) {
+  final fields = find.descendant(
+    of: find.byType(DesktopDateField),
+    matching: find.byType(TextFormField),
+  );
+  return [
+    for (final field in tester.widgetList<TextFormField>(fields))
+      field.controller?.text ?? '',
+  ];
+}
+
+Future<void> _openDatePicker(WidgetTester tester, String label) async {
+  final row = _dateRowFinder(label);
   await tester.ensureVisible(row);
   await tester.pumpAndSettle();
-  await tester.tap(row);
+  final calendarIcon = find.descendant(
+    of: row,
+    matching: find.byIcon(YaruIcons.calendar),
+  );
+  final button = tester.widget<YaruIconButton>(
+    find.ancestor(of: calendarIcon, matching: find.byType(YaruIconButton)),
+  );
+  button.onPressed?.call();
   await tester.pumpAndSettle();
 }
 
-Finder _timeTextEntryFinder() {
-  return find.byWidgetPredicate(
-    (widget) => widget is TextFormField && widget.controller != null,
-  );
+Future<void> _enterTime(
+  WidgetTester tester, {
+  required String label,
+  required String value,
+}) async {
+  final field = _labeledTextFormFieldFinder(label);
+  await tester.tap(field);
+  await tester.enterText(field, value);
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pump();
+}
+
+class _ControlledTimeField extends StatefulWidget {
+  const _ControlledTimeField({
+    required this.label,
+    required this.initialTime,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String? initialTime;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  State<_ControlledTimeField> createState() => _ControlledTimeFieldState();
+}
+
+class _ControlledTimeFieldState extends State<_ControlledTimeField> {
+  late String? _time = widget.initialTime;
+
+  @override
+  Widget build(BuildContext context) {
+    return DesktopTimeField(
+      label: widget.label,
+      time: _time,
+      onChanged: (value) {
+        setState(() => _time = value);
+        widget.onChanged(value);
+      },
+    );
+  }
 }
 
 class _FakeTasksRepository implements TasksRepository {
@@ -1447,6 +1943,26 @@ TaskEntity _switchTask(String id, String title) {
     rawJson: '{}',
     updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
     status: 'needsAction',
+  );
+}
+
+TaskEntity _switchTimedTask(String id, String title) {
+  return TaskEntity(
+    accountId: 'microsoft:m',
+    taskListId: 'list-1',
+    id: id,
+    title: title,
+    localDirty: false,
+    pendingDelete: false,
+    pendingMove: false,
+    rawJson: '{}',
+    updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
+    status: 'needsAction',
+    dueUtc: '2026-06-06',
+    microsoftDueDateTime: '2026-06-06T14:30:00',
+    microsoftDueTimeZone: 'America/Vancouver',
+    microsoftStartDateTime: '2026-06-04T07:00:00',
+    microsoftStartTimeZone: 'UTC',
   );
 }
 

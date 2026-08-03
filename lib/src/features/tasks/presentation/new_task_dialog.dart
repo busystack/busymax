@@ -72,7 +72,7 @@ class NewTaskEditorPanel extends ConsumerStatefulWidget {
     this.initialListId,
     this.initialDueUtc,
     this.categorySuggestionsForAccount,
-    this.useNativeDatePicker = true,
+    this.useNativeDatePicker = false,
   });
 
   final List<AccountEntity> accounts;
@@ -159,6 +159,7 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
               showDeleteAction: false,
               confirmTaskSwitch: false,
               useNativeDatePicker: widget.useNativeDatePicker,
+              headerBarService: ref.read(linuxHeaderBarServiceProvider),
               categorySuggestions: categorySuggestions,
               canSaveDraft: (draft) => draft.taskListId.isNotEmpty,
               onDraftChanged: (draft) {

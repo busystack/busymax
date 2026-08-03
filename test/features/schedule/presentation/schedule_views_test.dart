@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/features/schedule/presentation/calendar_day_semantics.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_day_week_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_event_block.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_item_chip.dart';
@@ -9,16 +13,122 @@ import 'package:busymax/src/features/schedule/presentation/schedule_item_details
 import 'package:busymax/src/features/schedule/presentation/schedule_item_exporter.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
+import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
+import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
 void main() {
+  test('day and week modes use separate planner state identities', () {
+    final workspace = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+
+    expect(workspace, contains("ValueKey('schedule-day-planner')"));
+    expect(workspace, contains("ValueKey('schedule-week-planner')"));
+  });
+
+  testWidgets('year view uses one month column in compact narrow layouts', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 420,
+            height: 720,
+            child: ScheduleYearView(
+              selectedDate: selectedDate,
+              items: const [],
+              firstWeekday: DateTime.monday,
+              onDaySelected: (_) {},
+              onMonthSelected: (_) {},
+              onWeekSelected: (_) {},
+              onCreateAtDay: (_) {},
+              compact: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final months = find.byType(YearMonthMiniCalendar);
+    expect(months, findsNWidgets(DateTime.monthsPerYear));
+    final januaryPosition = tester.getTopLeft(months.at(0));
+    final februaryPosition = tester.getTopLeft(months.at(1));
+    expect(februaryPosition.dx, januaryPosition.dx);
+    expect(februaryPosition.dy, greaterThan(januaryPosition.dy));
+  });
+
+  testWidgets(
+    'year view highlights a selected spillover date only in its own month',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final selectedDate = DateTime(2026, 7, 30);
+
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: SizedBox(
+              width: 1000,
+              height: 720,
+              child: ScheduleYearView(
+                selectedDate: selectedDate,
+                items: const [],
+                firstWeekday: DateTime.monday,
+                onDaySelected: (_) {},
+                onMonthSelected: (_) {},
+                onWeekSelected: (_) {},
+                onCreateAtDay: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final months = find.byType(YearMonthMiniCalendar);
+      final selectedDateKey = ValueKey((
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+      ));
+      final julyDate = find.descendant(
+        of: months.at(DateTime.july - 1),
+        matching: find.byKey(selectedDateKey),
+      );
+      final augustSpilloverDate = find.descendant(
+        of: months.at(DateTime.august - 1),
+        matching: find.byKey(selectedDateKey),
+      );
+
+      expect(julyDate, findsOneWidget);
+      expect(augustSpilloverDate, findsOneWidget);
+      expect(
+        tester.getSemantics(julyDate).flagsCollection.isSelected,
+        ui.Tristate.isTrue,
+      );
+      expect(
+        tester.getSemantics(augustSpilloverDate).flagsCollection.isSelected,
+        ui.Tristate.isFalse,
+      );
+      semantics.dispose();
+    },
+  );
+
   testWidgets('day view uses package planner with custom BusyMax items', (
     tester,
   ) async {
@@ -51,6 +161,306 @@ void main() {
     expect(find.text('Submit report', skipOffstage: false), findsOneWidget);
     expect(find.byType(icv.EventsMonths), findsNothing);
     expect(find.byType(icv.EventsList), findsNothing);
+  });
+
+  for (final configuration in const [
+    (label: 'day', daysShowed: 1),
+    (label: 'week', daysShowed: 7),
+  ]) {
+    testWidgets(
+      'dark ${configuration.label} grid stays visible with a recessed GTK divider',
+      (tester) async {
+        final selectedDate = DateTime(2026, 1, 15);
+        final theme = _darkCalendarGridTestTheme();
+        final expectedGridColor = theme.colorScheme.onSurface.withValues(
+          alpha: BusyMaxAlpha.calendarGridDark,
+        );
+
+        await tester.pumpWidget(
+          localizedTestApp(
+            theme: theme,
+            child: Scaffold(
+              body: SizedBox(
+                width: 1000,
+                height: 720,
+                child: ScheduleDayWeekView(
+                  range: configuration.daysShowed == 1
+                      ? ScheduleRange.day(selectedDate)
+                      : ScheduleRange.week(selectedDate),
+                  selectedDate: selectedDate,
+                  daysShowed: configuration.daysShowed,
+                  items: _itemsFor(selectedDate),
+                  onDaySelected: (_) {},
+                  onEmptySlot: (_) {},
+                  onItemSelected: (_, _, [_]) {},
+                  onTaskCompletionChanged: (_, _) {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final viewContext = tester.element(find.byType(ScheduleDayWeekView));
+        final planner = tester.widget<icv.EventsPlanner>(
+          find.byType(icv.EventsPlanner),
+        );
+        final painter =
+            planner.dayParam.dayCustomPainter!(1, false) as icv.LinesPainter;
+        final workspaceColor = theme.extension<BusyMaxSurfaceColors>()!.window;
+        final effectiveGridColor = Color.alphaBlend(
+          painter.lineColor,
+          workspaceColor,
+        );
+
+        // GTK's generic separator remains a distinct, recessed native role.
+        expect(theme.colorScheme.outlineVariant, _recessedGtkDivider);
+        expect(planner.daysShowed, configuration.daysShowed);
+        expect(busyMaxCalendarGridColor(viewContext), expectedGridColor);
+        expect(painter.lineColor, expectedGridColor);
+        expect(painter.lineColor, isNot(_recessedGtkDivider));
+        expect(
+          effectiveGridColor.computeLuminance(),
+          greaterThan(workspaceColor.computeLuminance()),
+        );
+      },
+    );
+  }
+
+  testWidgets('planner canvas matches the semantic window surface', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final workspaceColor = theme.extension<BusyMaxSurfaceColors>()!.window;
+    expect(workspaceColor, isNot(theme.colorScheme.surface));
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleDayWeekView(
+              range: ScheduleRange.week(selectedDate),
+              selectedDate: selectedDate,
+              daysShowed: 7,
+              items: _itemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onEmptySlot: (_) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final planner = tester.widget<icv.EventsPlanner>(
+      find.byType(icv.EventsPlanner),
+    );
+    expect(planner.daysHeaderParam.daysHeaderColor, workspaceColor);
+    expect(planner.fullDayParam.fullDayBackgroundColor, workspaceColor);
+    expect(
+      (planner.fullDayParam.fullDayEventsBarDecoration as BoxDecoration).color,
+      workspaceColor,
+    );
+    expect(planner.dayParam.dayColor, workspaceColor);
+  });
+
+  testWidgets('calendar and agenda panes match the semantic window surface', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final workspaceColor = theme.extension<BusyMaxSurfaceColors>()!.window;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              items: _itemsFor(selectedDate),
+              firstWeekday: DateTime.monday,
+              onDaySelected: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final monthHeader = tester.widget<ColoredBox>(
+      find
+          .descendant(
+            of: find.byType(ScheduleMonthView),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is ColoredBox &&
+                  widget.child is SizedBox &&
+                  (widget.child as SizedBox).height == 34,
+            ),
+          )
+          .first,
+    );
+    expect(monthHeader.color, workspaceColor);
+    expect(
+      tester
+          .widgetList<Material>(
+            find.descendant(
+              of: find.byType(ScheduleMonthView),
+              matching: find.byType(Material),
+            ),
+          )
+          .any((material) => material.color == workspaceColor),
+      isTrue,
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleYearView(
+              selectedDate: selectedDate,
+              items: _itemsFor(selectedDate),
+              firstWeekday: DateTime.monday,
+              onDaySelected: (_) {},
+              onMonthSelected: (_) {},
+              onWeekSelected: (_) {},
+              onCreateAtDay: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byType(ScheduleYearView),
+        matching: find.byType(YearMonthMiniCalendar),
+      ),
+      findsNWidgets(DateTime.monthsPerYear),
+    );
+    expect(
+      find.descendant(
+        of: find.byType(ScheduleYearView),
+        matching: find.byType(BusyMaxGroupedSurface),
+      ),
+      findsNWidgets(DateTime.monthsPerYear),
+    );
+    final yearCanvas = tester.widget<ColoredBox>(
+      find
+          .descendant(
+            of: find.byType(ScheduleYearView),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is ColoredBox &&
+                  widget.color == workspaceColor &&
+                  widget.child is SingleChildScrollView,
+            ),
+          )
+          .first,
+    );
+    expect(yearCanvas.color, workspaceColor);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleAgendaView(
+              range: ScheduleRange(
+                start: selectedDate,
+                end: selectedDate.add(const Duration(days: 7)),
+              ),
+              items: _itemsFor(selectedDate),
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final agendaCanvas = tester.widget<ColoredBox>(
+      find
+          .descendant(
+            of: find.byType(ScheduleAgendaView),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is ColoredBox && widget.child is ListView,
+            ),
+          )
+          .first,
+    );
+    expect(agendaCanvas.color, workspaceColor);
+  });
+
+  testWidgets('dark month grid uses the shared neutral grid color', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final theme = _darkCalendarGridTestTheme();
+    final expectedGridColor = theme.colorScheme.onSurface.withValues(
+      alpha: BusyMaxAlpha.calendarGridDark,
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDaySelected: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final monthCell = tester.widget<DecoratedBox>(
+      find
+          .descendant(
+            of: find.byType(GridView),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    final cellBorder =
+        (monthCell.decoration as BoxDecoration).border! as Border;
+    expect(cellBorder.top.color, expectedGridColor);
+    expect(cellBorder.left.color, expectedGridColor);
   });
 
   testWidgets('day view applies configured display hours to planner scroll', (
@@ -128,6 +538,105 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Design review'), findsOneWidget);
+  });
+
+  testWidgets('event block is semantically labeled and keyboard-activatable', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final item = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+    var activationCount = 0;
+    Offset? activationPosition = Offset.zero;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        alwaysUse24HourFormat: true,
+        child: Scaffold(
+          body: Center(
+            child: ScheduleEventBlock(
+              item: item,
+              width: 180,
+              height: 54,
+              onTap: (_, [globalPosition]) {
+                activationCount += 1;
+                activationPosition = globalPosition;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final eventSemantics = find.descendant(
+      of: find.byType(ScheduleEventBlock),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label?.startsWith('Design review') == true,
+      ),
+    );
+    expect(eventSemantics, findsOneWidget);
+    final semantics = tester.widget<Semantics>(eventSemantics);
+    expect(semantics.properties.button, isTrue);
+    expect(semantics.properties.enabled, isTrue);
+    expect(semantics.properties.label, contains('09:00-10:00'));
+    expect(semantics.properties.label, contains('Work'));
+    expect(semantics.properties.onTap, isNotNull);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    final focusedSurface = find.descendant(
+      of: find.byType(ScheduleEventBlock),
+      matching: find.byWidgetPredicate((widget) {
+        if (widget is! Container || widget.decoration is! BoxDecoration) {
+          return false;
+        }
+        final border = (widget.decoration! as BoxDecoration).border;
+        return border is Border && border.top.width == 2;
+      }),
+    );
+    expect(focusedSurface, findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+
+    expect(activationCount, 2);
+    expect(activationPosition, isNull);
+  });
+
+  testWidgets('interactive task chip uses the event click cursor', (
+    tester,
+  ) async {
+    final task = _itemsFor(
+      DateTime(2026, 1, 15),
+    ).whereType<TaskScheduleItem>().first;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Center(
+            child: ScheduleItemChip(
+              item: task,
+              width: 180,
+              height: 54,
+              onTap: (_, [_]) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final taskInkWell = find.descendant(
+      of: find.byType(ScheduleItemChip),
+      matching: find.byType(InkWell),
+    );
+    expect(
+      tester.widget<InkWell>(taskInkWell).mouseCursor,
+      SystemMouseCursors.click,
+    );
   });
 
   testWidgets('same-slot day items render in a horizontal strip', (
@@ -288,7 +797,7 @@ void main() {
               firstWeekday: DateTime.monday,
               items: _itemsFor(selectedDate),
               onDaySelected: (_) {},
-              onCreateAtDay: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
@@ -300,6 +809,213 @@ void main() {
     expect(find.byType(icv.EventsMonths), findsNothing);
     expect(find.text('Design review'), findsOneWidget);
     expect(find.text('Submit report'), findsOneWidget);
+  });
+
+  testWidgets('month create button reports its own popover anchor', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    DateTime? createdAt;
+    BuildContext? createAnchor;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDaySelected: (_) {},
+              onCreateAtDay: (day, {anchorContext}) {
+                createdAt = day;
+                createAnchor = anchorContext;
+              },
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final createButton = find.byType(YaruIconButton);
+    expect(createButton, findsOneWidget);
+    tester.widget<YaruIconButton>(createButton).onPressed!();
+    await tester.pump();
+
+    expect(createdAt, selectedDate);
+    expect(createAnchor, isNotNull);
+    final renderObject = createAnchor!.findRenderObject()! as RenderBox;
+    final anchorRect =
+        renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    expect(anchorRect, tester.getRect(createButton));
+
+    createdAt = null;
+    createAnchor = null;
+    final selectedCell = find
+        .ancestor(
+          of: find.byKey(
+            ValueKey('month-day-marker-${selectedDate.toIso8601String()}'),
+          ),
+          matching: find.byType(InkWell),
+        )
+        .first;
+    tester.widget<InkWell>(selectedCell).onDoubleTap!();
+    await tester.pump();
+
+    expect(createdAt, selectedDate);
+    expect(createAnchor, isNotNull);
+    final cellRenderObject = createAnchor!.findRenderObject()! as RenderBox;
+    final cellAnchorRect =
+        cellRenderObject.localToGlobal(Offset.zero) & cellRenderObject.size;
+    expect(cellAnchorRect, tester.getRect(selectedCell));
+  });
+
+  testWidgets('month and year days share accessible date semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final selectedDate = DateTime(2026, 1, 15);
+    DateTime? activatedDay;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDaySelected: (day) => activatedDay = day,
+              onCreateAtDay: (_, {anchorContext}) {},
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    var selectedDay = find.text('15');
+    var selectedNode = tester.getSemantics(selectedDay);
+    expect(selectedNode.flagsCollection.isSelected, ui.Tristate.isTrue);
+    expect(selectedNode.label, contains('January 15, 2026'));
+    var selectedMarker = tester.widget<Container>(
+      find.byKey(
+        ValueKey('month-day-marker-${selectedDate.toIso8601String()}'),
+      ),
+    );
+    expect(
+      (selectedMarker.decoration! as BoxDecoration).color,
+      Theme.of(tester.element(selectedDay)).colorScheme.primary,
+    );
+    tester.semantics.tap(
+      find.semantics.byPredicate((node) => node.id == selectedNode.id),
+    );
+    await tester.pump();
+    expect(activatedDay, selectedDate);
+
+    activatedDay = null;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleYearView(
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDaySelected: (day) => activatedDay = day,
+              onMonthSelected: (_) {},
+              onWeekSelected: (_) {},
+              onCreateAtDay: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    selectedDay = find.text('15').first;
+    selectedNode = tester.getSemantics(selectedDay);
+    expect(selectedNode.flagsCollection.isSelected, ui.Tristate.isTrue);
+    expect(selectedNode.label, contains('January 15, 2026'));
+    final yearMarker = tester.widget<DecoratedBox>(
+      find
+          .ancestor(
+            of: selectedDay,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is DecoratedBox &&
+                  widget.decoration is BoxDecoration &&
+                  (widget.decoration as BoxDecoration).shape == BoxShape.circle,
+            ),
+          )
+          .first,
+    );
+    expect(
+      (yearMarker.decoration as BoxDecoration).color,
+      Theme.of(tester.element(selectedDay)).colorScheme.primary,
+    );
+    tester.semantics.tap(
+      find.semantics.byPredicate((node) => node.id == selectedNode.id),
+    );
+    await tester.pump();
+    expect(activatedDay, selectedDate);
+    semantics.dispose();
+  });
+
+  testWidgets('calendar date changes replace native tooltip state', (
+    tester,
+  ) async {
+    var day = DateTime(2026, 1, 15);
+    late StateSetter updateDay;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              updateDay = setState;
+              return Center(
+                child: BusyMaxCalendarDaySemantics(
+                  day: day,
+                  selected: false,
+                  onTap: () {},
+                  child: const SizedBox.square(dimension: 32),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(
+      tester.getCenter(find.byType(BusyMaxCalendarDaySemantics)),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final originalState = tester.state<RawTooltipState>(
+      find.byType(RawTooltip),
+    );
+    updateDay(() => day = DateTime(2026, 2, 15));
+    await tester.pump();
+    final updatedState = tester.state<RawTooltipState>(find.byType(RawTooltip));
+
+    expect(updatedState, isNot(same(originalState)));
+    expect(find.byType(Tooltip), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('month view avoids overflow in very short cells', (tester) async {
@@ -317,7 +1033,7 @@ void main() {
               firstWeekday: DateTime.monday,
               items: _sameSlotItemsFor(selectedDate),
               onDaySelected: (_) {},
-              onCreateAtDay: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
             ),
@@ -329,11 +1045,65 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('month More waits for dismissal and returns a stable anchor', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    BuildContext? selectedAnchor;
+    ScheduleItem? selectedItem;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 700,
+            height: 720,
+            child: ScheduleMonthView(
+              range: ScheduleRange.month(selectedDate),
+              selectedDate: selectedDate,
+              firstWeekday: DateTime.monday,
+              items: _manyAllDayItemsFor(selectedDate),
+              onDaySelected: (_) {},
+              onCreateAtDay: (_, {anchorContext}) {},
+              onItemSelected: (anchor, item, [_]) {
+                selectedAnchor = anchor;
+                selectedItem = item;
+              },
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final moreButton = find.ancestor(
+      of: find.textContaining('more'),
+      matching: find.byType(TextButton),
+    );
+    expect(moreButton, findsOneWidget);
+    tester.widget<TextButton>(moreButton).onPressed!();
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxPopoverSurface), findsOneWidget);
+    expect(find.byType(ListView), findsOneWidget);
+    final popoverChips = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(ScheduleItemChip),
+    );
+    expect(popoverChips, findsWidgets);
+    await tester.tap(popoverChips.at(1));
+    await tester.pumpAndSettle();
+
+    expect(selectedItem?.id, 'all-day-task:1');
+    expect(selectedAnchor, isNotNull);
+    expect(selectedAnchor!.mounted, isTrue);
+  });
+
   testWidgets('calendar schedule chip invokes calendar item tap', (
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
     ScheduleItem? selectedItem;
+    Offset? pointerPosition;
     final event = _itemsFor(
       selectedDate,
     ).whereType<CalendarScheduleItem>().first;
@@ -345,7 +1115,10 @@ void main() {
             child: ScheduleItemChip(
               item: event,
               height: 34,
-              onTap: (_, [_]) => selectedItem = event,
+              onTap: (_, [globalPosition]) {
+                selectedItem = event;
+                pointerPosition = globalPosition;
+              },
             ),
           ),
         ),
@@ -355,6 +1128,21 @@ void main() {
     await tester.tap(find.byType(ScheduleEventBlock).first);
 
     expect(selectedItem, isA<CalendarScheduleItem>());
+    expect(pointerPosition, isNotNull);
+
+    selectedItem = null;
+    pointerPosition = null;
+    final center = tester.getCenter(find.byType(ScheduleEventBlock).first);
+    final secondaryClick = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await secondaryClick.addPointer(location: center);
+    await secondaryClick.down(center);
+    await secondaryClick.up();
+
+    expect(selectedItem, isA<CalendarScheduleItem>());
+    expect(pointerPosition, center);
   });
 
   testWidgets('schedule item details popover offers export, edit, and delete', (
@@ -391,24 +1179,350 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Design review'), findsOneWidget);
-    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byIcon(YaruIcons.share), findsOneWidget);
     expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.delete_outline), findsOneWidget);
-    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byIcon(YaruIcons.trash), findsOneWidget);
+    expect(find.byIcon(YaruIcons.window_close), findsOneWidget);
     expect(find.text('Export'), findsNothing);
     expect(find.text('Edit event'), findsNothing);
     expect(find.text('Delete'), findsNothing);
+    expect(find.byType(BusyMaxPopoverIconButton), findsNWidgets(4));
+
+    final actionButtons = tester
+        .widgetList<YaruIconButton>(
+          find.descendant(
+            of: find.byType(BusyMaxPopoverIconButton),
+            matching: find.byType(YaruIconButton),
+          ),
+        )
+        .toList();
+    final actionContext = tester.element(
+      find.byType(BusyMaxPopoverIconButton).first,
+    );
+    final actionColors = BusyMaxSurfaceColors.of(actionContext);
+    expect(BusyMaxSizes.popoverActionButton, kYaruTitleBarItemHeight);
+    expect(BusyMaxSizes.popoverActionIcon, BusyMaxSizes.iconSm);
+    expect(actionButtons, hasLength(4));
+    for (final button in actionButtons) {
+      expect(button.iconSize, BusyMaxSizes.popoverActionButton);
+      expect(button.style?.backgroundColor, isNull);
+      expect(button.style?.overlayColor, isNull);
+      expect(button.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+      expect(
+        button.style?.minimumSize?.resolve({}),
+        const Size.square(BusyMaxSizes.popoverActionButton),
+      );
+      expect(
+        button.style?.maximumSize?.resolve({}),
+        const Size.square(BusyMaxSizes.popoverActionButton),
+      );
+      final style = button.defaultStyleOf(
+        tester.element(find.byWidget(button)),
+      );
+      expect(
+        style.fixedSize?.resolve({}),
+        const Size.square(BusyMaxSizes.popoverActionButton),
+      );
+      expect(style.overlayColor?.resolve({WidgetState.hovered}), isNotNull);
+      expect(style.overlayColor?.resolve({WidgetState.pressed}), isNotNull);
+    }
+    final restingSurfaces = tester
+        .widgetList<Material>(
+          find.descendant(
+            of: find.byType(BusyMaxPopoverIconButton),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Material &&
+                  widget.color == actionColors.control &&
+                  widget.shape == const CircleBorder(),
+            ),
+          ),
+        )
+        .toList();
+    expect(restingSurfaces, hasLength(4));
+    for (final button in find.byType(BusyMaxPopoverIconButton).evaluate()) {
+      expect(
+        tester.getSize(find.byWidget(button.widget)),
+        const Size.square(BusyMaxSizes.popoverActionButton),
+      );
+    }
+    for (final icon in tester.widgetList<Icon>(
+      find.descendant(
+        of: find.byType(BusyMaxPopoverIconButton),
+        matching: find.byType(Icon),
+      ),
+    )) {
+      expect(icon.size, BusyMaxSizes.popoverActionIcon);
+    }
+    expect(
+      tester.widget<Icon>(find.byIcon(YaruIcons.trash)).color,
+      Theme.of(actionContext).colorScheme.error,
+    );
+    expect(tester.widget<Icon>(find.byIcon(YaruIcons.share)).color, isNull);
+
+    final popoverSurfaceFinder = _popoverDecorationFinder(
+      find.byType(BusyMaxContentPopoverSurface),
+    );
+    expect(popoverSurfaceFinder, findsOneWidget);
+    final popoverContext = tester.element(popoverSurfaceFinder);
+    final popoverRoute = ModalRoute.of(popoverContext)!;
+    expect(
+      popoverRoute.traversalEdgeBehavior,
+      TraversalEdgeBehavior.closedLoop,
+    );
+    expect(
+      popoverRoute.directionalTraversalEdgeBehavior,
+      TraversalEdgeBehavior.stop,
+    );
+    final contentSurface = tester.widget<BusyMaxPopoverSurface>(
+      find.descendant(
+        of: find.byType(BusyMaxContentPopoverSurface),
+        matching: find.byType(BusyMaxPopoverSurface),
+      ),
+    );
+    final contentColors = BusyMaxSurfaceColors.of(popoverContext);
+    expect(contentSurface.color, contentColors.popover);
+    expect(contentSurface.outlineColor, contentColors.floatingBorder);
+    expect(contentSurface.shadowRole, BusyMaxPopoverShadowRole.details);
 
     final editCenter = tester.getCenter(find.byIcon(Icons.edit_outlined));
-    final deleteCenter = tester.getCenter(find.byIcon(Icons.delete_outline));
-    final closeCenter = tester.getCenter(find.byIcon(Icons.close));
+    final deleteCenter = tester.getCenter(find.byIcon(YaruIcons.trash));
+    final closeCenter = tester.getCenter(find.byIcon(YaruIcons.window_close));
     expect(editCenter.dx, lessThan(deleteCenter.dx));
     expect(deleteCenter.dx, lessThan(closeCenter.dx));
 
-    await tester.tap(find.byIcon(Icons.download_outlined));
+    await tester.tap(find.byIcon(YaruIcons.share));
     await tester.pumpAndSettle();
 
     expect(await action, ScheduleItemDetailsAction.export);
+  });
+
+  for (final baseline in const [
+    (
+      brightness: Brightness.light,
+      interior: Color(0xFFFAFAFA),
+      outline: Color.fromRGBO(0, 0, 0, 0.14),
+    ),
+    (
+      brightness: Brightness.dark,
+      interior: Color(0xFF3E3E3E),
+      outline: Color.fromRGBO(0, 0, 0, 0.14),
+    ),
+  ]) {
+    testWidgets(
+      'details popover paints the reviewed ${baseline.brightness.name} '
+      'popover surface and native floating edge',
+      (tester) async {
+        tester.view
+          ..physicalSize = const Size(800, 600)
+          ..devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        final selectedDate = DateTime(2026, 1, 15);
+        final event = _itemsFor(
+          selectedDate,
+        ).whereType<CalendarScheduleItem>().first;
+        final theme = BusyMaxYaruTheme.build(
+          brightness: baseline.brightness,
+          accentColor: const Color(0xFF3584E4),
+        );
+
+        await tester.pumpWidget(
+          localizedTestApp(
+            theme: theme,
+            child: Builder(
+              builder: (context) {
+                final mediaQuery = MediaQuery.of(
+                  context,
+                ).copyWith(disableAnimations: true);
+                return MediaQuery(
+                  data: mediaQuery,
+                  child: Scaffold(
+                    body: Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 40),
+                        child: Builder(
+                          builder: (anchorContext) {
+                            return TextButton(
+                              onPressed: () {
+                                showScheduleItemDetailsPopover(
+                                  context: anchorContext,
+                                  anchorContext: anchorContext,
+                                  item: event,
+                                );
+                              },
+                              child: const Text('Open details palette probe'),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open details palette probe'));
+        await tester.pumpAndSettle();
+
+        final shapeFinder = _popoverDecorationFinder(
+          find.byType(BusyMaxContentPopoverSurface),
+        );
+        final popoverFinder = find.descendant(
+          of: find.byType(BusyMaxContentPopoverSurface),
+          matching: find.byType(BusyMaxPopoverSurface),
+        );
+        expect(shapeFinder, findsOneWidget);
+        expect(popoverFinder, findsOneWidget);
+
+        final shapeContext = tester.element(shapeFinder);
+        expect(ModalRoute.of(shapeContext), isNotNull);
+        final popover = tester.widget<BusyMaxPopoverSurface>(popoverFinder);
+        expect(popover.color, baseline.interior);
+        expect(popover.outlineColor, baseline.outline);
+      },
+    );
+  }
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'popover action paints a contained circle and strengthens it on hover '
+      'in $brightness mode',
+      (tester) async {
+        final theme = BusyMaxYaruTheme.build(
+          brightness: brightness,
+          accentColor: const Color(0xFF3584E4),
+        );
+        final colors = theme.extension<BusyMaxSurfaceColors>()!;
+        final boundaryKey = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Center(
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: ColoredBox(
+                  color: colors.card,
+                  child: SizedBox.square(
+                    dimension: 50,
+                    child: Center(
+                      child: BusyMaxPopoverIconButton(
+                        icon: YaruIcons.share,
+                        tooltip: 'Export',
+                        onPressed: () {},
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final restingPixels = await _capturePixels(tester, boundaryKey);
+        final background = _pixelAt(restingPixels, x: 2, y: 2);
+        final restingFace = _pixelAt(restingPixels, x: 25, y: 10);
+        expect(restingFace, isNot(background));
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        addTearDown(mouse.removePointer);
+        await mouse.addPointer(location: Offset.zero);
+        await mouse.moveTo(
+          tester.getCenter(find.byType(BusyMaxPopoverIconButton)),
+        );
+        await tester.pumpAndSettle();
+
+        final hoveredPixels = await _capturePixels(tester, boundaryKey);
+        final hoveredBackground = _pixelAt(hoveredPixels, x: 2, y: 2);
+        final hoveredFace = _pixelAt(hoveredPixels, x: 25, y: 10);
+        expect(hoveredBackground, background);
+        expect(hoveredFace, isNot(restingFace));
+        expect(
+          _luminanceDistance(hoveredFace, background),
+          greaterThan(_luminanceDistance(restingFace, background)),
+        );
+      },
+    );
+  }
+
+  testWidgets('popover action retains Yaru keyboard-focus treatment', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: YaruTheme(
+          data: const YaruThemeData(focusBorders: true),
+          child: Scaffold(
+            body: Center(
+              child: BusyMaxPopoverIconButton(
+                icon: YaruIcons.share,
+                tooltip: 'Export',
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final action = find.byType(BusyMaxPopoverIconButton);
+    expect(
+      find.descendant(of: action, matching: find.byType(YaruFocusBorder)),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSize(action),
+      const Size.square(BusyMaxSizes.popoverActionButton),
+    );
+  });
+
+  testWidgets('direct details popover registers for native-header dismissal', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final event = _itemsFor(
+      selectedDate,
+    ).whereType<CalendarScheduleItem>().first;
+    final controller = ScheduleAnchoredPopoverController();
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: ScheduleAnchoredPopoverScope(
+          controller: controller,
+          child: Scaffold(
+            body: Builder(
+              builder: (anchorContext) => TextButton(
+                onPressed: () {
+                  showScheduleItemDetailsPopover(
+                    context: anchorContext,
+                    anchorContext: anchorContext,
+                    item: event,
+                  );
+                },
+                child: const Text('Open coordinated details'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open coordinated details'));
+    await tester.pumpAndSettle();
+    expect(controller.isOpen, isTrue);
+
+    final dismissal = controller.dismiss();
+    await tester.pumpAndSettle();
+    await dismissal;
+
+    expect(controller.isOpen, isFalse);
+    expect(find.byIcon(YaruIcons.window_close), findsNothing);
   });
 
   testWidgets('schedule item details popover delete button returns delete', (
@@ -443,10 +1557,159 @@ void main() {
 
     await tester.tap(find.text('Open details'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.tap(find.byIcon(YaruIcons.trash));
     await tester.pumpAndSettle();
 
     expect(await action, ScheduleItemDetailsAction.delete);
+  });
+
+  testWidgets('read-only event details omit mutation actions', (tester) async {
+    final event = CalendarScheduleItem(
+      id: 'event:read-only',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:shared',
+      providerCalendarId: 'shared',
+      title: 'Shared calendar event',
+      allDay: false,
+      start: DateTime(2026, 1, 15, 9),
+      end: DateTime(2026, 1, 15, 10),
+      capabilities: ScheduleItemCapabilities.readOnly,
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showScheduleItemDetailsPopover(
+                context: context,
+                anchorContext: context,
+                item: event,
+              ),
+              child: const Text('Open details'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(YaruIcons.share), findsOneWidget);
+    expect(find.byIcon(YaruIcons.window_close), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(find.byIcon(YaruIcons.trash), findsNothing);
+  });
+
+  testWidgets('details popover constrains long content without animation', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(480, 300);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final event = CalendarScheduleItem(
+      id: 'event:long',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'primary',
+      title: 'A detailed event with a deliberately long title for sizing',
+      allDay: false,
+      start: DateTime(2026, 1, 15, 9),
+      end: DateTime(2026, 1, 15, 10),
+      location: 'A long location that still belongs inside the popover',
+      description: List.filled(20, 'Detailed agenda notes').join(' '),
+      categories: List.generate(20, (index) => 'Category $index'),
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(480, 300),
+            disableAnimations: true,
+          ),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                ),
+                child: const Text('Open details'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pump();
+
+    final popover = find
+        .descendant(
+          of: find.byType(BusyMaxContentPopoverSurface),
+          matching: find.byType(BusyMaxPopoverSurface),
+        )
+        .first;
+    expect(popover, findsOneWidget);
+    expect(tester.getSize(popover).height, lessThanOrEqualTo(276));
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('anchored popover keeps nonzero layout in a tiny viewport', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(20, 20);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    late BuildContext hostContext;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              hostContext = context;
+              return const SizedBox.expand();
+            },
+          ),
+        ),
+      ),
+    );
+
+    final completion = showScheduleAnchoredPopover<void>(
+      context: hostContext,
+      anchorContext: hostContext,
+      anchorPoint: const Offset(10, 10),
+      semanticLabel: 'Tiny popover',
+      builder: (_, _, _) =>
+          const SizedBox(key: Key('tiny-popover-child'), height: 1),
+    );
+    await tester.pumpAndSettle();
+
+    final childRect = tester.getRect(
+      find.byKey(const Key('tiny-popover-child')),
+    );
+    final viewport = tester.view.physicalSize / tester.view.devicePixelRatio;
+    expect(childRect.width, greaterThan(0));
+    expect(childRect.height, greaterThan(0));
+    expect(childRect.left, greaterThanOrEqualTo(0));
+    expect(childRect.top, greaterThanOrEqualTo(0));
+    expect(childRect.right, lessThanOrEqualTo(viewport.width));
+    expect(childRect.bottom, lessThanOrEqualTo(viewport.height));
+    expect(tester.takeException(), isNull);
+
+    Navigator.of(hostContext, rootNavigator: true).pop();
+    await tester.pumpAndSettle();
+    await completion;
   });
 
   testWidgets('schedule item details popover shows categories', (tester) async {
@@ -539,6 +1802,49 @@ void main() {
     expect(find.text('Categories: Blue category, Work'), findsOneWidget);
   });
 
+  testWidgets('event reminder details use locale-aware labels', (tester) async {
+    final event = CalendarScheduleItem(
+      id: 'event:localized-reminders',
+      accountId: 'google:g',
+      provider: TaskProvider.google,
+      sourceId: 'calendar:primary',
+      providerCalendarId: 'primary',
+      title: 'Termin',
+      allDay: false,
+      start: DateTime(2026, 1, 15, 9),
+      end: DateTime(2026, 1, 15, 10),
+      reminderMinutesBeforeStart: const [0, 60, 1440],
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        locale: const Locale('de'),
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showScheduleItemDetailsPopover(
+                context: context,
+                anchorContext: context,
+                item: event,
+              ),
+              child: const Text('Öffnen'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Öffnen'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Erinnerung: Zum Startzeitpunkt, 1 Stunde vorher, 1 Tag vorher',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('schedule task details popover shows reminder', (tester) async {
     final selectedDate = DateTime(2026, 1, 15);
     final task = TaskScheduleItem(
@@ -618,15 +1924,37 @@ void main() {
     await tester.tap(find.text('Open details'));
     await tester.pumpAndSettle();
 
-    final popover = find.byWidgetPredicate(
-      (widget) =>
-          widget is PhysicalShape &&
-          widget.elevation == BusyMaxElevation.tooltip,
-    );
-    final topLeft = tester.getTopLeft(popover);
+    final popover = find
+        .descendant(
+          of: find.byType(BusyMaxContentPopoverSurface),
+          matching: find.byType(BusyMaxPopoverSurface),
+        )
+        .first;
+    final rect = tester.getRect(popover);
+    final viewport = tester.view.physicalSize / tester.view.devicePixelRatio;
 
-    expect(topLeft.dx, greaterThan(300));
-    expect(topLeft.dy, greaterThan(100));
+    expect(rect.left, greaterThan(300));
+    expect(rect.top, greaterThan(100));
+    expect(
+      rect.left,
+      greaterThanOrEqualTo(BusyMaxShadow.nativePopoverPaintMargin),
+    );
+    expect(
+      rect.right,
+      lessThanOrEqualTo(
+        viewport.width - BusyMaxShadow.nativePopoverPaintMargin,
+      ),
+    );
+    expect(
+      rect.top,
+      greaterThanOrEqualTo(BusyMaxShadow.nativePopoverPaintMargin),
+    );
+    expect(
+      rect.bottom,
+      lessThanOrEqualTo(
+        viewport.height - BusyMaxShadow.nativePopoverPaintMargin,
+      ),
+    );
   });
 
   testWidgets('schedule item details popover shown above stays near click', (
@@ -665,11 +1993,12 @@ void main() {
     await tester.tap(find.text('Open details'));
     await tester.pumpAndSettle();
 
-    final popover = find.byWidgetPredicate(
-      (widget) =>
-          widget is PhysicalShape &&
-          widget.elevation == BusyMaxElevation.tooltip,
-    );
+    final popover = find
+        .descendant(
+          of: find.byType(BusyMaxContentPopoverSurface),
+          matching: find.byType(BusyMaxPopoverSurface),
+        )
+        .first;
     final rect = tester.getRect(popover);
 
     expect(rect.bottom, greaterThan(500));
@@ -761,13 +2090,13 @@ void main() {
     expect(scheduleExportFileName(event), endsWith('.ics'));
   });
 
-  test('month weekday header uses calendar surface background', () {
+  test('month weekday header uses the semantic window background', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_month_view.dart',
     ).readAsStringSync();
 
     expect(source, contains('ColoredBox('));
-    expect(source, contains('color: theme.colorScheme.surface'));
+    expect(source, contains('color: workspaceColor'));
   });
 
   testWidgets('agenda view is custom and keeps no-date tasks', (tester) async {
@@ -1066,8 +2395,10 @@ void main() {
     expect(source, contains('linuxHeaderBarServiceProvider'));
     expect(source, contains('final showFallbackHeader'));
     expect(source, contains('if (showFallbackHeader)'));
-    expect(source, contains('setTitleRange(headerBarState.titleRange)'));
-    expect(source, contains('setViewMode(headerBarState.viewMode)'));
+    expect(source, contains('final headerBarState = BusyMaxHeaderBarState('));
+    expect(source, contains('.claimSession()'));
+    expect(source, contains('_headerBarSession.updateState(headerBarState)'));
+    expect(source, contains('onMenuSelected: _handleFallbackToolbarMenu'));
   });
 
   test('native headerbar actions are wired to schedule commands', () {
@@ -1082,12 +2413,13 @@ void main() {
     expect(source, contains('BusyMaxHeaderBarAction.viewModeMonth'));
     expect(source, contains('BusyMaxHeaderBarAction.viewModeYear'));
     expect(source, contains('BusyMaxHeaderBarAction.viewModeAgenda'));
+    expect(source, isNot(contains('BusyMaxHeaderBarAction.viewModeCompact')));
     expect(source, contains('BusyMaxHeaderBarAction.refresh'));
     expect(source, contains('allAccountsSyncRunnerProvider'));
     expect(source, contains('context.l10n.allTasksRefreshed'));
     expect(source, contains('setScheduleViewMode(mode)'));
     expect(source, contains('settings.scheduleViewMode'));
-    expect(source, isNot(contains('ScheduleEmptyState')));
+    expect(source, contains('ScheduleEmptyState'));
     expect(source, isNot(contains('BusyMaxHeaderBarAction.newItem')));
     expect(source, isNot(contains('BusyMaxHeaderBarAction.openMenu')));
   });
@@ -1097,7 +2429,15 @@ void main() {
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
 
-    expect(source, contains('HardwareKeyboard.instance.addHandler'));
+    expect(source, isNot(contains('HardwareKeyboard.instance.addHandler')));
+    expect(source, contains('return Shortcuts('));
+    expect(source, contains('_ScheduleShortcutAction(this)'));
+    expect(source, contains('route != null && !route.isCurrent'));
+    expect(source, contains('BusyMaxShortcutActivators.search:'));
+    expect(source, contains('BusyMaxShortcutActivators.sidebar:'));
+    expect(source, contains('_ScheduleShortcut.sidebar'));
+    expect(source, contains('_sidebarCollapsed = !_sidebarCollapsed'));
+    expect(source, isNot(contains('BusyMaxShortcutActivators.create:')));
     expect(source, contains('LogicalKeyboardKey.arrowRight'));
     expect(source, contains('_next();'));
     expect(source, contains('LogicalKeyboardKey.arrowLeft'));
@@ -1108,26 +2448,32 @@ void main() {
     expect(source, isNot(contains('LogicalKeyboardKey.keyP')));
     expect(source, contains('LogicalKeyboardKey.keyE'));
     expect(source, isNot(contains('LogicalKeyboardKey.keyC')));
-    expect(source, contains('_openNewEvent(_latestVisibleSources'));
+    expect(source, contains('_openNewEvent(_latestWritableSources'));
     expect(source, contains('LogicalKeyboardKey.keyT'));
     expect(source, contains('_openNewTask(_latestAccounts'));
-    expect(source, contains('keyboard.isShiftPressed'));
+    expect(
+      source,
+      contains('SingleActivator(LogicalKeyboardKey.keyT, shift: true)'),
+    );
     expect(source, contains('_goToToday();'));
     expect(source, contains('LogicalKeyboardKey.digit1'));
-    expect(source, contains('LogicalKeyboardKey.keyD'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyD')));
     expect(source, contains('_setMode(ScheduleViewMode.day)'));
     expect(source, contains('LogicalKeyboardKey.digit2'));
-    expect(source, contains('LogicalKeyboardKey.keyW'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyW')));
     expect(source, contains('_setMode(ScheduleViewMode.week)'));
     expect(source, contains('LogicalKeyboardKey.digit3'));
-    expect(source, contains('LogicalKeyboardKey.keyM'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyM')));
     expect(source, contains('_setMode(ScheduleViewMode.month)'));
     expect(source, contains('LogicalKeyboardKey.digit4'));
-    expect(source, contains('LogicalKeyboardKey.keyY'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyY')));
     expect(source, contains('_setMode(ScheduleViewMode.year)'));
-    expect(source, contains('LogicalKeyboardKey.digit0'));
-    expect(source, contains('LogicalKeyboardKey.keyA'));
+    expect(source, contains('LogicalKeyboardKey.digit5'));
+    expect(source, isNot(contains('LogicalKeyboardKey.keyA')));
     expect(source, contains('_setMode(ScheduleViewMode.agenda)'));
+    expect(source, isNot(contains('LogicalKeyboardKey.digit0')));
+    expect(source, isNot(contains('LogicalKeyboardKey.numpad0')));
+    expect(source, isNot(contains('ScheduleViewMode.compact')));
     expect(source, contains('focusContext.widget is! EditableText'));
   });
 
@@ -1140,7 +2486,7 @@ void main() {
     expect(source, contains('_requestCalendarMutationSync(draft.accountId)'));
     expect(source, contains('.deleteLocalEvent(eventId)'));
     expect(source, contains('_requestCalendarMutationSync(accountId)'));
-    expect(source, contains('calendarSyncEngineForAccountFactoryProvider'));
+    expect(source, contains('accountSyncOperationsProvider'));
     expect(source, isNot(contains('signedInSyncRunnerProvider)(accountId')));
   });
 
@@ -1160,23 +2506,52 @@ void main() {
     expect(source, contains('reminders: _eventRemindersForEdit('));
   });
 
-  test('schedule item details actions use shared button styling', () {
+  test('month overflow uses the shared anchored popover route', () {
+    final month = File(
+      'lib/src/features/schedule/presentation/schedule_month_view.dart',
+    ).readAsStringSync();
+    final more = File(
+      'lib/src/features/schedule/presentation/schedule_more_popover.dart',
+    ).readAsStringSync();
+
+    expect(month, contains('anchorContext: anchorContext'));
+    expect(
+      more,
+      contains('showScheduleAnchoredPopover<ScheduleMorePopoverSelection>('),
+    );
+    expect(more, contains('BusyMaxPopoverSurface('));
+    expect(more, isNot(contains('showDialog<void>(')));
+    expect(more, isNot(contains('Dialog(')));
+    expect(more, isNot(contains('elevation:')));
+    expect(more, isNot(contains('BoxShadow(')));
+  });
+
+  test('schedule item details actions use the shared contained Yaru role', () {
+    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+    final adapter = design.substring(
+      design.indexOf('class BusyMaxPopoverIconButton'),
+      design.indexOf('Color busyMaxSelectedBackground'),
+    );
     final popover = File(
       'lib/src/features/schedule/presentation/schedule_item_details_popover.dart',
     ).readAsStringSync();
-    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
-    expect(popover, contains('BusyMaxCircularAction('));
+    expect(adapter, contains('class BusyMaxPopoverIconButton'));
+    expect(adapter, contains('child: YaruIconButton('));
+    expect(adapter, contains('shape: const CircleBorder()'));
+    expect(design, contains('class BusyMaxHeaderIconButton'));
+    expect(adapter, contains('iconSize: BusyMaxSizes.popoverActionButton'));
+    expect(adapter, isNot(contains('final button = IconButton(')));
+    expect(adapter, isNot(contains('busyMaxHeaderButtonBackground(context)')));
+    expect(popover, contains('BusyMaxPopoverIconButton('));
+    expect(popover, contains('BusyMaxContentPopoverSurface('));
+    expect(popover, isNot(contains('surfaceColors.popover')));
     expect(popover, contains('destructive: true'));
     expect(popover, isNot(contains('backgroundColor:')));
     expect(popover, isNot(contains('foregroundColor:')));
     expect(popover, isNot(contains('hoverColor:')));
-    expect(
-      design,
-      contains('final surfaceColors = BusyMaxSurfaceColors.of(context);'),
-    );
-    expect(design, contains('color: surfaceColors.control'));
-    expect(design, contains('color: foregroundColor'));
+    expect(popover, isNot(contains('elevation:')));
+    expect(popover, isNot(contains('BoxShadow(')));
   });
 
   test(
@@ -1197,12 +2572,7 @@ void main() {
         contains('final searchHasQuery = _searchQuery.trim().isNotEmpty'),
       );
       expect(workspace, contains('_rangeForSearchResults(items, range)'));
-      expect(
-        workspace,
-        contains(
-          'searchHasQuery\n                    ? ScheduleViewMode.agenda',
-        ),
-      );
+      expect(workspace, contains('? ScheduleViewMode.agenda'));
       expect(
         repository,
         contains('final searching = filters.query.trim().isNotEmpty'),
@@ -1210,7 +2580,10 @@ void main() {
       expect(repository, contains('!searching && !_intersects'));
       expect(agenda, contains('groups.keys'));
       expect(agenda, contains('ColoredBox('));
-      expect(agenda, contains('color: Theme.of(context).colorScheme.surface'));
+      expect(
+        agenda,
+        contains('color: BusyMaxSurfaceColors.of(context).window'),
+      );
       expect(agenda, isNot(contains('_daysInRange')));
     },
   );
@@ -1219,28 +2592,20 @@ void main() {
     final agenda = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
     ).readAsStringSync();
-    final compactAgenda = File(
-      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
-    ).readAsStringSync();
     final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
 
     expect(agenda, contains('BusyMaxGroupedList('));
-    expect(compactAgenda, contains('BusyMaxGroupedList('));
     expect(agenda, isNot(contains('surfaceColor:')));
-    expect(compactAgenda, isNot(contains('surfaceColor:')));
-    expect(agenda, isNot(contains('ScheduleProjection.colorForItem')));
-    expect(compactAgenda, isNot(contains('ScheduleProjection.colorForItem')));
+    expect(agenda, contains('ScheduleProjection.colorForItem'));
     expect(
       agenda,
       contains('BusyMaxSurfaceColors.of(context).mutedForeground'),
     );
-    expect(
-      compactAgenda,
-      contains('BusyMaxSurfaceColors.of(context).mutedForeground'),
-    );
     expect(design, isNot(contains('final Color? surfaceColor;')));
     expect(design, isNot(contains('color: color ?? surfaceColors.control')));
-    expect(design, contains('color: surfaceColors.control'));
+    expect(design, contains('CardTheme.of(context)'));
+    expect(design, isNot(contains('lightSurfaceShadowMinimum')));
+    expect(design, isNot(contains('class _BusyMaxRowTile')));
   });
 
   test('sidebar does not render redundant provider group titles', () {
@@ -1268,102 +2633,267 @@ void main() {
     expect(sidebar, contains('class _AccountSourcesGroupState'));
     expect(sidebar, contains('var _expanded = true'));
     expect(sidebar, contains('class _AccountHeaderRow'));
+    expect(
+      sidebar,
+      contains("key: ValueKey(('schedule-account', account.id))"),
+    );
+    expect(sidebar, contains("'schedule-calendar'"));
+    expect(sidebar, contains("'schedule-task-list'"));
     expect(sidebar, contains('AnimatedRotation'));
-    expect(sidebar, contains('YaruIcons.pan_end'));
+    expect(sidebar, contains('BusyMaxGlyphs.collapsedFor'));
     expect(sidebar, contains('if (_expanded)'));
+    expect(sidebar, contains('MiniCalendar('));
     expect(sidebar, isNot(contains('BusyMaxGroupedList(')));
     expect(sidebar, isNot(contains('hoverColor: Colors.transparent')));
   });
 
-  test('mini calendar has separate month and year steppers', () {
+  test('mini calendar keeps surface behavior outside the shared grid', () {
     final source = File(
       'lib/src/features/schedule/presentation/mini_calendar.dart',
     ).readAsStringSync();
 
+    expect(source, contains('class MiniCalendar extends StatefulWidget'));
+    expect(source, contains('class YearMonthMiniCalendar'));
+    expect(source, contains('class MiniCalendarGrid extends StatelessWidget'));
     expect(source, contains('class _MiniCalendarStepper'));
-    expect(source, contains('required this.onMonthSelected'));
-    expect(source, contains('required this.onYearSelected'));
-    expect(source, contains('required this.onWeekSelected'));
-    expect(source, contains('required this.firstWeekday'));
-    expect(source, contains('_calendarStartForMonth(first, firstWeekday)'));
-    expect(source, contains('monthWeekdayFromMonday'));
-    expect(source, contains('firstWeekdayFromMonday'));
-    expect(source, contains('_addCalendarDays('));
-    expect(source, contains('row * DateTime.daysPerWeek'));
-    expect(source, contains('_addCalendarDays(weekStart, column)'));
-    expect(source, isNot(contains('weekStart.add(Duration(days: column))')));
-    expect(source, contains('final weekNumberExtent = math.min'));
-    expect(source, contains('constraints.maxWidth - weekNumberExtent'));
-    expect(source, isNot(contains('final calendarWidth =')));
-    expect(source, contains('class _MiniCalendarWeekRow'));
-    expect(source, contains('class _MiniCalendarWeekNumberButton'));
-    expect(source, contains('class _MiniCalendarDayButton'));
-    expect(source, contains('class _MiniCalendarDayIndicators'));
+    expect(source, contains('miniCalendarMarkerColorsForItems'));
     expect(
       source,
-      contains('final groupedItems = ScheduleProjection.groupByDay(items)'),
+      contains('final groupedItems = ScheduleProjection.groupByDay'),
     );
-    expect(source, contains('DateFormat.E('));
-    expect(source, contains('_weekdays(firstWeekday)'));
-    expect(source, contains('DateFormat.yMMMMEEEEd(locale)'));
-    expect(source, contains('ScheduleProjection.colorForItem'));
-    expect(source, contains('height: dayExtent'));
-    expect(source, contains('width: double.infinity'));
-    expect(source, contains('crossAxisAlignment: CrossAxisAlignment.stretch'));
-    expect(source, contains('SizedBox(width: weekNumberExtent)'));
+    expect(source, contains('onWeekSelected == null'));
+  });
+
+  testWidgets('mini calendar exposes and activates the selected day', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    DateTime? activatedDay;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.monday,
+              onSelected: (day) => activatedDay = day,
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selectedDay = find.text('15');
+    final selectedSemantics = tester.getSemantics(selectedDay);
+    expect(selectedSemantics.flagsCollection.isSelected, ui.Tristate.isTrue);
+    expect(selectedSemantics.label, contains('January 15, 2026'));
+
+    await tester.tap(selectedDay);
+    expect(activatedDay, DateTime(2026, 1, 15));
+    semantics.dispose();
+  });
+
+  testWidgets('mini calendar day hover is larger and clearly visible', (
+    tester,
+  ) async {
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.light,
+      accentColor: const Color(0xFF3584E4),
+    );
+    final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        theme: theme,
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendarGrid(
+              displayedMonth: DateTime(2026, 1),
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.monday,
+              onDaySelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final day = find.text('14');
+    final dayInkWell = tester.widget<InkWell>(
+      find.ancestor(of: day, matching: find.byType(InkWell)),
+    );
+    expect(dayInkWell.hoverColor, Colors.transparent);
+    final marker = find.ancestor(
+      of: day,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).shape == BoxShape.circle,
+      ),
+    );
+    expect(marker, findsOneWidget);
+    final restingSize = tester.getSize(marker);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(day));
+    await tester.pumpAndSettle();
+
+    final hoveredSize = tester.getSize(marker);
+    final hoveredMarker = tester.widget<DecoratedBox>(marker);
+    final decoration = hoveredMarker.decoration as BoxDecoration;
+    expect(hoveredSize.width, greaterThan(restingSize.width));
+    expect(hoveredSize.width, 32);
     expect(
-      source,
-      contains('for (var column = 0; column < DateTime.daysPerWeek; column++)'),
+      (decoration.color!.computeLuminance() - colors.card.computeLuminance())
+          .abs(),
+      greaterThan(0.05),
     );
-    expect(source, isNot(contains('GridView.builder')));
-    expect(source, contains('const SizedBox(width: BusyMaxSpacing.xs)'));
-    expect(source, contains('label: _monthName(selectedDate)'));
-    expect(source, contains('BusyMaxSpacing.headerInset'));
+  });
+
+  testWidgets('mini calendar header controls are compact hover-only circles', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.monday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final headerButtons = tester.widgetList<BusyMaxHeaderIconButton>(
+      find.byType(BusyMaxHeaderIconButton),
+    );
+    expect(headerButtons, hasLength(4));
+    for (final button in headerButtons) {
+      expect(button.fixedSize, const Size.square(28));
+      expect(button.shape, const CircleBorder());
+      expect(button.backgroundColor!.resolve({}), isNull);
+      expect(button.backgroundColor!.resolve({WidgetState.hovered}), isNotNull);
+    }
+
+    final monthLabel = tester.widget<Text>(find.text('January'));
+    final yearLabel = tester.widget<Text>(find.text('2026'));
+    expect(monthLabel.style?.fontSize, lessThan(14));
+    expect(monthLabel.style?.fontWeight, FontWeight.w600);
+    expect(yearLabel.style?.fontSize, lessThan(14));
+    expect(yearLabel.style?.fontWeight, FontWeight.w600);
+
+    final monthButton = find.ancestor(
+      of: find.text('January'),
+      matching: find.byType(TextButton),
+    );
+    final yearButton = find.ancestor(
+      of: find.text('2026'),
+      matching: find.byType(TextButton),
+    );
     expect(
-      source,
-      isNot(contains('padding: const EdgeInsets.all(BusyMaxSpacing.md)')),
+      tester.getSize(monthButton).width,
+      greaterThan(tester.getSize(yearButton).width),
     );
-    expect(source, contains("labelTooltip: 'Open month'"));
-    expect(source, contains('onMonthSelected(first)'));
-    expect(source, contains('busyMaxHeaderTextButtonStyle'));
-    expect(source, contains("label: '\${selectedDate.year}'"));
-    expect(source, contains("labelTooltip: 'Open year'"));
-    expect(source, contains('onYearSelected('));
-    expect(source, contains('String _monthName(DateTime date)'));
-    expect(source, contains('return months[date.month - 1];'));
+
+    final weekButton = find.descendant(
+      of: find.byTooltip('Week 3'),
+      matching: find.byType(TextButton),
+    );
     expect(
-      source,
-      isNot(contains("return '\${months[date.month - 1]} \${date.year}';")),
+      tester.getSize(weekButton).height,
+      tester.getSize(monthButton).height,
     );
-    expect(source, contains("'Previous month'"));
-    expect(source, contains("'Next month'"));
-    expect(source, contains("'Previous year'"));
-    expect(source, contains("'Next year'"));
-    expect(source, contains('selectedDate.year - 1'));
-    expect(source, contains('selectedDate.year + 1'));
-    expect(source, contains('busyMaxHeaderIconButtonStyle'));
-    expect(source, contains('miniCalendarWeekButton'));
-    expect(source, contains('busyMaxHeaderButtonBackground(context)'));
-    expect(source, isNot(contains('busyMaxSubtleButtonBackground(context)')));
-    expect(source, contains('_isoWeekNumber'));
-    expect(source, contains('DateTime.daysPerWeek'));
-    expect(source, contains('TextButton('));
-    expect(source, contains("message: 'Week \$weekNumber'"));
-    expect(source, contains('onSelected(weekStart)'));
-    expect(source, contains('BoxShape.circle'));
-    expect(source, contains('customBorder: const CircleBorder()'));
-    expect(source, contains('final markerSize = math.min'));
-    expect(source, contains('final highlightToday = today && currentMonth'));
-    expect(source, contains('color: highlightToday'));
-    expect(source, contains('selectedYear == DateTime.now().year'));
-    expect(source, contains('selectedMonth == DateTime.now().month'));
-    expect(
-      source,
-      isNot(contains('final selected = _sameDay(day, selectedDate)')),
+  });
+
+  testWidgets('mini calendar uses a capitalized standalone Russian month', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        locale: const Locale('ru'),
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 7, 15),
+              firstWeekday: DateTime.monday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
     );
-    expect(source, isNot(contains('YaruIcons.arrow_left')));
-    expect(source, isNot(contains('YaruIcons.arrow_right')));
-    expect(source, isNot(contains('BorderRadius.circular(BusyMaxRadius.sm)')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Июль'), findsOneWidget);
+    expect(find.text('июль'), findsNothing);
+    expect(find.text('июля'), findsNothing);
+  });
+
+  testWidgets('mini calendar header arrows page without selecting a date', (
+    tester,
+  ) async {
+    final selectedDates = <DateTime>[];
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.monday,
+              onSelected: selectedDates.add,
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Next month'));
+    await tester.pump();
+    expect(find.text('February'), findsOneWidget);
+    expect(find.text('2026'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Next year'));
+    await tester.pump();
+    expect(find.text('February'), findsOneWidget);
+    expect(find.text('2027'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Previous month'));
+    await tester.pump();
+    expect(find.text('January'), findsOneWidget);
+    expect(find.text('2027'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Previous year'));
+    await tester.pump();
+    expect(find.text('January'), findsOneWidget);
+    expect(find.text('2026'), findsOneWidget);
+    expect(selectedDates, isEmpty);
   });
 
   testWidgets('mini calendar week number selects that week', (tester) async {
@@ -1392,6 +2922,128 @@ void main() {
     expect(selectedWeek, DateTime(2026, 1, 12));
   });
 
+  testWidgets('year view week number selects that week', (tester) async {
+    DateTime? selectedWeek;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            height: 720,
+            child: ScheduleYearView(
+              selectedDate: DateTime(2026, 1, 15),
+              items: const [],
+              firstWeekday: DateTime.monday,
+              onDaySelected: (_) {},
+              onMonthSelected: (_) {},
+              onWeekSelected: (weekStart) => selectedWeek = weekStart,
+              onCreateAtDay: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final january = find.byType(YearMonthMiniCalendar).first;
+    await tester.tap(
+      find.descendant(of: january, matching: find.byTooltip('Week 3')),
+    );
+
+    expect(selectedWeek, DateTime(2026, 1, 12));
+  });
+
+  testWidgets(
+    'mini calendar numbers Sunday-first rows from their displayed start date',
+    (tester) async {
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: MiniCalendar(
+                selectedDate: DateTime(2027, 1, 15),
+                firstWeekday: DateTime.sunday,
+                onSelected: (_) {},
+                onMonthSelected: (_) {},
+                onYearSelected: (_) {},
+                onWeekSelected: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byTooltip('Week 52'), findsOneWidget);
+      expect(find.byTooltip('Week 53'), findsOneWidget);
+      expect(find.byTooltip('Week 1'), findsOneWidget);
+    },
+  );
+
+  testWidgets('mini calendar week buttons have hover-only backgrounds', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.monday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final weekButton = tester.widget<TextButton>(
+      find.descendant(
+        of: find.byTooltip('Week 3'),
+        matching: find.byType(TextButton),
+      ),
+    );
+    expect(weekButton.style?.backgroundColor?.resolve({}), isNull);
+    expect(
+      weekButton.style?.backgroundColor?.resolve({WidgetState.hovered}),
+      isNotNull,
+    );
+  });
+
+  testWidgets('mini calendar can render week numbers as labels', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendarGrid(
+              displayedMonth: DateTime(2026, 1),
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.monday,
+              onDaySelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip('Week 3'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byTooltip('Week 3'),
+        matching: find.byType(TextButton),
+      ),
+      findsNothing,
+    );
+    await tester.tap(find.byTooltip('Week 3'));
+  });
+
   testWidgets('mini calendar week number honors first weekday', (tester) async {
     DateTime? selectedWeek;
 
@@ -1418,6 +3070,41 @@ void main() {
     expect(selectedWeek, DateTime(2026, 1, 4));
   });
 
+  testWidgets('January 2026 Sunday rows use ISO weeks 52 and 1', (
+    tester,
+  ) async {
+    final selectedWeeks = <DateTime>[];
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 300,
+            child: MiniCalendar(
+              selectedDate: DateTime(2026, 1, 15),
+              firstWeekday: DateTime.sunday,
+              onSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: selectedWeeks.add,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip('Week 52'), findsOneWidget);
+    expect(find.byTooltip('Week 1'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Week 52'));
+    await tester.tap(find.byTooltip('Week 1'));
+
+    expect(selectedWeeks, <DateTime>[
+      DateTime(2025, 12, 28),
+      DateTime(2026, 1, 4),
+    ]);
+  });
+
   testWidgets(
     'mini calendar shows previous month day for Sunday-first Monday starts',
     (tester) async {
@@ -1427,7 +3114,7 @@ void main() {
             body: SizedBox(
               width: 300,
               child: MiniCalendar(
-                selectedDate: DateTime(2027, 11, 1),
+                selectedDate: DateTime(2027, 11, 15),
                 firstWeekday: DateTime.sunday,
                 onSelected: (_) {},
                 onMonthSelected: (_) {},
@@ -1462,6 +3149,21 @@ void main() {
         ),
         findsOneWidget,
       );
+      final previousMonthDay = tester.widget<Text>(
+        find.descendant(
+          of: find.byTooltip('Sunday, October 31, 2027'),
+          matching: find.text('31'),
+        ),
+      );
+      final currentMonthDay = tester.widget<Text>(
+        find.descendant(
+          of: find.byTooltip('Monday, November 1, 2027'),
+          matching: find.text('1'),
+        ),
+      );
+      expect(previousMonthDay.style?.color, isNotNull);
+      expect(previousMonthDay.style!.color!.a, lessThan(1));
+      expect(currentMonthDay.style?.color, isNull);
     },
   );
 
@@ -1555,7 +3257,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Open month'));
+    await tester.tap(find.byTooltip('Open month view'));
 
     expect(selectedMonth, DateTime(2026, 5));
   });
@@ -1581,7 +3283,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Open year'));
+    await tester.tap(find.byTooltip('Open year view'));
 
     expect(selectedYear, DateTime(2026));
   });
@@ -1625,7 +3327,7 @@ void main() {
     expect(workspace, contains('setScheduleViewMode(ScheduleViewMode.week)'));
   });
 
-  test('year view day clicks open day mode', () {
+  test('year view day and week clicks open their matching modes', () {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -1633,6 +3335,9 @@ void main() {
     expect(workspace, contains('required this.onYearDaySelected'));
     expect(workspace, contains('onYearDaySelected: _openDay'));
     expect(workspace, contains('onDaySelected: onYearDaySelected'));
+    expect(workspace, contains('required this.onWeekSelected'));
+    expect(workspace, contains('onWeekSelected: _setWeek'));
+    expect(workspace, contains('onWeekSelected: onWeekSelected'));
   });
 
   test('sidebar source rows keep visibility actions on the right', () {
@@ -1646,6 +3351,7 @@ void main() {
     expect(sidebar, contains('visibilityButton: _SourceVisibilityButton'));
     expect(sidebar, contains('menuButton: BusyMaxMenuButton'));
     expect(sidebar, contains('tooltip: context.l10n.options'));
+    expect('highlightWhenOpen: false'.allMatches(sidebar), hasLength(2));
     expect(sidebar, contains('value ? context.l10n.hide : context.l10n.show'));
     expect(sidebar, isNot(contains('tooltip: context.l10n.sourceCalendar')));
     expect(sidebar, isNot(contains('tooltip: context.l10n.sourceTaskList')));
@@ -1661,7 +3367,7 @@ void main() {
     expect(sidebar, isNot(contains('_SourceVisibilityIndicator')));
   });
 
-  test('schedule create action lives in the headerbar before refresh', () {
+  test('schedule Create uses a native popover before refresh', () {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
@@ -1678,23 +3384,33 @@ void main() {
 
     expect(workspace, isNot(contains('floatingActionButtonLocation')));
     expect(workspace, isNot(contains('FloatingActionButton(')));
-    expect(workspace, contains('BusyMaxHeaderBarAction.create'));
-    expect(workspace, contains('void _openCreateAtSelectedDate()'));
-    expect(headerService, contains('BusyMaxHeaderBarAction.create'));
+    expect(workspace, contains('BusyMaxHeaderBarAction.createEvent'));
+    expect(workspace, contains('BusyMaxHeaderBarAction.createTask'));
+    expect(workspace, isNot(contains('void _openCreateAtSelectedDate()')));
     expect(
       headerService,
-      contains("'create' => BusyMaxHeaderBarAction.create"),
+      isNot(contains("'create' => BusyMaxHeaderBarAction.create")),
     );
     expect(
       headerBar,
-      contains('create_header_icon_button("list-add-symbolic"'),
+      contains('gtk_image_new_from_icon_name("list-add-symbolic"'),
     );
     expect(
       headerBar,
       contains(
-        'connect_header_bar_action(self, self->create_button, "create")',
+        'append_header_action_item(menu, self->header_create_event_label,',
       ),
     );
+    expect(
+      headerBar,
+      contains(
+        'append_header_action_item(menu, self->header_create_task_label,',
+      ),
+    );
+    expect(headerBar, contains('gtk_menu_button_set_menu_model'));
+    expect(headerBar, contains('g_simple_action_set_enabled'));
+    expect(headerBar, contains('show_header_create_menu'));
+    expect(headerService, contains("'showCreateMenu'"));
     expect(
       headerBar.indexOf(
         'gtk_box_pack_start(GTK_BOX(end_box), self->create_button',
@@ -1707,6 +3423,7 @@ void main() {
     );
     expect(sidebar, isNot(contains('context.l10n.create')));
     expect(sidebar, isNot(contains('PushButton.filled')));
+    expect(toolbar, isNot(contains('BusyMaxShortcutLabels.create')));
     expect(toolbar, contains('tooltip: context.l10n.create'));
     expect(toolbar, contains('icon: const Icon(YaruIcons.plus)'));
     expect(toolbar, contains('tooltip: context.l10n.refreshAll'));
@@ -1757,7 +3474,7 @@ void main() {
     expect(taskChip, isNot(contains('if (!compact)')));
   });
 
-  test('schedule item chips use neutral surfaces instead of blue tints', () {
+  test('schedule item chips keep neutral surfaces with source accents', () {
     final eventBlock = File(
       'lib/src/features/schedule/presentation/schedule_event_block.dart',
     ).readAsStringSync();
@@ -1769,16 +3486,17 @@ void main() {
     ).readAsStringSync();
 
     expect(eventBlock, contains('color: surfaceColors.control'));
-    expect(eventBlock, contains('color: surfaceColors.subtleBorder'));
+    expect(eventBlock, contains('sourceAccent'));
     expect(taskChip, contains('color: surfaceColors.control'));
-    expect(taskChip, contains('color: surfaceColors.subtleBorder'));
+    expect(taskChip, contains('color: surfaceColors.divider'));
     expect(taskChip, contains('YaruCheckbox('));
     expect(taskChip, isNot(contains('selectedColor:')));
     expect(taskChip, isNot(contains('checkmarkColor:')));
     expect(taskChip, isNot(contains('YaruCheckboxTheme')));
     expect(eventBlock, isNot(contains('Color.alphaBlend(')));
     expect(taskChip, isNot(contains('Color.alphaBlend(')));
-    expect(projection, isNot(contains('_colorFromHex(item.colorHex)')));
+    expect(projection, contains('_colorFromHex(item.colorHex)'));
+    expect(projection, contains('deterministicSourceColor(item.sourceId'));
     expect(projection, isNot(contains('0xff4d7fa8')));
     expect(projection, isNot(contains('0xff8db3d9')));
     expect(projection, isNot(contains('0xff326b88')));
@@ -1934,11 +3652,12 @@ void main() {
     );
     expect(
       workspace,
-      contains(
-        'service.setNavigationVisible(headerBarState.navigationVisible)',
-      ),
+      contains('_headerBarSession.updateState(headerBarState)'),
     );
-    expect(headerService, contains('Future<void> setNavigationVisible'));
+    expect(headerService, contains('class BusyMaxHeaderBarState'));
+    expect(headerService, contains('class LinuxHeaderBarSession'));
+    expect(headerService, contains('Future<void> updateState('));
+    expect(nativeRunner, contains('set_header_bar_state'));
     expect(nativeRunner, contains('set_header_navigation_visible'));
     expect(nativeRunner, contains('setNavigationVisible'));
   });
@@ -1953,7 +3672,8 @@ void main() {
     expect(
       source,
       contains(
-        'showNoDateTasks: searchHasQuery || _mode != ScheduleViewMode.agenda',
+        'showNoDateTasks: searchHasQuery || '
+        '_mode != ScheduleViewMode.agenda',
       ),
     );
     expect(
@@ -1981,22 +3701,13 @@ void main() {
     final agenda = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
     ).readAsStringSync();
-    final compactAgenda = File(
-      'lib/src/features/schedule/presentation/compact_agenda_panel.dart',
-    ).readAsStringSync();
 
     expect(agenda, contains('isTask ? YaruIcons.task_list'));
-    expect(compactAgenda, contains('isTask ? YaruIcons.task_list'));
     expect(agenda, contains('YaruCheckbox('));
-    expect(compactAgenda, contains('YaruCheckbox('));
     expect(agenda, isNot(contains('selectedColor:')));
-    expect(compactAgenda, isNot(contains('selectedColor:')));
     expect(agenda, isNot(contains('checkmarkColor:')));
-    expect(compactAgenda, isNot(contains('checkmarkColor:')));
     expect(agenda, isNot(contains('YaruCheckboxTheme')));
-    expect(compactAgenda, isNot(contains('YaruCheckboxTheme')));
     expect(agenda, isNot(contains('YaruIcons.checkbox')));
-    expect(compactAgenda, isNot(contains('YaruIcons.checkbox')));
   });
 
   test(
@@ -2040,24 +3751,32 @@ void main() {
     expect(workspace, contains('ScheduleRange.year(_selectedDate)'));
     expect(workspace, contains('DateFormat.y(locale).format(selectedDate)'));
     expect(workspace, contains('ScheduleYearView('));
-    expect(yearView, contains('ScheduleProjection.groupByDay(items)'));
-    expect(yearView, contains('ScheduleProjection.colorForItem'));
     expect(yearView, contains('final monthWidth ='));
-    expect(yearView, contains('_monthPanelHeight(monthWidth)'));
-    expect(yearView, contains('mainAxisExtent: monthHeight'));
+    expect(yearView, contains('Wrap('));
+    expect(yearView, contains('children: ['));
+    expect(yearView, contains('spacing: BusyMaxSpacing.md'));
+    expect(yearView, contains('runSpacing: BusyMaxSpacing.md'));
     expect(yearView, contains('ColoredBox('));
-    expect(yearView, contains('color: Theme.of(context).colorScheme.surface'));
-    expect(yearView, contains('double _monthPanelHeight(double width)'));
+    expect(
+      yearView,
+      contains('backgroundColor ?? BusyMaxSurfaceColors.of(context).window'),
+    );
     expect(yearView, contains('BusyMaxGroupedSurface('));
-    expect(yearView, isNot(contains('BusyMaxSurfaceColors.of(context).card')));
-    expect(yearView, contains('BusyMaxActionRow('));
-    expect(yearView, contains('class _YearMonthGrid'));
-    expect(yearView, contains('mainAxisExtent: rowHeight'));
-    expect(yearView, contains('final markerSize = math.min'));
+    expect(yearView, contains('YearMonthMiniCalendar('));
+    expect(yearView, contains('displayedMonth: DateTime('));
+    expect(yearView, contains('onDayDoubleTap: onCreateAtDay'));
     expect(yearView, contains('firstWeekday'));
-    expect(yearView, contains('onMonthSelected(month)'));
+    expect(yearView, contains('onMonthSelected: onMonthSelected'));
+    expect(yearView, contains('onWeekSelected: onWeekSelected'));
+    expect(
+      yearView,
+      contains('miniCalendarMarkerColorsForItems(context, items)'),
+    );
     expect(yearView, isNot(contains('height: 142')));
-    expect(yearView, isNot(contains('availableHeight')));
+    expect(yearView, contains('SingleChildScrollView('));
+    expect(yearView, isNot(contains('class _YearMonthGrid')));
+    expect(yearView, isNot(contains('class _YearDayCell')));
+    expect(yearView, isNot(contains('ScheduleProjection.')));
     expect(yearView, isNot(contains('borderColor')));
     expect(yearView, isNot(contains('RoundedRectangleBorder(')));
     expect(yearView, isNot(contains('TextButton(')));
@@ -2068,12 +3787,80 @@ void main() {
       'lib/src/features/schedule/presentation/schedule_month_view.dart',
     ).readAsStringSync();
 
-    expect(source, contains('colorScheme.onSurface.withValues'));
-    expect(source, contains('Brightness.dark ? 0.06 : 0.10'));
+    expect(source, contains('busyMaxCalendarGridColor(context)'));
     expect(source, contains('position: DecorationPosition.foreground'));
     expect(source, contains('left: BorderSide(color: border)'));
     expect(source, contains('bottom: row == rows - 1'));
   });
+}
+
+Finder _popoverDecorationFinder(Finder ancestor) {
+  return find
+      .descendant(
+        of: ancestor,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is ShapeDecoration &&
+              ((widget.decoration as ShapeDecoration).shadows?.isNotEmpty ??
+                  false),
+        ),
+      )
+      .first;
+}
+
+Future<({Uint8List bytes, int width})> _capturePixels(
+  WidgetTester tester,
+  GlobalKey key,
+) async {
+  final boundary =
+      key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  final image = (await tester.binding.runAsync<ui.Image>(boundary.toImage))!;
+  try {
+    final byteData = (await tester.binding.runAsync<ByteData?>(
+      () => image.toByteData(format: ui.ImageByteFormat.rawStraightRgba),
+    ))!;
+    return (
+      bytes: byteData.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
+      ),
+      width: image.width,
+    );
+  } finally {
+    image.dispose();
+  }
+}
+
+Color _pixelAt(
+  ({Uint8List bytes, int width}) pixels, {
+  required int x,
+  required int y,
+}) {
+  final offset = (y * pixels.width + x) * 4;
+  return Color.fromARGB(
+    pixels.bytes[offset + 3],
+    pixels.bytes[offset],
+    pixels.bytes[offset + 1],
+    pixels.bytes[offset + 2],
+  );
+}
+
+double _luminanceDistance(Color first, Color second) {
+  return (first.computeLuminance() - second.computeLuminance()).abs();
+}
+
+const _recessedGtkDivider = Color.fromRGBO(0, 0, 6, 0.56);
+
+ThemeData _darkCalendarGridTestTheme() {
+  return BusyMaxYaruTheme.build(
+    brightness: Brightness.dark,
+    accentColor: const Color(0xFF3584E4),
+    gtkThemeColors: const GtkThemeColors(
+      brightness: Brightness.dark,
+      divider: _recessedGtkDivider,
+    ),
+  );
 }
 
 List<ScheduleItem> _itemsFor(DateTime day) {

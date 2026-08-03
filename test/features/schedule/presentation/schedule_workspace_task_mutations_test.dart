@@ -1,21 +1,45 @@
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/task_providers/task_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+
 void main() {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
   testWidgets('creating a task from Schedule refreshes the visible items', (
     tester,
   ) async {
@@ -44,6 +68,45 @@ void main() {
     );
     expect(tasks.map((task) => task.title), contains('Created from Schedule'));
     expect(find.text('Created from Schedule'), findsOneWidget);
+  });
+
+  testWidgets('task-list route defaults new tasks to that account and list', (
+    tester,
+  ) async {
+    final harness = await _pumpScheduleWorkspace(
+      tester,
+      initialTaskAccountId: _accountId,
+      initialTaskListId: _projectListId,
+    );
+
+    await tester.tap(find.byTooltip('Create'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Task'));
+    await tester.pumpAndSettle();
+    final titleField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField && widget.decoration?.labelText == 'Title',
+    );
+    await tester.enterText(titleField, 'Created in Projects');
+    await tester.pump();
+    expect(
+      tester
+              .widget<BusyMaxEditorHeader>(find.byType(BusyMaxEditorHeader))
+              .onSave ==
+          null,
+      isFalse,
+    );
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    final allTasks = await harness.database
+        .select(harness.database.tasks)
+        .get();
+    expect(allTasks, isNotEmpty);
+    final createdTask = allTasks.single;
+    expect(createdTask.title, 'Created in Projects');
+    expect(createdTask.accountId, _accountId);
+    expect(createdTask.taskListId, _projectListId);
   });
 
   testWidgets('completing a task from Schedule refreshes its checkbox', (
@@ -75,11 +138,71 @@ void main() {
     expect(task.status, 'completed');
     expect(tester.widget<YaruCheckbox>(checkbox).value, isTrue);
   });
+
+  testWidgets('dirty deep-linked task confirms before Escape closes it', (
+    tester,
+  ) async {
+    final headerBarService = _RecordingHeaderBarService();
+    addTearDown(headerBarService.dispose);
+    await _pumpScheduleWorkspace(
+      tester,
+      taskTitle: 'Opened from route',
+      initialTaskAccountId: _accountId,
+      initialTaskListId: _taskListId,
+      initialTaskId: 'task-1',
+      headerBarService: headerBarService,
+    );
+
+    expect(find.text('Edit Task'), findsOneWidget);
+    expect(find.text('Opened from route'), findsWidgets);
+    expect(headerBarService.modalBarrierStates, [
+      (visible: true, shadeDepth: 1),
+    ]);
+
+    await tester.enterText(find.byType(TextField).first, 'Unsaved route edit');
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard changes?'), findsOneWidget);
+    final modalBarrierColors = tester
+        .widgetList<ModalBarrier>(find.byType(ModalBarrier))
+        .map((barrier) => barrier.color)
+        .toList();
+    expect(modalBarrierColors.where((color) => color != null && color.a != 0), [
+      busyMaxModalBarrierColor(tester.element(find.byType(ModalBarrier).first)),
+    ]);
+    expect(
+      headerBarService.modalBarrierStates,
+      [(visible: true, shadeDepth: 1)],
+      reason: 'the nested confirmation must not repaint the native headerbar',
+    );
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Edit Task'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Task'), findsNothing);
+    expect(find.text('Opened from route'), findsOneWidget);
+    expect(headerBarService.modalBarrierStates, [
+      (visible: true, shadeDepth: 1),
+      (visible: false, shadeDepth: 0),
+    ]);
+  });
 }
 
 Future<_ScheduleHarness> _pumpScheduleWorkspace(
   WidgetTester tester, {
   String? taskTitle,
+  String? initialTaskAccountId,
+  String? initialTaskListId,
+  String? initialTaskId,
+  LinuxHeaderBarService? headerBarService,
 }) async {
   final database = AppDatabase.memoryForTests();
   addTearDown(database.close);
@@ -100,6 +223,16 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
       accountId: _accountId,
       id: _taskListId,
       title: 'Inbox',
+      rawJson: '{}',
+      createdLocalAtUtc: _nowUtc,
+      updatedLocalAtUtc: _nowUtc,
+    ),
+  );
+  await database.taskListsDao.upsertTaskList(
+    TaskListsCompanion.insert(
+      accountId: _accountId,
+      id: _projectListId,
+      title: 'Projects',
       rawJson: '{}',
       createdLocalAtUtc: _nowUtc,
       updatedLocalAtUtc: _nowUtc,
@@ -127,9 +260,11 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
     authState: accountAuthStateSignedIn,
     displayName: 'Schedule test',
   );
-  final headerBarService = LinuxHeaderBarService(isLinux: false);
-  addTearDown(headerBarService.dispose);
-
+  final effectiveHeaderBarService =
+      headerBarService ?? LinuxHeaderBarService(isLinux: false);
+  if (headerBarService == null) {
+    addTearDown(effectiveHeaderBarService.dispose);
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -138,7 +273,9 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
         activeAccountProvider.overrideWithValue(_accountId),
         localTimeZoneProvider.overrideWithValue('UTC'),
         localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
-        linuxHeaderBarServiceProvider.overrideWithValue(headerBarService),
+        linuxHeaderBarServiceProvider.overrideWithValue(
+          effectiveHeaderBarService,
+        ),
         taskListsRepositoryForAccountProvider.overrideWith((ref, accountId) {
           return TaskListsRepository(database: database, accountId: accountId);
         }),
@@ -147,7 +284,12 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
         }),
       ],
       child: localizedTestApp(
-        child: const ScheduleWorkspace(initialScope: ScheduleScope.tasks),
+        child: ScheduleWorkspace(
+          initialScope: ScheduleScope.tasks,
+          initialTaskAccountId: initialTaskAccountId,
+          initialTaskListId: initialTaskListId,
+          initialTaskId: initialTaskId,
+        ),
       ),
     ),
   );
@@ -174,6 +316,21 @@ class _MemorySettingsStore implements LocalSettingsStore {
   Future<void> save(Map<String, Object?> json) async {}
 }
 
+class _RecordingHeaderBarService extends LinuxHeaderBarService {
+  _RecordingHeaderBarService() : super(isLinux: false);
+
+  final modalBarrierStates = <({bool visible, int shadeDepth})>[];
+
+  @override
+  Future<void> setModalBarrierState({
+    required bool visible,
+    required int shadeDepth,
+  }) async {
+    modalBarrierStates.add((visible: visible, shadeDepth: shadeDepth));
+  }
+}
+
 const _accountId = 'google:schedule-test';
 const _taskListId = 'inbox';
+const _projectListId = 'projects';
 const _nowUtc = '2026-07-19T00:00:00.000Z';

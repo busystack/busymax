@@ -22,7 +22,7 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 - Calendar views for day, week, month, year, and agenda planning.
 - Task creation with lists, due dates, reminders, and repeat options.
 - Event editing with calendar selection, time controls, repeat rules, and reminders.
-- Compact agenda window for quick access to upcoming work.
+- Tray shortcut for opening the main Agenda view.
 - Integrations with Google Calendar, Google Tasks, Microsoft Calendar, and Microsoft To Do.
 
 ## Screenshots
@@ -67,21 +67,27 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
   <img src="docs/screenshots/main_window_edit_event.png" alt="BusyMax event editor" width="700">
 </p>
 
-<p>
-  <img src="docs/screenshots/agenda_window_agenda.png" alt="BusyMax compact agenda window" width="300">
-  <img src="docs/screenshots/agenda_window_agenda_event_details.png" alt="BusyMax compact agenda event details" width="300">
-  <img src="docs/screenshots/agenda_window_edit_event.png" alt="BusyMax compact agenda event editor" width="300">
-</p>
-
 </details>
 
 ## Prerequisites
 
 - Flutter: https://docs.flutter.dev/install
+- GTK 3 and libhandy development packages (`libgtk-3-dev` and
+  `libhandy-1-dev` on Ubuntu/Debian)
 - `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, see [Google Setup](docs/google_setup.md)
 - `MICROSOFT_OAUTH_CLIENT_ID`, see [Microsoft Setup](docs/microsoft_setup.md)
 
 ## Run locally
+
+Register the development launcher once so GNOME can associate BusyMax's native
+Wayland windows with its desktop icon. The helper is idempotent and defaults to
+the Flutter debug bundle:
+
+```bash
+tools/install_linux_dev_desktop.sh
+```
+
+Then run BusyMax normally:
 
 ```bash
 flutter run -d linux \
@@ -89,6 +95,10 @@ flutter run -d linux \
   --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<google-secret-if-needed> \
   --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
 ```
+
+Use `tools/install_linux_dev_desktop.sh --uninstall` to remove the development
+launcher. Remove it before testing an installed Snap so the user-level launcher
+does not take precedence; packaged Snaps register their own launcher.
 
 ## Feedback submissions
 

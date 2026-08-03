@@ -6,7 +6,6 @@ import '../../../db/app_database.dart';
 import '../../../task_providers/task_provider.dart';
 
 const accountAuthStateSignedIn = 'signed_in';
-const accountAuthStateSignedOut = 'signed_out';
 const accountAuthStateReauthRequired = 'reauth_required';
 
 class AccountEntity {
@@ -193,17 +192,6 @@ class AccountsRepository {
     await (_database.update(
       _database.accounts,
     )..where((account) => account.id.equals(id))).write(companion);
-  }
-
-  Future<void> markSignedOut(String accountId) {
-    return (_database.update(
-      _database.accounts,
-    )..where((account) => account.id.equals(accountId))).write(
-      AccountsCompanion(
-        authState: const Value(accountAuthStateSignedOut),
-        updatedAtUtc: Value(_now()),
-      ),
-    );
   }
 
   Future<void> markReconnectRequired(String accountId) {

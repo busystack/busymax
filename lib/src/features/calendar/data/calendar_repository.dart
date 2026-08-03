@@ -64,6 +64,74 @@ class CalendarSourceEntity {
   final String? colorId;
   final String? timeZone;
   final String? accessRole;
+
+  CalendarSourceCapabilities get capabilities =>
+      CalendarSourceCapabilities.fromSource(this);
+}
+
+/// The event operations currently permitted by a calendar source.
+///
+/// Keeping this policy with the source model gives every presentation surface
+/// and mutation entry point the same answer. Visibility is deliberately not a
+/// write capability: a hidden calendar can still own an event that is opened
+/// from a notification or deep link.
+class CalendarSourceCapabilities {
+  const CalendarSourceCapabilities({
+    required this.canCreateEvents,
+    required this.canEditEvents,
+    required this.canDeleteEvents,
+  });
+
+  factory CalendarSourceCapabilities.fromSource(CalendarSourceEntity source) {
+    final writable = !source.readOnly && !source.isDeleted;
+    return CalendarSourceCapabilities(
+      canCreateEvents: writable,
+      canEditEvents: writable,
+      canDeleteEvents: writable,
+    );
+  }
+
+  static const unavailable = CalendarSourceCapabilities(
+    canCreateEvents: false,
+    canEditEvents: false,
+    canDeleteEvents: false,
+  );
+
+  final bool canCreateEvents;
+  final bool canEditEvents;
+  final bool canDeleteEvents;
+}
+
+enum CalendarMutationOperation {
+  createEvent,
+  editEvent,
+  deleteEvent,
+  renameCalendar,
+  deleteCalendar,
+}
+
+class CalendarMutationNotAllowed implements Exception {
+  const CalendarMutationNotAllowed({
+    required this.operation,
+    required this.sourceId,
+  });
+
+  final CalendarMutationOperation operation;
+  final String sourceId;
+
+  @override
+  String toString() {
+    return 'CalendarMutationNotAllowed(${operation.name}, source: $sourceId)';
+  }
+}
+
+List<CalendarSourceEntity> writableCalendarSources(
+  Iterable<CalendarSourceEntity> sources,
+) {
+  return [
+    for (final source in sources)
+      if (source.capabilities.canCreateEvents) source,
+  ];
 }
 
 class CalendarRepository {
@@ -89,7 +157,9 @@ class CalendarRepository {
       return Stream.value(const []);
     }
     final query = _database.select(_database.calendarSources)
-      ..where((row) => row.accountId.isIn(accountIds))
+      ..where(
+        (row) => row.accountId.isIn(accountIds) & row.isDeleted.equals(false),
+      )
       ..orderBy([
         (row) => OrderingTerm.asc(row.accountId),
         (row) => OrderingTerm.asc(row.summary),
@@ -139,6 +209,10 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).getSingle();
+    _requireWritableSource(
+      source,
+      operation: CalendarMutationOperation.renameCalendar,
+    );
     final now = _now().millisecondsSinceEpoch;
     final nowUtc = DateTime.now().toUtc().toIso8601String();
     await _database.transaction(() async {
@@ -173,6 +247,10 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).getSingle();
+    _requireWritableSource(
+      source,
+      operation: CalendarMutationOperation.deleteCalendar,
+    );
     final now = _now().millisecondsSinceEpoch;
     final nowUtc = DateTime.now().toUtc().toIso8601String();
     await _database.transaction(() async {
@@ -415,6 +493,17 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(draft.sourceId))).getSingle();
+    _requireWritableSource(
+      source,
+      operation: CalendarMutationOperation.createEvent,
+    );
+    if (source.accountId != draft.accountId ||
+        source.providerCalendarId != draft.providerCalendarId) {
+      throw CalendarMutationNotAllowed(
+        operation: CalendarMutationOperation.createEvent,
+        sourceId: source.id,
+      );
+    }
     final now = _now().millisecondsSinceEpoch;
     final provider = TaskProviderParsing.fromStorageValue(source.provider);
     final localEventId = 'local:${const Uuid().v4()}';
@@ -521,6 +610,10 @@ class CalendarRepository {
     final existing = await (_database.select(
       _database.calendarEvents,
     )..where((row) => row.id.equals(eventId))).getSingle();
+    _requireWritableSource(
+      source,
+      operation: CalendarMutationOperation.editEvent,
+    );
     final sourceChanged =
         draft.accountId != existing.accountId ||
         draft.sourceId != existing.calendarSourceId ||
@@ -669,6 +762,13 @@ class CalendarRepository {
     final existing = await (_database.select(
       _database.calendarEvents,
     )..where((row) => row.id.equals(eventId))).getSingle();
+    final source = await (_database.select(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(existing.calendarSourceId))).getSingle();
+    _requireWritableSource(
+      source,
+      operation: CalendarMutationOperation.deleteEvent,
+    );
     final now = _now().millisecondsSinceEpoch;
     await _database.transaction(() async {
       await (_database.update(
@@ -849,6 +949,16 @@ class CalendarRepository {
       providerOriginalStartKey ?? '',
     ].join('|');
   }
+}
+
+void _requireWritableSource(
+  CalendarSource source, {
+  required CalendarMutationOperation operation,
+}) {
+  if (!source.readOnly && !source.isDeleted) {
+    return;
+  }
+  throw CalendarMutationNotAllowed(operation: operation, sourceId: source.id);
 }
 
 String? _json(Object? value) => value == null ? null : jsonEncode(value);

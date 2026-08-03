@@ -8,8 +8,13 @@ abstract final class BusyMaxLayoutRules {
   static const double detailsBreakpoint = kYaruMasterDetailBreakpoint * 2;
   static const double taskPageMinWidth =
       kYaruMasterDetailBreakpoint - BusyMaxSizes.sidebarWidth / 2;
+  static const double settingsSidebarBreakpoint =
+      BusyMaxSizes.sidebarWidth + 520;
 
   static bool showSidebar(double width) => width >= sidebarBreakpoint;
 
   static bool showPersistentDetails(double width) => width >= detailsBreakpoint;
+
+  static bool showSettingsSidebar(double width) =>
+      width >= settingsSidebarBreakpoint;
 }

@@ -7,8 +7,10 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
+import '../../../platform/linux_header_bar_service.dart';
 import '../../../task_providers/task_provider.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
@@ -46,8 +48,9 @@ class TaskDetailsEditor extends StatefulWidget {
     this.showAdvancedActions = true,
     this.showDeleteAction = true,
     this.confirmTaskSwitch = true,
-    this.useNativeDatePicker = true,
+    this.useNativeDatePicker = false,
     this.dialogBarrierColor,
+    this.headerBarService,
     this.canSaveDraft,
   });
 
@@ -85,6 +88,7 @@ class TaskDetailsEditor extends StatefulWidget {
   final bool confirmTaskSwitch;
   final bool useNativeDatePicker;
   final Color? dialogBarrierColor;
+  final LinuxHeaderBarService? headerBarService;
   final bool Function(TaskDetailsDraft draft)? canSaveDraft;
 
   @override
@@ -94,8 +98,8 @@ class TaskDetailsEditor extends StatefulWidget {
 class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   final _titleController = TextEditingController();
   final _notesController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _shortcutFocusNode = FocusNode(debugLabel: 'Task editor shortcuts');
+  final _invalidTimeFields = <_TaskTimeField>{};
 
   TaskDetailsDraft? _draft;
   TaskDetailsDraft? _cleanDraftBaseline;
@@ -118,7 +122,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     super.didUpdateWidget(oldWidget);
     final nextKey = _taskKey(widget.task);
     final sameKey = _loadedTaskKey == nextKey;
-    final hasChanges = _hasDraftChanges(_draft);
+    final hasChanges = _hasEditorChanges(_draft);
 
     if (!sameKey) {
       if (hasChanges && widget.confirmTaskSwitch) {
@@ -139,7 +143,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     _shortcutFocusNode.dispose();
     _titleController.dispose();
     _notesController.dispose();
-    _categoryController.dispose();
     super.dispose();
   }
 
@@ -148,14 +151,15 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final draft =
         _draft ?? TaskDetailsDraft.fromTask(_editingTask, widget.localTimeZone);
     final l10n = context.l10n;
-    final hasChanges = _hasDraftChanges(draft);
+    final hasChanges = _hasEditorChanges(draft);
+    final scheduledAllDay = _isScheduledAllDay(draft);
     final canSave =
         draft.title.trim().isNotEmpty &&
         hasChanges &&
         !_saving &&
+        _timeFieldsAreValid(draft, scheduledAllDay) &&
         (widget.canSaveDraft?.call(draft) ?? true);
     final currentList = _listTitle(draft.taskListId);
-    final scheduledAllDay = _isScheduledAllDay(draft);
     final listValue = [
       currentList,
       widget.accountLabel,
@@ -185,14 +189,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
               onCancel: _cancel,
               onSave: _save,
             ),
-            const SizedBox(height: BusyMaxSpacing.headerInset),
             Expanded(
-              child: BusyMaxClamp(
-                maxWidth: 640,
-                margin: EdgeInsets.zero,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: BusyMaxSpacing.lg,
-                ),
+              child: BusyMaxEditorScrollBody(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -200,10 +198,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       filled: true,
                       children: [
                         YaruListTile.square(
-                          hoverColor: busyMaxEditorRowHoverColor(context),
                           title: TextField(
                             controller: _titleController,
-                            decoration: _plainTaskFieldDecoration(
+                            decoration: busyMaxGroupedTextFieldDecoration(
                               context,
                               labelText: l10n.title,
                             ),
@@ -235,7 +232,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         DesktopDateValueRow(
                           label: l10n.dueDate,
                           date: draft.dueDate,
-                          emptyLabel: l10n.noneValue,
                           onChanged: (value) =>
                               _updateDraft(draft.copyWith(dueDate: value)),
                           useNativePicker: widget.useNativeDatePicker,
@@ -254,10 +250,18 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                           DesktopTimeValueRow(
                             label: l10n.dueTime,
                             time: draft.microsoftDueTime,
-                            emptyLabel: l10n.noneValue,
                             onChanged: (value) => _updateDraft(
                               draft.copyWith(microsoftDueTime: value),
                             ),
+                            timeZone: draft.microsoftDueTimeZone,
+                            onTimeZoneChanged: (value) => _updateDraft(
+                              draft.copyWith(microsoftDueTimeZone: value),
+                            ),
+                            onValidityChanged: (valid) => _setTimeFieldValidity(
+                              _TaskTimeField.due,
+                              valid,
+                            ),
+                            useNativePicker: widget.useNativeDatePicker,
                           ),
                       ],
                     ),
@@ -275,7 +279,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       ),
                     if (widget.capabilities.supportsRecurrence)
                       BusyMaxGroupedList(
-                        title: l10n.repeat,
                         filled: true,
                         children: [_repeatRow(draft)],
                       ),
@@ -295,12 +298,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       filled: true,
                       children: [
                         YaruListTile.square(
-                          hoverColor: busyMaxEditorRowHoverColor(context),
                           title: TextField(
                             controller: _notesController,
                             minLines: 3,
                             maxLines: 5,
-                            decoration: _plainTaskFieldDecoration(
+                            decoration: busyMaxGroupedTextFieldDecoration(
                               context,
                               labelText: l10n.notes,
                               alignLabelWithHint: true,
@@ -319,7 +321,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         children: [
                           BusyMaxActionRow(
                             title: l10n.createSubtask,
-                            leading: const Icon(Icons.subdirectory_arrow_right),
+                            leading: Icon(
+                              BusyMaxGlyphs.subdirectoryFor(
+                                Directionality.of(context),
+                              ),
+                            ),
                             onTap: _createSubtask,
                           ),
                           BusyMaxActionRow(
@@ -401,17 +407,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     return BusyMaxComboRow<String>(
       title: l10n.account,
       leading: const Icon(YaruIcons.user),
+      subtitle: secondaryLabelFor?.call(widget.selectedAccountId!),
       values: widget.accountIds,
       selected: widget.selectedAccountId!,
       labelFor: labelFor,
-      menuItemBuilder: (context, value) => _TaskEditorAccountIdentity(
-        label: labelFor(value),
-        secondaryLabel: secondaryLabelFor?.call(value),
-      ),
-      selectedBuilder: (context, value) => _TaskEditorAccountIdentity(
-        label: labelFor(value),
-        secondaryLabel: secondaryLabelFor?.call(value),
-      ),
       onSelected: widget.onAccountSelected!,
     );
   }
@@ -421,7 +420,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (widget.taskLists.isEmpty) {
       return BusyMaxActionRow(
         title: l10n.list,
-        leading: const Icon(Icons.drive_file_move_outline),
+        leading: const Icon(YaruIcons.task_list),
         subtitle: listValue.isEmpty ? null : listValue,
         enabled: false,
       );
@@ -432,7 +431,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (!canSelectList) {
       return BusyMaxActionRow(
         title: l10n.list,
-        leading: const Icon(Icons.drive_file_move_outline),
+        leading: const Icon(YaruIcons.task_list),
         subtitle: listValue.isEmpty ? null : listValue,
         enabled: false,
         tooltip: widget.capabilities.supportsCrossListMove
@@ -442,15 +441,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     }
     return BusyMaxComboRow<String>(
       title: l10n.list,
-      leading: const Icon(Icons.drive_file_move_outline),
+      leading: const Icon(YaruIcons.task_list),
       subtitle: widget.accountLabel,
       values: [for (final list in widget.taskLists) list.id],
       selected: draft.taskListId,
       labelFor: (value) => _listTitle(value) ?? l10n.noneValue,
-      selectedBuilder: (context, value) => _taskEditorSelectedValue(
-        context,
-        _listTitle(value) ?? l10n.noneValue,
-      ),
       onSelected: (value) => _updateDraft(draft.copyWith(taskListId: value)),
     );
   }
@@ -461,7 +456,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopDateValueRow(
         label: l10n.startDate,
         date: draft.microsoftStartDate,
-        emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftStartDate: value)),
         useNativePicker: widget.useNativeDatePicker,
@@ -473,9 +467,14 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         DesktopTimeValueRow(
           label: l10n.startTime,
           time: draft.microsoftStartTime,
-          emptyLabel: l10n.noneValue,
           onChanged: (value) =>
               _updateDraft(draft.copyWith(microsoftStartTime: value)),
+          timeZone: draft.microsoftStartTimeZone,
+          onTimeZoneChanged: (value) =>
+              _updateDraft(draft.copyWith(microsoftStartTimeZone: value)),
+          onValidityChanged: (valid) =>
+              _setTimeFieldValidity(_TaskTimeField.start, valid),
+          useNativePicker: widget.useNativeDatePicker,
         ),
     ];
   }
@@ -496,6 +495,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   void _setScheduledAllDay(TaskDetailsDraft draft, bool allDay) {
     if (allDay) {
+      _invalidTimeFields
+        ..remove(_TaskTimeField.due)
+        ..remove(_TaskTimeField.start);
       _updateDraft(
         draft.copyWith(
           microsoftDueTime: widget.capabilities.supportsDueTime
@@ -536,12 +538,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final options = _repeatOptions(context);
     return BusyMaxComboRow<String>(
       title: l10n.repeat,
-      leading: const Icon(Icons.repeat),
+      leading: const Icon(YaruIcons.repeat),
       values: options.keys.toList(),
       selected: type,
       labelFor: (value) => options[value] ?? l10n.repeatNone,
-      selectedBuilder: (context, value) =>
-          _taskEditorSelectedValue(context, options[value] ?? l10n.repeatNone),
       onSelected: (value) => _updateDraft(
         draft.copyWith(recurrenceJson: _recurrenceJsonFor(value, draft)),
       ),
@@ -557,14 +557,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     };
     return BusyMaxComboRow<String>(
       title: l10n.importance,
-      leading: const Icon(Icons.priority_high_outlined),
+      leading: const Icon(YaruIcons.task_important),
       values: labels.keys.toList(),
       selected: draft.importance,
       labelFor: (value) => labels[value] ?? l10n.importanceNormal,
-      selectedBuilder: (context, value) => _taskEditorSelectedValue(
-        context,
-        labels[value] ?? l10n.importanceNormal,
-      ),
       onSelected: (value) => _updateDraft(draft.copyWith(importance: value)),
     );
   }
@@ -577,7 +573,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       categories: draft.categories,
       suggestions: widget.categorySuggestions,
       adding: _addingCategory,
-      controller: _categoryController,
       inputKey: const Key('task-category-input'),
       onAddPressed: () {
         setState(() {
@@ -586,7 +581,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       },
       onSubmitted: (value) => _addCategory(draft, value),
       onCancelAdding: () {
-        _categoryController.clear();
         setState(() {
           _addingCategory = false;
         });
@@ -598,10 +592,12 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   void _addCategory(TaskDetailsDraft draft, String value) {
     final currentDraft = _draft ?? draft;
     final category = value.trim();
-    if (category.isEmpty || currentDraft.categories.contains(category)) {
+    if (category.isEmpty ||
+        currentDraft.categories.any(
+          (existing) => existing.toLowerCase() == category.toLowerCase(),
+        )) {
       return;
     }
-    _categoryController.clear();
     setState(() {
       _addingCategory = false;
     });
@@ -624,7 +620,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   Future<void> _save() async {
     final draft = _draft;
-    if (draft == null || _saving) {
+    if (draft == null ||
+        _saving ||
+        !_timeFieldsAreValid(draft, _isScheduledAllDay(draft))) {
       return;
     }
     final patch = draft.toPatch(
@@ -654,15 +652,16 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   Future<void> _cancel() async {
     final draft = _draft;
-    final hasChanges = _hasDraftChanges(draft);
+    final hasChanges = _hasEditorChanges(draft);
     if (hasChanges) {
       final discard = await showBusyMaxConfirm(
         context,
         title: context.l10n.discardChanges,
         message: context.l10n.discardChangesConfirmation,
-        confirmLabel: context.l10n.discard,
+        confirmLabel: context.l10n.discardChangesAction,
         destructive: true,
         barrierColor: widget.dialogBarrierColor,
+        headerBarService: widget.headerBarService,
       );
       if (!discard || !mounted) {
         return;
@@ -682,9 +681,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       context,
       title: context.l10n.discardChanges,
       message: context.l10n.discardChangesConfirmation,
-      confirmLabel: context.l10n.discard,
+      confirmLabel: context.l10n.discardChangesAction,
       destructive: true,
       barrierColor: widget.dialogBarrierColor,
+      headerBarService: widget.headerBarService,
     );
     if (!mounted) {
       return;
@@ -704,6 +704,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       label: context.l10n.title,
       actionLabel: context.l10n.create,
       barrierColor: widget.dialogBarrierColor,
+      headerBarService: widget.headerBarService,
     );
     if (title == null || title.trim().isEmpty) {
       return;
@@ -724,6 +725,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         confirmLabel: context.l10n.delete,
         destructive: true,
         barrierColor: widget.dialogBarrierColor,
+        headerBarService: widget.headerBarService,
       );
       if (confirmed) {
         await widget.onDelete();
@@ -743,6 +745,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         TaskDetailsDraft.fromTask(task, widget.localTimeZone);
     _editingTask = task;
     _loadedTaskKey = taskKey;
+    _invalidTimeFields.clear();
     _draft = draft;
     _cleanDraftBaseline = draft;
     _titleController.text = draft.title;
@@ -755,7 +758,43 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       _draft = draft;
     });
     widget.onDraftChanged?.call(draft);
-    widget.onDirtyChanged?.call(_hasDraftChanges(draft));
+    widget.onDirtyChanged?.call(_hasEditorChanges(draft));
+  }
+
+  void _setTimeFieldValidity(_TaskTimeField field, bool valid) {
+    final changed = valid
+        ? _invalidTimeFields.remove(field)
+        : _invalidTimeFields.add(field);
+    if (changed) {
+      setState(() {});
+      widget.onDirtyChanged?.call(_hasEditorChanges(_draft));
+    }
+  }
+
+  bool _hasEditorChanges(TaskDetailsDraft? draft) {
+    if (draft == null) {
+      return false;
+    }
+    return _hasDraftChanges(draft) ||
+        !_timeFieldsAreValid(draft, _isScheduledAllDay(draft));
+  }
+
+  bool _timeFieldsAreValid(TaskDetailsDraft draft, bool scheduledAllDay) {
+    if (!scheduledAllDay &&
+        widget.capabilities.supportsDueTime &&
+        _invalidTimeFields.contains(_TaskTimeField.due)) {
+      return false;
+    }
+    if (!scheduledAllDay &&
+        widget.capabilities.supportsStartDateTime &&
+        _invalidTimeFields.contains(_TaskTimeField.start)) {
+      return false;
+    }
+    if (draft.microsoftReminderEnabled &&
+        _invalidTimeFields.contains(_TaskTimeField.reminder)) {
+      return false;
+    }
+    return true;
   }
 
   bool _hasDraftChanges(TaskDetailsDraft? draft) {
@@ -817,7 +856,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopDateValueRow(
         label: l10n.reminderDate,
         date: draft.microsoftReminderDate,
-        emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderDate: value)),
         useNativePicker: widget.useNativeDatePicker,
@@ -827,109 +865,30 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopTimeValueRow(
         label: l10n.reminderTime,
         time: draft.microsoftReminderTime,
-        emptyLabel: l10n.noneValue,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderTime: value)),
+        timeZone: draft.microsoftReminderTimeZone,
+        onTimeZoneChanged: (value) =>
+            _updateDraft(draft.copyWith(microsoftReminderTimeZone: value)),
+        onValidityChanged: (valid) =>
+            _setTimeFieldValidity(_TaskTimeField.reminder, valid),
+        useNativePicker: widget.useNativeDatePicker,
       ),
       BusyMaxActionRow(
         title: l10n.removeReminder,
         leading: const Icon(YaruIcons.window_close),
-        onTap: () => _updateDraft(
-          draft.copyWith(
-            microsoftReminderEnabled: false,
-            microsoftReminderDate: null,
-            microsoftReminderTime: null,
-          ),
-        ),
+        onTap: () {
+          _invalidTimeFields.remove(_TaskTimeField.reminder);
+          _updateDraft(
+            draft.copyWith(
+              microsoftReminderEnabled: false,
+              microsoftReminderDate: null,
+              microsoftReminderTime: null,
+            ),
+          );
+        },
       ),
     ];
-  }
-}
-
-InputDecoration _plainTaskFieldDecoration(
-  BuildContext context, {
-  required String labelText,
-  String? errorText,
-  bool alignLabelWithHint = false,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  final labelColor = errorText == null
-      ? colorScheme.onSurfaceVariant
-      : colorScheme.error;
-  final labelStyle = Theme.of(
-    context,
-  ).textTheme.bodyMedium?.copyWith(color: labelColor);
-  return InputDecoration(
-    filled: false,
-    fillColor: Colors.transparent,
-    hoverColor: Colors.transparent,
-    border: InputBorder.none,
-    enabledBorder: InputBorder.none,
-    focusedBorder: InputBorder.none,
-    disabledBorder: InputBorder.none,
-    errorBorder: InputBorder.none,
-    focusedErrorBorder: InputBorder.none,
-    contentPadding: EdgeInsets.zero,
-    labelText: labelText,
-    labelStyle: labelStyle,
-    floatingLabelStyle: labelStyle,
-    floatingLabelBehavior: FloatingLabelBehavior.auto,
-    alignLabelWithHint: alignLabelWithHint,
-    errorText: errorText,
-  );
-}
-
-Widget _taskEditorSelectedValue(BuildContext context, String value) {
-  return Align(
-    alignment: Alignment.centerRight,
-    child: Text(
-      value,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.end,
-    ),
-  );
-}
-
-class _TaskEditorAccountIdentity extends StatelessWidget {
-  const _TaskEditorAccountIdentity({required this.label, this.secondaryLabel});
-
-  final String label;
-  final String? secondaryLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final secondary = secondaryLabel?.trim();
-    final primaryStyle = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(height: 1.05);
-    final secondaryStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: colorScheme.onSurfaceVariant,
-      height: 1.05,
-    );
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: primaryStyle,
-          ),
-          if (secondary != null && secondary.isNotEmpty)
-            Text(
-              secondary,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: secondaryStyle,
-            ),
-        ],
-      ),
-    );
   }
 }
 
@@ -942,6 +901,8 @@ TextStyle? _taskEditorProminentActionStyle(
     context,
   ).textTheme.labelLarge?.copyWith(color: color, fontWeight: fontWeight);
 }
+
+enum _TaskTimeField { due, start, reminder }
 
 class _TaskDetailsHeader extends StatelessWidget {
   const _TaskDetailsHeader({

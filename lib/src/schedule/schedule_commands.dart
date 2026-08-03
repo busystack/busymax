@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum ScheduleWorkspaceCommandKind {
   today,
+  agenda,
   newEvent,
   newTask,
   openDate,

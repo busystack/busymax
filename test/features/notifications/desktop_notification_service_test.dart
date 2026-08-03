@@ -21,7 +21,9 @@ void main() {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
       backend: backend,
-      settings: AppSettings.defaults().copyWith(detailedNotifications: true),
+      settings: AppSettings.defaults().copyWith(
+        notificationDetailLevel: NotificationDetailLevel.normal,
+      ),
     );
 
     await service.notifySyncFailure(
@@ -47,17 +49,186 @@ void main() {
     expect(backend.notifications, isEmpty);
   });
 
-  test('notification strings localize supported locales', () async {
+  test('notification strings use the Finnish ARB catalog', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
       backend: backend,
       settings: AppSettings.defaults().copyWith(notifyDueToday: true),
-      locale: const Locale('es'),
+      locale: const Locale('fi'),
     );
 
     await service.notifyDueToday(2);
 
-    expect(backend.notifications.single.summary, 'Tareas que vencen hoy');
+    expect(backend.notifications.single.summary, 'Tänään erääntyvät tehtävät');
+    expect(backend.notifications.single.body, '2 tehtävää erääntyy tänään.');
+  });
+
+  test('notification strings use the Estonian ARB catalog', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('et'),
+    );
+
+    await service.notifyDueToday(2);
+
+    expect(backend.notifications.single.summary, 'Täna tähtuvad ülesanded');
+    expect(backend.notifications.single.body, '2 ülesannet tähtub täna.');
+  });
+
+  test('notification strings use Russian plural rules', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('ru'),
+    );
+
+    await service.notifyDueToday(22);
+
+    expect(backend.notifications.single.summary, 'Задачи на сегодня');
+    expect(
+      backend.notifications.single.body,
+      'Сегодня нужно выполнить 22 задачи.',
+    );
+  });
+
+  test('notification strings use the Portuguese ARB catalog', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('pt'),
+    );
+
+    await service.notifyDueToday(2);
+
+    expect(backend.notifications.single.summary, 'Tarefas com prazo para hoje');
+    expect(
+      backend.notifications.single.body,
+      'Há 2 tarefas com prazo para hoje.',
+    );
+  });
+
+  test('notification strings use the Italian ARB catalog', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('it'),
+    );
+
+    await service.notifyDueToday(2);
+
+    expect(backend.notifications.single.summary, 'Attività in scadenza oggi');
+    expect(backend.notifications.single.body, '2 attività scadono oggi.');
+  });
+
+  test('notification strings use the Vietnamese ARB catalog', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('vi'),
+    );
+
+    await service.notifyDueToday(2);
+
+    expect(backend.notifications.single.summary, 'Công việc đến hạn hôm nay');
+    expect(
+      backend.notifications.single.body,
+      'Có 2 công việc đến hạn hôm nay.',
+    );
+  });
+
+  test('notification strings use the new Asian ARB catalogs', () async {
+    final cases = <({Locale locale, String summary, String body})>[
+      (
+        locale: const Locale('hi'),
+        summary: 'आज देय कार्य',
+        body: 'आज 2 कार्य देय हैं।',
+      ),
+      (
+        locale: const Locale('ja'),
+        summary: '今日が期限のタスク',
+        body: '今日が期限のタスクが2件あります。',
+      ),
+      (
+        locale: const Locale('ko'),
+        summary: '오늘 마감인 할 일',
+        body: '오늘 마감인 할 일이 2개 있습니다.',
+      ),
+      (
+        locale: const Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hans',
+        ),
+        summary: '今天到期的任务',
+        body: '今天有 2 项任务到期。',
+      ),
+      (
+        locale: const Locale('zh', 'TW'),
+        summary: '今天到期的待辦事項',
+        body: '今天有 2 項待辦事項到期。',
+      ),
+    ];
+
+    for (final testCase in cases) {
+      final backend = _FakeNotificationBackend();
+      final service = DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+        locale: testCase.locale,
+      );
+
+      await service.notifyDueToday(2);
+
+      expect(backend.notifications.single.summary, testCase.summary);
+      expect(backend.notifications.single.body, testCase.body);
+    }
+  });
+
+  test('notification strings use Arabic plural rules', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('ar'),
+    );
+
+    for (final count in [1, 2, 3, 11]) {
+      await service.notifyDueToday(count);
+    }
+
+    expect(backend.notifications.map((notification) => notification.body), [
+      'هناك مهمة واحدة مستحقة اليوم.',
+      'هناك مهمتان مستحقتان اليوم.',
+      'هناك \u20683\u2069 مهام مستحقة اليوم.',
+      'هناك \u206811\u2069 مهمة مستحقة اليوم.',
+    ]);
+  });
+
+  test('notification strings use Persian plural rules', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      locale: const Locale('fa'),
+    );
+
+    for (final count in [1, 2]) {
+      await service.notifyDueToday(count);
+    }
+
+    expect(
+      backend.notifications.map((notification) => notification.summary),
+      everyElement('کارهای دارای سررسید امروز'),
+    );
+    expect(backend.notifications.map((notification) => notification.body), [
+      'امروز یک کار سررسید دارد.',
+      'امروز \u2068۲\u2069 کار سررسید دارند.',
+    ]);
   });
 
   test('reminder notification details are visible by default', () async {
@@ -126,23 +297,51 @@ void main() {
   });
 
   test(
-    'detailed notification switch overrides private reminder text',
+    'private detail level also hides diagnostic notification text',
     () async {
       final backend = _FakeNotificationBackend();
       final service = DesktopNotificationService(
         backend: backend,
         settings: AppSettings.defaults().copyWith(
-          detailedNotifications: true,
           notificationDetailLevel: NotificationDetailLevel.private,
         ),
       );
 
-      await service.notifyEventReminder('Doctor', 'Clinic');
+      await service.notifySyncFailure('Private server response');
 
-      expect(backend.notifications.single.summary, 'Doctor');
-      expect(backend.notifications.single.body, 'Clinic');
+      expect(backend.notifications.single.body, isNot(contains('Private')));
+      expect(
+        backend.notifications.single.body,
+        contains('Details are hidden by privacy settings.'),
+      );
     },
   );
+
+  test('configured overnight quiet hours use an end-exclusive range', () async {
+    final settings = AppSettings.defaults().copyWith(
+      quietHoursEnabled: true,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+    );
+    final quietBackend = _FakeNotificationBackend();
+    final quietService = DesktopNotificationService(
+      backend: quietBackend,
+      settings: settings,
+      now: () => DateTime(2026, 1, 1, 23, 30),
+    );
+    final awakeBackend = _FakeNotificationBackend();
+    final awakeService = DesktopNotificationService(
+      backend: awakeBackend,
+      settings: settings,
+      now: () => DateTime(2026, 1, 2, 7),
+    );
+
+    await quietService.notifySyncFailure('Offline');
+    await awakeService.notifySyncFailure('Offline');
+
+    expect(quietBackend.notifications, isEmpty);
+    expect(awakeBackend.notifications, hasLength(1));
+  });
 }
 
 class _FakeNotificationBackend implements DesktopNotificationBackend {

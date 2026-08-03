@@ -1,15 +1,78 @@
 import 'dart:async';
 
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/feedback/presentation/feedback_dialog.dart';
+import 'package:busymax/src/platform/native_dialog_service.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
+const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+
 void main() {
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          _nativeMenuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeDialogChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
+  testWidgets('text inputs delegate their surface to the Yaru grouped rows', (
+    tester,
+  ) async {
+    final service = _FakeFeedbackService((_) async {
+      return const FeedbackReceipt(id: 'unused');
+    });
+    await _pumpDialog(tester, service);
+
+    expect(find.text('Report an issue'), findsOneWidget);
+    for (final key in const [
+      'feedback-subject',
+      'feedback-message',
+      'feedback-reply-email',
+    ]) {
+      final field = tester.widget<TextField>(find.byKey(Key(key)));
+      final decoration = field.decoration!;
+
+      expect(decoration.filled, isFalse);
+      expect(decoration.fillColor, Colors.transparent);
+      expect(decoration.hoverColor, Colors.transparent);
+      expect(decoration.border, InputBorder.none);
+      expect(decoration.enabledBorder, InputBorder.none);
+      expect(decoration.focusedBorder, InputBorder.none);
+      expect(decoration.disabledBorder, InputBorder.none);
+      expect(decoration.errorBorder, InputBorder.none);
+      expect(decoration.focusedErrorBorder, InputBorder.none);
+      expect(decoration.contentPadding, EdgeInsets.zero);
+
+      final tile = tester.widget<YaruListTile>(
+        find.ancestor(
+          of: find.byKey(Key(key)),
+          matching: find.byType(YaruListTile),
+        ),
+      );
+      expect(tile.onTap, isNull);
+      expect(tile.hoverColor, isNull);
+    }
+  });
+
   testWidgets('shows required-field validation without sending', (
     tester,
   ) async {
@@ -30,6 +93,30 @@ void main() {
       find.text('Message must be between 10 and 5,000 characters.'),
       findsOneWidget,
     );
+    expect(service.submissions, isEmpty);
+  });
+
+  testWidgets('category can return to the unselected placeholder', (
+    tester,
+  ) async {
+    final service = _FakeFeedbackService((_) async {
+      return const FeedbackReceipt(id: 'unexpected');
+    });
+    await _pumpDialog(tester, service);
+    final selector = _feedbackCategoryTrigger();
+
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+    await tester.tap(_feedbackCategoryMenuItem('Problem or bug'));
+    await tester.pumpAndSettle();
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+    await tester.tap(_feedbackCategoryMenuItem('Select a category'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Submit'));
+    await tester.pump();
+
+    expect(find.text('Select a category.'), findsOneWidget);
     expect(service.submissions, isEmpty);
   });
 
@@ -146,6 +233,68 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('Escape confirms before discarding a feedback draft', (
+    tester,
+  ) async {
+    final service = _FakeFeedbackService((_) async {
+      return const FeedbackReceipt(id: 'unexpected');
+    });
+    var cancelCount = 0;
+    await _pumpDialog(tester, service, onCancel: () => cancelCount += 1);
+    await _enterValidRequiredFields(tester);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(cancelCount, 0);
+    expect(find.text('Discard changes?'), findsOneWidget);
+
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(cancelCount, 1);
+  });
+
+  testWidgets('Russian discard action is distinct from cancel', (tester) async {
+    final service = _FakeFeedbackService((_) async {
+      return const FeedbackReceipt(id: 'unexpected');
+    });
+    var cancelCount = 0;
+    await _pumpDialog(
+      tester,
+      service,
+      locale: const Locale('ru'),
+      onCancel: () => cancelCount += 1,
+    );
+    await tester.enterText(
+      find.byKey(const Key('feedback-subject')),
+      'Черновик',
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    final confirmation = find.byType(BusyMaxConfirmDialog);
+    expect(
+      find.descendant(
+        of: confirmation,
+        matching: find.text('Не сохранять изменения?'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: confirmation, matching: find.text('Отмена')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: confirmation, matching: find.text('Не сохранять')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Не сохранять'));
+    await tester.pumpAndSettle();
+    expect(cancelCount, 1);
+  });
+
   testWidgets('clears the form and shows the server reference on success', (
     tester,
   ) async {
@@ -155,7 +304,7 @@ void main() {
     await _pumpDialog(tester, service);
     await _enterValidRequiredFields(tester);
 
-    final checkbox = tester.widget<CheckboxListTile>(
+    final checkbox = tester.widget<YaruCheckboxListTile>(
       find.byKey(const Key('feedback-technical-details')),
     );
     expect(checkbox.value, isFalse);
@@ -322,10 +471,12 @@ Future<void> _pumpDialog(
   FeedbackSubmissionService service, {
   FeedbackSubmissionIdGenerator? submissionIdGenerator,
   String osVersion = 'Test Linux',
+  Locale locale = const Locale('en'),
   VoidCallback? onCancel,
 }) async {
   await tester.pumpWidget(
     localizedTestApp(
+      locale: locale,
       child: Scaffold(
         body: Center(
           child: SizedBox(
@@ -352,9 +503,9 @@ Future<void> _pumpDialog(
 }
 
 Future<void> _enterValidRequiredFields(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('feedback-category')));
+  await tester.tap(_feedbackCategoryTrigger());
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Problem or bug').last);
+  await tester.tap(_feedbackCategoryMenuItem('Problem or bug'));
   await tester.pumpAndSettle();
   await tester.enterText(
     find.byKey(const Key('feedback-subject')),
@@ -363,6 +514,20 @@ Future<void> _enterValidRequiredFields(WidgetTester tester) async {
   await tester.enterText(
     find.byKey(const Key('feedback-message')),
     'The calendar view did not update.',
+  );
+}
+
+Finder _feedbackCategoryTrigger() {
+  return find.descendant(
+    of: find.byKey(const Key('feedback-category')),
+    matching: find.byType(BusyMaxMenuButton<FeedbackCategory?>),
+  );
+}
+
+Finder _feedbackCategoryMenuItem(String label) {
+  return find.ancestor(
+    of: find.text(label).last,
+    matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
   );
 }
 

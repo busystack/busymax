@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
@@ -32,6 +34,7 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
         initialDraft: initialDraft,
         sources: sources,
         categorySuggestionsByAccount: categorySuggestionsByAccount,
+        headerBarService: headerBarService,
         onCancel: () => Navigator.of(context).pop(),
         onSave: (draft) =>
             Navigator.of(context).pop(EventEditorDialogResult.save(draft)),
@@ -69,6 +72,7 @@ class EventEditor extends StatefulWidget {
     required this.onSave,
     this.onDelete,
     this.categorySuggestionsByAccount = const {},
+    this.headerBarService,
   });
 
   final EventEditorDraft initialDraft;
@@ -77,6 +81,7 @@ class EventEditor extends StatefulWidget {
   final VoidCallback onCancel;
   final ValueChanged<EventEditorDraft> onSave;
   final ValueChanged<String>? onDelete;
+  final LinuxHeaderBarService? headerBarService;
 
   @override
   State<EventEditor> createState() => _EventEditorState();
@@ -86,10 +91,12 @@ class _EventEditorState extends State<EventEditor> {
   late EventEditorDraft _draft;
   final _shortcutFocusNode = FocusNode(debugLabel: 'Event editor shortcuts');
   final _guestController = TextEditingController();
-  final _categoryController = TextEditingController();
   String? _guestError;
   var _addingGuest = false;
   var _addingCategory = false;
+  var _confirmingCancel = false;
+  var _startTimeValid = true;
+  var _endTimeValid = true;
 
   @override
   void initState() {
@@ -101,14 +108,13 @@ class _EventEditorState extends State<EventEditor> {
   void dispose() {
     _shortcutFocusNode.dispose();
     _guestController.dispose();
-    _categoryController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final dirty = _draft != widget.initialDraft;
+    final dirty = _hasUnsavedChanges;
     CalendarSourceEntity? currentSource;
     for (final source in widget.sources) {
       if (source.id == _draft.sourceId) {
@@ -120,9 +126,13 @@ class _EventEditorState extends State<EventEditor> {
     final title = widget.initialDraft.eventId == null
         ? l10n.newEvent
         : l10n.editEvent;
-    final canSave = dirty && _draft.canSave;
+    final timeFieldsValid = _draft.allDay || (_startTimeValid && _endTimeValid);
+    final canSave = dirty && _draft.canSave && timeFieldsValid;
     return CallbackShortcuts(
       bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          unawaited(_cancel());
+        },
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): () {
           if (canSave) {
             widget.onSave(_draft);
@@ -137,18 +147,17 @@ class _EventEditorState extends State<EventEditor> {
           title: title,
           cancelLabel: l10n.cancel,
           saveLabel: l10n.save,
-          onCancel: widget.onCancel,
+          onCancel: () => unawaited(_cancel()),
           onSave: canSave ? () => widget.onSave(_draft) : null,
           children: [
             BusyMaxGroupedList(
               filled: true,
               children: [
                 YaruListTile.square(
-                  hoverColor: busyMaxEditorRowHoverColor(context),
                   title: TextFormField(
                     initialValue: _draft.title,
                     autofocus: true,
-                    decoration: _plainEventFieldDecoration(
+                    decoration: busyMaxGroupedTextFieldDecoration(
                       context,
                       labelText: l10n.title,
                     ),
@@ -160,10 +169,9 @@ class _EventEditorState extends State<EventEditor> {
                   ),
                 ),
                 YaruListTile.square(
-                  hoverColor: busyMaxEditorRowHoverColor(context),
                   title: TextFormField(
                     initialValue: _draft.location,
-                    decoration: _plainEventFieldDecoration(
+                    decoration: busyMaxGroupedTextFieldDecoration(
                       context,
                       labelText: l10n.location,
                     ),
@@ -187,6 +195,7 @@ class _EventEditorState extends State<EventEditor> {
               ],
             ),
             BusyMaxGroupedList(
+              title: l10n.startDateTime,
               filled: true,
               children: [
                 DesktopDateValueRow(
@@ -195,7 +204,6 @@ class _EventEditorState extends State<EventEditor> {
                   onChanged: (value) {
                     _setStart(_withDate(_draft.start, value), provider);
                   },
-                  emptyLabel: l10n.noneValue,
                 ),
                 if (!_draft.allDay)
                   DesktopTimeValueRow(
@@ -204,12 +212,23 @@ class _EventEditorState extends State<EventEditor> {
                     onChanged: (value) {
                       _setStart(_withTime(_draft.start, value), provider);
                     },
-                    emptyLabel: '--:--',
+                    timeZone: _draft.startTimeZone,
+                    onTimeZoneChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(startTimeZone: value);
+                      });
+                    },
                     allowEmpty: false,
+                    onValidityChanged: (valid) {
+                      if (_startTimeValid != valid) {
+                        setState(() => _startTimeValid = valid);
+                      }
+                    },
                   ),
               ],
             ),
             BusyMaxGroupedList(
+              title: l10n.endDateTime,
               filled: true,
               children: [
                 DesktopDateValueRow(
@@ -218,7 +237,6 @@ class _EventEditorState extends State<EventEditor> {
                   onChanged: (value) {
                     _setEnd(_withDate(_draft.end, value));
                   },
-                  emptyLabel: l10n.noneValue,
                 ),
                 if (!_draft.allDay)
                   DesktopTimeValueRow(
@@ -227,8 +245,18 @@ class _EventEditorState extends State<EventEditor> {
                     onChanged: (value) {
                       _setEnd(_withTime(_draft.end, value));
                     },
-                    emptyLabel: '--:--',
+                    timeZone: _draft.endTimeZone,
+                    onTimeZoneChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(endTimeZone: value);
+                      });
+                    },
                     allowEmpty: false,
+                    onValidityChanged: (valid) {
+                      if (_endTimeValid != valid) {
+                        setState(() => _endTimeValid = valid);
+                      }
+                    },
                   ),
               ],
             ),
@@ -257,7 +285,6 @@ class _EventEditorState extends State<EventEditor> {
               filled: true,
               children: [
                 YaruListTile.square(
-                  hoverColor: busyMaxEditorRowHoverColor(context),
                   title: EventDescriptionEditor(
                     provider: provider,
                     text: _draft.description,
@@ -314,6 +341,33 @@ class _EventEditorState extends State<EventEditor> {
     );
   }
 
+  Future<void> _cancel() async {
+    if (_confirmingCancel) {
+      return;
+    }
+    if (!_hasUnsavedChanges) {
+      widget.onCancel();
+      return;
+    }
+
+    _confirmingCancel = true;
+    try {
+      final discard = await showBusyMaxConfirm(
+        context,
+        title: context.l10n.discardChanges,
+        message: context.l10n.discardChangesConfirmation,
+        confirmLabel: context.l10n.discardChangesAction,
+        destructive: true,
+        headerBarService: widget.headerBarService,
+      );
+      if (discard && mounted) {
+        widget.onCancel();
+      }
+    } finally {
+      _confirmingCancel = false;
+    }
+  }
+
   KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent ||
         !_canDeleteWithShortcut ||
@@ -364,10 +418,6 @@ class _EventEditorState extends State<EventEditor> {
       values: labels.keys.toList(),
       selected: _recurrenceType(_draft.recurrence),
       labelFor: (value) => labels[value] ?? l10n.doesNotRepeat,
-      selectedBuilder: (context, value) => _eventEditorSelectedValue(
-        context,
-        labels[value] ?? l10n.doesNotRepeat,
-      ),
       onSelected: (value) {
         setState(() {
           _draft = value == 'none'
@@ -408,17 +458,9 @@ class _EventEditorState extends State<EventEditor> {
       enabled: existingSourceId == null,
       labelFor: (value) =>
           sources.firstWhere((source) => source.id == value).summary,
-      menuItemBuilder: (context, value) {
-        return _calendarSourceChoice(
-          context,
-          sources.firstWhere((source) => source.id == value),
-        );
-      },
-      selectedBuilder: (context, value) {
-        return _calendarSourceSelectedChoice(
-          context,
-          sources.firstWhere((source) => source.id == value),
-        );
+      selectorLeadingBuilder: (context, value) {
+        final source = sources.firstWhere((source) => source.id == value);
+        return _CalendarSourceDot(color: _calendarSourceColor(context, source));
       },
       onSelected: (value) {
         final source = sources.firstWhere((source) => source.id == value);
@@ -430,7 +472,6 @@ class _EventEditorState extends State<EventEditor> {
         setState(() {
           if (source.provider != TaskProvider.microsoft) {
             _addingCategory = false;
-            _categoryController.clear();
           }
           _draft = _draft.copyWith(
             accountId: source.accountId,
@@ -462,7 +503,7 @@ class _EventEditorState extends State<EventEditor> {
           leading: const Icon(Icons.notifications_outlined),
           values: _reminderValuesFor(minutes[index]),
           selected: minutes[index],
-          labelFor: _reminderLabel,
+          labelFor: (value) => _reminderLabel(context, value),
           onSelected: (value) {
             _setReminderMinutes(provider, [
               ...minutes.take(index),
@@ -470,7 +511,7 @@ class _EventEditorState extends State<EventEditor> {
               ...minutes.skip(index + 1),
             ]);
           },
-          trailingAction: YaruIconButton(
+          trailingAction: BusyMaxHeaderIconButton(
             tooltip: l10n.removeReminder,
             iconSize: BusyMaxSizes.headerIcon,
             icon: const Icon(YaruIcons.window_close),
@@ -480,11 +521,9 @@ class _EventEditorState extends State<EventEditor> {
                 ...minutes.skip(index + 1),
               ]);
             },
-            style: busyMaxHeaderIconButtonStyle(
-              foregroundColor: colorScheme.onSurfaceVariant,
-              backgroundColor: busyMaxSubtleButtonBackground(context),
-              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-            ),
+            foregroundColor: colorScheme.onSurfaceVariant,
+            backgroundColor: busyMaxSubtleButtonBackground(context),
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           ),
         ),
       if (canAddReminder)
@@ -565,21 +604,20 @@ class _EventEditorState extends State<EventEditor> {
       rows.add(
         YaruListTile.square(
           leading: const Icon(Icons.person_add_alt_outlined),
-          hoverColor: busyMaxEditorRowHoverColor(context),
+          trailing: YaruIconButton(
+            tooltip: context.l10n.addGuest,
+            icon: const Icon(YaruIcons.plus),
+            onPressed: _addGuest,
+          ),
           title: TextField(
             controller: _guestController,
             autofocus: true,
-            decoration: _plainEventFieldDecoration(
+            decoration: busyMaxGroupedTextFieldDecoration(
               context,
               labelText: context.l10n.addGuestEmail,
               errorText: _guestError,
             ),
             onSubmitted: (_) => _addGuest(),
-          ),
-          trailing: YaruIconButton(
-            tooltip: context.l10n.addGuest,
-            icon: const Icon(YaruIcons.plus),
-            onPressed: _addGuest,
           ),
         ),
       );
@@ -597,7 +635,6 @@ class _EventEditorState extends State<EventEditor> {
           widget.categorySuggestionsByAccount[_draft.accountId] ??
           const <String>[],
       adding: _addingCategory,
-      controller: _categoryController,
       inputKey: const Key('event-category-input'),
       onAddPressed: () {
         setState(() {
@@ -606,7 +643,6 @@ class _EventEditorState extends State<EventEditor> {
       },
       onSubmitted: _addCategory,
       onCancelAdding: () {
-        _categoryController.clear();
         setState(() {
           _addingCategory = false;
         });
@@ -629,9 +665,7 @@ class _EventEditorState extends State<EventEditor> {
       leading: const Icon(Icons.work_outline),
       values: values,
       selected: selected,
-      labelFor: _availabilityLabel,
-      selectedBuilder: (context, value) =>
-          _eventEditorSelectedValue(context, _availabilityLabel(value)),
+      labelFor: (value) => _availabilityLabel(context, value),
       onSelected: (value) {
         setState(() {
           _draft = _draft.copyWith(showAs: value);
@@ -652,9 +686,7 @@ class _EventEditorState extends State<EventEditor> {
       leading: const Icon(Icons.visibility_outlined),
       values: values,
       selected: selected,
-      labelFor: _titleCase,
-      selectedBuilder: (context, value) =>
-          _eventEditorSelectedValue(context, _titleCase(value)),
+      labelFor: (value) => _visibilityLabel(context, value),
       onSelected: (value) {
         setState(() {
           _draft = _draft.copyWith(visibilityOrSensitivity: value);
@@ -666,7 +698,7 @@ class _EventEditorState extends State<EventEditor> {
   void _addGuest() {
     final email = _guestController.text.trim();
     if (!_looksLikeEmail(email)) {
-      setState(() => _guestError = 'Enter a valid email address');
+      setState(() => _guestError = context.l10n.feedbackInvalidEmail);
       return;
     }
     if (_draft.attendees.any((attendee) => attendee.email == email)) {
@@ -692,10 +724,12 @@ class _EventEditorState extends State<EventEditor> {
 
   void _addCategory(String value) {
     final category = value.trim();
-    if (category.isEmpty || _draft.categories.contains(category)) {
+    if (category.isEmpty ||
+        _draft.categories.any(
+          (existing) => existing.toLowerCase() == category.toLowerCase(),
+        )) {
       return;
     }
-    _categoryController.clear();
     setState(() {
       _addingCategory = false;
       _draft = _draft.copyWith(categories: [..._draft.categories, category]);
@@ -717,6 +751,8 @@ class _EventEditorState extends State<EventEditor> {
     final start = _draft.start;
     final end = _draft.end;
     setState(() {
+      _startTimeValid = true;
+      _endTimeValid = true;
       _draft = _draft.copyWith(
         allDay: allDay,
         end: start != null && !_isValidEventEnd(start, end, allDay)
@@ -724,6 +760,12 @@ class _EventEditorState extends State<EventEditor> {
             : end,
       );
     });
+  }
+
+  bool get _hasUnsavedChanges {
+    final hasInvalidVisibleTime =
+        !_draft.allDay && (!_startTimeValid || !_endTimeValid);
+    return _draft != widget.initialDraft || hasInvalidVisibleTime;
   }
 
   void _setStart(DateTime start, BusyProvider provider) {
@@ -775,39 +817,6 @@ TextStyle? _eventEditorProminentActionStyle(
   return Theme.of(
     context,
   ).textTheme.labelLarge?.copyWith(color: color, fontWeight: fontWeight);
-}
-
-InputDecoration _plainEventFieldDecoration(
-  BuildContext context, {
-  required String labelText,
-  String? errorText,
-  bool alignLabelWithHint = false,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  final labelColor = errorText == null
-      ? colorScheme.onSurfaceVariant
-      : colorScheme.error;
-  final labelStyle = Theme.of(
-    context,
-  ).textTheme.bodyMedium?.copyWith(color: labelColor);
-  return InputDecoration(
-    filled: false,
-    fillColor: Colors.transparent,
-    hoverColor: Colors.transparent,
-    border: InputBorder.none,
-    enabledBorder: InputBorder.none,
-    focusedBorder: InputBorder.none,
-    disabledBorder: InputBorder.none,
-    errorBorder: InputBorder.none,
-    focusedErrorBorder: InputBorder.none,
-    contentPadding: EdgeInsets.zero,
-    labelText: labelText,
-    labelStyle: labelStyle,
-    floatingLabelStyle: labelStyle,
-    floatingLabelBehavior: FloatingLabelBehavior.auto,
-    alignLabelWithHint: alignLabelWithHint,
-    errorText: errorText,
-  );
 }
 
 String? _dateString(DateTime? value) {
@@ -1028,91 +1037,45 @@ int _nextReminderMinute(List<int> existing) {
   return _eventReminderMinuteOptions.first;
 }
 
-String _reminderLabel(int minutes) {
-  return switch (minutes) {
-    5 => '5 minutes before',
-    10 => '10 minutes before',
-    30 => '30 minutes before',
-    60 => '1 hour before',
-    1440 => '1 day before',
-    _ => '$minutes minutes before',
-  };
-}
-
-String _availabilityLabel(String value) {
-  return switch (value) {
-    'opaque' => 'Busy',
-    'transparent' => 'Free',
-    'oof' => 'Out of office',
-    'workingElsewhere' => 'Working elsewhere',
-    _ => _titleCase(value),
-  };
-}
-
-String _titleCase(String value) {
-  if (value.isEmpty) {
-    return value;
+String _reminderLabel(BuildContext context, int minutes) {
+  final l10n = context.l10n;
+  const minutesPerDay = Duration.minutesPerHour * Duration.hoursPerDay;
+  if (minutes % minutesPerDay == 0) {
+    return l10n.reminderDaysBefore(minutes ~/ minutesPerDay);
   }
-  return value[0].toUpperCase() + value.substring(1);
+  if (minutes % Duration.minutesPerHour == 0) {
+    return l10n.reminderHoursBefore(minutes ~/ Duration.minutesPerHour);
+  }
+  return l10n.reminderMinutesBefore(minutes);
+}
+
+String _availabilityLabel(BuildContext context, String value) {
+  final l10n = context.l10n;
+  return switch (value) {
+    'opaque' || 'busy' => l10n.busy,
+    'transparent' || 'free' => l10n.availabilityFree,
+    'tentative' => l10n.availabilityTentative,
+    'oof' => l10n.availabilityOutOfOffice,
+    'workingElsewhere' => l10n.availabilityWorkingElsewhere,
+    _ => value,
+  };
+}
+
+String _visibilityLabel(BuildContext context, String value) {
+  final l10n = context.l10n;
+  return switch (value) {
+    'default' => l10n.visibilityDefault,
+    'public' => l10n.visibilityPublic,
+    'private' => l10n.visibilityPrivate,
+    'confidential' => l10n.visibilityConfidential,
+    'normal' => l10n.sensitivityNormal,
+    'personal' => l10n.sensitivityPersonal,
+    _ => value,
+  };
 }
 
 bool _looksLikeEmail(String value) {
   return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
-}
-
-Widget _calendarSourceChoice(
-  BuildContext context,
-  CalendarSourceEntity source,
-) {
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      _CalendarSourceDot(color: _calendarSourceColor(context, source)),
-      const SizedBox(width: BusyMaxSpacing.sm),
-      Expanded(
-        child: Text(
-          source.summary,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    ],
-  );
-}
-
-Widget _calendarSourceSelectedChoice(
-  BuildContext context,
-  CalendarSourceEntity source,
-) {
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.end,
-    mainAxisSize: MainAxisSize.max,
-    children: [
-      _CalendarSourceDot(color: _calendarSourceColor(context, source)),
-      const SizedBox(width: BusyMaxSpacing.sm),
-      Flexible(
-        fit: FlexFit.loose,
-        child: Text(
-          source.summary,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.end,
-        ),
-      ),
-    ],
-  );
-}
-
-Widget _eventEditorSelectedValue(BuildContext context, String value) {
-  return Align(
-    alignment: Alignment.centerRight,
-    child: Text(
-      value,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.end,
-    ),
-  );
 }
 
 class _CalendarSourceDot extends StatelessWidget {

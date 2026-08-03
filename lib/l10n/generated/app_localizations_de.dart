@@ -1,3 +1,7 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: text_direction_code_point_in_literal, text_direction_code_point_in_comment
+
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
@@ -21,7 +25,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get googlePermissionsRequiredRetry =>
-      'Google Calendar- und Google Tasks-Berechtigungen sind erforderlich. Versuchen Sie es erneut und wählen Sie beide Kontrollkästchen aus.';
+      'Die Berechtigungen für Google Kalender und Google Tasks sind erforderlich. Versuchen Sie es erneut und aktivieren Sie beide Kontrollkästchen.';
 
   @override
   String get finishSetup => 'Einrichtung abschließen';
@@ -136,75 +140,45 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count weitere';
+    return '+$count mehr';
   }
 
   @override
   String get noEventsOrTasks => 'Keine Termine oder Aufgaben';
 
   @override
-  String get trayAgendaLoading => 'Agenda wird geladen...';
+  String get scheduleLoading => 'Zeitplan wird geladen...';
 
   @override
-  String get trayAgendaSignInRequired =>
-      'Melden Sie sich an, um die Agenda anzuzeigen.';
+  String get scheduleUnavailable => 'Zeitplan nicht verfügbar';
 
   @override
-  String get trayAgendaNoSources =>
-      'Keine sichtbaren Kalender oder Aufgabenlisten.';
+  String get scheduleNoSources =>
+      'Keine sichtbaren Kalender oder Aufgabenlisten';
 
   @override
-  String get trayAgendaOpenBusyMax => 'App öffnen';
+  String get scheduleNoSourcesDescription =>
+      'Wählen Sie in den Einstellungen aus, was angezeigt werden soll, und aktualisieren Sie anschließend den Zeitplan.';
 
   @override
-  String get trayAgendaRefresh => 'Aktualisieren';
+  String get scheduleSignInRequired => 'Konto verbinden';
 
   @override
-  String get trayAgendaError => 'Agenda nicht verfügbar';
+  String get scheduleSignInDescription =>
+      'Melden Sie sich an, um Kalender und Aufgaben zu synchronisieren.';
 
   @override
-  String get compactAgendaTitle => 'Agenda';
+  String get scheduleNoSearchResults => 'Keine passenden Termine oder Aufgaben';
 
   @override
-  String get compactAgendaSubtitle => 'Anstehend';
+  String get scheduleNoSearchResultsDescription =>
+      'Versuchen Sie es mit einer anderen Suche oder setzen Sie die aktuellen Filter zurück.';
 
   @override
-  String get compactAgendaOverdue => 'Überfällig';
+  String get refresh => 'Aktualisieren';
 
   @override
-  String get compactAgendaClear => 'Im Moment frei';
-
-  @override
-  String get compactAgendaOpenBusyMax => 'BusyMax öffnen';
-
-  @override
-  String get compactAgendaHide => 'Ausblenden';
-
-  @override
-  String get compactAgendaNewTask => 'Neue Aufgabe';
-
-  @override
-  String get compactAgendaRetry => 'Erneut versuchen';
-
-  @override
-  String get compactAgendaRefresh => 'Aktualisieren';
-
-  @override
-  String get compactAgendaAllDay => 'Ganztägig';
-
-  @override
-  String get compactAgendaDueToday => 'Heute fällig';
-
-  @override
-  String get compactAgendaDueTomorrow => 'Morgen fällig';
-
-  @override
-  String compactAgendaDueOn(String date) {
-    return 'Fällig $date';
-  }
-
-  @override
-  String get compactAgendaMoreOverdue => 'Weitere überfällige Aufgaben laden';
+  String get trayOpenBusyMax => 'BusyMax öffnen';
 
   @override
   String get agendaLoadMoreOverdue => 'Weitere überfällige Aufgaben laden';
@@ -235,7 +209,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scheduleDisplayHoursDescription =>
-      'Tages- und Wochenansicht öffnen innerhalb dieser Zeiten. Frühe und späte Einträge erweitern den Bereich bei Bedarf.';
+      'In der Tages- und Wochenansicht wird zunächst dieser Zeitraum angezeigt. Frühere oder spätere Einträge erweitern ihn bei Bedarf.';
 
   @override
   String get scheduleDayStartsAt => 'Tag beginnt um';
@@ -313,6 +287,90 @@ class AppLocalizationsDe extends AppLocalizations {
   String get providerCalendar => 'Anbieterkalender';
 
   @override
+  String get formatBoldShortLabel => 'F';
+
+  @override
+  String get formatBoldTooltip => 'Fett';
+
+  @override
+  String get formatItalicShortLabel => 'K';
+
+  @override
+  String get formatItalicTooltip => 'Kursiv';
+
+  @override
+  String get formatUnderlineShortLabel => 'U';
+
+  @override
+  String get formatUnderlineTooltip => 'Unterstrichen';
+
+  @override
+  String reminderMinutesBefore(int minutes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      minutes,
+      locale: localeName,
+      other: '$minutes Minuten vorher',
+      one: '1 Minute vorher',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reminderAtStart => 'Zum Startzeitpunkt';
+
+  @override
+  String reminderHoursBefore(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: '$hours Stunden vorher',
+      one: '1 Stunde vorher',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reminderDaysBefore(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days Tage vorher',
+      one: '1 Tag vorher',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get availabilityFree => 'Frei';
+
+  @override
+  String get availabilityTentative => 'Mit Vorbehalt';
+
+  @override
+  String get availabilityOutOfOffice => 'Abwesend';
+
+  @override
+  String get availabilityWorkingElsewhere => 'An einem anderen Ort tätig';
+
+  @override
+  String get visibilityDefault => 'Standard';
+
+  @override
+  String get visibilityPublic => 'Öffentlich';
+
+  @override
+  String get visibilityPrivate => 'Privat';
+
+  @override
+  String get visibilityConfidential => 'Vertraulich';
+
+  @override
+  String get sensitivityNormal => 'Normal';
+
+  @override
+  String get sensitivityPersonal => 'Persönlich';
+
+  @override
   String get tasks => 'Aufgaben';
 
   @override
@@ -360,7 +418,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Vorherige Woche in der Wochenansicht, vorheriger Monat in der Monatsansicht usw.';
 
   @override
-  String get shortcutJumpToToday => 'Zu Heute springen';
+  String get shortcutJumpToToday => 'Zum heutigen Tag springen';
 
   @override
   String get shortcutGroupView => 'Ansicht';
@@ -400,24 +458,22 @@ class AppLocalizationsDe extends AppLocalizations {
       'Aufgabenbearbeitung oder Aufgabendetails schließen';
 
   @override
-  String get shortcutGroupCompactAgenda => 'Kompakte Agenda';
-
-  @override
-  String get shortcutRefreshCompactAgendaDescription =>
-      'Das kompakte Agenda-Fenster aktualisieren';
-
-  @override
-  String get shortcutHideCompactAgendaDescription =>
-      'Das kompakte Agenda-Fenster ausblenden';
-
-  @override
   String get aboutBusyMax => 'Über BusyMax';
 
   @override
-  String get aboutBusyMaxDescription => 'ToDo und Kalender';
+  String get aboutBusyMaxDescription => 'Kalender und Aufgaben';
+
+  @override
+  String get license => 'Lizenz';
+
+  @override
+  String get apacheLicenseName => 'Apache License 2.0';
 
   @override
   String get website => 'Website';
+
+  @override
+  String get sourceCode => 'Quellcode';
 
   @override
   String get reportAnIssue => 'Problem melden';
@@ -458,7 +514,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get feedbackDetailedMessage => 'Ausführliche Nachricht';
 
   @override
-  String get feedbackReplyEmail => 'E-Mail-Adresse für Antwort (optional)';
+  String get feedbackReplyEmail => 'E-Mail-Adresse für Antworten (optional)';
 
   @override
   String get feedbackIncludeTechnicalDetails => 'Technische Details hinzufügen';
@@ -511,6 +567,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get toggleSidebar => 'Seitenleiste umschalten';
 
   @override
+  String get showSidebar => 'Seitenbereich anzeigen';
+
+  @override
+  String get hideSidebar => 'Seitenbereich ausblenden';
+
+  @override
   String get accounts => 'Konten';
 
   @override
@@ -535,17 +597,42 @@ class AppLocalizationsDe extends AppLocalizations {
   String get signedInAccount => 'Angemeldet';
 
   @override
-  String get signOutThisAccount => 'Dieses Konto abmelden';
+  String get removeAccount => 'Konto entfernen…';
 
   @override
-  String get revokeThisAccount => 'Dieses Konto widerrufen';
+  String get removingAccount => 'Konto wird entfernt…';
 
   @override
-  String get disconnectThisAccount => 'Dieses Konto trennen';
+  String get removeAccountDescription =>
+      'Synchronisierung beenden und die Daten dieses Kontos von diesem Gerät entfernen.';
 
   @override
-  String get deleteLocalDataForThisAccount =>
-      'Lokale Daten für dieses Konto löschen';
+  String removeAccountTitle(String account) {
+    return '$account aus BusyMax entfernen?';
+  }
+
+  @override
+  String get removeAccountConfirmation =>
+      'Dadurch werden zwischengespeicherte Aufgaben, Kalender, Termine, Erinnerungen und ausstehende Offline-Änderungen von diesem Gerät gelöscht. Nicht synchronisierte Änderungen gehen verloren. Bei Google oder Microsoft wird nichts gelöscht.';
+
+  @override
+  String get revokeGoogleAccess =>
+      'BusyMax-Zugriff auf dieses Google-Konto ebenfalls widerrufen';
+
+  @override
+  String get revokeGoogleAccessDescription =>
+      'Vor einer erneuten Verbindung müssen Sie den Zugriff wieder gewähren.';
+
+  @override
+  String get removeAccountAction => 'Konto entfernen';
+
+  @override
+  String get removeAccountFailed =>
+      'Das Konto konnte nicht vollständig entfernt werden. Versuchen Sie es erneut.';
+
+  @override
+  String get accountRemovedGoogleRevokeFailed =>
+      'Das Konto wurde von diesem Gerät entfernt, aber BusyMax konnte den Google-Zugriff nicht widerrufen. Sie können ihn in Ihrem Google-Konto widerrufen.';
 
   @override
   String get newList => 'Neue Liste';
@@ -585,7 +672,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get deleteEvent => 'Ereignis löschen';
+  String get deleteEvent => 'Termin löschen';
 
   @override
   String get title => 'Titel';
@@ -628,7 +715,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get selectOrCreateTaskList =>
-      'Wählen oder erstellen Sie eine Aufgabenliste.';
+      'Wählen oder erstellen Sie zunächst eine Aufgabenliste.';
 
   @override
   String get signInToViewTasks => 'Melden Sie sich an, um Aufgaben zu sehen.';
@@ -641,7 +728,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noTasksYetMessage =>
-      'Erstellen Sie eine Aufgabe oder aktualisieren Sie Ihre Konten.';
+      'Erstellen Sie eine Aufgabe oder aktualisieren Sie Ihre Konten, um loszulegen.';
 
   @override
   String get noTasksInList => 'Keine Aufgaben in dieser Liste.';
@@ -673,21 +760,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String dateTimeDisplay(String date, String time) {
     return '$date, $time';
   }
-
-  @override
-  String get searchTasks => 'Aufgaben suchen';
-
-  @override
-  String get advancedFilters => 'Erweiterte Filter';
-
-  @override
-  String get showCompleted => 'Erledigte anzeigen';
-
-  @override
-  String get showHidden => 'Ausgeblendete anzeigen';
-
-  @override
-  String get showAssigned => 'Zugewiesene anzeigen';
 
   @override
   String get taskDetails => 'Aufgabendetails';
@@ -843,7 +915,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get createSubtask => 'Unteraufgabe erstellen';
 
   @override
-  String get moveToTop => 'Nach oben verschieben';
+  String get moveToTop => 'Ganz nach oben verschieben';
 
   @override
   String get deleteTask => 'Aufgabe löschen';
@@ -869,7 +941,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get updated => 'Aktualisiert';
 
   @override
-  String get parent => 'Übergeordnet';
+  String get parent => 'Übergeordnete Aufgabe';
 
   @override
   String get position => 'Position';
@@ -893,23 +965,25 @@ class AppLocalizationsDe extends AppLocalizations {
   String get account => 'Konto';
 
   @override
-  String get signOut => 'Abmelden';
-
-  @override
-  String get revokeGoogleAuthorization => 'Google-Autorisierung widerrufen';
-
-  @override
-  String get deleteLocalData => 'Lokale Daten löschen';
-
-  @override
-  String get deleteLocalDataConfirmation =>
-      'Dies entfernt das lokale Konto, synchronisierte Aufgaben und ausstehende Offline-Änderungen von diesem Gerät.';
-
-  @override
   String get sync => 'Synchronisierung';
 
   @override
   String get manualFullSync => 'Manuelle vollständige Synchronisierung';
+
+  @override
+  String get runInBackgroundWhenClosed =>
+      'Nach dem Schließen des Fensters weiter ausführen';
+
+  @override
+  String get showTrayIcon => 'Symbol im Benachrichtigungsbereich anzeigen';
+
+  @override
+  String get startMinimizedToTray =>
+      'Minimiert im Benachrichtigungsbereich starten';
+
+  @override
+  String get requiresTrayIcon =>
+      'Erfordert das Symbol im Benachrichtigungsbereich.';
 
   @override
   String get syncComplete => 'Synchronisierung abgeschlossen.';
@@ -930,13 +1004,41 @@ class AppLocalizationsDe extends AppLocalizations {
   String get notifyDueToday => 'Benachrichtigungen für heute fällige Aufgaben';
 
   @override
+  String get eventReminders => 'Terminerinnerungen';
+
+  @override
+  String get taskReminders => 'Aufgabenerinnerungen';
+
+  @override
+  String get notificationDetailLevel => 'Detailgrad der Benachrichtigungen';
+
+  @override
+  String get notificationDetailPrivate => 'Privat';
+
+  @override
+  String get notificationDetailNormal => 'Normal';
+
+  @override
+  String get quietHours => 'Ruhezeiten';
+
+  @override
+  String get quietHoursDescription =>
+      'Benachrichtigungen während dieses Zeitraums pausieren.';
+
+  @override
+  String get quietHoursStart => 'Beginn der Ruhezeit';
+
+  @override
+  String get quietHoursEnd => 'Ende der Ruhezeit';
+
+  @override
   String get notifications => 'Benachrichtigungen';
 
   @override
   String get appearance => 'Darstellung';
 
   @override
-  String get theme => 'Theme';
+  String get theme => 'Design';
 
   @override
   String get themeSystem => 'System';
@@ -948,10 +1050,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get themeDark => 'Dunkel';
 
   @override
-  String get themeFamily => 'Theme-Familie';
+  String get themeFamily => 'Designfamilie';
 
   @override
-  String get themeFamilyYaru => 'Natives Ubuntu (Yaru)';
+  String get themeFamilyYaru => 'Natives Ubuntu-Design (Yaru)';
 
   @override
   String get localization => 'Lokalisierung';
@@ -965,9 +1067,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get redactTaskContentInDiagnostics =>
       'Aufgabeninhalte in Diagnosen schwärzen';
-
-  @override
-  String get detailedNotifications => 'Detaillierte Benachrichtigungstexte';
 
   @override
   String get developerDiagnostics => 'Entwicklerdiagnose';
@@ -991,10 +1090,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get supportsTasksScopes =>
-      'Unterstützt tasks- und tasks.readonly-Berechtigungen';
+      'Unterstützt die Berechtigungsbereiche tasks und tasks.readonly';
 
   @override
-  String get requiresTasksScope => 'Benötigt tasks-Berechtigung';
+  String get requiresTasksScope => 'Erfordert den Berechtigungsbereich tasks';
 
   @override
   String get blockedPendingOperations => 'Blockierte ausstehende Vorgänge';
@@ -1032,6 +1131,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get discard => 'Verwerfen';
 
   @override
+  String get discardChangesAction => 'Verwerfen';
+
+  @override
   String get discardChanges => 'Änderungen verwerfen?';
 
   @override
@@ -1046,7 +1148,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get discardPendingOperationConfirmation =>
-      'Dies entfernt den blockierten lokalen Vorgang. Die nächste Synchronisierung aktualisiert von Google Tasks.';
+      'Dadurch wird der blockierte lokale Vorgang entfernt. Bei der nächsten Synchronisierung werden die Daten aus Google Tasks neu geladen.';
 
   @override
   String get pendingOperationDiscarded => 'Ausstehender Vorgang verworfen.';
@@ -1083,6 +1185,76 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get eventReminderNotificationTitle => 'Terminerinnerung';
+
+  @override
+  String get taskReminderNotificationTitle => 'Aufgabenerinnerung';
+
+  @override
+  String get eventReminderNotificationBody => 'Der Termin beginnt bald.';
+
+  @override
+  String get taskReminderNotificationBody => 'Die Aufgabe ist bald fällig.';
+
+  @override
+  String get notificationOpenAction => 'Öffnen';
+
+  @override
   String get notificationDetailsHidden =>
       'Details werden durch Datenschutzeinstellungen ausgeblendet.';
+
+  @override
+  String get previousMonth => 'Vorheriger Monat';
+
+  @override
+  String get nextMonth => 'Nächster Monat';
+
+  @override
+  String get openMonthView => 'Monatsansicht öffnen';
+
+  @override
+  String get previousYear => 'Vorheriges Jahr';
+
+  @override
+  String get nextYear => 'Nächstes Jahr';
+
+  @override
+  String get openYearView => 'Jahresansicht öffnen';
+
+  @override
+  String weekNumberTooltip(int number) {
+    return 'Woche $number';
+  }
+
+  @override
+  String get resizeAllDayPanel =>
+      'Ganztägigen Bereich vergrößern oder verkleinern';
+
+  @override
+  String scheduleItemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Einträge',
+      one: '1 Eintrag',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get readOnlyCalendar => 'Dieser Kalender ist schreibgeschützt.';
+
+  @override
+  String get selectTimeZone => 'Zeitzone auswählen';
+
+  @override
+  String get searchLocations => 'Orte suchen';
+
+  @override
+  String get noLocationsFound => 'Keine Orte gefunden';
+
+  @override
+  String deleteCalendarConfirmation(String title) {
+    return '\"$title\" löschen?';
+  }
 }

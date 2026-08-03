@@ -3,9 +3,22 @@ import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_glyphs.dart';
+import '../../../app/busymax_shortcuts.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_range.dart';
 import '../../../schedule/schedule_view_mode.dart';
+
+enum ScheduleToolbarMenuAction {
+  refresh,
+  settings,
+  keyboardShortcuts,
+  reportIssue,
+  about,
+}
+
+enum _ScheduleCreateAction { event, task }
 
 class ScheduleToolbar extends StatelessWidget {
   const ScheduleToolbar({
@@ -17,9 +30,18 @@ class ScheduleToolbar extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onModeChanged,
-    required this.canCreate,
-    required this.onCreate,
+    required this.canCreateEvent,
+    required this.canCreateTask,
+    required this.onCreateEvent,
+    required this.onCreateTask,
     required this.onRefresh,
+    this.canRefresh = true,
+    this.canShowSidebar = false,
+    this.sidebarVisible = false,
+    this.onToggleSidebar,
+    this.onSearch,
+    this.onMenuSelected,
+    this.createMenuController,
   });
 
   final ScheduleViewMode mode;
@@ -29,79 +51,219 @@ class ScheduleToolbar extends StatelessWidget {
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final ValueChanged<ScheduleViewMode> onModeChanged;
-  final bool canCreate;
-  final VoidCallback onCreate;
+  final bool canCreateEvent;
+  final bool canCreateTask;
+  final VoidCallback onCreateEvent;
+  final VoidCallback onCreateTask;
   final VoidCallback onRefresh;
+  final bool canRefresh;
+  final bool canShowSidebar;
+  final bool sidebarVisible;
+  final VoidCallback? onToggleSidebar;
+  final VoidCallback? onSearch;
+  final ValueChanged<ScheduleToolbarMenuAction>? onMenuSelected;
+  final BusyMaxMenuController? createMenuController;
 
   @override
   Widget build(BuildContext context) {
     final showPaging = mode != ScheduleViewMode.agenda;
-    return SizedBox(
-      height: BusyMaxSizes.toolbarHeight,
-      child: Row(
-        children: [
-          const SizedBox(width: BusyMaxSpacing.sm),
-          BusyMaxPushButton.outlined(
-            onPressed: onToday,
-            child: Text(context.l10n.today),
-          ),
-          const SizedBox(width: BusyMaxSpacing.sm),
-          if (showPaging) ...[
-            YaruIconButton(
-              tooltip: MaterialLocalizations.of(context).previousPageTooltip,
-              icon: const Icon(YaruIcons.arrow_left),
-              onPressed: onPrevious,
-            ),
-            YaruIconButton(
-              tooltip: MaterialLocalizations.of(context).nextPageTooltip,
-              icon: const Icon(YaruIcons.arrow_right),
-              onPressed: onNext,
-            ),
-            const SizedBox(width: BusyMaxSpacing.sm),
-          ],
-          Expanded(
-            child: Text(
-              _rangeLabel(context, mode, range, selectedDate),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          Flexible(
-            fit: FlexFit.loose,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 760;
+        return SizedBox(
+          height: BusyMaxSizes.toolbarHeight,
+          child: Row(
+            children: [
+              const SizedBox(width: BusyMaxSpacing.sm),
+              if (canShowSidebar && onToggleSidebar != null)
+                YaruIconButton(
+                  tooltip: _shortcutTooltip(
+                    sidebarVisible
+                        ? context.l10n.hideSidebar
+                        : context.l10n.showSidebar,
+                    BusyMaxShortcutLabels.sidebar,
+                  ),
+                  icon: Icon(
+                    sidebarVisible
+                        ? Icons.vertical_split
+                        : Icons.vertical_split_outlined,
+                  ),
+                  onPressed: onToggleSidebar,
+                ),
+              Tooltip(
+                message: _shortcutTooltip(
+                  context.l10n.today,
+                  BusyMaxShortcutLabels.today,
+                ),
+                child: BusyMaxPushButton.standard(
+                  onPressed: onToday,
+                  child: Text(context.l10n.today),
+                ),
+              ),
+              const SizedBox(width: BusyMaxSpacing.sm),
+              if (showPaging) ...[
+                YaruIconButton(
+                  tooltip: _shortcutTooltip(
+                    MaterialLocalizations.of(context).previousPageTooltip,
+                    BusyMaxShortcutLabels.previousPeriod,
+                  ),
+                  icon: Icon(
+                    BusyMaxGlyphs.previousFor(Directionality.of(context)),
+                  ),
+                  onPressed: onPrevious,
+                ),
+                YaruIconButton(
+                  tooltip: _shortcutTooltip(
+                    MaterialLocalizations.of(context).nextPageTooltip,
+                    BusyMaxShortcutLabels.nextPeriod,
+                  ),
+                  icon: Icon(BusyMaxGlyphs.nextFor(Directionality.of(context))),
+                  onPressed: onNext,
+                ),
+                const SizedBox(width: BusyMaxSpacing.sm),
+              ],
+              Expanded(
+                child: _fittingRangeTitle(
+                  context,
+                  _rangeLabel(context, mode, range, selectedDate),
+                ),
+              ),
+              BusyMaxMenuButton<ScheduleViewMode>(
+                tooltip: _shortcutTooltip(
+                  _modeLabel(context, mode),
+                  BusyMaxShortcutLabels.forViewMode(mode),
+                ),
+                icon: Icon(_modeIcon(mode)),
+                entries: [
                   for (final value in ScheduleViewMode.values)
-                    Padding(
-                      padding: const EdgeInsets.only(right: BusyMaxSpacing.xs),
-                      child: BusyMaxPushButton.outlined(
-                        onPressed: mode == value
-                            ? null
-                            : () => onModeChanged(value),
-                        child: Text(_modeLabel(context, value)),
-                      ),
+                    BusyMaxMenuEntry(
+                      value: value,
+                      label: _modeLabel(context, value),
+                      icon: _modeIcon(value),
+                      selected: mode == value,
+                      shortcut: BusyMaxShortcutLabels.forViewMode(value),
                     ),
                 ],
+                onSelected: onModeChanged,
               ),
-            ),
+              if (onSearch != null)
+                YaruIconButton(
+                  tooltip: _shortcutTooltip(
+                    MaterialLocalizations.of(context).searchFieldLabel,
+                    BusyMaxShortcutLabels.search,
+                  ),
+                  icon: const Icon(YaruIcons.search),
+                  onPressed: onSearch,
+                ),
+              BusyMaxMenuButton<_ScheduleCreateAction>(
+                tooltip: context.l10n.create,
+                icon: const Icon(YaruIcons.plus),
+                controller: createMenuController,
+                enabled: canCreateEvent || canCreateTask,
+                entries: [
+                  BusyMaxMenuEntry(
+                    value: _ScheduleCreateAction.event,
+                    label: context.l10n.createEventAtTime,
+                    icon: Icons.event_outlined,
+                    enabled: canCreateEvent,
+                    shortcut: BusyMaxShortcutLabels.newEvent,
+                  ),
+                  BusyMaxMenuEntry(
+                    value: _ScheduleCreateAction.task,
+                    label: context.l10n.createTaskAtDate,
+                    icon: Icons.task_alt_outlined,
+                    enabled: canCreateTask,
+                    shortcut: BusyMaxShortcutLabels.newTask,
+                  ),
+                ],
+                onSelected: (value) {
+                  switch (value) {
+                    case _ScheduleCreateAction.event:
+                      onCreateEvent();
+                    case _ScheduleCreateAction.task:
+                      onCreateTask();
+                  }
+                },
+              ),
+              if (!compact)
+                YaruIconButton(
+                  tooltip: context.l10n.refreshAll,
+                  icon: const Icon(YaruIcons.refresh),
+                  onPressed: canRefresh ? onRefresh : null,
+                ),
+              if (onMenuSelected != null)
+                BusyMaxMenuButton<ScheduleToolbarMenuAction>(
+                  tooltip: context.l10n.mainMenu,
+                  entries: [
+                    if (compact)
+                      BusyMaxMenuEntry(
+                        value: ScheduleToolbarMenuAction.refresh,
+                        label: context.l10n.refreshAll,
+                        icon: YaruIcons.refresh,
+                        enabled: canRefresh,
+                      ),
+                    BusyMaxMenuEntry(
+                      value: ScheduleToolbarMenuAction.settings,
+                      label: context.l10n.settings,
+                      icon: YaruIcons.settings,
+                      shortcut: BusyMaxShortcutLabels.settings,
+                    ),
+                    BusyMaxMenuEntry(
+                      value: ScheduleToolbarMenuAction.keyboardShortcuts,
+                      label: context.l10n.keyboardShortcuts,
+                      icon: Icons.keyboard_alt_outlined,
+                      shortcut: BusyMaxShortcutLabels.keyboardShortcuts,
+                    ),
+                    BusyMaxMenuEntry(
+                      value: ScheduleToolbarMenuAction.reportIssue,
+                      label: context.l10n.reportAnIssue,
+                      icon: YaruIcons.warning,
+                    ),
+                    BusyMaxMenuEntry(
+                      value: ScheduleToolbarMenuAction.about,
+                      label: context.l10n.aboutBusyMax,
+                      icon: Icons.info_outline,
+                    ),
+                  ],
+                  onSelected: onMenuSelected!,
+                ),
+              const SizedBox(width: BusyMaxSpacing.sm),
+            ],
           ),
-          YaruIconButton(
-            tooltip: context.l10n.create,
-            icon: const Icon(YaruIcons.plus),
-            onPressed: canCreate ? onCreate : null,
-          ),
-          YaruIconButton(
-            tooltip: context.l10n.refreshAll,
-            icon: const Icon(YaruIcons.refresh),
-            onPressed: onRefresh,
-          ),
-          const SizedBox(width: BusyMaxSpacing.sm),
-        ],
-      ),
+        );
+      },
     );
   }
+}
+
+Widget _fittingRangeTitle(BuildContext context, String title) {
+  final style = busyMaxHeaderTitleStyle(context);
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final painter = TextPainter(
+        text: TextSpan(text: title, style: style),
+        maxLines: 1,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      final titleFits = painter.width <= constraints.maxWidth;
+      painter.dispose();
+      if (!titleFits) {
+        return const SizedBox.shrink();
+      }
+      return Text(title, maxLines: 1, style: style);
+    },
+  );
+}
+
+IconData _modeIcon(ScheduleViewMode mode) {
+  return switch (mode) {
+    ScheduleViewMode.day => Icons.calendar_view_day_outlined,
+    ScheduleViewMode.week => Icons.view_week_outlined,
+    ScheduleViewMode.month => Icons.calendar_view_month,
+    ScheduleViewMode.year => Icons.calendar_today_outlined,
+    ScheduleViewMode.agenda => Icons.view_agenda_outlined,
+  };
 }
 
 String _rangeLabel(
@@ -116,19 +278,8 @@ String _rangeLabel(
     ScheduleViewMode.month => DateFormat.yMMMM(locale).format(selectedDate),
     ScheduleViewMode.year => DateFormat.y(locale).format(selectedDate),
     ScheduleViewMode.agenda => context.l10n.viewAgenda,
-    ScheduleViewMode.week => _weekRange(locale, range),
+    ScheduleViewMode.week => localizedScheduleRangeLabel(locale, range),
   };
-}
-
-String _weekRange(String locale, ScheduleRange range) {
-  final end = range.end.subtract(const Duration(days: 1));
-  if (range.start.year == end.year && range.start.month == end.month) {
-    return '${DateFormat.MMMd(locale).format(range.start)}-${DateFormat.d(locale).format(end)}, ${DateFormat.y(locale).format(end)}';
-  }
-  if (range.start.year == end.year) {
-    return '${DateFormat.MMMd(locale).format(range.start)} - ${DateFormat.MMMd(locale).format(end)}, ${DateFormat.y(locale).format(end)}';
-  }
-  return '${DateFormat.yMMMd(locale).format(range.start)} - ${DateFormat.yMMMd(locale).format(end)}';
 }
 
 String _modeLabel(BuildContext context, ScheduleViewMode mode) {
@@ -140,3 +291,5 @@ String _modeLabel(BuildContext context, ScheduleViewMode mode) {
     ScheduleViewMode.agenda => context.l10n.viewAgenda,
   };
 }
+
+String _shortcutTooltip(String label, String shortcut) => '$label ($shortcut)';

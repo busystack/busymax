@@ -1,9 +1,28 @@
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('providers publish preloaded GTK settings on the first frame', () async {
+    const font = GtkFontSettings(family: 'Ubuntu Sans', size: 11);
+    const colors = GtkThemeColors(
+      brightness: Brightness.light,
+      window: Color(0xFFFFFFFF),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        initialGtkFontSettingsProvider.overrideWithValue(font),
+        initialGtkThemeColorsProvider.overrideWithValue(colors),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    expect(await container.read(gtkFontSettingsProvider.future), font);
+    expect(await container.read(gtkThemeColorsProvider.future), colors);
+  });
 
   test('reads native Ubuntu Sans 11 font settings', () async {
     const channel = MethodChannel('busymax_test/gtk_font_ubuntu');
@@ -63,6 +82,25 @@ void main() {
     expect(settings, isNull);
   });
 
+  test('native GTK settings errors fall back to null during preload', () async {
+    const channel = MethodChannel('busymax_test/gtk_settings_error');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          channel,
+          (_) => throw PlatformException(code: 'unavailable'),
+        );
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    expect(await const GtkFontService(channel: channel).getGtkFont(), isNull);
+    expect(
+      await const GtkThemeService(channel: channel).getGtkThemeColors(),
+      isNull,
+    );
+  });
+
   test('invalid native GTK font size does not crash', () async {
     const channel = MethodChannel('busymax_test/gtk_font_invalid_size');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -77,6 +115,43 @@ void main() {
     final settings = await const GtkFontService(channel: channel).getGtkFont();
 
     expect(settings, const GtkFontSettings(family: 'GTK Test Sans', size: 0));
+  });
+
+  test('malformed native GTK payload types are ignored safely', () async {
+    const fontChannel = MethodChannel('busymax_test/gtk_font_malformed');
+    const themeChannel = MethodChannel('busymax_test/gtk_theme_malformed');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      fontChannel,
+      (_) async => <String, Object?>{'family': 42, 'size': 11},
+    );
+    messenger.setMockMethodCallHandler(
+      themeChannel,
+      (_) async => <String, Object?>{
+        'brightness': 'light',
+        'window': 42,
+        'view': true,
+        'foreground': <String>['#000000'],
+      },
+    );
+    addTearDown(() {
+      messenger
+        ..setMockMethodCallHandler(fontChannel, null)
+        ..setMockMethodCallHandler(themeChannel, null);
+    });
+
+    expect(
+      await const GtkFontService(channel: fontChannel).getGtkFont(),
+      isNull,
+    );
+    final colors = await const GtkThemeService(
+      channel: themeChannel,
+    ).getGtkThemeColors();
+    expect(colors?.brightness, Brightness.light);
+    expect(colors?.window, isNull);
+    expect(colors?.view, isNull);
+    expect(colors?.foreground, isNull);
   });
 
   test('missing native GTK font size does not crash', () async {
@@ -201,13 +276,16 @@ void main() {
             'controlHover': '#2EFFFFFF',
             'controlActive': '#33FFFFFF',
             'accent': '#C061CB',
+            'accentForeground': '#FFFFFFFF',
             'activeToggle': '#44FFFFFF',
             'foreground': '#FFFFFF',
             'mutedForeground': '#C0C0C0',
             'disabledForeground': '#61FFFFFF',
             'disabledControl': '#0FFFFFFF',
             'border': '#99000000',
-            'subtleBorder': '#1AFFFFFF',
+            'divider': '#1AFFFFFF',
+            'cardShade': '#5A101010',
+            'floatingBorder': '#24000000',
             'sidebarBorder': '#33000000',
             'shade': '#55000000',
           };
@@ -223,13 +301,18 @@ void main() {
 
     expect(colors?.brightness, Brightness.dark);
     expect(colors?.window, const Color(0xFF202020));
+    expect(colors?.view, const Color(0xFF212121));
     expect(colors?.sidebar, const Color(0xFF303030));
     expect(colors?.headerbar, const Color(0xFF242424));
+    expect(colors?.headerbarFlat, const Color(0xFF212121));
     expect(colors?.popover, const Color(0xFF383838));
     expect(colors?.control, const Color(0x1AFFFFFF));
     expect(colors?.controlActive, const Color(0x33FFFFFF));
     expect(colors?.accent, const Color(0xFFC061CB));
-    expect(colors?.subtleBorder, const Color(0x1AFFFFFF));
+    expect(colors?.accentForeground, const Color(0xFFFFFFFF));
+    expect(colors?.divider, const Color(0x1AFFFFFF));
+    expect(colors?.cardShade, const Color(0x5A101010));
+    expect(colors?.floatingBorder, const Color(0x24000000));
   });
 
   test('missing native GTK theme color channel falls back to null', () async {
@@ -239,6 +322,34 @@ void main() {
 
     expect(settings, isNull);
   });
+
+  test(
+    'explicit theme preference is forwarded before palette lookup',
+    () async {
+      const channel = MethodChannel('busymax_test/gtk_theme_preference');
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      const service = GtkThemeService(channel: channel);
+
+      await service.setPreferDark(true);
+      await service.setPreferDark(false);
+      await service.setPreferDark(null);
+
+      expect(calls.map((call) => call.method), [
+        'setGtkThemePreference',
+        'setGtkThemePreference',
+      ]);
+      expect(calls.map((call) => call.arguments), [true, false]);
+    },
+  );
 
   test('theme color stream emits initial and updated values', () async {
     const events = EventChannel('busymax_test/gtk_theme_events_update');

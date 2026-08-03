@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import '../schedule/schedule_view_mode.dart';
+
+const int busyMaxOnboardingContentMaxWidth = 480;
 
 enum BusyMaxHeaderBarAction {
   back,
@@ -19,11 +21,44 @@ enum BusyMaxHeaderBarAction {
   viewModeYear,
   viewModeAgenda,
   search,
-  create,
+  createEvent,
+  createTask,
   refresh,
   settings,
   keyboardShortcuts,
+  reportIssue,
   aboutBusyMax,
+}
+
+sealed class BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchEvent();
+}
+
+@immutable
+final class BusyMaxHeaderBarSearchQueryChanged
+    extends BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchQueryChanged(this.query);
+
+  final String query;
+}
+
+@immutable
+final class BusyMaxHeaderBarSearchFocusChanged
+    extends BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchFocusChanged(this.focused);
+
+  final bool focused;
+}
+
+@immutable
+final class BusyMaxHeaderBarSearchCleared extends BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchCleared();
+}
+
+@immutable
+final class BusyMaxHeaderBarSearchEscapePressed
+    extends BusyMaxHeaderBarSearchEvent {
+  const BusyMaxHeaderBarSearchEscapePressed();
 }
 
 @immutable
@@ -37,15 +72,33 @@ class BusyMaxHeaderBarLabels {
     required this.agenda,
     required this.search,
     required this.create,
+    required this.createEvent,
+    required this.createTask,
     required this.refresh,
     required this.menu,
     required this.previous,
     required this.next,
-    required this.sidebar,
+    required this.showSidebarPanel,
+    required this.hideSidebarPanel,
     required this.back,
     required this.settings,
     required this.keyboardShortcuts,
+    required this.reportIssue,
     required this.aboutBusyMax,
+    this.todayShortcut = '',
+    this.dayShortcut = '',
+    this.weekShortcut = '',
+    this.monthShortcut = '',
+    this.yearShortcut = '',
+    this.agendaShortcut = '',
+    this.searchShortcut = '',
+    this.sidebarShortcut = '',
+    this.createEventShortcut = '',
+    this.createTaskShortcut = '',
+    this.previousShortcut = '',
+    this.nextShortcut = '',
+    this.settingsShortcut = '',
+    this.keyboardShortcutsShortcut = '',
   });
 
   final String today;
@@ -56,15 +109,33 @@ class BusyMaxHeaderBarLabels {
   final String agenda;
   final String search;
   final String create;
+  final String createEvent;
+  final String createTask;
   final String refresh;
   final String menu;
   final String previous;
   final String next;
-  final String sidebar;
+  final String showSidebarPanel;
+  final String hideSidebarPanel;
   final String back;
   final String settings;
   final String keyboardShortcuts;
+  final String reportIssue;
   final String aboutBusyMax;
+  final String todayShortcut;
+  final String dayShortcut;
+  final String weekShortcut;
+  final String monthShortcut;
+  final String yearShortcut;
+  final String agendaShortcut;
+  final String searchShortcut;
+  final String sidebarShortcut;
+  final String createEventShortcut;
+  final String createTaskShortcut;
+  final String previousShortcut;
+  final String nextShortcut;
+  final String settingsShortcut;
+  final String keyboardShortcutsShortcut;
 
   Map<String, String> toJson() {
     return {
@@ -76,15 +147,33 @@ class BusyMaxHeaderBarLabels {
       'agenda': agenda,
       'search': search,
       'create': create,
+      'createEvent': createEvent,
+      'createTask': createTask,
       'refresh': refresh,
       'menu': menu,
       'previous': previous,
       'next': next,
-      'sidebar': sidebar,
+      'showSidebarPanel': showSidebarPanel,
+      'hideSidebarPanel': hideSidebarPanel,
       'back': back,
       'settings': settings,
       'keyboardShortcuts': keyboardShortcuts,
+      'reportIssue': reportIssue,
       'aboutBusyMax': aboutBusyMax,
+      'todayShortcut': todayShortcut,
+      'dayShortcut': dayShortcut,
+      'weekShortcut': weekShortcut,
+      'monthShortcut': monthShortcut,
+      'yearShortcut': yearShortcut,
+      'agendaShortcut': agendaShortcut,
+      'searchShortcut': searchShortcut,
+      'sidebarShortcut': sidebarShortcut,
+      'createEventShortcut': createEventShortcut,
+      'createTaskShortcut': createTaskShortcut,
+      'previousShortcut': previousShortcut,
+      'nextShortcut': nextShortcut,
+      'settingsShortcut': settingsShortcut,
+      'keyboardShortcutsShortcut': keyboardShortcutsShortcut,
     };
   }
 
@@ -100,19 +189,37 @@ class BusyMaxHeaderBarLabels {
             agenda == other.agenda &&
             search == other.search &&
             create == other.create &&
+            createEvent == other.createEvent &&
+            createTask == other.createTask &&
             refresh == other.refresh &&
             menu == other.menu &&
             previous == other.previous &&
             next == other.next &&
-            sidebar == other.sidebar &&
+            showSidebarPanel == other.showSidebarPanel &&
+            hideSidebarPanel == other.hideSidebarPanel &&
             back == other.back &&
             settings == other.settings &&
             keyboardShortcuts == other.keyboardShortcuts &&
-            aboutBusyMax == other.aboutBusyMax;
+            reportIssue == other.reportIssue &&
+            aboutBusyMax == other.aboutBusyMax &&
+            todayShortcut == other.todayShortcut &&
+            dayShortcut == other.dayShortcut &&
+            weekShortcut == other.weekShortcut &&
+            monthShortcut == other.monthShortcut &&
+            yearShortcut == other.yearShortcut &&
+            agendaShortcut == other.agendaShortcut &&
+            searchShortcut == other.searchShortcut &&
+            sidebarShortcut == other.sidebarShortcut &&
+            createEventShortcut == other.createEventShortcut &&
+            createTaskShortcut == other.createTaskShortcut &&
+            previousShortcut == other.previousShortcut &&
+            nextShortcut == other.nextShortcut &&
+            settingsShortcut == other.settingsShortcut &&
+            keyboardShortcutsShortcut == other.keyboardShortcutsShortcut;
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     today,
     day,
     week,
@@ -121,15 +228,93 @@ class BusyMaxHeaderBarLabels {
     agenda,
     search,
     create,
+    createEvent,
+    createTask,
     refresh,
     menu,
     previous,
     next,
-    sidebar,
+    showSidebarPanel,
+    hideSidebarPanel,
     back,
     settings,
     keyboardShortcuts,
+    reportIssue,
     aboutBusyMax,
+    todayShortcut,
+    dayShortcut,
+    weekShortcut,
+    monthShortcut,
+    yearShortcut,
+    agendaShortcut,
+    searchShortcut,
+    sidebarShortcut,
+    createEventShortcut,
+    createTaskShortcut,
+    previousShortcut,
+    nextShortcut,
+    settingsShortcut,
+    keyboardShortcutsShortcut,
+  ]);
+}
+
+@immutable
+class BusyMaxHeaderBarTooltipTheme {
+  const BusyMaxHeaderBarTooltipTheme({
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.borderColor,
+    required this.borderRadius,
+    required this.fontSize,
+    required this.horizontalPadding,
+    required this.verticalPadding,
+    required this.minimumHeight,
+  });
+
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final Color borderColor;
+  final double borderRadius;
+  final double fontSize;
+  final double horizontalPadding;
+  final double verticalPadding;
+  final double minimumHeight;
+
+  Map<String, Object> toJson() => {
+    'backgroundColor': busyMaxCssColor(backgroundColor),
+    'foregroundColor': busyMaxCssColor(foregroundColor),
+    'borderColor': busyMaxCssColor(borderColor),
+    'borderRadius': borderRadius,
+    'fontSize': fontSize,
+    'horizontalPadding': horizontalPadding,
+    'verticalPadding': verticalPadding,
+    'minimumHeight': minimumHeight,
+  };
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is BusyMaxHeaderBarTooltipTheme &&
+            backgroundColor == other.backgroundColor &&
+            foregroundColor == other.foregroundColor &&
+            borderColor == other.borderColor &&
+            borderRadius == other.borderRadius &&
+            fontSize == other.fontSize &&
+            horizontalPadding == other.horizontalPadding &&
+            verticalPadding == other.verticalPadding &&
+            minimumHeight == other.minimumHeight;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    backgroundColor,
+    foregroundColor,
+    borderColor,
+    borderRadius,
+    fontSize,
+    horizontalPadding,
+    verticalPadding,
+    minimumHeight,
   );
 }
 
@@ -137,58 +322,43 @@ class BusyMaxHeaderBarLabels {
 class BusyMaxHeaderBarTheme {
   const BusyMaxHeaderBarTheme({
     required this.preferDark,
+    required this.highContrast,
     required this.windowBackgroundColor,
     required this.backgroundColor,
     required this.sidebarBackgroundColor,
     required this.foregroundColor,
-    required this.mutedForegroundColor,
-    required this.disabledForegroundColor,
-    required this.controlColor,
-    required this.controlHoverColor,
-    required this.controlActiveColor,
-    required this.accentColor,
-    required this.accentForegroundColor,
-    required this.popoverBackgroundColor,
-    required this.borderColor,
-    required this.shadeColor,
+    required this.sidebarBorderColor,
+    required this.dialogBackgroundColor,
+    required this.dialogOutlineColor,
     required this.modalBarrierColor,
+    required this.tooltip,
   });
 
   final bool preferDark;
+  final bool highContrast;
   final Color windowBackgroundColor;
   final Color backgroundColor;
   final Color sidebarBackgroundColor;
   final Color foregroundColor;
-  final Color mutedForegroundColor;
-  final Color disabledForegroundColor;
-  final Color controlColor;
-  final Color controlHoverColor;
-  final Color controlActiveColor;
-  final Color accentColor;
-  final Color accentForegroundColor;
-  final Color popoverBackgroundColor;
-  final Color borderColor;
-  final Color shadeColor;
+  final Color sidebarBorderColor;
+  final Color dialogBackgroundColor;
+  final Color dialogOutlineColor;
   final Color modalBarrierColor;
+  final BusyMaxHeaderBarTooltipTheme tooltip;
 
   Map<String, Object> toJson() {
     return <String, Object>{
       'preferDark': preferDark,
+      'highContrast': highContrast,
       'windowBackgroundColor': busyMaxCssColor(windowBackgroundColor),
       'backgroundColor': busyMaxCssColor(backgroundColor),
       'sidebarBackgroundColor': busyMaxCssColor(sidebarBackgroundColor),
       'foregroundColor': busyMaxCssColor(foregroundColor),
-      'mutedForegroundColor': busyMaxCssColor(mutedForegroundColor),
-      'disabledForegroundColor': busyMaxCssColor(disabledForegroundColor),
-      'controlColor': busyMaxCssColor(controlColor),
-      'controlHoverColor': busyMaxCssColor(controlHoverColor),
-      'controlActiveColor': busyMaxCssColor(controlActiveColor),
-      'accentColor': busyMaxCssColor(accentColor),
-      'accentForegroundColor': busyMaxCssColor(accentForegroundColor),
-      'popoverBackgroundColor': busyMaxCssColor(popoverBackgroundColor),
-      'borderColor': busyMaxCssColor(borderColor),
-      'shadeColor': busyMaxCssColor(shadeColor),
+      'sidebarBorderColor': busyMaxCssColor(sidebarBorderColor),
+      'dialogBackgroundColor': busyMaxCssColor(dialogBackgroundColor),
+      'dialogOutlineColor': busyMaxCssColor(dialogOutlineColor),
       'modalBarrierColor': busyMaxCssColor(modalBarrierColor),
+      'tooltip': tooltip.toJson(),
     };
   }
 
@@ -197,41 +367,158 @@ class BusyMaxHeaderBarTheme {
     return identical(this, other) ||
         other is BusyMaxHeaderBarTheme &&
             other.preferDark == preferDark &&
+            other.highContrast == highContrast &&
             other.windowBackgroundColor == windowBackgroundColor &&
             other.backgroundColor == backgroundColor &&
             other.sidebarBackgroundColor == sidebarBackgroundColor &&
             other.foregroundColor == foregroundColor &&
-            other.mutedForegroundColor == mutedForegroundColor &&
-            other.disabledForegroundColor == disabledForegroundColor &&
-            other.controlColor == controlColor &&
-            other.controlHoverColor == controlHoverColor &&
-            other.controlActiveColor == controlActiveColor &&
-            other.accentColor == accentColor &&
-            other.accentForegroundColor == accentForegroundColor &&
-            other.popoverBackgroundColor == popoverBackgroundColor &&
-            other.borderColor == borderColor &&
-            other.shadeColor == shadeColor &&
-            other.modalBarrierColor == modalBarrierColor;
+            other.sidebarBorderColor == sidebarBorderColor &&
+            other.dialogBackgroundColor == dialogBackgroundColor &&
+            other.dialogOutlineColor == dialogOutlineColor &&
+            other.modalBarrierColor == modalBarrierColor &&
+            other.tooltip == tooltip;
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     preferDark,
+    highContrast,
     windowBackgroundColor,
     backgroundColor,
     sidebarBackgroundColor,
     foregroundColor,
-    mutedForegroundColor,
-    disabledForegroundColor,
-    controlColor,
-    controlHoverColor,
-    controlActiveColor,
-    accentColor,
-    accentForegroundColor,
-    popoverBackgroundColor,
-    borderColor,
-    shadeColor,
+    sidebarBorderColor,
+    dialogBackgroundColor,
+    dialogOutlineColor,
     modalBarrierColor,
+    tooltip,
+  ]);
+}
+
+/// The complete, screen-owned presentation state of the native header bar.
+///
+/// Configuration that is shared across screens, such as localized labels,
+/// theme colors, and sidebar width, is intentionally managed separately.
+@immutable
+class BusyMaxHeaderBarState {
+  const BusyMaxHeaderBarState({
+    required this.title,
+    required this.viewMode,
+    required this.canRefresh,
+    required this.canCreateEvent,
+    required this.canCreateTask,
+    required this.searchActive,
+    required this.searchQuery,
+    required this.canShowSidebar,
+    required this.sidebarVisible,
+    required this.navigationVisible,
+    required this.scheduleControlsVisible,
+    required this.backVisible,
+  });
+
+  static const int schemaVersion = 3;
+
+  final String title;
+  final ScheduleViewMode viewMode;
+  final bool canRefresh;
+  final bool canCreateEvent;
+  final bool canCreateTask;
+  final bool searchActive;
+  final String searchQuery;
+
+  bool get canCreate => canCreateEvent || canCreateTask;
+
+  /// Whether the current layout can present a sidebar.
+  ///
+  /// This is distinct from [sidebarVisible], which represents the user's
+  /// current expanded/collapsed choice when a sidebar can be presented.
+  final bool canShowSidebar;
+  final bool sidebarVisible;
+  final bool navigationVisible;
+  final bool scheduleControlsVisible;
+  final bool backVisible;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'schemaVersion': schemaVersion,
+      'title': title,
+      'viewMode': viewMode.name,
+      'canRefresh': canRefresh,
+      'canCreateEvent': canCreateEvent,
+      'canCreateTask': canCreateTask,
+      'searchActive': searchActive,
+      'searchQuery': searchQuery,
+      'canShowSidebar': canShowSidebar,
+      'sidebarVisible': sidebarVisible,
+      'navigationVisible': navigationVisible,
+      'scheduleControlsVisible': scheduleControlsVisible,
+      'backVisible': backVisible,
+    };
+  }
+
+  BusyMaxHeaderBarState copyWith({
+    String? title,
+    ScheduleViewMode? viewMode,
+    bool? canRefresh,
+    bool? canCreateEvent,
+    bool? canCreateTask,
+    bool? searchActive,
+    String? searchQuery,
+    bool? canShowSidebar,
+    bool? sidebarVisible,
+    bool? navigationVisible,
+    bool? scheduleControlsVisible,
+    bool? backVisible,
+  }) {
+    return BusyMaxHeaderBarState(
+      title: title ?? this.title,
+      viewMode: viewMode ?? this.viewMode,
+      canRefresh: canRefresh ?? this.canRefresh,
+      canCreateEvent: canCreateEvent ?? this.canCreateEvent,
+      canCreateTask: canCreateTask ?? this.canCreateTask,
+      searchActive: searchActive ?? this.searchActive,
+      searchQuery: searchQuery ?? this.searchQuery,
+      canShowSidebar: canShowSidebar ?? this.canShowSidebar,
+      sidebarVisible: sidebarVisible ?? this.sidebarVisible,
+      navigationVisible: navigationVisible ?? this.navigationVisible,
+      scheduleControlsVisible:
+          scheduleControlsVisible ?? this.scheduleControlsVisible,
+      backVisible: backVisible ?? this.backVisible,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is BusyMaxHeaderBarState &&
+            title == other.title &&
+            viewMode == other.viewMode &&
+            canRefresh == other.canRefresh &&
+            canCreateEvent == other.canCreateEvent &&
+            canCreateTask == other.canCreateTask &&
+            searchActive == other.searchActive &&
+            searchQuery == other.searchQuery &&
+            canShowSidebar == other.canShowSidebar &&
+            sidebarVisible == other.sidebarVisible &&
+            navigationVisible == other.navigationVisible &&
+            scheduleControlsVisible == other.scheduleControlsVisible &&
+            backVisible == other.backVisible;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    title,
+    viewMode,
+    canRefresh,
+    canCreateEvent,
+    canCreateTask,
+    searchActive,
+    searchQuery,
+    canShowSidebar,
+    sidebarVisible,
+    navigationVisible,
+    scheduleControlsVisible,
+    backVisible,
   );
 }
 
@@ -246,88 +533,82 @@ class LinuxHeaderBarService {
 
   final MethodChannel _channel;
   final bool _isLinux;
-  final _actions = StreamController<BusyMaxHeaderBarAction>.broadcast();
+  final _sessions = <LinuxHeaderBarSession>[];
 
-  bool _initialized = false;
+  Future<void>? _initialization;
   bool _available = false;
-  String? _titleRange;
-  ScheduleViewMode? _viewMode;
-  bool? _canRefresh;
-  bool? _canCreate;
-  bool? _searchActive;
-  bool? _sidebarVisible;
-  bool? _navigationVisible;
-  bool? _scheduleControlsVisible;
-  bool? _backVisible;
+  bool _disposed = false;
   _BusyMaxOnboardingControlsState? _onboardingControls;
-  bool? _modalBarrierVisible;
+  ({bool visible, int shadeDepth})? _modalBarrierState;
   double? _sidebarWidth;
+  TextDirection? _textDirection;
   BusyMaxHeaderBarLabels? _labels;
   BusyMaxHeaderBarTheme? _theme;
+  BusyMaxHeaderBarState? _state;
 
   bool get isAvailable => _available;
 
-  Stream<BusyMaxHeaderBarAction> get actions => _actions.stream;
+  /// Returns a route-owned session for native header state and actions.
+  ///
+  /// Claiming a new session immediately supersedes the previous one. This is
+  /// important during route transitions, when the outgoing screen remains
+  /// mounted and can still receive asynchronous rebuilds.
+  LinuxHeaderBarSession claimSession() {
+    if (_disposed) {
+      throw StateError('Cannot claim a session from a disposed service.');
+    }
+    final session = LinuxHeaderBarSession._(this);
+    _sessions.add(session);
+    return session;
+  }
 
-  Future<void> initialize() async {
-    if (_initialized) {
+  /// Initializes the native bridge once and shares the in-flight result.
+  Future<void> initialize() {
+    return _initialization ??= _initialize();
+  }
+
+  Future<void> _initialize() async {
+    if (_disposed) {
       return;
     }
-    _initialized = true;
     _channel.setMethodCallHandler(handleNativeMethodCall);
     if (!_isLinux) {
       _available = false;
       return;
     }
     try {
-      _available = await _channel.invokeMethod<bool>('initialize') ?? false;
+      final available =
+          await _channel.invokeMethod<bool>('initialize') ?? false;
+      if (!_disposed) {
+        _available = available;
+      }
     } on MissingPluginException {
-      _available = false;
+      if (!_disposed) {
+        _available = false;
+      }
+    } on PlatformException {
+      if (!_disposed) {
+        _available = false;
+      }
     }
   }
 
-  Future<void> setTitleRange(String value) async {
+  /// Applies all screen-owned header state in one native transaction.
+  ///
+  /// Equal state is not sent twice. Session ownership is checked before this
+  /// method is called so inactive routes cannot mutate the native-state cache.
+  Future<void> _applyState(
+    BusyMaxHeaderBarState state, {
+    bool force = false,
+  }) async {
     if (!_available) {
       return;
     }
-    if (_titleRange == value) {
+    if (!force && _state == state) {
       return;
     }
-    _titleRange = value;
-    await _invokeIfAvailable('setTitleRange', value);
-  }
-
-  Future<void> setViewMode(ScheduleViewMode mode) async {
-    if (!_available) {
-      return;
-    }
-    if (_viewMode == mode) {
-      return;
-    }
-    _viewMode = mode;
-    await _invokeIfAvailable('setViewMode', mode.name);
-  }
-
-  Future<void> setCanRefresh(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_canRefresh == value) {
-      return;
-    }
-    _canRefresh = value;
-    await _invokeIfAvailable('setCanRefresh', value);
-  }
-
-  Future<void> setCanCreate(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_canCreate == value) {
-      return;
-    }
-    _canCreate = value;
-    await _invokeIfAvailable('setCanCreate', value);
+    _state = state;
+    await _invokeIfAvailable('setState', state.toJson());
   }
 
   Future<void> setLocalizedLabels(BusyMaxHeaderBarLabels labels) async {
@@ -352,67 +633,21 @@ class LinuxHeaderBarService {
     await _invokeIfAvailable('setSidebarWidth', value);
   }
 
-  Future<void> setSearchActive(bool value) async {
-    if (!_available) {
+  Future<void> setTextDirection(TextDirection value) async {
+    if (!_available || _textDirection == value) {
       return;
     }
-    if (_searchActive == value) {
-      return;
-    }
-    _searchActive = value;
-    await _invokeIfAvailable('setSearchActive', value);
+    _textDirection = value;
+    await _invokeIfAvailable('setTextDirection', value.name);
   }
 
-  Future<void> setSidebarVisible(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_sidebarVisible == value) {
-      return;
-    }
-    _sidebarVisible = value;
-    await _invokeIfAvailable('setSidebarVisible', value);
-  }
-
-  Future<void> setNavigationVisible(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_navigationVisible == value) {
-      return;
-    }
-    _navigationVisible = value;
-    await _invokeIfAvailable('setNavigationVisible', value);
-  }
-
-  Future<void> setScheduleControlsVisible(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_scheduleControlsVisible == value) {
-      return;
-    }
-    _scheduleControlsVisible = value;
-    await _invokeIfAvailable('setScheduleControlsVisible', value);
-  }
-
-  Future<void> setBackVisible(bool value) async {
-    if (!_available) {
-      return;
-    }
-    if (_backVisible == value) {
-      return;
-    }
-    _backVisible = value;
-    await _invokeIfAvailable('setBackVisible', value);
-  }
-
-  Future<void> setOnboardingControls({
+  Future<void> _setOnboardingControls({
     required bool visible,
     required bool canGoBack,
     required bool canContinue,
     required String backLabel,
     required String continueLabel,
+    required int contentWidth,
     bool force = false,
   }) async {
     if (!_available) {
@@ -424,6 +659,7 @@ class LinuxHeaderBarService {
       canContinue: canContinue,
       backLabel: backLabel,
       continueLabel: continueLabel,
+      contentWidth: contentWidth,
     );
     if (!force && _onboardingControls == state) {
       return;
@@ -432,15 +668,51 @@ class LinuxHeaderBarService {
     await _invokeIfAvailable('setOnboardingControls', state.toJson());
   }
 
-  Future<void> setModalBarrierVisible(bool value) async {
+  LinuxHeaderBarSession? get _activeSession {
+    return _sessions.isEmpty ? null : _sessions.last;
+  }
+
+  bool _isCurrentSession(LinuxHeaderBarSession session) {
+    return identical(_activeSession, session);
+  }
+
+  void _releaseSession(LinuxHeaderBarSession session) {
+    final wasActive = _isCurrentSession(session);
+    _sessions.remove(session);
+    if (wasActive) {
+      final activeSession = _activeSession;
+      if (activeSession != null) {
+        unawaited(activeSession._restore());
+      }
+    }
+  }
+
+  Future<void> setModalBarrierState({
+    required bool visible,
+    required int shadeDepth,
+  }) async {
     if (!_available) {
       return;
     }
-    if (_modalBarrierVisible == value) {
+    final effectiveShadeDepth = visible ? (shadeDepth < 0 ? 0 : shadeDepth) : 0;
+    final state = (visible: visible, shadeDepth: effectiveShadeDepth);
+    if (_modalBarrierState == state) {
       return;
     }
-    _modalBarrierVisible = value;
-    await _invokeIfAvailable('setModalBarrierVisible', value);
+    _modalBarrierState = state;
+    await _invokeIfAvailable('setModalBarrierState', <String, Object>{
+      'visible': state.visible,
+      'shadeDepth': state.shadeDepth,
+    });
+  }
+
+  Future<void> setModalBarrierVisible(bool value) {
+    return setModalBarrierState(visible: value, shadeDepth: value ? 1 : 0);
+  }
+
+  Future<void> setModalBarrierDepth(int value) {
+    final depth = value < 0 ? 0 : value;
+    return setModalBarrierState(visible: depth > 0, shadeDepth: depth);
   }
 
   Future<void> setTheme(BusyMaxHeaderBarTheme theme) async {
@@ -456,22 +728,69 @@ class LinuxHeaderBarService {
 
   @visibleForTesting
   Future<dynamic> handleNativeMethodCall(MethodCall call) async {
+    final searchEvent = _searchEventForCall(call);
+    if (searchEvent != null) {
+      _activeSession?._dispatchSearchEvent(searchEvent);
+      return null;
+    }
     final action = _actionForMethod(call.method);
-    if (action != null && !_actions.isClosed) {
-      _actions.add(action);
+    if (action != null) {
+      _activeSession?._dispatch(action);
     }
     return null;
   }
 
   Future<void> _invokeIfAvailable(String method, Object? arguments) async {
-    if (!_available) {
+    if (_disposed || !_available) {
       return;
     }
     try {
       await _channel.invokeMethod<void>(method, arguments);
     } on MissingPluginException {
       _available = false;
+    } on PlatformException {
+      _available = false;
     }
+  }
+
+  Future<bool> _showCreateMenu(LinuxHeaderBarSession session) async {
+    if (_disposed || !_available || !_isCurrentSession(session)) {
+      return false;
+    }
+    try {
+      return await _channel.invokeMethod<bool>('showCreateMenu') ?? false;
+    } on MissingPluginException {
+      _available = false;
+    } on PlatformException {
+      _available = false;
+    }
+    return false;
+  }
+
+  Future<bool> _focusSearch(LinuxHeaderBarSession session) async {
+    if (_disposed || !_available || !_isCurrentSession(session)) {
+      return false;
+    }
+    try {
+      return await _channel.invokeMethod<bool>('focusSearch') ?? false;
+    } on MissingPluginException {
+      _available = false;
+    } on PlatformException {
+      _available = false;
+    }
+    return false;
+  }
+
+  BusyMaxHeaderBarSearchEvent? _searchEventForCall(MethodCall call) {
+    return switch ((call.method, call.arguments)) {
+      ('searchQueryChanged', final String query) =>
+        BusyMaxHeaderBarSearchQueryChanged(query),
+      ('searchFocusChanged', final bool focused) =>
+        BusyMaxHeaderBarSearchFocusChanged(focused),
+      ('searchCleared', _) => const BusyMaxHeaderBarSearchCleared(),
+      ('searchEscapePressed', _) => const BusyMaxHeaderBarSearchEscapePressed(),
+      _ => null,
+    };
   }
 
   BusyMaxHeaderBarAction? _actionForMethod(String method) {
@@ -488,18 +807,194 @@ class LinuxHeaderBarService {
       'viewModeYear' => BusyMaxHeaderBarAction.viewModeYear,
       'viewModeAgenda' => BusyMaxHeaderBarAction.viewModeAgenda,
       'search' => BusyMaxHeaderBarAction.search,
-      'create' => BusyMaxHeaderBarAction.create,
+      'createEvent' => BusyMaxHeaderBarAction.createEvent,
+      'createTask' => BusyMaxHeaderBarAction.createTask,
       'refresh' => BusyMaxHeaderBarAction.refresh,
       'settings' => BusyMaxHeaderBarAction.settings,
       'keyboardShortcuts' => BusyMaxHeaderBarAction.keyboardShortcuts,
+      'reportIssue' => BusyMaxHeaderBarAction.reportIssue,
       'aboutBusyMax' => BusyMaxHeaderBarAction.aboutBusyMax,
       _ => null,
     };
   }
 
   void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    _available = false;
+    for (final session in _sessions.toList()) {
+      session._disposeFromService();
+    }
+    _sessions.clear();
     _channel.setMethodCallHandler(null);
+  }
+}
+
+/// Exclusive route-level access to native header state and actions.
+///
+/// Global concerns such as theme, labels, and modal barriers remain on
+/// [LinuxHeaderBarService]. Route presentation state goes through this session
+/// so that a transitioning-out screen cannot overwrite its successor.
+class LinuxHeaderBarSession {
+  LinuxHeaderBarSession._(this._service);
+
+  final LinuxHeaderBarService _service;
+  final _actions = StreamController<BusyMaxHeaderBarAction>.broadcast();
+  final _searchEvents =
+      StreamController<BusyMaxHeaderBarSearchEvent>.broadcast();
+  bool _disposed = false;
+  BusyMaxHeaderBarState? _state;
+  int _stateRevision = 0;
+  _BusyMaxOnboardingControlsState? _onboardingControls;
+  int _onboardingRevision = 0;
+
+  bool get isCurrent => !_disposed && _service._isCurrentSession(this);
+
+  bool get isAvailable => !_disposed && _service.isAvailable;
+
+  Stream<BusyMaxHeaderBarAction> get actions => _actions.stream;
+
+  Stream<BusyMaxHeaderBarSearchEvent> get searchEvents => _searchEvents.stream;
+
+  Future<void> initialize() => _service.initialize();
+
+  Future<void> updateState(
+    BusyMaxHeaderBarState state, {
+    bool force = false,
+  }) async {
+    if (_disposed) {
+      return;
+    }
+    _state = state;
+    final revision = ++_stateRevision;
+    await initialize();
+    if (!isCurrent || revision != _stateRevision) {
+      return;
+    }
+    await _service._applyState(state, force: force);
+  }
+
+  /// Opens the route-owned native Create popover when it is available.
+  ///
+  /// The current-session check prevents an outgoing route from opening UI in
+  /// a header that has already been claimed by its successor.
+  Future<bool> showCreateMenu() async {
+    if (_disposed) {
+      return false;
+    }
+    await initialize();
+    if (!isCurrent) {
+      return false;
+    }
+    return _service._showCreateMenu(this);
+  }
+
+  /// Focuses the route-owned native search entry when it is active.
+  Future<bool> focusSearch() async {
+    if (_disposed) {
+      return false;
+    }
+    await initialize();
+    if (!isCurrent) {
+      return false;
+    }
+    return _service._focusSearch(this);
+  }
+
+  Future<void> setOnboardingControls({
+    required bool visible,
+    required bool canGoBack,
+    required bool canContinue,
+    required String backLabel,
+    required String continueLabel,
+    int contentWidth = busyMaxOnboardingContentMaxWidth,
+    bool force = false,
+  }) async {
+    if (_disposed) {
+      return;
+    }
+    final state = _BusyMaxOnboardingControlsState(
+      visible: visible,
+      canGoBack: canGoBack,
+      canContinue: canContinue,
+      backLabel: backLabel,
+      continueLabel: continueLabel,
+      contentWidth: contentWidth,
+    );
+    _onboardingControls = state;
+    final revision = ++_onboardingRevision;
+    await initialize();
+    if (!isCurrent || revision != _onboardingRevision) {
+      return;
+    }
+    await _service._setOnboardingControls(
+      visible: state.visible,
+      canGoBack: state.canGoBack,
+      canContinue: state.canContinue,
+      backLabel: state.backLabel,
+      continueLabel: state.continueLabel,
+      contentWidth: state.contentWidth,
+      force: force,
+    );
+  }
+
+  Future<void> _restore() async {
+    await initialize();
+    if (!isCurrent) {
+      return;
+    }
+    final state = _state;
+    if (state != null) {
+      await _service._applyState(state, force: true);
+    }
+    if (!isCurrent) {
+      return;
+    }
+    final onboardingControls = _onboardingControls;
+    if (onboardingControls != null) {
+      await _service._setOnboardingControls(
+        visible: onboardingControls.visible,
+        canGoBack: onboardingControls.canGoBack,
+        canContinue: onboardingControls.canContinue,
+        backLabel: onboardingControls.backLabel,
+        continueLabel: onboardingControls.continueLabel,
+        contentWidth: onboardingControls.contentWidth,
+        force: true,
+      );
+    }
+  }
+
+  void _dispatch(BusyMaxHeaderBarAction action) {
+    if (isCurrent && !_actions.isClosed) {
+      _actions.add(action);
+    }
+  }
+
+  void _dispatchSearchEvent(BusyMaxHeaderBarSearchEvent event) {
+    if (isCurrent && !_searchEvents.isClosed) {
+      _searchEvents.add(event);
+    }
+  }
+
+  void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    _service._releaseSession(this);
     unawaited(_actions.close());
+    unawaited(_searchEvents.close());
+  }
+
+  void _disposeFromService() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    unawaited(_actions.close());
+    unawaited(_searchEvents.close());
   }
 }
 
@@ -511,6 +1006,7 @@ class _BusyMaxOnboardingControlsState {
     required this.canContinue,
     required this.backLabel,
     required this.continueLabel,
+    required this.contentWidth,
   });
 
   final bool visible;
@@ -518,6 +1014,7 @@ class _BusyMaxOnboardingControlsState {
   final bool canContinue;
   final String backLabel;
   final String continueLabel;
+  final int contentWidth;
 
   Map<String, Object?> toJson() {
     return {
@@ -526,6 +1023,7 @@ class _BusyMaxOnboardingControlsState {
       'canContinue': canContinue,
       'backLabel': backLabel,
       'continueLabel': continueLabel,
+      'contentWidth': contentWidth,
     };
   }
 
@@ -537,15 +1035,21 @@ class _BusyMaxOnboardingControlsState {
             canGoBack == other.canGoBack &&
             canContinue == other.canContinue &&
             backLabel == other.backLabel &&
-            continueLabel == other.continueLabel;
+            continueLabel == other.continueLabel &&
+            contentWidth == other.contentWidth;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(visible, canGoBack, canContinue, backLabel, continueLabel);
+  int get hashCode => Object.hash(
+    visible,
+    canGoBack,
+    canContinue,
+    backLabel,
+    continueLabel,
+    contentWidth,
+  );
 }
 
-@visibleForTesting
 String busyMaxCssColor(Color color) {
   final rgb = color.toARGB32() & 0x00ffffff;
   if (color.a >= 1) {
