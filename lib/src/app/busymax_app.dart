@@ -44,13 +44,6 @@ BusyMaxHeaderBarTheme busyMaxHeaderBarThemeFor(
     sidebarBackgroundColor: colors.sidebar,
     foregroundColor: colors.foreground,
     sidebarBorderColor: colors.sidebarBorder,
-    popoverBackgroundColor: colors.popover,
-    menuHoverColor: colors.controlHover,
-    popoverShadowColor: theme.colorScheme.shadow.withValues(
-      alpha:
-          theme.colorScheme.shadow.a *
-          BusyMaxAlpha.nativeHeaderMenuShadowOpacity,
-    ),
     dialogBackgroundColor: colors.dialog,
     dialogOutlineColor: colors.dialogOutline,
     modalBarrierColor: colors.shade,

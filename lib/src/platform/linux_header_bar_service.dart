@@ -328,9 +328,6 @@ class BusyMaxHeaderBarTheme {
     required this.sidebarBackgroundColor,
     required this.foregroundColor,
     required this.sidebarBorderColor,
-    required this.popoverBackgroundColor,
-    required this.menuHoverColor,
-    required this.popoverShadowColor,
     required this.dialogBackgroundColor,
     required this.dialogOutlineColor,
     required this.modalBarrierColor,
@@ -344,9 +341,6 @@ class BusyMaxHeaderBarTheme {
   final Color sidebarBackgroundColor;
   final Color foregroundColor;
   final Color sidebarBorderColor;
-  final Color popoverBackgroundColor;
-  final Color menuHoverColor;
-  final Color popoverShadowColor;
   final Color dialogBackgroundColor;
   final Color dialogOutlineColor;
   final Color modalBarrierColor;
@@ -361,9 +355,6 @@ class BusyMaxHeaderBarTheme {
       'sidebarBackgroundColor': busyMaxCssColor(sidebarBackgroundColor),
       'foregroundColor': busyMaxCssColor(foregroundColor),
       'sidebarBorderColor': busyMaxCssColor(sidebarBorderColor),
-      'popoverBackgroundColor': busyMaxCssColor(popoverBackgroundColor),
-      'menuHoverColor': busyMaxCssColor(menuHoverColor),
-      'popoverShadowColor': busyMaxCssColor(popoverShadowColor),
       'dialogBackgroundColor': busyMaxCssColor(dialogBackgroundColor),
       'dialogOutlineColor': busyMaxCssColor(dialogOutlineColor),
       'modalBarrierColor': busyMaxCssColor(modalBarrierColor),
@@ -382,9 +373,6 @@ class BusyMaxHeaderBarTheme {
             other.sidebarBackgroundColor == sidebarBackgroundColor &&
             other.foregroundColor == foregroundColor &&
             other.sidebarBorderColor == sidebarBorderColor &&
-            other.popoverBackgroundColor == popoverBackgroundColor &&
-            other.menuHoverColor == menuHoverColor &&
-            other.popoverShadowColor == popoverShadowColor &&
             other.dialogBackgroundColor == dialogBackgroundColor &&
             other.dialogOutlineColor == dialogOutlineColor &&
             other.modalBarrierColor == modalBarrierColor &&
@@ -400,9 +388,6 @@ class BusyMaxHeaderBarTheme {
     sidebarBackgroundColor,
     foregroundColor,
     sidebarBorderColor,
-    popoverBackgroundColor,
-    menuHoverColor,
-    popoverShadowColor,
     dialogBackgroundColor,
     dialogOutlineColor,
     modalBarrierColor,

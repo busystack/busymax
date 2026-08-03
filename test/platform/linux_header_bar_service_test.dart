@@ -111,9 +111,6 @@ void main() {
         sidebarBackgroundColor: Color(0xFF2E2E32),
         foregroundColor: Color(0xFFFFFFFF),
         sidebarBorderColor: Color.fromRGBO(0, 0, 6, 0.75),
-        popoverBackgroundColor: Color(0xFF36363A),
-        menuHoverColor: Color.fromRGBO(255, 255, 255, 0.14),
-        popoverShadowColor: Color.fromRGBO(0, 0, 0, 0.3),
         dialogBackgroundColor: Color(0xFF36363A),
         dialogOutlineColor: Color.fromRGBO(255, 255, 255, 0.07),
         modalBarrierColor: Color.fromRGBO(0, 0, 0, 0.32),
@@ -200,9 +197,6 @@ void main() {
         'sidebarBackgroundColor': '#2E2E32',
         'foregroundColor': '#FFFFFF',
         'sidebarBorderColor': 'rgba(0,0,6,0.75)',
-        'popoverBackgroundColor': '#36363A',
-        'menuHoverColor': 'rgba(255,255,255,0.14)',
-        'popoverShadowColor': 'rgba(0,0,0,0.30)',
         'dialogBackgroundColor': '#36363A',
         'dialogOutlineColor': 'rgba(255,255,255,0.07)',
         'modalBarrierColor': 'rgba(0,0,0,0.32)',
@@ -649,7 +643,7 @@ void main() {
       'g_autofree gchar* native_search_geometry_css =',
     );
     final geometryCssEnd = source.indexOf(
-      'g_autofree gchar* native_menu_state_css =',
+      'const gchar* tooltip_background =',
       geometryCssStart,
     );
 
@@ -790,8 +784,19 @@ void main() {
     expect(source, isNot(contains('outline-style: none')));
     expect(source, isNot(contains('transition: none')));
     expect(source, isNot(contains('popover.busymax-header-popover')));
-    expect(source, contains('kNativePopoverStyleClass'));
-    expect(source, contains('style_header_menu_popover(GTK_WIDGET(popover))'));
+    expect(source, isNot(contains('kNativePopoverStyleClass')));
+    expect(source, isNot(contains('style_header_menu_popover')));
+    expect(
+      source,
+      contains(
+        'gtk_menu_button_set_use_popover(GTK_MENU_BUTTON(button), FALSE)',
+      ),
+    );
+    expect(source, contains('gtk_menu_button_get_popup'));
+    expect(source, contains('GTK_IS_MENU(menu)'));
+    expect(source, contains('gtk_menu_shell_deactivate'));
+    expect(source, isNot(contains('gtk_popover_')));
+    expect(source, isNot(contains('modelbutton:hover')));
     expect(source, contains('tooltip.background'));
     expect(source, contains('fl_lookup_map_arg(args, "tooltip")'));
     expect(

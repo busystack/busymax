@@ -1731,8 +1731,9 @@ void main() {
     expect(source, contains('sidebarBackgroundColor: colors.sidebar'));
     expect(source, contains('foregroundColor: colors.foreground'));
     expect(source, contains('sidebarBorderColor: colors.sidebarBorder'));
-    expect(source, contains('popoverBackgroundColor: colors.popover'));
-    expect(source, contains('menuHoverColor: colors.controlHover'));
+    expect(source, isNot(contains('popoverBackgroundColor:')));
+    expect(source, isNot(contains('menuHoverColor:')));
+    expect(source, isNot(contains('popoverShadowColor:')));
     expect(source, contains('dialogBackgroundColor: colors.dialog'));
     expect(source, isNot(contains('floatingBorderColor:')));
     expect(source, contains('modalBarrierColor: colors.shade'));

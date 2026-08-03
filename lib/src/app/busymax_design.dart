@@ -83,7 +83,6 @@ abstract final class BusyMaxAlpha {
   static const double calendarGridLight = 0.10;
   static const double calendarGridDark = 0.06;
   static const double groupedRowLightHoverStrength = 0.50;
-  static const double nativeHeaderMenuShadowOpacity = 0.30;
   static const double tooltipBackground = 0.80;
   static const double tooltipBorder = 0.10;
 }
