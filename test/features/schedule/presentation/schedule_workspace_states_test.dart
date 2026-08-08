@@ -18,6 +18,96 @@ import 'package:yaru/yaru.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  testWidgets('no-source state is a compact centered status page', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(900, 600);
+    addTearDown(tester.view.reset);
+    var settingsOpened = false;
+    var refreshed = false;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: ScheduleNoSourcesState(
+            hasAccounts: true,
+            onOpenSettings: () => settingsOpened = true,
+            onRefresh: () => refreshed = true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(YaruInfoBox), findsNothing);
+    expect(find.byIcon(YaruIcons.calendar), findsOneWidget);
+    expect(find.byIcon(YaruIcons.settings), findsOneWidget);
+    expect(find.byIcon(YaruIcons.refresh), findsOneWidget);
+
+    final iconRect = tester.getRect(find.byIcon(YaruIcons.calendar));
+    final actionRect = tester.getRect(
+      find.ancestor(
+        of: find.text('Settings'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    final contentCenterY = (iconRect.top + actionRect.bottom) / 2;
+    expect(contentCenterY, closeTo(300, 2));
+    expect(actionRect.bottom - iconRect.top, lessThan(280));
+
+    await tester.tap(find.text('Settings'));
+    await tester.tap(find.text('Refresh'));
+    expect(settingsOpened, isTrue);
+    expect(refreshed, isTrue);
+  });
+
+  testWidgets('empty agenda presents native peer creation actions', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(900, 600);
+    addTearDown(tester.view.reset);
+    var newEventOpened = false;
+    var newTaskOpened = false;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: ScheduleEmptyState(
+            onNewEvent: () => newEventOpened = true,
+            onNewTask: () => newTaskOpened = true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(YaruInfoBox), findsNothing);
+    expect(find.byIcon(YaruIcons.calendar_day), findsOneWidget);
+    expect(find.byIcon(YaruIcons.calendar_new), findsOneWidget);
+    expect(find.byIcon(YaruIcons.task_list), findsOneWidget);
+    expect(find.byType(FilledButton), findsNWidgets(2));
+    expect(find.byType(ElevatedButton), findsNothing);
+
+    final eventButton = find.ancestor(
+      of: find.text('New event'),
+      matching: find.byType(FilledButton),
+    );
+    final taskButton = find.ancestor(
+      of: find.text('New task'),
+      matching: find.byType(FilledButton),
+    );
+    expect(tester.getCenter(eventButton).dy, tester.getCenter(taskButton).dy);
+
+    await tester.tap(find.text('New event'));
+    await tester.tap(find.text('New task'));
+    expect(newEventOpened, isTrue);
+    expect(newTaskOpened, isTrue);
+  });
+
   testWidgets('schedule exposes a labeled loading state', (tester) async {
     final accounts = StreamController<List<AccountEntity>>();
     addTearDown(accounts.close);
