@@ -193,7 +193,7 @@
   "removeAccountAction": "Eemalda konto",
   "removeAccountFailed": "Konto eemaldamist ei saanud lõpetada. Proovige uuesti.",
   "accountRemovedGoogleRevokeFailed": "Konto eemaldati sellest seadmest, kuid BusyMaxi juurdepääsu teie Google'i kontole ei saanud tühistada. Saate selle oma Google'i kontol käsitsi tühistada.",
-  "newList": "Uus loend",
+  "newTaskList": "Uus ülesandeloend",
   "signInToViewTaskLists": "Ülesandeloendite vaatamiseks logige sisse.",
   "noTaskListsSynced": "Ühtegi ülesandeloendit pole veel sünkroonitud.",
   "listActions": "Loendi toimingud",

@@ -634,7 +634,7 @@ class AppLocalizationsVi extends AppLocalizations {
       'Tài khoản đã bị xóa khỏi thiết bị này, nhưng BusyMax không thể thu hồi quyền truy cập vào tài khoản Google. Bạn có thể thu hồi quyền trong phần cài đặt Tài khoản Google.';
 
   @override
-  String get newList => 'Danh sách mới';
+  String get newTaskList => 'Danh sách công việc mới';
 
   @override
   String get signInToViewTaskLists => 'Đăng nhập để xem danh sách công việc.';

@@ -186,7 +186,7 @@
   "removeAccountAction": "Xóa tài khoản",
   "removeAccountFailed": "Không thể hoàn tất việc xóa tài khoản. Hãy thử lại.",
   "accountRemovedGoogleRevokeFailed": "Tài khoản đã bị xóa khỏi thiết bị này, nhưng BusyMax không thể thu hồi quyền truy cập vào tài khoản Google. Bạn có thể thu hồi quyền trong phần cài đặt Tài khoản Google.",
-  "newList": "Danh sách mới",
+  "newTaskList": "Danh sách công việc mới",
   "signInToViewTaskLists": "Đăng nhập để xem danh sách công việc.",
   "noTaskListsSynced": "Chưa có danh sách công việc nào được đồng bộ.",
   "listActions": "Thao tác với danh sách",

@@ -186,7 +186,7 @@
   "removeAccountAction": "Удалить аккаунт",
   "removeAccountFailed": "Не удалось завершить удаление аккаунта. Повторите попытку.",
   "accountRemovedGoogleRevokeFailed": "Аккаунт удалён с этого устройства, но отозвать доступ BusyMax к Google не удалось. Вы можете отозвать доступ в аккаунте Google.",
-  "newList": "Новый список",
+  "newTaskList": "Новый список задач",
   "signInToViewTaskLists": "Войдите, чтобы просмотреть списки задач.",
   "noTaskListsSynced": "Синхронизированных списков задач пока нет.",
   "listActions": "Действия со списком",

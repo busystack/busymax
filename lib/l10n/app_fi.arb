@@ -186,7 +186,7 @@
   "removeAccountAction": "Poista tili",
   "removeAccountFailed": "Tilin poistamista ei voitu viimeistellä. Yritä uudelleen.",
   "accountRemovedGoogleRevokeFailed": "Tili poistettiin tältä laitteelta, mutta BusyMax ei voinut peruuttaa Google-käyttöoikeutta. Voit peruuttaa sen Google-tililtäsi.",
-  "newList": "Uusi luettelo",
+  "newTaskList": "Uusi tehtäväluettelo",
   "signInToViewTaskLists": "Kirjaudu sisään nähdäksesi tehtäväluettelot.",
   "noTaskListsSynced": "Tehtäväluetteloita ei ole vielä synkronoitu.",
   "listActions": "Luettelon toiminnot",

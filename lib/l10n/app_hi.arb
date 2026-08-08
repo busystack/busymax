@@ -186,7 +186,7 @@
   "removeAccountAction": "खाता हटाएँ",
   "removeAccountFailed": "खाता हटाना पूरा नहीं हो सका। फिर से कोशिश करें।",
   "accountRemovedGoogleRevokeFailed": "खाता इस डिवाइस से हटा दिया गया, लेकिन BusyMax की Google खाते तक पहुँच रद्द नहीं की जा सकी। आप यह पहुँच अपने Google खाते से रद्द कर सकते हैं।",
-  "newList": "नई सूची",
+  "newTaskList": "नई कार्य सूची",
   "signInToViewTaskLists": "कार्य सूचियाँ देखने के लिए साइन इन करें।",
   "noTaskListsSynced": "अभी तक कोई कार्य सूची सिंक नहीं हुई है।",
   "listActions": "सूची की कार्रवाइयाँ",

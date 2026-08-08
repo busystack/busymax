@@ -611,7 +611,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '该帐户已从此设备移除，但无法撤销 BusyMax 对您的 Google 帐户的访问权限。您可以在 Google 帐户中手动撤销该权限。';
 
   @override
-  String get newList => '新建列表';
+  String get newTaskList => '新建任务列表';
 
   @override
   String get signInToViewTaskLists => '登录以查看任务列表。';
@@ -1819,7 +1819,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '该帐户已从此设备移除，但无法撤销 BusyMax 对您的 Google 帐户的访问权限。您可以在 Google 帐户中手动撤销该权限。';
 
   @override
-  String get newList => '新建列表';
+  String get newTaskList => '新建任务列表';
 
   @override
   String get signInToViewTaskLists => '登录以查看任务列表。';
@@ -3027,7 +3027,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '該帳戶已從此裝置移除，但無法撤銷 BusyMax 對您的 Google 帳戶的存取權。您可以在 Google 帳戶中手動撤銷該權限。';
 
   @override
-  String get newList => '新增清單';
+  String get newTaskList => '新增待辦清單';
 
   @override
   String get signInToViewTaskLists => '登入以查看待辦清單。';

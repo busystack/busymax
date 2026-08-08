@@ -631,7 +631,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The account was removed from this device, but BusyMax could not revoke Google access. You can revoke it from your Google Account.';
 
   @override
-  String get newList => 'New list';
+  String get newTaskList => 'New task list';
 
   @override
   String get signInToViewTaskLists => 'Sign in to view task lists.';

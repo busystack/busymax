@@ -186,7 +186,7 @@
   "removeAccountAction": "移除帳戶",
   "removeAccountFailed": "無法完成帳戶移除。請再試一次。",
   "accountRemovedGoogleRevokeFailed": "該帳戶已從此裝置移除，但無法撤銷 BusyMax 對您的 Google 帳戶的存取權。您可以在 Google 帳戶中手動撤銷該權限。",
-  "newList": "新增清單",
+  "newTaskList": "新增待辦清單",
   "signInToViewTaskLists": "登入以查看待辦清單。",
   "noTaskListsSynced": "尚未同步任何待辦清單。",
   "listActions": "清單動作",

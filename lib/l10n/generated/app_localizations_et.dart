@@ -633,7 +633,7 @@ class AppLocalizationsEt extends AppLocalizations {
       'Konto eemaldati sellest seadmest, kuid BusyMaxi juurdepääsu teie Google\'i kontole ei saanud tühistada. Saate selle oma Google\'i kontol käsitsi tühistada.';
 
   @override
-  String get newList => 'Uus loend';
+  String get newTaskList => 'Uus ülesandeloend';
 
   @override
   String get signInToViewTaskLists =>

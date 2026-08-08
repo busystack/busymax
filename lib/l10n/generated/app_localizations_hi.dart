@@ -635,7 +635,7 @@ class AppLocalizationsHi extends AppLocalizations {
       'खाता इस डिवाइस से हटा दिया गया, लेकिन BusyMax की Google खाते तक पहुँच रद्द नहीं की जा सकी। आप यह पहुँच अपने Google खाते से रद्द कर सकते हैं।';
 
   @override
-  String get newList => 'नई सूची';
+  String get newTaskList => 'नई कार्य सूची';
 
   @override
   String get signInToViewTaskLists =>

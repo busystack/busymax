@@ -190,7 +190,7 @@
   "removeAccountAction": "Konto entfernen",
   "removeAccountFailed": "Das Konto konnte nicht vollständig entfernt werden. Versuchen Sie es erneut.",
   "accountRemovedGoogleRevokeFailed": "Das Konto wurde von diesem Gerät entfernt, aber BusyMax konnte den Google-Zugriff nicht widerrufen. Sie können ihn in Ihrem Google-Konto widerrufen.",
-  "newList": "Neue Liste",
+  "newTaskList": "Neue Aufgabenliste",
   "signInToViewTaskLists": "Melden Sie sich an, um Aufgabenlisten zu sehen.",
   "noTaskListsSynced": "Noch keine Aufgabenlisten synchronisiert.",
   "listActions": "Listenaktionen",

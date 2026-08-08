@@ -1248,11 +1248,11 @@ abstract class AppLocalizations {
   /// **'The account was removed from this device, but BusyMax could not revoke Google access. You can revoke it from your Google Account.'**
   String get accountRemovedGoogleRevokeFailed;
 
-  /// No description provided for @newList.
+  /// No description provided for @newTaskList.
   ///
   /// In en, this message translates to:
-  /// **'New list'**
-  String get newList;
+  /// **'New task list'**
+  String get newTaskList;
 
   /// No description provided for @signInToViewTaskLists.
   ///

@@ -258,7 +258,7 @@ void main() {
 
     expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
     expect(find.text(accountReconnectRequiredSyncMessage), findsOneWidget);
-    expect(find.text('New list'), findsNothing);
+    expect(find.text('New task list'), findsNothing);
     expect(find.text('Remove account…'), findsOneWidget);
 
     await _openAccountRemovalDialog(tester);
@@ -549,7 +549,7 @@ void main() {
     expect(second.state.scheduleDayEndMinute, 24 * 60);
   });
 
-  testWidgets('Settings creates a new list for the account card', (
+  testWidgets('Settings creates a new task list for the account card', (
     tester,
   ) async {
     final googleLists = _FakeTaskListsRepository();
@@ -568,11 +568,11 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    final newListButtons = find.text('New list');
-    expect(newListButtons, findsNWidgets(2));
+    final newTaskListButtons = find.text('New task list');
+    expect(newTaskListButtons, findsNWidgets(2));
 
-    await tester.ensureVisible(newListButtons.at(1));
-    await tester.tap(newListButtons.at(1));
+    await tester.ensureVisible(newTaskListButtons.at(1));
+    await tester.tap(newTaskListButtons.at(1));
     await tester.pumpAndSettle();
 
     final promptField = find.descendant(
@@ -602,10 +602,12 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    expect(find.text('Google Tasks'), findsOneWidget);
+    expect(find.text('Google'), findsOneWidget);
     expect(find.text('Google User · google@example.com'), findsOneWidget);
-    expect(find.text('Microsoft To Do'), findsOneWidget);
+    expect(find.text('Microsoft'), findsOneWidget);
     expect(find.text('Microsoft User · microsoft@example.com'), findsOneWidget);
+    expect(find.text('Google Tasks'), findsNothing);
+    expect(find.text('Microsoft To Do'), findsNothing);
     expect(find.text('Current account'), findsNothing);
     expect(find.text('Switch account'), findsNothing);
     expect(find.text('Fluent UI'), findsNothing);

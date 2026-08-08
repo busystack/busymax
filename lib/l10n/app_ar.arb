@@ -186,7 +186,7 @@
   "removeAccountAction": "إزالة الحساب",
   "removeAccountFailed": "تعذر إكمال إزالة الحساب. حاول مرة أخرى.",
   "accountRemovedGoogleRevokeFailed": "تمت إزالة الحساب من هذا الجهاز، لكن تعذر على BusyMax إلغاء الوصول إلى Google. يمكنك إلغاء الوصول من حسابك على Google.",
-  "newList": "قائمة جديدة",
+  "newTaskList": "قائمة مهام جديدة",
   "signInToViewTaskLists": "سجّل الدخول لعرض قوائم المهام.",
   "noTaskListsSynced": "لم تتم مزامنة أي قوائم مهام بعد.",
   "listActions": "إجراءات القائمة",

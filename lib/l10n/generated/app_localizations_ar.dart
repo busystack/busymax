@@ -644,7 +644,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'تمت إزالة الحساب من هذا الجهاز، لكن تعذر على BusyMax إلغاء الوصول إلى Google. يمكنك إلغاء الوصول من حسابك على Google.';
 
   @override
-  String get newList => 'قائمة جديدة';
+  String get newTaskList => 'قائمة مهام جديدة';
 
   @override
   String get signInToViewTaskLists => 'سجّل الدخول لعرض قوائم المهام.';

@@ -190,7 +190,7 @@
   "removeAccountAction": "Supprimer le compte",
   "removeAccountFailed": "Impossible de terminer la suppression du compte. Réessayez.",
   "accountRemovedGoogleRevokeFailed": "Le compte a été supprimé de cet appareil, mais BusyMax n’a pas pu révoquer son accès à votre compte Google. Vous pouvez révoquer cet accès depuis votre compte Google.",
-  "newList": "Nouvelle liste",
+  "newTaskList": "Nouvelle liste de tâches",
   "signInToViewTaskLists": "Connectez-vous pour voir les listes de tâches.",
   "noTaskListsSynced": "Aucune liste de tâches synchronisée.",
   "listActions": "Actions de liste",

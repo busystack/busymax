@@ -811,7 +811,7 @@ Future<String?> _taskListTitleDialog(
 ) {
   return showBusyMaxTextPrompt(
     context,
-    title: context.l10n.newList,
+    title: context.l10n.newTaskList,
     label: context.l10n.title,
     actionLabel: context.l10n.create,
     headerBarService: headerBarService,
@@ -912,7 +912,7 @@ class _AccountManagementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return BusyMaxGroupedList(
-      title: _providerLabel(context, account.provider),
+      title: _accountProviderLabel(context, account.provider),
       description: _accountIdentityLabel(context, account),
       filled: true,
       children: [
@@ -928,7 +928,7 @@ class _AccountManagementCard extends StatelessWidget {
           )
         else ...[
           BusyMaxActionRow(
-            title: l10n.newList,
+            title: l10n.newTaskList,
             leading: const Icon(YaruIcons.plus),
             onTap: removing ? null : onCreateTaskList,
           ),
@@ -1028,9 +1028,9 @@ String _accountIdentityLabel(BuildContext context, AccountEntity account) {
   return context.l10n.signedInAccount;
 }
 
-String _providerLabel(BuildContext context, TaskProvider provider) {
+String _accountProviderLabel(BuildContext context, TaskProvider provider) {
   return switch (provider) {
-    TaskProvider.google => context.l10n.googleTasksProvider,
-    TaskProvider.microsoft => context.l10n.microsoftTodoProvider,
+    TaskProvider.google => context.l10n.googleProvider,
+    TaskProvider.microsoft => context.l10n.microsoftProvider,
   };
 }

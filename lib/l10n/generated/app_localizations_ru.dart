@@ -640,7 +640,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Аккаунт удалён с этого устройства, но отозвать доступ BusyMax к Google не удалось. Вы можете отозвать доступ в аккаунте Google.';
 
   @override
-  String get newList => 'Новый список';
+  String get newTaskList => 'Новый список задач';
 
   @override
   String get signInToViewTaskLists =>

@@ -651,7 +651,7 @@ class AppLocalizationsFa extends AppLocalizations {
       'حساب از این دستگاه حذف شد، اما BusyMax نتوانست دسترسی Google را لغو کند. می‌توانید آن را از حساب Google خود لغو کنید.';
 
   @override
-  String get newList => 'فهرست جدید';
+  String get newTaskList => 'فهرست کار جدید';
 
   @override
   String get signInToViewTaskLists => 'برای دیدن فهرست‌های کار وارد شوید.';

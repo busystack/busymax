@@ -619,7 +619,7 @@ class AppLocalizationsJa extends AppLocalizations {
       'アカウントはこのデバイスから削除されましたが、BusyMax は Google アカウントへのアクセス権を取り消せませんでした。Google アカウントの設定から取り消すことができます。';
 
   @override
-  String get newList => '新しいリスト';
+  String get newTaskList => '新しいタスクリスト';
 
   @override
   String get signInToViewTaskLists => 'タスクリストを表示するにはサインインしてください。';

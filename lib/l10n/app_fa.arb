@@ -186,7 +186,7 @@
   "removeAccountAction": "حذف حساب",
   "removeAccountFailed": "حذف حساب کامل نشد. دوباره تلاش کنید.",
   "accountRemovedGoogleRevokeFailed": "حساب از این دستگاه حذف شد، اما BusyMax نتوانست دسترسی Google را لغو کند. می‌توانید آن را از حساب Google خود لغو کنید.",
-  "newList": "فهرست جدید",
+  "newTaskList": "فهرست کار جدید",
   "signInToViewTaskLists": "برای دیدن فهرست‌های کار وارد شوید.",
   "noTaskListsSynced": "هنوز هیچ فهرست کاری همگام نشده است.",
   "listActions": "عملیات فهرست",

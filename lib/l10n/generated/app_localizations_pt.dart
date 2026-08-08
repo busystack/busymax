@@ -637,7 +637,7 @@ class AppLocalizationsPt extends AppLocalizations {
       'A conta foi removida deste dispositivo, mas não foi possível revogar o acesso do BusyMax à sua conta Google. Pode revogar esse acesso na sua conta Google.';
 
   @override
-  String get newList => 'Nova lista';
+  String get newTaskList => 'Nova lista de tarefas';
 
   @override
   String get signInToViewTaskLists =>

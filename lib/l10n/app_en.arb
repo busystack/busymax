@@ -193,7 +193,7 @@
   "removeAccountAction": "Remove account",
   "removeAccountFailed": "Could not finish removing the account. Try again.",
   "accountRemovedGoogleRevokeFailed": "The account was removed from this device, but BusyMax could not revoke Google access. You can revoke it from your Google Account.",
-  "newList": "New list",
+  "newTaskList": "New task list",
   "signInToViewTaskLists": "Sign in to view task lists.",
   "noTaskListsSynced": "No task lists synced yet.",
   "listActions": "List actions",

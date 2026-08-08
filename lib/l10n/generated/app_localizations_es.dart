@@ -637,7 +637,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'La cuenta se eliminó de este dispositivo, pero BusyMax no pudo revocar su acceso a tu cuenta de Google. Puedes revocarlo desde tu cuenta de Google.';
 
   @override
-  String get newList => 'Nueva lista';
+  String get newTaskList => 'Nueva lista de tareas';
 
   @override
   String get signInToViewTaskLists =>

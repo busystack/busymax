@@ -619,7 +619,7 @@ class AppLocalizationsKo extends AppLocalizations {
       '계정은 이 기기에서 삭제되었지만 BusyMax가 Google 계정 액세스 권한을 취소하지 못했습니다. Google 계정에서 직접 취소할 수 있습니다.';
 
   @override
-  String get newList => '새 목록';
+  String get newTaskList => '새 할 일 목록';
 
   @override
   String get signInToViewTaskLists => '할 일 목록을 보려면 로그인하세요.';

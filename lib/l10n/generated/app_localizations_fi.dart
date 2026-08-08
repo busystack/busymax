@@ -636,7 +636,7 @@ class AppLocalizationsFi extends AppLocalizations {
       'Tili poistettiin tältä laitteelta, mutta BusyMax ei voinut peruuttaa Google-käyttöoikeutta. Voit peruuttaa sen Google-tililtäsi.';
 
   @override
-  String get newList => 'Uusi luettelo';
+  String get newTaskList => 'Uusi tehtäväluettelo';
 
   @override
   String get signInToViewTaskLists =>
