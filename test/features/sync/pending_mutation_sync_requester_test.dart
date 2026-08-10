@@ -7,9 +7,9 @@ import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_client.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 
 void main() {
   test('multiple rapid requests produce one sync call', () async {
@@ -158,7 +158,7 @@ void main() {
     addTearDown(database.close);
     await _insertAccount(database);
     await database.taskListsDao.upsertTaskList(_taskList());
-    final apiClient = _FakeGoogleTasksApiClient()
+    final apiClient = _FakeTaskRemoteClient()
       ..taskListsPages = [
         TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
       ]
@@ -225,6 +225,10 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'google-account',
+          credentialKind: 'oauth',
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),
@@ -252,7 +256,7 @@ TaskListDto _taskListDto(String id) {
 
 const _now = '2026-06-04T00:00:00.000Z';
 
-class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
+class _FakeTaskRemoteClient implements TaskRemoteClient {
   var taskListsPages = <TaskListsPageDto>[];
   final taskPages = <String, List<TasksPageDto>>{};
   final calls = <String>[];

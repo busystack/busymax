@@ -19,13 +19,13 @@ import 'package:busymax/src/features/schedule/presentation/schedule_workspace.da
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 
@@ -53,9 +53,7 @@ void main() {
 
     expect(find.text('Connect accounts'), findsOneWidget);
     expect(
-      find.text(
-        'Connect Google and Microsoft accounts to sync calendars and tasks.',
-      ),
+      find.text('Connect calendars and tasks from one of these providers.'),
       findsOneWidget,
     );
     expect(
@@ -64,15 +62,23 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(
-      find.textContaining('Add all Google and Microsoft accounts'),
-      findsNothing,
-    );
     expect(find.text('Add Google account'), findsOneWidget);
     expect(find.text('Add Microsoft account'), findsOneWidget);
+    expect(find.text('Add Apple iCloud Calendar account'), findsOneWidget);
+    expect(find.text('Add Nextcloud account'), findsOneWidget);
     expect(
       tester.getTopLeft(find.text('Add Google account')).dy,
       lessThan(tester.getTopLeft(find.text('Add Microsoft account')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Add Microsoft account')).dy,
+      lessThan(
+        tester.getTopLeft(find.text('Add Apple iCloud Calendar account')).dy,
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.text('Add Apple iCloud Calendar account')).dy,
+      lessThan(tester.getTopLeft(find.text('Add Nextcloud account')).dy),
     );
     expect(find.text('Google'), findsNothing);
     expect(find.text('Microsoft To Do'), findsNothing);
@@ -225,8 +231,8 @@ void main() {
     expect(find.text('Choose system settings'), findsNothing);
     expect(find.byType(ScheduleWorkspace), findsNothing);
     expect(find.text('Accounts'), findsOneWidget);
-    expect(find.text('Albert Busy'), findsOneWidget);
-    expect(find.text('albert@example.com'), findsOneWidget);
+    expect(find.text('Test User'), findsOneWidget);
+    expect(find.text('user@example.com'), findsOneWidget);
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
@@ -375,7 +381,7 @@ void main() {
     await tester.tap(find.text('Add Google account'));
     await tester.pumpAndSettle();
 
-    expect(find.text(secureTokenStorageUnavailableMessage), findsOneWidget);
+    expect(find.text(secretStorageUnavailableMessage), findsOneWidget);
     expect(find.textContaining('PlatformException'), findsNothing);
     expect(find.textContaining('raw keyring message'), findsNothing);
     await _disposeApp(tester);
@@ -415,7 +421,7 @@ void main() {
     await _insertAccount(
       database,
       id: 'google:existing',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
     );
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
@@ -444,7 +450,7 @@ void main() {
       await _insertAccount(
         database,
         id: 'google:existing',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
       );
       oAuth.signInCompleter = Completer<OAuthSignInResult>();
       await _pumpApp(tester, database: database, oAuth: oAuth);
@@ -490,7 +496,7 @@ void main() {
       await _insertAccount(
         database,
         id: 'microsoft:existing',
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
       );
       final syncCalls = <({String accountId, bool initial})>[];
       await _pumpApp(
@@ -536,7 +542,7 @@ void main() {
       await _insertAccount(
         database,
         id: 'microsoft:existing',
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
       );
       oAuth.signInError = const OAuthException(
         'OAuthCallbackTimeout',
@@ -581,12 +587,12 @@ void main() {
       await _insertAccount(
         database,
         id: 'microsoft:existing',
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
       );
       await _insertAccount(
         database,
         id: 'google:reconnect',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         authState: accountAuthStateReauthRequired,
       );
       oAuth.signInCompleter = Completer<OAuthSignInResult>();
@@ -667,7 +673,7 @@ void _expectExistingSessionSignedIn(
 Future<void> _insertAccount(
   AppDatabase database, {
   required String id,
-  required TaskProvider provider,
+  required BusyProvider provider,
   String authState = accountAuthStateSignedIn,
 }) {
   return database
@@ -675,7 +681,12 @@ Future<void> _insertAccount(
       .insert(
         AccountsCompanion.insert(
           id: id,
-          provider: Value(provider.storageValue),
+          provider: provider.storageValue,
+          authority: provider == BusyProvider.microsoft
+              ? 'https://login.microsoftonline.com/common'
+              : 'https://accounts.google.com',
+          providerAccountId: id,
+          credentialKind: 'oauth',
           authState: Value(authState),
           displayName: Value(provider.displayName),
           createdAtUtc: '2026-06-04T00:00:00.000Z',
@@ -742,12 +753,12 @@ class _FakeOAuthGateway implements OAuthGateway {
   Future<GoogleUserInfo?> fetchUserInfo(OAuthTokenSet tokenSet) async {
     return const GoogleUserInfo(
       subject: 'google-user-1',
-      name: 'Albert Busy',
-      email: 'albert@example.com',
+      name: 'Test User',
+      email: 'user@example.com',
       rawJson: {
         'sub': 'google-user-1',
-        'name': 'Albert Busy',
-        'email': 'albert@example.com',
+        'name': 'Test User',
+        'email': 'user@example.com',
       },
     );
   }

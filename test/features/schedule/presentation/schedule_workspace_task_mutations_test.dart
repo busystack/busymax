@@ -9,7 +9,7 @@ import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,6 +68,27 @@ void main() {
     );
     expect(tasks.map((task) => task.title), contains('Created from Schedule'));
     expect(find.text('Created from Schedule'), findsOneWidget);
+  });
+
+  testWidgets('new task uses the shared provider-qualified account label', (
+    tester,
+  ) async {
+    await _pumpScheduleWorkspace(tester);
+
+    await tester.tap(find.byTooltip('Create'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Task'));
+    await tester.pumpAndSettle();
+
+    final accountRow = tester.widget<BusyMaxComboRow<String>>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxComboRow<String> && widget.title == 'Account',
+      ),
+    );
+    expect(accountRow.selected, _accountId);
+    expect(accountRow.labelFor(_accountId), 'Google · schedule@example.test');
+    expect(accountRow.subtitle, null);
   });
 
   testWidgets('task-list route defaults new tasks to that account and list', (
@@ -211,7 +232,10 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
       .insert(
         AccountsCompanion.insert(
           id: _accountId,
-          provider: Value(TaskProvider.google.storageValue),
+          provider: BusyProvider.google.storageValue,
+          authority: 'https://accounts.google.com',
+          providerAccountId: _accountId,
+          credentialKind: 'oauth',
           displayName: const Value('Schedule test'),
           authState: const Value(accountAuthStateSignedIn),
           createdAtUtc: _nowUtc,
@@ -256,9 +280,12 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
 
   final account = AccountEntity(
     id: _accountId,
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
+    authority: 'https://accounts.google.com',
+    providerAccountId: _accountId,
     authState: accountAuthStateSignedIn,
     displayName: 'Schedule test',
+    email: 'schedule@example.test',
   );
   final effectiveHeaderBarService =
       headerBarService ?? LinuxHeaderBarService(isLinux: false);

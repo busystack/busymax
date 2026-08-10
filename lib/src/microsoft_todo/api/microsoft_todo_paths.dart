@@ -19,3 +19,16 @@ String microsoftTasksDeltaPath(String taskListId) {
 String microsoftTaskPath(String taskListId, String taskId) {
   return '${microsoftTasksPath(taskListId)}/${Uri.encodeComponent(taskId)}';
 }
+
+String microsoftChecklistItemsPath(String taskListId, String taskId) {
+  return '${microsoftTaskPath(taskListId, taskId)}/checklistItems';
+}
+
+String microsoftChecklistItemPath(
+  String taskListId,
+  String taskId,
+  String checklistItemId,
+) {
+  return '${microsoftChecklistItemsPath(taskListId, taskId)}/'
+      '${Uri.encodeComponent(checklistItemId)}';
+}

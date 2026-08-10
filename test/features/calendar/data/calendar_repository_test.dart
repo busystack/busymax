@@ -2,7 +2,7 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,7 +25,10 @@ void main() {
         .insert(
           AccountsCompanion.insert(
             id: 'google:g',
-            provider: const Value('google'),
+            provider: 'google',
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'g',
+            credentialKind: 'oauth',
             authState: const Value('signed_in'),
             grantedScopes: const Value(''),
             createdAtUtc: '2026-06-08T00:00:00.000Z',
@@ -42,7 +45,7 @@ void main() {
     await repository.upsertSource(
       accountId: 'google:g',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar-1',
         summary: 'Original',
       ),
@@ -52,7 +55,7 @@ void main() {
     await repository.upsertSource(
       accountId: 'google:g',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar-1',
         summary: 'Updated by provider',
         selected: true,
@@ -68,7 +71,7 @@ void main() {
     await repository.upsertSource(
       accountId: 'google:g',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar-1',
         summary: 'Hidden at provider',
         selected: false,
@@ -79,6 +82,23 @@ void main() {
     expect(source.selected, isFalse);
   });
 
+  test('source entity exposes the provider primary-calendar flag', () async {
+    await repository.upsertSource(
+      accountId: 'google:g',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        summary: 'Primary calendar',
+        primaryCalendar: true,
+      ),
+    );
+
+    final sources = await repository.watchSourcesForAccounts(const [
+      'google:g',
+    ]).first;
+    expect(sources.single.primaryCalendar, isTrue);
+  });
+
   test('provider upsert cannot resurrect a locally deleted source', () async {
     await _upsertSource(repository);
     await repository.deleteLocalSource(_sourceId);
@@ -86,7 +106,7 @@ void main() {
     await repository.upsertSource(
       accountId: 'google:g',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar-1',
         summary: 'Still returned by provider',
         hidden: false,
@@ -118,7 +138,7 @@ void main() {
     await repository.upsertSource(
       accountId: 'google:g',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar-1',
         summary: 'Calendar',
         hidden: true,
@@ -128,7 +148,7 @@ void main() {
     await repository.upsertSource(
       accountId: 'google:g',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar-1',
         summary: 'Calendar',
         hidden: false,
@@ -165,7 +185,7 @@ void main() {
       await repository.upsertSource(
         accountId: 'google:g',
         source: const CalendarSourceDto(
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: 'calendar-1',
           summary: 'Shared calendar',
           readOnly: true,
@@ -247,7 +267,7 @@ Future<void> _upsertSource(CalendarRepository repository) {
   return repository.upsertSource(
     accountId: 'google:g',
     source: const CalendarSourceDto(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: 'calendar-1',
       summary: 'Calendar',
     ),

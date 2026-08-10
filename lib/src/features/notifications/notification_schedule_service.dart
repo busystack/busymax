@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../core/time/provider_date_time.dart';
 import '../../db/app_database.dart';
-import '../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import '../accounts/data/accounts_repository.dart';
 
 class NotificationScheduleService {
@@ -269,15 +269,15 @@ List<int> _eventReminderMinutes(CalendarEvent event, {CalendarSource? source}) {
   if (raw == null || raw.isEmpty) {
     return const [];
   }
-  final provider = TaskProviderParsing.fromStorageValue(event.provider);
+  final provider = BusyProviderCodec.requireStorageValue(event.provider);
   final decoded = _decodeJson(raw);
-  if (provider == TaskProvider.microsoft && decoded is Map) {
+  if (provider == BusyProvider.microsoft && decoded is Map) {
     final map = decoded.cast<String, Object?>();
     final enabled = map['isReminderOn'] == true;
     final minutes = map['reminderMinutesBeforeStart'];
     return enabled && minutes is int ? [minutes] : const [];
   }
-  if (provider == TaskProvider.google && decoded is Map) {
+  if (provider == BusyProvider.google && decoded is Map) {
     final map = decoded.cast<String, Object?>();
     if (map['useDefault'] == true) {
       return _googleDefaultReminderMinutes(source);

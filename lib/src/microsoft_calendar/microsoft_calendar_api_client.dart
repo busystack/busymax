@@ -6,7 +6,7 @@ import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_provider_capabilities.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'microsoft_calendar_errors.dart';
 import 'microsoft_calendar_mapper.dart';
 import 'microsoft_calendar_models.dart';
@@ -31,7 +31,7 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
   final Future<void> Function()? _unauthorizedRefreshProvider;
 
   @override
-  BusyProvider get provider => TaskProvider.microsoft;
+  BusyProvider get provider => BusyProvider.microsoft;
 
   @override
   CalendarProviderCapabilities get capabilities =>

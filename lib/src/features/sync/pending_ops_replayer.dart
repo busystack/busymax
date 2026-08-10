@@ -4,17 +4,18 @@ import 'dart:math';
 import 'package:drift/drift.dart';
 
 import '../../db/app_database.dart';
-import '../../google_tasks/api/google_tasks_api_client.dart';
-import '../../google_tasks/api/google_tasks_api_error.dart';
-import '../../google_tasks/api/google_tasks_api_models.dart';
+import '../tasks/domain/task_remote_client.dart';
+import '../tasks/domain/task_remote_error.dart';
+import '../tasks/domain/task_remote_models.dart';
 import 'conflict_detector.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
+import '../tasks/domain/task_checklist_item.dart';
 
 class PendingOpsReplayer {
   PendingOpsReplayer({
     required AppDatabase database,
-    required GoogleTasksApiClient apiClient,
+    required TaskRemoteClient apiClient,
     required String accountId,
     Future<void> Function(String summary)? onConflictBlocked,
     Random? random,
@@ -27,7 +28,7 @@ class PendingOpsReplayer {
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
-  final GoogleTasksApiClient _apiClient;
+  final TaskRemoteClient _apiClient;
   final String _accountId;
   final Future<void> Function(String summary)? _onConflictBlocked;
   final Random _random;
@@ -53,7 +54,7 @@ class PendingOpsReplayer {
         await _replay(op);
         await _database.pendingOpsDao.deleteOp(op.id);
         applied += 1;
-      } on GoogleTasksApiError catch (error) {
+      } on TaskRemoteError catch (error) {
         if (_isSuccessfulMissingDelete(op, error)) {
           await _applyDeleteSideEffect(op);
           await _database.pendingOpsDao.deleteOp(op.id);
@@ -78,7 +79,9 @@ class PendingOpsReplayer {
   }
 
   bool _isTaskOp(PendingOp op) {
-    return op.entityType == 'task' || op.entityType == 'task_list';
+    return op.entityType == 'task' ||
+        op.entityType == 'task_list' ||
+        op.entityType == 'task_checklist_item';
   }
 
   Future<void> _replay(PendingOp op) async {
@@ -103,6 +106,12 @@ class PendingOpsReplayer {
         await _moveTask(op);
       case 'clear_completed_tasks':
         await _clearCompleted(op);
+      case 'create_task_checklist_item':
+        await _createChecklistItem(op);
+      case 'patch_task_checklist_item':
+        await _patchChecklistItem(op);
+      case 'delete_task_checklist_item':
+        await _deleteChecklistItem(op);
       default:
         await _blockOp(op, 'unknown_operation', op.operation);
         throw const _PendingOpBlocked();
@@ -293,15 +302,228 @@ class PendingOpsReplayer {
     await _apiClient.clearCompletedTasks(op.taskListId!);
   }
 
+  Future<void> _createChecklistItem(PendingOp op) async {
+    final request = _request(op);
+    final body = _requestBody(request);
+    final item = await _checklistClient.createChecklistItem(
+      taskListId: op.taskListId!,
+      taskId: op.taskId!,
+      title: body['displayName']?.toString() ?? '',
+      completed: body['isChecked'] == true,
+    );
+    final localId = request['checklistItemId']?.toString() ?? op.localTempId;
+    await _database.transaction(() async {
+      await _replaceChecklistProjectionItem(
+        taskListId: op.taskListId!,
+        parentTaskId: op.taskId!,
+        oldItemId: localId,
+        item: taskChecklistItemFromDto(item),
+      );
+      if (localId != null) {
+        await _replaceChecklistPendingReference(
+          parentTaskId: op.taskId!,
+          oldValue: localId,
+          newValue: item.id,
+        );
+      }
+    });
+  }
+
+  Future<void> _patchChecklistItem(PendingOp op) async {
+    final request = _request(op);
+    final body = _requestBody(request);
+    final itemId = request['checklistItemId']?.toString();
+    if (itemId == null || itemId.isEmpty) {
+      throw const TaskRemoteError(
+        statusCode: 400,
+        code: 'invalid_checklist_item',
+        message: 'The checklist item identifier is missing.',
+      );
+    }
+    final item = await _checklistClient.updateChecklistItem(
+      taskListId: op.taskListId!,
+      taskId: op.taskId!,
+      checklistItemId: itemId,
+      title: body.containsKey('displayName')
+          ? body['displayName']?.toString()
+          : null,
+      completed: body.containsKey('isChecked')
+          ? body['isChecked'] == true
+          : null,
+    );
+    await _replaceChecklistProjectionItem(
+      taskListId: op.taskListId!,
+      parentTaskId: op.taskId!,
+      oldItemId: itemId,
+      item: taskChecklistItemFromDto(item),
+    );
+  }
+
+  Future<void> _deleteChecklistItem(PendingOp op) async {
+    final itemId = _request(op)['checklistItemId']?.toString();
+    if (itemId == null || itemId.isEmpty) {
+      throw const TaskRemoteError(
+        statusCode: 400,
+        code: 'invalid_checklist_item',
+        message: 'The checklist item identifier is missing.',
+      );
+    }
+    await _checklistClient.deleteChecklistItem(
+      taskListId: op.taskListId!,
+      taskId: op.taskId!,
+      checklistItemId: itemId,
+    );
+    await _removeChecklistProjectionItem(op, itemId);
+  }
+
+  TaskChecklistRemoteClient get _checklistClient {
+    final client = _apiClient;
+    if (client is TaskChecklistRemoteClient) {
+      return client as TaskChecklistRemoteClient;
+    }
+    throw const TaskRemoteError(
+      statusCode: 400,
+      code: 'unsupported_provider_operation',
+      message: 'This task provider does not expose checklist subtasks.',
+    );
+  }
+
+  Map<String, Object?> _requestBody(Map<String, Object?> request) {
+    final body = request['body'];
+    if (body is Map) return body.cast<String, Object?>();
+    return const {};
+  }
+
+  Future<void> _replaceChecklistProjectionItem({
+    required String taskListId,
+    required String parentTaskId,
+    required String? oldItemId,
+    required TaskChecklistItemEntity item,
+  }) async {
+    final task =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(taskListId) &
+                  row.id.equals(parentTaskId),
+            ))
+            .getSingleOrNull();
+    if (task == null) return;
+    final items = decodeTaskChecklistItems(task.microsoftChecklistItemsJson);
+    final index = oldItemId == null
+        ? -1
+        : items.indexWhere((candidate) => candidate.id == oldItemId);
+    if (index < 0) {
+      items.add(item);
+    } else {
+      items[index] = item;
+    }
+    await (_database.update(_database.tasks)..where(
+          (row) =>
+              row.accountId.equals(_accountId) &
+              row.taskListId.equals(taskListId) &
+              row.id.equals(parentTaskId),
+        ))
+        .write(
+          TasksCompanion(
+            microsoftChecklistItemsJson: Value(encodeTaskChecklistItems(items)),
+            updatedLocalAtUtc: Value(_now()),
+          ),
+        );
+  }
+
+  Future<void> _removeChecklistProjectionItem(
+    PendingOp op,
+    String itemId,
+  ) async {
+    final task =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(op.taskListId!) &
+                  row.id.equals(op.taskId!),
+            ))
+            .getSingleOrNull();
+    if (task == null) return;
+    final items = decodeTaskChecklistItems(task.microsoftChecklistItemsJson);
+    items.removeWhere((item) => item.id == itemId);
+    await (_database.update(_database.tasks)..where(
+          (row) =>
+              row.accountId.equals(_accountId) &
+              row.taskListId.equals(op.taskListId!) &
+              row.id.equals(op.taskId!),
+        ))
+        .write(
+          TasksCompanion(
+            microsoftChecklistItemsJson: Value(encodeTaskChecklistItems(items)),
+            updatedLocalAtUtc: Value(_now()),
+          ),
+        );
+  }
+
+  Future<void> _replaceChecklistPendingReference({
+    required String parentTaskId,
+    required String oldValue,
+    required String newValue,
+  }) async {
+    final operations =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.entityType.equals('task_checklist_item') &
+                  row.taskId.equals(parentTaskId),
+            ))
+            .get();
+    for (final operation in operations) {
+      final request = _request(operation);
+      final rewritten = _replaceJsonReference(request, oldValue, newValue);
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(operation.id))).write(
+        PendingOpsCompanion(
+          localTempId: operation.localTempId == oldValue
+              ? Value(newValue)
+              : const Value.absent(),
+          requestJson: Value(jsonEncode(rewritten)),
+          updatedAtUtc: Value(_now()),
+        ),
+      );
+    }
+  }
+
   Future<void> _replaceLocalTaskId({
     required String taskListId,
     required String tempTaskId,
     required TaskDto serverTask,
   }) async {
     await _database.transaction(() async {
+      final localTask =
+          await (_database.select(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.taskListId.equals(taskListId) &
+                    row.id.equals(tempTaskId),
+              ))
+              .getSingleOrNull();
       await _database.tasksDao.upsertTask(
         taskFromDto(_accountId, taskListId, serverTask, _now()),
       );
+      if (localTask?.microsoftChecklistItemsJson != null) {
+        await (_database.update(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(taskListId) &
+                  row.id.equals(serverTask.id),
+            ))
+            .write(
+              TasksCompanion(
+                microsoftChecklistItemsJson: Value(
+                  localTask!.microsoftChecklistItemsJson,
+                ),
+                updatedLocalAtUtc: Value(_now()),
+              ),
+            );
+      }
       await _database.customStatement(
         'UPDATE tasks SET parent = ? WHERE account_id = ? AND parent = ?',
         [serverTask.id, _accountId, tempTaskId],
@@ -364,11 +586,21 @@ class PendingOpsReplayer {
         op.taskId!,
       );
     }
+    if (op.operation == 'delete_task_checklist_item' &&
+        op.taskListId != null &&
+        op.taskId != null) {
+      final itemId = _request(op)['checklistItemId']?.toString();
+      if (itemId != null) {
+        await _removeChecklistProjectionItem(op, itemId);
+      }
+    }
   }
 
-  bool _isSuccessfulMissingDelete(PendingOp op, GoogleTasksApiError error) {
+  bool _isSuccessfulMissingDelete(PendingOp op, TaskRemoteError error) {
     return error.statusCode == 404 &&
-        (op.operation == 'delete_task_list' || op.operation == 'delete_task');
+        (op.operation == 'delete_task_list' ||
+            op.operation == 'delete_task' ||
+            op.operation == 'delete_task_checklist_item');
   }
 
   bool _isRetryableStatus(int statusCode) {
@@ -645,6 +877,7 @@ const _pendingOpReferenceKeys = {
   'taskListId',
   'tasklist',
   'destinationTasklist',
+  'checklistItemId',
 };
 
 Object? _replaceJsonReference(

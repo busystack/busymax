@@ -1,14 +1,14 @@
 {
   "@@locale": "et",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Ühendage Google'i ja Microsofti kontod kalendrite ja ülesannete sünkroonimiseks.",
+  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
   "googlePermissionsConsentNotice": "Valige Google'i õiguste kuval nii kalendri kui ka ülesannete õigused.",
   "googlePermissionsRequiredRetry": "Google Calendari ja Google Tasksi õigused on nõutavad. Proovige uuesti ja märkige mõlemad ruudud.",
   "finishSetup": "Lõpeta seadistamine",
   "continueSetup": "Jätka",
   "onboardingSetupTitle": "BusyMaxi seadistamine",
   "onboardingAccountsStepTitle": "Kontode ühendamine",
-  "onboardingAccountsStepDescription": "Lisage kõik Google'i ja Microsofti kontod, mida soovite kasutada. BusyMax sünkroonib iga konto kalendrid, sündmused, ülesandeloendid ja ülesanded.",
+  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
   "onboardingPreferencesStepTitle": "Süsteemiseadete valimine",
   "onboardingPreferencesStepDescription": "Enne ajakava avamist määrake töölauakäitumine, meeldetuletused, teavituste üksikasjalikkus ja välimus.",
   "signInWithGoogle": "Logi Google'iga sisse",
@@ -41,7 +41,13 @@
   "noCalendarsSynced": "Ühtegi kalendrit pole veel sünkroonitud.",
   "allDay": "Kogu päev",
   "moreItems": "+{count} veel",
-  "@moreItems": {"placeholders": {"count": {"type": "int"}}},
+  "@moreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noEventsOrTasks": "Sündmusi ega ülesandeid pole",
   "scheduleLoading": "Ajakava laadimine...",
   "scheduleUnavailable": "Ajakava pole saadaval",
@@ -95,12 +101,30 @@
   "formatUnderlineShortLabel": "A",
   "formatUnderlineTooltip": "Allajoonitud",
   "reminderMinutesBefore": "{minutes, plural, =1{1 minut varem} other{{minutes} minutit varem}}",
-  "@reminderMinutesBefore": {"placeholders": {"minutes": {"type": "int"}}},
+  "@reminderMinutesBefore": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "reminderAtStart": "Algusajal",
   "reminderHoursBefore": "{hours, plural, =1{1 tund varem} other{{hours} tundi varem}}",
-  "@reminderHoursBefore": {"placeholders": {"hours": {"type": "int"}}},
+  "@reminderHoursBefore": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
   "reminderDaysBefore": "{days, plural, =1{1 päev varem} other{{days} päeva varem}}",
-  "@reminderDaysBefore": {"placeholders": {"days": {"type": "int"}}},
+  "@reminderDaysBefore": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "availabilityFree": "Vaba",
   "availabilityTentative": "Esialgne",
   "availabilityOutOfOffice": "Kontorist väljas",
@@ -114,7 +138,13 @@
   "tasks": "Ülesanded",
   "allTasks": "Kõik ülesanded",
   "tasksInList": "Loendi „{title}” ülesanded",
-  "@tasksInList": {"placeholders": {"title": {"type": "String"}}},
+  "@tasksInList": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "taskLists": "Ülesandeloendid",
   "navigation": "Navigeerimine",
   "mainMenu": "Peamenüü",
@@ -170,7 +200,13 @@
   "feedbackRejectedError": "Server lükkas saatmise tagasi. Kontrollige välju ja proovige uuesti.",
   "feedbackServerError": "BusyStack ei saa praegu teie tagasisidet vastu võtta. Teie tagasisidet ei kustutatud; proovige uuesti.",
   "feedbackSuccess": "Tagasiside saadetud. Viide: {id}",
-  "@feedbackSuccess": {"placeholders": {"id": {"type": "String"}}},
+  "@feedbackSuccess": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "toggleSidebar": "Kuva või peida külgriba",
   "showSidebar": "Kuva külgpaneel",
   "hideSidebar": "Peida külgpaneel",
@@ -186,8 +222,14 @@
   "removingAccount": "Konto eemaldamine…",
   "removeAccountDescription": "Lõpeta sünkroonimine ja eemalda selle konto andmed seadmest.",
   "removeAccountTitle": "Kas eemaldada {account} BusyMaxist?",
-  "@removeAccountTitle": {"placeholders": {"account": {"type": "String"}}},
-  "removeAccountConfirmation": "See kustutab seadmest vahemällu salvestatud ülesanded, kalendrid, sündmused, meeldetuletused ja sünkroonimist ootavad võrguühenduseta muudatused. Sünkroonimata muudatused lähevad kaotsi. Google'ist ega Microsoftist midagi ei kustutata.",
+  "@removeAccountTitle": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
   "revokeGoogleAccess": "Tühista ka BusyMaxi juurdepääs sellele Google'i kontole",
   "revokeGoogleAccessDescription": "Enne uuesti ühendamist peate juurdepääsu uuesti andma.",
   "removeAccountAction": "Eemalda konto",
@@ -204,7 +246,13 @@
   "builtInMicrosoftList": "Sisseehitatud",
   "builtInMicrosoftListCannotRenameDelete": "Microsoft To Do sisseehitatud loendeid ei saa ümber nimetada ega kustutada.",
   "deleteListConfirmation": "Kas kustutada „{title}” Google Tasksist?",
-  "@deleteListConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "@deleteListConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "deleteEvent": "Kustuta sündmus",
   "title": "Pealkiri",
   "create": "Loo",
@@ -215,11 +263,29 @@
   "listRefreshed": "Loend on värskendatud.",
   "allTasksRefreshed": "Kõik kontod on värskendatud.",
   "exportedFile": "Eksporditud asukohta {path}",
-  "@exportedFile": {"placeholders": {"path": {"type": "String"}}},
+  "@exportedFile": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "exportFailed": "Eksportimine nurjus: {error}",
-  "@exportFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@exportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "refreshFailed": "Värskendamine nurjus: {error}",
-  "@refreshFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@refreshFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "selectOrCreateTaskList": "Alustamiseks valige või looge ülesandeloend.",
   "signInToViewTasks": "Ülesannete vaatamiseks logige sisse.",
   "noTasks": "Ülesandeid pole.",
@@ -233,12 +299,22 @@
   "noDate": "Kuupäevata",
   "completed": "Lõpetatud",
   "duePrefix": "Tähtaeg {date}",
-  "@duePrefix": {"placeholders": {"date": {"type": "String"}}},
+  "@duePrefix": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "dateTimeDisplay": "{date} · {time}",
   "@dateTimeDisplay": {
     "placeholders": {
-      "date": {"type": "String"},
-      "time": {"type": "String"}
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
     }
   },
   "taskDetails": "Ülesande üksikasjad",
@@ -291,11 +367,18 @@
   "list": "Loend",
   "microsoftMoveUnsupported": "Selles versioonis ei toetata Microsoft To Do kontodel ülesannete teisaldamist loendite vahel.",
   "createSubtask": "Loo alamülesanne",
+  "subtasks": "Alamülesanded",
   "moveToTop": "Teisalda kõige üles",
   "deleteTask": "Kustuta ülesanne",
   "newSubtask": "Uus alamülesanne",
-  "deleteTaskConfirmation": "Kas kustutada „{title}” Google Tasksist?",
-  "@deleteTaskConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "deleteTaskConfirmation": "Kas kustutada „{title}”?",
+  "@deleteTaskConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "metadata": "Metaandmed",
   "id": "ID",
   "etag": "ETag",
@@ -316,7 +399,13 @@
   "requiresTrayIcon": "Nõuab süsteemisalve ikooni.",
   "syncComplete": "Sünkroonimine on lõpetatud.",
   "syncFailed": "Sünkroonimine nurjus: {error}",
-  "@syncFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@syncFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "notifySyncFailures": "Teavitused sünkroonimise nurjumisel",
   "notifyConflicts": "Teavitused konfliktide korral",
   "notifyDueToday": "Täna tähtuvate ülesannete teavitused",
@@ -346,7 +435,13 @@
   "apiInspectorDisabled": "Kuva API-inspektor",
   "googleTasksApi": "Google Tasks API",
   "discoveryRevision": "Discovery versioon: {revision}",
-  "@discoveryRevision": {"placeholders": {"revision": {"type": "String"}}},
+  "@discoveryRevision": {
+    "placeholders": {
+      "revision": {
+        "type": "String"
+      }
+    }
+  },
   "implementedMethods": "Rakendatud meetodid",
   "supportsTasksScopes": "Toetab õiguse ulatusi tasks ja tasks.readonly",
   "requiresTasksScope": "Nõuab õiguse ulatust tasks",
@@ -355,11 +450,29 @@
   "noBlockedPendingOperations": "Blokeeritud ootel toiminguid pole.",
   "operationActions": "Toimingu tegevused",
   "pendingOpListId": "loend={id}",
-  "@pendingOpListId": {"placeholders": {"id": {"type": "String"}}},
+  "@pendingOpListId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "pendingOpTaskId": "ülesanne={id}",
-  "@pendingOpTaskId": {"placeholders": {"id": {"type": "String"}}},
+  "@pendingOpTaskId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "pendingOpAttempts": "katseid={count}",
-  "@pendingOpAttempts": {"placeholders": {"count": {"type": "int"}}},
+  "@pendingOpAttempts": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "retry": "Proovi uuesti",
   "discard": "Hülga",
   "discardChangesAction": "Hülga",
@@ -371,13 +484,31 @@
   "pendingOperationDiscarded": "Ootel toiming hüljatud.",
   "syncFailureNotificationTitle": "BusyMaxi sünkroonimine nurjus",
   "syncFailureNotificationBody": "Taustal sünkroonimine nurjus. {message}",
-  "@syncFailureNotificationBody": {"placeholders": {"message": {"type": "String"}}},
+  "@syncFailureNotificationBody": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "conflictNotificationTitle": "BusyMaxi sünkroonimiskonflikt",
   "conflictNotificationBody": "Ootel kohalik muudatus blokeeriti. {summary}",
-  "@conflictNotificationBody": {"placeholders": {"summary": {"type": "String"}}},
+  "@conflictNotificationBody": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
   "dueTodayNotificationTitle": "Täna tähtuvad ülesanded",
   "dueTodayNotificationBody": "{count, plural, =1{Üks ülesanne tähtub täna.} other{{count} ülesannet tähtub täna.}}",
-  "@dueTodayNotificationBody": {"placeholders": {"count": {"type": "int"}}},
+  "@dueTodayNotificationBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "eventReminderNotificationTitle": "Sündmuse meeldetuletus",
   "taskReminderNotificationTitle": "Ülesande meeldetuletus",
   "eventReminderNotificationBody": "Sündmus algab varsti.",
@@ -391,14 +522,228 @@
   "nextYear": "Järgmine aasta",
   "openYearView": "Ava aastavaade",
   "weekNumberTooltip": "Nädal {number}",
-  "@weekNumberTooltip": {"placeholders": {"number": {"type": "int"}}},
+  "@weekNumberTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "resizeAllDayPanel": "Muuda kogu päeva paneeli suurust",
   "scheduleItemCount": "{count, plural, =1{1 kirje} other{{count} kirjet}}",
-  "@scheduleItemCount": {"placeholders": {"count": {"type": "int"}}},
+  "@scheduleItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "readOnlyCalendar": "See kalender on kirjutuskaitstud.",
   "selectTimeZone": "Valige ajavöönd",
   "searchLocations": "Otsi asukohti",
   "noLocationsFound": "Asukohti ei leitud",
+  "requiredField": "This field is required.",
+  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
+  "appleICloudProvider": "Apple iCloud Calendar",
+  "nextcloudProvider": "Nextcloud",
+  "appleICloudTasksProvider": "Apple iCloud",
+  "nextcloudTasksProvider": "Nextcloud Tasks",
+  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
+  "addNextcloudAccount": "Add Nextcloud account",
+  "waitingForAppleICloud": "Connecting to Apple iCloud…",
+  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
+  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
+  "appleAccountEmail": "Apple Account email",
+  "appleAppSpecificPassword": "App-specific password",
+  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
+  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
+  "connectNextcloudTitle": "Connect Nextcloud",
+  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
+  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
+  "connectAccountAction": "Connect",
+  "cancelAccountConnection": "Cancel connection",
+  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
+  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
+  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
+  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
+  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
+  "davUnsupportedServer": "This server or provider profile is not supported.",
+  "collectionSettings": "Collections",
+  "calendarContent": "Calendar events",
+  "taskContent": "Tasks",
+  "readOnlySharedCollection": "Read-only or shared",
+  "pendingLocally": "Pending locally",
+  "conflictBlocked": "Blocked by conflict",
+  "authenticationBlocked": "Blocked until reconnect",
+  "operationFailed": "Operation failed",
+  "keepServerVersion": "Keep server version",
+  "reapplyLocalChange": "Review and reapply local change",
+  "duplicateLocalItem": "Duplicate as new item",
   "deleteCalendarConfirmation": "Kas kustutada „{title}”?",
-  "@deleteCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}}
+  "@deleteCalendarConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "davConnectionState": "Connection state",
+  "davConnected": "Connected",
+  "davConnecting": "Connecting…",
+  "davSignedOut": "Signed out",
+  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "@davLastSuccessfulSync": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "davNeverSynced": "Not synchronized yet",
+  "refreshCollections": "Refresh collections",
+  "nextcloudServerHost": "Server: {host}",
+  "@nextcloudServerHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionSupportsEvents": "Event calendar",
+  "collectionSupportsTasks": "Task list",
+  "collectionSupportsEventsAndTasks": "Events and tasks",
+  "writableCollection": "Writable",
+  "sharedCollection": "Shared",
+  "collectionLastSynced": "Last synchronized: {time}",
+  "@collectionLastSynced": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionSyncError": "Sync issue: {code}",
+  "@collectionSyncError": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflicts": "Synchronization conflicts",
+  "remoteChangedAt": "Server changed: {time}",
+  "@remoteChangedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "localPendingEdit": "Local edit: {summary}",
+  "@localPendingEdit": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictResolutionFailed": "The conflict could not be resolved.",
+  "recurringEventScope": "Recurring event scope",
+  "entireSeries": "Entire series",
+  "singleOccurrence": "This occurrence",
+  "thisAndFutureUnavailable": "This and future (not available)",
+  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "taskDueBeforeStart": "Tähtaeg ei tohi olla enne algust.",
+  "taskStartDueTimeModeMismatch": "Määra nii algus- kui ka tähtaja kellaaeg või tee ülesanne kogu päeva ülesandeks.",
+  "taskListCreateFailed": "Could not create the task list: {error}",
+  "taskListRenameFailed": "Could not rename the task list: {error}",
+  "taskListDeleteFailed": "Could not delete the task list: {error}",
+  "unshare": "Unshare",
+  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
+  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
+  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
+  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
+  "taskStatus": "Status",
+  "taskStatusNone": "No status",
+  "taskStatusNeedsAction": "Needs action",
+  "taskStatusInProcess": "In process",
+  "taskStatusCompleted": "Completed",
+  "taskStatusCancelled": "Cancelled",
+  "completionPercent": "{percent}% completed",
+  "completionDate": "Completion date",
+  "priority": "Priority",
+  "priorityNone": "No priority",
+  "priorityHighValue": "Priority {priority} · High",
+  "priorityMediumValue": "Priority {priority} · Medium",
+  "priorityLowValue": "Priority {priority} · Low",
+  "taskUrl": "URL",
+  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
+  "classification": "Classification",
+  "classificationPublic": "When shared, show the full task",
+  "classificationConfidential": "When shared, show only busy",
+  "classificationPrivate": "When shared, hide this task",
+  "pinTask": "Pin task",
+  "reminders": "Reminders",
+  "noReminders": "No reminders",
+  "editReminder": "Edit reminder",
+  "beforeTaskStarts": "Before the task starts",
+  "beforeTaskDue": "Before the task is due",
+  "afterTaskStarts": "After the task starts",
+  "afterTaskDue": "After the task is due",
+  "relativeToTaskStart": "Relative to the task start date",
+  "relativeToTaskDue": "Relative to the task due date",
+  "reminderTimeOfDay": "Time of day",
+  "absoluteReminder": "At a date and time",
+  "reminderAmount": "Amount",
+  "reminderUnitSeconds": "Seconds",
+  "reminderUnitMinutes": "Minutes",
+  "reminderUnitHours": "Hours",
+  "reminderUnitDays": "Days",
+  "reminderUnitWeeks": "Weeks",
+  "reminderAtTaskStart": "At the task start",
+  "reminderAtTaskDue": "At the task due time",
+  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
+  "relatedRemindersTitle": "Keep related reminders?",
+  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
+  "discardRelatedReminders": "Discard reminders",
+  "keepRelatedReminders": "Keep reminders",
+  "repeatEvery": "Repeat every",
+  "repeatOn": "Repeat on",
+  "repeatEnd": "End repeat",
+  "repeatNever": "Never",
+  "repeatUntil": "On date",
+  "repeatAfter": "After a number of occurrences",
+  "repeatCount": "Occurrences",
+  "repeatDayOfMonth": "Days of month",
+  "repeatMonths": "Months",
+  "repeatOrdinal": "Weekday position",
+  "repeatSpecificDays": "Specific days",
+  "repeatFirst": "First",
+  "repeatSecond": "Second",
+  "repeatThird": "Third",
+  "repeatFourth": "Fourth",
+  "repeatFifth": "Fifth",
+  "repeatSecondToLast": "Second to last",
+  "repeatLast": "Last",
+  "repeatAnyDay": "Day",
+  "repeatWeekday": "Weekday",
+  "repeatWeekendDay": "Weekend day",
+  "repeatEveryDays": "Every {count} days",
+  "repeatEveryWeeks": "Every {count} weeks",
+  "repeatEveryMonths": "Every {count} months",
+  "repeatEveryYears": "Every {count} years",
+  "repeatOnDaysSummary": "on {days}",
+  "repeatOnMonthDaysSummary": "on day {days}",
+  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
+  "repeatInMonthsSummary": "in {months}",
+  "repeatTimesSummary": "{count} times",
+  "repeatUntilSummary": "until {date}",
+  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
+  "duplicateTask": "Duplicate task",
+  "taskDuplicated": "Task duplicated.",
+  "taskDuplicateFailed": "Could not duplicate the task: {error}",
+  "hideSubtasks": "Hide subtasks",
+  "hideClosedSubtasks": "Hide closed subtasks",
+  "reminderUnit": "Unit"
 }

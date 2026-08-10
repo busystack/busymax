@@ -8,10 +8,11 @@ import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
   test('repositories are not created without an active account', () async {
@@ -30,6 +31,10 @@ void main() {
     expect(container.read(activeAccountProvider), isNull);
     expect(container.read(taskListsRepositoryProvider), isNull);
     expect(container.read(tasksRepositoryProvider), isNull);
+    expect(
+      container.read(selectedAccountCapabilitiesProvider),
+      noTaskCollectionCapabilities,
+    );
   });
 
   test('repositories are created after session sign-in', () async {
@@ -155,7 +160,7 @@ void main() {
   });
 
   test(
-    'loaded session marks account reconnect required when startup sync has no token',
+    'loaded session preserves cached account when startup sync needs reconnect',
     () async {
       final database = AppDatabase(NativeDatabase.memory());
       await _seedSignedInGoogleAccount(database);
@@ -194,7 +199,8 @@ void main() {
       final state = container.read(authSessionControllerProvider);
       final account = await database.select(database.accounts).getSingle();
       expect(zoneError, isNull);
-      expect(state.status, AuthSessionStatus.signedOut);
+      expect(state.status, AuthSessionStatus.signedIn);
+      expect(state.accountId, 'account-1');
       expect(account.authState, accountAuthStateReauthRequired);
     },
   );
@@ -206,7 +212,7 @@ Future<void> _seedSignedInGoogleAccount(AppDatabase database) {
     nowUtc: () => DateTime.utc(2026, 6, 4),
   ).upsertSignedInAccount(
     id: 'account-1',
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
     grantedScopes: googleBusyMaxOAuthScopes.join(' '),
   );
 }

@@ -1,17 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
-import 'package:busymax/src/microsoft_todo/api/microsoft_todo_google_tasks_adapter.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 
 void main() {
   test(
-    'create task maps Google-shaped fields to Microsoft Graph body',
+    'create task maps neutral mutation fields to Microsoft Graph body',
     () async {
       final client = _FakeMicrosoftTodoApiClient();
-      final adapter = MicrosoftTodoGoogleTasksAdapter(
+      final adapter = MicrosoftTodoTaskRemoteClient(
         client: client,
         defaultTimeZone: 'America/Vancouver',
         nowUtc: () => DateTime.utc(2026, 6, 6, 18),
@@ -47,7 +47,7 @@ void main() {
   );
 
   test('unsupported Microsoft move and clear completed are blocked', () async {
-    final adapter = MicrosoftTodoGoogleTasksAdapter(
+    final adapter = MicrosoftTodoTaskRemoteClient(
       client: _FakeMicrosoftTodoApiClient(),
       defaultTimeZone: 'UTC',
     );
@@ -55,7 +55,7 @@ void main() {
     expect(
       () => adapter.clearCompletedTasks('list-1'),
       throwsA(
-        isA<GoogleTasksApiError>().having(
+        isA<TaskRemoteError>().having(
           (error) => error.code,
           'code',
           'unsupported_provider_operation',
@@ -64,13 +64,55 @@ void main() {
     );
     expect(
       () => adapter.moveTask(sourceTaskListId: 'list-1', taskId: 'task-1'),
-      throwsA(isA<GoogleTasksApiError>()),
+      throwsA(isA<TaskRemoteError>()),
     );
   });
 
+  test(
+    'maps Microsoft checklist children without flattening them as tasks',
+    () async {
+      final client = _FakeMicrosoftTodoApiClient();
+      final adapter = MicrosoftTodoTaskRemoteClient(
+        client: client,
+        defaultTimeZone: 'UTC',
+      );
+
+      final page = await adapter.listChecklistItemsPage(
+        taskListId: 'list-1',
+        taskId: 'task-1',
+      );
+      final created = await adapter.createChecklistItem(
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        title: 'Created step',
+      );
+      final updated = await adapter.updateChecklistItem(
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        checklistItemId: 'step-1',
+        completed: true,
+      );
+      await adapter.deleteChecklistItem(
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        checklistItemId: 'step-1',
+      );
+
+      expect(page.items.single.title, 'Existing step');
+      expect(created.title, 'Created step');
+      expect(client.createdChecklistBody, {
+        'displayName': 'Created step',
+        'isChecked': false,
+      });
+      expect(updated.completed, isTrue);
+      expect(client.updatedChecklistPatch, {'isChecked': true});
+      expect(client.deletedChecklistItemId, 'step-1');
+    },
+  );
+
   test('patch sends Microsoft dateTime values with timeZone', () async {
     final client = _FakeMicrosoftTodoApiClient();
-    final adapter = MicrosoftTodoGoogleTasksAdapter(
+    final adapter = MicrosoftTodoTaskRemoteClient(
       client: client,
       defaultTimeZone: 'UTC',
     );
@@ -112,7 +154,7 @@ void main() {
     'completedDateTime patch preserves Microsoft wall-clock timezone',
     () async {
       final client = _FakeMicrosoftTodoApiClient();
-      final adapter = MicrosoftTodoGoogleTasksAdapter(
+      final adapter = MicrosoftTodoTaskRemoteClient(
         client: client,
         defaultTimeZone: 'UTC',
       );
@@ -151,7 +193,7 @@ void main() {
         message: 'Access denied by policy.',
         rawJson: rawJson,
       );
-    final adapter = MicrosoftTodoGoogleTasksAdapter(
+    final adapter = MicrosoftTodoTaskRemoteClient(
       client: client,
       defaultTimeZone: 'UTC',
     );
@@ -163,7 +205,7 @@ void main() {
         patch: const TaskPatch.fields({'title': 'Updated'}),
       ),
       throwsA(
-        isA<GoogleTasksApiError>()
+        isA<TaskRemoteError>()
             .having((error) => error.statusCode, 'statusCode', 403)
             .having(
               (error) => error.code,
@@ -175,17 +217,80 @@ void main() {
               'message',
               'Access denied by policy.',
             )
-            .having((error) => error.rawJson, 'rawJson', rawJson),
+            .having(
+              (error) => error.providerDetails,
+              'providerDetails',
+              rawJson,
+            ),
       ),
     );
   });
 }
 
-class _FakeMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
+class _FakeMicrosoftTodoApiClient
+    implements MicrosoftTodoApiClient, MicrosoftTodoChecklistApiClient {
   var createdTaskListId = '';
   var createdTaskBody = <String, Object?>{};
   var updatedTaskPatch = <String, Object?>{};
   MicrosoftTodoApiError? updateTaskError;
+  var createdChecklistBody = <String, Object?>{};
+  var updatedChecklistPatch = <String, Object?>{};
+  String? deletedChecklistItemId;
+
+  @override
+  Future<MicrosoftTodoChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  }) async {
+    return MicrosoftTodoChecklistItemsPageDto.fromJson({
+      'value': [
+        {
+          'id': 'step-1',
+          'displayName': 'Existing step',
+          'isChecked': false,
+          'createdDateTime': '2026-06-01T10:00:00Z',
+        },
+      ],
+    });
+  }
+
+  @override
+  Future<MicrosoftTodoChecklistItemDto> createChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required Map<String, Object?> body,
+  }) async {
+    createdChecklistBody = body;
+    return MicrosoftTodoChecklistItemDto.fromJson({
+      'id': 'created-step',
+      ...body,
+    });
+  }
+
+  @override
+  Future<MicrosoftTodoChecklistItemDto> updateChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+    required Map<String, Object?> patch,
+  }) async {
+    updatedChecklistPatch = patch;
+    return MicrosoftTodoChecklistItemDto.fromJson({
+      'id': checklistItemId,
+      'displayName': 'Existing step',
+      'isChecked': patch['isChecked'] ?? false,
+    });
+  }
+
+  @override
+  Future<void> deleteChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+  }) async {
+    deletedChecklistItemId = checklistItemId;
+  }
 
   @override
   Future<MicrosoftTodoTaskDto> createTask({

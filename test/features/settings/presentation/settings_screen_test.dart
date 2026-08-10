@@ -11,6 +11,11 @@ import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/config/build_config.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
+import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
@@ -20,8 +25,11 @@ import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:drift/native.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
 import '../../../test_localized_app.dart';
@@ -110,6 +118,84 @@ void main() {
     ]);
     expect(container.read(selectedAccountIdProvider), 'microsoft:m');
   });
+
+  testWidgets(
+    'Settings reports failed Nextcloud revocation after complete local removal',
+    (tester) async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final secrets = InMemorySecretStore();
+      await AccountsRepository(database: database).upsertSignedInAccount(
+        id: _nextcloudAccount.id,
+        provider: BusyProvider.nextcloud,
+        authority: _nextcloudAccount.authority,
+        providerAccountId: _nextcloudAccount.providerAccountId,
+        credentialKind: CredentialKind.nextcloudAppPassword,
+        displayName: _nextcloudAccount.displayName,
+        grantedScopes: '',
+      );
+      await secrets.saveCredential(
+        _nextcloudAccount.id,
+        NextcloudSecretRecord(
+          canonicalServer: Uri.parse(_nextcloudAccount.authority),
+          loginName: _nextcloudAccount.providerAccountId,
+          appPassword: 'test-app-password',
+        ),
+      );
+      await secrets.setActiveAccountId(_nextcloudAccount.id);
+      final onboarding = DavAccountOnboardingService(
+        database: database,
+        secretStore: secrets,
+        nextcloudLoginFlow: _unusedNextcloudLoginFlow(),
+        discover:
+            ({
+              required accountId,
+              required provider,
+              required accountAuthority,
+              required credential,
+              cancellationToken,
+            }) async => throw StateError('Discovery is not used by removal.'),
+        nextcloudCredentialRevoker:
+            ({required accountId, required credential}) async {
+              throw const DavException(
+                kind: DavErrorKind.network,
+                code: 'RevocationOffline',
+                safeMessage: 'Offline.',
+              );
+            },
+      );
+      final auth = _FakeAuthRepository();
+      final container = _container(
+        selectedAccountId: _nextcloudAccount.id,
+        authRepository: auth,
+        accounts: const [_googleAccount, _nextcloudAccount],
+        davOnboardingService: onboarding,
+      );
+      addTearDown(container.dispose);
+
+      await _pumpSettings(tester, container);
+      await _openAccountRemovalDialog(tester);
+      expect(
+        find.byKey(const Key('revoke-google-authorization')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const Key('confirm-account-removal')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'The account was removed locally, but its Nextcloud app password '
+          'could not be revoked.',
+        ),
+        findsOneWidget,
+      );
+      expect(auth.removalCalls, isEmpty);
+      expect(container.read(selectedAccountIdProvider), _googleAccount.id);
+      expect(await database.select(database.accounts).get(), isEmpty);
+      expect(await secrets.readCredential(_nextcloudAccount.id), isNull);
+      expect(await secrets.readActiveAccountId(), isNull);
+    },
+  );
 
   testWidgets('Settings cancels account removal without mutation', (
     tester,
@@ -257,7 +343,10 @@ void main() {
     await _pumpSettings(tester, container);
 
     expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
-    expect(find.text(accountReconnectRequiredSyncMessage), findsOneWidget);
+    expect(
+      find.text('Reconnect this account to resume synchronization.'),
+      findsOneWidget,
+    );
     expect(find.text('New task list'), findsNothing);
     expect(find.text('Remove account…'), findsOneWidget);
 
@@ -697,7 +786,10 @@ Finder _settingsMenuItemWithLabel(String label) {
 }
 
 Future<void> _openAccountRemovalDialog(WidgetTester tester) async {
-  await tester.tap(find.text('Remove account…').first);
+  final removeAction = find.text('Remove account…').first;
+  await tester.ensureVisible(removeAction);
+  await tester.pumpAndSettle();
+  await tester.tap(removeAction);
   await tester.pumpAndSettle();
   expect(find.textContaining('from BusyMax?'), findsOneWidget);
 }
@@ -710,10 +802,15 @@ ProviderContainer _container({
   Map<String, _FakeTaskListsRepository>? taskListRepositories,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
   bool useFlutterHeader = false,
+  DavAccountOnboardingService? davOnboardingService,
 }) {
   return ProviderContainer(
     overrides: [
       authRepositoryProvider.overrideWithValue(authRepository),
+      if (davOnboardingService != null)
+        davAccountOnboardingServiceProvider.overrideWithValue(
+          davOnboardingService,
+        ),
       accountsRepositoryProvider.overrideWithValue(
         _FakeAccountsRepository(accounts),
       ),
@@ -721,6 +818,10 @@ ProviderContainer _container({
       accountManagementStreamProvider.overrideWith(
         (ref) => Stream.value(accounts),
       ),
+      davCollectionsStreamProvider.overrideWith(
+        (ref) => Stream.value(const []),
+      ),
+      davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),
       if (activeAccountIdOverride != _useDefaultActiveAccountId)
         activeAccountProvider.overrideWithValue(activeAccountIdOverride),
@@ -741,6 +842,11 @@ ProviderContainer _container({
 }
 
 const _useDefaultActiveAccountId = '__busymax_default_active_account__';
+
+NextcloudLoginFlowV2 _unusedNextcloudLoginFlow() => NextcloudLoginFlowV2(
+  client: MockClient((_) async => http.Response('', 500)),
+  browserLauncher: (_) async => false,
+);
 
 Future<void> _pumpSettings(
   WidgetTester tester,
@@ -863,6 +969,9 @@ class _FakeAccountsRepository implements AccountsRepository {
   final List<AccountEntity> accounts;
 
   @override
+  Future<List<AccountEntity>> listVisibleAccounts() async => accounts;
+
+  @override
   Future<List<AccountEntity>> listSignedInAccounts() async => accounts;
 
   @override
@@ -895,7 +1004,9 @@ class _MemorySettingsStore implements LocalSettingsStore {
 
 const _googleAccount = AccountEntity(
   id: 'google:g',
-  provider: TaskProvider.google,
+  provider: BusyProvider.google,
+  authority: 'https://accounts.google.com',
+  providerAccountId: 'g',
   displayName: 'Google User',
   email: 'google@example.com',
   authState: 'signed_in',
@@ -903,15 +1014,29 @@ const _googleAccount = AccountEntity(
 
 const _microsoftAccount = AccountEntity(
   id: 'microsoft:m',
-  provider: TaskProvider.microsoft,
+  provider: BusyProvider.microsoft,
+  authority: 'https://login.microsoftonline.com/common',
+  providerAccountId: 'm',
   displayName: 'Microsoft User',
   email: 'microsoft@example.com',
   authState: 'signed_in',
 );
 
+const _nextcloudAccount = AccountEntity(
+  id: 'nextcloud:n',
+  provider: BusyProvider.nextcloud,
+  authority: 'https://cloud.example.test',
+  providerAccountId: 'alex',
+  credentialKind: CredentialKind.nextcloudAppPassword,
+  displayName: 'Nextcloud User',
+  authState: accountAuthStateSignedIn,
+);
+
 const _reconnectRequiredGoogleAccount = AccountEntity(
   id: 'google:g',
-  provider: TaskProvider.google,
+  provider: BusyProvider.google,
+  authority: 'https://accounts.google.com',
+  providerAccountId: 'g',
   displayName: 'Google User',
   email: 'google@example.com',
   authState: accountAuthStateReauthRequired,

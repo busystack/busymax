@@ -16,12 +16,18 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../core/logging/redacting_logger.dart';
-import '../../../google_tasks/oauth/oauth_models.dart';
+import '../../../dav/auth/dav_account_dialogs.dart';
+import '../../../dav/dav_errors.dart';
+import '../../../dav/http/dav_http_transport.dart';
+import '../../../dav/mutation/dav_conflict_repository.dart';
+import '../../../dav/storage/dav_settings_repository.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
-import '../../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../accounts/domain/account_connection_state.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../feedback/presentation/feedback_dialog.dart';
@@ -47,7 +53,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
-  TaskProvider? _connectingProvider;
+  BusyProvider? _connectingProvider;
+  DavCancellationToken? _davCancellation;
   final _removingAccountIds = <String>{};
 
   @override
@@ -62,6 +69,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
+    _davCancellation?.cancel();
     _headerBarSession.dispose();
     unawaited(_headerBarActions?.cancel());
     super.dispose();
@@ -80,6 +88,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final selectedAccount = ref.watch(selectedAccountProvider);
     final accounts =
         ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
+    final davCollections =
+        ref.watch(davCollectionsStreamProvider).valueOrNull ?? const [];
+    final davConflicts =
+        ref.watch(davConflictsStreamProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final settingsController = ref.read(appSettingsControllerProvider.notifier);
@@ -93,15 +105,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         googleConfigured: config.hasGoogleOAuthClientId,
         microsoftConfigured: config.hasMicrosoftOAuthClientId,
         connectingProvider: _connectingProvider,
-        onAddGoogle: () => unawaited(_connectAccount(TaskProvider.google)),
+        onAddGoogle: () => unawaited(_connectAccount(BusyProvider.google)),
         onAddMicrosoft: () =>
-            unawaited(_connectAccount(TaskProvider.microsoft)),
-        onReconnect: (account) => unawaited(_connectAccount(account.provider)),
+            unawaited(_connectAccount(BusyProvider.microsoft)),
+        onAddApple: () => unawaited(_connectAccount(BusyProvider.appleICloud)),
+        onAddNextcloud: () =>
+            unawaited(_connectAccount(BusyProvider.nextcloud)),
+        onCancelConnection: _cancelAccountConnection,
+        onReconnect: (account) =>
+            unawaited(_connectAccount(account.provider, reconnecting: account)),
         onCreateTaskList: (accountId) =>
             _createTaskList(context, ref, accountId),
         removingAccountIds: _removingAccountIds,
         onRemoveAccount: (account) =>
             unawaited(_removeAccount(context, ref, account)),
+        davCollections: davCollections,
+        davConflicts: davConflicts,
+        onRefreshCollections: (account) =>
+            unawaited(_refreshCollections(account)),
+        onEventsSelected: (collection, selected) => unawaited(
+          ref
+              .read(davSettingsRepositoryProvider)
+              .setEventsSelected(collection.id, selected),
+        ),
+        onTasksSelected: (collection, selected) => unawaited(
+          ref
+              .read(davSettingsRepositoryProvider)
+              .setTasksSelected(collection.id, selected),
+        ),
+        onResolveConflict: (conflict, resolution) =>
+            unawaited(_resolveConflict(conflict, resolution)),
       ),
       SettingsPage.schedule => BusyMaxGroupedList(
         title: l10n.scheduleDisplaySettings,
@@ -474,24 +507,76 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
-  Future<void> _connectAccount(TaskProvider provider) async {
+  Future<void> _connectAccount(
+    BusyProvider provider, {
+    AccountEntity? reconnecting,
+  }) async {
     if (_connectingProvider != null) {
       return;
+    }
+    AppleICloudCredentialInput? appleInput;
+    String? nextcloudServer;
+    if (provider == BusyProvider.appleICloud) {
+      appleInput = await showAppleICloudCredentialDialog(
+        context,
+        fixedEmail: reconnecting?.email ?? reconnecting?.providerAccountId,
+        headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      );
+      if (appleInput == null || !mounted) return;
+    } else if (provider == BusyProvider.nextcloud) {
+      nextcloudServer = await showNextcloudServerDialog(
+        context,
+        initialServer: reconnecting?.authority,
+        headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      );
+      if (nextcloudServer == null || !mounted) return;
     }
     final repository = ref.read(authRepositoryProvider);
     final runSync = ref.read(signedInSyncRunnerProvider);
     setState(() => _connectingProvider = provider);
     try {
-      final signedIn = switch (provider) {
-        TaskProvider.google => await repository.signIn(),
-        TaskProvider.microsoft => await repository.signInWithMicrosoft(),
-      };
-      final accountId = signedIn.accountId;
+      String? accountId;
+      switch (provider) {
+        case BusyProvider.google:
+          accountId = (await repository.signIn()).accountId;
+        case BusyProvider.microsoft:
+          accountId = (await repository.signInWithMicrosoft()).accountId;
+        case BusyProvider.appleICloud:
+          final cancellation = DavCancellationToken();
+          _davCancellation = cancellation;
+          final onboarding = ref.read(davAccountOnboardingServiceProvider);
+          accountId = reconnecting == null
+              ? (await onboarding.connectAppleICloud(
+                  email: appleInput!.email,
+                  appSpecificPassword: appleInput.password,
+                  cancellationToken: cancellation,
+                )).accountId
+              : (await onboarding.replaceAppleAppSpecificPassword(
+                  accountId: reconnecting.id,
+                  appSpecificPassword: appleInput!.password,
+                  cancellationToken: cancellation,
+                )).accountId;
+        case BusyProvider.nextcloud:
+          final cancellation = DavCancellationToken();
+          _davCancellation = cancellation;
+          final onboarding = ref.read(davAccountOnboardingServiceProvider);
+          accountId = reconnecting == null
+              ? (await onboarding.connectNextcloud(
+                  enteredServer: nextcloudServer!,
+                  cancellationToken: cancellation,
+                )).accountId
+              : (await onboarding.reconnectNextcloud(
+                  accountId: reconnecting.id,
+                  enteredServer: nextcloudServer!,
+                  cancellationToken: cancellation,
+                )).accountId;
+      }
       if (accountId != null) {
         unawaited(_syncConnectedAccount(runSync, accountId));
       }
     } on Object catch (error) {
-      if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
+      if ((error is OAuthException && error.code == 'OAuthSignInCancelled') ||
+          (error is DavException && error.kind == DavErrorKind.cancelled)) {
         return;
       }
       if (mounted) {
@@ -499,9 +584,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _connectingProvider = null);
+        setState(() {
+          _connectingProvider = null;
+          _davCancellation = null;
+        });
       }
     }
+  }
+
+  void _cancelAccountConnection() {
+    _davCancellation?.cancel();
+    ref.read(davAccountOnboardingServiceProvider).cancelNextcloudLogin();
   }
 
   Future<void> _syncConnectedAccount(
@@ -533,7 +626,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context,
       accountLabel: account.displayLabel,
       canRevokeGoogleAuthorization:
-          account.provider == TaskProvider.google && account.isSignedIn,
+          account.provider == BusyProvider.google && account.isSignedIn,
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!context.mounted || options == null) {
@@ -542,15 +635,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     setState(() => _removingAccountIds.add(account.id));
     try {
-      final result = await ref
-          .read(authRepositoryProvider)
-          .removeAccount(
-            accountId: account.id,
-            revokeAuthorization: options.revokeGoogleAuthorization,
-          );
+      final dav =
+          account.provider == BusyProvider.appleICloud ||
+          account.provider == BusyProvider.nextcloud;
+      final result = dav
+          ? null
+          : await ref
+                .read(authRepositoryProvider)
+                .removeAccount(
+                  accountId: account.id,
+                  revokeAuthorization: options.revokeGoogleAuthorization,
+                );
+      final davResult = dav
+          ? await ref
+                .read(davAccountOnboardingServiceProvider)
+                .removeAccount(account.id)
+          : null;
       if (context.mounted) {
-        if (result.authorizationRevocationFailed) {
+        if (result?.authorizationRevocationFailed ?? false) {
           _showMessage(context, context.l10n.accountRemovedGoogleRevokeFailed);
+        } else if (davResult?.remoteRevocationAttempted == true &&
+            !davResult!.remoteRevocationSucceeded) {
+          _showMessage(
+            context,
+            context.l10n.nextcloudAccountRemovedRevokeFailed,
+          );
         }
         await _afterAccountRemoved(context, ref, account.id);
       }
@@ -579,9 +688,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
 
-    await ref
-        .read(taskListsRepositoryForAccountProvider(accountId))
-        .createTaskList(title.trim());
+    try {
+      await ref
+          .read(taskListsRepositoryForAccountProvider(accountId))
+          .createTaskList(title.trim());
+    } on Object catch (error) {
+      _settingsLogger.warning('Task-list creation failed: $error');
+      if (context.mounted) {
+        _showMessage(
+          context,
+          context.l10n.taskListCreateFailed(syncFailureMessage(error)),
+        );
+      }
+    }
   }
 
   Future<void> _fullSync(
@@ -607,6 +726,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           context,
           context.l10n.syncFailed(syncFailureMessage(error)),
         );
+      }
+    }
+  }
+
+  Future<void> _refreshCollections(AccountEntity account) async {
+    try {
+      await ref.read(signedInSyncRunnerProvider)(account.id, true);
+      if (mounted) _showMessage(context, context.l10n.syncComplete);
+    } on Object catch (error) {
+      if (mounted) {
+        _showMessage(
+          context,
+          context.l10n.syncFailed(syncFailureMessage(error)),
+        );
+      }
+    }
+  }
+
+  Future<void> _resolveConflict(
+    DavConflictEntity conflict,
+    DavConflictResolution resolution,
+  ) async {
+    try {
+      await ref
+          .read(davConflictResolutionServiceProvider)
+          .resolve(conflict.id, resolution);
+      await ref
+          .read(accountSyncOperationsProvider)
+          .syncAccount(conflict.accountId, full: false);
+    } on Object catch (error) {
+      _settingsLogger.warning('DAV conflict resolution failed: $error');
+      if (mounted) {
+        _showMessage(context, context.l10n.conflictResolutionFailed);
       }
     }
   }
@@ -826,22 +978,46 @@ class _AccountManagementSection extends StatelessWidget {
     required this.connectingProvider,
     required this.onAddGoogle,
     required this.onAddMicrosoft,
+    required this.onAddApple,
+    required this.onAddNextcloud,
+    required this.onCancelConnection,
     required this.onReconnect,
     required this.onCreateTaskList,
     required this.removingAccountIds,
     required this.onRemoveAccount,
+    required this.davCollections,
+    required this.davConflicts,
+    required this.onRefreshCollections,
+    required this.onEventsSelected,
+    required this.onTasksSelected,
+    required this.onResolveConflict,
   });
 
   final List<AccountEntity> accounts;
   final bool googleConfigured;
   final bool microsoftConfigured;
-  final TaskProvider? connectingProvider;
+  final BusyProvider? connectingProvider;
   final VoidCallback onAddGoogle;
   final VoidCallback onAddMicrosoft;
+  final VoidCallback onAddApple;
+  final VoidCallback onAddNextcloud;
+  final VoidCallback onCancelConnection;
   final void Function(AccountEntity account) onReconnect;
   final void Function(String accountId) onCreateTaskList;
   final Set<String> removingAccountIds;
   final void Function(AccountEntity account) onRemoveAccount;
+  final List<DavCollectionSettingsEntity> davCollections;
+  final List<DavConflictEntity> davConflicts;
+  final void Function(AccountEntity account) onRefreshCollections;
+  final void Function(DavCollectionSettingsEntity collection, bool selected)
+  onEventsSelected;
+  final void Function(DavCollectionSettingsEntity collection, bool selected)
+  onTasksSelected;
+  final void Function(
+    DavConflictEntity conflict,
+    DavConflictResolution resolution,
+  )
+  onResolveConflict;
 
   @override
   Widget build(BuildContext context) {
@@ -854,21 +1030,41 @@ class _AccountManagementSection extends StatelessWidget {
           title: l10n.account,
           filled: true,
           children: [
-            if (googleConfigured)
+            BusyMaxActionRow(
+              title: connectingProvider == BusyProvider.google
+                  ? l10n.waitingForGoogleSignIn
+                  : l10n.addGoogleAccount,
+              subtitle: googleConfigured ? null : l10n.providerNotConfigured,
+              leading: const Icon(YaruIcons.plus),
+              onTap: connecting || !googleConfigured ? null : onAddGoogle,
+            ),
+            BusyMaxActionRow(
+              title: connectingProvider == BusyProvider.microsoft
+                  ? l10n.waitingForMicrosoftSignIn
+                  : l10n.addMicrosoftAccount,
+              subtitle: microsoftConfigured ? null : l10n.providerNotConfigured,
+              leading: const Icon(YaruIcons.plus),
+              onTap: connecting || !microsoftConfigured ? null : onAddMicrosoft,
+            ),
+            BusyMaxActionRow(
+              title: connectingProvider == BusyProvider.appleICloud
+                  ? l10n.waitingForAppleICloud
+                  : l10n.addAppleICloudAccount,
+              leading: const Icon(YaruIcons.plus),
+              onTap: connecting ? null : onAddApple,
+            ),
+            BusyMaxActionRow(
+              title: connectingProvider == BusyProvider.nextcloud
+                  ? l10n.waitingForNextcloud
+                  : l10n.addNextcloudAccount,
+              leading: const Icon(YaruIcons.plus),
+              onTap: connecting ? null : onAddNextcloud,
+            ),
+            if (connecting)
               BusyMaxActionRow(
-                title: connectingProvider == TaskProvider.google
-                    ? l10n.waitingForGoogleSignIn
-                    : l10n.addGoogleAccount,
-                leading: const Icon(YaruIcons.plus),
-                onTap: connecting ? null : onAddGoogle,
-              ),
-            if (microsoftConfigured)
-              BusyMaxActionRow(
-                title: connectingProvider == TaskProvider.microsoft
-                    ? l10n.waitingForMicrosoftSignIn
-                    : l10n.addMicrosoftAccount,
-                leading: const Icon(YaruIcons.plus),
-                onTap: connecting ? null : onAddMicrosoft,
+                title: l10n.cancelAccountConnection,
+                leading: const Icon(YaruIcons.window_close),
+                onTap: onCancelConnection,
               ),
             if (accounts.isEmpty)
               BusyMaxActionRow(
@@ -878,16 +1074,46 @@ class _AccountManagementSection extends StatelessWidget {
               ),
           ],
         ),
-        for (final account in accounts)
+        for (final account in accounts) ...[
           _AccountManagementCard(
             account: account,
             removing: removingAccountIds.contains(account.id),
             onReconnect: connecting || removingAccountIds.contains(account.id)
                 ? null
                 : () => onReconnect(account),
-            onCreateTaskList: () => onCreateTaskList(account.id),
+            onCreateTaskList:
+                account.provider == BusyProvider.google ||
+                    account.provider == BusyProvider.microsoft ||
+                    account.provider == BusyProvider.nextcloud
+                ? () => onCreateTaskList(account.id)
+                : null,
+            onRefreshCollections:
+                account.provider == BusyProvider.appleICloud ||
+                    account.provider == BusyProvider.nextcloud
+                ? () => onRefreshCollections(account)
+                : null,
             onRemoveAccount: () => onRemoveAccount(account),
           ),
+          if (account.provider == BusyProvider.appleICloud ||
+              account.provider == BusyProvider.nextcloud)
+            _DavCollectionsCard(
+              account: account,
+              collections: [
+                for (final collection in davCollections)
+                  if (collection.accountId == account.id) collection,
+              ],
+              onEventsSelected: onEventsSelected,
+              onTasksSelected: onTasksSelected,
+            ),
+          if (davConflicts.any((conflict) => conflict.accountId == account.id))
+            _DavConflictsCard(
+              conflicts: [
+                for (final conflict in davConflicts)
+                  if (conflict.accountId == account.id) conflict,
+              ],
+              onResolve: onResolveConflict,
+            ),
+        ],
       ],
     );
   }
@@ -899,13 +1125,15 @@ class _AccountManagementCard extends StatelessWidget {
     required this.removing,
     required this.onReconnect,
     required this.onCreateTaskList,
+    required this.onRefreshCollections,
     required this.onRemoveAccount,
   });
 
   final AccountEntity account;
   final bool removing;
   final VoidCallback? onReconnect;
-  final VoidCallback onCreateTaskList;
+  final VoidCallback? onCreateTaskList;
+  final VoidCallback? onRefreshCollections;
   final VoidCallback onRemoveAccount;
 
   @override
@@ -916,23 +1144,63 @@ class _AccountManagementCard extends StatelessWidget {
       description: _accountIdentityLabel(context, account),
       filled: true,
       children: [
-        if (account.needsReconnect)
+        if (account.provider == BusyProvider.nextcloud)
           BusyMaxActionRow(
-            title: accountReconnectRequiredActionLabel,
-            subtitle: accountReconnectRequiredSyncMessage,
+            title: l10n.nextcloudProvider,
+            subtitle: l10n.nextcloudServerHost(
+              Uri.tryParse(account.authority)?.host ?? account.authority,
+            ),
+            leading: const Icon(Icons.cloud_outlined),
+          ),
+        if (account.provider == BusyProvider.appleICloud ||
+            account.provider == BusyProvider.nextcloud)
+          BusyMaxActionRow(
+            title: l10n.davConnectionState,
+            subtitle: _accountConnectionStateLabel(context, account),
+            leading: Icon(
+              account.hasConnectionIssue
+                  ? YaruIcons.warning
+                  : YaruIcons.checkmark,
+            ),
+          ),
+        if (account.provider == BusyProvider.appleICloud ||
+            account.provider == BusyProvider.nextcloud)
+          BusyMaxActionRow(
+            title: account.lastSuccessfulSyncAtUtc == null
+                ? l10n.davNeverSynced
+                : l10n.davLastSuccessfulSync(
+                    _formatDavDateTime(
+                      context,
+                      account.lastSuccessfulSyncAtUtc!,
+                    ),
+                  ),
+            leading: const Icon(YaruIcons.sync),
+          ),
+        if (account.hasConnectionIssue)
+          BusyMaxActionRow(
+            title: account.needsReconnect
+                ? accountReconnectRequiredActionLabel
+                : _accountConnectionIssueMessage(context, account),
+            subtitle: _accountConnectionIssueMessage(context, account),
             leading: Icon(
               YaruIcons.refresh,
               color: Theme.of(context).colorScheme.error,
             ),
-            onTap: onReconnect,
+            onTap: account.needsReconnect ? onReconnect : null,
           )
-        else ...[
+        else if (onCreateTaskList != null) ...[
           BusyMaxActionRow(
             title: l10n.newTaskList,
             leading: const Icon(YaruIcons.plus),
             onTap: removing ? null : onCreateTaskList,
           ),
         ],
+        if (onRefreshCollections != null)
+          BusyMaxActionRow(
+            title: l10n.refreshCollections,
+            leading: const Icon(YaruIcons.sync),
+            onTap: removing ? null : onRefreshCollections,
+          ),
         BusyMaxActionRow(
           title: removing ? l10n.removingAccount : l10n.removeAccount,
           subtitle: l10n.removeAccountDescription,
@@ -948,6 +1216,153 @@ class _AccountManagementCard extends StatelessWidget {
   }
 }
 
+class _DavCollectionsCard extends StatelessWidget {
+  const _DavCollectionsCard({
+    required this.account,
+    required this.collections,
+    required this.onEventsSelected,
+    required this.onTasksSelected,
+  });
+
+  final AccountEntity account;
+  final List<DavCollectionSettingsEntity> collections;
+  final void Function(DavCollectionSettingsEntity collection, bool selected)
+  onEventsSelected;
+  final void Function(DavCollectionSettingsEntity collection, bool selected)
+  onTasksSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return BusyMaxGroupedList(
+      title: l10n.collectionSettings,
+      description: account.displayLabel,
+      filled: true,
+      children: [
+        for (final collection in collections) ...[
+          BusyMaxActionRow(
+            key: ValueKey('dav-collection-${collection.id}'),
+            title: collection.name,
+            subtitle: _davCollectionSummary(context, collection),
+            leading: _DavCollectionColor(color: collection.color),
+          ),
+          if (collection.supportsEvents)
+            BusyMaxSwitchRow(
+              key: ValueKey('dav-events-toggle-${collection.id}'),
+              title: l10n.calendarContent,
+              subtitle: collection.readOnly ? l10n.readOnlyCalendar : null,
+              value: collection.eventsSelected,
+              onChanged: (selected) => onEventsSelected(collection, selected),
+              leading: const Icon(YaruIcons.calendar),
+            ),
+          if (collection.supportsTasks)
+            BusyMaxSwitchRow(
+              key: ValueKey('dav-tasks-toggle-${collection.id}'),
+              title: l10n.taskContent,
+              subtitle: collection.readOnly
+                  ? l10n.readOnlySharedCollection
+                  : null,
+              value: collection.tasksSelected,
+              onChanged: (selected) => onTasksSelected(collection, selected),
+              leading: const Icon(YaruIcons.checkmark),
+            ),
+        ],
+        if (collections.isEmpty)
+          BusyMaxActionRow(
+            title: l10n.collectionSettings,
+            subtitle: l10n.davNeverSynced,
+            leading: const Icon(YaruIcons.calendar),
+          ),
+      ],
+    );
+  }
+}
+
+class _DavCollectionColor extends StatelessWidget {
+  const _DavCollectionColor({required this.color});
+
+  final String? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: context.l10n.calendar,
+      child: Container(
+        width: BusyMaxSizes.iconSm,
+        height: BusyMaxSizes.iconSm,
+        decoration: BoxDecoration(
+          color: _parseDavColor(color) ?? Theme.of(context).colorScheme.primary,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DavConflictsCard extends StatelessWidget {
+  const _DavConflictsCard({required this.conflicts, required this.onResolve});
+
+  final List<DavConflictEntity> conflicts;
+  final void Function(
+    DavConflictEntity conflict,
+    DavConflictResolution resolution,
+  )
+  onResolve;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return BusyMaxGroupedList(
+      title: l10n.syncConflicts,
+      filled: true,
+      children: [
+        for (final conflict in conflicts) ...[
+          BusyMaxActionRow(
+            key: ValueKey('dav-conflict-${conflict.id}'),
+            title: conflict.itemTitle,
+            subtitle: [
+              '${conflict.collectionName} · ${conflict.accountLabel}',
+              if (conflict.remoteChangedAtUtc != null)
+                l10n.remoteChangedAt(
+                  _formatDavDateTime(context, conflict.remoteChangedAtUtc!),
+                ),
+              l10n.localPendingEdit(conflict.localEditSummary),
+            ].join('\n'),
+            leading: Icon(
+              YaruIcons.warning,
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
+          if (conflict.canKeepServer)
+            BusyMaxActionRow(
+              title: l10n.keepServerVersion,
+              leading: const Icon(Icons.cloud_download_outlined),
+              onTap: () =>
+                  onResolve(conflict, DavConflictResolution.keepServer),
+            ),
+          if (conflict.canReapplyLocal)
+            BusyMaxActionRow(
+              title: l10n.reapplyLocalChange,
+              leading: const Icon(Icons.cloud_upload_outlined),
+              onTap: () =>
+                  onResolve(conflict, DavConflictResolution.reapplyLocal),
+            ),
+          if (conflict.canDuplicate)
+            BusyMaxActionRow(
+              title: l10n.duplicateLocalItem,
+              leading: const Icon(Icons.copy_outlined),
+              onTap: () =>
+                  onResolve(conflict, DavConflictResolution.duplicateLocal),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
 Future<void> _afterAccountRemoved(
   BuildContext context,
   WidgetRef ref,
@@ -955,7 +1370,7 @@ Future<void> _afterAccountRemoved(
 ) async {
   final accounts = await ref
       .read(accountsRepositoryProvider)
-      .listSignedInAccounts();
+      .listVisibleAccounts();
   final remaining = accounts
       .where((account) => account.id != removedAccountId)
       .toList();
@@ -1028,9 +1443,93 @@ String _accountIdentityLabel(BuildContext context, AccountEntity account) {
   return context.l10n.signedInAccount;
 }
 
-String _accountProviderLabel(BuildContext context, TaskProvider provider) {
+String _accountProviderLabel(BuildContext context, BusyProvider provider) {
   return switch (provider) {
-    TaskProvider.google => context.l10n.googleProvider,
-    TaskProvider.microsoft => context.l10n.microsoftProvider,
+    BusyProvider.google => context.l10n.googleProvider,
+    BusyProvider.microsoft => context.l10n.microsoftProvider,
+    BusyProvider.appleICloud => context.l10n.appleICloudProvider,
+    BusyProvider.nextcloud => context.l10n.nextcloudProvider,
   };
+}
+
+String _accountConnectionIssueMessage(
+  BuildContext context,
+  AccountEntity account,
+) => switch (account.connectionState) {
+  AccountConnectionState.reauthenticationRequired =>
+    context.l10n.davReauthenticationRequired,
+  AccountConnectionState.temporarilyUnavailable =>
+    context.l10n.davTemporarilyUnavailable,
+  AccountConnectionState.permissionChanged => context.l10n.davPermissionChanged,
+  AccountConnectionState.unsupportedServerProfile =>
+    context.l10n.davUnsupportedServer,
+  AccountConnectionState.connected ||
+  AccountConnectionState.connecting ||
+  AccountConnectionState.signedOut => '',
+};
+
+String _accountConnectionStateLabel(
+  BuildContext context,
+  AccountEntity account,
+) => switch (account.connectionState) {
+  AccountConnectionState.connected => context.l10n.davConnected,
+  AccountConnectionState.connecting => context.l10n.davConnecting,
+  AccountConnectionState.reauthenticationRequired =>
+    context.l10n.davReauthenticationRequired,
+  AccountConnectionState.temporarilyUnavailable =>
+    context.l10n.davTemporarilyUnavailable,
+  AccountConnectionState.permissionChanged => context.l10n.davPermissionChanged,
+  AccountConnectionState.unsupportedServerProfile =>
+    context.l10n.davUnsupportedServer,
+  AccountConnectionState.signedOut => context.l10n.davSignedOut,
+};
+
+String _davCollectionSummary(
+  BuildContext context,
+  DavCollectionSettingsEntity collection,
+) {
+  final l10n = context.l10n;
+  final support = switch ((
+    collection.supportsEvents,
+    collection.supportsTasks,
+  )) {
+    (true, true) => l10n.collectionSupportsEventsAndTasks,
+    (true, false) => l10n.collectionSupportsEvents,
+    (false, true) => l10n.collectionSupportsTasks,
+    _ => l10n.collectionSettings,
+  };
+  final access = collection.readOnly
+      ? l10n.readOnlyCalendar
+      : collection.shared
+      ? l10n.sharedCollection
+      : l10n.writableCollection;
+  final sync = collection.syncErrorCode != null
+      ? l10n.collectionSyncError(collection.syncErrorCode!)
+      : collection.lastSyncAtUtc == null
+      ? l10n.davNeverSynced
+      : l10n.collectionLastSynced(
+          _formatDavDateTime(context, collection.lastSyncAtUtc!),
+        );
+  return '$support · $access\n$sync';
+}
+
+String _formatDavDateTime(BuildContext context, DateTime value) {
+  final local = value.toLocal();
+  final material = MaterialLocalizations.of(context);
+  return '${material.formatMediumDate(local)} '
+      '${material.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
+}
+
+Color? _parseDavColor(String? source) {
+  final value = source?.trim().replaceFirst('#', '');
+  if (value == null) return null;
+  final normalized = switch (value.length) {
+    6 => 'FF$value',
+    // CalDAV calendar-color uses RRGGBBAA, while Flutter expects AARRGGBB.
+    8 => '${value.substring(6, 8)}${value.substring(0, 6)}',
+    _ => null,
+  };
+  if (normalized == null) return null;
+  final parsed = int.tryParse(normalized, radix: 16);
+  return parsed == null ? null : Color(parsed);
 }

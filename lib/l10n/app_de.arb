@@ -1,14 +1,14 @@
 {
   "@@locale": "de",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Verbinden Sie Google- und Microsoft-Konten, um Kalender und Aufgaben zu synchronisieren.",
+  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
   "googlePermissionsConsentNotice": "Wählen Sie auf dem Google-Berechtigungsbildschirm sowohl Kalender- als auch Aufgabenberechtigungen aus.",
   "googlePermissionsRequiredRetry": "Die Berechtigungen für Google Kalender und Google Tasks sind erforderlich. Versuchen Sie es erneut und aktivieren Sie beide Kontrollkästchen.",
   "finishSetup": "Einrichtung abschließen",
   "continueSetup": "Weiter",
   "onboardingSetupTitle": "BusyMax einrichten",
   "onboardingAccountsStepTitle": "Konten verbinden",
-  "onboardingAccountsStepDescription": "Fügen Sie alle Google- und Microsoft-Konten hinzu, die Sie verwenden möchten. BusyMax synchronisiert Kalender, Termine, Aufgabenlisten und Aufgaben aus jedem Konto.",
+  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
   "onboardingPreferencesStepTitle": "Systemeinstellungen wählen",
   "onboardingPreferencesStepDescription": "Legen Sie Desktop-Verhalten, Erinnerungen, Benachrichtigungsdetails und Darstellung fest, bevor Sie Ihren Zeitplan öffnen.",
   "signInWithGoogle": "Mit Google anmelden",
@@ -94,12 +94,30 @@
   "formatUnderlineShortLabel": "U",
   "formatUnderlineTooltip": "Unterstrichen",
   "reminderMinutesBefore": "{minutes, plural, =1{1 Minute vorher} other{{minutes} Minuten vorher}}",
-  "@reminderMinutesBefore": {"placeholders": {"minutes": {"type": "int"}}},
+  "@reminderMinutesBefore": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "reminderAtStart": "Zum Startzeitpunkt",
   "reminderHoursBefore": "{hours, plural, =1{1 Stunde vorher} other{{hours} Stunden vorher}}",
-  "@reminderHoursBefore": {"placeholders": {"hours": {"type": "int"}}},
+  "@reminderHoursBefore": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
   "reminderDaysBefore": "{days, plural, =1{1 Tag vorher} other{{days} Tage vorher}}",
-  "@reminderDaysBefore": {"placeholders": {"days": {"type": "int"}}},
+  "@reminderDaysBefore": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "availabilityFree": "Frei",
   "availabilityTentative": "Mit Vorbehalt",
   "availabilityOutOfOffice": "Abwesend",
@@ -183,8 +201,14 @@
   "removingAccount": "Konto wird entfernt…",
   "removeAccountDescription": "Synchronisierung beenden und die Daten dieses Kontos von diesem Gerät entfernen.",
   "removeAccountTitle": "{account} aus BusyMax entfernen?",
-  "@removeAccountTitle": {"placeholders": {"account": {"type": "String"}}},
-  "removeAccountConfirmation": "Dadurch werden zwischengespeicherte Aufgaben, Kalender, Termine, Erinnerungen und ausstehende Offline-Änderungen von diesem Gerät gelöscht. Nicht synchronisierte Änderungen gehen verloren. Bei Google oder Microsoft wird nichts gelöscht.",
+  "@removeAccountTitle": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
   "revokeGoogleAccess": "BusyMax-Zugriff auf dieses Google-Konto ebenfalls widerrufen",
   "revokeGoogleAccessDescription": "Vor einer erneuten Verbindung müssen Sie den Zugriff wieder gewähren.",
   "removeAccountAction": "Konto entfernen",
@@ -211,9 +235,21 @@
   "listRefreshed": "Liste aktualisiert.",
   "allTasksRefreshed": "Alle Konten aktualisiert.",
   "exportedFile": "Exportiert nach {path}",
-  "@exportedFile": {"placeholders": {"path": {"type": "String"}}},
+  "@exportedFile": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "exportFailed": "Export fehlgeschlagen: {error}",
-  "@exportFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@exportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "refreshFailed": "Aktualisierung fehlgeschlagen: {error}",
   "selectOrCreateTaskList": "Wählen oder erstellen Sie zunächst eine Aufgabenliste.",
   "signInToViewTasks": "Melden Sie sich an, um Aufgaben zu sehen.",
@@ -279,10 +315,11 @@
   "list": "Liste",
   "microsoftMoveUnsupported": "Das Verschieben zwischen Listen wird für Microsoft To Do-Konten in dieser Version nicht unterstützt.",
   "createSubtask": "Unteraufgabe erstellen",
+  "subtasks": "Unteraufgaben",
   "moveToTop": "Ganz nach oben verschieben",
   "deleteTask": "Aufgabe löschen",
   "newSubtask": "Neue Unteraufgabe",
-  "deleteTaskConfirmation": "\"{title}\" aus Google Tasks löschen?",
+  "deleteTaskConfirmation": "\"{title}\" löschen?",
   "metadata": "Metadaten",
   "id": "ID",
   "etag": "ETag",
@@ -370,14 +407,228 @@
   "nextYear": "Nächstes Jahr",
   "openYearView": "Jahresansicht öffnen",
   "weekNumberTooltip": "Woche {number}",
-  "@weekNumberTooltip": {"placeholders": {"number": {"type": "int"}}},
+  "@weekNumberTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "resizeAllDayPanel": "Ganztägigen Bereich vergrößern oder verkleinern",
   "scheduleItemCount": "{count, plural, =1{1 Eintrag} other{{count} Einträge}}",
-  "@scheduleItemCount": {"placeholders": {"count": {"type": "int"}}},
+  "@scheduleItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "readOnlyCalendar": "Dieser Kalender ist schreibgeschützt.",
   "selectTimeZone": "Zeitzone auswählen",
   "searchLocations": "Orte suchen",
   "noLocationsFound": "Keine Orte gefunden",
+  "requiredField": "This field is required.",
+  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
+  "appleICloudProvider": "Apple iCloud Calendar",
+  "nextcloudProvider": "Nextcloud",
+  "appleICloudTasksProvider": "Apple iCloud",
+  "nextcloudTasksProvider": "Nextcloud Tasks",
+  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
+  "addNextcloudAccount": "Add Nextcloud account",
+  "waitingForAppleICloud": "Connecting to Apple iCloud…",
+  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
+  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
+  "appleAccountEmail": "Apple Account email",
+  "appleAppSpecificPassword": "App-specific password",
+  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
+  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
+  "connectNextcloudTitle": "Connect Nextcloud",
+  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
+  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
+  "connectAccountAction": "Connect",
+  "cancelAccountConnection": "Cancel connection",
+  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
+  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
+  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
+  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
+  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
+  "davUnsupportedServer": "This server or provider profile is not supported.",
+  "collectionSettings": "Collections",
+  "calendarContent": "Calendar events",
+  "taskContent": "Tasks",
+  "readOnlySharedCollection": "Read-only or shared",
+  "pendingLocally": "Pending locally",
+  "conflictBlocked": "Blocked by conflict",
+  "authenticationBlocked": "Blocked until reconnect",
+  "operationFailed": "Operation failed",
+  "keepServerVersion": "Keep server version",
+  "reapplyLocalChange": "Review and reapply local change",
+  "duplicateLocalItem": "Duplicate as new item",
   "deleteCalendarConfirmation": "\"{title}\" löschen?",
-  "@deleteCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}}
+  "@deleteCalendarConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "davConnectionState": "Connection state",
+  "davConnected": "Connected",
+  "davConnecting": "Connecting…",
+  "davSignedOut": "Signed out",
+  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "@davLastSuccessfulSync": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "davNeverSynced": "Not synchronized yet",
+  "refreshCollections": "Refresh collections",
+  "nextcloudServerHost": "Server: {host}",
+  "@nextcloudServerHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionSupportsEvents": "Event calendar",
+  "collectionSupportsTasks": "Task list",
+  "collectionSupportsEventsAndTasks": "Events and tasks",
+  "writableCollection": "Writable",
+  "sharedCollection": "Shared",
+  "collectionLastSynced": "Last synchronized: {time}",
+  "@collectionLastSynced": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionSyncError": "Sync issue: {code}",
+  "@collectionSyncError": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflicts": "Synchronization conflicts",
+  "remoteChangedAt": "Server changed: {time}",
+  "@remoteChangedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "localPendingEdit": "Local edit: {summary}",
+  "@localPendingEdit": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictResolutionFailed": "The conflict could not be resolved.",
+  "recurringEventScope": "Recurring event scope",
+  "entireSeries": "Entire series",
+  "singleOccurrence": "This occurrence",
+  "thisAndFutureUnavailable": "This and future (not available)",
+  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "taskDueBeforeStart": "Die Fälligkeit darf nicht vor dem Beginn liegen.",
+  "taskStartDueTimeModeMismatch": "Lege für Beginn und Fälligkeit jeweils eine Uhrzeit fest oder mache die Aufgabe ganztägig.",
+  "taskListCreateFailed": "Could not create the task list: {error}",
+  "taskListRenameFailed": "Could not rename the task list: {error}",
+  "taskListDeleteFailed": "Could not delete the task list: {error}",
+  "unshare": "Freigabe aufheben",
+  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
+  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
+  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
+  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
+  "taskStatus": "Status",
+  "taskStatusNone": "No status",
+  "taskStatusNeedsAction": "Handlungsbedarf",
+  "taskStatusInProcess": "In Bearbeitung",
+  "taskStatusCompleted": "Fertiggestellt",
+  "taskStatusCancelled": "Cancelled",
+  "completionPercent": "{percent}% completed",
+  "completionDate": "Completion date",
+  "priority": "Priorität",
+  "priorityNone": "No priority",
+  "priorityHighValue": "Priority {priority} · High",
+  "priorityMediumValue": "Priority {priority} · Medium",
+  "priorityLowValue": "Priority {priority} · Low",
+  "taskUrl": "URL",
+  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
+  "classification": "Classification",
+  "classificationPublic": "When shared, show the full task",
+  "classificationConfidential": "When shared, show only busy",
+  "classificationPrivate": "When shared, hide this task",
+  "pinTask": "Pin task",
+  "reminders": "Reminders",
+  "noReminders": "Keine Erinnerungen",
+  "editReminder": "Edit reminder",
+  "beforeTaskStarts": "Bevor die Aufgabe startet",
+  "beforeTaskDue": "Bevor die Aufgabe fällig ist",
+  "afterTaskStarts": "After the task starts",
+  "afterTaskDue": "After the task is due",
+  "relativeToTaskStart": "Relative to the task start date",
+  "relativeToTaskDue": "Relative to the task due date",
+  "reminderTimeOfDay": "Time of day",
+  "absoluteReminder": "At a date and time",
+  "reminderAmount": "Amount",
+  "reminderUnitSeconds": "Seconds",
+  "reminderUnitMinutes": "Minutes",
+  "reminderUnitHours": "Hours",
+  "reminderUnitDays": "Days",
+  "reminderUnitWeeks": "Weeks",
+  "reminderAtTaskStart": "At the task start",
+  "reminderAtTaskDue": "At the task due time",
+  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
+  "relatedRemindersTitle": "Keep related reminders?",
+  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
+  "discardRelatedReminders": "Erinnerungen verwerfen",
+  "keepRelatedReminders": "Erinnerungen behalten",
+  "repeatEvery": "Wiederhole jeden",
+  "repeatOn": "Repeat on",
+  "repeatEnd": "Wiederholung beenden",
+  "repeatNever": "Never",
+  "repeatUntil": "On date",
+  "repeatAfter": "After a number of occurrences",
+  "repeatCount": "Occurrences",
+  "repeatDayOfMonth": "Days of month",
+  "repeatMonths": "Months",
+  "repeatOrdinal": "Weekday position",
+  "repeatSpecificDays": "Specific days",
+  "repeatFirst": "First",
+  "repeatSecond": "Second",
+  "repeatThird": "Third",
+  "repeatFourth": "Fourth",
+  "repeatFifth": "Fifth",
+  "repeatSecondToLast": "Second to last",
+  "repeatLast": "Last",
+  "repeatAnyDay": "Day",
+  "repeatWeekday": "Weekday",
+  "repeatWeekendDay": "Weekend day",
+  "repeatEveryDays": "Every {count} days",
+  "repeatEveryWeeks": "Every {count} weeks",
+  "repeatEveryMonths": "Every {count} months",
+  "repeatEveryYears": "Every {count} years",
+  "repeatOnDaysSummary": "an {days}",
+  "repeatOnMonthDaysSummary": "am Tag {days}",
+  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
+  "repeatInMonthsSummary": "in {months}",
+  "repeatTimesSummary": "{count} mal",
+  "repeatUntilSummary": "bis {date}",
+  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
+  "duplicateTask": "Aufgabe duplizieren",
+  "taskDuplicated": "Task duplicated.",
+  "taskDuplicateFailed": "Could not duplicate the task: {error}",
+  "hideSubtasks": "Teilaufgaben ausblenden",
+  "hideClosedSubtasks": "Geschlossene Teilaufgaben ausblenden",
+  "reminderUnit": "Unit"
 }

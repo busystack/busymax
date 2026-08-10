@@ -47,7 +47,32 @@ abstract interface class MicrosoftTodoApiClient {
   Future<void> deleteTask({required String taskListId, required String taskId});
 }
 
-class MicrosoftTodoRestApiClient implements MicrosoftTodoApiClient {
+abstract interface class MicrosoftTodoChecklistApiClient {
+  Future<MicrosoftTodoChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  });
+  Future<MicrosoftTodoChecklistItemDto> createChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required Map<String, Object?> body,
+  });
+  Future<MicrosoftTodoChecklistItemDto> updateChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+    required Map<String, Object?> patch,
+  });
+  Future<void> deleteChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+  });
+}
+
+class MicrosoftTodoRestApiClient
+    implements MicrosoftTodoApiClient, MicrosoftTodoChecklistApiClient {
   MicrosoftTodoRestApiClient({
     required http.Client httpClient,
     required Uri baseUri,
@@ -196,6 +221,60 @@ class MicrosoftTodoRestApiClient implements MicrosoftTodoApiClient {
     required String taskId,
   }) {
     return _requestEmpty('DELETE', _uri(microsoftTaskPath(taskListId, taskId)));
+  }
+
+  @override
+  Future<MicrosoftTodoChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  }) async {
+    final json = await _requestJson(
+      'GET',
+      _uriOrFullUrl(nextLink, microsoftChecklistItemsPath(taskListId, taskId)),
+    );
+    return MicrosoftTodoChecklistItemsPageDto.fromJson(json);
+  }
+
+  @override
+  Future<MicrosoftTodoChecklistItemDto> createChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required Map<String, Object?> body,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      _uri(microsoftChecklistItemsPath(taskListId, taskId)),
+      body: body,
+    );
+    return MicrosoftTodoChecklistItemDto.fromJson(json);
+  }
+
+  @override
+  Future<MicrosoftTodoChecklistItemDto> updateChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+    required Map<String, Object?> patch,
+  }) async {
+    final json = await _requestJson(
+      'PATCH',
+      _uri(microsoftChecklistItemPath(taskListId, taskId, checklistItemId)),
+      body: patch,
+    );
+    return MicrosoftTodoChecklistItemDto.fromJson(json);
+  }
+
+  @override
+  Future<void> deleteChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+  }) {
+    return _requestEmpty(
+      'DELETE',
+      _uri(microsoftChecklistItemPath(taskListId, taskId, checklistItemId)),
+    );
   }
 
   Future<void> _requestEmpty(String method, Uri uri) async {

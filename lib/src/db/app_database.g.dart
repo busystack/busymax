@@ -26,8 +26,18 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('google'),
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _authorityMeta = const VerificationMeta(
+    'authority',
+  );
+  @override
+  late final GeneratedColumn<String> authority = GeneratedColumn<String>(
+    'authority',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _providerAccountIdMeta = const VerificationMeta(
     'providerAccountId',
@@ -37,10 +47,32 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
       GeneratedColumn<String>(
         'provider_account_id',
         aliasedName,
-        true,
+        false,
         type: DriftSqlType.string,
-        requiredDuringInsert: false,
+        requiredDuringInsert: true,
       );
+  static const VerificationMeta _credentialKindMeta = const VerificationMeta(
+    'credentialKind',
+  );
+  @override
+  late final GeneratedColumn<String> credentialKind = GeneratedColumn<String>(
+    'credential_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerProfileVersionMeta =
+      const VerificationMeta('providerProfileVersion');
+  @override
+  late final GeneratedColumn<int> providerProfileVersion = GeneratedColumn<int>(
+    'provider_profile_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
   static const VerificationMeta _displayNameMeta = const VerificationMeta(
     'displayName',
   );
@@ -197,7 +229,10 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
   List<GeneratedColumn> get $columns => [
     id,
     provider,
+    authority,
     providerAccountId,
+    credentialKind,
+    providerProfileVersion,
     displayName,
     email,
     tenantId,
@@ -234,6 +269,16 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         _providerMeta,
         provider.isAcceptableOrUnknown(data['provider']!, _providerMeta),
       );
+    } else if (isInserting) {
+      context.missing(_providerMeta);
+    }
+    if (data.containsKey('authority')) {
+      context.handle(
+        _authorityMeta,
+        authority.isAcceptableOrUnknown(data['authority']!, _authorityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_authorityMeta);
     }
     if (data.containsKey('provider_account_id')) {
       context.handle(
@@ -241,6 +286,28 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         providerAccountId.isAcceptableOrUnknown(
           data['provider_account_id']!,
           _providerAccountIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_providerAccountIdMeta);
+    }
+    if (data.containsKey('credential_kind')) {
+      context.handle(
+        _credentialKindMeta,
+        credentialKind.isAcceptableOrUnknown(
+          data['credential_kind']!,
+          _credentialKindMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_credentialKindMeta);
+    }
+    if (data.containsKey('provider_profile_version')) {
+      context.handle(
+        _providerProfileVersionMeta,
+        providerProfileVersion.isAcceptableOrUnknown(
+          data['provider_profile_version']!,
+          _providerProfileVersionMeta,
         ),
       );
     }
@@ -373,10 +440,22 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         DriftSqlType.string,
         data['${effectivePrefix}provider'],
       )!,
+      authority: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}authority'],
+      )!,
       providerAccountId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}provider_account_id'],
-      ),
+      )!,
+      credentialKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}credential_kind'],
+      )!,
+      providerProfileVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}provider_profile_version'],
+      )!,
       displayName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}display_name'],
@@ -441,7 +520,10 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
 class Account extends DataClass implements Insertable<Account> {
   final String id;
   final String provider;
-  final String? providerAccountId;
+  final String authority;
+  final String providerAccountId;
+  final String credentialKind;
+  final int providerProfileVersion;
   final String? displayName;
   final String? email;
   final String? tenantId;
@@ -458,7 +540,10 @@ class Account extends DataClass implements Insertable<Account> {
   const Account({
     required this.id,
     required this.provider,
-    this.providerAccountId,
+    required this.authority,
+    required this.providerAccountId,
+    required this.credentialKind,
+    required this.providerProfileVersion,
     this.displayName,
     this.email,
     this.tenantId,
@@ -478,9 +563,10 @@ class Account extends DataClass implements Insertable<Account> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['provider'] = Variable<String>(provider);
-    if (!nullToAbsent || providerAccountId != null) {
-      map['provider_account_id'] = Variable<String>(providerAccountId);
-    }
+    map['authority'] = Variable<String>(authority);
+    map['provider_account_id'] = Variable<String>(providerAccountId);
+    map['credential_kind'] = Variable<String>(credentialKind);
+    map['provider_profile_version'] = Variable<int>(providerProfileVersion);
     if (!nullToAbsent || displayName != null) {
       map['display_name'] = Variable<String>(displayName);
     }
@@ -517,9 +603,10 @@ class Account extends DataClass implements Insertable<Account> {
     return AccountsCompanion(
       id: Value(id),
       provider: Value(provider),
-      providerAccountId: providerAccountId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(providerAccountId),
+      authority: Value(authority),
+      providerAccountId: Value(providerAccountId),
+      credentialKind: Value(credentialKind),
+      providerProfileVersion: Value(providerProfileVersion),
       displayName: displayName == null && nullToAbsent
           ? const Value.absent()
           : Value(displayName),
@@ -558,8 +645,11 @@ class Account extends DataClass implements Insertable<Account> {
     return Account(
       id: serializer.fromJson<String>(json['id']),
       provider: serializer.fromJson<String>(json['provider']),
-      providerAccountId: serializer.fromJson<String?>(
-        json['providerAccountId'],
+      authority: serializer.fromJson<String>(json['authority']),
+      providerAccountId: serializer.fromJson<String>(json['providerAccountId']),
+      credentialKind: serializer.fromJson<String>(json['credentialKind']),
+      providerProfileVersion: serializer.fromJson<int>(
+        json['providerProfileVersion'],
       ),
       displayName: serializer.fromJson<String?>(json['displayName']),
       email: serializer.fromJson<String?>(json['email']),
@@ -588,7 +678,10 @@ class Account extends DataClass implements Insertable<Account> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'provider': serializer.toJson<String>(provider),
-      'providerAccountId': serializer.toJson<String?>(providerAccountId),
+      'authority': serializer.toJson<String>(authority),
+      'providerAccountId': serializer.toJson<String>(providerAccountId),
+      'credentialKind': serializer.toJson<String>(credentialKind),
+      'providerProfileVersion': serializer.toJson<int>(providerProfileVersion),
       'displayName': serializer.toJson<String?>(displayName),
       'email': serializer.toJson<String?>(email),
       'tenantId': serializer.toJson<String?>(tenantId),
@@ -610,7 +703,10 @@ class Account extends DataClass implements Insertable<Account> {
   Account copyWith({
     String? id,
     String? provider,
-    Value<String?> providerAccountId = const Value.absent(),
+    String? authority,
+    String? providerAccountId,
+    String? credentialKind,
+    int? providerProfileVersion,
     Value<String?> displayName = const Value.absent(),
     Value<String?> email = const Value.absent(),
     Value<String?> tenantId = const Value.absent(),
@@ -627,9 +723,11 @@ class Account extends DataClass implements Insertable<Account> {
   }) => Account(
     id: id ?? this.id,
     provider: provider ?? this.provider,
-    providerAccountId: providerAccountId.present
-        ? providerAccountId.value
-        : this.providerAccountId,
+    authority: authority ?? this.authority,
+    providerAccountId: providerAccountId ?? this.providerAccountId,
+    credentialKind: credentialKind ?? this.credentialKind,
+    providerProfileVersion:
+        providerProfileVersion ?? this.providerProfileVersion,
     displayName: displayName.present ? displayName.value : this.displayName,
     email: email.present ? email.value : this.email,
     tenantId: tenantId.present ? tenantId.value : this.tenantId,
@@ -656,9 +754,16 @@ class Account extends DataClass implements Insertable<Account> {
     return Account(
       id: data.id.present ? data.id.value : this.id,
       provider: data.provider.present ? data.provider.value : this.provider,
+      authority: data.authority.present ? data.authority.value : this.authority,
       providerAccountId: data.providerAccountId.present
           ? data.providerAccountId.value
           : this.providerAccountId,
+      credentialKind: data.credentialKind.present
+          ? data.credentialKind.value
+          : this.credentialKind,
+      providerProfileVersion: data.providerProfileVersion.present
+          ? data.providerProfileVersion.value
+          : this.providerProfileVersion,
       displayName: data.displayName.present
           ? data.displayName.value
           : this.displayName,
@@ -700,7 +805,10 @@ class Account extends DataClass implements Insertable<Account> {
     return (StringBuffer('Account(')
           ..write('id: $id, ')
           ..write('provider: $provider, ')
+          ..write('authority: $authority, ')
           ..write('providerAccountId: $providerAccountId, ')
+          ..write('credentialKind: $credentialKind, ')
+          ..write('providerProfileVersion: $providerProfileVersion, ')
           ..write('displayName: $displayName, ')
           ..write('email: $email, ')
           ..write('tenantId: $tenantId, ')
@@ -722,7 +830,10 @@ class Account extends DataClass implements Insertable<Account> {
   int get hashCode => Object.hash(
     id,
     provider,
+    authority,
     providerAccountId,
+    credentialKind,
+    providerProfileVersion,
     displayName,
     email,
     tenantId,
@@ -743,7 +854,10 @@ class Account extends DataClass implements Insertable<Account> {
       (other is Account &&
           other.id == this.id &&
           other.provider == this.provider &&
+          other.authority == this.authority &&
           other.providerAccountId == this.providerAccountId &&
+          other.credentialKind == this.credentialKind &&
+          other.providerProfileVersion == this.providerProfileVersion &&
           other.displayName == this.displayName &&
           other.email == this.email &&
           other.tenantId == this.tenantId &&
@@ -762,7 +876,10 @@ class Account extends DataClass implements Insertable<Account> {
 class AccountsCompanion extends UpdateCompanion<Account> {
   final Value<String> id;
   final Value<String> provider;
-  final Value<String?> providerAccountId;
+  final Value<String> authority;
+  final Value<String> providerAccountId;
+  final Value<String> credentialKind;
+  final Value<int> providerProfileVersion;
   final Value<String?> displayName;
   final Value<String?> email;
   final Value<String?> tenantId;
@@ -780,7 +897,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   const AccountsCompanion({
     this.id = const Value.absent(),
     this.provider = const Value.absent(),
+    this.authority = const Value.absent(),
     this.providerAccountId = const Value.absent(),
+    this.credentialKind = const Value.absent(),
+    this.providerProfileVersion = const Value.absent(),
     this.displayName = const Value.absent(),
     this.email = const Value.absent(),
     this.tenantId = const Value.absent(),
@@ -798,8 +918,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   });
   AccountsCompanion.insert({
     required String id,
-    this.provider = const Value.absent(),
-    this.providerAccountId = const Value.absent(),
+    required String provider,
+    required String authority,
+    required String providerAccountId,
+    required String credentialKind,
+    this.providerProfileVersion = const Value.absent(),
     this.displayName = const Value.absent(),
     this.email = const Value.absent(),
     this.tenantId = const Value.absent(),
@@ -815,12 +938,19 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.lastFullSyncAtUtc = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
+       provider = Value(provider),
+       authority = Value(authority),
+       providerAccountId = Value(providerAccountId),
+       credentialKind = Value(credentialKind),
        createdAtUtc = Value(createdAtUtc),
        updatedAtUtc = Value(updatedAtUtc);
   static Insertable<Account> custom({
     Expression<String>? id,
     Expression<String>? provider,
+    Expression<String>? authority,
     Expression<String>? providerAccountId,
+    Expression<String>? credentialKind,
+    Expression<int>? providerProfileVersion,
     Expression<String>? displayName,
     Expression<String>? email,
     Expression<String>? tenantId,
@@ -839,7 +969,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (provider != null) 'provider': provider,
+      if (authority != null) 'authority': authority,
       if (providerAccountId != null) 'provider_account_id': providerAccountId,
+      if (credentialKind != null) 'credential_kind': credentialKind,
+      if (providerProfileVersion != null)
+        'provider_profile_version': providerProfileVersion,
       if (displayName != null) 'display_name': displayName,
       if (email != null) 'email': email,
       if (tenantId != null) 'tenant_id': tenantId,
@@ -862,7 +996,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   AccountsCompanion copyWith({
     Value<String>? id,
     Value<String>? provider,
-    Value<String?>? providerAccountId,
+    Value<String>? authority,
+    Value<String>? providerAccountId,
+    Value<String>? credentialKind,
+    Value<int>? providerProfileVersion,
     Value<String?>? displayName,
     Value<String?>? email,
     Value<String?>? tenantId,
@@ -881,7 +1018,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     return AccountsCompanion(
       id: id ?? this.id,
       provider: provider ?? this.provider,
+      authority: authority ?? this.authority,
       providerAccountId: providerAccountId ?? this.providerAccountId,
+      credentialKind: credentialKind ?? this.credentialKind,
+      providerProfileVersion:
+          providerProfileVersion ?? this.providerProfileVersion,
       displayName: displayName ?? this.displayName,
       email: email ?? this.email,
       tenantId: tenantId ?? this.tenantId,
@@ -909,8 +1050,19 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     if (provider.present) {
       map['provider'] = Variable<String>(provider.value);
     }
+    if (authority.present) {
+      map['authority'] = Variable<String>(authority.value);
+    }
     if (providerAccountId.present) {
       map['provider_account_id'] = Variable<String>(providerAccountId.value);
+    }
+    if (credentialKind.present) {
+      map['credential_kind'] = Variable<String>(credentialKind.value);
+    }
+    if (providerProfileVersion.present) {
+      map['provider_profile_version'] = Variable<int>(
+        providerProfileVersion.value,
+      );
     }
     if (displayName.present) {
       map['display_name'] = Variable<String>(displayName.value);
@@ -966,7 +1118,10 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     return (StringBuffer('AccountsCompanion(')
           ..write('id: $id, ')
           ..write('provider: $provider, ')
+          ..write('authority: $authority, ')
           ..write('providerAccountId: $providerAccountId, ')
+          ..write('credentialKind: $credentialKind, ')
+          ..write('providerProfileVersion: $providerProfileVersion, ')
           ..write('displayName: $displayName, ')
           ..write('email: $email, ')
           ..write('tenantId: $tenantId, ')
@@ -980,6 +1135,5669 @@ class AccountsCompanion extends UpdateCompanion<Account> {
           ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('lastSuccessfulSyncAtUtc: $lastSuccessfulSyncAtUtc, ')
           ..write('lastFullSyncAtUtc: $lastFullSyncAtUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DavAccountServicesTable extends DavAccountServices
+    with TableInfo<$DavAccountServicesTable, DavAccountService> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DavAccountServicesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _canonicalServiceUriMeta =
+      const VerificationMeta('canonicalServiceUri');
+  @override
+  late final GeneratedColumn<String> canonicalServiceUri =
+      GeneratedColumn<String>(
+        'canonical_service_uri',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _canonicalOriginMeta = const VerificationMeta(
+    'canonicalOrigin',
+  );
+  @override
+  late final GeneratedColumn<String> canonicalOrigin = GeneratedColumn<String>(
+    'canonical_origin',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _principalHrefMeta = const VerificationMeta(
+    'principalHref',
+  );
+  @override
+  late final GeneratedColumn<String> principalHref = GeneratedColumn<String>(
+    'principal_href',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _calendarHomeHrefMeta = const VerificationMeta(
+    'calendarHomeHref',
+  );
+  @override
+  late final GeneratedColumn<String> calendarHomeHref = GeneratedColumn<String>(
+    'calendar_home_href',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _calendarUserAddressesJsonMeta =
+      const VerificationMeta('calendarUserAddressesJson');
+  @override
+  late final GeneratedColumn<String> calendarUserAddressesJson =
+      GeneratedColumn<String>(
+        'calendar_user_addresses_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _scheduleInboxHrefMeta = const VerificationMeta(
+    'scheduleInboxHref',
+  );
+  @override
+  late final GeneratedColumn<String> scheduleInboxHref =
+      GeneratedColumn<String>(
+        'schedule_inbox_href',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _scheduleOutboxHrefMeta =
+      const VerificationMeta('scheduleOutboxHref');
+  @override
+  late final GeneratedColumn<String> scheduleOutboxHref =
+      GeneratedColumn<String>(
+        'schedule_outbox_href',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _capabilitiesJsonMeta = const VerificationMeta(
+    'capabilitiesJson',
+  );
+  @override
+  late final GeneratedColumn<String> capabilitiesJson = GeneratedColumn<String>(
+    'capabilities_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _capabilitiesSchemaVersionMeta =
+      const VerificationMeta('capabilitiesSchemaVersion');
+  @override
+  late final GeneratedColumn<int> capabilitiesSchemaVersion =
+      GeneratedColumn<int>(
+        'capabilities_schema_version',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(1),
+      );
+  static const VerificationMeta _providerProfileVersionMeta =
+      const VerificationMeta('providerProfileVersion');
+  @override
+  late final GeneratedColumn<int> providerProfileVersion = GeneratedColumn<int>(
+    'provider_profile_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _discoveredAtUtcMeta = const VerificationMeta(
+    'discoveredAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> discoveredAtUtc = GeneratedColumn<String>(
+    'discovered_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastValidatedAtUtcMeta =
+      const VerificationMeta('lastValidatedAtUtc');
+  @override
+  late final GeneratedColumn<String> lastValidatedAtUtc =
+      GeneratedColumn<String>(
+        'last_validated_at_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastDiscoveryErrorCodeMeta =
+      const VerificationMeta('lastDiscoveryErrorCode');
+  @override
+  late final GeneratedColumn<String> lastDiscoveryErrorCode =
+      GeneratedColumn<String>(
+        'last_discovery_error_code',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    accountId,
+    canonicalServiceUri,
+    canonicalOrigin,
+    principalHref,
+    calendarHomeHref,
+    calendarUserAddressesJson,
+    scheduleInboxHref,
+    scheduleOutboxHref,
+    capabilitiesJson,
+    capabilitiesSchemaVersion,
+    providerProfileVersion,
+    discoveredAtUtc,
+    lastValidatedAtUtc,
+    lastDiscoveryErrorCode,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dav_account_services';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DavAccountService> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('canonical_service_uri')) {
+      context.handle(
+        _canonicalServiceUriMeta,
+        canonicalServiceUri.isAcceptableOrUnknown(
+          data['canonical_service_uri']!,
+          _canonicalServiceUriMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_canonicalServiceUriMeta);
+    }
+    if (data.containsKey('canonical_origin')) {
+      context.handle(
+        _canonicalOriginMeta,
+        canonicalOrigin.isAcceptableOrUnknown(
+          data['canonical_origin']!,
+          _canonicalOriginMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_canonicalOriginMeta);
+    }
+    if (data.containsKey('principal_href')) {
+      context.handle(
+        _principalHrefMeta,
+        principalHref.isAcceptableOrUnknown(
+          data['principal_href']!,
+          _principalHrefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('calendar_home_href')) {
+      context.handle(
+        _calendarHomeHrefMeta,
+        calendarHomeHref.isAcceptableOrUnknown(
+          data['calendar_home_href']!,
+          _calendarHomeHrefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('calendar_user_addresses_json')) {
+      context.handle(
+        _calendarUserAddressesJsonMeta,
+        calendarUserAddressesJson.isAcceptableOrUnknown(
+          data['calendar_user_addresses_json']!,
+          _calendarUserAddressesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('schedule_inbox_href')) {
+      context.handle(
+        _scheduleInboxHrefMeta,
+        scheduleInboxHref.isAcceptableOrUnknown(
+          data['schedule_inbox_href']!,
+          _scheduleInboxHrefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('schedule_outbox_href')) {
+      context.handle(
+        _scheduleOutboxHrefMeta,
+        scheduleOutboxHref.isAcceptableOrUnknown(
+          data['schedule_outbox_href']!,
+          _scheduleOutboxHrefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('capabilities_json')) {
+      context.handle(
+        _capabilitiesJsonMeta,
+        capabilitiesJson.isAcceptableOrUnknown(
+          data['capabilities_json']!,
+          _capabilitiesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('capabilities_schema_version')) {
+      context.handle(
+        _capabilitiesSchemaVersionMeta,
+        capabilitiesSchemaVersion.isAcceptableOrUnknown(
+          data['capabilities_schema_version']!,
+          _capabilitiesSchemaVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('provider_profile_version')) {
+      context.handle(
+        _providerProfileVersionMeta,
+        providerProfileVersion.isAcceptableOrUnknown(
+          data['provider_profile_version']!,
+          _providerProfileVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('discovered_at_utc')) {
+      context.handle(
+        _discoveredAtUtcMeta,
+        discoveredAtUtc.isAcceptableOrUnknown(
+          data['discovered_at_utc']!,
+          _discoveredAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_discoveredAtUtcMeta);
+    }
+    if (data.containsKey('last_validated_at_utc')) {
+      context.handle(
+        _lastValidatedAtUtcMeta,
+        lastValidatedAtUtc.isAcceptableOrUnknown(
+          data['last_validated_at_utc']!,
+          _lastValidatedAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_discovery_error_code')) {
+      context.handle(
+        _lastDiscoveryErrorCodeMeta,
+        lastDiscoveryErrorCode.isAcceptableOrUnknown(
+          data['last_discovery_error_code']!,
+          _lastDiscoveryErrorCodeMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {accountId};
+  @override
+  DavAccountService map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DavAccountService(
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      canonicalServiceUri: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}canonical_service_uri'],
+      )!,
+      canonicalOrigin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}canonical_origin'],
+      )!,
+      principalHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}principal_href'],
+      ),
+      calendarHomeHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}calendar_home_href'],
+      ),
+      calendarUserAddressesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}calendar_user_addresses_json'],
+      )!,
+      scheduleInboxHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schedule_inbox_href'],
+      ),
+      scheduleOutboxHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schedule_outbox_href'],
+      ),
+      capabilitiesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}capabilities_json'],
+      )!,
+      capabilitiesSchemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}capabilities_schema_version'],
+      )!,
+      providerProfileVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}provider_profile_version'],
+      )!,
+      discoveredAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}discovered_at_utc'],
+      )!,
+      lastValidatedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_validated_at_utc'],
+      ),
+      lastDiscoveryErrorCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_discovery_error_code'],
+      ),
+    );
+  }
+
+  @override
+  $DavAccountServicesTable createAlias(String alias) {
+    return $DavAccountServicesTable(attachedDatabase, alias);
+  }
+}
+
+class DavAccountService extends DataClass
+    implements Insertable<DavAccountService> {
+  final String accountId;
+  final String canonicalServiceUri;
+  final String canonicalOrigin;
+  final String? principalHref;
+  final String? calendarHomeHref;
+  final String calendarUserAddressesJson;
+  final String? scheduleInboxHref;
+  final String? scheduleOutboxHref;
+  final String capabilitiesJson;
+  final int capabilitiesSchemaVersion;
+  final int providerProfileVersion;
+  final String discoveredAtUtc;
+  final String? lastValidatedAtUtc;
+  final String? lastDiscoveryErrorCode;
+  const DavAccountService({
+    required this.accountId,
+    required this.canonicalServiceUri,
+    required this.canonicalOrigin,
+    this.principalHref,
+    this.calendarHomeHref,
+    required this.calendarUserAddressesJson,
+    this.scheduleInboxHref,
+    this.scheduleOutboxHref,
+    required this.capabilitiesJson,
+    required this.capabilitiesSchemaVersion,
+    required this.providerProfileVersion,
+    required this.discoveredAtUtc,
+    this.lastValidatedAtUtc,
+    this.lastDiscoveryErrorCode,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['account_id'] = Variable<String>(accountId);
+    map['canonical_service_uri'] = Variable<String>(canonicalServiceUri);
+    map['canonical_origin'] = Variable<String>(canonicalOrigin);
+    if (!nullToAbsent || principalHref != null) {
+      map['principal_href'] = Variable<String>(principalHref);
+    }
+    if (!nullToAbsent || calendarHomeHref != null) {
+      map['calendar_home_href'] = Variable<String>(calendarHomeHref);
+    }
+    map['calendar_user_addresses_json'] = Variable<String>(
+      calendarUserAddressesJson,
+    );
+    if (!nullToAbsent || scheduleInboxHref != null) {
+      map['schedule_inbox_href'] = Variable<String>(scheduleInboxHref);
+    }
+    if (!nullToAbsent || scheduleOutboxHref != null) {
+      map['schedule_outbox_href'] = Variable<String>(scheduleOutboxHref);
+    }
+    map['capabilities_json'] = Variable<String>(capabilitiesJson);
+    map['capabilities_schema_version'] = Variable<int>(
+      capabilitiesSchemaVersion,
+    );
+    map['provider_profile_version'] = Variable<int>(providerProfileVersion);
+    map['discovered_at_utc'] = Variable<String>(discoveredAtUtc);
+    if (!nullToAbsent || lastValidatedAtUtc != null) {
+      map['last_validated_at_utc'] = Variable<String>(lastValidatedAtUtc);
+    }
+    if (!nullToAbsent || lastDiscoveryErrorCode != null) {
+      map['last_discovery_error_code'] = Variable<String>(
+        lastDiscoveryErrorCode,
+      );
+    }
+    return map;
+  }
+
+  DavAccountServicesCompanion toCompanion(bool nullToAbsent) {
+    return DavAccountServicesCompanion(
+      accountId: Value(accountId),
+      canonicalServiceUri: Value(canonicalServiceUri),
+      canonicalOrigin: Value(canonicalOrigin),
+      principalHref: principalHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(principalHref),
+      calendarHomeHref: calendarHomeHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(calendarHomeHref),
+      calendarUserAddressesJson: Value(calendarUserAddressesJson),
+      scheduleInboxHref: scheduleInboxHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduleInboxHref),
+      scheduleOutboxHref: scheduleOutboxHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduleOutboxHref),
+      capabilitiesJson: Value(capabilitiesJson),
+      capabilitiesSchemaVersion: Value(capabilitiesSchemaVersion),
+      providerProfileVersion: Value(providerProfileVersion),
+      discoveredAtUtc: Value(discoveredAtUtc),
+      lastValidatedAtUtc: lastValidatedAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastValidatedAtUtc),
+      lastDiscoveryErrorCode: lastDiscoveryErrorCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastDiscoveryErrorCode),
+    );
+  }
+
+  factory DavAccountService.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DavAccountService(
+      accountId: serializer.fromJson<String>(json['accountId']),
+      canonicalServiceUri: serializer.fromJson<String>(
+        json['canonicalServiceUri'],
+      ),
+      canonicalOrigin: serializer.fromJson<String>(json['canonicalOrigin']),
+      principalHref: serializer.fromJson<String?>(json['principalHref']),
+      calendarHomeHref: serializer.fromJson<String?>(json['calendarHomeHref']),
+      calendarUserAddressesJson: serializer.fromJson<String>(
+        json['calendarUserAddressesJson'],
+      ),
+      scheduleInboxHref: serializer.fromJson<String?>(
+        json['scheduleInboxHref'],
+      ),
+      scheduleOutboxHref: serializer.fromJson<String?>(
+        json['scheduleOutboxHref'],
+      ),
+      capabilitiesJson: serializer.fromJson<String>(json['capabilitiesJson']),
+      capabilitiesSchemaVersion: serializer.fromJson<int>(
+        json['capabilitiesSchemaVersion'],
+      ),
+      providerProfileVersion: serializer.fromJson<int>(
+        json['providerProfileVersion'],
+      ),
+      discoveredAtUtc: serializer.fromJson<String>(json['discoveredAtUtc']),
+      lastValidatedAtUtc: serializer.fromJson<String?>(
+        json['lastValidatedAtUtc'],
+      ),
+      lastDiscoveryErrorCode: serializer.fromJson<String?>(
+        json['lastDiscoveryErrorCode'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'accountId': serializer.toJson<String>(accountId),
+      'canonicalServiceUri': serializer.toJson<String>(canonicalServiceUri),
+      'canonicalOrigin': serializer.toJson<String>(canonicalOrigin),
+      'principalHref': serializer.toJson<String?>(principalHref),
+      'calendarHomeHref': serializer.toJson<String?>(calendarHomeHref),
+      'calendarUserAddressesJson': serializer.toJson<String>(
+        calendarUserAddressesJson,
+      ),
+      'scheduleInboxHref': serializer.toJson<String?>(scheduleInboxHref),
+      'scheduleOutboxHref': serializer.toJson<String?>(scheduleOutboxHref),
+      'capabilitiesJson': serializer.toJson<String>(capabilitiesJson),
+      'capabilitiesSchemaVersion': serializer.toJson<int>(
+        capabilitiesSchemaVersion,
+      ),
+      'providerProfileVersion': serializer.toJson<int>(providerProfileVersion),
+      'discoveredAtUtc': serializer.toJson<String>(discoveredAtUtc),
+      'lastValidatedAtUtc': serializer.toJson<String?>(lastValidatedAtUtc),
+      'lastDiscoveryErrorCode': serializer.toJson<String?>(
+        lastDiscoveryErrorCode,
+      ),
+    };
+  }
+
+  DavAccountService copyWith({
+    String? accountId,
+    String? canonicalServiceUri,
+    String? canonicalOrigin,
+    Value<String?> principalHref = const Value.absent(),
+    Value<String?> calendarHomeHref = const Value.absent(),
+    String? calendarUserAddressesJson,
+    Value<String?> scheduleInboxHref = const Value.absent(),
+    Value<String?> scheduleOutboxHref = const Value.absent(),
+    String? capabilitiesJson,
+    int? capabilitiesSchemaVersion,
+    int? providerProfileVersion,
+    String? discoveredAtUtc,
+    Value<String?> lastValidatedAtUtc = const Value.absent(),
+    Value<String?> lastDiscoveryErrorCode = const Value.absent(),
+  }) => DavAccountService(
+    accountId: accountId ?? this.accountId,
+    canonicalServiceUri: canonicalServiceUri ?? this.canonicalServiceUri,
+    canonicalOrigin: canonicalOrigin ?? this.canonicalOrigin,
+    principalHref: principalHref.present
+        ? principalHref.value
+        : this.principalHref,
+    calendarHomeHref: calendarHomeHref.present
+        ? calendarHomeHref.value
+        : this.calendarHomeHref,
+    calendarUserAddressesJson:
+        calendarUserAddressesJson ?? this.calendarUserAddressesJson,
+    scheduleInboxHref: scheduleInboxHref.present
+        ? scheduleInboxHref.value
+        : this.scheduleInboxHref,
+    scheduleOutboxHref: scheduleOutboxHref.present
+        ? scheduleOutboxHref.value
+        : this.scheduleOutboxHref,
+    capabilitiesJson: capabilitiesJson ?? this.capabilitiesJson,
+    capabilitiesSchemaVersion:
+        capabilitiesSchemaVersion ?? this.capabilitiesSchemaVersion,
+    providerProfileVersion:
+        providerProfileVersion ?? this.providerProfileVersion,
+    discoveredAtUtc: discoveredAtUtc ?? this.discoveredAtUtc,
+    lastValidatedAtUtc: lastValidatedAtUtc.present
+        ? lastValidatedAtUtc.value
+        : this.lastValidatedAtUtc,
+    lastDiscoveryErrorCode: lastDiscoveryErrorCode.present
+        ? lastDiscoveryErrorCode.value
+        : this.lastDiscoveryErrorCode,
+  );
+  DavAccountService copyWithCompanion(DavAccountServicesCompanion data) {
+    return DavAccountService(
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      canonicalServiceUri: data.canonicalServiceUri.present
+          ? data.canonicalServiceUri.value
+          : this.canonicalServiceUri,
+      canonicalOrigin: data.canonicalOrigin.present
+          ? data.canonicalOrigin.value
+          : this.canonicalOrigin,
+      principalHref: data.principalHref.present
+          ? data.principalHref.value
+          : this.principalHref,
+      calendarHomeHref: data.calendarHomeHref.present
+          ? data.calendarHomeHref.value
+          : this.calendarHomeHref,
+      calendarUserAddressesJson: data.calendarUserAddressesJson.present
+          ? data.calendarUserAddressesJson.value
+          : this.calendarUserAddressesJson,
+      scheduleInboxHref: data.scheduleInboxHref.present
+          ? data.scheduleInboxHref.value
+          : this.scheduleInboxHref,
+      scheduleOutboxHref: data.scheduleOutboxHref.present
+          ? data.scheduleOutboxHref.value
+          : this.scheduleOutboxHref,
+      capabilitiesJson: data.capabilitiesJson.present
+          ? data.capabilitiesJson.value
+          : this.capabilitiesJson,
+      capabilitiesSchemaVersion: data.capabilitiesSchemaVersion.present
+          ? data.capabilitiesSchemaVersion.value
+          : this.capabilitiesSchemaVersion,
+      providerProfileVersion: data.providerProfileVersion.present
+          ? data.providerProfileVersion.value
+          : this.providerProfileVersion,
+      discoveredAtUtc: data.discoveredAtUtc.present
+          ? data.discoveredAtUtc.value
+          : this.discoveredAtUtc,
+      lastValidatedAtUtc: data.lastValidatedAtUtc.present
+          ? data.lastValidatedAtUtc.value
+          : this.lastValidatedAtUtc,
+      lastDiscoveryErrorCode: data.lastDiscoveryErrorCode.present
+          ? data.lastDiscoveryErrorCode.value
+          : this.lastDiscoveryErrorCode,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavAccountService(')
+          ..write('accountId: $accountId, ')
+          ..write('canonicalServiceUri: $canonicalServiceUri, ')
+          ..write('canonicalOrigin: $canonicalOrigin, ')
+          ..write('principalHref: $principalHref, ')
+          ..write('calendarHomeHref: $calendarHomeHref, ')
+          ..write('calendarUserAddressesJson: $calendarUserAddressesJson, ')
+          ..write('scheduleInboxHref: $scheduleInboxHref, ')
+          ..write('scheduleOutboxHref: $scheduleOutboxHref, ')
+          ..write('capabilitiesJson: $capabilitiesJson, ')
+          ..write('capabilitiesSchemaVersion: $capabilitiesSchemaVersion, ')
+          ..write('providerProfileVersion: $providerProfileVersion, ')
+          ..write('discoveredAtUtc: $discoveredAtUtc, ')
+          ..write('lastValidatedAtUtc: $lastValidatedAtUtc, ')
+          ..write('lastDiscoveryErrorCode: $lastDiscoveryErrorCode')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    accountId,
+    canonicalServiceUri,
+    canonicalOrigin,
+    principalHref,
+    calendarHomeHref,
+    calendarUserAddressesJson,
+    scheduleInboxHref,
+    scheduleOutboxHref,
+    capabilitiesJson,
+    capabilitiesSchemaVersion,
+    providerProfileVersion,
+    discoveredAtUtc,
+    lastValidatedAtUtc,
+    lastDiscoveryErrorCode,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DavAccountService &&
+          other.accountId == this.accountId &&
+          other.canonicalServiceUri == this.canonicalServiceUri &&
+          other.canonicalOrigin == this.canonicalOrigin &&
+          other.principalHref == this.principalHref &&
+          other.calendarHomeHref == this.calendarHomeHref &&
+          other.calendarUserAddressesJson == this.calendarUserAddressesJson &&
+          other.scheduleInboxHref == this.scheduleInboxHref &&
+          other.scheduleOutboxHref == this.scheduleOutboxHref &&
+          other.capabilitiesJson == this.capabilitiesJson &&
+          other.capabilitiesSchemaVersion == this.capabilitiesSchemaVersion &&
+          other.providerProfileVersion == this.providerProfileVersion &&
+          other.discoveredAtUtc == this.discoveredAtUtc &&
+          other.lastValidatedAtUtc == this.lastValidatedAtUtc &&
+          other.lastDiscoveryErrorCode == this.lastDiscoveryErrorCode);
+}
+
+class DavAccountServicesCompanion extends UpdateCompanion<DavAccountService> {
+  final Value<String> accountId;
+  final Value<String> canonicalServiceUri;
+  final Value<String> canonicalOrigin;
+  final Value<String?> principalHref;
+  final Value<String?> calendarHomeHref;
+  final Value<String> calendarUserAddressesJson;
+  final Value<String?> scheduleInboxHref;
+  final Value<String?> scheduleOutboxHref;
+  final Value<String> capabilitiesJson;
+  final Value<int> capabilitiesSchemaVersion;
+  final Value<int> providerProfileVersion;
+  final Value<String> discoveredAtUtc;
+  final Value<String?> lastValidatedAtUtc;
+  final Value<String?> lastDiscoveryErrorCode;
+  final Value<int> rowid;
+  const DavAccountServicesCompanion({
+    this.accountId = const Value.absent(),
+    this.canonicalServiceUri = const Value.absent(),
+    this.canonicalOrigin = const Value.absent(),
+    this.principalHref = const Value.absent(),
+    this.calendarHomeHref = const Value.absent(),
+    this.calendarUserAddressesJson = const Value.absent(),
+    this.scheduleInboxHref = const Value.absent(),
+    this.scheduleOutboxHref = const Value.absent(),
+    this.capabilitiesJson = const Value.absent(),
+    this.capabilitiesSchemaVersion = const Value.absent(),
+    this.providerProfileVersion = const Value.absent(),
+    this.discoveredAtUtc = const Value.absent(),
+    this.lastValidatedAtUtc = const Value.absent(),
+    this.lastDiscoveryErrorCode = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DavAccountServicesCompanion.insert({
+    required String accountId,
+    required String canonicalServiceUri,
+    required String canonicalOrigin,
+    this.principalHref = const Value.absent(),
+    this.calendarHomeHref = const Value.absent(),
+    this.calendarUserAddressesJson = const Value.absent(),
+    this.scheduleInboxHref = const Value.absent(),
+    this.scheduleOutboxHref = const Value.absent(),
+    this.capabilitiesJson = const Value.absent(),
+    this.capabilitiesSchemaVersion = const Value.absent(),
+    this.providerProfileVersion = const Value.absent(),
+    required String discoveredAtUtc,
+    this.lastValidatedAtUtc = const Value.absent(),
+    this.lastDiscoveryErrorCode = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : accountId = Value(accountId),
+       canonicalServiceUri = Value(canonicalServiceUri),
+       canonicalOrigin = Value(canonicalOrigin),
+       discoveredAtUtc = Value(discoveredAtUtc);
+  static Insertable<DavAccountService> custom({
+    Expression<String>? accountId,
+    Expression<String>? canonicalServiceUri,
+    Expression<String>? canonicalOrigin,
+    Expression<String>? principalHref,
+    Expression<String>? calendarHomeHref,
+    Expression<String>? calendarUserAddressesJson,
+    Expression<String>? scheduleInboxHref,
+    Expression<String>? scheduleOutboxHref,
+    Expression<String>? capabilitiesJson,
+    Expression<int>? capabilitiesSchemaVersion,
+    Expression<int>? providerProfileVersion,
+    Expression<String>? discoveredAtUtc,
+    Expression<String>? lastValidatedAtUtc,
+    Expression<String>? lastDiscoveryErrorCode,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (accountId != null) 'account_id': accountId,
+      if (canonicalServiceUri != null)
+        'canonical_service_uri': canonicalServiceUri,
+      if (canonicalOrigin != null) 'canonical_origin': canonicalOrigin,
+      if (principalHref != null) 'principal_href': principalHref,
+      if (calendarHomeHref != null) 'calendar_home_href': calendarHomeHref,
+      if (calendarUserAddressesJson != null)
+        'calendar_user_addresses_json': calendarUserAddressesJson,
+      if (scheduleInboxHref != null) 'schedule_inbox_href': scheduleInboxHref,
+      if (scheduleOutboxHref != null)
+        'schedule_outbox_href': scheduleOutboxHref,
+      if (capabilitiesJson != null) 'capabilities_json': capabilitiesJson,
+      if (capabilitiesSchemaVersion != null)
+        'capabilities_schema_version': capabilitiesSchemaVersion,
+      if (providerProfileVersion != null)
+        'provider_profile_version': providerProfileVersion,
+      if (discoveredAtUtc != null) 'discovered_at_utc': discoveredAtUtc,
+      if (lastValidatedAtUtc != null)
+        'last_validated_at_utc': lastValidatedAtUtc,
+      if (lastDiscoveryErrorCode != null)
+        'last_discovery_error_code': lastDiscoveryErrorCode,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DavAccountServicesCompanion copyWith({
+    Value<String>? accountId,
+    Value<String>? canonicalServiceUri,
+    Value<String>? canonicalOrigin,
+    Value<String?>? principalHref,
+    Value<String?>? calendarHomeHref,
+    Value<String>? calendarUserAddressesJson,
+    Value<String?>? scheduleInboxHref,
+    Value<String?>? scheduleOutboxHref,
+    Value<String>? capabilitiesJson,
+    Value<int>? capabilitiesSchemaVersion,
+    Value<int>? providerProfileVersion,
+    Value<String>? discoveredAtUtc,
+    Value<String?>? lastValidatedAtUtc,
+    Value<String?>? lastDiscoveryErrorCode,
+    Value<int>? rowid,
+  }) {
+    return DavAccountServicesCompanion(
+      accountId: accountId ?? this.accountId,
+      canonicalServiceUri: canonicalServiceUri ?? this.canonicalServiceUri,
+      canonicalOrigin: canonicalOrigin ?? this.canonicalOrigin,
+      principalHref: principalHref ?? this.principalHref,
+      calendarHomeHref: calendarHomeHref ?? this.calendarHomeHref,
+      calendarUserAddressesJson:
+          calendarUserAddressesJson ?? this.calendarUserAddressesJson,
+      scheduleInboxHref: scheduleInboxHref ?? this.scheduleInboxHref,
+      scheduleOutboxHref: scheduleOutboxHref ?? this.scheduleOutboxHref,
+      capabilitiesJson: capabilitiesJson ?? this.capabilitiesJson,
+      capabilitiesSchemaVersion:
+          capabilitiesSchemaVersion ?? this.capabilitiesSchemaVersion,
+      providerProfileVersion:
+          providerProfileVersion ?? this.providerProfileVersion,
+      discoveredAtUtc: discoveredAtUtc ?? this.discoveredAtUtc,
+      lastValidatedAtUtc: lastValidatedAtUtc ?? this.lastValidatedAtUtc,
+      lastDiscoveryErrorCode:
+          lastDiscoveryErrorCode ?? this.lastDiscoveryErrorCode,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (canonicalServiceUri.present) {
+      map['canonical_service_uri'] = Variable<String>(
+        canonicalServiceUri.value,
+      );
+    }
+    if (canonicalOrigin.present) {
+      map['canonical_origin'] = Variable<String>(canonicalOrigin.value);
+    }
+    if (principalHref.present) {
+      map['principal_href'] = Variable<String>(principalHref.value);
+    }
+    if (calendarHomeHref.present) {
+      map['calendar_home_href'] = Variable<String>(calendarHomeHref.value);
+    }
+    if (calendarUserAddressesJson.present) {
+      map['calendar_user_addresses_json'] = Variable<String>(
+        calendarUserAddressesJson.value,
+      );
+    }
+    if (scheduleInboxHref.present) {
+      map['schedule_inbox_href'] = Variable<String>(scheduleInboxHref.value);
+    }
+    if (scheduleOutboxHref.present) {
+      map['schedule_outbox_href'] = Variable<String>(scheduleOutboxHref.value);
+    }
+    if (capabilitiesJson.present) {
+      map['capabilities_json'] = Variable<String>(capabilitiesJson.value);
+    }
+    if (capabilitiesSchemaVersion.present) {
+      map['capabilities_schema_version'] = Variable<int>(
+        capabilitiesSchemaVersion.value,
+      );
+    }
+    if (providerProfileVersion.present) {
+      map['provider_profile_version'] = Variable<int>(
+        providerProfileVersion.value,
+      );
+    }
+    if (discoveredAtUtc.present) {
+      map['discovered_at_utc'] = Variable<String>(discoveredAtUtc.value);
+    }
+    if (lastValidatedAtUtc.present) {
+      map['last_validated_at_utc'] = Variable<String>(lastValidatedAtUtc.value);
+    }
+    if (lastDiscoveryErrorCode.present) {
+      map['last_discovery_error_code'] = Variable<String>(
+        lastDiscoveryErrorCode.value,
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavAccountServicesCompanion(')
+          ..write('accountId: $accountId, ')
+          ..write('canonicalServiceUri: $canonicalServiceUri, ')
+          ..write('canonicalOrigin: $canonicalOrigin, ')
+          ..write('principalHref: $principalHref, ')
+          ..write('calendarHomeHref: $calendarHomeHref, ')
+          ..write('calendarUserAddressesJson: $calendarUserAddressesJson, ')
+          ..write('scheduleInboxHref: $scheduleInboxHref, ')
+          ..write('scheduleOutboxHref: $scheduleOutboxHref, ')
+          ..write('capabilitiesJson: $capabilitiesJson, ')
+          ..write('capabilitiesSchemaVersion: $capabilitiesSchemaVersion, ')
+          ..write('providerProfileVersion: $providerProfileVersion, ')
+          ..write('discoveredAtUtc: $discoveredAtUtc, ')
+          ..write('lastValidatedAtUtc: $lastValidatedAtUtc, ')
+          ..write('lastDiscoveryErrorCode: $lastDiscoveryErrorCode, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DavCollectionsTable extends DavCollections
+    with TableInfo<$DavCollectionsTable, DavCollection> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DavCollectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _hrefKeyMeta = const VerificationMeta(
+    'hrefKey',
+  );
+  @override
+  late final GeneratedColumn<String> hrefKey = GeneratedColumn<String>(
+    'href_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _requestUriMeta = const VerificationMeta(
+    'requestUri',
+  );
+  @override
+  late final GeneratedColumn<String> requestUri = GeneratedColumn<String>(
+    'request_uri',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resourceTypesJsonMeta = const VerificationMeta(
+    'resourceTypesJson',
+  );
+  @override
+  late final GeneratedColumn<String> resourceTypesJson =
+      GeneratedColumn<String>(
+        'resource_types_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _supportedComponentMaskMeta =
+      const VerificationMeta('supportedComponentMask');
+  @override
+  late final GeneratedColumn<int> supportedComponentMask = GeneratedColumn<int>(
+    'supported_component_mask',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _supportedCalendarDataJsonMeta =
+      const VerificationMeta('supportedCalendarDataJson');
+  @override
+  late final GeneratedColumn<String> supportedCalendarDataJson =
+      GeneratedColumn<String>(
+        'supported_calendar_data_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _supportedReportsJsonMeta =
+      const VerificationMeta('supportedReportsJson');
+  @override
+  late final GeneratedColumn<String> supportedReportsJson =
+      GeneratedColumn<String>(
+        'supported_reports_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _currentUserPrivilegesJsonMeta =
+      const VerificationMeta('currentUserPrivilegesJson');
+  @override
+  late final GeneratedColumn<String> currentUserPrivilegesJson =
+      GeneratedColumn<String>(
+        'current_user_privileges_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _ownerHrefMeta = const VerificationMeta(
+    'ownerHref',
+  );
+  @override
+  late final GeneratedColumn<String> ownerHref = GeneratedColumn<String>(
+    'owner_href',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _safeDisplayMetadataJsonMeta =
+      const VerificationMeta('safeDisplayMetadataJson');
+  @override
+  late final GeneratedColumn<String> safeDisplayMetadataJson =
+      GeneratedColumn<String>(
+        'safe_display_metadata_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _calendarTimeZoneMeta = const VerificationMeta(
+    'calendarTimeZone',
+  );
+  @override
+  late final GeneratedColumn<String> calendarTimeZone = GeneratedColumn<String>(
+    'calendar_time_zone',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _calendarTimeZoneIdMeta =
+      const VerificationMeta('calendarTimeZoneId');
+  @override
+  late final GeneratedColumn<String> calendarTimeZoneId =
+      GeneratedColumn<String>(
+        'calendar_time_zone_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _scheduleTransparencyMeta =
+      const VerificationMeta('scheduleTransparency');
+  @override
+  late final GeneratedColumn<String> scheduleTransparency =
+      GeneratedColumn<String>(
+        'schedule_transparency',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _maximumResourceSizeMeta =
+      const VerificationMeta('maximumResourceSize');
+  @override
+  late final GeneratedColumn<int> maximumResourceSize = GeneratedColumn<int>(
+    'maximum_resource_size',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _maximumInstancesMeta = const VerificationMeta(
+    'maximumInstances',
+  );
+  @override
+  late final GeneratedColumn<int> maximumInstances = GeneratedColumn<int>(
+    'maximum_instances',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _syncTokenMeta = const VerificationMeta(
+    'syncToken',
+  );
+  @override
+  late final GeneratedColumn<String> syncToken = GeneratedColumn<String>(
+    'sync_token',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ctagMeta = const VerificationMeta('ctag');
+  @override
+  late final GeneratedColumn<String> ctag = GeneratedColumn<String>(
+    'ctag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _readOnlyMeta = const VerificationMeta(
+    'readOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> readOnly = GeneratedColumn<bool>(
+    'read_only',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("read_only" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _eventProjectionEnabledMeta =
+      const VerificationMeta('eventProjectionEnabled');
+  @override
+  late final GeneratedColumn<bool> eventProjectionEnabled =
+      GeneratedColumn<bool>(
+        'event_projection_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("event_projection_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _taskProjectionEnabledMeta =
+      const VerificationMeta('taskProjectionEnabled');
+  @override
+  late final GeneratedColumn<bool> taskProjectionEnabled =
+      GeneratedColumn<bool>(
+        'task_projection_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("task_projection_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _eventsSelectedMeta = const VerificationMeta(
+    'eventsSelected',
+  );
+  @override
+  late final GeneratedColumn<bool> eventsSelected = GeneratedColumn<bool>(
+    'events_selected',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("events_selected" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _tasksSelectedMeta = const VerificationMeta(
+    'tasksSelected',
+  );
+  @override
+  late final GeneratedColumn<bool> tasksSelected = GeneratedColumn<bool>(
+    'tasks_selected',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tasks_selected" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _serverMissingMeta = const VerificationMeta(
+    'serverMissing',
+  );
+  @override
+  late final GeneratedColumn<bool> serverMissing = GeneratedColumn<bool>(
+    'server_missing',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("server_missing" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedMeta = const VerificationMeta(
+    'deleted',
+  );
+  @override
+  late final GeneratedColumn<bool> deleted = GeneratedColumn<bool>(
+    'deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lastInventoryAtUtcMeta =
+      const VerificationMeta('lastInventoryAtUtc');
+  @override
+  late final GeneratedColumn<String> lastInventoryAtUtc =
+      GeneratedColumn<String>(
+        'last_inventory_at_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastSyncAtUtcMeta = const VerificationMeta(
+    'lastSyncAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> lastSyncAtUtc = GeneratedColumn<String>(
+    'last_sync_at_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _parserVersionMeta = const VerificationMeta(
+    'parserVersion',
+  );
+  @override
+  late final GeneratedColumn<int> parserVersion = GeneratedColumn<int>(
+    'parser_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _projectionVersionMeta = const VerificationMeta(
+    'projectionVersion',
+  );
+  @override
+  late final GeneratedColumn<int> projectionVersion = GeneratedColumn<int>(
+    'projection_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtUtcMeta = const VerificationMeta(
+    'createdAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> createdAtUtc = GeneratedColumn<String>(
+    'created_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtUtcMeta = const VerificationMeta(
+    'updatedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> updatedAtUtc = GeneratedColumn<String>(
+    'updated_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    accountId,
+    hrefKey,
+    requestUri,
+    displayName,
+    description,
+    resourceTypesJson,
+    supportedComponentMask,
+    supportedCalendarDataJson,
+    supportedReportsJson,
+    currentUserPrivilegesJson,
+    ownerHref,
+    safeDisplayMetadataJson,
+    color,
+    sortOrder,
+    calendarTimeZone,
+    calendarTimeZoneId,
+    scheduleTransparency,
+    maximumResourceSize,
+    maximumInstances,
+    syncToken,
+    ctag,
+    readOnly,
+    eventProjectionEnabled,
+    taskProjectionEnabled,
+    eventsSelected,
+    tasksSelected,
+    serverMissing,
+    deleted,
+    lastInventoryAtUtc,
+    lastSyncAtUtc,
+    parserVersion,
+    projectionVersion,
+    createdAtUtc,
+    updatedAtUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dav_collections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DavCollection> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('href_key')) {
+      context.handle(
+        _hrefKeyMeta,
+        hrefKey.isAcceptableOrUnknown(data['href_key']!, _hrefKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hrefKeyMeta);
+    }
+    if (data.containsKey('request_uri')) {
+      context.handle(
+        _requestUriMeta,
+        requestUri.isAcceptableOrUnknown(data['request_uri']!, _requestUriMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_requestUriMeta);
+    }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_displayNameMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('resource_types_json')) {
+      context.handle(
+        _resourceTypesJsonMeta,
+        resourceTypesJson.isAcceptableOrUnknown(
+          data['resource_types_json']!,
+          _resourceTypesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supported_component_mask')) {
+      context.handle(
+        _supportedComponentMaskMeta,
+        supportedComponentMask.isAcceptableOrUnknown(
+          data['supported_component_mask']!,
+          _supportedComponentMaskMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supported_calendar_data_json')) {
+      context.handle(
+        _supportedCalendarDataJsonMeta,
+        supportedCalendarDataJson.isAcceptableOrUnknown(
+          data['supported_calendar_data_json']!,
+          _supportedCalendarDataJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supported_reports_json')) {
+      context.handle(
+        _supportedReportsJsonMeta,
+        supportedReportsJson.isAcceptableOrUnknown(
+          data['supported_reports_json']!,
+          _supportedReportsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('current_user_privileges_json')) {
+      context.handle(
+        _currentUserPrivilegesJsonMeta,
+        currentUserPrivilegesJson.isAcceptableOrUnknown(
+          data['current_user_privileges_json']!,
+          _currentUserPrivilegesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('owner_href')) {
+      context.handle(
+        _ownerHrefMeta,
+        ownerHref.isAcceptableOrUnknown(data['owner_href']!, _ownerHrefMeta),
+      );
+    }
+    if (data.containsKey('safe_display_metadata_json')) {
+      context.handle(
+        _safeDisplayMetadataJsonMeta,
+        safeDisplayMetadataJson.isAcceptableOrUnknown(
+          data['safe_display_metadata_json']!,
+          _safeDisplayMetadataJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('calendar_time_zone')) {
+      context.handle(
+        _calendarTimeZoneMeta,
+        calendarTimeZone.isAcceptableOrUnknown(
+          data['calendar_time_zone']!,
+          _calendarTimeZoneMeta,
+        ),
+      );
+    }
+    if (data.containsKey('calendar_time_zone_id')) {
+      context.handle(
+        _calendarTimeZoneIdMeta,
+        calendarTimeZoneId.isAcceptableOrUnknown(
+          data['calendar_time_zone_id']!,
+          _calendarTimeZoneIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('schedule_transparency')) {
+      context.handle(
+        _scheduleTransparencyMeta,
+        scheduleTransparency.isAcceptableOrUnknown(
+          data['schedule_transparency']!,
+          _scheduleTransparencyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('maximum_resource_size')) {
+      context.handle(
+        _maximumResourceSizeMeta,
+        maximumResourceSize.isAcceptableOrUnknown(
+          data['maximum_resource_size']!,
+          _maximumResourceSizeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('maximum_instances')) {
+      context.handle(
+        _maximumInstancesMeta,
+        maximumInstances.isAcceptableOrUnknown(
+          data['maximum_instances']!,
+          _maximumInstancesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sync_token')) {
+      context.handle(
+        _syncTokenMeta,
+        syncToken.isAcceptableOrUnknown(data['sync_token']!, _syncTokenMeta),
+      );
+    }
+    if (data.containsKey('ctag')) {
+      context.handle(
+        _ctagMeta,
+        ctag.isAcceptableOrUnknown(data['ctag']!, _ctagMeta),
+      );
+    }
+    if (data.containsKey('read_only')) {
+      context.handle(
+        _readOnlyMeta,
+        readOnly.isAcceptableOrUnknown(data['read_only']!, _readOnlyMeta),
+      );
+    }
+    if (data.containsKey('event_projection_enabled')) {
+      context.handle(
+        _eventProjectionEnabledMeta,
+        eventProjectionEnabled.isAcceptableOrUnknown(
+          data['event_projection_enabled']!,
+          _eventProjectionEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('task_projection_enabled')) {
+      context.handle(
+        _taskProjectionEnabledMeta,
+        taskProjectionEnabled.isAcceptableOrUnknown(
+          data['task_projection_enabled']!,
+          _taskProjectionEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('events_selected')) {
+      context.handle(
+        _eventsSelectedMeta,
+        eventsSelected.isAcceptableOrUnknown(
+          data['events_selected']!,
+          _eventsSelectedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tasks_selected')) {
+      context.handle(
+        _tasksSelectedMeta,
+        tasksSelected.isAcceptableOrUnknown(
+          data['tasks_selected']!,
+          _tasksSelectedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('server_missing')) {
+      context.handle(
+        _serverMissingMeta,
+        serverMissing.isAcceptableOrUnknown(
+          data['server_missing']!,
+          _serverMissingMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deleted')) {
+      context.handle(
+        _deletedMeta,
+        deleted.isAcceptableOrUnknown(data['deleted']!, _deletedMeta),
+      );
+    }
+    if (data.containsKey('last_inventory_at_utc')) {
+      context.handle(
+        _lastInventoryAtUtcMeta,
+        lastInventoryAtUtc.isAcceptableOrUnknown(
+          data['last_inventory_at_utc']!,
+          _lastInventoryAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_sync_at_utc')) {
+      context.handle(
+        _lastSyncAtUtcMeta,
+        lastSyncAtUtc.isAcceptableOrUnknown(
+          data['last_sync_at_utc']!,
+          _lastSyncAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('parser_version')) {
+      context.handle(
+        _parserVersionMeta,
+        parserVersion.isAcceptableOrUnknown(
+          data['parser_version']!,
+          _parserVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('projection_version')) {
+      context.handle(
+        _projectionVersionMeta,
+        projectionVersion.isAcceptableOrUnknown(
+          data['projection_version']!,
+          _projectionVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at_utc')) {
+      context.handle(
+        _createdAtUtcMeta,
+        createdAtUtc.isAcceptableOrUnknown(
+          data['created_at_utc']!,
+          _createdAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtUtcMeta);
+    }
+    if (data.containsKey('updated_at_utc')) {
+      context.handle(
+        _updatedAtUtcMeta,
+        updatedAtUtc.isAcceptableOrUnknown(
+          data['updated_at_utc']!,
+          _updatedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DavCollection map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DavCollection(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      hrefKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}href_key'],
+      )!,
+      requestUri: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}request_uri'],
+      )!,
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      resourceTypesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resource_types_json'],
+      )!,
+      supportedComponentMask: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}supported_component_mask'],
+      )!,
+      supportedCalendarDataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supported_calendar_data_json'],
+      )!,
+      supportedReportsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supported_reports_json'],
+      )!,
+      currentUserPrivilegesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}current_user_privileges_json'],
+      )!,
+      ownerHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_href'],
+      ),
+      safeDisplayMetadataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}safe_display_metadata_json'],
+      ),
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      ),
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      ),
+      calendarTimeZone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}calendar_time_zone'],
+      ),
+      calendarTimeZoneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}calendar_time_zone_id'],
+      ),
+      scheduleTransparency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schedule_transparency'],
+      ),
+      maximumResourceSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}maximum_resource_size'],
+      ),
+      maximumInstances: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}maximum_instances'],
+      ),
+      syncToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_token'],
+      ),
+      ctag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ctag'],
+      ),
+      readOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}read_only'],
+      )!,
+      eventProjectionEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}event_projection_enabled'],
+      )!,
+      taskProjectionEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}task_projection_enabled'],
+      )!,
+      eventsSelected: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}events_selected'],
+      )!,
+      tasksSelected: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tasks_selected'],
+      )!,
+      serverMissing: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}server_missing'],
+      )!,
+      deleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}deleted'],
+      )!,
+      lastInventoryAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_inventory_at_utc'],
+      ),
+      lastSyncAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_sync_at_utc'],
+      ),
+      parserVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}parser_version'],
+      )!,
+      projectionVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}projection_version'],
+      )!,
+      createdAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_at_utc'],
+      )!,
+      updatedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}updated_at_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $DavCollectionsTable createAlias(String alias) {
+    return $DavCollectionsTable(attachedDatabase, alias);
+  }
+}
+
+class DavCollection extends DataClass implements Insertable<DavCollection> {
+  final String id;
+  final String accountId;
+  final String hrefKey;
+  final String requestUri;
+  final String displayName;
+  final String? description;
+  final String resourceTypesJson;
+  final int supportedComponentMask;
+  final String supportedCalendarDataJson;
+  final String supportedReportsJson;
+  final String currentUserPrivilegesJson;
+  final String? ownerHref;
+  final String? safeDisplayMetadataJson;
+  final String? color;
+  final int? sortOrder;
+  final String? calendarTimeZone;
+  final String? calendarTimeZoneId;
+  final String? scheduleTransparency;
+  final int? maximumResourceSize;
+  final int? maximumInstances;
+  final String? syncToken;
+  final String? ctag;
+  final bool readOnly;
+  final bool eventProjectionEnabled;
+  final bool taskProjectionEnabled;
+  final bool eventsSelected;
+  final bool tasksSelected;
+  final bool serverMissing;
+  final bool deleted;
+  final String? lastInventoryAtUtc;
+  final String? lastSyncAtUtc;
+  final int parserVersion;
+  final int projectionVersion;
+  final String createdAtUtc;
+  final String updatedAtUtc;
+  const DavCollection({
+    required this.id,
+    required this.accountId,
+    required this.hrefKey,
+    required this.requestUri,
+    required this.displayName,
+    this.description,
+    required this.resourceTypesJson,
+    required this.supportedComponentMask,
+    required this.supportedCalendarDataJson,
+    required this.supportedReportsJson,
+    required this.currentUserPrivilegesJson,
+    this.ownerHref,
+    this.safeDisplayMetadataJson,
+    this.color,
+    this.sortOrder,
+    this.calendarTimeZone,
+    this.calendarTimeZoneId,
+    this.scheduleTransparency,
+    this.maximumResourceSize,
+    this.maximumInstances,
+    this.syncToken,
+    this.ctag,
+    required this.readOnly,
+    required this.eventProjectionEnabled,
+    required this.taskProjectionEnabled,
+    required this.eventsSelected,
+    required this.tasksSelected,
+    required this.serverMissing,
+    required this.deleted,
+    this.lastInventoryAtUtc,
+    this.lastSyncAtUtc,
+    required this.parserVersion,
+    required this.projectionVersion,
+    required this.createdAtUtc,
+    required this.updatedAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['account_id'] = Variable<String>(accountId);
+    map['href_key'] = Variable<String>(hrefKey);
+    map['request_uri'] = Variable<String>(requestUri);
+    map['display_name'] = Variable<String>(displayName);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    map['resource_types_json'] = Variable<String>(resourceTypesJson);
+    map['supported_component_mask'] = Variable<int>(supportedComponentMask);
+    map['supported_calendar_data_json'] = Variable<String>(
+      supportedCalendarDataJson,
+    );
+    map['supported_reports_json'] = Variable<String>(supportedReportsJson);
+    map['current_user_privileges_json'] = Variable<String>(
+      currentUserPrivilegesJson,
+    );
+    if (!nullToAbsent || ownerHref != null) {
+      map['owner_href'] = Variable<String>(ownerHref);
+    }
+    if (!nullToAbsent || safeDisplayMetadataJson != null) {
+      map['safe_display_metadata_json'] = Variable<String>(
+        safeDisplayMetadataJson,
+      );
+    }
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<String>(color);
+    }
+    if (!nullToAbsent || sortOrder != null) {
+      map['sort_order'] = Variable<int>(sortOrder);
+    }
+    if (!nullToAbsent || calendarTimeZone != null) {
+      map['calendar_time_zone'] = Variable<String>(calendarTimeZone);
+    }
+    if (!nullToAbsent || calendarTimeZoneId != null) {
+      map['calendar_time_zone_id'] = Variable<String>(calendarTimeZoneId);
+    }
+    if (!nullToAbsent || scheduleTransparency != null) {
+      map['schedule_transparency'] = Variable<String>(scheduleTransparency);
+    }
+    if (!nullToAbsent || maximumResourceSize != null) {
+      map['maximum_resource_size'] = Variable<int>(maximumResourceSize);
+    }
+    if (!nullToAbsent || maximumInstances != null) {
+      map['maximum_instances'] = Variable<int>(maximumInstances);
+    }
+    if (!nullToAbsent || syncToken != null) {
+      map['sync_token'] = Variable<String>(syncToken);
+    }
+    if (!nullToAbsent || ctag != null) {
+      map['ctag'] = Variable<String>(ctag);
+    }
+    map['read_only'] = Variable<bool>(readOnly);
+    map['event_projection_enabled'] = Variable<bool>(eventProjectionEnabled);
+    map['task_projection_enabled'] = Variable<bool>(taskProjectionEnabled);
+    map['events_selected'] = Variable<bool>(eventsSelected);
+    map['tasks_selected'] = Variable<bool>(tasksSelected);
+    map['server_missing'] = Variable<bool>(serverMissing);
+    map['deleted'] = Variable<bool>(deleted);
+    if (!nullToAbsent || lastInventoryAtUtc != null) {
+      map['last_inventory_at_utc'] = Variable<String>(lastInventoryAtUtc);
+    }
+    if (!nullToAbsent || lastSyncAtUtc != null) {
+      map['last_sync_at_utc'] = Variable<String>(lastSyncAtUtc);
+    }
+    map['parser_version'] = Variable<int>(parserVersion);
+    map['projection_version'] = Variable<int>(projectionVersion);
+    map['created_at_utc'] = Variable<String>(createdAtUtc);
+    map['updated_at_utc'] = Variable<String>(updatedAtUtc);
+    return map;
+  }
+
+  DavCollectionsCompanion toCompanion(bool nullToAbsent) {
+    return DavCollectionsCompanion(
+      id: Value(id),
+      accountId: Value(accountId),
+      hrefKey: Value(hrefKey),
+      requestUri: Value(requestUri),
+      displayName: Value(displayName),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      resourceTypesJson: Value(resourceTypesJson),
+      supportedComponentMask: Value(supportedComponentMask),
+      supportedCalendarDataJson: Value(supportedCalendarDataJson),
+      supportedReportsJson: Value(supportedReportsJson),
+      currentUserPrivilegesJson: Value(currentUserPrivilegesJson),
+      ownerHref: ownerHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownerHref),
+      safeDisplayMetadataJson: safeDisplayMetadataJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(safeDisplayMetadataJson),
+      color: color == null && nullToAbsent
+          ? const Value.absent()
+          : Value(color),
+      sortOrder: sortOrder == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sortOrder),
+      calendarTimeZone: calendarTimeZone == null && nullToAbsent
+          ? const Value.absent()
+          : Value(calendarTimeZone),
+      calendarTimeZoneId: calendarTimeZoneId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(calendarTimeZoneId),
+      scheduleTransparency: scheduleTransparency == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduleTransparency),
+      maximumResourceSize: maximumResourceSize == null && nullToAbsent
+          ? const Value.absent()
+          : Value(maximumResourceSize),
+      maximumInstances: maximumInstances == null && nullToAbsent
+          ? const Value.absent()
+          : Value(maximumInstances),
+      syncToken: syncToken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncToken),
+      ctag: ctag == null && nullToAbsent ? const Value.absent() : Value(ctag),
+      readOnly: Value(readOnly),
+      eventProjectionEnabled: Value(eventProjectionEnabled),
+      taskProjectionEnabled: Value(taskProjectionEnabled),
+      eventsSelected: Value(eventsSelected),
+      tasksSelected: Value(tasksSelected),
+      serverMissing: Value(serverMissing),
+      deleted: Value(deleted),
+      lastInventoryAtUtc: lastInventoryAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastInventoryAtUtc),
+      lastSyncAtUtc: lastSyncAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSyncAtUtc),
+      parserVersion: Value(parserVersion),
+      projectionVersion: Value(projectionVersion),
+      createdAtUtc: Value(createdAtUtc),
+      updatedAtUtc: Value(updatedAtUtc),
+    );
+  }
+
+  factory DavCollection.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DavCollection(
+      id: serializer.fromJson<String>(json['id']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      hrefKey: serializer.fromJson<String>(json['hrefKey']),
+      requestUri: serializer.fromJson<String>(json['requestUri']),
+      displayName: serializer.fromJson<String>(json['displayName']),
+      description: serializer.fromJson<String?>(json['description']),
+      resourceTypesJson: serializer.fromJson<String>(json['resourceTypesJson']),
+      supportedComponentMask: serializer.fromJson<int>(
+        json['supportedComponentMask'],
+      ),
+      supportedCalendarDataJson: serializer.fromJson<String>(
+        json['supportedCalendarDataJson'],
+      ),
+      supportedReportsJson: serializer.fromJson<String>(
+        json['supportedReportsJson'],
+      ),
+      currentUserPrivilegesJson: serializer.fromJson<String>(
+        json['currentUserPrivilegesJson'],
+      ),
+      ownerHref: serializer.fromJson<String?>(json['ownerHref']),
+      safeDisplayMetadataJson: serializer.fromJson<String?>(
+        json['safeDisplayMetadataJson'],
+      ),
+      color: serializer.fromJson<String?>(json['color']),
+      sortOrder: serializer.fromJson<int?>(json['sortOrder']),
+      calendarTimeZone: serializer.fromJson<String?>(json['calendarTimeZone']),
+      calendarTimeZoneId: serializer.fromJson<String?>(
+        json['calendarTimeZoneId'],
+      ),
+      scheduleTransparency: serializer.fromJson<String?>(
+        json['scheduleTransparency'],
+      ),
+      maximumResourceSize: serializer.fromJson<int?>(
+        json['maximumResourceSize'],
+      ),
+      maximumInstances: serializer.fromJson<int?>(json['maximumInstances']),
+      syncToken: serializer.fromJson<String?>(json['syncToken']),
+      ctag: serializer.fromJson<String?>(json['ctag']),
+      readOnly: serializer.fromJson<bool>(json['readOnly']),
+      eventProjectionEnabled: serializer.fromJson<bool>(
+        json['eventProjectionEnabled'],
+      ),
+      taskProjectionEnabled: serializer.fromJson<bool>(
+        json['taskProjectionEnabled'],
+      ),
+      eventsSelected: serializer.fromJson<bool>(json['eventsSelected']),
+      tasksSelected: serializer.fromJson<bool>(json['tasksSelected']),
+      serverMissing: serializer.fromJson<bool>(json['serverMissing']),
+      deleted: serializer.fromJson<bool>(json['deleted']),
+      lastInventoryAtUtc: serializer.fromJson<String?>(
+        json['lastInventoryAtUtc'],
+      ),
+      lastSyncAtUtc: serializer.fromJson<String?>(json['lastSyncAtUtc']),
+      parserVersion: serializer.fromJson<int>(json['parserVersion']),
+      projectionVersion: serializer.fromJson<int>(json['projectionVersion']),
+      createdAtUtc: serializer.fromJson<String>(json['createdAtUtc']),
+      updatedAtUtc: serializer.fromJson<String>(json['updatedAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'accountId': serializer.toJson<String>(accountId),
+      'hrefKey': serializer.toJson<String>(hrefKey),
+      'requestUri': serializer.toJson<String>(requestUri),
+      'displayName': serializer.toJson<String>(displayName),
+      'description': serializer.toJson<String?>(description),
+      'resourceTypesJson': serializer.toJson<String>(resourceTypesJson),
+      'supportedComponentMask': serializer.toJson<int>(supportedComponentMask),
+      'supportedCalendarDataJson': serializer.toJson<String>(
+        supportedCalendarDataJson,
+      ),
+      'supportedReportsJson': serializer.toJson<String>(supportedReportsJson),
+      'currentUserPrivilegesJson': serializer.toJson<String>(
+        currentUserPrivilegesJson,
+      ),
+      'ownerHref': serializer.toJson<String?>(ownerHref),
+      'safeDisplayMetadataJson': serializer.toJson<String?>(
+        safeDisplayMetadataJson,
+      ),
+      'color': serializer.toJson<String?>(color),
+      'sortOrder': serializer.toJson<int?>(sortOrder),
+      'calendarTimeZone': serializer.toJson<String?>(calendarTimeZone),
+      'calendarTimeZoneId': serializer.toJson<String?>(calendarTimeZoneId),
+      'scheduleTransparency': serializer.toJson<String?>(scheduleTransparency),
+      'maximumResourceSize': serializer.toJson<int?>(maximumResourceSize),
+      'maximumInstances': serializer.toJson<int?>(maximumInstances),
+      'syncToken': serializer.toJson<String?>(syncToken),
+      'ctag': serializer.toJson<String?>(ctag),
+      'readOnly': serializer.toJson<bool>(readOnly),
+      'eventProjectionEnabled': serializer.toJson<bool>(eventProjectionEnabled),
+      'taskProjectionEnabled': serializer.toJson<bool>(taskProjectionEnabled),
+      'eventsSelected': serializer.toJson<bool>(eventsSelected),
+      'tasksSelected': serializer.toJson<bool>(tasksSelected),
+      'serverMissing': serializer.toJson<bool>(serverMissing),
+      'deleted': serializer.toJson<bool>(deleted),
+      'lastInventoryAtUtc': serializer.toJson<String?>(lastInventoryAtUtc),
+      'lastSyncAtUtc': serializer.toJson<String?>(lastSyncAtUtc),
+      'parserVersion': serializer.toJson<int>(parserVersion),
+      'projectionVersion': serializer.toJson<int>(projectionVersion),
+      'createdAtUtc': serializer.toJson<String>(createdAtUtc),
+      'updatedAtUtc': serializer.toJson<String>(updatedAtUtc),
+    };
+  }
+
+  DavCollection copyWith({
+    String? id,
+    String? accountId,
+    String? hrefKey,
+    String? requestUri,
+    String? displayName,
+    Value<String?> description = const Value.absent(),
+    String? resourceTypesJson,
+    int? supportedComponentMask,
+    String? supportedCalendarDataJson,
+    String? supportedReportsJson,
+    String? currentUserPrivilegesJson,
+    Value<String?> ownerHref = const Value.absent(),
+    Value<String?> safeDisplayMetadataJson = const Value.absent(),
+    Value<String?> color = const Value.absent(),
+    Value<int?> sortOrder = const Value.absent(),
+    Value<String?> calendarTimeZone = const Value.absent(),
+    Value<String?> calendarTimeZoneId = const Value.absent(),
+    Value<String?> scheduleTransparency = const Value.absent(),
+    Value<int?> maximumResourceSize = const Value.absent(),
+    Value<int?> maximumInstances = const Value.absent(),
+    Value<String?> syncToken = const Value.absent(),
+    Value<String?> ctag = const Value.absent(),
+    bool? readOnly,
+    bool? eventProjectionEnabled,
+    bool? taskProjectionEnabled,
+    bool? eventsSelected,
+    bool? tasksSelected,
+    bool? serverMissing,
+    bool? deleted,
+    Value<String?> lastInventoryAtUtc = const Value.absent(),
+    Value<String?> lastSyncAtUtc = const Value.absent(),
+    int? parserVersion,
+    int? projectionVersion,
+    String? createdAtUtc,
+    String? updatedAtUtc,
+  }) => DavCollection(
+    id: id ?? this.id,
+    accountId: accountId ?? this.accountId,
+    hrefKey: hrefKey ?? this.hrefKey,
+    requestUri: requestUri ?? this.requestUri,
+    displayName: displayName ?? this.displayName,
+    description: description.present ? description.value : this.description,
+    resourceTypesJson: resourceTypesJson ?? this.resourceTypesJson,
+    supportedComponentMask:
+        supportedComponentMask ?? this.supportedComponentMask,
+    supportedCalendarDataJson:
+        supportedCalendarDataJson ?? this.supportedCalendarDataJson,
+    supportedReportsJson: supportedReportsJson ?? this.supportedReportsJson,
+    currentUserPrivilegesJson:
+        currentUserPrivilegesJson ?? this.currentUserPrivilegesJson,
+    ownerHref: ownerHref.present ? ownerHref.value : this.ownerHref,
+    safeDisplayMetadataJson: safeDisplayMetadataJson.present
+        ? safeDisplayMetadataJson.value
+        : this.safeDisplayMetadataJson,
+    color: color.present ? color.value : this.color,
+    sortOrder: sortOrder.present ? sortOrder.value : this.sortOrder,
+    calendarTimeZone: calendarTimeZone.present
+        ? calendarTimeZone.value
+        : this.calendarTimeZone,
+    calendarTimeZoneId: calendarTimeZoneId.present
+        ? calendarTimeZoneId.value
+        : this.calendarTimeZoneId,
+    scheduleTransparency: scheduleTransparency.present
+        ? scheduleTransparency.value
+        : this.scheduleTransparency,
+    maximumResourceSize: maximumResourceSize.present
+        ? maximumResourceSize.value
+        : this.maximumResourceSize,
+    maximumInstances: maximumInstances.present
+        ? maximumInstances.value
+        : this.maximumInstances,
+    syncToken: syncToken.present ? syncToken.value : this.syncToken,
+    ctag: ctag.present ? ctag.value : this.ctag,
+    readOnly: readOnly ?? this.readOnly,
+    eventProjectionEnabled:
+        eventProjectionEnabled ?? this.eventProjectionEnabled,
+    taskProjectionEnabled: taskProjectionEnabled ?? this.taskProjectionEnabled,
+    eventsSelected: eventsSelected ?? this.eventsSelected,
+    tasksSelected: tasksSelected ?? this.tasksSelected,
+    serverMissing: serverMissing ?? this.serverMissing,
+    deleted: deleted ?? this.deleted,
+    lastInventoryAtUtc: lastInventoryAtUtc.present
+        ? lastInventoryAtUtc.value
+        : this.lastInventoryAtUtc,
+    lastSyncAtUtc: lastSyncAtUtc.present
+        ? lastSyncAtUtc.value
+        : this.lastSyncAtUtc,
+    parserVersion: parserVersion ?? this.parserVersion,
+    projectionVersion: projectionVersion ?? this.projectionVersion,
+    createdAtUtc: createdAtUtc ?? this.createdAtUtc,
+    updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+  );
+  DavCollection copyWithCompanion(DavCollectionsCompanion data) {
+    return DavCollection(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      hrefKey: data.hrefKey.present ? data.hrefKey.value : this.hrefKey,
+      requestUri: data.requestUri.present
+          ? data.requestUri.value
+          : this.requestUri,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      resourceTypesJson: data.resourceTypesJson.present
+          ? data.resourceTypesJson.value
+          : this.resourceTypesJson,
+      supportedComponentMask: data.supportedComponentMask.present
+          ? data.supportedComponentMask.value
+          : this.supportedComponentMask,
+      supportedCalendarDataJson: data.supportedCalendarDataJson.present
+          ? data.supportedCalendarDataJson.value
+          : this.supportedCalendarDataJson,
+      supportedReportsJson: data.supportedReportsJson.present
+          ? data.supportedReportsJson.value
+          : this.supportedReportsJson,
+      currentUserPrivilegesJson: data.currentUserPrivilegesJson.present
+          ? data.currentUserPrivilegesJson.value
+          : this.currentUserPrivilegesJson,
+      ownerHref: data.ownerHref.present ? data.ownerHref.value : this.ownerHref,
+      safeDisplayMetadataJson: data.safeDisplayMetadataJson.present
+          ? data.safeDisplayMetadataJson.value
+          : this.safeDisplayMetadataJson,
+      color: data.color.present ? data.color.value : this.color,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      calendarTimeZone: data.calendarTimeZone.present
+          ? data.calendarTimeZone.value
+          : this.calendarTimeZone,
+      calendarTimeZoneId: data.calendarTimeZoneId.present
+          ? data.calendarTimeZoneId.value
+          : this.calendarTimeZoneId,
+      scheduleTransparency: data.scheduleTransparency.present
+          ? data.scheduleTransparency.value
+          : this.scheduleTransparency,
+      maximumResourceSize: data.maximumResourceSize.present
+          ? data.maximumResourceSize.value
+          : this.maximumResourceSize,
+      maximumInstances: data.maximumInstances.present
+          ? data.maximumInstances.value
+          : this.maximumInstances,
+      syncToken: data.syncToken.present ? data.syncToken.value : this.syncToken,
+      ctag: data.ctag.present ? data.ctag.value : this.ctag,
+      readOnly: data.readOnly.present ? data.readOnly.value : this.readOnly,
+      eventProjectionEnabled: data.eventProjectionEnabled.present
+          ? data.eventProjectionEnabled.value
+          : this.eventProjectionEnabled,
+      taskProjectionEnabled: data.taskProjectionEnabled.present
+          ? data.taskProjectionEnabled.value
+          : this.taskProjectionEnabled,
+      eventsSelected: data.eventsSelected.present
+          ? data.eventsSelected.value
+          : this.eventsSelected,
+      tasksSelected: data.tasksSelected.present
+          ? data.tasksSelected.value
+          : this.tasksSelected,
+      serverMissing: data.serverMissing.present
+          ? data.serverMissing.value
+          : this.serverMissing,
+      deleted: data.deleted.present ? data.deleted.value : this.deleted,
+      lastInventoryAtUtc: data.lastInventoryAtUtc.present
+          ? data.lastInventoryAtUtc.value
+          : this.lastInventoryAtUtc,
+      lastSyncAtUtc: data.lastSyncAtUtc.present
+          ? data.lastSyncAtUtc.value
+          : this.lastSyncAtUtc,
+      parserVersion: data.parserVersion.present
+          ? data.parserVersion.value
+          : this.parserVersion,
+      projectionVersion: data.projectionVersion.present
+          ? data.projectionVersion.value
+          : this.projectionVersion,
+      createdAtUtc: data.createdAtUtc.present
+          ? data.createdAtUtc.value
+          : this.createdAtUtc,
+      updatedAtUtc: data.updatedAtUtc.present
+          ? data.updatedAtUtc.value
+          : this.updatedAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavCollection(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('hrefKey: $hrefKey, ')
+          ..write('requestUri: $requestUri, ')
+          ..write('displayName: $displayName, ')
+          ..write('description: $description, ')
+          ..write('resourceTypesJson: $resourceTypesJson, ')
+          ..write('supportedComponentMask: $supportedComponentMask, ')
+          ..write('supportedCalendarDataJson: $supportedCalendarDataJson, ')
+          ..write('supportedReportsJson: $supportedReportsJson, ')
+          ..write('currentUserPrivilegesJson: $currentUserPrivilegesJson, ')
+          ..write('ownerHref: $ownerHref, ')
+          ..write('safeDisplayMetadataJson: $safeDisplayMetadataJson, ')
+          ..write('color: $color, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('calendarTimeZone: $calendarTimeZone, ')
+          ..write('calendarTimeZoneId: $calendarTimeZoneId, ')
+          ..write('scheduleTransparency: $scheduleTransparency, ')
+          ..write('maximumResourceSize: $maximumResourceSize, ')
+          ..write('maximumInstances: $maximumInstances, ')
+          ..write('syncToken: $syncToken, ')
+          ..write('ctag: $ctag, ')
+          ..write('readOnly: $readOnly, ')
+          ..write('eventProjectionEnabled: $eventProjectionEnabled, ')
+          ..write('taskProjectionEnabled: $taskProjectionEnabled, ')
+          ..write('eventsSelected: $eventsSelected, ')
+          ..write('tasksSelected: $tasksSelected, ')
+          ..write('serverMissing: $serverMissing, ')
+          ..write('deleted: $deleted, ')
+          ..write('lastInventoryAtUtc: $lastInventoryAtUtc, ')
+          ..write('lastSyncAtUtc: $lastSyncAtUtc, ')
+          ..write('parserVersion: $parserVersion, ')
+          ..write('projectionVersion: $projectionVersion, ')
+          ..write('createdAtUtc: $createdAtUtc, ')
+          ..write('updatedAtUtc: $updatedAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    accountId,
+    hrefKey,
+    requestUri,
+    displayName,
+    description,
+    resourceTypesJson,
+    supportedComponentMask,
+    supportedCalendarDataJson,
+    supportedReportsJson,
+    currentUserPrivilegesJson,
+    ownerHref,
+    safeDisplayMetadataJson,
+    color,
+    sortOrder,
+    calendarTimeZone,
+    calendarTimeZoneId,
+    scheduleTransparency,
+    maximumResourceSize,
+    maximumInstances,
+    syncToken,
+    ctag,
+    readOnly,
+    eventProjectionEnabled,
+    taskProjectionEnabled,
+    eventsSelected,
+    tasksSelected,
+    serverMissing,
+    deleted,
+    lastInventoryAtUtc,
+    lastSyncAtUtc,
+    parserVersion,
+    projectionVersion,
+    createdAtUtc,
+    updatedAtUtc,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DavCollection &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.hrefKey == this.hrefKey &&
+          other.requestUri == this.requestUri &&
+          other.displayName == this.displayName &&
+          other.description == this.description &&
+          other.resourceTypesJson == this.resourceTypesJson &&
+          other.supportedComponentMask == this.supportedComponentMask &&
+          other.supportedCalendarDataJson == this.supportedCalendarDataJson &&
+          other.supportedReportsJson == this.supportedReportsJson &&
+          other.currentUserPrivilegesJson == this.currentUserPrivilegesJson &&
+          other.ownerHref == this.ownerHref &&
+          other.safeDisplayMetadataJson == this.safeDisplayMetadataJson &&
+          other.color == this.color &&
+          other.sortOrder == this.sortOrder &&
+          other.calendarTimeZone == this.calendarTimeZone &&
+          other.calendarTimeZoneId == this.calendarTimeZoneId &&
+          other.scheduleTransparency == this.scheduleTransparency &&
+          other.maximumResourceSize == this.maximumResourceSize &&
+          other.maximumInstances == this.maximumInstances &&
+          other.syncToken == this.syncToken &&
+          other.ctag == this.ctag &&
+          other.readOnly == this.readOnly &&
+          other.eventProjectionEnabled == this.eventProjectionEnabled &&
+          other.taskProjectionEnabled == this.taskProjectionEnabled &&
+          other.eventsSelected == this.eventsSelected &&
+          other.tasksSelected == this.tasksSelected &&
+          other.serverMissing == this.serverMissing &&
+          other.deleted == this.deleted &&
+          other.lastInventoryAtUtc == this.lastInventoryAtUtc &&
+          other.lastSyncAtUtc == this.lastSyncAtUtc &&
+          other.parserVersion == this.parserVersion &&
+          other.projectionVersion == this.projectionVersion &&
+          other.createdAtUtc == this.createdAtUtc &&
+          other.updatedAtUtc == this.updatedAtUtc);
+}
+
+class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
+  final Value<String> id;
+  final Value<String> accountId;
+  final Value<String> hrefKey;
+  final Value<String> requestUri;
+  final Value<String> displayName;
+  final Value<String?> description;
+  final Value<String> resourceTypesJson;
+  final Value<int> supportedComponentMask;
+  final Value<String> supportedCalendarDataJson;
+  final Value<String> supportedReportsJson;
+  final Value<String> currentUserPrivilegesJson;
+  final Value<String?> ownerHref;
+  final Value<String?> safeDisplayMetadataJson;
+  final Value<String?> color;
+  final Value<int?> sortOrder;
+  final Value<String?> calendarTimeZone;
+  final Value<String?> calendarTimeZoneId;
+  final Value<String?> scheduleTransparency;
+  final Value<int?> maximumResourceSize;
+  final Value<int?> maximumInstances;
+  final Value<String?> syncToken;
+  final Value<String?> ctag;
+  final Value<bool> readOnly;
+  final Value<bool> eventProjectionEnabled;
+  final Value<bool> taskProjectionEnabled;
+  final Value<bool> eventsSelected;
+  final Value<bool> tasksSelected;
+  final Value<bool> serverMissing;
+  final Value<bool> deleted;
+  final Value<String?> lastInventoryAtUtc;
+  final Value<String?> lastSyncAtUtc;
+  final Value<int> parserVersion;
+  final Value<int> projectionVersion;
+  final Value<String> createdAtUtc;
+  final Value<String> updatedAtUtc;
+  final Value<int> rowid;
+  const DavCollectionsCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.hrefKey = const Value.absent(),
+    this.requestUri = const Value.absent(),
+    this.displayName = const Value.absent(),
+    this.description = const Value.absent(),
+    this.resourceTypesJson = const Value.absent(),
+    this.supportedComponentMask = const Value.absent(),
+    this.supportedCalendarDataJson = const Value.absent(),
+    this.supportedReportsJson = const Value.absent(),
+    this.currentUserPrivilegesJson = const Value.absent(),
+    this.ownerHref = const Value.absent(),
+    this.safeDisplayMetadataJson = const Value.absent(),
+    this.color = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.calendarTimeZone = const Value.absent(),
+    this.calendarTimeZoneId = const Value.absent(),
+    this.scheduleTransparency = const Value.absent(),
+    this.maximumResourceSize = const Value.absent(),
+    this.maximumInstances = const Value.absent(),
+    this.syncToken = const Value.absent(),
+    this.ctag = const Value.absent(),
+    this.readOnly = const Value.absent(),
+    this.eventProjectionEnabled = const Value.absent(),
+    this.taskProjectionEnabled = const Value.absent(),
+    this.eventsSelected = const Value.absent(),
+    this.tasksSelected = const Value.absent(),
+    this.serverMissing = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.lastInventoryAtUtc = const Value.absent(),
+    this.lastSyncAtUtc = const Value.absent(),
+    this.parserVersion = const Value.absent(),
+    this.projectionVersion = const Value.absent(),
+    this.createdAtUtc = const Value.absent(),
+    this.updatedAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DavCollectionsCompanion.insert({
+    required String id,
+    required String accountId,
+    required String hrefKey,
+    required String requestUri,
+    required String displayName,
+    this.description = const Value.absent(),
+    this.resourceTypesJson = const Value.absent(),
+    this.supportedComponentMask = const Value.absent(),
+    this.supportedCalendarDataJson = const Value.absent(),
+    this.supportedReportsJson = const Value.absent(),
+    this.currentUserPrivilegesJson = const Value.absent(),
+    this.ownerHref = const Value.absent(),
+    this.safeDisplayMetadataJson = const Value.absent(),
+    this.color = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.calendarTimeZone = const Value.absent(),
+    this.calendarTimeZoneId = const Value.absent(),
+    this.scheduleTransparency = const Value.absent(),
+    this.maximumResourceSize = const Value.absent(),
+    this.maximumInstances = const Value.absent(),
+    this.syncToken = const Value.absent(),
+    this.ctag = const Value.absent(),
+    this.readOnly = const Value.absent(),
+    this.eventProjectionEnabled = const Value.absent(),
+    this.taskProjectionEnabled = const Value.absent(),
+    this.eventsSelected = const Value.absent(),
+    this.tasksSelected = const Value.absent(),
+    this.serverMissing = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.lastInventoryAtUtc = const Value.absent(),
+    this.lastSyncAtUtc = const Value.absent(),
+    this.parserVersion = const Value.absent(),
+    this.projectionVersion = const Value.absent(),
+    required String createdAtUtc,
+    required String updatedAtUtc,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       accountId = Value(accountId),
+       hrefKey = Value(hrefKey),
+       requestUri = Value(requestUri),
+       displayName = Value(displayName),
+       createdAtUtc = Value(createdAtUtc),
+       updatedAtUtc = Value(updatedAtUtc);
+  static Insertable<DavCollection> custom({
+    Expression<String>? id,
+    Expression<String>? accountId,
+    Expression<String>? hrefKey,
+    Expression<String>? requestUri,
+    Expression<String>? displayName,
+    Expression<String>? description,
+    Expression<String>? resourceTypesJson,
+    Expression<int>? supportedComponentMask,
+    Expression<String>? supportedCalendarDataJson,
+    Expression<String>? supportedReportsJson,
+    Expression<String>? currentUserPrivilegesJson,
+    Expression<String>? ownerHref,
+    Expression<String>? safeDisplayMetadataJson,
+    Expression<String>? color,
+    Expression<int>? sortOrder,
+    Expression<String>? calendarTimeZone,
+    Expression<String>? calendarTimeZoneId,
+    Expression<String>? scheduleTransparency,
+    Expression<int>? maximumResourceSize,
+    Expression<int>? maximumInstances,
+    Expression<String>? syncToken,
+    Expression<String>? ctag,
+    Expression<bool>? readOnly,
+    Expression<bool>? eventProjectionEnabled,
+    Expression<bool>? taskProjectionEnabled,
+    Expression<bool>? eventsSelected,
+    Expression<bool>? tasksSelected,
+    Expression<bool>? serverMissing,
+    Expression<bool>? deleted,
+    Expression<String>? lastInventoryAtUtc,
+    Expression<String>? lastSyncAtUtc,
+    Expression<int>? parserVersion,
+    Expression<int>? projectionVersion,
+    Expression<String>? createdAtUtc,
+    Expression<String>? updatedAtUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (hrefKey != null) 'href_key': hrefKey,
+      if (requestUri != null) 'request_uri': requestUri,
+      if (displayName != null) 'display_name': displayName,
+      if (description != null) 'description': description,
+      if (resourceTypesJson != null) 'resource_types_json': resourceTypesJson,
+      if (supportedComponentMask != null)
+        'supported_component_mask': supportedComponentMask,
+      if (supportedCalendarDataJson != null)
+        'supported_calendar_data_json': supportedCalendarDataJson,
+      if (supportedReportsJson != null)
+        'supported_reports_json': supportedReportsJson,
+      if (currentUserPrivilegesJson != null)
+        'current_user_privileges_json': currentUserPrivilegesJson,
+      if (ownerHref != null) 'owner_href': ownerHref,
+      if (safeDisplayMetadataJson != null)
+        'safe_display_metadata_json': safeDisplayMetadataJson,
+      if (color != null) 'color': color,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (calendarTimeZone != null) 'calendar_time_zone': calendarTimeZone,
+      if (calendarTimeZoneId != null)
+        'calendar_time_zone_id': calendarTimeZoneId,
+      if (scheduleTransparency != null)
+        'schedule_transparency': scheduleTransparency,
+      if (maximumResourceSize != null)
+        'maximum_resource_size': maximumResourceSize,
+      if (maximumInstances != null) 'maximum_instances': maximumInstances,
+      if (syncToken != null) 'sync_token': syncToken,
+      if (ctag != null) 'ctag': ctag,
+      if (readOnly != null) 'read_only': readOnly,
+      if (eventProjectionEnabled != null)
+        'event_projection_enabled': eventProjectionEnabled,
+      if (taskProjectionEnabled != null)
+        'task_projection_enabled': taskProjectionEnabled,
+      if (eventsSelected != null) 'events_selected': eventsSelected,
+      if (tasksSelected != null) 'tasks_selected': tasksSelected,
+      if (serverMissing != null) 'server_missing': serverMissing,
+      if (deleted != null) 'deleted': deleted,
+      if (lastInventoryAtUtc != null)
+        'last_inventory_at_utc': lastInventoryAtUtc,
+      if (lastSyncAtUtc != null) 'last_sync_at_utc': lastSyncAtUtc,
+      if (parserVersion != null) 'parser_version': parserVersion,
+      if (projectionVersion != null) 'projection_version': projectionVersion,
+      if (createdAtUtc != null) 'created_at_utc': createdAtUtc,
+      if (updatedAtUtc != null) 'updated_at_utc': updatedAtUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DavCollectionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? accountId,
+    Value<String>? hrefKey,
+    Value<String>? requestUri,
+    Value<String>? displayName,
+    Value<String?>? description,
+    Value<String>? resourceTypesJson,
+    Value<int>? supportedComponentMask,
+    Value<String>? supportedCalendarDataJson,
+    Value<String>? supportedReportsJson,
+    Value<String>? currentUserPrivilegesJson,
+    Value<String?>? ownerHref,
+    Value<String?>? safeDisplayMetadataJson,
+    Value<String?>? color,
+    Value<int?>? sortOrder,
+    Value<String?>? calendarTimeZone,
+    Value<String?>? calendarTimeZoneId,
+    Value<String?>? scheduleTransparency,
+    Value<int?>? maximumResourceSize,
+    Value<int?>? maximumInstances,
+    Value<String?>? syncToken,
+    Value<String?>? ctag,
+    Value<bool>? readOnly,
+    Value<bool>? eventProjectionEnabled,
+    Value<bool>? taskProjectionEnabled,
+    Value<bool>? eventsSelected,
+    Value<bool>? tasksSelected,
+    Value<bool>? serverMissing,
+    Value<bool>? deleted,
+    Value<String?>? lastInventoryAtUtc,
+    Value<String?>? lastSyncAtUtc,
+    Value<int>? parserVersion,
+    Value<int>? projectionVersion,
+    Value<String>? createdAtUtc,
+    Value<String>? updatedAtUtc,
+    Value<int>? rowid,
+  }) {
+    return DavCollectionsCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      hrefKey: hrefKey ?? this.hrefKey,
+      requestUri: requestUri ?? this.requestUri,
+      displayName: displayName ?? this.displayName,
+      description: description ?? this.description,
+      resourceTypesJson: resourceTypesJson ?? this.resourceTypesJson,
+      supportedComponentMask:
+          supportedComponentMask ?? this.supportedComponentMask,
+      supportedCalendarDataJson:
+          supportedCalendarDataJson ?? this.supportedCalendarDataJson,
+      supportedReportsJson: supportedReportsJson ?? this.supportedReportsJson,
+      currentUserPrivilegesJson:
+          currentUserPrivilegesJson ?? this.currentUserPrivilegesJson,
+      ownerHref: ownerHref ?? this.ownerHref,
+      safeDisplayMetadataJson:
+          safeDisplayMetadataJson ?? this.safeDisplayMetadataJson,
+      color: color ?? this.color,
+      sortOrder: sortOrder ?? this.sortOrder,
+      calendarTimeZone: calendarTimeZone ?? this.calendarTimeZone,
+      calendarTimeZoneId: calendarTimeZoneId ?? this.calendarTimeZoneId,
+      scheduleTransparency: scheduleTransparency ?? this.scheduleTransparency,
+      maximumResourceSize: maximumResourceSize ?? this.maximumResourceSize,
+      maximumInstances: maximumInstances ?? this.maximumInstances,
+      syncToken: syncToken ?? this.syncToken,
+      ctag: ctag ?? this.ctag,
+      readOnly: readOnly ?? this.readOnly,
+      eventProjectionEnabled:
+          eventProjectionEnabled ?? this.eventProjectionEnabled,
+      taskProjectionEnabled:
+          taskProjectionEnabled ?? this.taskProjectionEnabled,
+      eventsSelected: eventsSelected ?? this.eventsSelected,
+      tasksSelected: tasksSelected ?? this.tasksSelected,
+      serverMissing: serverMissing ?? this.serverMissing,
+      deleted: deleted ?? this.deleted,
+      lastInventoryAtUtc: lastInventoryAtUtc ?? this.lastInventoryAtUtc,
+      lastSyncAtUtc: lastSyncAtUtc ?? this.lastSyncAtUtc,
+      parserVersion: parserVersion ?? this.parserVersion,
+      projectionVersion: projectionVersion ?? this.projectionVersion,
+      createdAtUtc: createdAtUtc ?? this.createdAtUtc,
+      updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (hrefKey.present) {
+      map['href_key'] = Variable<String>(hrefKey.value);
+    }
+    if (requestUri.present) {
+      map['request_uri'] = Variable<String>(requestUri.value);
+    }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (resourceTypesJson.present) {
+      map['resource_types_json'] = Variable<String>(resourceTypesJson.value);
+    }
+    if (supportedComponentMask.present) {
+      map['supported_component_mask'] = Variable<int>(
+        supportedComponentMask.value,
+      );
+    }
+    if (supportedCalendarDataJson.present) {
+      map['supported_calendar_data_json'] = Variable<String>(
+        supportedCalendarDataJson.value,
+      );
+    }
+    if (supportedReportsJson.present) {
+      map['supported_reports_json'] = Variable<String>(
+        supportedReportsJson.value,
+      );
+    }
+    if (currentUserPrivilegesJson.present) {
+      map['current_user_privileges_json'] = Variable<String>(
+        currentUserPrivilegesJson.value,
+      );
+    }
+    if (ownerHref.present) {
+      map['owner_href'] = Variable<String>(ownerHref.value);
+    }
+    if (safeDisplayMetadataJson.present) {
+      map['safe_display_metadata_json'] = Variable<String>(
+        safeDisplayMetadataJson.value,
+      );
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (calendarTimeZone.present) {
+      map['calendar_time_zone'] = Variable<String>(calendarTimeZone.value);
+    }
+    if (calendarTimeZoneId.present) {
+      map['calendar_time_zone_id'] = Variable<String>(calendarTimeZoneId.value);
+    }
+    if (scheduleTransparency.present) {
+      map['schedule_transparency'] = Variable<String>(
+        scheduleTransparency.value,
+      );
+    }
+    if (maximumResourceSize.present) {
+      map['maximum_resource_size'] = Variable<int>(maximumResourceSize.value);
+    }
+    if (maximumInstances.present) {
+      map['maximum_instances'] = Variable<int>(maximumInstances.value);
+    }
+    if (syncToken.present) {
+      map['sync_token'] = Variable<String>(syncToken.value);
+    }
+    if (ctag.present) {
+      map['ctag'] = Variable<String>(ctag.value);
+    }
+    if (readOnly.present) {
+      map['read_only'] = Variable<bool>(readOnly.value);
+    }
+    if (eventProjectionEnabled.present) {
+      map['event_projection_enabled'] = Variable<bool>(
+        eventProjectionEnabled.value,
+      );
+    }
+    if (taskProjectionEnabled.present) {
+      map['task_projection_enabled'] = Variable<bool>(
+        taskProjectionEnabled.value,
+      );
+    }
+    if (eventsSelected.present) {
+      map['events_selected'] = Variable<bool>(eventsSelected.value);
+    }
+    if (tasksSelected.present) {
+      map['tasks_selected'] = Variable<bool>(tasksSelected.value);
+    }
+    if (serverMissing.present) {
+      map['server_missing'] = Variable<bool>(serverMissing.value);
+    }
+    if (deleted.present) {
+      map['deleted'] = Variable<bool>(deleted.value);
+    }
+    if (lastInventoryAtUtc.present) {
+      map['last_inventory_at_utc'] = Variable<String>(lastInventoryAtUtc.value);
+    }
+    if (lastSyncAtUtc.present) {
+      map['last_sync_at_utc'] = Variable<String>(lastSyncAtUtc.value);
+    }
+    if (parserVersion.present) {
+      map['parser_version'] = Variable<int>(parserVersion.value);
+    }
+    if (projectionVersion.present) {
+      map['projection_version'] = Variable<int>(projectionVersion.value);
+    }
+    if (createdAtUtc.present) {
+      map['created_at_utc'] = Variable<String>(createdAtUtc.value);
+    }
+    if (updatedAtUtc.present) {
+      map['updated_at_utc'] = Variable<String>(updatedAtUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavCollectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('hrefKey: $hrefKey, ')
+          ..write('requestUri: $requestUri, ')
+          ..write('displayName: $displayName, ')
+          ..write('description: $description, ')
+          ..write('resourceTypesJson: $resourceTypesJson, ')
+          ..write('supportedComponentMask: $supportedComponentMask, ')
+          ..write('supportedCalendarDataJson: $supportedCalendarDataJson, ')
+          ..write('supportedReportsJson: $supportedReportsJson, ')
+          ..write('currentUserPrivilegesJson: $currentUserPrivilegesJson, ')
+          ..write('ownerHref: $ownerHref, ')
+          ..write('safeDisplayMetadataJson: $safeDisplayMetadataJson, ')
+          ..write('color: $color, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('calendarTimeZone: $calendarTimeZone, ')
+          ..write('calendarTimeZoneId: $calendarTimeZoneId, ')
+          ..write('scheduleTransparency: $scheduleTransparency, ')
+          ..write('maximumResourceSize: $maximumResourceSize, ')
+          ..write('maximumInstances: $maximumInstances, ')
+          ..write('syncToken: $syncToken, ')
+          ..write('ctag: $ctag, ')
+          ..write('readOnly: $readOnly, ')
+          ..write('eventProjectionEnabled: $eventProjectionEnabled, ')
+          ..write('taskProjectionEnabled: $taskProjectionEnabled, ')
+          ..write('eventsSelected: $eventsSelected, ')
+          ..write('tasksSelected: $tasksSelected, ')
+          ..write('serverMissing: $serverMissing, ')
+          ..write('deleted: $deleted, ')
+          ..write('lastInventoryAtUtc: $lastInventoryAtUtc, ')
+          ..write('lastSyncAtUtc: $lastSyncAtUtc, ')
+          ..write('parserVersion: $parserVersion, ')
+          ..write('projectionVersion: $projectionVersion, ')
+          ..write('createdAtUtc: $createdAtUtc, ')
+          ..write('updatedAtUtc: $updatedAtUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DavObjectsTable extends DavObjects
+    with TableInfo<$DavObjectsTable, DavObject> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DavObjectsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _collectionIdMeta = const VerificationMeta(
+    'collectionId',
+  );
+  @override
+  late final GeneratedColumn<String> collectionId = GeneratedColumn<String>(
+    'collection_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _hrefKeyMeta = const VerificationMeta(
+    'hrefKey',
+  );
+  @override
+  late final GeneratedColumn<String> hrefKey = GeneratedColumn<String>(
+    'href_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _requestUriMeta = const VerificationMeta(
+    'requestUri',
+  );
+  @override
+  late final GeneratedColumn<String> requestUri = GeneratedColumn<String>(
+    'request_uri',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _etagMeta = const VerificationMeta('etag');
+  @override
+  late final GeneratedColumn<String> etag = GeneratedColumn<String>(
+    'etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contentTypeMeta = const VerificationMeta(
+    'contentType',
+  );
+  @override
+  late final GeneratedColumn<String> contentType = GeneratedColumn<String>(
+    'content_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dominantComponentTypeMeta =
+      const VerificationMeta('dominantComponentType');
+  @override
+  late final GeneratedColumn<String> dominantComponentType =
+      GeneratedColumn<String>(
+        'dominant_component_type',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _componentMaskMeta = const VerificationMeta(
+    'componentMask',
+  );
+  @override
+  late final GeneratedColumn<int> componentMask = GeneratedColumn<int>(
+    'component_mask',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _primaryUidMeta = const VerificationMeta(
+    'primaryUid',
+  );
+  @override
+  late final GeneratedColumn<String> primaryUid = GeneratedColumn<String>(
+    'primary_uid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rawIcsBodyMeta = const VerificationMeta(
+    'rawIcsBody',
+  );
+  @override
+  late final GeneratedColumn<String> rawIcsBody = GeneratedColumn<String>(
+    'raw_ics_body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rawBodyHashMeta = const VerificationMeta(
+    'rawBodyHash',
+  );
+  @override
+  late final GeneratedColumn<String> rawBodyHash = GeneratedColumn<String>(
+    'raw_body_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _semanticHashMeta = const VerificationMeta(
+    'semanticHash',
+  );
+  @override
+  late final GeneratedColumn<String> semanticHash = GeneratedColumn<String>(
+    'semantic_hash',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverDeletedMeta = const VerificationMeta(
+    'serverDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> serverDeleted = GeneratedColumn<bool>(
+    'server_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("server_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _baselineGenerationMeta =
+      const VerificationMeta('baselineGeneration');
+  @override
+  late final GeneratedColumn<int> baselineGeneration = GeneratedColumn<int>(
+    'baseline_generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _firstSeenAtUtcMeta = const VerificationMeta(
+    'firstSeenAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> firstSeenAtUtc = GeneratedColumn<String>(
+    'first_seen_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastFetchedAtUtcMeta = const VerificationMeta(
+    'lastFetchedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> lastFetchedAtUtc = GeneratedColumn<String>(
+    'last_fetched_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastChangedAtUtcMeta = const VerificationMeta(
+    'lastChangedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> lastChangedAtUtc = GeneratedColumn<String>(
+    'last_changed_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastParseStatusMeta = const VerificationMeta(
+    'lastParseStatus',
+  );
+  @override
+  late final GeneratedColumn<String> lastParseStatus = GeneratedColumn<String>(
+    'last_parse_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('unparsed'),
+  );
+  static const VerificationMeta _lastParseErrorCodeMeta =
+      const VerificationMeta('lastParseErrorCode');
+  @override
+  late final GeneratedColumn<String> lastParseErrorCode =
+      GeneratedColumn<String>(
+        'last_parse_error_code',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _parserVersionMeta = const VerificationMeta(
+    'parserVersion',
+  );
+  @override
+  late final GeneratedColumn<int> parserVersion = GeneratedColumn<int>(
+    'parser_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    accountId,
+    collectionId,
+    hrefKey,
+    requestUri,
+    etag,
+    contentType,
+    dominantComponentType,
+    componentMask,
+    primaryUid,
+    rawIcsBody,
+    rawBodyHash,
+    semanticHash,
+    serverDeleted,
+    baselineGeneration,
+    firstSeenAtUtc,
+    lastFetchedAtUtc,
+    lastChangedAtUtc,
+    lastParseStatus,
+    lastParseErrorCode,
+    parserVersion,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dav_objects';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DavObject> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('collection_id')) {
+      context.handle(
+        _collectionIdMeta,
+        collectionId.isAcceptableOrUnknown(
+          data['collection_id']!,
+          _collectionIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_collectionIdMeta);
+    }
+    if (data.containsKey('href_key')) {
+      context.handle(
+        _hrefKeyMeta,
+        hrefKey.isAcceptableOrUnknown(data['href_key']!, _hrefKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hrefKeyMeta);
+    }
+    if (data.containsKey('request_uri')) {
+      context.handle(
+        _requestUriMeta,
+        requestUri.isAcceptableOrUnknown(data['request_uri']!, _requestUriMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_requestUriMeta);
+    }
+    if (data.containsKey('etag')) {
+      context.handle(
+        _etagMeta,
+        etag.isAcceptableOrUnknown(data['etag']!, _etagMeta),
+      );
+    }
+    if (data.containsKey('content_type')) {
+      context.handle(
+        _contentTypeMeta,
+        contentType.isAcceptableOrUnknown(
+          data['content_type']!,
+          _contentTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dominant_component_type')) {
+      context.handle(
+        _dominantComponentTypeMeta,
+        dominantComponentType.isAcceptableOrUnknown(
+          data['dominant_component_type']!,
+          _dominantComponentTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('component_mask')) {
+      context.handle(
+        _componentMaskMeta,
+        componentMask.isAcceptableOrUnknown(
+          data['component_mask']!,
+          _componentMaskMeta,
+        ),
+      );
+    }
+    if (data.containsKey('primary_uid')) {
+      context.handle(
+        _primaryUidMeta,
+        primaryUid.isAcceptableOrUnknown(data['primary_uid']!, _primaryUidMeta),
+      );
+    }
+    if (data.containsKey('raw_ics_body')) {
+      context.handle(
+        _rawIcsBodyMeta,
+        rawIcsBody.isAcceptableOrUnknown(
+          data['raw_ics_body']!,
+          _rawIcsBodyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_rawIcsBodyMeta);
+    }
+    if (data.containsKey('raw_body_hash')) {
+      context.handle(
+        _rawBodyHashMeta,
+        rawBodyHash.isAcceptableOrUnknown(
+          data['raw_body_hash']!,
+          _rawBodyHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_rawBodyHashMeta);
+    }
+    if (data.containsKey('semantic_hash')) {
+      context.handle(
+        _semanticHashMeta,
+        semanticHash.isAcceptableOrUnknown(
+          data['semantic_hash']!,
+          _semanticHashMeta,
+        ),
+      );
+    }
+    if (data.containsKey('server_deleted')) {
+      context.handle(
+        _serverDeletedMeta,
+        serverDeleted.isAcceptableOrUnknown(
+          data['server_deleted']!,
+          _serverDeletedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('baseline_generation')) {
+      context.handle(
+        _baselineGenerationMeta,
+        baselineGeneration.isAcceptableOrUnknown(
+          data['baseline_generation']!,
+          _baselineGenerationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('first_seen_at_utc')) {
+      context.handle(
+        _firstSeenAtUtcMeta,
+        firstSeenAtUtc.isAcceptableOrUnknown(
+          data['first_seen_at_utc']!,
+          _firstSeenAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_firstSeenAtUtcMeta);
+    }
+    if (data.containsKey('last_fetched_at_utc')) {
+      context.handle(
+        _lastFetchedAtUtcMeta,
+        lastFetchedAtUtc.isAcceptableOrUnknown(
+          data['last_fetched_at_utc']!,
+          _lastFetchedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastFetchedAtUtcMeta);
+    }
+    if (data.containsKey('last_changed_at_utc')) {
+      context.handle(
+        _lastChangedAtUtcMeta,
+        lastChangedAtUtc.isAcceptableOrUnknown(
+          data['last_changed_at_utc']!,
+          _lastChangedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastChangedAtUtcMeta);
+    }
+    if (data.containsKey('last_parse_status')) {
+      context.handle(
+        _lastParseStatusMeta,
+        lastParseStatus.isAcceptableOrUnknown(
+          data['last_parse_status']!,
+          _lastParseStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_parse_error_code')) {
+      context.handle(
+        _lastParseErrorCodeMeta,
+        lastParseErrorCode.isAcceptableOrUnknown(
+          data['last_parse_error_code']!,
+          _lastParseErrorCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('parser_version')) {
+      context.handle(
+        _parserVersionMeta,
+        parserVersion.isAcceptableOrUnknown(
+          data['parser_version']!,
+          _parserVersionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DavObject map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DavObject(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      collectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}collection_id'],
+      )!,
+      hrefKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}href_key'],
+      )!,
+      requestUri: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}request_uri'],
+      )!,
+      etag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}etag'],
+      ),
+      contentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_type'],
+      ),
+      dominantComponentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dominant_component_type'],
+      ),
+      componentMask: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}component_mask'],
+      )!,
+      primaryUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}primary_uid'],
+      ),
+      rawIcsBody: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}raw_ics_body'],
+      )!,
+      rawBodyHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}raw_body_hash'],
+      )!,
+      semanticHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}semantic_hash'],
+      ),
+      serverDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}server_deleted'],
+      )!,
+      baselineGeneration: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}baseline_generation'],
+      )!,
+      firstSeenAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}first_seen_at_utc'],
+      )!,
+      lastFetchedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_fetched_at_utc'],
+      )!,
+      lastChangedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_changed_at_utc'],
+      )!,
+      lastParseStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_parse_status'],
+      )!,
+      lastParseErrorCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_parse_error_code'],
+      ),
+      parserVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}parser_version'],
+      )!,
+    );
+  }
+
+  @override
+  $DavObjectsTable createAlias(String alias) {
+    return $DavObjectsTable(attachedDatabase, alias);
+  }
+}
+
+class DavObject extends DataClass implements Insertable<DavObject> {
+  final String id;
+  final String accountId;
+  final String collectionId;
+  final String hrefKey;
+  final String requestUri;
+  final String? etag;
+  final String? contentType;
+  final String? dominantComponentType;
+  final int componentMask;
+  final String? primaryUid;
+  final String rawIcsBody;
+  final String rawBodyHash;
+  final String? semanticHash;
+  final bool serverDeleted;
+  final int baselineGeneration;
+  final String firstSeenAtUtc;
+  final String lastFetchedAtUtc;
+  final String lastChangedAtUtc;
+  final String lastParseStatus;
+  final String? lastParseErrorCode;
+  final int parserVersion;
+  const DavObject({
+    required this.id,
+    required this.accountId,
+    required this.collectionId,
+    required this.hrefKey,
+    required this.requestUri,
+    this.etag,
+    this.contentType,
+    this.dominantComponentType,
+    required this.componentMask,
+    this.primaryUid,
+    required this.rawIcsBody,
+    required this.rawBodyHash,
+    this.semanticHash,
+    required this.serverDeleted,
+    required this.baselineGeneration,
+    required this.firstSeenAtUtc,
+    required this.lastFetchedAtUtc,
+    required this.lastChangedAtUtc,
+    required this.lastParseStatus,
+    this.lastParseErrorCode,
+    required this.parserVersion,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['account_id'] = Variable<String>(accountId);
+    map['collection_id'] = Variable<String>(collectionId);
+    map['href_key'] = Variable<String>(hrefKey);
+    map['request_uri'] = Variable<String>(requestUri);
+    if (!nullToAbsent || etag != null) {
+      map['etag'] = Variable<String>(etag);
+    }
+    if (!nullToAbsent || contentType != null) {
+      map['content_type'] = Variable<String>(contentType);
+    }
+    if (!nullToAbsent || dominantComponentType != null) {
+      map['dominant_component_type'] = Variable<String>(dominantComponentType);
+    }
+    map['component_mask'] = Variable<int>(componentMask);
+    if (!nullToAbsent || primaryUid != null) {
+      map['primary_uid'] = Variable<String>(primaryUid);
+    }
+    map['raw_ics_body'] = Variable<String>(rawIcsBody);
+    map['raw_body_hash'] = Variable<String>(rawBodyHash);
+    if (!nullToAbsent || semanticHash != null) {
+      map['semantic_hash'] = Variable<String>(semanticHash);
+    }
+    map['server_deleted'] = Variable<bool>(serverDeleted);
+    map['baseline_generation'] = Variable<int>(baselineGeneration);
+    map['first_seen_at_utc'] = Variable<String>(firstSeenAtUtc);
+    map['last_fetched_at_utc'] = Variable<String>(lastFetchedAtUtc);
+    map['last_changed_at_utc'] = Variable<String>(lastChangedAtUtc);
+    map['last_parse_status'] = Variable<String>(lastParseStatus);
+    if (!nullToAbsent || lastParseErrorCode != null) {
+      map['last_parse_error_code'] = Variable<String>(lastParseErrorCode);
+    }
+    map['parser_version'] = Variable<int>(parserVersion);
+    return map;
+  }
+
+  DavObjectsCompanion toCompanion(bool nullToAbsent) {
+    return DavObjectsCompanion(
+      id: Value(id),
+      accountId: Value(accountId),
+      collectionId: Value(collectionId),
+      hrefKey: Value(hrefKey),
+      requestUri: Value(requestUri),
+      etag: etag == null && nullToAbsent ? const Value.absent() : Value(etag),
+      contentType: contentType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contentType),
+      dominantComponentType: dominantComponentType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dominantComponentType),
+      componentMask: Value(componentMask),
+      primaryUid: primaryUid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(primaryUid),
+      rawIcsBody: Value(rawIcsBody),
+      rawBodyHash: Value(rawBodyHash),
+      semanticHash: semanticHash == null && nullToAbsent
+          ? const Value.absent()
+          : Value(semanticHash),
+      serverDeleted: Value(serverDeleted),
+      baselineGeneration: Value(baselineGeneration),
+      firstSeenAtUtc: Value(firstSeenAtUtc),
+      lastFetchedAtUtc: Value(lastFetchedAtUtc),
+      lastChangedAtUtc: Value(lastChangedAtUtc),
+      lastParseStatus: Value(lastParseStatus),
+      lastParseErrorCode: lastParseErrorCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastParseErrorCode),
+      parserVersion: Value(parserVersion),
+    );
+  }
+
+  factory DavObject.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DavObject(
+      id: serializer.fromJson<String>(json['id']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      collectionId: serializer.fromJson<String>(json['collectionId']),
+      hrefKey: serializer.fromJson<String>(json['hrefKey']),
+      requestUri: serializer.fromJson<String>(json['requestUri']),
+      etag: serializer.fromJson<String?>(json['etag']),
+      contentType: serializer.fromJson<String?>(json['contentType']),
+      dominantComponentType: serializer.fromJson<String?>(
+        json['dominantComponentType'],
+      ),
+      componentMask: serializer.fromJson<int>(json['componentMask']),
+      primaryUid: serializer.fromJson<String?>(json['primaryUid']),
+      rawIcsBody: serializer.fromJson<String>(json['rawIcsBody']),
+      rawBodyHash: serializer.fromJson<String>(json['rawBodyHash']),
+      semanticHash: serializer.fromJson<String?>(json['semanticHash']),
+      serverDeleted: serializer.fromJson<bool>(json['serverDeleted']),
+      baselineGeneration: serializer.fromJson<int>(json['baselineGeneration']),
+      firstSeenAtUtc: serializer.fromJson<String>(json['firstSeenAtUtc']),
+      lastFetchedAtUtc: serializer.fromJson<String>(json['lastFetchedAtUtc']),
+      lastChangedAtUtc: serializer.fromJson<String>(json['lastChangedAtUtc']),
+      lastParseStatus: serializer.fromJson<String>(json['lastParseStatus']),
+      lastParseErrorCode: serializer.fromJson<String?>(
+        json['lastParseErrorCode'],
+      ),
+      parserVersion: serializer.fromJson<int>(json['parserVersion']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'accountId': serializer.toJson<String>(accountId),
+      'collectionId': serializer.toJson<String>(collectionId),
+      'hrefKey': serializer.toJson<String>(hrefKey),
+      'requestUri': serializer.toJson<String>(requestUri),
+      'etag': serializer.toJson<String?>(etag),
+      'contentType': serializer.toJson<String?>(contentType),
+      'dominantComponentType': serializer.toJson<String?>(
+        dominantComponentType,
+      ),
+      'componentMask': serializer.toJson<int>(componentMask),
+      'primaryUid': serializer.toJson<String?>(primaryUid),
+      'rawIcsBody': serializer.toJson<String>(rawIcsBody),
+      'rawBodyHash': serializer.toJson<String>(rawBodyHash),
+      'semanticHash': serializer.toJson<String?>(semanticHash),
+      'serverDeleted': serializer.toJson<bool>(serverDeleted),
+      'baselineGeneration': serializer.toJson<int>(baselineGeneration),
+      'firstSeenAtUtc': serializer.toJson<String>(firstSeenAtUtc),
+      'lastFetchedAtUtc': serializer.toJson<String>(lastFetchedAtUtc),
+      'lastChangedAtUtc': serializer.toJson<String>(lastChangedAtUtc),
+      'lastParseStatus': serializer.toJson<String>(lastParseStatus),
+      'lastParseErrorCode': serializer.toJson<String?>(lastParseErrorCode),
+      'parserVersion': serializer.toJson<int>(parserVersion),
+    };
+  }
+
+  DavObject copyWith({
+    String? id,
+    String? accountId,
+    String? collectionId,
+    String? hrefKey,
+    String? requestUri,
+    Value<String?> etag = const Value.absent(),
+    Value<String?> contentType = const Value.absent(),
+    Value<String?> dominantComponentType = const Value.absent(),
+    int? componentMask,
+    Value<String?> primaryUid = const Value.absent(),
+    String? rawIcsBody,
+    String? rawBodyHash,
+    Value<String?> semanticHash = const Value.absent(),
+    bool? serverDeleted,
+    int? baselineGeneration,
+    String? firstSeenAtUtc,
+    String? lastFetchedAtUtc,
+    String? lastChangedAtUtc,
+    String? lastParseStatus,
+    Value<String?> lastParseErrorCode = const Value.absent(),
+    int? parserVersion,
+  }) => DavObject(
+    id: id ?? this.id,
+    accountId: accountId ?? this.accountId,
+    collectionId: collectionId ?? this.collectionId,
+    hrefKey: hrefKey ?? this.hrefKey,
+    requestUri: requestUri ?? this.requestUri,
+    etag: etag.present ? etag.value : this.etag,
+    contentType: contentType.present ? contentType.value : this.contentType,
+    dominantComponentType: dominantComponentType.present
+        ? dominantComponentType.value
+        : this.dominantComponentType,
+    componentMask: componentMask ?? this.componentMask,
+    primaryUid: primaryUid.present ? primaryUid.value : this.primaryUid,
+    rawIcsBody: rawIcsBody ?? this.rawIcsBody,
+    rawBodyHash: rawBodyHash ?? this.rawBodyHash,
+    semanticHash: semanticHash.present ? semanticHash.value : this.semanticHash,
+    serverDeleted: serverDeleted ?? this.serverDeleted,
+    baselineGeneration: baselineGeneration ?? this.baselineGeneration,
+    firstSeenAtUtc: firstSeenAtUtc ?? this.firstSeenAtUtc,
+    lastFetchedAtUtc: lastFetchedAtUtc ?? this.lastFetchedAtUtc,
+    lastChangedAtUtc: lastChangedAtUtc ?? this.lastChangedAtUtc,
+    lastParseStatus: lastParseStatus ?? this.lastParseStatus,
+    lastParseErrorCode: lastParseErrorCode.present
+        ? lastParseErrorCode.value
+        : this.lastParseErrorCode,
+    parserVersion: parserVersion ?? this.parserVersion,
+  );
+  DavObject copyWithCompanion(DavObjectsCompanion data) {
+    return DavObject(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      collectionId: data.collectionId.present
+          ? data.collectionId.value
+          : this.collectionId,
+      hrefKey: data.hrefKey.present ? data.hrefKey.value : this.hrefKey,
+      requestUri: data.requestUri.present
+          ? data.requestUri.value
+          : this.requestUri,
+      etag: data.etag.present ? data.etag.value : this.etag,
+      contentType: data.contentType.present
+          ? data.contentType.value
+          : this.contentType,
+      dominantComponentType: data.dominantComponentType.present
+          ? data.dominantComponentType.value
+          : this.dominantComponentType,
+      componentMask: data.componentMask.present
+          ? data.componentMask.value
+          : this.componentMask,
+      primaryUid: data.primaryUid.present
+          ? data.primaryUid.value
+          : this.primaryUid,
+      rawIcsBody: data.rawIcsBody.present
+          ? data.rawIcsBody.value
+          : this.rawIcsBody,
+      rawBodyHash: data.rawBodyHash.present
+          ? data.rawBodyHash.value
+          : this.rawBodyHash,
+      semanticHash: data.semanticHash.present
+          ? data.semanticHash.value
+          : this.semanticHash,
+      serverDeleted: data.serverDeleted.present
+          ? data.serverDeleted.value
+          : this.serverDeleted,
+      baselineGeneration: data.baselineGeneration.present
+          ? data.baselineGeneration.value
+          : this.baselineGeneration,
+      firstSeenAtUtc: data.firstSeenAtUtc.present
+          ? data.firstSeenAtUtc.value
+          : this.firstSeenAtUtc,
+      lastFetchedAtUtc: data.lastFetchedAtUtc.present
+          ? data.lastFetchedAtUtc.value
+          : this.lastFetchedAtUtc,
+      lastChangedAtUtc: data.lastChangedAtUtc.present
+          ? data.lastChangedAtUtc.value
+          : this.lastChangedAtUtc,
+      lastParseStatus: data.lastParseStatus.present
+          ? data.lastParseStatus.value
+          : this.lastParseStatus,
+      lastParseErrorCode: data.lastParseErrorCode.present
+          ? data.lastParseErrorCode.value
+          : this.lastParseErrorCode,
+      parserVersion: data.parserVersion.present
+          ? data.parserVersion.value
+          : this.parserVersion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavObject(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('collectionId: $collectionId, ')
+          ..write('hrefKey: $hrefKey, ')
+          ..write('requestUri: $requestUri, ')
+          ..write('etag: $etag, ')
+          ..write('contentType: $contentType, ')
+          ..write('dominantComponentType: $dominantComponentType, ')
+          ..write('componentMask: $componentMask, ')
+          ..write('primaryUid: $primaryUid, ')
+          ..write('rawIcsBody: $rawIcsBody, ')
+          ..write('rawBodyHash: $rawBodyHash, ')
+          ..write('semanticHash: $semanticHash, ')
+          ..write('serverDeleted: $serverDeleted, ')
+          ..write('baselineGeneration: $baselineGeneration, ')
+          ..write('firstSeenAtUtc: $firstSeenAtUtc, ')
+          ..write('lastFetchedAtUtc: $lastFetchedAtUtc, ')
+          ..write('lastChangedAtUtc: $lastChangedAtUtc, ')
+          ..write('lastParseStatus: $lastParseStatus, ')
+          ..write('lastParseErrorCode: $lastParseErrorCode, ')
+          ..write('parserVersion: $parserVersion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    accountId,
+    collectionId,
+    hrefKey,
+    requestUri,
+    etag,
+    contentType,
+    dominantComponentType,
+    componentMask,
+    primaryUid,
+    rawIcsBody,
+    rawBodyHash,
+    semanticHash,
+    serverDeleted,
+    baselineGeneration,
+    firstSeenAtUtc,
+    lastFetchedAtUtc,
+    lastChangedAtUtc,
+    lastParseStatus,
+    lastParseErrorCode,
+    parserVersion,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DavObject &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.collectionId == this.collectionId &&
+          other.hrefKey == this.hrefKey &&
+          other.requestUri == this.requestUri &&
+          other.etag == this.etag &&
+          other.contentType == this.contentType &&
+          other.dominantComponentType == this.dominantComponentType &&
+          other.componentMask == this.componentMask &&
+          other.primaryUid == this.primaryUid &&
+          other.rawIcsBody == this.rawIcsBody &&
+          other.rawBodyHash == this.rawBodyHash &&
+          other.semanticHash == this.semanticHash &&
+          other.serverDeleted == this.serverDeleted &&
+          other.baselineGeneration == this.baselineGeneration &&
+          other.firstSeenAtUtc == this.firstSeenAtUtc &&
+          other.lastFetchedAtUtc == this.lastFetchedAtUtc &&
+          other.lastChangedAtUtc == this.lastChangedAtUtc &&
+          other.lastParseStatus == this.lastParseStatus &&
+          other.lastParseErrorCode == this.lastParseErrorCode &&
+          other.parserVersion == this.parserVersion);
+}
+
+class DavObjectsCompanion extends UpdateCompanion<DavObject> {
+  final Value<String> id;
+  final Value<String> accountId;
+  final Value<String> collectionId;
+  final Value<String> hrefKey;
+  final Value<String> requestUri;
+  final Value<String?> etag;
+  final Value<String?> contentType;
+  final Value<String?> dominantComponentType;
+  final Value<int> componentMask;
+  final Value<String?> primaryUid;
+  final Value<String> rawIcsBody;
+  final Value<String> rawBodyHash;
+  final Value<String?> semanticHash;
+  final Value<bool> serverDeleted;
+  final Value<int> baselineGeneration;
+  final Value<String> firstSeenAtUtc;
+  final Value<String> lastFetchedAtUtc;
+  final Value<String> lastChangedAtUtc;
+  final Value<String> lastParseStatus;
+  final Value<String?> lastParseErrorCode;
+  final Value<int> parserVersion;
+  final Value<int> rowid;
+  const DavObjectsCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.collectionId = const Value.absent(),
+    this.hrefKey = const Value.absent(),
+    this.requestUri = const Value.absent(),
+    this.etag = const Value.absent(),
+    this.contentType = const Value.absent(),
+    this.dominantComponentType = const Value.absent(),
+    this.componentMask = const Value.absent(),
+    this.primaryUid = const Value.absent(),
+    this.rawIcsBody = const Value.absent(),
+    this.rawBodyHash = const Value.absent(),
+    this.semanticHash = const Value.absent(),
+    this.serverDeleted = const Value.absent(),
+    this.baselineGeneration = const Value.absent(),
+    this.firstSeenAtUtc = const Value.absent(),
+    this.lastFetchedAtUtc = const Value.absent(),
+    this.lastChangedAtUtc = const Value.absent(),
+    this.lastParseStatus = const Value.absent(),
+    this.lastParseErrorCode = const Value.absent(),
+    this.parserVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DavObjectsCompanion.insert({
+    required String id,
+    required String accountId,
+    required String collectionId,
+    required String hrefKey,
+    required String requestUri,
+    this.etag = const Value.absent(),
+    this.contentType = const Value.absent(),
+    this.dominantComponentType = const Value.absent(),
+    this.componentMask = const Value.absent(),
+    this.primaryUid = const Value.absent(),
+    required String rawIcsBody,
+    required String rawBodyHash,
+    this.semanticHash = const Value.absent(),
+    this.serverDeleted = const Value.absent(),
+    this.baselineGeneration = const Value.absent(),
+    required String firstSeenAtUtc,
+    required String lastFetchedAtUtc,
+    required String lastChangedAtUtc,
+    this.lastParseStatus = const Value.absent(),
+    this.lastParseErrorCode = const Value.absent(),
+    this.parserVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       accountId = Value(accountId),
+       collectionId = Value(collectionId),
+       hrefKey = Value(hrefKey),
+       requestUri = Value(requestUri),
+       rawIcsBody = Value(rawIcsBody),
+       rawBodyHash = Value(rawBodyHash),
+       firstSeenAtUtc = Value(firstSeenAtUtc),
+       lastFetchedAtUtc = Value(lastFetchedAtUtc),
+       lastChangedAtUtc = Value(lastChangedAtUtc);
+  static Insertable<DavObject> custom({
+    Expression<String>? id,
+    Expression<String>? accountId,
+    Expression<String>? collectionId,
+    Expression<String>? hrefKey,
+    Expression<String>? requestUri,
+    Expression<String>? etag,
+    Expression<String>? contentType,
+    Expression<String>? dominantComponentType,
+    Expression<int>? componentMask,
+    Expression<String>? primaryUid,
+    Expression<String>? rawIcsBody,
+    Expression<String>? rawBodyHash,
+    Expression<String>? semanticHash,
+    Expression<bool>? serverDeleted,
+    Expression<int>? baselineGeneration,
+    Expression<String>? firstSeenAtUtc,
+    Expression<String>? lastFetchedAtUtc,
+    Expression<String>? lastChangedAtUtc,
+    Expression<String>? lastParseStatus,
+    Expression<String>? lastParseErrorCode,
+    Expression<int>? parserVersion,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (collectionId != null) 'collection_id': collectionId,
+      if (hrefKey != null) 'href_key': hrefKey,
+      if (requestUri != null) 'request_uri': requestUri,
+      if (etag != null) 'etag': etag,
+      if (contentType != null) 'content_type': contentType,
+      if (dominantComponentType != null)
+        'dominant_component_type': dominantComponentType,
+      if (componentMask != null) 'component_mask': componentMask,
+      if (primaryUid != null) 'primary_uid': primaryUid,
+      if (rawIcsBody != null) 'raw_ics_body': rawIcsBody,
+      if (rawBodyHash != null) 'raw_body_hash': rawBodyHash,
+      if (semanticHash != null) 'semantic_hash': semanticHash,
+      if (serverDeleted != null) 'server_deleted': serverDeleted,
+      if (baselineGeneration != null) 'baseline_generation': baselineGeneration,
+      if (firstSeenAtUtc != null) 'first_seen_at_utc': firstSeenAtUtc,
+      if (lastFetchedAtUtc != null) 'last_fetched_at_utc': lastFetchedAtUtc,
+      if (lastChangedAtUtc != null) 'last_changed_at_utc': lastChangedAtUtc,
+      if (lastParseStatus != null) 'last_parse_status': lastParseStatus,
+      if (lastParseErrorCode != null)
+        'last_parse_error_code': lastParseErrorCode,
+      if (parserVersion != null) 'parser_version': parserVersion,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DavObjectsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? accountId,
+    Value<String>? collectionId,
+    Value<String>? hrefKey,
+    Value<String>? requestUri,
+    Value<String?>? etag,
+    Value<String?>? contentType,
+    Value<String?>? dominantComponentType,
+    Value<int>? componentMask,
+    Value<String?>? primaryUid,
+    Value<String>? rawIcsBody,
+    Value<String>? rawBodyHash,
+    Value<String?>? semanticHash,
+    Value<bool>? serverDeleted,
+    Value<int>? baselineGeneration,
+    Value<String>? firstSeenAtUtc,
+    Value<String>? lastFetchedAtUtc,
+    Value<String>? lastChangedAtUtc,
+    Value<String>? lastParseStatus,
+    Value<String?>? lastParseErrorCode,
+    Value<int>? parserVersion,
+    Value<int>? rowid,
+  }) {
+    return DavObjectsCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      collectionId: collectionId ?? this.collectionId,
+      hrefKey: hrefKey ?? this.hrefKey,
+      requestUri: requestUri ?? this.requestUri,
+      etag: etag ?? this.etag,
+      contentType: contentType ?? this.contentType,
+      dominantComponentType:
+          dominantComponentType ?? this.dominantComponentType,
+      componentMask: componentMask ?? this.componentMask,
+      primaryUid: primaryUid ?? this.primaryUid,
+      rawIcsBody: rawIcsBody ?? this.rawIcsBody,
+      rawBodyHash: rawBodyHash ?? this.rawBodyHash,
+      semanticHash: semanticHash ?? this.semanticHash,
+      serverDeleted: serverDeleted ?? this.serverDeleted,
+      baselineGeneration: baselineGeneration ?? this.baselineGeneration,
+      firstSeenAtUtc: firstSeenAtUtc ?? this.firstSeenAtUtc,
+      lastFetchedAtUtc: lastFetchedAtUtc ?? this.lastFetchedAtUtc,
+      lastChangedAtUtc: lastChangedAtUtc ?? this.lastChangedAtUtc,
+      lastParseStatus: lastParseStatus ?? this.lastParseStatus,
+      lastParseErrorCode: lastParseErrorCode ?? this.lastParseErrorCode,
+      parserVersion: parserVersion ?? this.parserVersion,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (collectionId.present) {
+      map['collection_id'] = Variable<String>(collectionId.value);
+    }
+    if (hrefKey.present) {
+      map['href_key'] = Variable<String>(hrefKey.value);
+    }
+    if (requestUri.present) {
+      map['request_uri'] = Variable<String>(requestUri.value);
+    }
+    if (etag.present) {
+      map['etag'] = Variable<String>(etag.value);
+    }
+    if (contentType.present) {
+      map['content_type'] = Variable<String>(contentType.value);
+    }
+    if (dominantComponentType.present) {
+      map['dominant_component_type'] = Variable<String>(
+        dominantComponentType.value,
+      );
+    }
+    if (componentMask.present) {
+      map['component_mask'] = Variable<int>(componentMask.value);
+    }
+    if (primaryUid.present) {
+      map['primary_uid'] = Variable<String>(primaryUid.value);
+    }
+    if (rawIcsBody.present) {
+      map['raw_ics_body'] = Variable<String>(rawIcsBody.value);
+    }
+    if (rawBodyHash.present) {
+      map['raw_body_hash'] = Variable<String>(rawBodyHash.value);
+    }
+    if (semanticHash.present) {
+      map['semantic_hash'] = Variable<String>(semanticHash.value);
+    }
+    if (serverDeleted.present) {
+      map['server_deleted'] = Variable<bool>(serverDeleted.value);
+    }
+    if (baselineGeneration.present) {
+      map['baseline_generation'] = Variable<int>(baselineGeneration.value);
+    }
+    if (firstSeenAtUtc.present) {
+      map['first_seen_at_utc'] = Variable<String>(firstSeenAtUtc.value);
+    }
+    if (lastFetchedAtUtc.present) {
+      map['last_fetched_at_utc'] = Variable<String>(lastFetchedAtUtc.value);
+    }
+    if (lastChangedAtUtc.present) {
+      map['last_changed_at_utc'] = Variable<String>(lastChangedAtUtc.value);
+    }
+    if (lastParseStatus.present) {
+      map['last_parse_status'] = Variable<String>(lastParseStatus.value);
+    }
+    if (lastParseErrorCode.present) {
+      map['last_parse_error_code'] = Variable<String>(lastParseErrorCode.value);
+    }
+    if (parserVersion.present) {
+      map['parser_version'] = Variable<int>(parserVersion.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavObjectsCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('collectionId: $collectionId, ')
+          ..write('hrefKey: $hrefKey, ')
+          ..write('requestUri: $requestUri, ')
+          ..write('etag: $etag, ')
+          ..write('contentType: $contentType, ')
+          ..write('dominantComponentType: $dominantComponentType, ')
+          ..write('componentMask: $componentMask, ')
+          ..write('primaryUid: $primaryUid, ')
+          ..write('rawIcsBody: $rawIcsBody, ')
+          ..write('rawBodyHash: $rawBodyHash, ')
+          ..write('semanticHash: $semanticHash, ')
+          ..write('serverDeleted: $serverDeleted, ')
+          ..write('baselineGeneration: $baselineGeneration, ')
+          ..write('firstSeenAtUtc: $firstSeenAtUtc, ')
+          ..write('lastFetchedAtUtc: $lastFetchedAtUtc, ')
+          ..write('lastChangedAtUtc: $lastChangedAtUtc, ')
+          ..write('lastParseStatus: $lastParseStatus, ')
+          ..write('lastParseErrorCode: $lastParseErrorCode, ')
+          ..write('parserVersion: $parserVersion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DavObjectComponentsTable extends DavObjectComponents
+    with TableInfo<$DavObjectComponentsTable, DavObjectComponent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DavObjectComponentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _davObjectIdMeta = const VerificationMeta(
+    'davObjectId',
+  );
+  @override
+  late final GeneratedColumn<String> davObjectId = GeneratedColumn<String>(
+    'dav_object_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_objects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _componentTypeMeta = const VerificationMeta(
+    'componentType',
+  );
+  @override
+  late final GeneratedColumn<String> componentType = GeneratedColumn<String>(
+    'component_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _uidMeta = const VerificationMeta('uid');
+  @override
+  late final GeneratedColumn<String> uid = GeneratedColumn<String>(
+    'uid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recurrenceIdKeyMeta = const VerificationMeta(
+    'recurrenceIdKey',
+  );
+  @override
+  late final GeneratedColumn<String> recurrenceIdKey = GeneratedColumn<String>(
+    'recurrence_id_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sequenceMeta = const VerificationMeta(
+    'sequence',
+  );
+  @override
+  late final GeneratedColumn<int> sequence = GeneratedColumn<int>(
+    'sequence',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dtstampUtcMeta = const VerificationMeta(
+    'dtstampUtc',
+  );
+  @override
+  late final GeneratedColumn<String> dtstampUtc = GeneratedColumn<String>(
+    'dtstamp_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastModifiedUtcMeta = const VerificationMeta(
+    'lastModifiedUtc',
+  );
+  @override
+  late final GeneratedColumn<String> lastModifiedUtc = GeneratedColumn<String>(
+    'last_modified_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _semanticHashMeta = const VerificationMeta(
+    'semanticHash',
+  );
+  @override
+  late final GeneratedColumn<String> semanticHash = GeneratedColumn<String>(
+    'semantic_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _parserProfileVersionMeta =
+      const VerificationMeta('parserProfileVersion');
+  @override
+  late final GeneratedColumn<int> parserProfileVersion = GeneratedColumn<int>(
+    'parser_profile_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    davObjectId,
+    componentType,
+    uid,
+    recurrenceIdKey,
+    sequence,
+    dtstampUtc,
+    lastModifiedUtc,
+    semanticHash,
+    parserProfileVersion,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dav_object_components';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DavObjectComponent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('dav_object_id')) {
+      context.handle(
+        _davObjectIdMeta,
+        davObjectId.isAcceptableOrUnknown(
+          data['dav_object_id']!,
+          _davObjectIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_davObjectIdMeta);
+    }
+    if (data.containsKey('component_type')) {
+      context.handle(
+        _componentTypeMeta,
+        componentType.isAcceptableOrUnknown(
+          data['component_type']!,
+          _componentTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_componentTypeMeta);
+    }
+    if (data.containsKey('uid')) {
+      context.handle(
+        _uidMeta,
+        uid.isAcceptableOrUnknown(data['uid']!, _uidMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_uidMeta);
+    }
+    if (data.containsKey('recurrence_id_key')) {
+      context.handle(
+        _recurrenceIdKeyMeta,
+        recurrenceIdKey.isAcceptableOrUnknown(
+          data['recurrence_id_key']!,
+          _recurrenceIdKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sequence')) {
+      context.handle(
+        _sequenceMeta,
+        sequence.isAcceptableOrUnknown(data['sequence']!, _sequenceMeta),
+      );
+    }
+    if (data.containsKey('dtstamp_utc')) {
+      context.handle(
+        _dtstampUtcMeta,
+        dtstampUtc.isAcceptableOrUnknown(data['dtstamp_utc']!, _dtstampUtcMeta),
+      );
+    }
+    if (data.containsKey('last_modified_utc')) {
+      context.handle(
+        _lastModifiedUtcMeta,
+        lastModifiedUtc.isAcceptableOrUnknown(
+          data['last_modified_utc']!,
+          _lastModifiedUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('semantic_hash')) {
+      context.handle(
+        _semanticHashMeta,
+        semanticHash.isAcceptableOrUnknown(
+          data['semantic_hash']!,
+          _semanticHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_semanticHashMeta);
+    }
+    if (data.containsKey('parser_profile_version')) {
+      context.handle(
+        _parserProfileVersionMeta,
+        parserProfileVersion.isAcceptableOrUnknown(
+          data['parser_profile_version']!,
+          _parserProfileVersionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DavObjectComponent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DavObjectComponent(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      davObjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_object_id'],
+      )!,
+      componentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}component_type'],
+      )!,
+      uid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uid'],
+      )!,
+      recurrenceIdKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence_id_key'],
+      ),
+      sequence: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sequence'],
+      ),
+      dtstampUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dtstamp_utc'],
+      ),
+      lastModifiedUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_modified_utc'],
+      ),
+      semanticHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}semantic_hash'],
+      )!,
+      parserProfileVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}parser_profile_version'],
+      )!,
+    );
+  }
+
+  @override
+  $DavObjectComponentsTable createAlias(String alias) {
+    return $DavObjectComponentsTable(attachedDatabase, alias);
+  }
+}
+
+class DavObjectComponent extends DataClass
+    implements Insertable<DavObjectComponent> {
+  final String id;
+  final String davObjectId;
+  final String componentType;
+  final String uid;
+  final String? recurrenceIdKey;
+  final int? sequence;
+  final String? dtstampUtc;
+  final String? lastModifiedUtc;
+  final String semanticHash;
+  final int parserProfileVersion;
+  const DavObjectComponent({
+    required this.id,
+    required this.davObjectId,
+    required this.componentType,
+    required this.uid,
+    this.recurrenceIdKey,
+    this.sequence,
+    this.dtstampUtc,
+    this.lastModifiedUtc,
+    required this.semanticHash,
+    required this.parserProfileVersion,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['dav_object_id'] = Variable<String>(davObjectId);
+    map['component_type'] = Variable<String>(componentType);
+    map['uid'] = Variable<String>(uid);
+    if (!nullToAbsent || recurrenceIdKey != null) {
+      map['recurrence_id_key'] = Variable<String>(recurrenceIdKey);
+    }
+    if (!nullToAbsent || sequence != null) {
+      map['sequence'] = Variable<int>(sequence);
+    }
+    if (!nullToAbsent || dtstampUtc != null) {
+      map['dtstamp_utc'] = Variable<String>(dtstampUtc);
+    }
+    if (!nullToAbsent || lastModifiedUtc != null) {
+      map['last_modified_utc'] = Variable<String>(lastModifiedUtc);
+    }
+    map['semantic_hash'] = Variable<String>(semanticHash);
+    map['parser_profile_version'] = Variable<int>(parserProfileVersion);
+    return map;
+  }
+
+  DavObjectComponentsCompanion toCompanion(bool nullToAbsent) {
+    return DavObjectComponentsCompanion(
+      id: Value(id),
+      davObjectId: Value(davObjectId),
+      componentType: Value(componentType),
+      uid: Value(uid),
+      recurrenceIdKey: recurrenceIdKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recurrenceIdKey),
+      sequence: sequence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sequence),
+      dtstampUtc: dtstampUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dtstampUtc),
+      lastModifiedUtc: lastModifiedUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastModifiedUtc),
+      semanticHash: Value(semanticHash),
+      parserProfileVersion: Value(parserProfileVersion),
+    );
+  }
+
+  factory DavObjectComponent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DavObjectComponent(
+      id: serializer.fromJson<String>(json['id']),
+      davObjectId: serializer.fromJson<String>(json['davObjectId']),
+      componentType: serializer.fromJson<String>(json['componentType']),
+      uid: serializer.fromJson<String>(json['uid']),
+      recurrenceIdKey: serializer.fromJson<String?>(json['recurrenceIdKey']),
+      sequence: serializer.fromJson<int?>(json['sequence']),
+      dtstampUtc: serializer.fromJson<String?>(json['dtstampUtc']),
+      lastModifiedUtc: serializer.fromJson<String?>(json['lastModifiedUtc']),
+      semanticHash: serializer.fromJson<String>(json['semanticHash']),
+      parserProfileVersion: serializer.fromJson<int>(
+        json['parserProfileVersion'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'davObjectId': serializer.toJson<String>(davObjectId),
+      'componentType': serializer.toJson<String>(componentType),
+      'uid': serializer.toJson<String>(uid),
+      'recurrenceIdKey': serializer.toJson<String?>(recurrenceIdKey),
+      'sequence': serializer.toJson<int?>(sequence),
+      'dtstampUtc': serializer.toJson<String?>(dtstampUtc),
+      'lastModifiedUtc': serializer.toJson<String?>(lastModifiedUtc),
+      'semanticHash': serializer.toJson<String>(semanticHash),
+      'parserProfileVersion': serializer.toJson<int>(parserProfileVersion),
+    };
+  }
+
+  DavObjectComponent copyWith({
+    String? id,
+    String? davObjectId,
+    String? componentType,
+    String? uid,
+    Value<String?> recurrenceIdKey = const Value.absent(),
+    Value<int?> sequence = const Value.absent(),
+    Value<String?> dtstampUtc = const Value.absent(),
+    Value<String?> lastModifiedUtc = const Value.absent(),
+    String? semanticHash,
+    int? parserProfileVersion,
+  }) => DavObjectComponent(
+    id: id ?? this.id,
+    davObjectId: davObjectId ?? this.davObjectId,
+    componentType: componentType ?? this.componentType,
+    uid: uid ?? this.uid,
+    recurrenceIdKey: recurrenceIdKey.present
+        ? recurrenceIdKey.value
+        : this.recurrenceIdKey,
+    sequence: sequence.present ? sequence.value : this.sequence,
+    dtstampUtc: dtstampUtc.present ? dtstampUtc.value : this.dtstampUtc,
+    lastModifiedUtc: lastModifiedUtc.present
+        ? lastModifiedUtc.value
+        : this.lastModifiedUtc,
+    semanticHash: semanticHash ?? this.semanticHash,
+    parserProfileVersion: parserProfileVersion ?? this.parserProfileVersion,
+  );
+  DavObjectComponent copyWithCompanion(DavObjectComponentsCompanion data) {
+    return DavObjectComponent(
+      id: data.id.present ? data.id.value : this.id,
+      davObjectId: data.davObjectId.present
+          ? data.davObjectId.value
+          : this.davObjectId,
+      componentType: data.componentType.present
+          ? data.componentType.value
+          : this.componentType,
+      uid: data.uid.present ? data.uid.value : this.uid,
+      recurrenceIdKey: data.recurrenceIdKey.present
+          ? data.recurrenceIdKey.value
+          : this.recurrenceIdKey,
+      sequence: data.sequence.present ? data.sequence.value : this.sequence,
+      dtstampUtc: data.dtstampUtc.present
+          ? data.dtstampUtc.value
+          : this.dtstampUtc,
+      lastModifiedUtc: data.lastModifiedUtc.present
+          ? data.lastModifiedUtc.value
+          : this.lastModifiedUtc,
+      semanticHash: data.semanticHash.present
+          ? data.semanticHash.value
+          : this.semanticHash,
+      parserProfileVersion: data.parserProfileVersion.present
+          ? data.parserProfileVersion.value
+          : this.parserProfileVersion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavObjectComponent(')
+          ..write('id: $id, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('componentType: $componentType, ')
+          ..write('uid: $uid, ')
+          ..write('recurrenceIdKey: $recurrenceIdKey, ')
+          ..write('sequence: $sequence, ')
+          ..write('dtstampUtc: $dtstampUtc, ')
+          ..write('lastModifiedUtc: $lastModifiedUtc, ')
+          ..write('semanticHash: $semanticHash, ')
+          ..write('parserProfileVersion: $parserProfileVersion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    davObjectId,
+    componentType,
+    uid,
+    recurrenceIdKey,
+    sequence,
+    dtstampUtc,
+    lastModifiedUtc,
+    semanticHash,
+    parserProfileVersion,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DavObjectComponent &&
+          other.id == this.id &&
+          other.davObjectId == this.davObjectId &&
+          other.componentType == this.componentType &&
+          other.uid == this.uid &&
+          other.recurrenceIdKey == this.recurrenceIdKey &&
+          other.sequence == this.sequence &&
+          other.dtstampUtc == this.dtstampUtc &&
+          other.lastModifiedUtc == this.lastModifiedUtc &&
+          other.semanticHash == this.semanticHash &&
+          other.parserProfileVersion == this.parserProfileVersion);
+}
+
+class DavObjectComponentsCompanion extends UpdateCompanion<DavObjectComponent> {
+  final Value<String> id;
+  final Value<String> davObjectId;
+  final Value<String> componentType;
+  final Value<String> uid;
+  final Value<String?> recurrenceIdKey;
+  final Value<int?> sequence;
+  final Value<String?> dtstampUtc;
+  final Value<String?> lastModifiedUtc;
+  final Value<String> semanticHash;
+  final Value<int> parserProfileVersion;
+  final Value<int> rowid;
+  const DavObjectComponentsCompanion({
+    this.id = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.componentType = const Value.absent(),
+    this.uid = const Value.absent(),
+    this.recurrenceIdKey = const Value.absent(),
+    this.sequence = const Value.absent(),
+    this.dtstampUtc = const Value.absent(),
+    this.lastModifiedUtc = const Value.absent(),
+    this.semanticHash = const Value.absent(),
+    this.parserProfileVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DavObjectComponentsCompanion.insert({
+    required String id,
+    required String davObjectId,
+    required String componentType,
+    required String uid,
+    this.recurrenceIdKey = const Value.absent(),
+    this.sequence = const Value.absent(),
+    this.dtstampUtc = const Value.absent(),
+    this.lastModifiedUtc = const Value.absent(),
+    required String semanticHash,
+    this.parserProfileVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       davObjectId = Value(davObjectId),
+       componentType = Value(componentType),
+       uid = Value(uid),
+       semanticHash = Value(semanticHash);
+  static Insertable<DavObjectComponent> custom({
+    Expression<String>? id,
+    Expression<String>? davObjectId,
+    Expression<String>? componentType,
+    Expression<String>? uid,
+    Expression<String>? recurrenceIdKey,
+    Expression<int>? sequence,
+    Expression<String>? dtstampUtc,
+    Expression<String>? lastModifiedUtc,
+    Expression<String>? semanticHash,
+    Expression<int>? parserProfileVersion,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (davObjectId != null) 'dav_object_id': davObjectId,
+      if (componentType != null) 'component_type': componentType,
+      if (uid != null) 'uid': uid,
+      if (recurrenceIdKey != null) 'recurrence_id_key': recurrenceIdKey,
+      if (sequence != null) 'sequence': sequence,
+      if (dtstampUtc != null) 'dtstamp_utc': dtstampUtc,
+      if (lastModifiedUtc != null) 'last_modified_utc': lastModifiedUtc,
+      if (semanticHash != null) 'semantic_hash': semanticHash,
+      if (parserProfileVersion != null)
+        'parser_profile_version': parserProfileVersion,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DavObjectComponentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? davObjectId,
+    Value<String>? componentType,
+    Value<String>? uid,
+    Value<String?>? recurrenceIdKey,
+    Value<int?>? sequence,
+    Value<String?>? dtstampUtc,
+    Value<String?>? lastModifiedUtc,
+    Value<String>? semanticHash,
+    Value<int>? parserProfileVersion,
+    Value<int>? rowid,
+  }) {
+    return DavObjectComponentsCompanion(
+      id: id ?? this.id,
+      davObjectId: davObjectId ?? this.davObjectId,
+      componentType: componentType ?? this.componentType,
+      uid: uid ?? this.uid,
+      recurrenceIdKey: recurrenceIdKey ?? this.recurrenceIdKey,
+      sequence: sequence ?? this.sequence,
+      dtstampUtc: dtstampUtc ?? this.dtstampUtc,
+      lastModifiedUtc: lastModifiedUtc ?? this.lastModifiedUtc,
+      semanticHash: semanticHash ?? this.semanticHash,
+      parserProfileVersion: parserProfileVersion ?? this.parserProfileVersion,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (davObjectId.present) {
+      map['dav_object_id'] = Variable<String>(davObjectId.value);
+    }
+    if (componentType.present) {
+      map['component_type'] = Variable<String>(componentType.value);
+    }
+    if (uid.present) {
+      map['uid'] = Variable<String>(uid.value);
+    }
+    if (recurrenceIdKey.present) {
+      map['recurrence_id_key'] = Variable<String>(recurrenceIdKey.value);
+    }
+    if (sequence.present) {
+      map['sequence'] = Variable<int>(sequence.value);
+    }
+    if (dtstampUtc.present) {
+      map['dtstamp_utc'] = Variable<String>(dtstampUtc.value);
+    }
+    if (lastModifiedUtc.present) {
+      map['last_modified_utc'] = Variable<String>(lastModifiedUtc.value);
+    }
+    if (semanticHash.present) {
+      map['semantic_hash'] = Variable<String>(semanticHash.value);
+    }
+    if (parserProfileVersion.present) {
+      map['parser_profile_version'] = Variable<int>(parserProfileVersion.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavObjectComponentsCompanion(')
+          ..write('id: $id, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('componentType: $componentType, ')
+          ..write('uid: $uid, ')
+          ..write('recurrenceIdKey: $recurrenceIdKey, ')
+          ..write('sequence: $sequence, ')
+          ..write('dtstampUtc: $dtstampUtc, ')
+          ..write('lastModifiedUtc: $lastModifiedUtc, ')
+          ..write('semanticHash: $semanticHash, ')
+          ..write('parserProfileVersion: $parserProfileVersion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DavConflictSnapshotsTable extends DavConflictSnapshots
+    with TableInfo<$DavConflictSnapshotsTable, DavConflictSnapshot> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DavConflictSnapshotsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _davCollectionIdMeta = const VerificationMeta(
+    'davCollectionId',
+  );
+  @override
+  late final GeneratedColumn<String> davCollectionId = GeneratedColumn<String>(
+    'dav_collection_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _davObjectIdMeta = const VerificationMeta(
+    'davObjectId',
+  );
+  @override
+  late final GeneratedColumn<String> davObjectId = GeneratedColumn<String>(
+    'dav_object_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_objects (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _baselineEtagMeta = const VerificationMeta(
+    'baselineEtag',
+  );
+  @override
+  late final GeneratedColumn<String> baselineEtag = GeneratedColumn<String>(
+    'baseline_etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _baselineRawIcsMeta = const VerificationMeta(
+    'baselineRawIcs',
+  );
+  @override
+  late final GeneratedColumn<String> baselineRawIcs = GeneratedColumn<String>(
+    'baseline_raw_ics',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _localCandidateRawIcsMeta =
+      const VerificationMeta('localCandidateRawIcs');
+  @override
+  late final GeneratedColumn<String> localCandidateRawIcs =
+      GeneratedColumn<String>(
+        'local_candidate_raw_ics',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _remoteEtagMeta = const VerificationMeta(
+    'remoteEtag',
+  );
+  @override
+  late final GeneratedColumn<String> remoteEtag = GeneratedColumn<String>(
+    'remote_etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _remoteRawIcsMeta = const VerificationMeta(
+    'remoteRawIcs',
+  );
+  @override
+  late final GeneratedColumn<String> remoteRawIcs = GeneratedColumn<String>(
+    'remote_raw_ics',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _conflictCodeMeta = const VerificationMeta(
+    'conflictCode',
+  );
+  @override
+  late final GeneratedColumn<String> conflictCode = GeneratedColumn<String>(
+    'conflict_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtUtcMeta = const VerificationMeta(
+    'createdAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> createdAtUtc = GeneratedColumn<String>(
+    'created_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _resolvedAtUtcMeta = const VerificationMeta(
+    'resolvedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> resolvedAtUtc = GeneratedColumn<String>(
+    'resolved_at_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resolutionMeta = const VerificationMeta(
+    'resolution',
+  );
+  @override
+  late final GeneratedColumn<String> resolution = GeneratedColumn<String>(
+    'resolution',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    accountId,
+    davCollectionId,
+    davObjectId,
+    baselineEtag,
+    baselineRawIcs,
+    localCandidateRawIcs,
+    remoteEtag,
+    remoteRawIcs,
+    conflictCode,
+    createdAtUtc,
+    resolvedAtUtc,
+    resolution,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dav_conflict_snapshots';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DavConflictSnapshot> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('dav_collection_id')) {
+      context.handle(
+        _davCollectionIdMeta,
+        davCollectionId.isAcceptableOrUnknown(
+          data['dav_collection_id']!,
+          _davCollectionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dav_object_id')) {
+      context.handle(
+        _davObjectIdMeta,
+        davObjectId.isAcceptableOrUnknown(
+          data['dav_object_id']!,
+          _davObjectIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('baseline_etag')) {
+      context.handle(
+        _baselineEtagMeta,
+        baselineEtag.isAcceptableOrUnknown(
+          data['baseline_etag']!,
+          _baselineEtagMeta,
+        ),
+      );
+    }
+    if (data.containsKey('baseline_raw_ics')) {
+      context.handle(
+        _baselineRawIcsMeta,
+        baselineRawIcs.isAcceptableOrUnknown(
+          data['baseline_raw_ics']!,
+          _baselineRawIcsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_baselineRawIcsMeta);
+    }
+    if (data.containsKey('local_candidate_raw_ics')) {
+      context.handle(
+        _localCandidateRawIcsMeta,
+        localCandidateRawIcs.isAcceptableOrUnknown(
+          data['local_candidate_raw_ics']!,
+          _localCandidateRawIcsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_localCandidateRawIcsMeta);
+    }
+    if (data.containsKey('remote_etag')) {
+      context.handle(
+        _remoteEtagMeta,
+        remoteEtag.isAcceptableOrUnknown(data['remote_etag']!, _remoteEtagMeta),
+      );
+    }
+    if (data.containsKey('remote_raw_ics')) {
+      context.handle(
+        _remoteRawIcsMeta,
+        remoteRawIcs.isAcceptableOrUnknown(
+          data['remote_raw_ics']!,
+          _remoteRawIcsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_remoteRawIcsMeta);
+    }
+    if (data.containsKey('conflict_code')) {
+      context.handle(
+        _conflictCodeMeta,
+        conflictCode.isAcceptableOrUnknown(
+          data['conflict_code']!,
+          _conflictCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_conflictCodeMeta);
+    }
+    if (data.containsKey('created_at_utc')) {
+      context.handle(
+        _createdAtUtcMeta,
+        createdAtUtc.isAcceptableOrUnknown(
+          data['created_at_utc']!,
+          _createdAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtUtcMeta);
+    }
+    if (data.containsKey('resolved_at_utc')) {
+      context.handle(
+        _resolvedAtUtcMeta,
+        resolvedAtUtc.isAcceptableOrUnknown(
+          data['resolved_at_utc']!,
+          _resolvedAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('resolution')) {
+      context.handle(
+        _resolutionMeta,
+        resolution.isAcceptableOrUnknown(data['resolution']!, _resolutionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DavConflictSnapshot map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DavConflictSnapshot(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      davCollectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_collection_id'],
+      ),
+      davObjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_object_id'],
+      ),
+      baselineEtag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}baseline_etag'],
+      ),
+      baselineRawIcs: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}baseline_raw_ics'],
+      )!,
+      localCandidateRawIcs: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_candidate_raw_ics'],
+      )!,
+      remoteEtag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_etag'],
+      ),
+      remoteRawIcs: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_raw_ics'],
+      )!,
+      conflictCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conflict_code'],
+      )!,
+      createdAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_at_utc'],
+      )!,
+      resolvedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resolved_at_utc'],
+      ),
+      resolution: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}resolution'],
+      ),
+    );
+  }
+
+  @override
+  $DavConflictSnapshotsTable createAlias(String alias) {
+    return $DavConflictSnapshotsTable(attachedDatabase, alias);
+  }
+}
+
+class DavConflictSnapshot extends DataClass
+    implements Insertable<DavConflictSnapshot> {
+  final String id;
+  final String accountId;
+  final String? davCollectionId;
+  final String? davObjectId;
+  final String? baselineEtag;
+  final String baselineRawIcs;
+  final String localCandidateRawIcs;
+  final String? remoteEtag;
+  final String remoteRawIcs;
+  final String conflictCode;
+  final String createdAtUtc;
+  final String? resolvedAtUtc;
+  final String? resolution;
+  const DavConflictSnapshot({
+    required this.id,
+    required this.accountId,
+    this.davCollectionId,
+    this.davObjectId,
+    this.baselineEtag,
+    required this.baselineRawIcs,
+    required this.localCandidateRawIcs,
+    this.remoteEtag,
+    required this.remoteRawIcs,
+    required this.conflictCode,
+    required this.createdAtUtc,
+    this.resolvedAtUtc,
+    this.resolution,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['account_id'] = Variable<String>(accountId);
+    if (!nullToAbsent || davCollectionId != null) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId);
+    }
+    if (!nullToAbsent || davObjectId != null) {
+      map['dav_object_id'] = Variable<String>(davObjectId);
+    }
+    if (!nullToAbsent || baselineEtag != null) {
+      map['baseline_etag'] = Variable<String>(baselineEtag);
+    }
+    map['baseline_raw_ics'] = Variable<String>(baselineRawIcs);
+    map['local_candidate_raw_ics'] = Variable<String>(localCandidateRawIcs);
+    if (!nullToAbsent || remoteEtag != null) {
+      map['remote_etag'] = Variable<String>(remoteEtag);
+    }
+    map['remote_raw_ics'] = Variable<String>(remoteRawIcs);
+    map['conflict_code'] = Variable<String>(conflictCode);
+    map['created_at_utc'] = Variable<String>(createdAtUtc);
+    if (!nullToAbsent || resolvedAtUtc != null) {
+      map['resolved_at_utc'] = Variable<String>(resolvedAtUtc);
+    }
+    if (!nullToAbsent || resolution != null) {
+      map['resolution'] = Variable<String>(resolution);
+    }
+    return map;
+  }
+
+  DavConflictSnapshotsCompanion toCompanion(bool nullToAbsent) {
+    return DavConflictSnapshotsCompanion(
+      id: Value(id),
+      accountId: Value(accountId),
+      davCollectionId: davCollectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davCollectionId),
+      davObjectId: davObjectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davObjectId),
+      baselineEtag: baselineEtag == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baselineEtag),
+      baselineRawIcs: Value(baselineRawIcs),
+      localCandidateRawIcs: Value(localCandidateRawIcs),
+      remoteEtag: remoteEtag == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteEtag),
+      remoteRawIcs: Value(remoteRawIcs),
+      conflictCode: Value(conflictCode),
+      createdAtUtc: Value(createdAtUtc),
+      resolvedAtUtc: resolvedAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resolvedAtUtc),
+      resolution: resolution == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resolution),
+    );
+  }
+
+  factory DavConflictSnapshot.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DavConflictSnapshot(
+      id: serializer.fromJson<String>(json['id']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      davCollectionId: serializer.fromJson<String?>(json['davCollectionId']),
+      davObjectId: serializer.fromJson<String?>(json['davObjectId']),
+      baselineEtag: serializer.fromJson<String?>(json['baselineEtag']),
+      baselineRawIcs: serializer.fromJson<String>(json['baselineRawIcs']),
+      localCandidateRawIcs: serializer.fromJson<String>(
+        json['localCandidateRawIcs'],
+      ),
+      remoteEtag: serializer.fromJson<String?>(json['remoteEtag']),
+      remoteRawIcs: serializer.fromJson<String>(json['remoteRawIcs']),
+      conflictCode: serializer.fromJson<String>(json['conflictCode']),
+      createdAtUtc: serializer.fromJson<String>(json['createdAtUtc']),
+      resolvedAtUtc: serializer.fromJson<String?>(json['resolvedAtUtc']),
+      resolution: serializer.fromJson<String?>(json['resolution']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'accountId': serializer.toJson<String>(accountId),
+      'davCollectionId': serializer.toJson<String?>(davCollectionId),
+      'davObjectId': serializer.toJson<String?>(davObjectId),
+      'baselineEtag': serializer.toJson<String?>(baselineEtag),
+      'baselineRawIcs': serializer.toJson<String>(baselineRawIcs),
+      'localCandidateRawIcs': serializer.toJson<String>(localCandidateRawIcs),
+      'remoteEtag': serializer.toJson<String?>(remoteEtag),
+      'remoteRawIcs': serializer.toJson<String>(remoteRawIcs),
+      'conflictCode': serializer.toJson<String>(conflictCode),
+      'createdAtUtc': serializer.toJson<String>(createdAtUtc),
+      'resolvedAtUtc': serializer.toJson<String?>(resolvedAtUtc),
+      'resolution': serializer.toJson<String?>(resolution),
+    };
+  }
+
+  DavConflictSnapshot copyWith({
+    String? id,
+    String? accountId,
+    Value<String?> davCollectionId = const Value.absent(),
+    Value<String?> davObjectId = const Value.absent(),
+    Value<String?> baselineEtag = const Value.absent(),
+    String? baselineRawIcs,
+    String? localCandidateRawIcs,
+    Value<String?> remoteEtag = const Value.absent(),
+    String? remoteRawIcs,
+    String? conflictCode,
+    String? createdAtUtc,
+    Value<String?> resolvedAtUtc = const Value.absent(),
+    Value<String?> resolution = const Value.absent(),
+  }) => DavConflictSnapshot(
+    id: id ?? this.id,
+    accountId: accountId ?? this.accountId,
+    davCollectionId: davCollectionId.present
+        ? davCollectionId.value
+        : this.davCollectionId,
+    davObjectId: davObjectId.present ? davObjectId.value : this.davObjectId,
+    baselineEtag: baselineEtag.present ? baselineEtag.value : this.baselineEtag,
+    baselineRawIcs: baselineRawIcs ?? this.baselineRawIcs,
+    localCandidateRawIcs: localCandidateRawIcs ?? this.localCandidateRawIcs,
+    remoteEtag: remoteEtag.present ? remoteEtag.value : this.remoteEtag,
+    remoteRawIcs: remoteRawIcs ?? this.remoteRawIcs,
+    conflictCode: conflictCode ?? this.conflictCode,
+    createdAtUtc: createdAtUtc ?? this.createdAtUtc,
+    resolvedAtUtc: resolvedAtUtc.present
+        ? resolvedAtUtc.value
+        : this.resolvedAtUtc,
+    resolution: resolution.present ? resolution.value : this.resolution,
+  );
+  DavConflictSnapshot copyWithCompanion(DavConflictSnapshotsCompanion data) {
+    return DavConflictSnapshot(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      davCollectionId: data.davCollectionId.present
+          ? data.davCollectionId.value
+          : this.davCollectionId,
+      davObjectId: data.davObjectId.present
+          ? data.davObjectId.value
+          : this.davObjectId,
+      baselineEtag: data.baselineEtag.present
+          ? data.baselineEtag.value
+          : this.baselineEtag,
+      baselineRawIcs: data.baselineRawIcs.present
+          ? data.baselineRawIcs.value
+          : this.baselineRawIcs,
+      localCandidateRawIcs: data.localCandidateRawIcs.present
+          ? data.localCandidateRawIcs.value
+          : this.localCandidateRawIcs,
+      remoteEtag: data.remoteEtag.present
+          ? data.remoteEtag.value
+          : this.remoteEtag,
+      remoteRawIcs: data.remoteRawIcs.present
+          ? data.remoteRawIcs.value
+          : this.remoteRawIcs,
+      conflictCode: data.conflictCode.present
+          ? data.conflictCode.value
+          : this.conflictCode,
+      createdAtUtc: data.createdAtUtc.present
+          ? data.createdAtUtc.value
+          : this.createdAtUtc,
+      resolvedAtUtc: data.resolvedAtUtc.present
+          ? data.resolvedAtUtc.value
+          : this.resolvedAtUtc,
+      resolution: data.resolution.present
+          ? data.resolution.value
+          : this.resolution,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavConflictSnapshot(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('baselineEtag: $baselineEtag, ')
+          ..write('baselineRawIcs: $baselineRawIcs, ')
+          ..write('localCandidateRawIcs: $localCandidateRawIcs, ')
+          ..write('remoteEtag: $remoteEtag, ')
+          ..write('remoteRawIcs: $remoteRawIcs, ')
+          ..write('conflictCode: $conflictCode, ')
+          ..write('createdAtUtc: $createdAtUtc, ')
+          ..write('resolvedAtUtc: $resolvedAtUtc, ')
+          ..write('resolution: $resolution')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    accountId,
+    davCollectionId,
+    davObjectId,
+    baselineEtag,
+    baselineRawIcs,
+    localCandidateRawIcs,
+    remoteEtag,
+    remoteRawIcs,
+    conflictCode,
+    createdAtUtc,
+    resolvedAtUtc,
+    resolution,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DavConflictSnapshot &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.davCollectionId == this.davCollectionId &&
+          other.davObjectId == this.davObjectId &&
+          other.baselineEtag == this.baselineEtag &&
+          other.baselineRawIcs == this.baselineRawIcs &&
+          other.localCandidateRawIcs == this.localCandidateRawIcs &&
+          other.remoteEtag == this.remoteEtag &&
+          other.remoteRawIcs == this.remoteRawIcs &&
+          other.conflictCode == this.conflictCode &&
+          other.createdAtUtc == this.createdAtUtc &&
+          other.resolvedAtUtc == this.resolvedAtUtc &&
+          other.resolution == this.resolution);
+}
+
+class DavConflictSnapshotsCompanion
+    extends UpdateCompanion<DavConflictSnapshot> {
+  final Value<String> id;
+  final Value<String> accountId;
+  final Value<String?> davCollectionId;
+  final Value<String?> davObjectId;
+  final Value<String?> baselineEtag;
+  final Value<String> baselineRawIcs;
+  final Value<String> localCandidateRawIcs;
+  final Value<String?> remoteEtag;
+  final Value<String> remoteRawIcs;
+  final Value<String> conflictCode;
+  final Value<String> createdAtUtc;
+  final Value<String?> resolvedAtUtc;
+  final Value<String?> resolution;
+  final Value<int> rowid;
+  const DavConflictSnapshotsCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.davCollectionId = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.baselineEtag = const Value.absent(),
+    this.baselineRawIcs = const Value.absent(),
+    this.localCandidateRawIcs = const Value.absent(),
+    this.remoteEtag = const Value.absent(),
+    this.remoteRawIcs = const Value.absent(),
+    this.conflictCode = const Value.absent(),
+    this.createdAtUtc = const Value.absent(),
+    this.resolvedAtUtc = const Value.absent(),
+    this.resolution = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DavConflictSnapshotsCompanion.insert({
+    required String id,
+    required String accountId,
+    this.davCollectionId = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.baselineEtag = const Value.absent(),
+    required String baselineRawIcs,
+    required String localCandidateRawIcs,
+    this.remoteEtag = const Value.absent(),
+    required String remoteRawIcs,
+    required String conflictCode,
+    required String createdAtUtc,
+    this.resolvedAtUtc = const Value.absent(),
+    this.resolution = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       accountId = Value(accountId),
+       baselineRawIcs = Value(baselineRawIcs),
+       localCandidateRawIcs = Value(localCandidateRawIcs),
+       remoteRawIcs = Value(remoteRawIcs),
+       conflictCode = Value(conflictCode),
+       createdAtUtc = Value(createdAtUtc);
+  static Insertable<DavConflictSnapshot> custom({
+    Expression<String>? id,
+    Expression<String>? accountId,
+    Expression<String>? davCollectionId,
+    Expression<String>? davObjectId,
+    Expression<String>? baselineEtag,
+    Expression<String>? baselineRawIcs,
+    Expression<String>? localCandidateRawIcs,
+    Expression<String>? remoteEtag,
+    Expression<String>? remoteRawIcs,
+    Expression<String>? conflictCode,
+    Expression<String>? createdAtUtc,
+    Expression<String>? resolvedAtUtc,
+    Expression<String>? resolution,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (davCollectionId != null) 'dav_collection_id': davCollectionId,
+      if (davObjectId != null) 'dav_object_id': davObjectId,
+      if (baselineEtag != null) 'baseline_etag': baselineEtag,
+      if (baselineRawIcs != null) 'baseline_raw_ics': baselineRawIcs,
+      if (localCandidateRawIcs != null)
+        'local_candidate_raw_ics': localCandidateRawIcs,
+      if (remoteEtag != null) 'remote_etag': remoteEtag,
+      if (remoteRawIcs != null) 'remote_raw_ics': remoteRawIcs,
+      if (conflictCode != null) 'conflict_code': conflictCode,
+      if (createdAtUtc != null) 'created_at_utc': createdAtUtc,
+      if (resolvedAtUtc != null) 'resolved_at_utc': resolvedAtUtc,
+      if (resolution != null) 'resolution': resolution,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DavConflictSnapshotsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? accountId,
+    Value<String?>? davCollectionId,
+    Value<String?>? davObjectId,
+    Value<String?>? baselineEtag,
+    Value<String>? baselineRawIcs,
+    Value<String>? localCandidateRawIcs,
+    Value<String?>? remoteEtag,
+    Value<String>? remoteRawIcs,
+    Value<String>? conflictCode,
+    Value<String>? createdAtUtc,
+    Value<String?>? resolvedAtUtc,
+    Value<String?>? resolution,
+    Value<int>? rowid,
+  }) {
+    return DavConflictSnapshotsCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      davCollectionId: davCollectionId ?? this.davCollectionId,
+      davObjectId: davObjectId ?? this.davObjectId,
+      baselineEtag: baselineEtag ?? this.baselineEtag,
+      baselineRawIcs: baselineRawIcs ?? this.baselineRawIcs,
+      localCandidateRawIcs: localCandidateRawIcs ?? this.localCandidateRawIcs,
+      remoteEtag: remoteEtag ?? this.remoteEtag,
+      remoteRawIcs: remoteRawIcs ?? this.remoteRawIcs,
+      conflictCode: conflictCode ?? this.conflictCode,
+      createdAtUtc: createdAtUtc ?? this.createdAtUtc,
+      resolvedAtUtc: resolvedAtUtc ?? this.resolvedAtUtc,
+      resolution: resolution ?? this.resolution,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (davCollectionId.present) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId.value);
+    }
+    if (davObjectId.present) {
+      map['dav_object_id'] = Variable<String>(davObjectId.value);
+    }
+    if (baselineEtag.present) {
+      map['baseline_etag'] = Variable<String>(baselineEtag.value);
+    }
+    if (baselineRawIcs.present) {
+      map['baseline_raw_ics'] = Variable<String>(baselineRawIcs.value);
+    }
+    if (localCandidateRawIcs.present) {
+      map['local_candidate_raw_ics'] = Variable<String>(
+        localCandidateRawIcs.value,
+      );
+    }
+    if (remoteEtag.present) {
+      map['remote_etag'] = Variable<String>(remoteEtag.value);
+    }
+    if (remoteRawIcs.present) {
+      map['remote_raw_ics'] = Variable<String>(remoteRawIcs.value);
+    }
+    if (conflictCode.present) {
+      map['conflict_code'] = Variable<String>(conflictCode.value);
+    }
+    if (createdAtUtc.present) {
+      map['created_at_utc'] = Variable<String>(createdAtUtc.value);
+    }
+    if (resolvedAtUtc.present) {
+      map['resolved_at_utc'] = Variable<String>(resolvedAtUtc.value);
+    }
+    if (resolution.present) {
+      map['resolution'] = Variable<String>(resolution.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavConflictSnapshotsCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('baselineEtag: $baselineEtag, ')
+          ..write('baselineRawIcs: $baselineRawIcs, ')
+          ..write('localCandidateRawIcs: $localCandidateRawIcs, ')
+          ..write('remoteEtag: $remoteEtag, ')
+          ..write('remoteRawIcs: $remoteRawIcs, ')
+          ..write('conflictCode: $conflictCode, ')
+          ..write('createdAtUtc: $createdAtUtc, ')
+          ..write('resolvedAtUtc: $resolvedAtUtc, ')
+          ..write('resolution: $resolution, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1014,6 +6832,20 @@ class $TaskListsTable extends TaskLists
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _davCollectionIdMeta = const VerificationMeta(
+    'davCollectionId',
+  );
+  @override
+  late final GeneratedColumn<String> davCollectionId = GeneratedColumn<String>(
+    'dav_collection_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE SET NULL',
+    ),
   );
   static const VerificationMeta _kindMeta = const VerificationMeta('kind');
   @override
@@ -1220,6 +7052,7 @@ class $TaskListsTable extends TaskLists
   List<GeneratedColumn> get $columns => [
     accountId,
     id,
+    davCollectionId,
     kind,
     etag,
     title,
@@ -1262,6 +7095,15 @@ class $TaskListsTable extends TaskLists
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('dav_collection_id')) {
+      context.handle(
+        _davCollectionIdMeta,
+        davCollectionId.isAcceptableOrUnknown(
+          data['dav_collection_id']!,
+          _davCollectionIdMeta,
+        ),
+      );
     }
     if (data.containsKey('kind')) {
       context.handle(
@@ -1411,6 +7253,10 @@ class $TaskListsTable extends TaskLists
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
+      davCollectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_collection_id'],
+      ),
       kind: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
@@ -1491,6 +7337,7 @@ class $TaskListsTable extends TaskLists
 class TaskList extends DataClass implements Insertable<TaskList> {
   final String accountId;
   final String id;
+  final String? davCollectionId;
   final String? kind;
   final String? etag;
   final String title;
@@ -1511,6 +7358,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
   const TaskList({
     required this.accountId,
     required this.id,
+    this.davCollectionId,
     this.kind,
     this.etag,
     required this.title,
@@ -1534,6 +7382,9 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     final map = <String, Expression>{};
     map['account_id'] = Variable<String>(accountId);
     map['id'] = Variable<String>(id);
+    if (!nullToAbsent || davCollectionId != null) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId);
+    }
     if (!nullToAbsent || kind != null) {
       map['kind'] = Variable<String>(kind);
     }
@@ -1578,6 +7429,9 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     return TaskListsCompanion(
       accountId: Value(accountId),
       id: Value(id),
+      davCollectionId: davCollectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davCollectionId),
       kind: kind == null && nullToAbsent ? const Value.absent() : Value(kind),
       etag: etag == null && nullToAbsent ? const Value.absent() : Value(etag),
       title: Value(title),
@@ -1622,6 +7476,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     return TaskList(
       accountId: serializer.fromJson<String>(json['accountId']),
       id: serializer.fromJson<String>(json['id']),
+      davCollectionId: serializer.fromJson<String?>(json['davCollectionId']),
       kind: serializer.fromJson<String?>(json['kind']),
       etag: serializer.fromJson<String?>(json['etag']),
       title: serializer.fromJson<String>(json['title']),
@@ -1649,6 +7504,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     return <String, dynamic>{
       'accountId': serializer.toJson<String>(accountId),
       'id': serializer.toJson<String>(id),
+      'davCollectionId': serializer.toJson<String?>(davCollectionId),
       'kind': serializer.toJson<String?>(kind),
       'etag': serializer.toJson<String?>(etag),
       'title': serializer.toJson<String>(title),
@@ -1672,6 +7528,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
   TaskList copyWith({
     String? accountId,
     String? id,
+    Value<String?> davCollectionId = const Value.absent(),
     Value<String?> kind = const Value.absent(),
     Value<String?> etag = const Value.absent(),
     String? title,
@@ -1692,6 +7549,9 @@ class TaskList extends DataClass implements Insertable<TaskList> {
   }) => TaskList(
     accountId: accountId ?? this.accountId,
     id: id ?? this.id,
+    davCollectionId: davCollectionId.present
+        ? davCollectionId.value
+        : this.davCollectionId,
     kind: kind.present ? kind.value : this.kind,
     etag: etag.present ? etag.value : this.etag,
     title: title ?? this.title,
@@ -1720,6 +7580,9 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     return TaskList(
       accountId: data.accountId.present ? data.accountId.value : this.accountId,
       id: data.id.present ? data.id.value : this.id,
+      davCollectionId: data.davCollectionId.present
+          ? data.davCollectionId.value
+          : this.davCollectionId,
       kind: data.kind.present ? data.kind.value : this.kind,
       etag: data.etag.present ? data.etag.value : this.etag,
       title: data.title.present ? data.title.value : this.title,
@@ -1763,6 +7626,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     return (StringBuffer('TaskList(')
           ..write('accountId: $accountId, ')
           ..write('id: $id, ')
+          ..write('davCollectionId: $davCollectionId, ')
           ..write('kind: $kind, ')
           ..write('etag: $etag, ')
           ..write('title: $title, ')
@@ -1788,6 +7652,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
   int get hashCode => Object.hash(
     accountId,
     id,
+    davCollectionId,
     kind,
     etag,
     title,
@@ -1812,6 +7677,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       (other is TaskList &&
           other.accountId == this.accountId &&
           other.id == this.id &&
+          other.davCollectionId == this.davCollectionId &&
           other.kind == this.kind &&
           other.etag == this.etag &&
           other.title == this.title &&
@@ -1834,6 +7700,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
 class TaskListsCompanion extends UpdateCompanion<TaskList> {
   final Value<String> accountId;
   final Value<String> id;
+  final Value<String?> davCollectionId;
   final Value<String?> kind;
   final Value<String?> etag;
   final Value<String> title;
@@ -1855,6 +7722,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
   const TaskListsCompanion({
     this.accountId = const Value.absent(),
     this.id = const Value.absent(),
+    this.davCollectionId = const Value.absent(),
     this.kind = const Value.absent(),
     this.etag = const Value.absent(),
     this.title = const Value.absent(),
@@ -1877,6 +7745,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
   TaskListsCompanion.insert({
     required String accountId,
     required String id,
+    this.davCollectionId = const Value.absent(),
     this.kind = const Value.absent(),
     this.etag = const Value.absent(),
     required String title,
@@ -1904,6 +7773,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
   static Insertable<TaskList> custom({
     Expression<String>? accountId,
     Expression<String>? id,
+    Expression<String>? davCollectionId,
     Expression<String>? kind,
     Expression<String>? etag,
     Expression<String>? title,
@@ -1926,6 +7796,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     return RawValuesInsertable({
       if (accountId != null) 'account_id': accountId,
       if (id != null) 'id': id,
+      if (davCollectionId != null) 'dav_collection_id': davCollectionId,
       if (kind != null) 'kind': kind,
       if (etag != null) 'etag': etag,
       if (title != null) 'title': title,
@@ -1951,6 +7822,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
   TaskListsCompanion copyWith({
     Value<String>? accountId,
     Value<String>? id,
+    Value<String?>? davCollectionId,
     Value<String?>? kind,
     Value<String?>? etag,
     Value<String>? title,
@@ -1973,6 +7845,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     return TaskListsCompanion(
       accountId: accountId ?? this.accountId,
       id: id ?? this.id,
+      davCollectionId: davCollectionId ?? this.davCollectionId,
       kind: kind ?? this.kind,
       etag: etag ?? this.etag,
       title: title ?? this.title,
@@ -2002,6 +7875,9 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     }
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (davCollectionId.present) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId.value);
     }
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
@@ -2067,6 +7943,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     return (StringBuffer('TaskListsCompanion(')
           ..write('accountId: $accountId, ')
           ..write('id: $id, ')
+          ..write('davCollectionId: $davCollectionId, ')
           ..write('kind: $kind, ')
           ..write('etag: $etag, ')
           ..write('title: $title, ')
@@ -2128,6 +8005,223 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _davCollectionIdMeta = const VerificationMeta(
+    'davCollectionId',
+  );
+  @override
+  late final GeneratedColumn<String> davCollectionId = GeneratedColumn<String>(
+    'dav_collection_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _davObjectIdMeta = const VerificationMeta(
+    'davObjectId',
+  );
+  @override
+  late final GeneratedColumn<String> davObjectId = GeneratedColumn<String>(
+    'dav_object_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_objects (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _davComponentIdMeta = const VerificationMeta(
+    'davComponentId',
+  );
+  @override
+  late final GeneratedColumn<String> davComponentId = GeneratedColumn<String>(
+    'dav_component_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_object_components (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _icalUidMeta = const VerificationMeta(
+    'icalUid',
+  );
+  @override
+  late final GeneratedColumn<String> icalUid = GeneratedColumn<String>(
+    'ical_uid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recurrenceIdKeyMeta = const VerificationMeta(
+    'recurrenceIdKey',
+  );
+  @override
+  late final GeneratedColumn<String> recurrenceIdKey = GeneratedColumn<String>(
+    'recurrence_id_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _icalPriorityMeta = const VerificationMeta(
+    'icalPriority',
+  );
+  @override
+  late final GeneratedColumn<int> icalPriority = GeneratedColumn<int>(
+    'ical_priority',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _percentCompleteMeta = const VerificationMeta(
+    'percentComplete',
+  );
+  @override
+  late final GeneratedColumn<int> percentComplete = GeneratedColumn<int>(
+    'percent_complete',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _taskLocationMeta = const VerificationMeta(
+    'taskLocation',
+  );
+  @override
+  late final GeneratedColumn<String> taskLocation = GeneratedColumn<String>(
+    'task_location',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _taskUrlMeta = const VerificationMeta(
+    'taskUrl',
+  );
+  @override
+  late final GeneratedColumn<String> taskUrl = GeneratedColumn<String>(
+    'task_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _taskClassificationMeta =
+      const VerificationMeta('taskClassification');
+  @override
+  late final GeneratedColumn<String> taskClassification =
+      GeneratedColumn<String>(
+        'task_classification',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _taskPinnedMeta = const VerificationMeta(
+    'taskPinned',
+  );
+  @override
+  late final GeneratedColumn<bool> taskPinned = GeneratedColumn<bool>(
+    'task_pinned',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("task_pinned" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _taskHideSubtasksMeta = const VerificationMeta(
+    'taskHideSubtasks',
+  );
+  @override
+  late final GeneratedColumn<bool> taskHideSubtasks = GeneratedColumn<bool>(
+    'task_hide_subtasks',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("task_hide_subtasks" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _taskHideCompletedSubtasksMeta =
+      const VerificationMeta('taskHideCompletedSubtasks');
+  @override
+  late final GeneratedColumn<bool> taskHideCompletedSubtasks =
+      GeneratedColumn<bool>(
+        'task_hide_completed_subtasks',
+        aliasedName,
+        true,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("task_hide_completed_subtasks" IN (0, 1))',
+        ),
+      );
+  static const VerificationMeta _taskAlarmsJsonMeta = const VerificationMeta(
+    'taskAlarmsJson',
+  );
+  @override
+  late final GeneratedColumn<String> taskAlarmsJson = GeneratedColumn<String>(
+    'task_alarms_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _parentUidMeta = const VerificationMeta(
+    'parentUid',
+  );
+  @override
+  late final GeneratedColumn<String> parentUid = GeneratedColumn<String>(
+    'parent_uid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _providerExtensionProjectionJsonMeta =
+      const VerificationMeta('providerExtensionProjectionJson');
+  @override
+  late final GeneratedColumn<String> providerExtensionProjectionJson =
+      GeneratedColumn<String>(
+        'provider_extension_projection_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _projectionVersionMeta = const VerificationMeta(
+    'projectionVersion',
+  );
+  @override
+  late final GeneratedColumn<int> projectionVersion = GeneratedColumn<int>(
+    'projection_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
   );
   static const VerificationMeta _kindMeta = const VerificationMeta('kind');
   @override
@@ -2366,6 +8460,17 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
   late final GeneratedColumn<String> microsoftCompletedTimeZone =
       GeneratedColumn<String>(
         'microsoft_completed_time_zone',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _microsoftChecklistItemsJsonMeta =
+      const VerificationMeta('microsoftChecklistItemsJson');
+  @override
+  late final GeneratedColumn<String> microsoftChecklistItemsJson =
+      GeneratedColumn<String>(
+        'microsoft_checklist_items_json',
         aliasedName,
         true,
         type: DriftSqlType.string,
@@ -2625,6 +8730,24 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     accountId,
     taskListId,
     id,
+    davCollectionId,
+    davObjectId,
+    davComponentId,
+    icalUid,
+    recurrenceIdKey,
+    icalPriority,
+    percentComplete,
+    taskLocation,
+    taskUrl,
+    taskClassification,
+    taskPinned,
+    taskHideSubtasks,
+    taskHideCompletedSubtasks,
+    taskAlarmsJson,
+    parentUid,
+    sortOrder,
+    providerExtensionProjectionJson,
+    projectionVersion,
     kind,
     etag,
     title,
@@ -2648,6 +8771,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     microsoftIsReminderOn,
     microsoftCompletedDateTime,
     microsoftCompletedTimeZone,
+    microsoftChecklistItemsJson,
     recurrenceJson,
     importance,
     categoriesJson,
@@ -2704,6 +8828,153 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('dav_collection_id')) {
+      context.handle(
+        _davCollectionIdMeta,
+        davCollectionId.isAcceptableOrUnknown(
+          data['dav_collection_id']!,
+          _davCollectionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dav_object_id')) {
+      context.handle(
+        _davObjectIdMeta,
+        davObjectId.isAcceptableOrUnknown(
+          data['dav_object_id']!,
+          _davObjectIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dav_component_id')) {
+      context.handle(
+        _davComponentIdMeta,
+        davComponentId.isAcceptableOrUnknown(
+          data['dav_component_id']!,
+          _davComponentIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ical_uid')) {
+      context.handle(
+        _icalUidMeta,
+        icalUid.isAcceptableOrUnknown(data['ical_uid']!, _icalUidMeta),
+      );
+    }
+    if (data.containsKey('recurrence_id_key')) {
+      context.handle(
+        _recurrenceIdKeyMeta,
+        recurrenceIdKey.isAcceptableOrUnknown(
+          data['recurrence_id_key']!,
+          _recurrenceIdKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ical_priority')) {
+      context.handle(
+        _icalPriorityMeta,
+        icalPriority.isAcceptableOrUnknown(
+          data['ical_priority']!,
+          _icalPriorityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('percent_complete')) {
+      context.handle(
+        _percentCompleteMeta,
+        percentComplete.isAcceptableOrUnknown(
+          data['percent_complete']!,
+          _percentCompleteMeta,
+        ),
+      );
+    }
+    if (data.containsKey('task_location')) {
+      context.handle(
+        _taskLocationMeta,
+        taskLocation.isAcceptableOrUnknown(
+          data['task_location']!,
+          _taskLocationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('task_url')) {
+      context.handle(
+        _taskUrlMeta,
+        taskUrl.isAcceptableOrUnknown(data['task_url']!, _taskUrlMeta),
+      );
+    }
+    if (data.containsKey('task_classification')) {
+      context.handle(
+        _taskClassificationMeta,
+        taskClassification.isAcceptableOrUnknown(
+          data['task_classification']!,
+          _taskClassificationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('task_pinned')) {
+      context.handle(
+        _taskPinnedMeta,
+        taskPinned.isAcceptableOrUnknown(data['task_pinned']!, _taskPinnedMeta),
+      );
+    }
+    if (data.containsKey('task_hide_subtasks')) {
+      context.handle(
+        _taskHideSubtasksMeta,
+        taskHideSubtasks.isAcceptableOrUnknown(
+          data['task_hide_subtasks']!,
+          _taskHideSubtasksMeta,
+        ),
+      );
+    }
+    if (data.containsKey('task_hide_completed_subtasks')) {
+      context.handle(
+        _taskHideCompletedSubtasksMeta,
+        taskHideCompletedSubtasks.isAcceptableOrUnknown(
+          data['task_hide_completed_subtasks']!,
+          _taskHideCompletedSubtasksMeta,
+        ),
+      );
+    }
+    if (data.containsKey('task_alarms_json')) {
+      context.handle(
+        _taskAlarmsJsonMeta,
+        taskAlarmsJson.isAcceptableOrUnknown(
+          data['task_alarms_json']!,
+          _taskAlarmsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('parent_uid')) {
+      context.handle(
+        _parentUidMeta,
+        parentUid.isAcceptableOrUnknown(data['parent_uid']!, _parentUidMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('provider_extension_projection_json')) {
+      context.handle(
+        _providerExtensionProjectionJsonMeta,
+        providerExtensionProjectionJson.isAcceptableOrUnknown(
+          data['provider_extension_projection_json']!,
+          _providerExtensionProjectionJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('projection_version')) {
+      context.handle(
+        _projectionVersionMeta,
+        projectionVersion.isAcceptableOrUnknown(
+          data['projection_version']!,
+          _projectionVersionMeta,
+        ),
+      );
     }
     if (data.containsKey('kind')) {
       context.handle(
@@ -2881,6 +9152,15 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         microsoftCompletedTimeZone.isAcceptableOrUnknown(
           data['microsoft_completed_time_zone']!,
           _microsoftCompletedTimeZoneMeta,
+        ),
+      );
+    }
+    if (data.containsKey('microsoft_checklist_items_json')) {
+      context.handle(
+        _microsoftChecklistItemsJsonMeta,
+        microsoftChecklistItemsJson.isAcceptableOrUnknown(
+          data['microsoft_checklist_items_json']!,
+          _microsoftChecklistItemsJsonMeta,
         ),
       );
     }
@@ -3073,6 +9353,78 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
+      davCollectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_collection_id'],
+      ),
+      davObjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_object_id'],
+      ),
+      davComponentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_component_id'],
+      ),
+      icalUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ical_uid'],
+      ),
+      recurrenceIdKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence_id_key'],
+      ),
+      icalPriority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ical_priority'],
+      ),
+      percentComplete: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}percent_complete'],
+      ),
+      taskLocation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_location'],
+      ),
+      taskUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_url'],
+      ),
+      taskClassification: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_classification'],
+      ),
+      taskPinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}task_pinned'],
+      ),
+      taskHideSubtasks: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}task_hide_subtasks'],
+      ),
+      taskHideCompletedSubtasks: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}task_hide_completed_subtasks'],
+      ),
+      taskAlarmsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_alarms_json'],
+      ),
+      parentUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_uid'],
+      ),
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      ),
+      providerExtensionProjectionJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_extension_projection_json'],
+      ),
+      projectionVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}projection_version'],
+      )!,
       kind: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
@@ -3164,6 +9516,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       microsoftCompletedTimeZone: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}microsoft_completed_time_zone'],
+      ),
+      microsoftChecklistItemsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}microsoft_checklist_items_json'],
       ),
       recurrenceJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -3258,6 +9614,24 @@ class Task extends DataClass implements Insertable<Task> {
   final String accountId;
   final String taskListId;
   final String id;
+  final String? davCollectionId;
+  final String? davObjectId;
+  final String? davComponentId;
+  final String? icalUid;
+  final String? recurrenceIdKey;
+  final int? icalPriority;
+  final int? percentComplete;
+  final String? taskLocation;
+  final String? taskUrl;
+  final String? taskClassification;
+  final bool? taskPinned;
+  final bool? taskHideSubtasks;
+  final bool? taskHideCompletedSubtasks;
+  final String? taskAlarmsJson;
+  final String? parentUid;
+  final int? sortOrder;
+  final String? providerExtensionProjectionJson;
+  final int projectionVersion;
   final String? kind;
   final String? etag;
   final String title;
@@ -3281,6 +9655,7 @@ class Task extends DataClass implements Insertable<Task> {
   final bool? microsoftIsReminderOn;
   final String? microsoftCompletedDateTime;
   final String? microsoftCompletedTimeZone;
+  final String? microsoftChecklistItemsJson;
   final String? recurrenceJson;
   final String? importance;
   final String? categoriesJson;
@@ -3305,6 +9680,24 @@ class Task extends DataClass implements Insertable<Task> {
     required this.accountId,
     required this.taskListId,
     required this.id,
+    this.davCollectionId,
+    this.davObjectId,
+    this.davComponentId,
+    this.icalUid,
+    this.recurrenceIdKey,
+    this.icalPriority,
+    this.percentComplete,
+    this.taskLocation,
+    this.taskUrl,
+    this.taskClassification,
+    this.taskPinned,
+    this.taskHideSubtasks,
+    this.taskHideCompletedSubtasks,
+    this.taskAlarmsJson,
+    this.parentUid,
+    this.sortOrder,
+    this.providerExtensionProjectionJson,
+    required this.projectionVersion,
     this.kind,
     this.etag,
     required this.title,
@@ -3328,6 +9721,7 @@ class Task extends DataClass implements Insertable<Task> {
     this.microsoftIsReminderOn,
     this.microsoftCompletedDateTime,
     this.microsoftCompletedTimeZone,
+    this.microsoftChecklistItemsJson,
     this.recurrenceJson,
     this.importance,
     this.categoriesJson,
@@ -3355,6 +9749,62 @@ class Task extends DataClass implements Insertable<Task> {
     map['account_id'] = Variable<String>(accountId);
     map['task_list_id'] = Variable<String>(taskListId);
     map['id'] = Variable<String>(id);
+    if (!nullToAbsent || davCollectionId != null) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId);
+    }
+    if (!nullToAbsent || davObjectId != null) {
+      map['dav_object_id'] = Variable<String>(davObjectId);
+    }
+    if (!nullToAbsent || davComponentId != null) {
+      map['dav_component_id'] = Variable<String>(davComponentId);
+    }
+    if (!nullToAbsent || icalUid != null) {
+      map['ical_uid'] = Variable<String>(icalUid);
+    }
+    if (!nullToAbsent || recurrenceIdKey != null) {
+      map['recurrence_id_key'] = Variable<String>(recurrenceIdKey);
+    }
+    if (!nullToAbsent || icalPriority != null) {
+      map['ical_priority'] = Variable<int>(icalPriority);
+    }
+    if (!nullToAbsent || percentComplete != null) {
+      map['percent_complete'] = Variable<int>(percentComplete);
+    }
+    if (!nullToAbsent || taskLocation != null) {
+      map['task_location'] = Variable<String>(taskLocation);
+    }
+    if (!nullToAbsent || taskUrl != null) {
+      map['task_url'] = Variable<String>(taskUrl);
+    }
+    if (!nullToAbsent || taskClassification != null) {
+      map['task_classification'] = Variable<String>(taskClassification);
+    }
+    if (!nullToAbsent || taskPinned != null) {
+      map['task_pinned'] = Variable<bool>(taskPinned);
+    }
+    if (!nullToAbsent || taskHideSubtasks != null) {
+      map['task_hide_subtasks'] = Variable<bool>(taskHideSubtasks);
+    }
+    if (!nullToAbsent || taskHideCompletedSubtasks != null) {
+      map['task_hide_completed_subtasks'] = Variable<bool>(
+        taskHideCompletedSubtasks,
+      );
+    }
+    if (!nullToAbsent || taskAlarmsJson != null) {
+      map['task_alarms_json'] = Variable<String>(taskAlarmsJson);
+    }
+    if (!nullToAbsent || parentUid != null) {
+      map['parent_uid'] = Variable<String>(parentUid);
+    }
+    if (!nullToAbsent || sortOrder != null) {
+      map['sort_order'] = Variable<int>(sortOrder);
+    }
+    if (!nullToAbsent || providerExtensionProjectionJson != null) {
+      map['provider_extension_projection_json'] = Variable<String>(
+        providerExtensionProjectionJson,
+      );
+    }
+    map['projection_version'] = Variable<int>(projectionVersion);
     if (!nullToAbsent || kind != null) {
       map['kind'] = Variable<String>(kind);
     }
@@ -3434,6 +9884,11 @@ class Task extends DataClass implements Insertable<Task> {
         microsoftCompletedTimeZone,
       );
     }
+    if (!nullToAbsent || microsoftChecklistItemsJson != null) {
+      map['microsoft_checklist_items_json'] = Variable<String>(
+        microsoftChecklistItemsJson,
+      );
+    }
     if (!nullToAbsent || recurrenceJson != null) {
       map['recurrence_json'] = Variable<String>(recurrenceJson);
     }
@@ -3486,6 +9941,60 @@ class Task extends DataClass implements Insertable<Task> {
       accountId: Value(accountId),
       taskListId: Value(taskListId),
       id: Value(id),
+      davCollectionId: davCollectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davCollectionId),
+      davObjectId: davObjectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davObjectId),
+      davComponentId: davComponentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davComponentId),
+      icalUid: icalUid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(icalUid),
+      recurrenceIdKey: recurrenceIdKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recurrenceIdKey),
+      icalPriority: icalPriority == null && nullToAbsent
+          ? const Value.absent()
+          : Value(icalPriority),
+      percentComplete: percentComplete == null && nullToAbsent
+          ? const Value.absent()
+          : Value(percentComplete),
+      taskLocation: taskLocation == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taskLocation),
+      taskUrl: taskUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taskUrl),
+      taskClassification: taskClassification == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taskClassification),
+      taskPinned: taskPinned == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taskPinned),
+      taskHideSubtasks: taskHideSubtasks == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taskHideSubtasks),
+      taskHideCompletedSubtasks:
+          taskHideCompletedSubtasks == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taskHideCompletedSubtasks),
+      taskAlarmsJson: taskAlarmsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taskAlarmsJson),
+      parentUid: parentUid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentUid),
+      sortOrder: sortOrder == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sortOrder),
+      providerExtensionProjectionJson:
+          providerExtensionProjectionJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerExtensionProjectionJson),
+      projectionVersion: Value(projectionVersion),
       kind: kind == null && nullToAbsent ? const Value.absent() : Value(kind),
       etag: etag == null && nullToAbsent ? const Value.absent() : Value(etag),
       title: Value(title),
@@ -3553,6 +10062,10 @@ class Task extends DataClass implements Insertable<Task> {
           microsoftCompletedTimeZone == null && nullToAbsent
           ? const Value.absent()
           : Value(microsoftCompletedTimeZone),
+      microsoftChecklistItemsJson:
+          microsoftChecklistItemsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(microsoftChecklistItemsJson),
       recurrenceJson: recurrenceJson == null && nullToAbsent
           ? const Value.absent()
           : Value(recurrenceJson),
@@ -3609,6 +10122,30 @@ class Task extends DataClass implements Insertable<Task> {
       accountId: serializer.fromJson<String>(json['accountId']),
       taskListId: serializer.fromJson<String>(json['taskListId']),
       id: serializer.fromJson<String>(json['id']),
+      davCollectionId: serializer.fromJson<String?>(json['davCollectionId']),
+      davObjectId: serializer.fromJson<String?>(json['davObjectId']),
+      davComponentId: serializer.fromJson<String?>(json['davComponentId']),
+      icalUid: serializer.fromJson<String?>(json['icalUid']),
+      recurrenceIdKey: serializer.fromJson<String?>(json['recurrenceIdKey']),
+      icalPriority: serializer.fromJson<int?>(json['icalPriority']),
+      percentComplete: serializer.fromJson<int?>(json['percentComplete']),
+      taskLocation: serializer.fromJson<String?>(json['taskLocation']),
+      taskUrl: serializer.fromJson<String?>(json['taskUrl']),
+      taskClassification: serializer.fromJson<String?>(
+        json['taskClassification'],
+      ),
+      taskPinned: serializer.fromJson<bool?>(json['taskPinned']),
+      taskHideSubtasks: serializer.fromJson<bool?>(json['taskHideSubtasks']),
+      taskHideCompletedSubtasks: serializer.fromJson<bool?>(
+        json['taskHideCompletedSubtasks'],
+      ),
+      taskAlarmsJson: serializer.fromJson<String?>(json['taskAlarmsJson']),
+      parentUid: serializer.fromJson<String?>(json['parentUid']),
+      sortOrder: serializer.fromJson<int?>(json['sortOrder']),
+      providerExtensionProjectionJson: serializer.fromJson<String?>(
+        json['providerExtensionProjectionJson'],
+      ),
+      projectionVersion: serializer.fromJson<int>(json['projectionVersion']),
       kind: serializer.fromJson<String?>(json['kind']),
       etag: serializer.fromJson<String?>(json['etag']),
       title: serializer.fromJson<String>(json['title']),
@@ -3650,6 +10187,9 @@ class Task extends DataClass implements Insertable<Task> {
       microsoftCompletedTimeZone: serializer.fromJson<String?>(
         json['microsoftCompletedTimeZone'],
       ),
+      microsoftChecklistItemsJson: serializer.fromJson<String?>(
+        json['microsoftChecklistItemsJson'],
+      ),
       recurrenceJson: serializer.fromJson<String?>(json['recurrenceJson']),
       importance: serializer.fromJson<String?>(json['importance']),
       categoriesJson: serializer.fromJson<String?>(json['categoriesJson']),
@@ -3685,6 +10225,28 @@ class Task extends DataClass implements Insertable<Task> {
       'accountId': serializer.toJson<String>(accountId),
       'taskListId': serializer.toJson<String>(taskListId),
       'id': serializer.toJson<String>(id),
+      'davCollectionId': serializer.toJson<String?>(davCollectionId),
+      'davObjectId': serializer.toJson<String?>(davObjectId),
+      'davComponentId': serializer.toJson<String?>(davComponentId),
+      'icalUid': serializer.toJson<String?>(icalUid),
+      'recurrenceIdKey': serializer.toJson<String?>(recurrenceIdKey),
+      'icalPriority': serializer.toJson<int?>(icalPriority),
+      'percentComplete': serializer.toJson<int?>(percentComplete),
+      'taskLocation': serializer.toJson<String?>(taskLocation),
+      'taskUrl': serializer.toJson<String?>(taskUrl),
+      'taskClassification': serializer.toJson<String?>(taskClassification),
+      'taskPinned': serializer.toJson<bool?>(taskPinned),
+      'taskHideSubtasks': serializer.toJson<bool?>(taskHideSubtasks),
+      'taskHideCompletedSubtasks': serializer.toJson<bool?>(
+        taskHideCompletedSubtasks,
+      ),
+      'taskAlarmsJson': serializer.toJson<String?>(taskAlarmsJson),
+      'parentUid': serializer.toJson<String?>(parentUid),
+      'sortOrder': serializer.toJson<int?>(sortOrder),
+      'providerExtensionProjectionJson': serializer.toJson<String?>(
+        providerExtensionProjectionJson,
+      ),
+      'projectionVersion': serializer.toJson<int>(projectionVersion),
       'kind': serializer.toJson<String?>(kind),
       'etag': serializer.toJson<String?>(etag),
       'title': serializer.toJson<String>(title),
@@ -3720,6 +10282,9 @@ class Task extends DataClass implements Insertable<Task> {
       'microsoftCompletedTimeZone': serializer.toJson<String?>(
         microsoftCompletedTimeZone,
       ),
+      'microsoftChecklistItemsJson': serializer.toJson<String?>(
+        microsoftChecklistItemsJson,
+      ),
       'recurrenceJson': serializer.toJson<String?>(recurrenceJson),
       'importance': serializer.toJson<String?>(importance),
       'categoriesJson': serializer.toJson<String?>(categoriesJson),
@@ -3747,6 +10312,24 @@ class Task extends DataClass implements Insertable<Task> {
     String? accountId,
     String? taskListId,
     String? id,
+    Value<String?> davCollectionId = const Value.absent(),
+    Value<String?> davObjectId = const Value.absent(),
+    Value<String?> davComponentId = const Value.absent(),
+    Value<String?> icalUid = const Value.absent(),
+    Value<String?> recurrenceIdKey = const Value.absent(),
+    Value<int?> icalPriority = const Value.absent(),
+    Value<int?> percentComplete = const Value.absent(),
+    Value<String?> taskLocation = const Value.absent(),
+    Value<String?> taskUrl = const Value.absent(),
+    Value<String?> taskClassification = const Value.absent(),
+    Value<bool?> taskPinned = const Value.absent(),
+    Value<bool?> taskHideSubtasks = const Value.absent(),
+    Value<bool?> taskHideCompletedSubtasks = const Value.absent(),
+    Value<String?> taskAlarmsJson = const Value.absent(),
+    Value<String?> parentUid = const Value.absent(),
+    Value<int?> sortOrder = const Value.absent(),
+    Value<String?> providerExtensionProjectionJson = const Value.absent(),
+    int? projectionVersion,
     Value<String?> kind = const Value.absent(),
     Value<String?> etag = const Value.absent(),
     String? title,
@@ -3770,6 +10353,7 @@ class Task extends DataClass implements Insertable<Task> {
     Value<bool?> microsoftIsReminderOn = const Value.absent(),
     Value<String?> microsoftCompletedDateTime = const Value.absent(),
     Value<String?> microsoftCompletedTimeZone = const Value.absent(),
+    Value<String?> microsoftChecklistItemsJson = const Value.absent(),
     Value<String?> recurrenceJson = const Value.absent(),
     Value<String?> importance = const Value.absent(),
     Value<String?> categoriesJson = const Value.absent(),
@@ -3794,6 +10378,42 @@ class Task extends DataClass implements Insertable<Task> {
     accountId: accountId ?? this.accountId,
     taskListId: taskListId ?? this.taskListId,
     id: id ?? this.id,
+    davCollectionId: davCollectionId.present
+        ? davCollectionId.value
+        : this.davCollectionId,
+    davObjectId: davObjectId.present ? davObjectId.value : this.davObjectId,
+    davComponentId: davComponentId.present
+        ? davComponentId.value
+        : this.davComponentId,
+    icalUid: icalUid.present ? icalUid.value : this.icalUid,
+    recurrenceIdKey: recurrenceIdKey.present
+        ? recurrenceIdKey.value
+        : this.recurrenceIdKey,
+    icalPriority: icalPriority.present ? icalPriority.value : this.icalPriority,
+    percentComplete: percentComplete.present
+        ? percentComplete.value
+        : this.percentComplete,
+    taskLocation: taskLocation.present ? taskLocation.value : this.taskLocation,
+    taskUrl: taskUrl.present ? taskUrl.value : this.taskUrl,
+    taskClassification: taskClassification.present
+        ? taskClassification.value
+        : this.taskClassification,
+    taskPinned: taskPinned.present ? taskPinned.value : this.taskPinned,
+    taskHideSubtasks: taskHideSubtasks.present
+        ? taskHideSubtasks.value
+        : this.taskHideSubtasks,
+    taskHideCompletedSubtasks: taskHideCompletedSubtasks.present
+        ? taskHideCompletedSubtasks.value
+        : this.taskHideCompletedSubtasks,
+    taskAlarmsJson: taskAlarmsJson.present
+        ? taskAlarmsJson.value
+        : this.taskAlarmsJson,
+    parentUid: parentUid.present ? parentUid.value : this.parentUid,
+    sortOrder: sortOrder.present ? sortOrder.value : this.sortOrder,
+    providerExtensionProjectionJson: providerExtensionProjectionJson.present
+        ? providerExtensionProjectionJson.value
+        : this.providerExtensionProjectionJson,
+    projectionVersion: projectionVersion ?? this.projectionVersion,
     kind: kind.present ? kind.value : this.kind,
     etag: etag.present ? etag.value : this.etag,
     title: title ?? this.title,
@@ -3839,6 +10459,9 @@ class Task extends DataClass implements Insertable<Task> {
     microsoftCompletedTimeZone: microsoftCompletedTimeZone.present
         ? microsoftCompletedTimeZone.value
         : this.microsoftCompletedTimeZone,
+    microsoftChecklistItemsJson: microsoftChecklistItemsJson.present
+        ? microsoftChecklistItemsJson.value
+        : this.microsoftChecklistItemsJson,
     recurrenceJson: recurrenceJson.present
         ? recurrenceJson.value
         : this.recurrenceJson,
@@ -3881,6 +10504,53 @@ class Task extends DataClass implements Insertable<Task> {
           ? data.taskListId.value
           : this.taskListId,
       id: data.id.present ? data.id.value : this.id,
+      davCollectionId: data.davCollectionId.present
+          ? data.davCollectionId.value
+          : this.davCollectionId,
+      davObjectId: data.davObjectId.present
+          ? data.davObjectId.value
+          : this.davObjectId,
+      davComponentId: data.davComponentId.present
+          ? data.davComponentId.value
+          : this.davComponentId,
+      icalUid: data.icalUid.present ? data.icalUid.value : this.icalUid,
+      recurrenceIdKey: data.recurrenceIdKey.present
+          ? data.recurrenceIdKey.value
+          : this.recurrenceIdKey,
+      icalPriority: data.icalPriority.present
+          ? data.icalPriority.value
+          : this.icalPriority,
+      percentComplete: data.percentComplete.present
+          ? data.percentComplete.value
+          : this.percentComplete,
+      taskLocation: data.taskLocation.present
+          ? data.taskLocation.value
+          : this.taskLocation,
+      taskUrl: data.taskUrl.present ? data.taskUrl.value : this.taskUrl,
+      taskClassification: data.taskClassification.present
+          ? data.taskClassification.value
+          : this.taskClassification,
+      taskPinned: data.taskPinned.present
+          ? data.taskPinned.value
+          : this.taskPinned,
+      taskHideSubtasks: data.taskHideSubtasks.present
+          ? data.taskHideSubtasks.value
+          : this.taskHideSubtasks,
+      taskHideCompletedSubtasks: data.taskHideCompletedSubtasks.present
+          ? data.taskHideCompletedSubtasks.value
+          : this.taskHideCompletedSubtasks,
+      taskAlarmsJson: data.taskAlarmsJson.present
+          ? data.taskAlarmsJson.value
+          : this.taskAlarmsJson,
+      parentUid: data.parentUid.present ? data.parentUid.value : this.parentUid,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      providerExtensionProjectionJson:
+          data.providerExtensionProjectionJson.present
+          ? data.providerExtensionProjectionJson.value
+          : this.providerExtensionProjectionJson,
+      projectionVersion: data.projectionVersion.present
+          ? data.projectionVersion.value
+          : this.projectionVersion,
       kind: data.kind.present ? data.kind.value : this.kind,
       etag: data.etag.present ? data.etag.value : this.etag,
       title: data.title.present ? data.title.value : this.title,
@@ -3932,6 +10602,9 @@ class Task extends DataClass implements Insertable<Task> {
       microsoftCompletedTimeZone: data.microsoftCompletedTimeZone.present
           ? data.microsoftCompletedTimeZone.value
           : this.microsoftCompletedTimeZone,
+      microsoftChecklistItemsJson: data.microsoftChecklistItemsJson.present
+          ? data.microsoftChecklistItemsJson.value
+          : this.microsoftChecklistItemsJson,
       recurrenceJson: data.recurrenceJson.present
           ? data.recurrenceJson.value
           : this.recurrenceJson,
@@ -3993,6 +10666,26 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('accountId: $accountId, ')
           ..write('taskListId: $taskListId, ')
           ..write('id: $id, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('davComponentId: $davComponentId, ')
+          ..write('icalUid: $icalUid, ')
+          ..write('recurrenceIdKey: $recurrenceIdKey, ')
+          ..write('icalPriority: $icalPriority, ')
+          ..write('percentComplete: $percentComplete, ')
+          ..write('taskLocation: $taskLocation, ')
+          ..write('taskUrl: $taskUrl, ')
+          ..write('taskClassification: $taskClassification, ')
+          ..write('taskPinned: $taskPinned, ')
+          ..write('taskHideSubtasks: $taskHideSubtasks, ')
+          ..write('taskHideCompletedSubtasks: $taskHideCompletedSubtasks, ')
+          ..write('taskAlarmsJson: $taskAlarmsJson, ')
+          ..write('parentUid: $parentUid, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write(
+            'providerExtensionProjectionJson: $providerExtensionProjectionJson, ',
+          )
+          ..write('projectionVersion: $projectionVersion, ')
           ..write('kind: $kind, ')
           ..write('etag: $etag, ')
           ..write('title: $title, ')
@@ -4016,6 +10709,7 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('microsoftIsReminderOn: $microsoftIsReminderOn, ')
           ..write('microsoftCompletedDateTime: $microsoftCompletedDateTime, ')
           ..write('microsoftCompletedTimeZone: $microsoftCompletedTimeZone, ')
+          ..write('microsoftChecklistItemsJson: $microsoftChecklistItemsJson, ')
           ..write('recurrenceJson: $recurrenceJson, ')
           ..write('importance: $importance, ')
           ..write('categoriesJson: $categoriesJson, ')
@@ -4045,6 +10739,24 @@ class Task extends DataClass implements Insertable<Task> {
     accountId,
     taskListId,
     id,
+    davCollectionId,
+    davObjectId,
+    davComponentId,
+    icalUid,
+    recurrenceIdKey,
+    icalPriority,
+    percentComplete,
+    taskLocation,
+    taskUrl,
+    taskClassification,
+    taskPinned,
+    taskHideSubtasks,
+    taskHideCompletedSubtasks,
+    taskAlarmsJson,
+    parentUid,
+    sortOrder,
+    providerExtensionProjectionJson,
+    projectionVersion,
     kind,
     etag,
     title,
@@ -4068,6 +10780,7 @@ class Task extends DataClass implements Insertable<Task> {
     microsoftIsReminderOn,
     microsoftCompletedDateTime,
     microsoftCompletedTimeZone,
+    microsoftChecklistItemsJson,
     recurrenceJson,
     importance,
     categoriesJson,
@@ -4096,6 +10809,25 @@ class Task extends DataClass implements Insertable<Task> {
           other.accountId == this.accountId &&
           other.taskListId == this.taskListId &&
           other.id == this.id &&
+          other.davCollectionId == this.davCollectionId &&
+          other.davObjectId == this.davObjectId &&
+          other.davComponentId == this.davComponentId &&
+          other.icalUid == this.icalUid &&
+          other.recurrenceIdKey == this.recurrenceIdKey &&
+          other.icalPriority == this.icalPriority &&
+          other.percentComplete == this.percentComplete &&
+          other.taskLocation == this.taskLocation &&
+          other.taskUrl == this.taskUrl &&
+          other.taskClassification == this.taskClassification &&
+          other.taskPinned == this.taskPinned &&
+          other.taskHideSubtasks == this.taskHideSubtasks &&
+          other.taskHideCompletedSubtasks == this.taskHideCompletedSubtasks &&
+          other.taskAlarmsJson == this.taskAlarmsJson &&
+          other.parentUid == this.parentUid &&
+          other.sortOrder == this.sortOrder &&
+          other.providerExtensionProjectionJson ==
+              this.providerExtensionProjectionJson &&
+          other.projectionVersion == this.projectionVersion &&
           other.kind == this.kind &&
           other.etag == this.etag &&
           other.title == this.title &&
@@ -4119,6 +10851,8 @@ class Task extends DataClass implements Insertable<Task> {
           other.microsoftIsReminderOn == this.microsoftIsReminderOn &&
           other.microsoftCompletedDateTime == this.microsoftCompletedDateTime &&
           other.microsoftCompletedTimeZone == this.microsoftCompletedTimeZone &&
+          other.microsoftChecklistItemsJson ==
+              this.microsoftChecklistItemsJson &&
           other.recurrenceJson == this.recurrenceJson &&
           other.importance == this.importance &&
           other.categoriesJson == this.categoriesJson &&
@@ -4145,6 +10879,24 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<String> accountId;
   final Value<String> taskListId;
   final Value<String> id;
+  final Value<String?> davCollectionId;
+  final Value<String?> davObjectId;
+  final Value<String?> davComponentId;
+  final Value<String?> icalUid;
+  final Value<String?> recurrenceIdKey;
+  final Value<int?> icalPriority;
+  final Value<int?> percentComplete;
+  final Value<String?> taskLocation;
+  final Value<String?> taskUrl;
+  final Value<String?> taskClassification;
+  final Value<bool?> taskPinned;
+  final Value<bool?> taskHideSubtasks;
+  final Value<bool?> taskHideCompletedSubtasks;
+  final Value<String?> taskAlarmsJson;
+  final Value<String?> parentUid;
+  final Value<int?> sortOrder;
+  final Value<String?> providerExtensionProjectionJson;
+  final Value<int> projectionVersion;
   final Value<String?> kind;
   final Value<String?> etag;
   final Value<String> title;
@@ -4168,6 +10920,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<bool?> microsoftIsReminderOn;
   final Value<String?> microsoftCompletedDateTime;
   final Value<String?> microsoftCompletedTimeZone;
+  final Value<String?> microsoftChecklistItemsJson;
   final Value<String?> recurrenceJson;
   final Value<String?> importance;
   final Value<String?> categoriesJson;
@@ -4193,6 +10946,24 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.accountId = const Value.absent(),
     this.taskListId = const Value.absent(),
     this.id = const Value.absent(),
+    this.davCollectionId = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.davComponentId = const Value.absent(),
+    this.icalUid = const Value.absent(),
+    this.recurrenceIdKey = const Value.absent(),
+    this.icalPriority = const Value.absent(),
+    this.percentComplete = const Value.absent(),
+    this.taskLocation = const Value.absent(),
+    this.taskUrl = const Value.absent(),
+    this.taskClassification = const Value.absent(),
+    this.taskPinned = const Value.absent(),
+    this.taskHideSubtasks = const Value.absent(),
+    this.taskHideCompletedSubtasks = const Value.absent(),
+    this.taskAlarmsJson = const Value.absent(),
+    this.parentUid = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.providerExtensionProjectionJson = const Value.absent(),
+    this.projectionVersion = const Value.absent(),
     this.kind = const Value.absent(),
     this.etag = const Value.absent(),
     this.title = const Value.absent(),
@@ -4216,6 +10987,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.microsoftIsReminderOn = const Value.absent(),
     this.microsoftCompletedDateTime = const Value.absent(),
     this.microsoftCompletedTimeZone = const Value.absent(),
+    this.microsoftChecklistItemsJson = const Value.absent(),
     this.recurrenceJson = const Value.absent(),
     this.importance = const Value.absent(),
     this.categoriesJson = const Value.absent(),
@@ -4242,6 +11014,24 @@ class TasksCompanion extends UpdateCompanion<Task> {
     required String accountId,
     required String taskListId,
     required String id,
+    this.davCollectionId = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.davComponentId = const Value.absent(),
+    this.icalUid = const Value.absent(),
+    this.recurrenceIdKey = const Value.absent(),
+    this.icalPriority = const Value.absent(),
+    this.percentComplete = const Value.absent(),
+    this.taskLocation = const Value.absent(),
+    this.taskUrl = const Value.absent(),
+    this.taskClassification = const Value.absent(),
+    this.taskPinned = const Value.absent(),
+    this.taskHideSubtasks = const Value.absent(),
+    this.taskHideCompletedSubtasks = const Value.absent(),
+    this.taskAlarmsJson = const Value.absent(),
+    this.parentUid = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.providerExtensionProjectionJson = const Value.absent(),
+    this.projectionVersion = const Value.absent(),
     this.kind = const Value.absent(),
     this.etag = const Value.absent(),
     required String title,
@@ -4265,6 +11055,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.microsoftIsReminderOn = const Value.absent(),
     this.microsoftCompletedDateTime = const Value.absent(),
     this.microsoftCompletedTimeZone = const Value.absent(),
+    this.microsoftChecklistItemsJson = const Value.absent(),
     this.recurrenceJson = const Value.absent(),
     this.importance = const Value.absent(),
     this.categoriesJson = const Value.absent(),
@@ -4297,6 +11088,24 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<String>? accountId,
     Expression<String>? taskListId,
     Expression<String>? id,
+    Expression<String>? davCollectionId,
+    Expression<String>? davObjectId,
+    Expression<String>? davComponentId,
+    Expression<String>? icalUid,
+    Expression<String>? recurrenceIdKey,
+    Expression<int>? icalPriority,
+    Expression<int>? percentComplete,
+    Expression<String>? taskLocation,
+    Expression<String>? taskUrl,
+    Expression<String>? taskClassification,
+    Expression<bool>? taskPinned,
+    Expression<bool>? taskHideSubtasks,
+    Expression<bool>? taskHideCompletedSubtasks,
+    Expression<String>? taskAlarmsJson,
+    Expression<String>? parentUid,
+    Expression<int>? sortOrder,
+    Expression<String>? providerExtensionProjectionJson,
+    Expression<int>? projectionVersion,
     Expression<String>? kind,
     Expression<String>? etag,
     Expression<String>? title,
@@ -4320,6 +11129,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<bool>? microsoftIsReminderOn,
     Expression<String>? microsoftCompletedDateTime,
     Expression<String>? microsoftCompletedTimeZone,
+    Expression<String>? microsoftChecklistItemsJson,
     Expression<String>? recurrenceJson,
     Expression<String>? importance,
     Expression<String>? categoriesJson,
@@ -4346,6 +11156,26 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (accountId != null) 'account_id': accountId,
       if (taskListId != null) 'task_list_id': taskListId,
       if (id != null) 'id': id,
+      if (davCollectionId != null) 'dav_collection_id': davCollectionId,
+      if (davObjectId != null) 'dav_object_id': davObjectId,
+      if (davComponentId != null) 'dav_component_id': davComponentId,
+      if (icalUid != null) 'ical_uid': icalUid,
+      if (recurrenceIdKey != null) 'recurrence_id_key': recurrenceIdKey,
+      if (icalPriority != null) 'ical_priority': icalPriority,
+      if (percentComplete != null) 'percent_complete': percentComplete,
+      if (taskLocation != null) 'task_location': taskLocation,
+      if (taskUrl != null) 'task_url': taskUrl,
+      if (taskClassification != null) 'task_classification': taskClassification,
+      if (taskPinned != null) 'task_pinned': taskPinned,
+      if (taskHideSubtasks != null) 'task_hide_subtasks': taskHideSubtasks,
+      if (taskHideCompletedSubtasks != null)
+        'task_hide_completed_subtasks': taskHideCompletedSubtasks,
+      if (taskAlarmsJson != null) 'task_alarms_json': taskAlarmsJson,
+      if (parentUid != null) 'parent_uid': parentUid,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (providerExtensionProjectionJson != null)
+        'provider_extension_projection_json': providerExtensionProjectionJson,
+      if (projectionVersion != null) 'projection_version': projectionVersion,
       if (kind != null) 'kind': kind,
       if (etag != null) 'etag': etag,
       if (title != null) 'title': title,
@@ -4378,6 +11208,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
         'microsoft_completed_date_time': microsoftCompletedDateTime,
       if (microsoftCompletedTimeZone != null)
         'microsoft_completed_time_zone': microsoftCompletedTimeZone,
+      if (microsoftChecklistItemsJson != null)
+        'microsoft_checklist_items_json': microsoftChecklistItemsJson,
       if (recurrenceJson != null) 'recurrence_json': recurrenceJson,
       if (importance != null) 'importance': importance,
       if (categoriesJson != null) 'categories_json': categoriesJson,
@@ -4409,6 +11241,24 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<String>? accountId,
     Value<String>? taskListId,
     Value<String>? id,
+    Value<String?>? davCollectionId,
+    Value<String?>? davObjectId,
+    Value<String?>? davComponentId,
+    Value<String?>? icalUid,
+    Value<String?>? recurrenceIdKey,
+    Value<int?>? icalPriority,
+    Value<int?>? percentComplete,
+    Value<String?>? taskLocation,
+    Value<String?>? taskUrl,
+    Value<String?>? taskClassification,
+    Value<bool?>? taskPinned,
+    Value<bool?>? taskHideSubtasks,
+    Value<bool?>? taskHideCompletedSubtasks,
+    Value<String?>? taskAlarmsJson,
+    Value<String?>? parentUid,
+    Value<int?>? sortOrder,
+    Value<String?>? providerExtensionProjectionJson,
+    Value<int>? projectionVersion,
     Value<String?>? kind,
     Value<String?>? etag,
     Value<String>? title,
@@ -4432,6 +11282,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<bool?>? microsoftIsReminderOn,
     Value<String?>? microsoftCompletedDateTime,
     Value<String?>? microsoftCompletedTimeZone,
+    Value<String?>? microsoftChecklistItemsJson,
     Value<String?>? recurrenceJson,
     Value<String?>? importance,
     Value<String?>? categoriesJson,
@@ -4458,6 +11309,27 @@ class TasksCompanion extends UpdateCompanion<Task> {
       accountId: accountId ?? this.accountId,
       taskListId: taskListId ?? this.taskListId,
       id: id ?? this.id,
+      davCollectionId: davCollectionId ?? this.davCollectionId,
+      davObjectId: davObjectId ?? this.davObjectId,
+      davComponentId: davComponentId ?? this.davComponentId,
+      icalUid: icalUid ?? this.icalUid,
+      recurrenceIdKey: recurrenceIdKey ?? this.recurrenceIdKey,
+      icalPriority: icalPriority ?? this.icalPriority,
+      percentComplete: percentComplete ?? this.percentComplete,
+      taskLocation: taskLocation ?? this.taskLocation,
+      taskUrl: taskUrl ?? this.taskUrl,
+      taskClassification: taskClassification ?? this.taskClassification,
+      taskPinned: taskPinned ?? this.taskPinned,
+      taskHideSubtasks: taskHideSubtasks ?? this.taskHideSubtasks,
+      taskHideCompletedSubtasks:
+          taskHideCompletedSubtasks ?? this.taskHideCompletedSubtasks,
+      taskAlarmsJson: taskAlarmsJson ?? this.taskAlarmsJson,
+      parentUid: parentUid ?? this.parentUid,
+      sortOrder: sortOrder ?? this.sortOrder,
+      providerExtensionProjectionJson:
+          providerExtensionProjectionJson ??
+          this.providerExtensionProjectionJson,
+      projectionVersion: projectionVersion ?? this.projectionVersion,
       kind: kind ?? this.kind,
       etag: etag ?? this.etag,
       title: title ?? this.title,
@@ -4488,6 +11360,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
           microsoftCompletedDateTime ?? this.microsoftCompletedDateTime,
       microsoftCompletedTimeZone:
           microsoftCompletedTimeZone ?? this.microsoftCompletedTimeZone,
+      microsoftChecklistItemsJson:
+          microsoftChecklistItemsJson ?? this.microsoftChecklistItemsJson,
       recurrenceJson: recurrenceJson ?? this.recurrenceJson,
       importance: importance ?? this.importance,
       categoriesJson: categoriesJson ?? this.categoriesJson,
@@ -4523,6 +11397,64 @@ class TasksCompanion extends UpdateCompanion<Task> {
     }
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (davCollectionId.present) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId.value);
+    }
+    if (davObjectId.present) {
+      map['dav_object_id'] = Variable<String>(davObjectId.value);
+    }
+    if (davComponentId.present) {
+      map['dav_component_id'] = Variable<String>(davComponentId.value);
+    }
+    if (icalUid.present) {
+      map['ical_uid'] = Variable<String>(icalUid.value);
+    }
+    if (recurrenceIdKey.present) {
+      map['recurrence_id_key'] = Variable<String>(recurrenceIdKey.value);
+    }
+    if (icalPriority.present) {
+      map['ical_priority'] = Variable<int>(icalPriority.value);
+    }
+    if (percentComplete.present) {
+      map['percent_complete'] = Variable<int>(percentComplete.value);
+    }
+    if (taskLocation.present) {
+      map['task_location'] = Variable<String>(taskLocation.value);
+    }
+    if (taskUrl.present) {
+      map['task_url'] = Variable<String>(taskUrl.value);
+    }
+    if (taskClassification.present) {
+      map['task_classification'] = Variable<String>(taskClassification.value);
+    }
+    if (taskPinned.present) {
+      map['task_pinned'] = Variable<bool>(taskPinned.value);
+    }
+    if (taskHideSubtasks.present) {
+      map['task_hide_subtasks'] = Variable<bool>(taskHideSubtasks.value);
+    }
+    if (taskHideCompletedSubtasks.present) {
+      map['task_hide_completed_subtasks'] = Variable<bool>(
+        taskHideCompletedSubtasks.value,
+      );
+    }
+    if (taskAlarmsJson.present) {
+      map['task_alarms_json'] = Variable<String>(taskAlarmsJson.value);
+    }
+    if (parentUid.present) {
+      map['parent_uid'] = Variable<String>(parentUid.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (providerExtensionProjectionJson.present) {
+      map['provider_extension_projection_json'] = Variable<String>(
+        providerExtensionProjectionJson.value,
+      );
+    }
+    if (projectionVersion.present) {
+      map['projection_version'] = Variable<int>(projectionVersion.value);
     }
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
@@ -4611,6 +11543,11 @@ class TasksCompanion extends UpdateCompanion<Task> {
         microsoftCompletedTimeZone.value,
       );
     }
+    if (microsoftChecklistItemsJson.present) {
+      map['microsoft_checklist_items_json'] = Variable<String>(
+        microsoftChecklistItemsJson.value,
+      );
+    }
     if (recurrenceJson.present) {
       map['recurrence_json'] = Variable<String>(recurrenceJson.value);
     }
@@ -4685,6 +11622,26 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('accountId: $accountId, ')
           ..write('taskListId: $taskListId, ')
           ..write('id: $id, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('davComponentId: $davComponentId, ')
+          ..write('icalUid: $icalUid, ')
+          ..write('recurrenceIdKey: $recurrenceIdKey, ')
+          ..write('icalPriority: $icalPriority, ')
+          ..write('percentComplete: $percentComplete, ')
+          ..write('taskLocation: $taskLocation, ')
+          ..write('taskUrl: $taskUrl, ')
+          ..write('taskClassification: $taskClassification, ')
+          ..write('taskPinned: $taskPinned, ')
+          ..write('taskHideSubtasks: $taskHideSubtasks, ')
+          ..write('taskHideCompletedSubtasks: $taskHideCompletedSubtasks, ')
+          ..write('taskAlarmsJson: $taskAlarmsJson, ')
+          ..write('parentUid: $parentUid, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write(
+            'providerExtensionProjectionJson: $providerExtensionProjectionJson, ',
+          )
+          ..write('projectionVersion: $projectionVersion, ')
           ..write('kind: $kind, ')
           ..write('etag: $etag, ')
           ..write('title: $title, ')
@@ -4708,6 +11665,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('microsoftIsReminderOn: $microsoftIsReminderOn, ')
           ..write('microsoftCompletedDateTime: $microsoftCompletedDateTime, ')
           ..write('microsoftCompletedTimeZone: $microsoftCompletedTimeZone, ')
+          ..write('microsoftChecklistItemsJson: $microsoftChecklistItemsJson, ')
           ..write('recurrenceJson: $recurrenceJson, ')
           ..write('importance: $importance, ')
           ..write('categoriesJson: $categoriesJson, ')
@@ -4860,6 +11818,196 @@ class $PendingOpsTable extends PendingOps
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _davCollectionIdMeta = const VerificationMeta(
+    'davCollectionId',
+  );
+  @override
+  late final GeneratedColumn<String> davCollectionId = GeneratedColumn<String>(
+    'dav_collection_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _davCollectionHrefMeta = const VerificationMeta(
+    'davCollectionHref',
+  );
+  @override
+  late final GeneratedColumn<String> davCollectionHref =
+      GeneratedColumn<String>(
+        'dav_collection_href',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _davObjectIdMeta = const VerificationMeta(
+    'davObjectId',
+  );
+  @override
+  late final GeneratedColumn<String> davObjectId = GeneratedColumn<String>(
+    'dav_object_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_objects (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _davMemberHrefMeta = const VerificationMeta(
+    'davMemberHref',
+  );
+  @override
+  late final GeneratedColumn<String> davMemberHref = GeneratedColumn<String>(
+    'dav_member_href',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _baselineEtagMeta = const VerificationMeta(
+    'baselineEtag',
+  );
+  @override
+  late final GeneratedColumn<String> baselineEtag = GeneratedColumn<String>(
+    'baseline_etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _baselineRawIcsMeta = const VerificationMeta(
+    'baselineRawIcs',
+  );
+  @override
+  late final GeneratedColumn<String> baselineRawIcs = GeneratedColumn<String>(
+    'baseline_raw_ics',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mutationPatchJsonMeta = const VerificationMeta(
+    'mutationPatchJson',
+  );
+  @override
+  late final GeneratedColumn<String> mutationPatchJson =
+      GeneratedColumn<String>(
+        'mutation_patch_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _mutationPatchSchemaVersionMeta =
+      const VerificationMeta('mutationPatchSchemaVersion');
+  @override
+  late final GeneratedColumn<int> mutationPatchSchemaVersion =
+      GeneratedColumn<int>(
+        'mutation_patch_schema_version',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _targetComponentKeyMeta =
+      const VerificationMeta('targetComponentKey');
+  @override
+  late final GeneratedColumn<String> targetComponentKey =
+      GeneratedColumn<String>(
+        'target_component_key',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _mutationScopeMeta = const VerificationMeta(
+    'mutationScope',
+  );
+  @override
+  late final GeneratedColumn<String> mutationScope = GeneratedColumn<String>(
+    'mutation_scope',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _destinationCollectionIdMeta =
+      const VerificationMeta('destinationCollectionId');
+  @override
+  late final GeneratedColumn<String> destinationCollectionId =
+      GeneratedColumn<String>(
+        'destination_collection_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES dav_collections (id) ON DELETE SET NULL',
+        ),
+      );
+  static const VerificationMeta _destinationCollectionHrefMeta =
+      const VerificationMeta('destinationCollectionHref');
+  @override
+  late final GeneratedColumn<String> destinationCollectionHref =
+      GeneratedColumn<String>(
+        'destination_collection_href',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _destinationMemberHrefMeta =
+      const VerificationMeta('destinationMemberHref');
+  @override
+  late final GeneratedColumn<String> destinationMemberHref =
+      GeneratedColumn<String>(
+        'destination_member_href',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _conflictStateMeta = const VerificationMeta(
+    'conflictState',
+  );
+  @override
+  late final GeneratedColumn<String> conflictState = GeneratedColumn<String>(
+    'conflict_state',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _conflictSnapshotIdMeta =
+      const VerificationMeta('conflictSnapshotId');
+  @override
+  late final GeneratedColumn<String> conflictSnapshotId =
+      GeneratedColumn<String>(
+        'conflict_snapshot_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES dav_conflict_snapshots (id) ON DELETE SET NULL',
+        ),
+      );
+  static const VerificationMeta _retryClassificationMeta =
+      const VerificationMeta('retryClassification');
+  @override
+  late final GeneratedColumn<String> retryClassification =
+      GeneratedColumn<String>(
+        'retry_classification',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _localTempIdMeta = const VerificationMeta(
     'localTempId',
   );
@@ -5016,6 +12164,22 @@ class $PendingOpsTable extends PendingOps
     calendarSourceId,
     providerCalendarId,
     eventId,
+    davCollectionId,
+    davCollectionHref,
+    davObjectId,
+    davMemberHref,
+    baselineEtag,
+    baselineRawIcs,
+    mutationPatchJson,
+    mutationPatchSchemaVersion,
+    targetComponentKey,
+    mutationScope,
+    destinationCollectionId,
+    destinationCollectionHref,
+    destinationMemberHref,
+    conflictState,
+    conflictSnapshotId,
+    retryClassification,
     localTempId,
     dependsOnOpId,
     requestJson,
@@ -5123,6 +12287,150 @@ class $PendingOpsTable extends PendingOps
       context.handle(
         _eventIdMeta,
         eventId.isAcceptableOrUnknown(data['event_id']!, _eventIdMeta),
+      );
+    }
+    if (data.containsKey('dav_collection_id')) {
+      context.handle(
+        _davCollectionIdMeta,
+        davCollectionId.isAcceptableOrUnknown(
+          data['dav_collection_id']!,
+          _davCollectionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dav_collection_href')) {
+      context.handle(
+        _davCollectionHrefMeta,
+        davCollectionHref.isAcceptableOrUnknown(
+          data['dav_collection_href']!,
+          _davCollectionHrefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dav_object_id')) {
+      context.handle(
+        _davObjectIdMeta,
+        davObjectId.isAcceptableOrUnknown(
+          data['dav_object_id']!,
+          _davObjectIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dav_member_href')) {
+      context.handle(
+        _davMemberHrefMeta,
+        davMemberHref.isAcceptableOrUnknown(
+          data['dav_member_href']!,
+          _davMemberHrefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('baseline_etag')) {
+      context.handle(
+        _baselineEtagMeta,
+        baselineEtag.isAcceptableOrUnknown(
+          data['baseline_etag']!,
+          _baselineEtagMeta,
+        ),
+      );
+    }
+    if (data.containsKey('baseline_raw_ics')) {
+      context.handle(
+        _baselineRawIcsMeta,
+        baselineRawIcs.isAcceptableOrUnknown(
+          data['baseline_raw_ics']!,
+          _baselineRawIcsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('mutation_patch_json')) {
+      context.handle(
+        _mutationPatchJsonMeta,
+        mutationPatchJson.isAcceptableOrUnknown(
+          data['mutation_patch_json']!,
+          _mutationPatchJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('mutation_patch_schema_version')) {
+      context.handle(
+        _mutationPatchSchemaVersionMeta,
+        mutationPatchSchemaVersion.isAcceptableOrUnknown(
+          data['mutation_patch_schema_version']!,
+          _mutationPatchSchemaVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('target_component_key')) {
+      context.handle(
+        _targetComponentKeyMeta,
+        targetComponentKey.isAcceptableOrUnknown(
+          data['target_component_key']!,
+          _targetComponentKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('mutation_scope')) {
+      context.handle(
+        _mutationScopeMeta,
+        mutationScope.isAcceptableOrUnknown(
+          data['mutation_scope']!,
+          _mutationScopeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('destination_collection_id')) {
+      context.handle(
+        _destinationCollectionIdMeta,
+        destinationCollectionId.isAcceptableOrUnknown(
+          data['destination_collection_id']!,
+          _destinationCollectionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('destination_collection_href')) {
+      context.handle(
+        _destinationCollectionHrefMeta,
+        destinationCollectionHref.isAcceptableOrUnknown(
+          data['destination_collection_href']!,
+          _destinationCollectionHrefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('destination_member_href')) {
+      context.handle(
+        _destinationMemberHrefMeta,
+        destinationMemberHref.isAcceptableOrUnknown(
+          data['destination_member_href']!,
+          _destinationMemberHrefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('conflict_state')) {
+      context.handle(
+        _conflictStateMeta,
+        conflictState.isAcceptableOrUnknown(
+          data['conflict_state']!,
+          _conflictStateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('conflict_snapshot_id')) {
+      context.handle(
+        _conflictSnapshotIdMeta,
+        conflictSnapshotId.isAcceptableOrUnknown(
+          data['conflict_snapshot_id']!,
+          _conflictSnapshotIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('retry_classification')) {
+      context.handle(
+        _retryClassificationMeta,
+        retryClassification.isAcceptableOrUnknown(
+          data['retry_classification']!,
+          _retryClassificationMeta,
+        ),
       );
     }
     if (data.containsKey('local_temp_id')) {
@@ -5295,6 +12603,70 @@ class $PendingOpsTable extends PendingOps
         DriftSqlType.string,
         data['${effectivePrefix}event_id'],
       ),
+      davCollectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_collection_id'],
+      ),
+      davCollectionHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_collection_href'],
+      ),
+      davObjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_object_id'],
+      ),
+      davMemberHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_member_href'],
+      ),
+      baselineEtag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}baseline_etag'],
+      ),
+      baselineRawIcs: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}baseline_raw_ics'],
+      ),
+      mutationPatchJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mutation_patch_json'],
+      ),
+      mutationPatchSchemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}mutation_patch_schema_version'],
+      ),
+      targetComponentKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_component_key'],
+      ),
+      mutationScope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mutation_scope'],
+      ),
+      destinationCollectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}destination_collection_id'],
+      ),
+      destinationCollectionHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}destination_collection_href'],
+      ),
+      destinationMemberHref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}destination_member_href'],
+      ),
+      conflictState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conflict_state'],
+      ),
+      conflictSnapshotId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conflict_snapshot_id'],
+      ),
+      retryClassification: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}retry_classification'],
+      ),
       localTempId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}local_temp_id'],
@@ -5368,6 +12740,22 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
   final String? calendarSourceId;
   final String? providerCalendarId;
   final String? eventId;
+  final String? davCollectionId;
+  final String? davCollectionHref;
+  final String? davObjectId;
+  final String? davMemberHref;
+  final String? baselineEtag;
+  final String? baselineRawIcs;
+  final String? mutationPatchJson;
+  final int? mutationPatchSchemaVersion;
+  final String? targetComponentKey;
+  final String? mutationScope;
+  final String? destinationCollectionId;
+  final String? destinationCollectionHref;
+  final String? destinationMemberHref;
+  final String? conflictState;
+  final String? conflictSnapshotId;
+  final String? retryClassification;
   final String? localTempId;
   final String? dependsOnOpId;
   final String requestJson;
@@ -5393,6 +12781,22 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
     this.calendarSourceId,
     this.providerCalendarId,
     this.eventId,
+    this.davCollectionId,
+    this.davCollectionHref,
+    this.davObjectId,
+    this.davMemberHref,
+    this.baselineEtag,
+    this.baselineRawIcs,
+    this.mutationPatchJson,
+    this.mutationPatchSchemaVersion,
+    this.targetComponentKey,
+    this.mutationScope,
+    this.destinationCollectionId,
+    this.destinationCollectionHref,
+    this.destinationMemberHref,
+    this.conflictState,
+    this.conflictSnapshotId,
+    this.retryClassification,
     this.localTempId,
     this.dependsOnOpId,
     required this.requestJson,
@@ -5434,6 +12838,60 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
     }
     if (!nullToAbsent || eventId != null) {
       map['event_id'] = Variable<String>(eventId);
+    }
+    if (!nullToAbsent || davCollectionId != null) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId);
+    }
+    if (!nullToAbsent || davCollectionHref != null) {
+      map['dav_collection_href'] = Variable<String>(davCollectionHref);
+    }
+    if (!nullToAbsent || davObjectId != null) {
+      map['dav_object_id'] = Variable<String>(davObjectId);
+    }
+    if (!nullToAbsent || davMemberHref != null) {
+      map['dav_member_href'] = Variable<String>(davMemberHref);
+    }
+    if (!nullToAbsent || baselineEtag != null) {
+      map['baseline_etag'] = Variable<String>(baselineEtag);
+    }
+    if (!nullToAbsent || baselineRawIcs != null) {
+      map['baseline_raw_ics'] = Variable<String>(baselineRawIcs);
+    }
+    if (!nullToAbsent || mutationPatchJson != null) {
+      map['mutation_patch_json'] = Variable<String>(mutationPatchJson);
+    }
+    if (!nullToAbsent || mutationPatchSchemaVersion != null) {
+      map['mutation_patch_schema_version'] = Variable<int>(
+        mutationPatchSchemaVersion,
+      );
+    }
+    if (!nullToAbsent || targetComponentKey != null) {
+      map['target_component_key'] = Variable<String>(targetComponentKey);
+    }
+    if (!nullToAbsent || mutationScope != null) {
+      map['mutation_scope'] = Variable<String>(mutationScope);
+    }
+    if (!nullToAbsent || destinationCollectionId != null) {
+      map['destination_collection_id'] = Variable<String>(
+        destinationCollectionId,
+      );
+    }
+    if (!nullToAbsent || destinationCollectionHref != null) {
+      map['destination_collection_href'] = Variable<String>(
+        destinationCollectionHref,
+      );
+    }
+    if (!nullToAbsent || destinationMemberHref != null) {
+      map['destination_member_href'] = Variable<String>(destinationMemberHref);
+    }
+    if (!nullToAbsent || conflictState != null) {
+      map['conflict_state'] = Variable<String>(conflictState);
+    }
+    if (!nullToAbsent || conflictSnapshotId != null) {
+      map['conflict_snapshot_id'] = Variable<String>(conflictSnapshotId);
+    }
+    if (!nullToAbsent || retryClassification != null) {
+      map['retry_classification'] = Variable<String>(retryClassification);
     }
     if (!nullToAbsent || localTempId != null) {
       map['local_temp_id'] = Variable<String>(localTempId);
@@ -5494,6 +12952,56 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
       eventId: eventId == null && nullToAbsent
           ? const Value.absent()
           : Value(eventId),
+      davCollectionId: davCollectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davCollectionId),
+      davCollectionHref: davCollectionHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davCollectionHref),
+      davObjectId: davObjectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davObjectId),
+      davMemberHref: davMemberHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davMemberHref),
+      baselineEtag: baselineEtag == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baselineEtag),
+      baselineRawIcs: baselineRawIcs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baselineRawIcs),
+      mutationPatchJson: mutationPatchJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mutationPatchJson),
+      mutationPatchSchemaVersion:
+          mutationPatchSchemaVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mutationPatchSchemaVersion),
+      targetComponentKey: targetComponentKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetComponentKey),
+      mutationScope: mutationScope == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mutationScope),
+      destinationCollectionId: destinationCollectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(destinationCollectionId),
+      destinationCollectionHref:
+          destinationCollectionHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(destinationCollectionHref),
+      destinationMemberHref: destinationMemberHref == null && nullToAbsent
+          ? const Value.absent()
+          : Value(destinationMemberHref),
+      conflictState: conflictState == null && nullToAbsent
+          ? const Value.absent()
+          : Value(conflictState),
+      conflictSnapshotId: conflictSnapshotId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(conflictSnapshotId),
+      retryClassification: retryClassification == null && nullToAbsent
+          ? const Value.absent()
+          : Value(retryClassification),
       localTempId: localTempId == null && nullToAbsent
           ? const Value.absent()
           : Value(localTempId),
@@ -5545,6 +13053,40 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
         json['providerCalendarId'],
       ),
       eventId: serializer.fromJson<String?>(json['eventId']),
+      davCollectionId: serializer.fromJson<String?>(json['davCollectionId']),
+      davCollectionHref: serializer.fromJson<String?>(
+        json['davCollectionHref'],
+      ),
+      davObjectId: serializer.fromJson<String?>(json['davObjectId']),
+      davMemberHref: serializer.fromJson<String?>(json['davMemberHref']),
+      baselineEtag: serializer.fromJson<String?>(json['baselineEtag']),
+      baselineRawIcs: serializer.fromJson<String?>(json['baselineRawIcs']),
+      mutationPatchJson: serializer.fromJson<String?>(
+        json['mutationPatchJson'],
+      ),
+      mutationPatchSchemaVersion: serializer.fromJson<int?>(
+        json['mutationPatchSchemaVersion'],
+      ),
+      targetComponentKey: serializer.fromJson<String?>(
+        json['targetComponentKey'],
+      ),
+      mutationScope: serializer.fromJson<String?>(json['mutationScope']),
+      destinationCollectionId: serializer.fromJson<String?>(
+        json['destinationCollectionId'],
+      ),
+      destinationCollectionHref: serializer.fromJson<String?>(
+        json['destinationCollectionHref'],
+      ),
+      destinationMemberHref: serializer.fromJson<String?>(
+        json['destinationMemberHref'],
+      ),
+      conflictState: serializer.fromJson<String?>(json['conflictState']),
+      conflictSnapshotId: serializer.fromJson<String?>(
+        json['conflictSnapshotId'],
+      ),
+      retryClassification: serializer.fromJson<String?>(
+        json['retryClassification'],
+      ),
       localTempId: serializer.fromJson<String?>(json['localTempId']),
       dependsOnOpId: serializer.fromJson<String?>(json['dependsOnOpId']),
       requestJson: serializer.fromJson<String>(json['requestJson']),
@@ -5577,6 +13119,30 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
       'calendarSourceId': serializer.toJson<String?>(calendarSourceId),
       'providerCalendarId': serializer.toJson<String?>(providerCalendarId),
       'eventId': serializer.toJson<String?>(eventId),
+      'davCollectionId': serializer.toJson<String?>(davCollectionId),
+      'davCollectionHref': serializer.toJson<String?>(davCollectionHref),
+      'davObjectId': serializer.toJson<String?>(davObjectId),
+      'davMemberHref': serializer.toJson<String?>(davMemberHref),
+      'baselineEtag': serializer.toJson<String?>(baselineEtag),
+      'baselineRawIcs': serializer.toJson<String?>(baselineRawIcs),
+      'mutationPatchJson': serializer.toJson<String?>(mutationPatchJson),
+      'mutationPatchSchemaVersion': serializer.toJson<int?>(
+        mutationPatchSchemaVersion,
+      ),
+      'targetComponentKey': serializer.toJson<String?>(targetComponentKey),
+      'mutationScope': serializer.toJson<String?>(mutationScope),
+      'destinationCollectionId': serializer.toJson<String?>(
+        destinationCollectionId,
+      ),
+      'destinationCollectionHref': serializer.toJson<String?>(
+        destinationCollectionHref,
+      ),
+      'destinationMemberHref': serializer.toJson<String?>(
+        destinationMemberHref,
+      ),
+      'conflictState': serializer.toJson<String?>(conflictState),
+      'conflictSnapshotId': serializer.toJson<String?>(conflictSnapshotId),
+      'retryClassification': serializer.toJson<String?>(retryClassification),
       'localTempId': serializer.toJson<String?>(localTempId),
       'dependsOnOpId': serializer.toJson<String?>(dependsOnOpId),
       'requestJson': serializer.toJson<String>(requestJson),
@@ -5605,6 +13171,22 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
     Value<String?> calendarSourceId = const Value.absent(),
     Value<String?> providerCalendarId = const Value.absent(),
     Value<String?> eventId = const Value.absent(),
+    Value<String?> davCollectionId = const Value.absent(),
+    Value<String?> davCollectionHref = const Value.absent(),
+    Value<String?> davObjectId = const Value.absent(),
+    Value<String?> davMemberHref = const Value.absent(),
+    Value<String?> baselineEtag = const Value.absent(),
+    Value<String?> baselineRawIcs = const Value.absent(),
+    Value<String?> mutationPatchJson = const Value.absent(),
+    Value<int?> mutationPatchSchemaVersion = const Value.absent(),
+    Value<String?> targetComponentKey = const Value.absent(),
+    Value<String?> mutationScope = const Value.absent(),
+    Value<String?> destinationCollectionId = const Value.absent(),
+    Value<String?> destinationCollectionHref = const Value.absent(),
+    Value<String?> destinationMemberHref = const Value.absent(),
+    Value<String?> conflictState = const Value.absent(),
+    Value<String?> conflictSnapshotId = const Value.absent(),
+    Value<String?> retryClassification = const Value.absent(),
     Value<String?> localTempId = const Value.absent(),
     Value<String?> dependsOnOpId = const Value.absent(),
     String? requestJson,
@@ -5636,6 +13218,50 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
         ? providerCalendarId.value
         : this.providerCalendarId,
     eventId: eventId.present ? eventId.value : this.eventId,
+    davCollectionId: davCollectionId.present
+        ? davCollectionId.value
+        : this.davCollectionId,
+    davCollectionHref: davCollectionHref.present
+        ? davCollectionHref.value
+        : this.davCollectionHref,
+    davObjectId: davObjectId.present ? davObjectId.value : this.davObjectId,
+    davMemberHref: davMemberHref.present
+        ? davMemberHref.value
+        : this.davMemberHref,
+    baselineEtag: baselineEtag.present ? baselineEtag.value : this.baselineEtag,
+    baselineRawIcs: baselineRawIcs.present
+        ? baselineRawIcs.value
+        : this.baselineRawIcs,
+    mutationPatchJson: mutationPatchJson.present
+        ? mutationPatchJson.value
+        : this.mutationPatchJson,
+    mutationPatchSchemaVersion: mutationPatchSchemaVersion.present
+        ? mutationPatchSchemaVersion.value
+        : this.mutationPatchSchemaVersion,
+    targetComponentKey: targetComponentKey.present
+        ? targetComponentKey.value
+        : this.targetComponentKey,
+    mutationScope: mutationScope.present
+        ? mutationScope.value
+        : this.mutationScope,
+    destinationCollectionId: destinationCollectionId.present
+        ? destinationCollectionId.value
+        : this.destinationCollectionId,
+    destinationCollectionHref: destinationCollectionHref.present
+        ? destinationCollectionHref.value
+        : this.destinationCollectionHref,
+    destinationMemberHref: destinationMemberHref.present
+        ? destinationMemberHref.value
+        : this.destinationMemberHref,
+    conflictState: conflictState.present
+        ? conflictState.value
+        : this.conflictState,
+    conflictSnapshotId: conflictSnapshotId.present
+        ? conflictSnapshotId.value
+        : this.conflictSnapshotId,
+    retryClassification: retryClassification.present
+        ? retryClassification.value
+        : this.retryClassification,
     localTempId: localTempId.present ? localTempId.value : this.localTempId,
     dependsOnOpId: dependsOnOpId.present
         ? dependsOnOpId.value
@@ -5685,6 +13311,54 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
           ? data.providerCalendarId.value
           : this.providerCalendarId,
       eventId: data.eventId.present ? data.eventId.value : this.eventId,
+      davCollectionId: data.davCollectionId.present
+          ? data.davCollectionId.value
+          : this.davCollectionId,
+      davCollectionHref: data.davCollectionHref.present
+          ? data.davCollectionHref.value
+          : this.davCollectionHref,
+      davObjectId: data.davObjectId.present
+          ? data.davObjectId.value
+          : this.davObjectId,
+      davMemberHref: data.davMemberHref.present
+          ? data.davMemberHref.value
+          : this.davMemberHref,
+      baselineEtag: data.baselineEtag.present
+          ? data.baselineEtag.value
+          : this.baselineEtag,
+      baselineRawIcs: data.baselineRawIcs.present
+          ? data.baselineRawIcs.value
+          : this.baselineRawIcs,
+      mutationPatchJson: data.mutationPatchJson.present
+          ? data.mutationPatchJson.value
+          : this.mutationPatchJson,
+      mutationPatchSchemaVersion: data.mutationPatchSchemaVersion.present
+          ? data.mutationPatchSchemaVersion.value
+          : this.mutationPatchSchemaVersion,
+      targetComponentKey: data.targetComponentKey.present
+          ? data.targetComponentKey.value
+          : this.targetComponentKey,
+      mutationScope: data.mutationScope.present
+          ? data.mutationScope.value
+          : this.mutationScope,
+      destinationCollectionId: data.destinationCollectionId.present
+          ? data.destinationCollectionId.value
+          : this.destinationCollectionId,
+      destinationCollectionHref: data.destinationCollectionHref.present
+          ? data.destinationCollectionHref.value
+          : this.destinationCollectionHref,
+      destinationMemberHref: data.destinationMemberHref.present
+          ? data.destinationMemberHref.value
+          : this.destinationMemberHref,
+      conflictState: data.conflictState.present
+          ? data.conflictState.value
+          : this.conflictState,
+      conflictSnapshotId: data.conflictSnapshotId.present
+          ? data.conflictSnapshotId.value
+          : this.conflictSnapshotId,
+      retryClassification: data.retryClassification.present
+          ? data.retryClassification.value
+          : this.retryClassification,
       localTempId: data.localTempId.present
           ? data.localTempId.value
           : this.localTempId,
@@ -5737,6 +13411,22 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
           ..write('calendarSourceId: $calendarSourceId, ')
           ..write('providerCalendarId: $providerCalendarId, ')
           ..write('eventId: $eventId, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('davCollectionHref: $davCollectionHref, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('davMemberHref: $davMemberHref, ')
+          ..write('baselineEtag: $baselineEtag, ')
+          ..write('baselineRawIcs: $baselineRawIcs, ')
+          ..write('mutationPatchJson: $mutationPatchJson, ')
+          ..write('mutationPatchSchemaVersion: $mutationPatchSchemaVersion, ')
+          ..write('targetComponentKey: $targetComponentKey, ')
+          ..write('mutationScope: $mutationScope, ')
+          ..write('destinationCollectionId: $destinationCollectionId, ')
+          ..write('destinationCollectionHref: $destinationCollectionHref, ')
+          ..write('destinationMemberHref: $destinationMemberHref, ')
+          ..write('conflictState: $conflictState, ')
+          ..write('conflictSnapshotId: $conflictSnapshotId, ')
+          ..write('retryClassification: $retryClassification, ')
           ..write('localTempId: $localTempId, ')
           ..write('dependsOnOpId: $dependsOnOpId, ')
           ..write('requestJson: $requestJson, ')
@@ -5767,6 +13457,22 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
     calendarSourceId,
     providerCalendarId,
     eventId,
+    davCollectionId,
+    davCollectionHref,
+    davObjectId,
+    davMemberHref,
+    baselineEtag,
+    baselineRawIcs,
+    mutationPatchJson,
+    mutationPatchSchemaVersion,
+    targetComponentKey,
+    mutationScope,
+    destinationCollectionId,
+    destinationCollectionHref,
+    destinationMemberHref,
+    conflictState,
+    conflictSnapshotId,
+    retryClassification,
     localTempId,
     dependsOnOpId,
     requestJson,
@@ -5796,6 +13502,22 @@ class PendingOp extends DataClass implements Insertable<PendingOp> {
           other.calendarSourceId == this.calendarSourceId &&
           other.providerCalendarId == this.providerCalendarId &&
           other.eventId == this.eventId &&
+          other.davCollectionId == this.davCollectionId &&
+          other.davCollectionHref == this.davCollectionHref &&
+          other.davObjectId == this.davObjectId &&
+          other.davMemberHref == this.davMemberHref &&
+          other.baselineEtag == this.baselineEtag &&
+          other.baselineRawIcs == this.baselineRawIcs &&
+          other.mutationPatchJson == this.mutationPatchJson &&
+          other.mutationPatchSchemaVersion == this.mutationPatchSchemaVersion &&
+          other.targetComponentKey == this.targetComponentKey &&
+          other.mutationScope == this.mutationScope &&
+          other.destinationCollectionId == this.destinationCollectionId &&
+          other.destinationCollectionHref == this.destinationCollectionHref &&
+          other.destinationMemberHref == this.destinationMemberHref &&
+          other.conflictState == this.conflictState &&
+          other.conflictSnapshotId == this.conflictSnapshotId &&
+          other.retryClassification == this.retryClassification &&
           other.localTempId == this.localTempId &&
           other.dependsOnOpId == this.dependsOnOpId &&
           other.requestJson == this.requestJson &&
@@ -5823,6 +13545,22 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
   final Value<String?> calendarSourceId;
   final Value<String?> providerCalendarId;
   final Value<String?> eventId;
+  final Value<String?> davCollectionId;
+  final Value<String?> davCollectionHref;
+  final Value<String?> davObjectId;
+  final Value<String?> davMemberHref;
+  final Value<String?> baselineEtag;
+  final Value<String?> baselineRawIcs;
+  final Value<String?> mutationPatchJson;
+  final Value<int?> mutationPatchSchemaVersion;
+  final Value<String?> targetComponentKey;
+  final Value<String?> mutationScope;
+  final Value<String?> destinationCollectionId;
+  final Value<String?> destinationCollectionHref;
+  final Value<String?> destinationMemberHref;
+  final Value<String?> conflictState;
+  final Value<String?> conflictSnapshotId;
+  final Value<String?> retryClassification;
   final Value<String?> localTempId;
   final Value<String?> dependsOnOpId;
   final Value<String> requestJson;
@@ -5849,6 +13587,22 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
     this.calendarSourceId = const Value.absent(),
     this.providerCalendarId = const Value.absent(),
     this.eventId = const Value.absent(),
+    this.davCollectionId = const Value.absent(),
+    this.davCollectionHref = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.davMemberHref = const Value.absent(),
+    this.baselineEtag = const Value.absent(),
+    this.baselineRawIcs = const Value.absent(),
+    this.mutationPatchJson = const Value.absent(),
+    this.mutationPatchSchemaVersion = const Value.absent(),
+    this.targetComponentKey = const Value.absent(),
+    this.mutationScope = const Value.absent(),
+    this.destinationCollectionId = const Value.absent(),
+    this.destinationCollectionHref = const Value.absent(),
+    this.destinationMemberHref = const Value.absent(),
+    this.conflictState = const Value.absent(),
+    this.conflictSnapshotId = const Value.absent(),
+    this.retryClassification = const Value.absent(),
     this.localTempId = const Value.absent(),
     this.dependsOnOpId = const Value.absent(),
     this.requestJson = const Value.absent(),
@@ -5876,6 +13630,22 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
     this.calendarSourceId = const Value.absent(),
     this.providerCalendarId = const Value.absent(),
     this.eventId = const Value.absent(),
+    this.davCollectionId = const Value.absent(),
+    this.davCollectionHref = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.davMemberHref = const Value.absent(),
+    this.baselineEtag = const Value.absent(),
+    this.baselineRawIcs = const Value.absent(),
+    this.mutationPatchJson = const Value.absent(),
+    this.mutationPatchSchemaVersion = const Value.absent(),
+    this.targetComponentKey = const Value.absent(),
+    this.mutationScope = const Value.absent(),
+    this.destinationCollectionId = const Value.absent(),
+    this.destinationCollectionHref = const Value.absent(),
+    this.destinationMemberHref = const Value.absent(),
+    this.conflictState = const Value.absent(),
+    this.conflictSnapshotId = const Value.absent(),
+    this.retryClassification = const Value.absent(),
     this.localTempId = const Value.absent(),
     this.dependsOnOpId = const Value.absent(),
     required String requestJson,
@@ -5909,6 +13679,22 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
     Expression<String>? calendarSourceId,
     Expression<String>? providerCalendarId,
     Expression<String>? eventId,
+    Expression<String>? davCollectionId,
+    Expression<String>? davCollectionHref,
+    Expression<String>? davObjectId,
+    Expression<String>? davMemberHref,
+    Expression<String>? baselineEtag,
+    Expression<String>? baselineRawIcs,
+    Expression<String>? mutationPatchJson,
+    Expression<int>? mutationPatchSchemaVersion,
+    Expression<String>? targetComponentKey,
+    Expression<String>? mutationScope,
+    Expression<String>? destinationCollectionId,
+    Expression<String>? destinationCollectionHref,
+    Expression<String>? destinationMemberHref,
+    Expression<String>? conflictState,
+    Expression<String>? conflictSnapshotId,
+    Expression<String>? retryClassification,
     Expression<String>? localTempId,
     Expression<String>? dependsOnOpId,
     Expression<String>? requestJson,
@@ -5937,6 +13723,29 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
       if (providerCalendarId != null)
         'provider_calendar_id': providerCalendarId,
       if (eventId != null) 'event_id': eventId,
+      if (davCollectionId != null) 'dav_collection_id': davCollectionId,
+      if (davCollectionHref != null) 'dav_collection_href': davCollectionHref,
+      if (davObjectId != null) 'dav_object_id': davObjectId,
+      if (davMemberHref != null) 'dav_member_href': davMemberHref,
+      if (baselineEtag != null) 'baseline_etag': baselineEtag,
+      if (baselineRawIcs != null) 'baseline_raw_ics': baselineRawIcs,
+      if (mutationPatchJson != null) 'mutation_patch_json': mutationPatchJson,
+      if (mutationPatchSchemaVersion != null)
+        'mutation_patch_schema_version': mutationPatchSchemaVersion,
+      if (targetComponentKey != null)
+        'target_component_key': targetComponentKey,
+      if (mutationScope != null) 'mutation_scope': mutationScope,
+      if (destinationCollectionId != null)
+        'destination_collection_id': destinationCollectionId,
+      if (destinationCollectionHref != null)
+        'destination_collection_href': destinationCollectionHref,
+      if (destinationMemberHref != null)
+        'destination_member_href': destinationMemberHref,
+      if (conflictState != null) 'conflict_state': conflictState,
+      if (conflictSnapshotId != null)
+        'conflict_snapshot_id': conflictSnapshotId,
+      if (retryClassification != null)
+        'retry_classification': retryClassification,
       if (localTempId != null) 'local_temp_id': localTempId,
       if (dependsOnOpId != null) 'depends_on_op_id': dependsOnOpId,
       if (requestJson != null) 'request_json': requestJson,
@@ -5967,6 +13776,22 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
     Value<String?>? calendarSourceId,
     Value<String?>? providerCalendarId,
     Value<String?>? eventId,
+    Value<String?>? davCollectionId,
+    Value<String?>? davCollectionHref,
+    Value<String?>? davObjectId,
+    Value<String?>? davMemberHref,
+    Value<String?>? baselineEtag,
+    Value<String?>? baselineRawIcs,
+    Value<String?>? mutationPatchJson,
+    Value<int?>? mutationPatchSchemaVersion,
+    Value<String?>? targetComponentKey,
+    Value<String?>? mutationScope,
+    Value<String?>? destinationCollectionId,
+    Value<String?>? destinationCollectionHref,
+    Value<String?>? destinationMemberHref,
+    Value<String?>? conflictState,
+    Value<String?>? conflictSnapshotId,
+    Value<String?>? retryClassification,
     Value<String?>? localTempId,
     Value<String?>? dependsOnOpId,
     Value<String>? requestJson,
@@ -5994,6 +13819,26 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
       calendarSourceId: calendarSourceId ?? this.calendarSourceId,
       providerCalendarId: providerCalendarId ?? this.providerCalendarId,
       eventId: eventId ?? this.eventId,
+      davCollectionId: davCollectionId ?? this.davCollectionId,
+      davCollectionHref: davCollectionHref ?? this.davCollectionHref,
+      davObjectId: davObjectId ?? this.davObjectId,
+      davMemberHref: davMemberHref ?? this.davMemberHref,
+      baselineEtag: baselineEtag ?? this.baselineEtag,
+      baselineRawIcs: baselineRawIcs ?? this.baselineRawIcs,
+      mutationPatchJson: mutationPatchJson ?? this.mutationPatchJson,
+      mutationPatchSchemaVersion:
+          mutationPatchSchemaVersion ?? this.mutationPatchSchemaVersion,
+      targetComponentKey: targetComponentKey ?? this.targetComponentKey,
+      mutationScope: mutationScope ?? this.mutationScope,
+      destinationCollectionId:
+          destinationCollectionId ?? this.destinationCollectionId,
+      destinationCollectionHref:
+          destinationCollectionHref ?? this.destinationCollectionHref,
+      destinationMemberHref:
+          destinationMemberHref ?? this.destinationMemberHref,
+      conflictState: conflictState ?? this.conflictState,
+      conflictSnapshotId: conflictSnapshotId ?? this.conflictSnapshotId,
+      retryClassification: retryClassification ?? this.retryClassification,
       localTempId: localTempId ?? this.localTempId,
       dependsOnOpId: dependsOnOpId ?? this.dependsOnOpId,
       requestJson: requestJson ?? this.requestJson,
@@ -6046,6 +13891,62 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
     }
     if (eventId.present) {
       map['event_id'] = Variable<String>(eventId.value);
+    }
+    if (davCollectionId.present) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId.value);
+    }
+    if (davCollectionHref.present) {
+      map['dav_collection_href'] = Variable<String>(davCollectionHref.value);
+    }
+    if (davObjectId.present) {
+      map['dav_object_id'] = Variable<String>(davObjectId.value);
+    }
+    if (davMemberHref.present) {
+      map['dav_member_href'] = Variable<String>(davMemberHref.value);
+    }
+    if (baselineEtag.present) {
+      map['baseline_etag'] = Variable<String>(baselineEtag.value);
+    }
+    if (baselineRawIcs.present) {
+      map['baseline_raw_ics'] = Variable<String>(baselineRawIcs.value);
+    }
+    if (mutationPatchJson.present) {
+      map['mutation_patch_json'] = Variable<String>(mutationPatchJson.value);
+    }
+    if (mutationPatchSchemaVersion.present) {
+      map['mutation_patch_schema_version'] = Variable<int>(
+        mutationPatchSchemaVersion.value,
+      );
+    }
+    if (targetComponentKey.present) {
+      map['target_component_key'] = Variable<String>(targetComponentKey.value);
+    }
+    if (mutationScope.present) {
+      map['mutation_scope'] = Variable<String>(mutationScope.value);
+    }
+    if (destinationCollectionId.present) {
+      map['destination_collection_id'] = Variable<String>(
+        destinationCollectionId.value,
+      );
+    }
+    if (destinationCollectionHref.present) {
+      map['destination_collection_href'] = Variable<String>(
+        destinationCollectionHref.value,
+      );
+    }
+    if (destinationMemberHref.present) {
+      map['destination_member_href'] = Variable<String>(
+        destinationMemberHref.value,
+      );
+    }
+    if (conflictState.present) {
+      map['conflict_state'] = Variable<String>(conflictState.value);
+    }
+    if (conflictSnapshotId.present) {
+      map['conflict_snapshot_id'] = Variable<String>(conflictSnapshotId.value);
+    }
+    if (retryClassification.present) {
+      map['retry_classification'] = Variable<String>(retryClassification.value);
     }
     if (localTempId.present) {
       map['local_temp_id'] = Variable<String>(localTempId.value);
@@ -6106,6 +14007,22 @@ class PendingOpsCompanion extends UpdateCompanion<PendingOp> {
           ..write('calendarSourceId: $calendarSourceId, ')
           ..write('providerCalendarId: $providerCalendarId, ')
           ..write('eventId: $eventId, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('davCollectionHref: $davCollectionHref, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('davMemberHref: $davMemberHref, ')
+          ..write('baselineEtag: $baselineEtag, ')
+          ..write('baselineRawIcs: $baselineRawIcs, ')
+          ..write('mutationPatchJson: $mutationPatchJson, ')
+          ..write('mutationPatchSchemaVersion: $mutationPatchSchemaVersion, ')
+          ..write('targetComponentKey: $targetComponentKey, ')
+          ..write('mutationScope: $mutationScope, ')
+          ..write('destinationCollectionId: $destinationCollectionId, ')
+          ..write('destinationCollectionHref: $destinationCollectionHref, ')
+          ..write('destinationMemberHref: $destinationMemberHref, ')
+          ..write('conflictState: $conflictState, ')
+          ..write('conflictSnapshotId: $conflictSnapshotId, ')
+          ..write('retryClassification: $retryClassification, ')
           ..write('localTempId: $localTempId, ')
           ..write('dependsOnOpId: $dependsOnOpId, ')
           ..write('requestJson: $requestJson, ')
@@ -6903,6 +14820,20 @@ class $CalendarSourcesTable extends CalendarSources
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       );
+  static const VerificationMeta _davCollectionIdMeta = const VerificationMeta(
+    'davCollectionId',
+  );
+  @override
+  late final GeneratedColumn<String> davCollectionId = GeneratedColumn<String>(
+    'dav_collection_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE SET NULL',
+    ),
+  );
   static const VerificationMeta _summaryMeta = const VerificationMeta(
     'summary',
   );
@@ -7092,6 +15023,7 @@ class $CalendarSourcesTable extends CalendarSources
     accountId,
     provider,
     providerCalendarId,
+    davCollectionId,
     summary,
     description,
     primaryCalendar,
@@ -7151,6 +15083,15 @@ class $CalendarSourcesTable extends CalendarSources
       );
     } else if (isInserting) {
       context.missing(_providerCalendarIdMeta);
+    }
+    if (data.containsKey('dav_collection_id')) {
+      context.handle(
+        _davCollectionIdMeta,
+        davCollectionId.isAcceptableOrUnknown(
+          data['dav_collection_id']!,
+          _davCollectionIdMeta,
+        ),
+      );
     }
     if (data.containsKey('summary')) {
       context.handle(
@@ -7291,6 +15232,10 @@ class $CalendarSourcesTable extends CalendarSources
         DriftSqlType.string,
         data['${effectivePrefix}provider_calendar_id'],
       )!,
+      davCollectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_collection_id'],
+      ),
       summary: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}summary'],
@@ -7365,6 +15310,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
   final String accountId;
   final String provider;
   final String providerCalendarId;
+  final String? davCollectionId;
   final String summary;
   final String? description;
   final bool primaryCalendar;
@@ -7385,6 +15331,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     required this.accountId,
     required this.provider,
     required this.providerCalendarId,
+    this.davCollectionId,
     required this.summary,
     this.description,
     required this.primaryCalendar,
@@ -7408,6 +15355,9 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     map['account_id'] = Variable<String>(accountId);
     map['provider'] = Variable<String>(provider);
     map['provider_calendar_id'] = Variable<String>(providerCalendarId);
+    if (!nullToAbsent || davCollectionId != null) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId);
+    }
     map['summary'] = Variable<String>(summary);
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
@@ -7446,6 +15396,9 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       accountId: Value(accountId),
       provider: Value(provider),
       providerCalendarId: Value(providerCalendarId),
+      davCollectionId: davCollectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davCollectionId),
       summary: Value(summary),
       description: description == null && nullToAbsent
           ? const Value.absent()
@@ -7490,6 +15443,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       providerCalendarId: serializer.fromJson<String>(
         json['providerCalendarId'],
       ),
+      davCollectionId: serializer.fromJson<String?>(json['davCollectionId']),
       summary: serializer.fromJson<String>(json['summary']),
       description: serializer.fromJson<String?>(json['description']),
       primaryCalendar: serializer.fromJson<bool>(json['primaryCalendar']),
@@ -7515,6 +15469,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       'accountId': serializer.toJson<String>(accountId),
       'provider': serializer.toJson<String>(provider),
       'providerCalendarId': serializer.toJson<String>(providerCalendarId),
+      'davCollectionId': serializer.toJson<String?>(davCollectionId),
       'summary': serializer.toJson<String>(summary),
       'description': serializer.toJson<String?>(description),
       'primaryCalendar': serializer.toJson<bool>(primaryCalendar),
@@ -7538,6 +15493,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     String? accountId,
     String? provider,
     String? providerCalendarId,
+    Value<String?> davCollectionId = const Value.absent(),
     String? summary,
     Value<String?> description = const Value.absent(),
     bool? primaryCalendar,
@@ -7558,6 +15514,9 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     accountId: accountId ?? this.accountId,
     provider: provider ?? this.provider,
     providerCalendarId: providerCalendarId ?? this.providerCalendarId,
+    davCollectionId: davCollectionId.present
+        ? davCollectionId.value
+        : this.davCollectionId,
     summary: summary ?? this.summary,
     description: description.present ? description.value : this.description,
     primaryCalendar: primaryCalendar ?? this.primaryCalendar,
@@ -7586,6 +15545,9 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       providerCalendarId: data.providerCalendarId.present
           ? data.providerCalendarId.value
           : this.providerCalendarId,
+      davCollectionId: data.davCollectionId.present
+          ? data.davCollectionId.value
+          : this.davCollectionId,
       summary: data.summary.present ? data.summary.value : this.summary,
       description: data.description.present
           ? data.description.value
@@ -7625,6 +15587,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           ..write('accountId: $accountId, ')
           ..write('provider: $provider, ')
           ..write('providerCalendarId: $providerCalendarId, ')
+          ..write('davCollectionId: $davCollectionId, ')
           ..write('summary: $summary, ')
           ..write('description: $description, ')
           ..write('primaryCalendar: $primaryCalendar, ')
@@ -7650,6 +15613,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     accountId,
     provider,
     providerCalendarId,
+    davCollectionId,
     summary,
     description,
     primaryCalendar,
@@ -7674,6 +15638,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           other.accountId == this.accountId &&
           other.provider == this.provider &&
           other.providerCalendarId == this.providerCalendarId &&
+          other.davCollectionId == this.davCollectionId &&
           other.summary == this.summary &&
           other.description == this.description &&
           other.primaryCalendar == this.primaryCalendar &&
@@ -7696,6 +15661,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
   final Value<String> accountId;
   final Value<String> provider;
   final Value<String> providerCalendarId;
+  final Value<String?> davCollectionId;
   final Value<String> summary;
   final Value<String?> description;
   final Value<bool> primaryCalendar;
@@ -7717,6 +15683,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     this.accountId = const Value.absent(),
     this.provider = const Value.absent(),
     this.providerCalendarId = const Value.absent(),
+    this.davCollectionId = const Value.absent(),
     this.summary = const Value.absent(),
     this.description = const Value.absent(),
     this.primaryCalendar = const Value.absent(),
@@ -7739,6 +15706,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     required String accountId,
     required String provider,
     required String providerCalendarId,
+    this.davCollectionId = const Value.absent(),
     required String summary,
     this.description = const Value.absent(),
     this.primaryCalendar = const Value.absent(),
@@ -7767,6 +15735,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     Expression<String>? accountId,
     Expression<String>? provider,
     Expression<String>? providerCalendarId,
+    Expression<String>? davCollectionId,
     Expression<String>? summary,
     Expression<String>? description,
     Expression<bool>? primaryCalendar,
@@ -7790,6 +15759,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
       if (provider != null) 'provider': provider,
       if (providerCalendarId != null)
         'provider_calendar_id': providerCalendarId,
+      if (davCollectionId != null) 'dav_collection_id': davCollectionId,
       if (summary != null) 'summary': summary,
       if (description != null) 'description': description,
       if (primaryCalendar != null) 'primary_calendar': primaryCalendar,
@@ -7814,6 +15784,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     Value<String>? accountId,
     Value<String>? provider,
     Value<String>? providerCalendarId,
+    Value<String?>? davCollectionId,
     Value<String>? summary,
     Value<String?>? description,
     Value<bool>? primaryCalendar,
@@ -7836,6 +15807,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
       accountId: accountId ?? this.accountId,
       provider: provider ?? this.provider,
       providerCalendarId: providerCalendarId ?? this.providerCalendarId,
+      davCollectionId: davCollectionId ?? this.davCollectionId,
       summary: summary ?? this.summary,
       description: description ?? this.description,
       primaryCalendar: primaryCalendar ?? this.primaryCalendar,
@@ -7869,6 +15841,9 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     }
     if (providerCalendarId.present) {
       map['provider_calendar_id'] = Variable<String>(providerCalendarId.value);
+    }
+    if (davCollectionId.present) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId.value);
     }
     if (summary.present) {
       map['summary'] = Variable<String>(summary.value);
@@ -7928,6 +15903,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
           ..write('accountId: $accountId, ')
           ..write('provider: $provider, ')
           ..write('providerCalendarId: $providerCalendarId, ')
+          ..write('davCollectionId: $davCollectionId, ')
           ..write('summary: $summary, ')
           ..write('description: $description, ')
           ..write('primaryCalendar: $primaryCalendar, ')
@@ -8024,6 +16000,93 @@ class $CalendarEventsTable extends CalendarEvents
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _davCollectionIdMeta = const VerificationMeta(
+    'davCollectionId',
+  );
+  @override
+  late final GeneratedColumn<String> davCollectionId = GeneratedColumn<String>(
+    'dav_collection_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _davObjectIdMeta = const VerificationMeta(
+    'davObjectId',
+  );
+  @override
+  late final GeneratedColumn<String> davObjectId = GeneratedColumn<String>(
+    'dav_object_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_objects (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _davComponentIdMeta = const VerificationMeta(
+    'davComponentId',
+  );
+  @override
+  late final GeneratedColumn<String> davComponentId = GeneratedColumn<String>(
+    'dav_component_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_object_components (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _icalUidMeta = const VerificationMeta(
+    'icalUid',
+  );
+  @override
+  late final GeneratedColumn<String> icalUid = GeneratedColumn<String>(
+    'ical_uid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recurrenceIdKeyMeta = const VerificationMeta(
+    'recurrenceIdKey',
+  );
+  @override
+  late final GeneratedColumn<String> recurrenceIdKey = GeneratedColumn<String>(
+    'recurrence_id_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _occurrenceKeyMeta = const VerificationMeta(
+    'occurrenceKey',
+  );
+  @override
+  late final GeneratedColumn<String> occurrenceKey = GeneratedColumn<String>(
+    'occurrence_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _projectionVersionMeta = const VerificationMeta(
+    'projectionVersion',
+  );
+  @override
+  late final GeneratedColumn<int> projectionVersion = GeneratedColumn<int>(
+    'projection_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
   );
   static const VerificationMeta _providerRecurringEventIdMeta =
       const VerificationMeta('providerRecurringEventId');
@@ -8447,6 +16510,13 @@ class $CalendarEventsTable extends CalendarEvents
     provider,
     providerCalendarId,
     providerEventId,
+    davCollectionId,
+    davObjectId,
+    davComponentId,
+    icalUid,
+    recurrenceIdKey,
+    occurrenceKey,
+    projectionVersion,
     providerRecurringEventId,
     providerOriginalStartKey,
     etagOrChangeKey,
@@ -8550,6 +16620,66 @@ class $CalendarEventsTable extends CalendarEvents
       );
     } else if (isInserting) {
       context.missing(_providerEventIdMeta);
+    }
+    if (data.containsKey('dav_collection_id')) {
+      context.handle(
+        _davCollectionIdMeta,
+        davCollectionId.isAcceptableOrUnknown(
+          data['dav_collection_id']!,
+          _davCollectionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dav_object_id')) {
+      context.handle(
+        _davObjectIdMeta,
+        davObjectId.isAcceptableOrUnknown(
+          data['dav_object_id']!,
+          _davObjectIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dav_component_id')) {
+      context.handle(
+        _davComponentIdMeta,
+        davComponentId.isAcceptableOrUnknown(
+          data['dav_component_id']!,
+          _davComponentIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ical_uid')) {
+      context.handle(
+        _icalUidMeta,
+        icalUid.isAcceptableOrUnknown(data['ical_uid']!, _icalUidMeta),
+      );
+    }
+    if (data.containsKey('recurrence_id_key')) {
+      context.handle(
+        _recurrenceIdKeyMeta,
+        recurrenceIdKey.isAcceptableOrUnknown(
+          data['recurrence_id_key']!,
+          _recurrenceIdKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('occurrence_key')) {
+      context.handle(
+        _occurrenceKeyMeta,
+        occurrenceKey.isAcceptableOrUnknown(
+          data['occurrence_key']!,
+          _occurrenceKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('projection_version')) {
+      context.handle(
+        _projectionVersionMeta,
+        projectionVersion.isAcceptableOrUnknown(
+          data['projection_version']!,
+          _projectionVersionMeta,
+        ),
+      );
     }
     if (data.containsKey('provider_recurring_event_id')) {
       context.handle(
@@ -8881,6 +17011,34 @@ class $CalendarEventsTable extends CalendarEvents
         DriftSqlType.string,
         data['${effectivePrefix}provider_event_id'],
       )!,
+      davCollectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_collection_id'],
+      ),
+      davObjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_object_id'],
+      ),
+      davComponentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_component_id'],
+      ),
+      icalUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ical_uid'],
+      ),
+      recurrenceIdKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence_id_key'],
+      ),
+      occurrenceKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}occurrence_key'],
+      ),
+      projectionVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}projection_version'],
+      )!,
       providerRecurringEventId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}provider_recurring_event_id'],
@@ -9045,6 +17203,13 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
   final String provider;
   final String providerCalendarId;
   final String providerEventId;
+  final String? davCollectionId;
+  final String? davObjectId;
+  final String? davComponentId;
+  final String? icalUid;
+  final String? recurrenceIdKey;
+  final String? occurrenceKey;
+  final int projectionVersion;
   final String? providerRecurringEventId;
   final String? providerOriginalStartKey;
   final String? etagOrChangeKey;
@@ -9089,6 +17254,13 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     required this.provider,
     required this.providerCalendarId,
     required this.providerEventId,
+    this.davCollectionId,
+    this.davObjectId,
+    this.davComponentId,
+    this.icalUid,
+    this.recurrenceIdKey,
+    this.occurrenceKey,
+    required this.projectionVersion,
     this.providerRecurringEventId,
     this.providerOriginalStartKey,
     this.etagOrChangeKey,
@@ -9136,6 +17308,25 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     map['provider'] = Variable<String>(provider);
     map['provider_calendar_id'] = Variable<String>(providerCalendarId);
     map['provider_event_id'] = Variable<String>(providerEventId);
+    if (!nullToAbsent || davCollectionId != null) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId);
+    }
+    if (!nullToAbsent || davObjectId != null) {
+      map['dav_object_id'] = Variable<String>(davObjectId);
+    }
+    if (!nullToAbsent || davComponentId != null) {
+      map['dav_component_id'] = Variable<String>(davComponentId);
+    }
+    if (!nullToAbsent || icalUid != null) {
+      map['ical_uid'] = Variable<String>(icalUid);
+    }
+    if (!nullToAbsent || recurrenceIdKey != null) {
+      map['recurrence_id_key'] = Variable<String>(recurrenceIdKey);
+    }
+    if (!nullToAbsent || occurrenceKey != null) {
+      map['occurrence_key'] = Variable<String>(occurrenceKey);
+    }
+    map['projection_version'] = Variable<int>(projectionVersion);
     if (!nullToAbsent || providerRecurringEventId != null) {
       map['provider_recurring_event_id'] = Variable<String>(
         providerRecurringEventId,
@@ -9248,6 +17439,25 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       provider: Value(provider),
       providerCalendarId: Value(providerCalendarId),
       providerEventId: Value(providerEventId),
+      davCollectionId: davCollectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davCollectionId),
+      davObjectId: davObjectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davObjectId),
+      davComponentId: davComponentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davComponentId),
+      icalUid: icalUid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(icalUid),
+      recurrenceIdKey: recurrenceIdKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recurrenceIdKey),
+      occurrenceKey: occurrenceKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(occurrenceKey),
+      projectionVersion: Value(projectionVersion),
       providerRecurringEventId: providerRecurringEventId == null && nullToAbsent
           ? const Value.absent()
           : Value(providerRecurringEventId),
@@ -9362,6 +17572,13 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
         json['providerCalendarId'],
       ),
       providerEventId: serializer.fromJson<String>(json['providerEventId']),
+      davCollectionId: serializer.fromJson<String?>(json['davCollectionId']),
+      davObjectId: serializer.fromJson<String?>(json['davObjectId']),
+      davComponentId: serializer.fromJson<String?>(json['davComponentId']),
+      icalUid: serializer.fromJson<String?>(json['icalUid']),
+      recurrenceIdKey: serializer.fromJson<String?>(json['recurrenceIdKey']),
+      occurrenceKey: serializer.fromJson<String?>(json['occurrenceKey']),
+      projectionVersion: serializer.fromJson<int>(json['projectionVersion']),
       providerRecurringEventId: serializer.fromJson<String?>(
         json['providerRecurringEventId'],
       ),
@@ -9417,6 +17634,13 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       'provider': serializer.toJson<String>(provider),
       'providerCalendarId': serializer.toJson<String>(providerCalendarId),
       'providerEventId': serializer.toJson<String>(providerEventId),
+      'davCollectionId': serializer.toJson<String?>(davCollectionId),
+      'davObjectId': serializer.toJson<String?>(davObjectId),
+      'davComponentId': serializer.toJson<String?>(davComponentId),
+      'icalUid': serializer.toJson<String?>(icalUid),
+      'recurrenceIdKey': serializer.toJson<String?>(recurrenceIdKey),
+      'occurrenceKey': serializer.toJson<String?>(occurrenceKey),
+      'projectionVersion': serializer.toJson<int>(projectionVersion),
       'providerRecurringEventId': serializer.toJson<String?>(
         providerRecurringEventId,
       ),
@@ -9468,6 +17692,13 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     String? provider,
     String? providerCalendarId,
     String? providerEventId,
+    Value<String?> davCollectionId = const Value.absent(),
+    Value<String?> davObjectId = const Value.absent(),
+    Value<String?> davComponentId = const Value.absent(),
+    Value<String?> icalUid = const Value.absent(),
+    Value<String?> recurrenceIdKey = const Value.absent(),
+    Value<String?> occurrenceKey = const Value.absent(),
+    int? projectionVersion,
     Value<String?> providerRecurringEventId = const Value.absent(),
     Value<String?> providerOriginalStartKey = const Value.absent(),
     Value<String?> etagOrChangeKey = const Value.absent(),
@@ -9512,6 +17743,21 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     provider: provider ?? this.provider,
     providerCalendarId: providerCalendarId ?? this.providerCalendarId,
     providerEventId: providerEventId ?? this.providerEventId,
+    davCollectionId: davCollectionId.present
+        ? davCollectionId.value
+        : this.davCollectionId,
+    davObjectId: davObjectId.present ? davObjectId.value : this.davObjectId,
+    davComponentId: davComponentId.present
+        ? davComponentId.value
+        : this.davComponentId,
+    icalUid: icalUid.present ? icalUid.value : this.icalUid,
+    recurrenceIdKey: recurrenceIdKey.present
+        ? recurrenceIdKey.value
+        : this.recurrenceIdKey,
+    occurrenceKey: occurrenceKey.present
+        ? occurrenceKey.value
+        : this.occurrenceKey,
+    projectionVersion: projectionVersion ?? this.projectionVersion,
     providerRecurringEventId: providerRecurringEventId.present
         ? providerRecurringEventId.value
         : this.providerRecurringEventId,
@@ -9596,6 +17842,25 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       providerEventId: data.providerEventId.present
           ? data.providerEventId.value
           : this.providerEventId,
+      davCollectionId: data.davCollectionId.present
+          ? data.davCollectionId.value
+          : this.davCollectionId,
+      davObjectId: data.davObjectId.present
+          ? data.davObjectId.value
+          : this.davObjectId,
+      davComponentId: data.davComponentId.present
+          ? data.davComponentId.value
+          : this.davComponentId,
+      icalUid: data.icalUid.present ? data.icalUid.value : this.icalUid,
+      recurrenceIdKey: data.recurrenceIdKey.present
+          ? data.recurrenceIdKey.value
+          : this.recurrenceIdKey,
+      occurrenceKey: data.occurrenceKey.present
+          ? data.occurrenceKey.value
+          : this.occurrenceKey,
+      projectionVersion: data.projectionVersion.present
+          ? data.projectionVersion.value
+          : this.projectionVersion,
       providerRecurringEventId: data.providerRecurringEventId.present
           ? data.providerRecurringEventId.value
           : this.providerRecurringEventId,
@@ -9695,6 +17960,13 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
           ..write('provider: $provider, ')
           ..write('providerCalendarId: $providerCalendarId, ')
           ..write('providerEventId: $providerEventId, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('davComponentId: $davComponentId, ')
+          ..write('icalUid: $icalUid, ')
+          ..write('recurrenceIdKey: $recurrenceIdKey, ')
+          ..write('occurrenceKey: $occurrenceKey, ')
+          ..write('projectionVersion: $projectionVersion, ')
           ..write('providerRecurringEventId: $providerRecurringEventId, ')
           ..write('providerOriginalStartKey: $providerOriginalStartKey, ')
           ..write('etagOrChangeKey: $etagOrChangeKey, ')
@@ -9744,6 +18016,13 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     provider,
     providerCalendarId,
     providerEventId,
+    davCollectionId,
+    davObjectId,
+    davComponentId,
+    icalUid,
+    recurrenceIdKey,
+    occurrenceKey,
+    projectionVersion,
     providerRecurringEventId,
     providerOriginalStartKey,
     etagOrChangeKey,
@@ -9792,6 +18071,13 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
           other.provider == this.provider &&
           other.providerCalendarId == this.providerCalendarId &&
           other.providerEventId == this.providerEventId &&
+          other.davCollectionId == this.davCollectionId &&
+          other.davObjectId == this.davObjectId &&
+          other.davComponentId == this.davComponentId &&
+          other.icalUid == this.icalUid &&
+          other.recurrenceIdKey == this.recurrenceIdKey &&
+          other.occurrenceKey == this.occurrenceKey &&
+          other.projectionVersion == this.projectionVersion &&
           other.providerRecurringEventId == this.providerRecurringEventId &&
           other.providerOriginalStartKey == this.providerOriginalStartKey &&
           other.etagOrChangeKey == this.etagOrChangeKey &&
@@ -9838,6 +18124,13 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
   final Value<String> provider;
   final Value<String> providerCalendarId;
   final Value<String> providerEventId;
+  final Value<String?> davCollectionId;
+  final Value<String?> davObjectId;
+  final Value<String?> davComponentId;
+  final Value<String?> icalUid;
+  final Value<String?> recurrenceIdKey;
+  final Value<String?> occurrenceKey;
+  final Value<int> projectionVersion;
   final Value<String?> providerRecurringEventId;
   final Value<String?> providerOriginalStartKey;
   final Value<String?> etagOrChangeKey;
@@ -9883,6 +18176,13 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     this.provider = const Value.absent(),
     this.providerCalendarId = const Value.absent(),
     this.providerEventId = const Value.absent(),
+    this.davCollectionId = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.davComponentId = const Value.absent(),
+    this.icalUid = const Value.absent(),
+    this.recurrenceIdKey = const Value.absent(),
+    this.occurrenceKey = const Value.absent(),
+    this.projectionVersion = const Value.absent(),
     this.providerRecurringEventId = const Value.absent(),
     this.providerOriginalStartKey = const Value.absent(),
     this.etagOrChangeKey = const Value.absent(),
@@ -9929,6 +18229,13 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     required String provider,
     required String providerCalendarId,
     required String providerEventId,
+    this.davCollectionId = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.davComponentId = const Value.absent(),
+    this.icalUid = const Value.absent(),
+    this.recurrenceIdKey = const Value.absent(),
+    this.occurrenceKey = const Value.absent(),
+    this.projectionVersion = const Value.absent(),
     this.providerRecurringEventId = const Value.absent(),
     this.providerOriginalStartKey = const Value.absent(),
     this.etagOrChangeKey = const Value.absent(),
@@ -9983,6 +18290,13 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     Expression<String>? provider,
     Expression<String>? providerCalendarId,
     Expression<String>? providerEventId,
+    Expression<String>? davCollectionId,
+    Expression<String>? davObjectId,
+    Expression<String>? davComponentId,
+    Expression<String>? icalUid,
+    Expression<String>? recurrenceIdKey,
+    Expression<String>? occurrenceKey,
+    Expression<int>? projectionVersion,
     Expression<String>? providerRecurringEventId,
     Expression<String>? providerOriginalStartKey,
     Expression<String>? etagOrChangeKey,
@@ -10030,6 +18344,13 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
       if (providerCalendarId != null)
         'provider_calendar_id': providerCalendarId,
       if (providerEventId != null) 'provider_event_id': providerEventId,
+      if (davCollectionId != null) 'dav_collection_id': davCollectionId,
+      if (davObjectId != null) 'dav_object_id': davObjectId,
+      if (davComponentId != null) 'dav_component_id': davComponentId,
+      if (icalUid != null) 'ical_uid': icalUid,
+      if (recurrenceIdKey != null) 'recurrence_id_key': recurrenceIdKey,
+      if (occurrenceKey != null) 'occurrence_key': occurrenceKey,
+      if (projectionVersion != null) 'projection_version': projectionVersion,
       if (providerRecurringEventId != null)
         'provider_recurring_event_id': providerRecurringEventId,
       if (providerOriginalStartKey != null)
@@ -10081,6 +18402,13 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     Value<String>? provider,
     Value<String>? providerCalendarId,
     Value<String>? providerEventId,
+    Value<String?>? davCollectionId,
+    Value<String?>? davObjectId,
+    Value<String?>? davComponentId,
+    Value<String?>? icalUid,
+    Value<String?>? recurrenceIdKey,
+    Value<String?>? occurrenceKey,
+    Value<int>? projectionVersion,
     Value<String?>? providerRecurringEventId,
     Value<String?>? providerOriginalStartKey,
     Value<String?>? etagOrChangeKey,
@@ -10127,6 +18455,13 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
       provider: provider ?? this.provider,
       providerCalendarId: providerCalendarId ?? this.providerCalendarId,
       providerEventId: providerEventId ?? this.providerEventId,
+      davCollectionId: davCollectionId ?? this.davCollectionId,
+      davObjectId: davObjectId ?? this.davObjectId,
+      davComponentId: davComponentId ?? this.davComponentId,
+      icalUid: icalUid ?? this.icalUid,
+      recurrenceIdKey: recurrenceIdKey ?? this.recurrenceIdKey,
+      occurrenceKey: occurrenceKey ?? this.occurrenceKey,
+      projectionVersion: projectionVersion ?? this.projectionVersion,
       providerRecurringEventId:
           providerRecurringEventId ?? this.providerRecurringEventId,
       providerOriginalStartKey:
@@ -10190,6 +18525,27 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     }
     if (providerEventId.present) {
       map['provider_event_id'] = Variable<String>(providerEventId.value);
+    }
+    if (davCollectionId.present) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId.value);
+    }
+    if (davObjectId.present) {
+      map['dav_object_id'] = Variable<String>(davObjectId.value);
+    }
+    if (davComponentId.present) {
+      map['dav_component_id'] = Variable<String>(davComponentId.value);
+    }
+    if (icalUid.present) {
+      map['ical_uid'] = Variable<String>(icalUid.value);
+    }
+    if (recurrenceIdKey.present) {
+      map['recurrence_id_key'] = Variable<String>(recurrenceIdKey.value);
+    }
+    if (occurrenceKey.present) {
+      map['occurrence_key'] = Variable<String>(occurrenceKey.value);
+    }
+    if (projectionVersion.present) {
+      map['projection_version'] = Variable<int>(projectionVersion.value);
     }
     if (providerRecurringEventId.present) {
       map['provider_recurring_event_id'] = Variable<String>(
@@ -10323,6 +18679,13 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
           ..write('provider: $provider, ')
           ..write('providerCalendarId: $providerCalendarId, ')
           ..write('providerEventId: $providerEventId, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('davComponentId: $davComponentId, ')
+          ..write('icalUid: $icalUid, ')
+          ..write('recurrenceIdKey: $recurrenceIdKey, ')
+          ..write('occurrenceKey: $occurrenceKey, ')
+          ..write('projectionVersion: $projectionVersion, ')
           ..write('providerRecurringEventId: $providerRecurringEventId, ')
           ..write('providerOriginalStartKey: $providerOriginalStartKey, ')
           ..write('etagOrChangeKey: $etagOrChangeKey, ')
@@ -11491,12 +19854,12 @@ class CalendarEventRemindersCompanion
   }
 }
 
-class $CalendarSyncStatesTable extends CalendarSyncStates
-    with TableInfo<$CalendarSyncStatesTable, CalendarSyncState> {
+class $SyncCursorsTable extends SyncCursors
+    with TableInfo<$SyncCursorsTable, SyncCursor> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $CalendarSyncStatesTable(this.attachedDatabase, [this._alias]);
+  $SyncCursorsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -11520,20 +19883,20 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
       'REFERENCES accounts (id) ON DELETE CASCADE',
     ),
   );
-  static const VerificationMeta _calendarSourceIdMeta = const VerificationMeta(
-    'calendarSourceId',
-  );
+  static const VerificationMeta _projectionSourceIdMeta =
+      const VerificationMeta('projectionSourceId');
   @override
-  late final GeneratedColumn<String> calendarSourceId = GeneratedColumn<String>(
-    'calendar_source_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES calendar_sources (id) ON DELETE CASCADE',
-    ),
-  );
+  late final GeneratedColumn<String> projectionSourceId =
+      GeneratedColumn<String>(
+        'projection_source_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES calendar_sources (id) ON DELETE CASCADE',
+        ),
+      );
   static const VerificationMeta _providerMeta = const VerificationMeta(
     'provider',
   );
@@ -11545,12 +19908,59 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _syncKindMeta = const VerificationMeta(
-    'syncKind',
+  static const VerificationMeta _transportMeta = const VerificationMeta(
+    'transport',
   );
   @override
-  late final GeneratedColumn<String> syncKind = GeneratedColumn<String>(
-    'sync_kind',
+  late final GeneratedColumn<String> transport = GeneratedColumn<String>(
+    'transport',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _syncScopeKindMeta = const VerificationMeta(
+    'syncScopeKind',
+  );
+  @override
+  late final GeneratedColumn<String> syncScopeKind = GeneratedColumn<String>(
+    'sync_scope_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _davCollectionIdMeta = const VerificationMeta(
+    'davCollectionId',
+  );
+  @override
+  late final GeneratedColumn<String> davCollectionId = GeneratedColumn<String>(
+    'dav_collection_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _cursorKindMeta = const VerificationMeta(
+    'cursorKind',
+  );
+  @override
+  late final GeneratedColumn<String> cursorKind = GeneratedColumn<String>(
+    'cursor_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cursorValueMeta = const VerificationMeta(
+    'cursorValue',
+  );
+  @override
+  late final GeneratedColumn<String> cursorValue = GeneratedColumn<String>(
+    'cursor_value',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -11578,66 +19988,76 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _googleSyncTokenMeta = const VerificationMeta(
-    'googleSyncToken',
+  static const VerificationMeta _baselineGenerationMeta =
+      const VerificationMeta('baselineGeneration');
+  @override
+  late final GeneratedColumn<int> baselineGeneration = GeneratedColumn<int>(
+    'baseline_generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _inProgressCursorMeta = const VerificationMeta(
+    'inProgressCursor',
   );
   @override
-  late final GeneratedColumn<String> googleSyncToken = GeneratedColumn<String>(
-    'google_sync_token',
+  late final GeneratedColumn<String> inProgressCursor = GeneratedColumn<String>(
+    'in_progress_cursor',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _microsoftDeltaLinkMeta =
-      const VerificationMeta('microsoftDeltaLink');
+  static const VerificationMeta _inProgressGenerationMeta =
+      const VerificationMeta('inProgressGeneration');
   @override
-  late final GeneratedColumn<String> microsoftDeltaLink =
-      GeneratedColumn<String>(
-        'microsoft_delta_link',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _lastFullSyncAtMeta = const VerificationMeta(
-    'lastFullSyncAt',
-  );
-  @override
-  late final GeneratedColumn<int> lastFullSyncAt = GeneratedColumn<int>(
-    'last_full_sync_at',
+  late final GeneratedColumn<int> inProgressGeneration = GeneratedColumn<int>(
+    'in_progress_generation',
     aliasedName,
     true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _lastIncrementalSyncAtMeta =
-      const VerificationMeta('lastIncrementalSyncAt');
+  static const VerificationMeta _lastCompleteSyncAtMeta =
+      const VerificationMeta('lastCompleteSyncAt');
   @override
-  late final GeneratedColumn<int> lastIncrementalSyncAt = GeneratedColumn<int>(
-    'last_incremental_sync_at',
+  late final GeneratedColumn<int> lastCompleteSyncAt = GeneratedColumn<int>(
+    'last_complete_sync_at',
     aliasedName,
     true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
-    'lastError',
+  static const VerificationMeta _lastFailureCodeMeta = const VerificationMeta(
+    'lastFailureCode',
   );
   @override
-  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
-    'last_error',
+  late final GeneratedColumn<String> lastFailureCode = GeneratedColumn<String>(
+    'last_failure_code',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _rawStateJsonMeta = const VerificationMeta(
-    'rawStateJson',
+  static const VerificationMeta _stateSchemaVersionMeta =
+      const VerificationMeta('stateSchemaVersion');
+  @override
+  late final GeneratedColumn<int> stateSchemaVersion = GeneratedColumn<int>(
+    'state_schema_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _stateJsonMeta = const VerificationMeta(
+    'stateJson',
   );
   @override
-  late final GeneratedColumn<String> rawStateJson = GeneratedColumn<String>(
-    'raw_state_json',
+  late final GeneratedColumn<String> stateJson = GeneratedColumn<String>(
+    'state_json',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -11647,26 +20067,31 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
   List<GeneratedColumn> get $columns => [
     id,
     accountId,
-    calendarSourceId,
+    projectionSourceId,
     provider,
-    syncKind,
+    transport,
+    syncScopeKind,
+    davCollectionId,
+    cursorKind,
+    cursorValue,
     rangeStart,
     rangeEnd,
-    googleSyncToken,
-    microsoftDeltaLink,
-    lastFullSyncAt,
-    lastIncrementalSyncAt,
-    lastError,
-    rawStateJson,
+    baselineGeneration,
+    inProgressCursor,
+    inProgressGeneration,
+    lastCompleteSyncAt,
+    lastFailureCode,
+    stateSchemaVersion,
+    stateJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'calendar_sync_states';
+  static const String $name = 'sync_cursors';
   @override
   VerificationContext validateIntegrity(
-    Insertable<CalendarSyncState> instance, {
+    Insertable<SyncCursor> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -11684,12 +20109,12 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
     } else if (isInserting) {
       context.missing(_accountIdMeta);
     }
-    if (data.containsKey('calendar_source_id')) {
+    if (data.containsKey('projection_source_id')) {
       context.handle(
-        _calendarSourceIdMeta,
-        calendarSourceId.isAcceptableOrUnknown(
-          data['calendar_source_id']!,
-          _calendarSourceIdMeta,
+        _projectionSourceIdMeta,
+        projectionSourceId.isAcceptableOrUnknown(
+          data['projection_source_id']!,
+          _projectionSourceIdMeta,
         ),
       );
     }
@@ -11701,13 +20126,52 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
     } else if (isInserting) {
       context.missing(_providerMeta);
     }
-    if (data.containsKey('sync_kind')) {
+    if (data.containsKey('transport')) {
       context.handle(
-        _syncKindMeta,
-        syncKind.isAcceptableOrUnknown(data['sync_kind']!, _syncKindMeta),
+        _transportMeta,
+        transport.isAcceptableOrUnknown(data['transport']!, _transportMeta),
       );
     } else if (isInserting) {
-      context.missing(_syncKindMeta);
+      context.missing(_transportMeta);
+    }
+    if (data.containsKey('sync_scope_kind')) {
+      context.handle(
+        _syncScopeKindMeta,
+        syncScopeKind.isAcceptableOrUnknown(
+          data['sync_scope_kind']!,
+          _syncScopeKindMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_syncScopeKindMeta);
+    }
+    if (data.containsKey('dav_collection_id')) {
+      context.handle(
+        _davCollectionIdMeta,
+        davCollectionId.isAcceptableOrUnknown(
+          data['dav_collection_id']!,
+          _davCollectionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cursor_kind')) {
+      context.handle(
+        _cursorKindMeta,
+        cursorKind.isAcceptableOrUnknown(data['cursor_kind']!, _cursorKindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cursorKindMeta);
+    }
+    if (data.containsKey('cursor_value')) {
+      context.handle(
+        _cursorValueMeta,
+        cursorValue.isAcceptableOrUnknown(
+          data['cursor_value']!,
+          _cursorValueMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cursorValueMeta);
     }
     if (data.containsKey('range_start')) {
       context.handle(
@@ -11721,55 +20185,64 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
         rangeEnd.isAcceptableOrUnknown(data['range_end']!, _rangeEndMeta),
       );
     }
-    if (data.containsKey('google_sync_token')) {
+    if (data.containsKey('baseline_generation')) {
       context.handle(
-        _googleSyncTokenMeta,
-        googleSyncToken.isAcceptableOrUnknown(
-          data['google_sync_token']!,
-          _googleSyncTokenMeta,
+        _baselineGenerationMeta,
+        baselineGeneration.isAcceptableOrUnknown(
+          data['baseline_generation']!,
+          _baselineGenerationMeta,
         ),
       );
     }
-    if (data.containsKey('microsoft_delta_link')) {
+    if (data.containsKey('in_progress_cursor')) {
       context.handle(
-        _microsoftDeltaLinkMeta,
-        microsoftDeltaLink.isAcceptableOrUnknown(
-          data['microsoft_delta_link']!,
-          _microsoftDeltaLinkMeta,
+        _inProgressCursorMeta,
+        inProgressCursor.isAcceptableOrUnknown(
+          data['in_progress_cursor']!,
+          _inProgressCursorMeta,
         ),
       );
     }
-    if (data.containsKey('last_full_sync_at')) {
+    if (data.containsKey('in_progress_generation')) {
       context.handle(
-        _lastFullSyncAtMeta,
-        lastFullSyncAt.isAcceptableOrUnknown(
-          data['last_full_sync_at']!,
-          _lastFullSyncAtMeta,
+        _inProgressGenerationMeta,
+        inProgressGeneration.isAcceptableOrUnknown(
+          data['in_progress_generation']!,
+          _inProgressGenerationMeta,
         ),
       );
     }
-    if (data.containsKey('last_incremental_sync_at')) {
+    if (data.containsKey('last_complete_sync_at')) {
       context.handle(
-        _lastIncrementalSyncAtMeta,
-        lastIncrementalSyncAt.isAcceptableOrUnknown(
-          data['last_incremental_sync_at']!,
-          _lastIncrementalSyncAtMeta,
+        _lastCompleteSyncAtMeta,
+        lastCompleteSyncAt.isAcceptableOrUnknown(
+          data['last_complete_sync_at']!,
+          _lastCompleteSyncAtMeta,
         ),
       );
     }
-    if (data.containsKey('last_error')) {
+    if (data.containsKey('last_failure_code')) {
       context.handle(
-        _lastErrorMeta,
-        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+        _lastFailureCodeMeta,
+        lastFailureCode.isAcceptableOrUnknown(
+          data['last_failure_code']!,
+          _lastFailureCodeMeta,
+        ),
       );
     }
-    if (data.containsKey('raw_state_json')) {
+    if (data.containsKey('state_schema_version')) {
       context.handle(
-        _rawStateJsonMeta,
-        rawStateJson.isAcceptableOrUnknown(
-          data['raw_state_json']!,
-          _rawStateJsonMeta,
+        _stateSchemaVersionMeta,
+        stateSchemaVersion.isAcceptableOrUnknown(
+          data['state_schema_version']!,
+          _stateSchemaVersionMeta,
         ),
+      );
+    }
+    if (data.containsKey('state_json')) {
+      context.handle(
+        _stateJsonMeta,
+        stateJson.isAcceptableOrUnknown(data['state_json']!, _stateJsonMeta),
       );
     }
     return context;
@@ -11778,9 +20251,9 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  CalendarSyncState map(Map<String, dynamic> data, {String? tablePrefix}) {
+  SyncCursor map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return CalendarSyncState(
+    return SyncCursor(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -11789,17 +20262,33 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
         DriftSqlType.string,
         data['${effectivePrefix}account_id'],
       )!,
-      calendarSourceId: attachedDatabase.typeMapping.read(
+      projectionSourceId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}calendar_source_id'],
+        data['${effectivePrefix}projection_source_id'],
       ),
       provider: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}provider'],
       )!,
-      syncKind: attachedDatabase.typeMapping.read(
+      transport: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}sync_kind'],
+        data['${effectivePrefix}transport'],
+      )!,
+      syncScopeKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_scope_kind'],
+      )!,
+      davCollectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_collection_id'],
+      ),
+      cursorKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cursor_kind'],
+      )!,
+      cursorValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cursor_value'],
       )!,
       rangeStart: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -11809,165 +20298,193 @@ class $CalendarSyncStatesTable extends CalendarSyncStates
         DriftSqlType.string,
         data['${effectivePrefix}range_end'],
       ),
-      googleSyncToken: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}google_sync_token'],
-      ),
-      microsoftDeltaLink: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}microsoft_delta_link'],
-      ),
-      lastFullSyncAt: attachedDatabase.typeMapping.read(
+      baselineGeneration: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}last_full_sync_at'],
+        data['${effectivePrefix}baseline_generation'],
+      )!,
+      inProgressCursor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}in_progress_cursor'],
       ),
-      lastIncrementalSyncAt: attachedDatabase.typeMapping.read(
+      inProgressGeneration: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}last_incremental_sync_at'],
+        data['${effectivePrefix}in_progress_generation'],
       ),
-      lastError: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}last_error'],
+      lastCompleteSyncAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_complete_sync_at'],
       ),
-      rawStateJson: attachedDatabase.typeMapping.read(
+      lastFailureCode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}raw_state_json'],
+        data['${effectivePrefix}last_failure_code'],
+      ),
+      stateSchemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}state_schema_version'],
+      )!,
+      stateJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state_json'],
       ),
     );
   }
 
   @override
-  $CalendarSyncStatesTable createAlias(String alias) {
-    return $CalendarSyncStatesTable(attachedDatabase, alias);
+  $SyncCursorsTable createAlias(String alias) {
+    return $SyncCursorsTable(attachedDatabase, alias);
   }
 }
 
-class CalendarSyncState extends DataClass
-    implements Insertable<CalendarSyncState> {
+class SyncCursor extends DataClass implements Insertable<SyncCursor> {
   final String id;
   final String accountId;
-  final String? calendarSourceId;
+  final String? projectionSourceId;
   final String provider;
-  final String syncKind;
+  final String transport;
+  final String syncScopeKind;
+  final String? davCollectionId;
+  final String cursorKind;
+  final String cursorValue;
   final String? rangeStart;
   final String? rangeEnd;
-  final String? googleSyncToken;
-  final String? microsoftDeltaLink;
-  final int? lastFullSyncAt;
-  final int? lastIncrementalSyncAt;
-  final String? lastError;
-  final String? rawStateJson;
-  const CalendarSyncState({
+  final int baselineGeneration;
+  final String? inProgressCursor;
+  final int? inProgressGeneration;
+  final int? lastCompleteSyncAt;
+  final String? lastFailureCode;
+  final int stateSchemaVersion;
+  final String? stateJson;
+  const SyncCursor({
     required this.id,
     required this.accountId,
-    this.calendarSourceId,
+    this.projectionSourceId,
     required this.provider,
-    required this.syncKind,
+    required this.transport,
+    required this.syncScopeKind,
+    this.davCollectionId,
+    required this.cursorKind,
+    required this.cursorValue,
     this.rangeStart,
     this.rangeEnd,
-    this.googleSyncToken,
-    this.microsoftDeltaLink,
-    this.lastFullSyncAt,
-    this.lastIncrementalSyncAt,
-    this.lastError,
-    this.rawStateJson,
+    required this.baselineGeneration,
+    this.inProgressCursor,
+    this.inProgressGeneration,
+    this.lastCompleteSyncAt,
+    this.lastFailureCode,
+    required this.stateSchemaVersion,
+    this.stateJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['account_id'] = Variable<String>(accountId);
-    if (!nullToAbsent || calendarSourceId != null) {
-      map['calendar_source_id'] = Variable<String>(calendarSourceId);
+    if (!nullToAbsent || projectionSourceId != null) {
+      map['projection_source_id'] = Variable<String>(projectionSourceId);
     }
     map['provider'] = Variable<String>(provider);
-    map['sync_kind'] = Variable<String>(syncKind);
+    map['transport'] = Variable<String>(transport);
+    map['sync_scope_kind'] = Variable<String>(syncScopeKind);
+    if (!nullToAbsent || davCollectionId != null) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId);
+    }
+    map['cursor_kind'] = Variable<String>(cursorKind);
+    map['cursor_value'] = Variable<String>(cursorValue);
     if (!nullToAbsent || rangeStart != null) {
       map['range_start'] = Variable<String>(rangeStart);
     }
     if (!nullToAbsent || rangeEnd != null) {
       map['range_end'] = Variable<String>(rangeEnd);
     }
-    if (!nullToAbsent || googleSyncToken != null) {
-      map['google_sync_token'] = Variable<String>(googleSyncToken);
+    map['baseline_generation'] = Variable<int>(baselineGeneration);
+    if (!nullToAbsent || inProgressCursor != null) {
+      map['in_progress_cursor'] = Variable<String>(inProgressCursor);
     }
-    if (!nullToAbsent || microsoftDeltaLink != null) {
-      map['microsoft_delta_link'] = Variable<String>(microsoftDeltaLink);
+    if (!nullToAbsent || inProgressGeneration != null) {
+      map['in_progress_generation'] = Variable<int>(inProgressGeneration);
     }
-    if (!nullToAbsent || lastFullSyncAt != null) {
-      map['last_full_sync_at'] = Variable<int>(lastFullSyncAt);
+    if (!nullToAbsent || lastCompleteSyncAt != null) {
+      map['last_complete_sync_at'] = Variable<int>(lastCompleteSyncAt);
     }
-    if (!nullToAbsent || lastIncrementalSyncAt != null) {
-      map['last_incremental_sync_at'] = Variable<int>(lastIncrementalSyncAt);
+    if (!nullToAbsent || lastFailureCode != null) {
+      map['last_failure_code'] = Variable<String>(lastFailureCode);
     }
-    if (!nullToAbsent || lastError != null) {
-      map['last_error'] = Variable<String>(lastError);
-    }
-    if (!nullToAbsent || rawStateJson != null) {
-      map['raw_state_json'] = Variable<String>(rawStateJson);
+    map['state_schema_version'] = Variable<int>(stateSchemaVersion);
+    if (!nullToAbsent || stateJson != null) {
+      map['state_json'] = Variable<String>(stateJson);
     }
     return map;
   }
 
-  CalendarSyncStatesCompanion toCompanion(bool nullToAbsent) {
-    return CalendarSyncStatesCompanion(
+  SyncCursorsCompanion toCompanion(bool nullToAbsent) {
+    return SyncCursorsCompanion(
       id: Value(id),
       accountId: Value(accountId),
-      calendarSourceId: calendarSourceId == null && nullToAbsent
+      projectionSourceId: projectionSourceId == null && nullToAbsent
           ? const Value.absent()
-          : Value(calendarSourceId),
+          : Value(projectionSourceId),
       provider: Value(provider),
-      syncKind: Value(syncKind),
+      transport: Value(transport),
+      syncScopeKind: Value(syncScopeKind),
+      davCollectionId: davCollectionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(davCollectionId),
+      cursorKind: Value(cursorKind),
+      cursorValue: Value(cursorValue),
       rangeStart: rangeStart == null && nullToAbsent
           ? const Value.absent()
           : Value(rangeStart),
       rangeEnd: rangeEnd == null && nullToAbsent
           ? const Value.absent()
           : Value(rangeEnd),
-      googleSyncToken: googleSyncToken == null && nullToAbsent
+      baselineGeneration: Value(baselineGeneration),
+      inProgressCursor: inProgressCursor == null && nullToAbsent
           ? const Value.absent()
-          : Value(googleSyncToken),
-      microsoftDeltaLink: microsoftDeltaLink == null && nullToAbsent
+          : Value(inProgressCursor),
+      inProgressGeneration: inProgressGeneration == null && nullToAbsent
           ? const Value.absent()
-          : Value(microsoftDeltaLink),
-      lastFullSyncAt: lastFullSyncAt == null && nullToAbsent
+          : Value(inProgressGeneration),
+      lastCompleteSyncAt: lastCompleteSyncAt == null && nullToAbsent
           ? const Value.absent()
-          : Value(lastFullSyncAt),
-      lastIncrementalSyncAt: lastIncrementalSyncAt == null && nullToAbsent
+          : Value(lastCompleteSyncAt),
+      lastFailureCode: lastFailureCode == null && nullToAbsent
           ? const Value.absent()
-          : Value(lastIncrementalSyncAt),
-      lastError: lastError == null && nullToAbsent
+          : Value(lastFailureCode),
+      stateSchemaVersion: Value(stateSchemaVersion),
+      stateJson: stateJson == null && nullToAbsent
           ? const Value.absent()
-          : Value(lastError),
-      rawStateJson: rawStateJson == null && nullToAbsent
-          ? const Value.absent()
-          : Value(rawStateJson),
+          : Value(stateJson),
     );
   }
 
-  factory CalendarSyncState.fromJson(
+  factory SyncCursor.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return CalendarSyncState(
+    return SyncCursor(
       id: serializer.fromJson<String>(json['id']),
       accountId: serializer.fromJson<String>(json['accountId']),
-      calendarSourceId: serializer.fromJson<String?>(json['calendarSourceId']),
+      projectionSourceId: serializer.fromJson<String?>(
+        json['projectionSourceId'],
+      ),
       provider: serializer.fromJson<String>(json['provider']),
-      syncKind: serializer.fromJson<String>(json['syncKind']),
+      transport: serializer.fromJson<String>(json['transport']),
+      syncScopeKind: serializer.fromJson<String>(json['syncScopeKind']),
+      davCollectionId: serializer.fromJson<String?>(json['davCollectionId']),
+      cursorKind: serializer.fromJson<String>(json['cursorKind']),
+      cursorValue: serializer.fromJson<String>(json['cursorValue']),
       rangeStart: serializer.fromJson<String?>(json['rangeStart']),
       rangeEnd: serializer.fromJson<String?>(json['rangeEnd']),
-      googleSyncToken: serializer.fromJson<String?>(json['googleSyncToken']),
-      microsoftDeltaLink: serializer.fromJson<String?>(
-        json['microsoftDeltaLink'],
+      baselineGeneration: serializer.fromJson<int>(json['baselineGeneration']),
+      inProgressCursor: serializer.fromJson<String?>(json['inProgressCursor']),
+      inProgressGeneration: serializer.fromJson<int?>(
+        json['inProgressGeneration'],
       ),
-      lastFullSyncAt: serializer.fromJson<int?>(json['lastFullSyncAt']),
-      lastIncrementalSyncAt: serializer.fromJson<int?>(
-        json['lastIncrementalSyncAt'],
-      ),
-      lastError: serializer.fromJson<String?>(json['lastError']),
-      rawStateJson: serializer.fromJson<String?>(json['rawStateJson']),
+      lastCompleteSyncAt: serializer.fromJson<int?>(json['lastCompleteSyncAt']),
+      lastFailureCode: serializer.fromJson<String?>(json['lastFailureCode']),
+      stateSchemaVersion: serializer.fromJson<int>(json['stateSchemaVersion']),
+      stateJson: serializer.fromJson<String?>(json['stateJson']),
     );
   }
   @override
@@ -11976,107 +20493,144 @@ class CalendarSyncState extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'accountId': serializer.toJson<String>(accountId),
-      'calendarSourceId': serializer.toJson<String?>(calendarSourceId),
+      'projectionSourceId': serializer.toJson<String?>(projectionSourceId),
       'provider': serializer.toJson<String>(provider),
-      'syncKind': serializer.toJson<String>(syncKind),
+      'transport': serializer.toJson<String>(transport),
+      'syncScopeKind': serializer.toJson<String>(syncScopeKind),
+      'davCollectionId': serializer.toJson<String?>(davCollectionId),
+      'cursorKind': serializer.toJson<String>(cursorKind),
+      'cursorValue': serializer.toJson<String>(cursorValue),
       'rangeStart': serializer.toJson<String?>(rangeStart),
       'rangeEnd': serializer.toJson<String?>(rangeEnd),
-      'googleSyncToken': serializer.toJson<String?>(googleSyncToken),
-      'microsoftDeltaLink': serializer.toJson<String?>(microsoftDeltaLink),
-      'lastFullSyncAt': serializer.toJson<int?>(lastFullSyncAt),
-      'lastIncrementalSyncAt': serializer.toJson<int?>(lastIncrementalSyncAt),
-      'lastError': serializer.toJson<String?>(lastError),
-      'rawStateJson': serializer.toJson<String?>(rawStateJson),
+      'baselineGeneration': serializer.toJson<int>(baselineGeneration),
+      'inProgressCursor': serializer.toJson<String?>(inProgressCursor),
+      'inProgressGeneration': serializer.toJson<int?>(inProgressGeneration),
+      'lastCompleteSyncAt': serializer.toJson<int?>(lastCompleteSyncAt),
+      'lastFailureCode': serializer.toJson<String?>(lastFailureCode),
+      'stateSchemaVersion': serializer.toJson<int>(stateSchemaVersion),
+      'stateJson': serializer.toJson<String?>(stateJson),
     };
   }
 
-  CalendarSyncState copyWith({
+  SyncCursor copyWith({
     String? id,
     String? accountId,
-    Value<String?> calendarSourceId = const Value.absent(),
+    Value<String?> projectionSourceId = const Value.absent(),
     String? provider,
-    String? syncKind,
+    String? transport,
+    String? syncScopeKind,
+    Value<String?> davCollectionId = const Value.absent(),
+    String? cursorKind,
+    String? cursorValue,
     Value<String?> rangeStart = const Value.absent(),
     Value<String?> rangeEnd = const Value.absent(),
-    Value<String?> googleSyncToken = const Value.absent(),
-    Value<String?> microsoftDeltaLink = const Value.absent(),
-    Value<int?> lastFullSyncAt = const Value.absent(),
-    Value<int?> lastIncrementalSyncAt = const Value.absent(),
-    Value<String?> lastError = const Value.absent(),
-    Value<String?> rawStateJson = const Value.absent(),
-  }) => CalendarSyncState(
+    int? baselineGeneration,
+    Value<String?> inProgressCursor = const Value.absent(),
+    Value<int?> inProgressGeneration = const Value.absent(),
+    Value<int?> lastCompleteSyncAt = const Value.absent(),
+    Value<String?> lastFailureCode = const Value.absent(),
+    int? stateSchemaVersion,
+    Value<String?> stateJson = const Value.absent(),
+  }) => SyncCursor(
     id: id ?? this.id,
     accountId: accountId ?? this.accountId,
-    calendarSourceId: calendarSourceId.present
-        ? calendarSourceId.value
-        : this.calendarSourceId,
+    projectionSourceId: projectionSourceId.present
+        ? projectionSourceId.value
+        : this.projectionSourceId,
     provider: provider ?? this.provider,
-    syncKind: syncKind ?? this.syncKind,
+    transport: transport ?? this.transport,
+    syncScopeKind: syncScopeKind ?? this.syncScopeKind,
+    davCollectionId: davCollectionId.present
+        ? davCollectionId.value
+        : this.davCollectionId,
+    cursorKind: cursorKind ?? this.cursorKind,
+    cursorValue: cursorValue ?? this.cursorValue,
     rangeStart: rangeStart.present ? rangeStart.value : this.rangeStart,
     rangeEnd: rangeEnd.present ? rangeEnd.value : this.rangeEnd,
-    googleSyncToken: googleSyncToken.present
-        ? googleSyncToken.value
-        : this.googleSyncToken,
-    microsoftDeltaLink: microsoftDeltaLink.present
-        ? microsoftDeltaLink.value
-        : this.microsoftDeltaLink,
-    lastFullSyncAt: lastFullSyncAt.present
-        ? lastFullSyncAt.value
-        : this.lastFullSyncAt,
-    lastIncrementalSyncAt: lastIncrementalSyncAt.present
-        ? lastIncrementalSyncAt.value
-        : this.lastIncrementalSyncAt,
-    lastError: lastError.present ? lastError.value : this.lastError,
-    rawStateJson: rawStateJson.present ? rawStateJson.value : this.rawStateJson,
+    baselineGeneration: baselineGeneration ?? this.baselineGeneration,
+    inProgressCursor: inProgressCursor.present
+        ? inProgressCursor.value
+        : this.inProgressCursor,
+    inProgressGeneration: inProgressGeneration.present
+        ? inProgressGeneration.value
+        : this.inProgressGeneration,
+    lastCompleteSyncAt: lastCompleteSyncAt.present
+        ? lastCompleteSyncAt.value
+        : this.lastCompleteSyncAt,
+    lastFailureCode: lastFailureCode.present
+        ? lastFailureCode.value
+        : this.lastFailureCode,
+    stateSchemaVersion: stateSchemaVersion ?? this.stateSchemaVersion,
+    stateJson: stateJson.present ? stateJson.value : this.stateJson,
   );
-  CalendarSyncState copyWithCompanion(CalendarSyncStatesCompanion data) {
-    return CalendarSyncState(
+  SyncCursor copyWithCompanion(SyncCursorsCompanion data) {
+    return SyncCursor(
       id: data.id.present ? data.id.value : this.id,
       accountId: data.accountId.present ? data.accountId.value : this.accountId,
-      calendarSourceId: data.calendarSourceId.present
-          ? data.calendarSourceId.value
-          : this.calendarSourceId,
+      projectionSourceId: data.projectionSourceId.present
+          ? data.projectionSourceId.value
+          : this.projectionSourceId,
       provider: data.provider.present ? data.provider.value : this.provider,
-      syncKind: data.syncKind.present ? data.syncKind.value : this.syncKind,
+      transport: data.transport.present ? data.transport.value : this.transport,
+      syncScopeKind: data.syncScopeKind.present
+          ? data.syncScopeKind.value
+          : this.syncScopeKind,
+      davCollectionId: data.davCollectionId.present
+          ? data.davCollectionId.value
+          : this.davCollectionId,
+      cursorKind: data.cursorKind.present
+          ? data.cursorKind.value
+          : this.cursorKind,
+      cursorValue: data.cursorValue.present
+          ? data.cursorValue.value
+          : this.cursorValue,
       rangeStart: data.rangeStart.present
           ? data.rangeStart.value
           : this.rangeStart,
       rangeEnd: data.rangeEnd.present ? data.rangeEnd.value : this.rangeEnd,
-      googleSyncToken: data.googleSyncToken.present
-          ? data.googleSyncToken.value
-          : this.googleSyncToken,
-      microsoftDeltaLink: data.microsoftDeltaLink.present
-          ? data.microsoftDeltaLink.value
-          : this.microsoftDeltaLink,
-      lastFullSyncAt: data.lastFullSyncAt.present
-          ? data.lastFullSyncAt.value
-          : this.lastFullSyncAt,
-      lastIncrementalSyncAt: data.lastIncrementalSyncAt.present
-          ? data.lastIncrementalSyncAt.value
-          : this.lastIncrementalSyncAt,
-      lastError: data.lastError.present ? data.lastError.value : this.lastError,
-      rawStateJson: data.rawStateJson.present
-          ? data.rawStateJson.value
-          : this.rawStateJson,
+      baselineGeneration: data.baselineGeneration.present
+          ? data.baselineGeneration.value
+          : this.baselineGeneration,
+      inProgressCursor: data.inProgressCursor.present
+          ? data.inProgressCursor.value
+          : this.inProgressCursor,
+      inProgressGeneration: data.inProgressGeneration.present
+          ? data.inProgressGeneration.value
+          : this.inProgressGeneration,
+      lastCompleteSyncAt: data.lastCompleteSyncAt.present
+          ? data.lastCompleteSyncAt.value
+          : this.lastCompleteSyncAt,
+      lastFailureCode: data.lastFailureCode.present
+          ? data.lastFailureCode.value
+          : this.lastFailureCode,
+      stateSchemaVersion: data.stateSchemaVersion.present
+          ? data.stateSchemaVersion.value
+          : this.stateSchemaVersion,
+      stateJson: data.stateJson.present ? data.stateJson.value : this.stateJson,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('CalendarSyncState(')
+    return (StringBuffer('SyncCursor(')
           ..write('id: $id, ')
           ..write('accountId: $accountId, ')
-          ..write('calendarSourceId: $calendarSourceId, ')
+          ..write('projectionSourceId: $projectionSourceId, ')
           ..write('provider: $provider, ')
-          ..write('syncKind: $syncKind, ')
+          ..write('transport: $transport, ')
+          ..write('syncScopeKind: $syncScopeKind, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('cursorKind: $cursorKind, ')
+          ..write('cursorValue: $cursorValue, ')
           ..write('rangeStart: $rangeStart, ')
           ..write('rangeEnd: $rangeEnd, ')
-          ..write('googleSyncToken: $googleSyncToken, ')
-          ..write('microsoftDeltaLink: $microsoftDeltaLink, ')
-          ..write('lastFullSyncAt: $lastFullSyncAt, ')
-          ..write('lastIncrementalSyncAt: $lastIncrementalSyncAt, ')
-          ..write('lastError: $lastError, ')
-          ..write('rawStateJson: $rawStateJson')
+          ..write('baselineGeneration: $baselineGeneration, ')
+          ..write('inProgressCursor: $inProgressCursor, ')
+          ..write('inProgressGeneration: $inProgressGeneration, ')
+          ..write('lastCompleteSyncAt: $lastCompleteSyncAt, ')
+          ..write('lastFailureCode: $lastFailureCode, ')
+          ..write('stateSchemaVersion: $stateSchemaVersion, ')
+          ..write('stateJson: $stateJson')
           ..write(')'))
         .toString();
   }
@@ -12085,154 +20639,203 @@ class CalendarSyncState extends DataClass
   int get hashCode => Object.hash(
     id,
     accountId,
-    calendarSourceId,
+    projectionSourceId,
     provider,
-    syncKind,
+    transport,
+    syncScopeKind,
+    davCollectionId,
+    cursorKind,
+    cursorValue,
     rangeStart,
     rangeEnd,
-    googleSyncToken,
-    microsoftDeltaLink,
-    lastFullSyncAt,
-    lastIncrementalSyncAt,
-    lastError,
-    rawStateJson,
+    baselineGeneration,
+    inProgressCursor,
+    inProgressGeneration,
+    lastCompleteSyncAt,
+    lastFailureCode,
+    stateSchemaVersion,
+    stateJson,
   );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is CalendarSyncState &&
+      (other is SyncCursor &&
           other.id == this.id &&
           other.accountId == this.accountId &&
-          other.calendarSourceId == this.calendarSourceId &&
+          other.projectionSourceId == this.projectionSourceId &&
           other.provider == this.provider &&
-          other.syncKind == this.syncKind &&
+          other.transport == this.transport &&
+          other.syncScopeKind == this.syncScopeKind &&
+          other.davCollectionId == this.davCollectionId &&
+          other.cursorKind == this.cursorKind &&
+          other.cursorValue == this.cursorValue &&
           other.rangeStart == this.rangeStart &&
           other.rangeEnd == this.rangeEnd &&
-          other.googleSyncToken == this.googleSyncToken &&
-          other.microsoftDeltaLink == this.microsoftDeltaLink &&
-          other.lastFullSyncAt == this.lastFullSyncAt &&
-          other.lastIncrementalSyncAt == this.lastIncrementalSyncAt &&
-          other.lastError == this.lastError &&
-          other.rawStateJson == this.rawStateJson);
+          other.baselineGeneration == this.baselineGeneration &&
+          other.inProgressCursor == this.inProgressCursor &&
+          other.inProgressGeneration == this.inProgressGeneration &&
+          other.lastCompleteSyncAt == this.lastCompleteSyncAt &&
+          other.lastFailureCode == this.lastFailureCode &&
+          other.stateSchemaVersion == this.stateSchemaVersion &&
+          other.stateJson == this.stateJson);
 }
 
-class CalendarSyncStatesCompanion extends UpdateCompanion<CalendarSyncState> {
+class SyncCursorsCompanion extends UpdateCompanion<SyncCursor> {
   final Value<String> id;
   final Value<String> accountId;
-  final Value<String?> calendarSourceId;
+  final Value<String?> projectionSourceId;
   final Value<String> provider;
-  final Value<String> syncKind;
+  final Value<String> transport;
+  final Value<String> syncScopeKind;
+  final Value<String?> davCollectionId;
+  final Value<String> cursorKind;
+  final Value<String> cursorValue;
   final Value<String?> rangeStart;
   final Value<String?> rangeEnd;
-  final Value<String?> googleSyncToken;
-  final Value<String?> microsoftDeltaLink;
-  final Value<int?> lastFullSyncAt;
-  final Value<int?> lastIncrementalSyncAt;
-  final Value<String?> lastError;
-  final Value<String?> rawStateJson;
+  final Value<int> baselineGeneration;
+  final Value<String?> inProgressCursor;
+  final Value<int?> inProgressGeneration;
+  final Value<int?> lastCompleteSyncAt;
+  final Value<String?> lastFailureCode;
+  final Value<int> stateSchemaVersion;
+  final Value<String?> stateJson;
   final Value<int> rowid;
-  const CalendarSyncStatesCompanion({
+  const SyncCursorsCompanion({
     this.id = const Value.absent(),
     this.accountId = const Value.absent(),
-    this.calendarSourceId = const Value.absent(),
+    this.projectionSourceId = const Value.absent(),
     this.provider = const Value.absent(),
-    this.syncKind = const Value.absent(),
+    this.transport = const Value.absent(),
+    this.syncScopeKind = const Value.absent(),
+    this.davCollectionId = const Value.absent(),
+    this.cursorKind = const Value.absent(),
+    this.cursorValue = const Value.absent(),
     this.rangeStart = const Value.absent(),
     this.rangeEnd = const Value.absent(),
-    this.googleSyncToken = const Value.absent(),
-    this.microsoftDeltaLink = const Value.absent(),
-    this.lastFullSyncAt = const Value.absent(),
-    this.lastIncrementalSyncAt = const Value.absent(),
-    this.lastError = const Value.absent(),
-    this.rawStateJson = const Value.absent(),
+    this.baselineGeneration = const Value.absent(),
+    this.inProgressCursor = const Value.absent(),
+    this.inProgressGeneration = const Value.absent(),
+    this.lastCompleteSyncAt = const Value.absent(),
+    this.lastFailureCode = const Value.absent(),
+    this.stateSchemaVersion = const Value.absent(),
+    this.stateJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  CalendarSyncStatesCompanion.insert({
+  SyncCursorsCompanion.insert({
     required String id,
     required String accountId,
-    this.calendarSourceId = const Value.absent(),
+    this.projectionSourceId = const Value.absent(),
     required String provider,
-    required String syncKind,
+    required String transport,
+    required String syncScopeKind,
+    this.davCollectionId = const Value.absent(),
+    required String cursorKind,
+    required String cursorValue,
     this.rangeStart = const Value.absent(),
     this.rangeEnd = const Value.absent(),
-    this.googleSyncToken = const Value.absent(),
-    this.microsoftDeltaLink = const Value.absent(),
-    this.lastFullSyncAt = const Value.absent(),
-    this.lastIncrementalSyncAt = const Value.absent(),
-    this.lastError = const Value.absent(),
-    this.rawStateJson = const Value.absent(),
+    this.baselineGeneration = const Value.absent(),
+    this.inProgressCursor = const Value.absent(),
+    this.inProgressGeneration = const Value.absent(),
+    this.lastCompleteSyncAt = const Value.absent(),
+    this.lastFailureCode = const Value.absent(),
+    this.stateSchemaVersion = const Value.absent(),
+    this.stateJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        accountId = Value(accountId),
        provider = Value(provider),
-       syncKind = Value(syncKind);
-  static Insertable<CalendarSyncState> custom({
+       transport = Value(transport),
+       syncScopeKind = Value(syncScopeKind),
+       cursorKind = Value(cursorKind),
+       cursorValue = Value(cursorValue);
+  static Insertable<SyncCursor> custom({
     Expression<String>? id,
     Expression<String>? accountId,
-    Expression<String>? calendarSourceId,
+    Expression<String>? projectionSourceId,
     Expression<String>? provider,
-    Expression<String>? syncKind,
+    Expression<String>? transport,
+    Expression<String>? syncScopeKind,
+    Expression<String>? davCollectionId,
+    Expression<String>? cursorKind,
+    Expression<String>? cursorValue,
     Expression<String>? rangeStart,
     Expression<String>? rangeEnd,
-    Expression<String>? googleSyncToken,
-    Expression<String>? microsoftDeltaLink,
-    Expression<int>? lastFullSyncAt,
-    Expression<int>? lastIncrementalSyncAt,
-    Expression<String>? lastError,
-    Expression<String>? rawStateJson,
+    Expression<int>? baselineGeneration,
+    Expression<String>? inProgressCursor,
+    Expression<int>? inProgressGeneration,
+    Expression<int>? lastCompleteSyncAt,
+    Expression<String>? lastFailureCode,
+    Expression<int>? stateSchemaVersion,
+    Expression<String>? stateJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (accountId != null) 'account_id': accountId,
-      if (calendarSourceId != null) 'calendar_source_id': calendarSourceId,
+      if (projectionSourceId != null)
+        'projection_source_id': projectionSourceId,
       if (provider != null) 'provider': provider,
-      if (syncKind != null) 'sync_kind': syncKind,
+      if (transport != null) 'transport': transport,
+      if (syncScopeKind != null) 'sync_scope_kind': syncScopeKind,
+      if (davCollectionId != null) 'dav_collection_id': davCollectionId,
+      if (cursorKind != null) 'cursor_kind': cursorKind,
+      if (cursorValue != null) 'cursor_value': cursorValue,
       if (rangeStart != null) 'range_start': rangeStart,
       if (rangeEnd != null) 'range_end': rangeEnd,
-      if (googleSyncToken != null) 'google_sync_token': googleSyncToken,
-      if (microsoftDeltaLink != null)
-        'microsoft_delta_link': microsoftDeltaLink,
-      if (lastFullSyncAt != null) 'last_full_sync_at': lastFullSyncAt,
-      if (lastIncrementalSyncAt != null)
-        'last_incremental_sync_at': lastIncrementalSyncAt,
-      if (lastError != null) 'last_error': lastError,
-      if (rawStateJson != null) 'raw_state_json': rawStateJson,
+      if (baselineGeneration != null) 'baseline_generation': baselineGeneration,
+      if (inProgressCursor != null) 'in_progress_cursor': inProgressCursor,
+      if (inProgressGeneration != null)
+        'in_progress_generation': inProgressGeneration,
+      if (lastCompleteSyncAt != null)
+        'last_complete_sync_at': lastCompleteSyncAt,
+      if (lastFailureCode != null) 'last_failure_code': lastFailureCode,
+      if (stateSchemaVersion != null)
+        'state_schema_version': stateSchemaVersion,
+      if (stateJson != null) 'state_json': stateJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  CalendarSyncStatesCompanion copyWith({
+  SyncCursorsCompanion copyWith({
     Value<String>? id,
     Value<String>? accountId,
-    Value<String?>? calendarSourceId,
+    Value<String?>? projectionSourceId,
     Value<String>? provider,
-    Value<String>? syncKind,
+    Value<String>? transport,
+    Value<String>? syncScopeKind,
+    Value<String?>? davCollectionId,
+    Value<String>? cursorKind,
+    Value<String>? cursorValue,
     Value<String?>? rangeStart,
     Value<String?>? rangeEnd,
-    Value<String?>? googleSyncToken,
-    Value<String?>? microsoftDeltaLink,
-    Value<int?>? lastFullSyncAt,
-    Value<int?>? lastIncrementalSyncAt,
-    Value<String?>? lastError,
-    Value<String?>? rawStateJson,
+    Value<int>? baselineGeneration,
+    Value<String?>? inProgressCursor,
+    Value<int?>? inProgressGeneration,
+    Value<int?>? lastCompleteSyncAt,
+    Value<String?>? lastFailureCode,
+    Value<int>? stateSchemaVersion,
+    Value<String?>? stateJson,
     Value<int>? rowid,
   }) {
-    return CalendarSyncStatesCompanion(
+    return SyncCursorsCompanion(
       id: id ?? this.id,
       accountId: accountId ?? this.accountId,
-      calendarSourceId: calendarSourceId ?? this.calendarSourceId,
+      projectionSourceId: projectionSourceId ?? this.projectionSourceId,
       provider: provider ?? this.provider,
-      syncKind: syncKind ?? this.syncKind,
+      transport: transport ?? this.transport,
+      syncScopeKind: syncScopeKind ?? this.syncScopeKind,
+      davCollectionId: davCollectionId ?? this.davCollectionId,
+      cursorKind: cursorKind ?? this.cursorKind,
+      cursorValue: cursorValue ?? this.cursorValue,
       rangeStart: rangeStart ?? this.rangeStart,
       rangeEnd: rangeEnd ?? this.rangeEnd,
-      googleSyncToken: googleSyncToken ?? this.googleSyncToken,
-      microsoftDeltaLink: microsoftDeltaLink ?? this.microsoftDeltaLink,
-      lastFullSyncAt: lastFullSyncAt ?? this.lastFullSyncAt,
-      lastIncrementalSyncAt:
-          lastIncrementalSyncAt ?? this.lastIncrementalSyncAt,
-      lastError: lastError ?? this.lastError,
-      rawStateJson: rawStateJson ?? this.rawStateJson,
+      baselineGeneration: baselineGeneration ?? this.baselineGeneration,
+      inProgressCursor: inProgressCursor ?? this.inProgressCursor,
+      inProgressGeneration: inProgressGeneration ?? this.inProgressGeneration,
+      lastCompleteSyncAt: lastCompleteSyncAt ?? this.lastCompleteSyncAt,
+      lastFailureCode: lastFailureCode ?? this.lastFailureCode,
+      stateSchemaVersion: stateSchemaVersion ?? this.stateSchemaVersion,
+      stateJson: stateJson ?? this.stateJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -12246,14 +20849,26 @@ class CalendarSyncStatesCompanion extends UpdateCompanion<CalendarSyncState> {
     if (accountId.present) {
       map['account_id'] = Variable<String>(accountId.value);
     }
-    if (calendarSourceId.present) {
-      map['calendar_source_id'] = Variable<String>(calendarSourceId.value);
+    if (projectionSourceId.present) {
+      map['projection_source_id'] = Variable<String>(projectionSourceId.value);
     }
     if (provider.present) {
       map['provider'] = Variable<String>(provider.value);
     }
-    if (syncKind.present) {
-      map['sync_kind'] = Variable<String>(syncKind.value);
+    if (transport.present) {
+      map['transport'] = Variable<String>(transport.value);
+    }
+    if (syncScopeKind.present) {
+      map['sync_scope_kind'] = Variable<String>(syncScopeKind.value);
+    }
+    if (davCollectionId.present) {
+      map['dav_collection_id'] = Variable<String>(davCollectionId.value);
+    }
+    if (cursorKind.present) {
+      map['cursor_kind'] = Variable<String>(cursorKind.value);
+    }
+    if (cursorValue.present) {
+      map['cursor_value'] = Variable<String>(cursorValue.value);
     }
     if (rangeStart.present) {
       map['range_start'] = Variable<String>(rangeStart.value);
@@ -12261,25 +20876,26 @@ class CalendarSyncStatesCompanion extends UpdateCompanion<CalendarSyncState> {
     if (rangeEnd.present) {
       map['range_end'] = Variable<String>(rangeEnd.value);
     }
-    if (googleSyncToken.present) {
-      map['google_sync_token'] = Variable<String>(googleSyncToken.value);
+    if (baselineGeneration.present) {
+      map['baseline_generation'] = Variable<int>(baselineGeneration.value);
     }
-    if (microsoftDeltaLink.present) {
-      map['microsoft_delta_link'] = Variable<String>(microsoftDeltaLink.value);
+    if (inProgressCursor.present) {
+      map['in_progress_cursor'] = Variable<String>(inProgressCursor.value);
     }
-    if (lastFullSyncAt.present) {
-      map['last_full_sync_at'] = Variable<int>(lastFullSyncAt.value);
+    if (inProgressGeneration.present) {
+      map['in_progress_generation'] = Variable<int>(inProgressGeneration.value);
     }
-    if (lastIncrementalSyncAt.present) {
-      map['last_incremental_sync_at'] = Variable<int>(
-        lastIncrementalSyncAt.value,
-      );
+    if (lastCompleteSyncAt.present) {
+      map['last_complete_sync_at'] = Variable<int>(lastCompleteSyncAt.value);
     }
-    if (lastError.present) {
-      map['last_error'] = Variable<String>(lastError.value);
+    if (lastFailureCode.present) {
+      map['last_failure_code'] = Variable<String>(lastFailureCode.value);
     }
-    if (rawStateJson.present) {
-      map['raw_state_json'] = Variable<String>(rawStateJson.value);
+    if (stateSchemaVersion.present) {
+      map['state_schema_version'] = Variable<int>(stateSchemaVersion.value);
+    }
+    if (stateJson.present) {
+      map['state_json'] = Variable<String>(stateJson.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -12289,20 +20905,25 @@ class CalendarSyncStatesCompanion extends UpdateCompanion<CalendarSyncState> {
 
   @override
   String toString() {
-    return (StringBuffer('CalendarSyncStatesCompanion(')
+    return (StringBuffer('SyncCursorsCompanion(')
           ..write('id: $id, ')
           ..write('accountId: $accountId, ')
-          ..write('calendarSourceId: $calendarSourceId, ')
+          ..write('projectionSourceId: $projectionSourceId, ')
           ..write('provider: $provider, ')
-          ..write('syncKind: $syncKind, ')
+          ..write('transport: $transport, ')
+          ..write('syncScopeKind: $syncScopeKind, ')
+          ..write('davCollectionId: $davCollectionId, ')
+          ..write('cursorKind: $cursorKind, ')
+          ..write('cursorValue: $cursorValue, ')
           ..write('rangeStart: $rangeStart, ')
           ..write('rangeEnd: $rangeEnd, ')
-          ..write('googleSyncToken: $googleSyncToken, ')
-          ..write('microsoftDeltaLink: $microsoftDeltaLink, ')
-          ..write('lastFullSyncAt: $lastFullSyncAt, ')
-          ..write('lastIncrementalSyncAt: $lastIncrementalSyncAt, ')
-          ..write('lastError: $lastError, ')
-          ..write('rawStateJson: $rawStateJson, ')
+          ..write('baselineGeneration: $baselineGeneration, ')
+          ..write('inProgressCursor: $inProgressCursor, ')
+          ..write('inProgressGeneration: $inProgressGeneration, ')
+          ..write('lastCompleteSyncAt: $lastCompleteSyncAt, ')
+          ..write('lastFailureCode: $lastFailureCode, ')
+          ..write('stateSchemaVersion: $stateSchemaVersion, ')
+          ..write('stateJson: $stateJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -13969,6 +22590,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $AccountsTable accounts = $AccountsTable(this);
+  late final $DavAccountServicesTable davAccountServices =
+      $DavAccountServicesTable(this);
+  late final $DavCollectionsTable davCollections = $DavCollectionsTable(this);
+  late final $DavObjectsTable davObjects = $DavObjectsTable(this);
+  late final $DavObjectComponentsTable davObjectComponents =
+      $DavObjectComponentsTable(this);
+  late final $DavConflictSnapshotsTable davConflictSnapshots =
+      $DavConflictSnapshotsTable(this);
   late final $TaskListsTable taskLists = $TaskListsTable(this);
   late final $TasksTable tasks = $TasksTable(this);
   late final $PendingOpsTable pendingOps = $PendingOpsTable(this);
@@ -13981,8 +22610,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $CalendarEventAttendeesTable(this);
   late final $CalendarEventRemindersTable calendarEventReminders =
       $CalendarEventRemindersTable(this);
-  late final $CalendarSyncStatesTable calendarSyncStates =
-      $CalendarSyncStatesTable(this);
+  late final $SyncCursorsTable syncCursors = $SyncCursorsTable(this);
   late final $CalendarColorsTable calendarColors = $CalendarColorsTable(this);
   late final $ScheduleItemOverridesTable scheduleItemOverrides =
       $ScheduleItemOverridesTable(this);
@@ -13998,6 +22626,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     accounts,
+    davAccountServices,
+    davCollections,
+    davObjects,
+    davObjectComponents,
+    davConflictSnapshots,
     taskLists,
     tasks,
     pendingOps,
@@ -14006,7 +22639,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     calendarEvents,
     calendarEventAttendees,
     calendarEventReminders,
-    calendarSyncStates,
+    syncCursors,
     calendarColors,
     scheduleItemOverrides,
     notificationSchedule,
@@ -14018,7 +22651,70 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         'accounts',
         limitUpdateKind: UpdateKind.delete,
       ),
+      result: [TableUpdate('dav_account_services', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_collections', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_objects', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_objects', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_objects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_object_components', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_conflict_snapshots', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_conflict_snapshots', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_objects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_conflict_snapshots', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
       result: [TableUpdate('task_lists', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('task_lists', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -14029,10 +22725,59 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('tasks', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_objects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('tasks', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_object_components',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('tasks', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'accounts',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('pending_ops', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('pending_ops', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_objects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('pending_ops', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('pending_ops', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_conflict_snapshots',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('pending_ops', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -14050,6 +22795,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('calendar_sources', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'accounts',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -14061,6 +22813,27 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('calendar_events', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('calendar_events', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_objects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('calendar_events', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_object_components',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('calendar_events', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -14085,14 +22858,21 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         'accounts',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('calendar_sync_states', kind: UpdateKind.delete)],
+      result: [TableUpdate('sync_cursors', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'calendar_sources',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('calendar_sync_states', kind: UpdateKind.delete)],
+      result: [TableUpdate('sync_cursors', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sync_cursors', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -14114,8 +22894,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
 typedef $$AccountsTableCreateCompanionBuilder =
     AccountsCompanion Function({
       required String id,
-      Value<String> provider,
-      Value<String?> providerAccountId,
+      required String provider,
+      required String authority,
+      required String providerAccountId,
+      required String credentialKind,
+      Value<int> providerProfileVersion,
       Value<String?> displayName,
       Value<String?> email,
       Value<String?> tenantId,
@@ -14135,7 +22918,10 @@ typedef $$AccountsTableUpdateCompanionBuilder =
     AccountsCompanion Function({
       Value<String> id,
       Value<String> provider,
-      Value<String?> providerAccountId,
+      Value<String> authority,
+      Value<String> providerAccountId,
+      Value<String> credentialKind,
+      Value<int> providerProfileVersion,
       Value<String?> displayName,
       Value<String?> email,
       Value<String?> tenantId,
@@ -14155,6 +22941,97 @@ typedef $$AccountsTableUpdateCompanionBuilder =
 final class $$AccountsTableReferences
     extends BaseReferences<_$AppDatabase, $AccountsTable, Account> {
   $$AccountsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$DavAccountServicesTable, List<DavAccountService>>
+  _davAccountServicesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davAccountServices,
+        aliasName: $_aliasNameGenerator(
+          db.accounts.id,
+          db.davAccountServices.accountId,
+        ),
+      );
+
+  $$DavAccountServicesTableProcessedTableManager get davAccountServicesRefs {
+    final manager = $$DavAccountServicesTableTableManager(
+      $_db,
+      $_db.davAccountServices,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davAccountServicesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$DavCollectionsTable, List<DavCollection>>
+  _davCollectionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.davCollections,
+    aliasName: $_aliasNameGenerator(
+      db.accounts.id,
+      db.davCollections.accountId,
+    ),
+  );
+
+  $$DavCollectionsTableProcessedTableManager get davCollectionsRefs {
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_davCollectionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$DavObjectsTable, List<DavObject>>
+  _davObjectsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.davObjects,
+    aliasName: $_aliasNameGenerator(db.accounts.id, db.davObjects.accountId),
+  );
+
+  $$DavObjectsTableProcessedTableManager get davObjectsRefs {
+    final manager = $$DavObjectsTableTableManager(
+      $_db,
+      $_db.davObjects,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_davObjectsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $DavConflictSnapshotsTable,
+    List<DavConflictSnapshot>
+  >
+  _davConflictSnapshotsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davConflictSnapshots,
+        aliasName: $_aliasNameGenerator(
+          db.accounts.id,
+          db.davConflictSnapshots.accountId,
+        ),
+      );
+
+  $$DavConflictSnapshotsTableProcessedTableManager
+  get davConflictSnapshotsRefs {
+    final manager = $$DavConflictSnapshotsTableTableManager(
+      $_db,
+      $_db.davConflictSnapshots,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davConflictSnapshotsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 
   static MultiTypedResultKey<$TaskListsTable, List<TaskList>>
   _taskListsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
@@ -14274,25 +23151,19 @@ final class $$AccountsTableReferences
     );
   }
 
-  static MultiTypedResultKey<$CalendarSyncStatesTable, List<CalendarSyncState>>
-  _calendarSyncStatesRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.calendarSyncStates,
-        aliasName: $_aliasNameGenerator(
-          db.accounts.id,
-          db.calendarSyncStates.accountId,
-        ),
-      );
+  static MultiTypedResultKey<$SyncCursorsTable, List<SyncCursor>>
+  _syncCursorsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.syncCursors,
+    aliasName: $_aliasNameGenerator(db.accounts.id, db.syncCursors.accountId),
+  );
 
-  $$CalendarSyncStatesTableProcessedTableManager get calendarSyncStatesRefs {
-    final manager = $$CalendarSyncStatesTableTableManager(
+  $$SyncCursorsTableProcessedTableManager get syncCursorsRefs {
+    final manager = $$SyncCursorsTableTableManager(
       $_db,
-      $_db.calendarSyncStates,
+      $_db.syncCursors,
     ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(
-      _calendarSyncStatesRefsTable($_db),
-    );
+    final cache = $_typedResult.readTableOrNull(_syncCursorsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -14374,8 +23245,23 @@ class $$AccountsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get authority => $composableBuilder(
+    column: $table.authority,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get providerAccountId => $composableBuilder(
     column: $table.providerAccountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get credentialKind => $composableBuilder(
+    column: $table.credentialKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get providerProfileVersion => $composableBuilder(
+    column: $table.providerProfileVersion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14443,6 +23329,106 @@ class $$AccountsTableFilterComposer
     column: $table.lastFullSyncAtUtc,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> davAccountServicesRefs(
+    Expression<bool> Function($$DavAccountServicesTableFilterComposer f) f,
+  ) {
+    final $$DavAccountServicesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davAccountServices,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavAccountServicesTableFilterComposer(
+            $db: $db,
+            $table: $db.davAccountServices,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davCollectionsRefs(
+    Expression<bool> Function($$DavCollectionsTableFilterComposer f) f,
+  ) {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davObjectsRefs(
+    Expression<bool> Function($$DavObjectsTableFilterComposer f) f,
+  ) {
+    final $$DavObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davConflictSnapshotsRefs(
+    Expression<bool> Function($$DavConflictSnapshotsTableFilterComposer f) f,
+  ) {
+    final $$DavConflictSnapshotsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davConflictSnapshots,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavConflictSnapshotsTableFilterComposer(
+            $db: $db,
+            $table: $db.davConflictSnapshots,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 
   Expression<bool> taskListsRefs(
     Expression<bool> Function($$TaskListsTableFilterComposer f) f,
@@ -14594,22 +23580,22 @@ class $$AccountsTableFilterComposer
     return f(composer);
   }
 
-  Expression<bool> calendarSyncStatesRefs(
-    Expression<bool> Function($$CalendarSyncStatesTableFilterComposer f) f,
+  Expression<bool> syncCursorsRefs(
+    Expression<bool> Function($$SyncCursorsTableFilterComposer f) f,
   ) {
-    final $$CalendarSyncStatesTableFilterComposer composer = $composerBuilder(
+    final $$SyncCursorsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.calendarSyncStates,
+      referencedTable: $db.syncCursors,
       getReferencedColumn: (t) => t.accountId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$CalendarSyncStatesTableFilterComposer(
+          }) => $$SyncCursorsTableFilterComposer(
             $db: $db,
-            $table: $db.calendarSyncStates,
+            $table: $db.syncCursors,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14690,8 +23676,23 @@ class $$AccountsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get authority => $composableBuilder(
+    column: $table.authority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get providerAccountId => $composableBuilder(
     column: $table.providerAccountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get credentialKind => $composableBuilder(
+    column: $table.credentialKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get providerProfileVersion => $composableBuilder(
+    column: $table.providerProfileVersion,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -14776,8 +23777,21 @@ class $$AccountsTableAnnotationComposer
   GeneratedColumn<String> get provider =>
       $composableBuilder(column: $table.provider, builder: (column) => column);
 
+  GeneratedColumn<String> get authority =>
+      $composableBuilder(column: $table.authority, builder: (column) => column);
+
   GeneratedColumn<String> get providerAccountId => $composableBuilder(
     column: $table.providerAccountId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get credentialKind => $composableBuilder(
+    column: $table.credentialKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get providerProfileVersion => $composableBuilder(
+    column: $table.providerProfileVersion,
     builder: (column) => column,
   );
 
@@ -14839,6 +23853,108 @@ class $$AccountsTableAnnotationComposer
     column: $table.lastFullSyncAtUtc,
     builder: (column) => column,
   );
+
+  Expression<T> davAccountServicesRefs<T extends Object>(
+    Expression<T> Function($$DavAccountServicesTableAnnotationComposer a) f,
+  ) {
+    final $$DavAccountServicesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davAccountServices,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavAccountServicesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davAccountServices,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> davCollectionsRefs<T extends Object>(
+    Expression<T> Function($$DavCollectionsTableAnnotationComposer a) f,
+  ) {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> davObjectsRefs<T extends Object>(
+    Expression<T> Function($$DavObjectsTableAnnotationComposer a) f,
+  ) {
+    final $$DavObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> davConflictSnapshotsRefs<T extends Object>(
+    Expression<T> Function($$DavConflictSnapshotsTableAnnotationComposer a) f,
+  ) {
+    final $$DavConflictSnapshotsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davConflictSnapshots,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavConflictSnapshotsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davConflictSnapshots,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 
   Expression<T> taskListsRefs<T extends Object>(
     Expression<T> Function($$TaskListsTableAnnotationComposer a) f,
@@ -14990,29 +24106,28 @@ class $$AccountsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> calendarSyncStatesRefs<T extends Object>(
-    Expression<T> Function($$CalendarSyncStatesTableAnnotationComposer a) f,
+  Expression<T> syncCursorsRefs<T extends Object>(
+    Expression<T> Function($$SyncCursorsTableAnnotationComposer a) f,
   ) {
-    final $$CalendarSyncStatesTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.calendarSyncStates,
-          getReferencedColumn: (t) => t.accountId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
+    final $$SyncCursorsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.syncCursors,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SyncCursorsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.syncCursors,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
                 $removeJoinBuilderFromRootComposer,
-              }) => $$CalendarSyncStatesTableAnnotationComposer(
-                $db: $db,
-                $table: $db.calendarSyncStates,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
+          ),
+    );
     return f(composer);
   }
 
@@ -15083,13 +24198,17 @@ class $$AccountsTableTableManager
           (Account, $$AccountsTableReferences),
           Account,
           PrefetchHooks Function({
+            bool davAccountServicesRefs,
+            bool davCollectionsRefs,
+            bool davObjectsRefs,
+            bool davConflictSnapshotsRefs,
             bool taskListsRefs,
             bool tasksRefs,
             bool pendingOpsRefs,
             bool syncRunsRefs,
             bool calendarSourcesRefs,
             bool calendarEventsRefs,
-            bool calendarSyncStatesRefs,
+            bool syncCursorsRefs,
             bool scheduleItemOverridesRefs,
             bool notificationScheduleRefs,
           })
@@ -15109,7 +24228,10 @@ class $$AccountsTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> provider = const Value.absent(),
-                Value<String?> providerAccountId = const Value.absent(),
+                Value<String> authority = const Value.absent(),
+                Value<String> providerAccountId = const Value.absent(),
+                Value<String> credentialKind = const Value.absent(),
+                Value<int> providerProfileVersion = const Value.absent(),
                 Value<String?> displayName = const Value.absent(),
                 Value<String?> email = const Value.absent(),
                 Value<String?> tenantId = const Value.absent(),
@@ -15127,7 +24249,10 @@ class $$AccountsTableTableManager
               }) => AccountsCompanion(
                 id: id,
                 provider: provider,
+                authority: authority,
                 providerAccountId: providerAccountId,
+                credentialKind: credentialKind,
+                providerProfileVersion: providerProfileVersion,
                 displayName: displayName,
                 email: email,
                 tenantId: tenantId,
@@ -15146,8 +24271,11 @@ class $$AccountsTableTableManager
           createCompanionCallback:
               ({
                 required String id,
-                Value<String> provider = const Value.absent(),
-                Value<String?> providerAccountId = const Value.absent(),
+                required String provider,
+                required String authority,
+                required String providerAccountId,
+                required String credentialKind,
+                Value<int> providerProfileVersion = const Value.absent(),
                 Value<String?> displayName = const Value.absent(),
                 Value<String?> email = const Value.absent(),
                 Value<String?> tenantId = const Value.absent(),
@@ -15165,7 +24293,10 @@ class $$AccountsTableTableManager
               }) => AccountsCompanion.insert(
                 id: id,
                 provider: provider,
+                authority: authority,
                 providerAccountId: providerAccountId,
+                credentialKind: credentialKind,
+                providerProfileVersion: providerProfileVersion,
                 displayName: displayName,
                 email: email,
                 tenantId: tenantId,
@@ -15191,32 +24322,124 @@ class $$AccountsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                davAccountServicesRefs = false,
+                davCollectionsRefs = false,
+                davObjectsRefs = false,
+                davConflictSnapshotsRefs = false,
                 taskListsRefs = false,
                 tasksRefs = false,
                 pendingOpsRefs = false,
                 syncRunsRefs = false,
                 calendarSourcesRefs = false,
                 calendarEventsRefs = false,
-                calendarSyncStatesRefs = false,
+                syncCursorsRefs = false,
                 scheduleItemOverridesRefs = false,
                 notificationScheduleRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (davAccountServicesRefs) db.davAccountServices,
+                    if (davCollectionsRefs) db.davCollections,
+                    if (davObjectsRefs) db.davObjects,
+                    if (davConflictSnapshotsRefs) db.davConflictSnapshots,
                     if (taskListsRefs) db.taskLists,
                     if (tasksRefs) db.tasks,
                     if (pendingOpsRefs) db.pendingOps,
                     if (syncRunsRefs) db.syncRuns,
                     if (calendarSourcesRefs) db.calendarSources,
                     if (calendarEventsRefs) db.calendarEvents,
-                    if (calendarSyncStatesRefs) db.calendarSyncStates,
+                    if (syncCursorsRefs) db.syncCursors,
                     if (scheduleItemOverridesRefs) db.scheduleItemOverrides,
                     if (notificationScheduleRefs) db.notificationSchedule,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (davAccountServicesRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          DavAccountService
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._davAccountServicesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davAccountServicesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (davCollectionsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          DavCollection
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._davCollectionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davCollectionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (davObjectsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          DavObject
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._davObjectsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davObjectsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (davConflictSnapshotsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          DavConflictSnapshot
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._davConflictSnapshotsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davConflictSnapshotsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (taskListsRefs)
                         await $_getPrefetchedData<
                           Account,
@@ -15343,21 +24566,21 @@ class $$AccountsTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (calendarSyncStatesRefs)
+                      if (syncCursorsRefs)
                         await $_getPrefetchedData<
                           Account,
                           $AccountsTable,
-                          CalendarSyncState
+                          SyncCursor
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
-                              ._calendarSyncStatesRefsTable(db),
+                              ._syncCursorsRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$AccountsTableReferences(
                                 db,
                                 table,
                                 p0,
-                              ).calendarSyncStatesRefs,
+                              ).syncCursorsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.accountId == item.id,
@@ -15427,21 +24650,4900 @@ typedef $$AccountsTableProcessedTableManager =
       (Account, $$AccountsTableReferences),
       Account,
       PrefetchHooks Function({
+        bool davAccountServicesRefs,
+        bool davCollectionsRefs,
+        bool davObjectsRefs,
+        bool davConflictSnapshotsRefs,
         bool taskListsRefs,
         bool tasksRefs,
         bool pendingOpsRefs,
         bool syncRunsRefs,
         bool calendarSourcesRefs,
         bool calendarEventsRefs,
-        bool calendarSyncStatesRefs,
+        bool syncCursorsRefs,
         bool scheduleItemOverridesRefs,
         bool notificationScheduleRefs,
+      })
+    >;
+typedef $$DavAccountServicesTableCreateCompanionBuilder =
+    DavAccountServicesCompanion Function({
+      required String accountId,
+      required String canonicalServiceUri,
+      required String canonicalOrigin,
+      Value<String?> principalHref,
+      Value<String?> calendarHomeHref,
+      Value<String> calendarUserAddressesJson,
+      Value<String?> scheduleInboxHref,
+      Value<String?> scheduleOutboxHref,
+      Value<String> capabilitiesJson,
+      Value<int> capabilitiesSchemaVersion,
+      Value<int> providerProfileVersion,
+      required String discoveredAtUtc,
+      Value<String?> lastValidatedAtUtc,
+      Value<String?> lastDiscoveryErrorCode,
+      Value<int> rowid,
+    });
+typedef $$DavAccountServicesTableUpdateCompanionBuilder =
+    DavAccountServicesCompanion Function({
+      Value<String> accountId,
+      Value<String> canonicalServiceUri,
+      Value<String> canonicalOrigin,
+      Value<String?> principalHref,
+      Value<String?> calendarHomeHref,
+      Value<String> calendarUserAddressesJson,
+      Value<String?> scheduleInboxHref,
+      Value<String?> scheduleOutboxHref,
+      Value<String> capabilitiesJson,
+      Value<int> capabilitiesSchemaVersion,
+      Value<int> providerProfileVersion,
+      Value<String> discoveredAtUtc,
+      Value<String?> lastValidatedAtUtc,
+      Value<String?> lastDiscoveryErrorCode,
+      Value<int> rowid,
+    });
+
+final class $$DavAccountServicesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DavAccountServicesTable,
+          DavAccountService
+        > {
+  $$DavAccountServicesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias(
+        $_aliasNameGenerator(db.davAccountServices.accountId, db.accounts.id),
+      );
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$DavAccountServicesTableFilterComposer
+    extends Composer<_$AppDatabase, $DavAccountServicesTable> {
+  $$DavAccountServicesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get canonicalServiceUri => $composableBuilder(
+    column: $table.canonicalServiceUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get canonicalOrigin => $composableBuilder(
+    column: $table.canonicalOrigin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get principalHref => $composableBuilder(
+    column: $table.principalHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get calendarHomeHref => $composableBuilder(
+    column: $table.calendarHomeHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get calendarUserAddressesJson => $composableBuilder(
+    column: $table.calendarUserAddressesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scheduleInboxHref => $composableBuilder(
+    column: $table.scheduleInboxHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scheduleOutboxHref => $composableBuilder(
+    column: $table.scheduleOutboxHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get capabilitiesJson => $composableBuilder(
+    column: $table.capabilitiesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get capabilitiesSchemaVersion => $composableBuilder(
+    column: $table.capabilitiesSchemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get providerProfileVersion => $composableBuilder(
+    column: $table.providerProfileVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get discoveredAtUtc => $composableBuilder(
+    column: $table.discoveredAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastValidatedAtUtc => $composableBuilder(
+    column: $table.lastValidatedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastDiscoveryErrorCode => $composableBuilder(
+    column: $table.lastDiscoveryErrorCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavAccountServicesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DavAccountServicesTable> {
+  $$DavAccountServicesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get canonicalServiceUri => $composableBuilder(
+    column: $table.canonicalServiceUri,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get canonicalOrigin => $composableBuilder(
+    column: $table.canonicalOrigin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get principalHref => $composableBuilder(
+    column: $table.principalHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get calendarHomeHref => $composableBuilder(
+    column: $table.calendarHomeHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get calendarUserAddressesJson => $composableBuilder(
+    column: $table.calendarUserAddressesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scheduleInboxHref => $composableBuilder(
+    column: $table.scheduleInboxHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scheduleOutboxHref => $composableBuilder(
+    column: $table.scheduleOutboxHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get capabilitiesJson => $composableBuilder(
+    column: $table.capabilitiesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get capabilitiesSchemaVersion => $composableBuilder(
+    column: $table.capabilitiesSchemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get providerProfileVersion => $composableBuilder(
+    column: $table.providerProfileVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get discoveredAtUtc => $composableBuilder(
+    column: $table.discoveredAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastValidatedAtUtc => $composableBuilder(
+    column: $table.lastValidatedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastDiscoveryErrorCode => $composableBuilder(
+    column: $table.lastDiscoveryErrorCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavAccountServicesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DavAccountServicesTable> {
+  $$DavAccountServicesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get canonicalServiceUri => $composableBuilder(
+    column: $table.canonicalServiceUri,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get canonicalOrigin => $composableBuilder(
+    column: $table.canonicalOrigin,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get principalHref => $composableBuilder(
+    column: $table.principalHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get calendarHomeHref => $composableBuilder(
+    column: $table.calendarHomeHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get calendarUserAddressesJson => $composableBuilder(
+    column: $table.calendarUserAddressesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scheduleInboxHref => $composableBuilder(
+    column: $table.scheduleInboxHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scheduleOutboxHref => $composableBuilder(
+    column: $table.scheduleOutboxHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get capabilitiesJson => $composableBuilder(
+    column: $table.capabilitiesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get capabilitiesSchemaVersion => $composableBuilder(
+    column: $table.capabilitiesSchemaVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get providerProfileVersion => $composableBuilder(
+    column: $table.providerProfileVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get discoveredAtUtc => $composableBuilder(
+    column: $table.discoveredAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastValidatedAtUtc => $composableBuilder(
+    column: $table.lastValidatedAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastDiscoveryErrorCode => $composableBuilder(
+    column: $table.lastDiscoveryErrorCode,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavAccountServicesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DavAccountServicesTable,
+          DavAccountService,
+          $$DavAccountServicesTableFilterComposer,
+          $$DavAccountServicesTableOrderingComposer,
+          $$DavAccountServicesTableAnnotationComposer,
+          $$DavAccountServicesTableCreateCompanionBuilder,
+          $$DavAccountServicesTableUpdateCompanionBuilder,
+          (DavAccountService, $$DavAccountServicesTableReferences),
+          DavAccountService,
+          PrefetchHooks Function({bool accountId})
+        > {
+  $$DavAccountServicesTableTableManager(
+    _$AppDatabase db,
+    $DavAccountServicesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DavAccountServicesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DavAccountServicesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DavAccountServicesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> accountId = const Value.absent(),
+                Value<String> canonicalServiceUri = const Value.absent(),
+                Value<String> canonicalOrigin = const Value.absent(),
+                Value<String?> principalHref = const Value.absent(),
+                Value<String?> calendarHomeHref = const Value.absent(),
+                Value<String> calendarUserAddressesJson = const Value.absent(),
+                Value<String?> scheduleInboxHref = const Value.absent(),
+                Value<String?> scheduleOutboxHref = const Value.absent(),
+                Value<String> capabilitiesJson = const Value.absent(),
+                Value<int> capabilitiesSchemaVersion = const Value.absent(),
+                Value<int> providerProfileVersion = const Value.absent(),
+                Value<String> discoveredAtUtc = const Value.absent(),
+                Value<String?> lastValidatedAtUtc = const Value.absent(),
+                Value<String?> lastDiscoveryErrorCode = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavAccountServicesCompanion(
+                accountId: accountId,
+                canonicalServiceUri: canonicalServiceUri,
+                canonicalOrigin: canonicalOrigin,
+                principalHref: principalHref,
+                calendarHomeHref: calendarHomeHref,
+                calendarUserAddressesJson: calendarUserAddressesJson,
+                scheduleInboxHref: scheduleInboxHref,
+                scheduleOutboxHref: scheduleOutboxHref,
+                capabilitiesJson: capabilitiesJson,
+                capabilitiesSchemaVersion: capabilitiesSchemaVersion,
+                providerProfileVersion: providerProfileVersion,
+                discoveredAtUtc: discoveredAtUtc,
+                lastValidatedAtUtc: lastValidatedAtUtc,
+                lastDiscoveryErrorCode: lastDiscoveryErrorCode,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String accountId,
+                required String canonicalServiceUri,
+                required String canonicalOrigin,
+                Value<String?> principalHref = const Value.absent(),
+                Value<String?> calendarHomeHref = const Value.absent(),
+                Value<String> calendarUserAddressesJson = const Value.absent(),
+                Value<String?> scheduleInboxHref = const Value.absent(),
+                Value<String?> scheduleOutboxHref = const Value.absent(),
+                Value<String> capabilitiesJson = const Value.absent(),
+                Value<int> capabilitiesSchemaVersion = const Value.absent(),
+                Value<int> providerProfileVersion = const Value.absent(),
+                required String discoveredAtUtc,
+                Value<String?> lastValidatedAtUtc = const Value.absent(),
+                Value<String?> lastDiscoveryErrorCode = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavAccountServicesCompanion.insert(
+                accountId: accountId,
+                canonicalServiceUri: canonicalServiceUri,
+                canonicalOrigin: canonicalOrigin,
+                principalHref: principalHref,
+                calendarHomeHref: calendarHomeHref,
+                calendarUserAddressesJson: calendarUserAddressesJson,
+                scheduleInboxHref: scheduleInboxHref,
+                scheduleOutboxHref: scheduleOutboxHref,
+                capabilitiesJson: capabilitiesJson,
+                capabilitiesSchemaVersion: capabilitiesSchemaVersion,
+                providerProfileVersion: providerProfileVersion,
+                discoveredAtUtc: discoveredAtUtc,
+                lastValidatedAtUtc: lastValidatedAtUtc,
+                lastDiscoveryErrorCode: lastDiscoveryErrorCode,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$DavAccountServicesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (accountId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.accountId,
+                                referencedTable:
+                                    $$DavAccountServicesTableReferences
+                                        ._accountIdTable(db),
+                                referencedColumn:
+                                    $$DavAccountServicesTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$DavAccountServicesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DavAccountServicesTable,
+      DavAccountService,
+      $$DavAccountServicesTableFilterComposer,
+      $$DavAccountServicesTableOrderingComposer,
+      $$DavAccountServicesTableAnnotationComposer,
+      $$DavAccountServicesTableCreateCompanionBuilder,
+      $$DavAccountServicesTableUpdateCompanionBuilder,
+      (DavAccountService, $$DavAccountServicesTableReferences),
+      DavAccountService,
+      PrefetchHooks Function({bool accountId})
+    >;
+typedef $$DavCollectionsTableCreateCompanionBuilder =
+    DavCollectionsCompanion Function({
+      required String id,
+      required String accountId,
+      required String hrefKey,
+      required String requestUri,
+      required String displayName,
+      Value<String?> description,
+      Value<String> resourceTypesJson,
+      Value<int> supportedComponentMask,
+      Value<String> supportedCalendarDataJson,
+      Value<String> supportedReportsJson,
+      Value<String> currentUserPrivilegesJson,
+      Value<String?> ownerHref,
+      Value<String?> safeDisplayMetadataJson,
+      Value<String?> color,
+      Value<int?> sortOrder,
+      Value<String?> calendarTimeZone,
+      Value<String?> calendarTimeZoneId,
+      Value<String?> scheduleTransparency,
+      Value<int?> maximumResourceSize,
+      Value<int?> maximumInstances,
+      Value<String?> syncToken,
+      Value<String?> ctag,
+      Value<bool> readOnly,
+      Value<bool> eventProjectionEnabled,
+      Value<bool> taskProjectionEnabled,
+      Value<bool> eventsSelected,
+      Value<bool> tasksSelected,
+      Value<bool> serverMissing,
+      Value<bool> deleted,
+      Value<String?> lastInventoryAtUtc,
+      Value<String?> lastSyncAtUtc,
+      Value<int> parserVersion,
+      Value<int> projectionVersion,
+      required String createdAtUtc,
+      required String updatedAtUtc,
+      Value<int> rowid,
+    });
+typedef $$DavCollectionsTableUpdateCompanionBuilder =
+    DavCollectionsCompanion Function({
+      Value<String> id,
+      Value<String> accountId,
+      Value<String> hrefKey,
+      Value<String> requestUri,
+      Value<String> displayName,
+      Value<String?> description,
+      Value<String> resourceTypesJson,
+      Value<int> supportedComponentMask,
+      Value<String> supportedCalendarDataJson,
+      Value<String> supportedReportsJson,
+      Value<String> currentUserPrivilegesJson,
+      Value<String?> ownerHref,
+      Value<String?> safeDisplayMetadataJson,
+      Value<String?> color,
+      Value<int?> sortOrder,
+      Value<String?> calendarTimeZone,
+      Value<String?> calendarTimeZoneId,
+      Value<String?> scheduleTransparency,
+      Value<int?> maximumResourceSize,
+      Value<int?> maximumInstances,
+      Value<String?> syncToken,
+      Value<String?> ctag,
+      Value<bool> readOnly,
+      Value<bool> eventProjectionEnabled,
+      Value<bool> taskProjectionEnabled,
+      Value<bool> eventsSelected,
+      Value<bool> tasksSelected,
+      Value<bool> serverMissing,
+      Value<bool> deleted,
+      Value<String?> lastInventoryAtUtc,
+      Value<String?> lastSyncAtUtc,
+      Value<int> parserVersion,
+      Value<int> projectionVersion,
+      Value<String> createdAtUtc,
+      Value<String> updatedAtUtc,
+      Value<int> rowid,
+    });
+
+final class $$DavCollectionsTableReferences
+    extends BaseReferences<_$AppDatabase, $DavCollectionsTable, DavCollection> {
+  $$DavCollectionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias(
+        $_aliasNameGenerator(db.davCollections.accountId, db.accounts.id),
+      );
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$DavObjectsTable, List<DavObject>>
+  _davObjectsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.davObjects,
+    aliasName: $_aliasNameGenerator(
+      db.davCollections.id,
+      db.davObjects.collectionId,
+    ),
+  );
+
+  $$DavObjectsTableProcessedTableManager get davObjectsRefs {
+    final manager = $$DavObjectsTableTableManager(
+      $_db,
+      $_db.davObjects,
+    ).filter((f) => f.collectionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_davObjectsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $DavConflictSnapshotsTable,
+    List<DavConflictSnapshot>
+  >
+  _davConflictSnapshotsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davConflictSnapshots,
+        aliasName: $_aliasNameGenerator(
+          db.davCollections.id,
+          db.davConflictSnapshots.davCollectionId,
+        ),
+      );
+
+  $$DavConflictSnapshotsTableProcessedTableManager
+  get davConflictSnapshotsRefs {
+    final manager =
+        $$DavConflictSnapshotsTableTableManager(
+          $_db,
+          $_db.davConflictSnapshots,
+        ).filter(
+          (f) => f.davCollectionId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _davConflictSnapshotsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TaskListsTable, List<TaskList>>
+  _taskListsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.taskLists,
+    aliasName: $_aliasNameGenerator(
+      db.davCollections.id,
+      db.taskLists.davCollectionId,
+    ),
+  );
+
+  $$TaskListsTableProcessedTableManager get taskListsRefs {
+    final manager = $$TaskListsTableTableManager($_db, $_db.taskLists).filter(
+      (f) => f.davCollectionId.id.sqlEquals($_itemColumn<String>('id')!),
+    );
+
+    final cache = $_typedResult.readTableOrNull(_taskListsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TasksTable, List<Task>> _tasksRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.tasks,
+    aliasName: $_aliasNameGenerator(
+      db.davCollections.id,
+      db.tasks.davCollectionId,
+    ),
+  );
+
+  $$TasksTableProcessedTableManager get tasksRefs {
+    final manager = $$TasksTableTableManager($_db, $_db.tasks).filter(
+      (f) => f.davCollectionId.id.sqlEquals($_itemColumn<String>('id')!),
+    );
+
+    final cache = $_typedResult.readTableOrNull(_tasksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$CalendarSourcesTable, List<CalendarSource>>
+  _calendarSourcesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.calendarSources,
+    aliasName: $_aliasNameGenerator(
+      db.davCollections.id,
+      db.calendarSources.davCollectionId,
+    ),
+  );
+
+  $$CalendarSourcesTableProcessedTableManager get calendarSourcesRefs {
+    final manager =
+        $$CalendarSourcesTableTableManager($_db, $_db.calendarSources).filter(
+          (f) => f.davCollectionId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _calendarSourcesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
+  _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.calendarEvents,
+    aliasName: $_aliasNameGenerator(
+      db.davCollections.id,
+      db.calendarEvents.davCollectionId,
+    ),
+  );
+
+  $$CalendarEventsTableProcessedTableManager get calendarEventsRefs {
+    final manager = $$CalendarEventsTableTableManager($_db, $_db.calendarEvents)
+        .filter(
+          (f) => f.davCollectionId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(_calendarEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SyncCursorsTable, List<SyncCursor>>
+  _syncCursorsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.syncCursors,
+    aliasName: $_aliasNameGenerator(
+      db.davCollections.id,
+      db.syncCursors.davCollectionId,
+    ),
+  );
+
+  $$SyncCursorsTableProcessedTableManager get syncCursorsRefs {
+    final manager = $$SyncCursorsTableTableManager($_db, $_db.syncCursors)
+        .filter(
+          (f) => f.davCollectionId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(_syncCursorsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$DavCollectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $DavCollectionsTable> {
+  $$DavCollectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hrefKey => $composableBuilder(
+    column: $table.hrefKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get requestUri => $composableBuilder(
+    column: $table.requestUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resourceTypesJson => $composableBuilder(
+    column: $table.resourceTypesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get supportedComponentMask => $composableBuilder(
+    column: $table.supportedComponentMask,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get supportedCalendarDataJson => $composableBuilder(
+    column: $table.supportedCalendarDataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get supportedReportsJson => $composableBuilder(
+    column: $table.supportedReportsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currentUserPrivilegesJson => $composableBuilder(
+    column: $table.currentUserPrivilegesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerHref => $composableBuilder(
+    column: $table.ownerHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get safeDisplayMetadataJson => $composableBuilder(
+    column: $table.safeDisplayMetadataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get calendarTimeZone => $composableBuilder(
+    column: $table.calendarTimeZone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get calendarTimeZoneId => $composableBuilder(
+    column: $table.calendarTimeZoneId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scheduleTransparency => $composableBuilder(
+    column: $table.scheduleTransparency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maximumResourceSize => $composableBuilder(
+    column: $table.maximumResourceSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maximumInstances => $composableBuilder(
+    column: $table.maximumInstances,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncToken => $composableBuilder(
+    column: $table.syncToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ctag => $composableBuilder(
+    column: $table.ctag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get readOnly => $composableBuilder(
+    column: $table.readOnly,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get eventProjectionEnabled => $composableBuilder(
+    column: $table.eventProjectionEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get taskProjectionEnabled => $composableBuilder(
+    column: $table.taskProjectionEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get eventsSelected => $composableBuilder(
+    column: $table.eventsSelected,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get tasksSelected => $composableBuilder(
+    column: $table.tasksSelected,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get serverMissing => $composableBuilder(
+    column: $table.serverMissing,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get deleted => $composableBuilder(
+    column: $table.deleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastInventoryAtUtc => $composableBuilder(
+    column: $table.lastInventoryAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastSyncAtUtc => $composableBuilder(
+    column: $table.lastSyncAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> davObjectsRefs(
+    Expression<bool> Function($$DavObjectsTableFilterComposer f) f,
+  ) {
+    final $$DavObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.collectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davConflictSnapshotsRefs(
+    Expression<bool> Function($$DavConflictSnapshotsTableFilterComposer f) f,
+  ) {
+    final $$DavConflictSnapshotsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davConflictSnapshots,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavConflictSnapshotsTableFilterComposer(
+            $db: $db,
+            $table: $db.davConflictSnapshots,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> taskListsRefs(
+    Expression<bool> Function($$TaskListsTableFilterComposer f) f,
+  ) {
+    final $$TaskListsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.taskLists,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TaskListsTableFilterComposer(
+            $db: $db,
+            $table: $db.taskLists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> tasksRefs(
+    Expression<bool> Function($$TasksTableFilterComposer f) f,
+  ) {
+    final $$TasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableFilterComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> calendarSourcesRefs(
+    Expression<bool> Function($$CalendarSourcesTableFilterComposer f) f,
+  ) {
+    final $$CalendarSourcesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.calendarSources,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarSourcesTableFilterComposer(
+            $db: $db,
+            $table: $db.calendarSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> calendarEventsRefs(
+    Expression<bool> Function($$CalendarEventsTableFilterComposer f) f,
+  ) {
+    final $$CalendarEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.calendarEvents,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.calendarEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> syncCursorsRefs(
+    Expression<bool> Function($$SyncCursorsTableFilterComposer f) f,
+  ) {
+    final $$SyncCursorsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.syncCursors,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SyncCursorsTableFilterComposer(
+            $db: $db,
+            $table: $db.syncCursors,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DavCollectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DavCollectionsTable> {
+  $$DavCollectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hrefKey => $composableBuilder(
+    column: $table.hrefKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get requestUri => $composableBuilder(
+    column: $table.requestUri,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resourceTypesJson => $composableBuilder(
+    column: $table.resourceTypesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get supportedComponentMask => $composableBuilder(
+    column: $table.supportedComponentMask,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get supportedCalendarDataJson => $composableBuilder(
+    column: $table.supportedCalendarDataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get supportedReportsJson => $composableBuilder(
+    column: $table.supportedReportsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currentUserPrivilegesJson => $composableBuilder(
+    column: $table.currentUserPrivilegesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerHref => $composableBuilder(
+    column: $table.ownerHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get safeDisplayMetadataJson => $composableBuilder(
+    column: $table.safeDisplayMetadataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get calendarTimeZone => $composableBuilder(
+    column: $table.calendarTimeZone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get calendarTimeZoneId => $composableBuilder(
+    column: $table.calendarTimeZoneId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scheduleTransparency => $composableBuilder(
+    column: $table.scheduleTransparency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maximumResourceSize => $composableBuilder(
+    column: $table.maximumResourceSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maximumInstances => $composableBuilder(
+    column: $table.maximumInstances,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get syncToken => $composableBuilder(
+    column: $table.syncToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ctag => $composableBuilder(
+    column: $table.ctag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get readOnly => $composableBuilder(
+    column: $table.readOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get eventProjectionEnabled => $composableBuilder(
+    column: $table.eventProjectionEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get taskProjectionEnabled => $composableBuilder(
+    column: $table.taskProjectionEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get eventsSelected => $composableBuilder(
+    column: $table.eventsSelected,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get tasksSelected => $composableBuilder(
+    column: $table.tasksSelected,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get serverMissing => $composableBuilder(
+    column: $table.serverMissing,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get deleted => $composableBuilder(
+    column: $table.deleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastInventoryAtUtc => $composableBuilder(
+    column: $table.lastInventoryAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastSyncAtUtc => $composableBuilder(
+    column: $table.lastSyncAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavCollectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DavCollectionsTable> {
+  $$DavCollectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get hrefKey =>
+      $composableBuilder(column: $table.hrefKey, builder: (column) => column);
+
+  GeneratedColumn<String> get requestUri => $composableBuilder(
+    column: $table.requestUri,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resourceTypesJson => $composableBuilder(
+    column: $table.resourceTypesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get supportedComponentMask => $composableBuilder(
+    column: $table.supportedComponentMask,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get supportedCalendarDataJson => $composableBuilder(
+    column: $table.supportedCalendarDataJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get supportedReportsJson => $composableBuilder(
+    column: $table.supportedReportsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get currentUserPrivilegesJson => $composableBuilder(
+    column: $table.currentUserPrivilegesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ownerHref =>
+      $composableBuilder(column: $table.ownerHref, builder: (column) => column);
+
+  GeneratedColumn<String> get safeDisplayMetadataJson => $composableBuilder(
+    column: $table.safeDisplayMetadataJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get calendarTimeZone => $composableBuilder(
+    column: $table.calendarTimeZone,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get calendarTimeZoneId => $composableBuilder(
+    column: $table.calendarTimeZoneId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scheduleTransparency => $composableBuilder(
+    column: $table.scheduleTransparency,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maximumResourceSize => $composableBuilder(
+    column: $table.maximumResourceSize,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maximumInstances => $composableBuilder(
+    column: $table.maximumInstances,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get syncToken =>
+      $composableBuilder(column: $table.syncToken, builder: (column) => column);
+
+  GeneratedColumn<String> get ctag =>
+      $composableBuilder(column: $table.ctag, builder: (column) => column);
+
+  GeneratedColumn<bool> get readOnly =>
+      $composableBuilder(column: $table.readOnly, builder: (column) => column);
+
+  GeneratedColumn<bool> get eventProjectionEnabled => $composableBuilder(
+    column: $table.eventProjectionEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get taskProjectionEnabled => $composableBuilder(
+    column: $table.taskProjectionEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get eventsSelected => $composableBuilder(
+    column: $table.eventsSelected,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get tasksSelected => $composableBuilder(
+    column: $table.tasksSelected,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get serverMissing => $composableBuilder(
+    column: $table.serverMissing,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => column);
+
+  GeneratedColumn<String> get lastInventoryAtUtc => $composableBuilder(
+    column: $table.lastInventoryAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastSyncAtUtc => $composableBuilder(
+    column: $table.lastSyncAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> davObjectsRefs<T extends Object>(
+    Expression<T> Function($$DavObjectsTableAnnotationComposer a) f,
+  ) {
+    final $$DavObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.collectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> davConflictSnapshotsRefs<T extends Object>(
+    Expression<T> Function($$DavConflictSnapshotsTableAnnotationComposer a) f,
+  ) {
+    final $$DavConflictSnapshotsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davConflictSnapshots,
+          getReferencedColumn: (t) => t.davCollectionId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavConflictSnapshotsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davConflictSnapshots,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> taskListsRefs<T extends Object>(
+    Expression<T> Function($$TaskListsTableAnnotationComposer a) f,
+  ) {
+    final $$TaskListsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.taskLists,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TaskListsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.taskLists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> tasksRefs<T extends Object>(
+    Expression<T> Function($$TasksTableAnnotationComposer a) f,
+  ) {
+    final $$TasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> calendarSourcesRefs<T extends Object>(
+    Expression<T> Function($$CalendarSourcesTableAnnotationComposer a) f,
+  ) {
+    final $$CalendarSourcesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.calendarSources,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarSourcesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.calendarSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> calendarEventsRefs<T extends Object>(
+    Expression<T> Function($$CalendarEventsTableAnnotationComposer a) f,
+  ) {
+    final $$CalendarEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.calendarEvents,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.calendarEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> syncCursorsRefs<T extends Object>(
+    Expression<T> Function($$SyncCursorsTableAnnotationComposer a) f,
+  ) {
+    final $$SyncCursorsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.syncCursors,
+      getReferencedColumn: (t) => t.davCollectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SyncCursorsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.syncCursors,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DavCollectionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DavCollectionsTable,
+          DavCollection,
+          $$DavCollectionsTableFilterComposer,
+          $$DavCollectionsTableOrderingComposer,
+          $$DavCollectionsTableAnnotationComposer,
+          $$DavCollectionsTableCreateCompanionBuilder,
+          $$DavCollectionsTableUpdateCompanionBuilder,
+          (DavCollection, $$DavCollectionsTableReferences),
+          DavCollection,
+          PrefetchHooks Function({
+            bool accountId,
+            bool davObjectsRefs,
+            bool davConflictSnapshotsRefs,
+            bool taskListsRefs,
+            bool tasksRefs,
+            bool calendarSourcesRefs,
+            bool calendarEventsRefs,
+            bool syncCursorsRefs,
+          })
+        > {
+  $$DavCollectionsTableTableManager(
+    _$AppDatabase db,
+    $DavCollectionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DavCollectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DavCollectionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DavCollectionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<String> hrefKey = const Value.absent(),
+                Value<String> requestUri = const Value.absent(),
+                Value<String> displayName = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String> resourceTypesJson = const Value.absent(),
+                Value<int> supportedComponentMask = const Value.absent(),
+                Value<String> supportedCalendarDataJson = const Value.absent(),
+                Value<String> supportedReportsJson = const Value.absent(),
+                Value<String> currentUserPrivilegesJson = const Value.absent(),
+                Value<String?> ownerHref = const Value.absent(),
+                Value<String?> safeDisplayMetadataJson = const Value.absent(),
+                Value<String?> color = const Value.absent(),
+                Value<int?> sortOrder = const Value.absent(),
+                Value<String?> calendarTimeZone = const Value.absent(),
+                Value<String?> calendarTimeZoneId = const Value.absent(),
+                Value<String?> scheduleTransparency = const Value.absent(),
+                Value<int?> maximumResourceSize = const Value.absent(),
+                Value<int?> maximumInstances = const Value.absent(),
+                Value<String?> syncToken = const Value.absent(),
+                Value<String?> ctag = const Value.absent(),
+                Value<bool> readOnly = const Value.absent(),
+                Value<bool> eventProjectionEnabled = const Value.absent(),
+                Value<bool> taskProjectionEnabled = const Value.absent(),
+                Value<bool> eventsSelected = const Value.absent(),
+                Value<bool> tasksSelected = const Value.absent(),
+                Value<bool> serverMissing = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                Value<String?> lastInventoryAtUtc = const Value.absent(),
+                Value<String?> lastSyncAtUtc = const Value.absent(),
+                Value<int> parserVersion = const Value.absent(),
+                Value<int> projectionVersion = const Value.absent(),
+                Value<String> createdAtUtc = const Value.absent(),
+                Value<String> updatedAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavCollectionsCompanion(
+                id: id,
+                accountId: accountId,
+                hrefKey: hrefKey,
+                requestUri: requestUri,
+                displayName: displayName,
+                description: description,
+                resourceTypesJson: resourceTypesJson,
+                supportedComponentMask: supportedComponentMask,
+                supportedCalendarDataJson: supportedCalendarDataJson,
+                supportedReportsJson: supportedReportsJson,
+                currentUserPrivilegesJson: currentUserPrivilegesJson,
+                ownerHref: ownerHref,
+                safeDisplayMetadataJson: safeDisplayMetadataJson,
+                color: color,
+                sortOrder: sortOrder,
+                calendarTimeZone: calendarTimeZone,
+                calendarTimeZoneId: calendarTimeZoneId,
+                scheduleTransparency: scheduleTransparency,
+                maximumResourceSize: maximumResourceSize,
+                maximumInstances: maximumInstances,
+                syncToken: syncToken,
+                ctag: ctag,
+                readOnly: readOnly,
+                eventProjectionEnabled: eventProjectionEnabled,
+                taskProjectionEnabled: taskProjectionEnabled,
+                eventsSelected: eventsSelected,
+                tasksSelected: tasksSelected,
+                serverMissing: serverMissing,
+                deleted: deleted,
+                lastInventoryAtUtc: lastInventoryAtUtc,
+                lastSyncAtUtc: lastSyncAtUtc,
+                parserVersion: parserVersion,
+                projectionVersion: projectionVersion,
+                createdAtUtc: createdAtUtc,
+                updatedAtUtc: updatedAtUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String accountId,
+                required String hrefKey,
+                required String requestUri,
+                required String displayName,
+                Value<String?> description = const Value.absent(),
+                Value<String> resourceTypesJson = const Value.absent(),
+                Value<int> supportedComponentMask = const Value.absent(),
+                Value<String> supportedCalendarDataJson = const Value.absent(),
+                Value<String> supportedReportsJson = const Value.absent(),
+                Value<String> currentUserPrivilegesJson = const Value.absent(),
+                Value<String?> ownerHref = const Value.absent(),
+                Value<String?> safeDisplayMetadataJson = const Value.absent(),
+                Value<String?> color = const Value.absent(),
+                Value<int?> sortOrder = const Value.absent(),
+                Value<String?> calendarTimeZone = const Value.absent(),
+                Value<String?> calendarTimeZoneId = const Value.absent(),
+                Value<String?> scheduleTransparency = const Value.absent(),
+                Value<int?> maximumResourceSize = const Value.absent(),
+                Value<int?> maximumInstances = const Value.absent(),
+                Value<String?> syncToken = const Value.absent(),
+                Value<String?> ctag = const Value.absent(),
+                Value<bool> readOnly = const Value.absent(),
+                Value<bool> eventProjectionEnabled = const Value.absent(),
+                Value<bool> taskProjectionEnabled = const Value.absent(),
+                Value<bool> eventsSelected = const Value.absent(),
+                Value<bool> tasksSelected = const Value.absent(),
+                Value<bool> serverMissing = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                Value<String?> lastInventoryAtUtc = const Value.absent(),
+                Value<String?> lastSyncAtUtc = const Value.absent(),
+                Value<int> parserVersion = const Value.absent(),
+                Value<int> projectionVersion = const Value.absent(),
+                required String createdAtUtc,
+                required String updatedAtUtc,
+                Value<int> rowid = const Value.absent(),
+              }) => DavCollectionsCompanion.insert(
+                id: id,
+                accountId: accountId,
+                hrefKey: hrefKey,
+                requestUri: requestUri,
+                displayName: displayName,
+                description: description,
+                resourceTypesJson: resourceTypesJson,
+                supportedComponentMask: supportedComponentMask,
+                supportedCalendarDataJson: supportedCalendarDataJson,
+                supportedReportsJson: supportedReportsJson,
+                currentUserPrivilegesJson: currentUserPrivilegesJson,
+                ownerHref: ownerHref,
+                safeDisplayMetadataJson: safeDisplayMetadataJson,
+                color: color,
+                sortOrder: sortOrder,
+                calendarTimeZone: calendarTimeZone,
+                calendarTimeZoneId: calendarTimeZoneId,
+                scheduleTransparency: scheduleTransparency,
+                maximumResourceSize: maximumResourceSize,
+                maximumInstances: maximumInstances,
+                syncToken: syncToken,
+                ctag: ctag,
+                readOnly: readOnly,
+                eventProjectionEnabled: eventProjectionEnabled,
+                taskProjectionEnabled: taskProjectionEnabled,
+                eventsSelected: eventsSelected,
+                tasksSelected: tasksSelected,
+                serverMissing: serverMissing,
+                deleted: deleted,
+                lastInventoryAtUtc: lastInventoryAtUtc,
+                lastSyncAtUtc: lastSyncAtUtc,
+                parserVersion: parserVersion,
+                projectionVersion: projectionVersion,
+                createdAtUtc: createdAtUtc,
+                updatedAtUtc: updatedAtUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$DavCollectionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                accountId = false,
+                davObjectsRefs = false,
+                davConflictSnapshotsRefs = false,
+                taskListsRefs = false,
+                tasksRefs = false,
+                calendarSourcesRefs = false,
+                calendarEventsRefs = false,
+                syncCursorsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (davObjectsRefs) db.davObjects,
+                    if (davConflictSnapshotsRefs) db.davConflictSnapshots,
+                    if (taskListsRefs) db.taskLists,
+                    if (tasksRefs) db.tasks,
+                    if (calendarSourcesRefs) db.calendarSources,
+                    if (calendarEventsRefs) db.calendarEvents,
+                    if (syncCursorsRefs) db.syncCursors,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable:
+                                        $$DavCollectionsTableReferences
+                                            ._accountIdTable(db),
+                                    referencedColumn:
+                                        $$DavCollectionsTableReferences
+                                            ._accountIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (davObjectsRefs)
+                        await $_getPrefetchedData<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          DavObject
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._davObjectsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davObjectsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.collectionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (davConflictSnapshotsRefs)
+                        await $_getPrefetchedData<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          DavConflictSnapshot
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._davConflictSnapshotsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davConflictSnapshotsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davCollectionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (taskListsRefs)
+                        await $_getPrefetchedData<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          TaskList
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._taskListsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).taskListsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davCollectionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (tasksRefs)
+                        await $_getPrefetchedData<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          Task
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._tasksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).tasksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davCollectionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (calendarSourcesRefs)
+                        await $_getPrefetchedData<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          CalendarSource
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._calendarSourcesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).calendarSourcesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davCollectionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (calendarEventsRefs)
+                        await $_getPrefetchedData<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          CalendarEvent
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._calendarEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).calendarEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davCollectionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (syncCursorsRefs)
+                        await $_getPrefetchedData<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          SyncCursor
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._syncCursorsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).syncCursorsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davCollectionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DavCollectionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DavCollectionsTable,
+      DavCollection,
+      $$DavCollectionsTableFilterComposer,
+      $$DavCollectionsTableOrderingComposer,
+      $$DavCollectionsTableAnnotationComposer,
+      $$DavCollectionsTableCreateCompanionBuilder,
+      $$DavCollectionsTableUpdateCompanionBuilder,
+      (DavCollection, $$DavCollectionsTableReferences),
+      DavCollection,
+      PrefetchHooks Function({
+        bool accountId,
+        bool davObjectsRefs,
+        bool davConflictSnapshotsRefs,
+        bool taskListsRefs,
+        bool tasksRefs,
+        bool calendarSourcesRefs,
+        bool calendarEventsRefs,
+        bool syncCursorsRefs,
+      })
+    >;
+typedef $$DavObjectsTableCreateCompanionBuilder =
+    DavObjectsCompanion Function({
+      required String id,
+      required String accountId,
+      required String collectionId,
+      required String hrefKey,
+      required String requestUri,
+      Value<String?> etag,
+      Value<String?> contentType,
+      Value<String?> dominantComponentType,
+      Value<int> componentMask,
+      Value<String?> primaryUid,
+      required String rawIcsBody,
+      required String rawBodyHash,
+      Value<String?> semanticHash,
+      Value<bool> serverDeleted,
+      Value<int> baselineGeneration,
+      required String firstSeenAtUtc,
+      required String lastFetchedAtUtc,
+      required String lastChangedAtUtc,
+      Value<String> lastParseStatus,
+      Value<String?> lastParseErrorCode,
+      Value<int> parserVersion,
+      Value<int> rowid,
+    });
+typedef $$DavObjectsTableUpdateCompanionBuilder =
+    DavObjectsCompanion Function({
+      Value<String> id,
+      Value<String> accountId,
+      Value<String> collectionId,
+      Value<String> hrefKey,
+      Value<String> requestUri,
+      Value<String?> etag,
+      Value<String?> contentType,
+      Value<String?> dominantComponentType,
+      Value<int> componentMask,
+      Value<String?> primaryUid,
+      Value<String> rawIcsBody,
+      Value<String> rawBodyHash,
+      Value<String?> semanticHash,
+      Value<bool> serverDeleted,
+      Value<int> baselineGeneration,
+      Value<String> firstSeenAtUtc,
+      Value<String> lastFetchedAtUtc,
+      Value<String> lastChangedAtUtc,
+      Value<String> lastParseStatus,
+      Value<String?> lastParseErrorCode,
+      Value<int> parserVersion,
+      Value<int> rowid,
+    });
+
+final class $$DavObjectsTableReferences
+    extends BaseReferences<_$AppDatabase, $DavObjectsTable, DavObject> {
+  $$DavObjectsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias(
+        $_aliasNameGenerator(db.davObjects.accountId, db.accounts.id),
+      );
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavCollectionsTable _collectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(db.davObjects.collectionId, db.davCollections.id),
+      );
+
+  $$DavCollectionsTableProcessedTableManager get collectionId {
+    final $_column = $_itemColumn<String>('collection_id')!;
+
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_collectionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $DavObjectComponentsTable,
+    List<DavObjectComponent>
+  >
+  _davObjectComponentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davObjectComponents,
+        aliasName: $_aliasNameGenerator(
+          db.davObjects.id,
+          db.davObjectComponents.davObjectId,
+        ),
+      );
+
+  $$DavObjectComponentsTableProcessedTableManager get davObjectComponentsRefs {
+    final manager = $$DavObjectComponentsTableTableManager(
+      $_db,
+      $_db.davObjectComponents,
+    ).filter((f) => f.davObjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davObjectComponentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $DavConflictSnapshotsTable,
+    List<DavConflictSnapshot>
+  >
+  _davConflictSnapshotsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davConflictSnapshots,
+        aliasName: $_aliasNameGenerator(
+          db.davObjects.id,
+          db.davConflictSnapshots.davObjectId,
+        ),
+      );
+
+  $$DavConflictSnapshotsTableProcessedTableManager
+  get davConflictSnapshotsRefs {
+    final manager = $$DavConflictSnapshotsTableTableManager(
+      $_db,
+      $_db.davConflictSnapshots,
+    ).filter((f) => f.davObjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davConflictSnapshotsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TasksTable, List<Task>> _tasksRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.tasks,
+    aliasName: $_aliasNameGenerator(db.davObjects.id, db.tasks.davObjectId),
+  );
+
+  $$TasksTableProcessedTableManager get tasksRefs {
+    final manager = $$TasksTableTableManager(
+      $_db,
+      $_db.tasks,
+    ).filter((f) => f.davObjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_tasksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PendingOpsTable, List<PendingOp>>
+  _pendingOpsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.pendingOps,
+    aliasName: $_aliasNameGenerator(
+      db.davObjects.id,
+      db.pendingOps.davObjectId,
+    ),
+  );
+
+  $$PendingOpsTableProcessedTableManager get pendingOpsRefs {
+    final manager = $$PendingOpsTableTableManager(
+      $_db,
+      $_db.pendingOps,
+    ).filter((f) => f.davObjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_pendingOpsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
+  _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.calendarEvents,
+    aliasName: $_aliasNameGenerator(
+      db.davObjects.id,
+      db.calendarEvents.davObjectId,
+    ),
+  );
+
+  $$CalendarEventsTableProcessedTableManager get calendarEventsRefs {
+    final manager = $$CalendarEventsTableTableManager(
+      $_db,
+      $_db.calendarEvents,
+    ).filter((f) => f.davObjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_calendarEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$DavObjectsTableFilterComposer
+    extends Composer<_$AppDatabase, $DavObjectsTable> {
+  $$DavObjectsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hrefKey => $composableBuilder(
+    column: $table.hrefKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get requestUri => $composableBuilder(
+    column: $table.requestUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dominantComponentType => $composableBuilder(
+    column: $table.dominantComponentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get componentMask => $composableBuilder(
+    column: $table.componentMask,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get primaryUid => $composableBuilder(
+    column: $table.primaryUid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rawIcsBody => $composableBuilder(
+    column: $table.rawIcsBody,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rawBodyHash => $composableBuilder(
+    column: $table.rawBodyHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get serverDeleted => $composableBuilder(
+    column: $table.serverDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get baselineGeneration => $composableBuilder(
+    column: $table.baselineGeneration,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get firstSeenAtUtc => $composableBuilder(
+    column: $table.firstSeenAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastFetchedAtUtc => $composableBuilder(
+    column: $table.lastFetchedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastChangedAtUtc => $composableBuilder(
+    column: $table.lastChangedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastParseStatus => $composableBuilder(
+    column: $table.lastParseStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastParseErrorCode => $composableBuilder(
+    column: $table.lastParseErrorCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableFilterComposer get collectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> davObjectComponentsRefs(
+    Expression<bool> Function($$DavObjectComponentsTableFilterComposer f) f,
+  ) {
+    final $$DavObjectComponentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davObjectComponents,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectComponentsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjectComponents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davConflictSnapshotsRefs(
+    Expression<bool> Function($$DavConflictSnapshotsTableFilterComposer f) f,
+  ) {
+    final $$DavConflictSnapshotsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davConflictSnapshots,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavConflictSnapshotsTableFilterComposer(
+            $db: $db,
+            $table: $db.davConflictSnapshots,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> tasksRefs(
+    Expression<bool> Function($$TasksTableFilterComposer f) f,
+  ) {
+    final $$TasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableFilterComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> pendingOpsRefs(
+    Expression<bool> Function($$PendingOpsTableFilterComposer f) f,
+  ) {
+    final $$PendingOpsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.pendingOps,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PendingOpsTableFilterComposer(
+            $db: $db,
+            $table: $db.pendingOps,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> calendarEventsRefs(
+    Expression<bool> Function($$CalendarEventsTableFilterComposer f) f,
+  ) {
+    final $$CalendarEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.calendarEvents,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.calendarEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DavObjectsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DavObjectsTable> {
+  $$DavObjectsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hrefKey => $composableBuilder(
+    column: $table.hrefKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get requestUri => $composableBuilder(
+    column: $table.requestUri,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dominantComponentType => $composableBuilder(
+    column: $table.dominantComponentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get componentMask => $composableBuilder(
+    column: $table.componentMask,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get primaryUid => $composableBuilder(
+    column: $table.primaryUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rawIcsBody => $composableBuilder(
+    column: $table.rawIcsBody,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rawBodyHash => $composableBuilder(
+    column: $table.rawBodyHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get serverDeleted => $composableBuilder(
+    column: $table.serverDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get baselineGeneration => $composableBuilder(
+    column: $table.baselineGeneration,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get firstSeenAtUtc => $composableBuilder(
+    column: $table.firstSeenAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastFetchedAtUtc => $composableBuilder(
+    column: $table.lastFetchedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastChangedAtUtc => $composableBuilder(
+    column: $table.lastChangedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastParseStatus => $composableBuilder(
+    column: $table.lastParseStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastParseErrorCode => $composableBuilder(
+    column: $table.lastParseErrorCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableOrderingComposer get collectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavObjectsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DavObjectsTable> {
+  $$DavObjectsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get hrefKey =>
+      $composableBuilder(column: $table.hrefKey, builder: (column) => column);
+
+  GeneratedColumn<String> get requestUri => $composableBuilder(
+    column: $table.requestUri,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get etag =>
+      $composableBuilder(column: $table.etag, builder: (column) => column);
+
+  GeneratedColumn<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get dominantComponentType => $composableBuilder(
+    column: $table.dominantComponentType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get componentMask => $composableBuilder(
+    column: $table.componentMask,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get primaryUid => $composableBuilder(
+    column: $table.primaryUid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rawIcsBody => $composableBuilder(
+    column: $table.rawIcsBody,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rawBodyHash => $composableBuilder(
+    column: $table.rawBodyHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get serverDeleted => $composableBuilder(
+    column: $table.serverDeleted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get baselineGeneration => $composableBuilder(
+    column: $table.baselineGeneration,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get firstSeenAtUtc => $composableBuilder(
+    column: $table.firstSeenAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastFetchedAtUtc => $composableBuilder(
+    column: $table.lastFetchedAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastChangedAtUtc => $composableBuilder(
+    column: $table.lastChangedAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastParseStatus => $composableBuilder(
+    column: $table.lastParseStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastParseErrorCode => $composableBuilder(
+    column: $table.lastParseErrorCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableAnnotationComposer get collectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> davObjectComponentsRefs<T extends Object>(
+    Expression<T> Function($$DavObjectComponentsTableAnnotationComposer a) f,
+  ) {
+    final $$DavObjectComponentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davObjectComponents,
+          getReferencedColumn: (t) => t.davObjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavObjectComponentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davObjectComponents,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> davConflictSnapshotsRefs<T extends Object>(
+    Expression<T> Function($$DavConflictSnapshotsTableAnnotationComposer a) f,
+  ) {
+    final $$DavConflictSnapshotsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davConflictSnapshots,
+          getReferencedColumn: (t) => t.davObjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavConflictSnapshotsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davConflictSnapshots,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> tasksRefs<T extends Object>(
+    Expression<T> Function($$TasksTableAnnotationComposer a) f,
+  ) {
+    final $$TasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> pendingOpsRefs<T extends Object>(
+    Expression<T> Function($$PendingOpsTableAnnotationComposer a) f,
+  ) {
+    final $$PendingOpsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.pendingOps,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PendingOpsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.pendingOps,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> calendarEventsRefs<T extends Object>(
+    Expression<T> Function($$CalendarEventsTableAnnotationComposer a) f,
+  ) {
+    final $$CalendarEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.calendarEvents,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.calendarEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DavObjectsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DavObjectsTable,
+          DavObject,
+          $$DavObjectsTableFilterComposer,
+          $$DavObjectsTableOrderingComposer,
+          $$DavObjectsTableAnnotationComposer,
+          $$DavObjectsTableCreateCompanionBuilder,
+          $$DavObjectsTableUpdateCompanionBuilder,
+          (DavObject, $$DavObjectsTableReferences),
+          DavObject,
+          PrefetchHooks Function({
+            bool accountId,
+            bool collectionId,
+            bool davObjectComponentsRefs,
+            bool davConflictSnapshotsRefs,
+            bool tasksRefs,
+            bool pendingOpsRefs,
+            bool calendarEventsRefs,
+          })
+        > {
+  $$DavObjectsTableTableManager(_$AppDatabase db, $DavObjectsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DavObjectsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DavObjectsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DavObjectsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<String> collectionId = const Value.absent(),
+                Value<String> hrefKey = const Value.absent(),
+                Value<String> requestUri = const Value.absent(),
+                Value<String?> etag = const Value.absent(),
+                Value<String?> contentType = const Value.absent(),
+                Value<String?> dominantComponentType = const Value.absent(),
+                Value<int> componentMask = const Value.absent(),
+                Value<String?> primaryUid = const Value.absent(),
+                Value<String> rawIcsBody = const Value.absent(),
+                Value<String> rawBodyHash = const Value.absent(),
+                Value<String?> semanticHash = const Value.absent(),
+                Value<bool> serverDeleted = const Value.absent(),
+                Value<int> baselineGeneration = const Value.absent(),
+                Value<String> firstSeenAtUtc = const Value.absent(),
+                Value<String> lastFetchedAtUtc = const Value.absent(),
+                Value<String> lastChangedAtUtc = const Value.absent(),
+                Value<String> lastParseStatus = const Value.absent(),
+                Value<String?> lastParseErrorCode = const Value.absent(),
+                Value<int> parserVersion = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavObjectsCompanion(
+                id: id,
+                accountId: accountId,
+                collectionId: collectionId,
+                hrefKey: hrefKey,
+                requestUri: requestUri,
+                etag: etag,
+                contentType: contentType,
+                dominantComponentType: dominantComponentType,
+                componentMask: componentMask,
+                primaryUid: primaryUid,
+                rawIcsBody: rawIcsBody,
+                rawBodyHash: rawBodyHash,
+                semanticHash: semanticHash,
+                serverDeleted: serverDeleted,
+                baselineGeneration: baselineGeneration,
+                firstSeenAtUtc: firstSeenAtUtc,
+                lastFetchedAtUtc: lastFetchedAtUtc,
+                lastChangedAtUtc: lastChangedAtUtc,
+                lastParseStatus: lastParseStatus,
+                lastParseErrorCode: lastParseErrorCode,
+                parserVersion: parserVersion,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String accountId,
+                required String collectionId,
+                required String hrefKey,
+                required String requestUri,
+                Value<String?> etag = const Value.absent(),
+                Value<String?> contentType = const Value.absent(),
+                Value<String?> dominantComponentType = const Value.absent(),
+                Value<int> componentMask = const Value.absent(),
+                Value<String?> primaryUid = const Value.absent(),
+                required String rawIcsBody,
+                required String rawBodyHash,
+                Value<String?> semanticHash = const Value.absent(),
+                Value<bool> serverDeleted = const Value.absent(),
+                Value<int> baselineGeneration = const Value.absent(),
+                required String firstSeenAtUtc,
+                required String lastFetchedAtUtc,
+                required String lastChangedAtUtc,
+                Value<String> lastParseStatus = const Value.absent(),
+                Value<String?> lastParseErrorCode = const Value.absent(),
+                Value<int> parserVersion = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavObjectsCompanion.insert(
+                id: id,
+                accountId: accountId,
+                collectionId: collectionId,
+                hrefKey: hrefKey,
+                requestUri: requestUri,
+                etag: etag,
+                contentType: contentType,
+                dominantComponentType: dominantComponentType,
+                componentMask: componentMask,
+                primaryUid: primaryUid,
+                rawIcsBody: rawIcsBody,
+                rawBodyHash: rawBodyHash,
+                semanticHash: semanticHash,
+                serverDeleted: serverDeleted,
+                baselineGeneration: baselineGeneration,
+                firstSeenAtUtc: firstSeenAtUtc,
+                lastFetchedAtUtc: lastFetchedAtUtc,
+                lastChangedAtUtc: lastChangedAtUtc,
+                lastParseStatus: lastParseStatus,
+                lastParseErrorCode: lastParseErrorCode,
+                parserVersion: parserVersion,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$DavObjectsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                accountId = false,
+                collectionId = false,
+                davObjectComponentsRefs = false,
+                davConflictSnapshotsRefs = false,
+                tasksRefs = false,
+                pendingOpsRefs = false,
+                calendarEventsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (davObjectComponentsRefs) db.davObjectComponents,
+                    if (davConflictSnapshotsRefs) db.davConflictSnapshots,
+                    if (tasksRefs) db.tasks,
+                    if (pendingOpsRefs) db.pendingOps,
+                    if (calendarEventsRefs) db.calendarEvents,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable: $$DavObjectsTableReferences
+                                        ._accountIdTable(db),
+                                    referencedColumn:
+                                        $$DavObjectsTableReferences
+                                            ._accountIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (collectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.collectionId,
+                                    referencedTable: $$DavObjectsTableReferences
+                                        ._collectionIdTable(db),
+                                    referencedColumn:
+                                        $$DavObjectsTableReferences
+                                            ._collectionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (davObjectComponentsRefs)
+                        await $_getPrefetchedData<
+                          DavObject,
+                          $DavObjectsTable,
+                          DavObjectComponent
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectsTableReferences
+                              ._davObjectComponentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davObjectComponentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davObjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (davConflictSnapshotsRefs)
+                        await $_getPrefetchedData<
+                          DavObject,
+                          $DavObjectsTable,
+                          DavConflictSnapshot
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectsTableReferences
+                              ._davConflictSnapshotsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davConflictSnapshotsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davObjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (tasksRefs)
+                        await $_getPrefetchedData<
+                          DavObject,
+                          $DavObjectsTable,
+                          Task
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectsTableReferences
+                              ._tasksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).tasksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davObjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (pendingOpsRefs)
+                        await $_getPrefetchedData<
+                          DavObject,
+                          $DavObjectsTable,
+                          PendingOp
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectsTableReferences
+                              ._pendingOpsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).pendingOpsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davObjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (calendarEventsRefs)
+                        await $_getPrefetchedData<
+                          DavObject,
+                          $DavObjectsTable,
+                          CalendarEvent
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectsTableReferences
+                              ._calendarEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).calendarEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davObjectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DavObjectsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DavObjectsTable,
+      DavObject,
+      $$DavObjectsTableFilterComposer,
+      $$DavObjectsTableOrderingComposer,
+      $$DavObjectsTableAnnotationComposer,
+      $$DavObjectsTableCreateCompanionBuilder,
+      $$DavObjectsTableUpdateCompanionBuilder,
+      (DavObject, $$DavObjectsTableReferences),
+      DavObject,
+      PrefetchHooks Function({
+        bool accountId,
+        bool collectionId,
+        bool davObjectComponentsRefs,
+        bool davConflictSnapshotsRefs,
+        bool tasksRefs,
+        bool pendingOpsRefs,
+        bool calendarEventsRefs,
+      })
+    >;
+typedef $$DavObjectComponentsTableCreateCompanionBuilder =
+    DavObjectComponentsCompanion Function({
+      required String id,
+      required String davObjectId,
+      required String componentType,
+      required String uid,
+      Value<String?> recurrenceIdKey,
+      Value<int?> sequence,
+      Value<String?> dtstampUtc,
+      Value<String?> lastModifiedUtc,
+      required String semanticHash,
+      Value<int> parserProfileVersion,
+      Value<int> rowid,
+    });
+typedef $$DavObjectComponentsTableUpdateCompanionBuilder =
+    DavObjectComponentsCompanion Function({
+      Value<String> id,
+      Value<String> davObjectId,
+      Value<String> componentType,
+      Value<String> uid,
+      Value<String?> recurrenceIdKey,
+      Value<int?> sequence,
+      Value<String?> dtstampUtc,
+      Value<String?> lastModifiedUtc,
+      Value<String> semanticHash,
+      Value<int> parserProfileVersion,
+      Value<int> rowid,
+    });
+
+final class $$DavObjectComponentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DavObjectComponentsTable,
+          DavObjectComponent
+        > {
+  $$DavObjectComponentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
+      db.davObjects.createAlias(
+        $_aliasNameGenerator(
+          db.davObjectComponents.davObjectId,
+          db.davObjects.id,
+        ),
+      );
+
+  $$DavObjectsTableProcessedTableManager get davObjectId {
+    final $_column = $_itemColumn<String>('dav_object_id')!;
+
+    final manager = $$DavObjectsTableTableManager(
+      $_db,
+      $_db.davObjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davObjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$TasksTable, List<Task>> _tasksRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.tasks,
+    aliasName: $_aliasNameGenerator(
+      db.davObjectComponents.id,
+      db.tasks.davComponentId,
+    ),
+  );
+
+  $$TasksTableProcessedTableManager get tasksRefs {
+    final manager = $$TasksTableTableManager(
+      $_db,
+      $_db.tasks,
+    ).filter((f) => f.davComponentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_tasksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
+  _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.calendarEvents,
+    aliasName: $_aliasNameGenerator(
+      db.davObjectComponents.id,
+      db.calendarEvents.davComponentId,
+    ),
+  );
+
+  $$CalendarEventsTableProcessedTableManager get calendarEventsRefs {
+    final manager = $$CalendarEventsTableTableManager(
+      $_db,
+      $_db.calendarEvents,
+    ).filter((f) => f.davComponentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_calendarEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$DavObjectComponentsTableFilterComposer
+    extends Composer<_$AppDatabase, $DavObjectComponentsTable> {
+  $$DavObjectComponentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get componentType => $composableBuilder(
+    column: $table.componentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uid => $composableBuilder(
+    column: $table.uid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dtstampUtc => $composableBuilder(
+    column: $table.dtstampUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastModifiedUtc => $composableBuilder(
+    column: $table.lastModifiedUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get parserProfileVersion => $composableBuilder(
+    column: $table.parserProfileVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DavObjectsTableFilterComposer get davObjectId {
+    final $$DavObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> tasksRefs(
+    Expression<bool> Function($$TasksTableFilterComposer f) f,
+  ) {
+    final $$TasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.davComponentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableFilterComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> calendarEventsRefs(
+    Expression<bool> Function($$CalendarEventsTableFilterComposer f) f,
+  ) {
+    final $$CalendarEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.calendarEvents,
+      getReferencedColumn: (t) => t.davComponentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.calendarEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DavObjectComponentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DavObjectComponentsTable> {
+  $$DavObjectComponentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get componentType => $composableBuilder(
+    column: $table.componentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uid => $composableBuilder(
+    column: $table.uid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dtstampUtc => $composableBuilder(
+    column: $table.dtstampUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastModifiedUtc => $composableBuilder(
+    column: $table.lastModifiedUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get parserProfileVersion => $composableBuilder(
+    column: $table.parserProfileVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DavObjectsTableOrderingComposer get davObjectId {
+    final $$DavObjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavObjectComponentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DavObjectComponentsTable> {
+  $$DavObjectComponentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get componentType => $composableBuilder(
+    column: $table.componentType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get uid =>
+      $composableBuilder(column: $table.uid, builder: (column) => column);
+
+  GeneratedColumn<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sequence =>
+      $composableBuilder(column: $table.sequence, builder: (column) => column);
+
+  GeneratedColumn<String> get dtstampUtc => $composableBuilder(
+    column: $table.dtstampUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastModifiedUtc => $composableBuilder(
+    column: $table.lastModifiedUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get parserProfileVersion => $composableBuilder(
+    column: $table.parserProfileVersion,
+    builder: (column) => column,
+  );
+
+  $$DavObjectsTableAnnotationComposer get davObjectId {
+    final $$DavObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> tasksRefs<T extends Object>(
+    Expression<T> Function($$TasksTableAnnotationComposer a) f,
+  ) {
+    final $$TasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.davComponentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> calendarEventsRefs<T extends Object>(
+    Expression<T> Function($$CalendarEventsTableAnnotationComposer a) f,
+  ) {
+    final $$CalendarEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.calendarEvents,
+      getReferencedColumn: (t) => t.davComponentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.calendarEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DavObjectComponentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DavObjectComponentsTable,
+          DavObjectComponent,
+          $$DavObjectComponentsTableFilterComposer,
+          $$DavObjectComponentsTableOrderingComposer,
+          $$DavObjectComponentsTableAnnotationComposer,
+          $$DavObjectComponentsTableCreateCompanionBuilder,
+          $$DavObjectComponentsTableUpdateCompanionBuilder,
+          (DavObjectComponent, $$DavObjectComponentsTableReferences),
+          DavObjectComponent,
+          PrefetchHooks Function({
+            bool davObjectId,
+            bool tasksRefs,
+            bool calendarEventsRefs,
+          })
+        > {
+  $$DavObjectComponentsTableTableManager(
+    _$AppDatabase db,
+    $DavObjectComponentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DavObjectComponentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DavObjectComponentsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DavObjectComponentsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> davObjectId = const Value.absent(),
+                Value<String> componentType = const Value.absent(),
+                Value<String> uid = const Value.absent(),
+                Value<String?> recurrenceIdKey = const Value.absent(),
+                Value<int?> sequence = const Value.absent(),
+                Value<String?> dtstampUtc = const Value.absent(),
+                Value<String?> lastModifiedUtc = const Value.absent(),
+                Value<String> semanticHash = const Value.absent(),
+                Value<int> parserProfileVersion = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavObjectComponentsCompanion(
+                id: id,
+                davObjectId: davObjectId,
+                componentType: componentType,
+                uid: uid,
+                recurrenceIdKey: recurrenceIdKey,
+                sequence: sequence,
+                dtstampUtc: dtstampUtc,
+                lastModifiedUtc: lastModifiedUtc,
+                semanticHash: semanticHash,
+                parserProfileVersion: parserProfileVersion,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String davObjectId,
+                required String componentType,
+                required String uid,
+                Value<String?> recurrenceIdKey = const Value.absent(),
+                Value<int?> sequence = const Value.absent(),
+                Value<String?> dtstampUtc = const Value.absent(),
+                Value<String?> lastModifiedUtc = const Value.absent(),
+                required String semanticHash,
+                Value<int> parserProfileVersion = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavObjectComponentsCompanion.insert(
+                id: id,
+                davObjectId: davObjectId,
+                componentType: componentType,
+                uid: uid,
+                recurrenceIdKey: recurrenceIdKey,
+                sequence: sequence,
+                dtstampUtc: dtstampUtc,
+                lastModifiedUtc: lastModifiedUtc,
+                semanticHash: semanticHash,
+                parserProfileVersion: parserProfileVersion,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$DavObjectComponentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                davObjectId = false,
+                tasksRefs = false,
+                calendarEventsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (tasksRefs) db.tasks,
+                    if (calendarEventsRefs) db.calendarEvents,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (davObjectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davObjectId,
+                                    referencedTable:
+                                        $$DavObjectComponentsTableReferences
+                                            ._davObjectIdTable(db),
+                                    referencedColumn:
+                                        $$DavObjectComponentsTableReferences
+                                            ._davObjectIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (tasksRefs)
+                        await $_getPrefetchedData<
+                          DavObjectComponent,
+                          $DavObjectComponentsTable,
+                          Task
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectComponentsTableReferences
+                              ._tasksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectComponentsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).tasksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davComponentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (calendarEventsRefs)
+                        await $_getPrefetchedData<
+                          DavObjectComponent,
+                          $DavObjectComponentsTable,
+                          CalendarEvent
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectComponentsTableReferences
+                              ._calendarEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectComponentsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).calendarEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.davComponentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DavObjectComponentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DavObjectComponentsTable,
+      DavObjectComponent,
+      $$DavObjectComponentsTableFilterComposer,
+      $$DavObjectComponentsTableOrderingComposer,
+      $$DavObjectComponentsTableAnnotationComposer,
+      $$DavObjectComponentsTableCreateCompanionBuilder,
+      $$DavObjectComponentsTableUpdateCompanionBuilder,
+      (DavObjectComponent, $$DavObjectComponentsTableReferences),
+      DavObjectComponent,
+      PrefetchHooks Function({
+        bool davObjectId,
+        bool tasksRefs,
+        bool calendarEventsRefs,
+      })
+    >;
+typedef $$DavConflictSnapshotsTableCreateCompanionBuilder =
+    DavConflictSnapshotsCompanion Function({
+      required String id,
+      required String accountId,
+      Value<String?> davCollectionId,
+      Value<String?> davObjectId,
+      Value<String?> baselineEtag,
+      required String baselineRawIcs,
+      required String localCandidateRawIcs,
+      Value<String?> remoteEtag,
+      required String remoteRawIcs,
+      required String conflictCode,
+      required String createdAtUtc,
+      Value<String?> resolvedAtUtc,
+      Value<String?> resolution,
+      Value<int> rowid,
+    });
+typedef $$DavConflictSnapshotsTableUpdateCompanionBuilder =
+    DavConflictSnapshotsCompanion Function({
+      Value<String> id,
+      Value<String> accountId,
+      Value<String?> davCollectionId,
+      Value<String?> davObjectId,
+      Value<String?> baselineEtag,
+      Value<String> baselineRawIcs,
+      Value<String> localCandidateRawIcs,
+      Value<String?> remoteEtag,
+      Value<String> remoteRawIcs,
+      Value<String> conflictCode,
+      Value<String> createdAtUtc,
+      Value<String?> resolvedAtUtc,
+      Value<String?> resolution,
+      Value<int> rowid,
+    });
+
+final class $$DavConflictSnapshotsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DavConflictSnapshotsTable,
+          DavConflictSnapshot
+        > {
+  $$DavConflictSnapshotsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias(
+        $_aliasNameGenerator(db.davConflictSnapshots.accountId, db.accounts.id),
+      );
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(
+          db.davConflictSnapshots.davCollectionId,
+          db.davCollections.id,
+        ),
+      );
+
+  $$DavCollectionsTableProcessedTableManager? get davCollectionId {
+    final $_column = $_itemColumn<String>('dav_collection_id');
+    if ($_column == null) return null;
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davCollectionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
+      db.davObjects.createAlias(
+        $_aliasNameGenerator(
+          db.davConflictSnapshots.davObjectId,
+          db.davObjects.id,
+        ),
+      );
+
+  $$DavObjectsTableProcessedTableManager? get davObjectId {
+    final $_column = $_itemColumn<String>('dav_object_id');
+    if ($_column == null) return null;
+    final manager = $$DavObjectsTableTableManager(
+      $_db,
+      $_db.davObjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davObjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$PendingOpsTable, List<PendingOp>>
+  _pendingOpsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.pendingOps,
+    aliasName: $_aliasNameGenerator(
+      db.davConflictSnapshots.id,
+      db.pendingOps.conflictSnapshotId,
+    ),
+  );
+
+  $$PendingOpsTableProcessedTableManager get pendingOpsRefs {
+    final manager = $$PendingOpsTableTableManager($_db, $_db.pendingOps).filter(
+      (f) => f.conflictSnapshotId.id.sqlEquals($_itemColumn<String>('id')!),
+    );
+
+    final cache = $_typedResult.readTableOrNull(_pendingOpsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$DavConflictSnapshotsTableFilterComposer
+    extends Composer<_$AppDatabase, $DavConflictSnapshotsTable> {
+  $$DavConflictSnapshotsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baselineEtag => $composableBuilder(
+    column: $table.baselineEtag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baselineRawIcs => $composableBuilder(
+    column: $table.baselineRawIcs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localCandidateRawIcs => $composableBuilder(
+    column: $table.localCandidateRawIcs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteEtag => $composableBuilder(
+    column: $table.remoteEtag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteRawIcs => $composableBuilder(
+    column: $table.remoteRawIcs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get conflictCode => $composableBuilder(
+    column: $table.conflictCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resolvedAtUtc => $composableBuilder(
+    column: $table.resolvedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resolution => $composableBuilder(
+    column: $table.resolution,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableFilterComposer get davCollectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableFilterComposer get davObjectId {
+    final $$DavObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> pendingOpsRefs(
+    Expression<bool> Function($$PendingOpsTableFilterComposer f) f,
+  ) {
+    final $$PendingOpsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.pendingOps,
+      getReferencedColumn: (t) => t.conflictSnapshotId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PendingOpsTableFilterComposer(
+            $db: $db,
+            $table: $db.pendingOps,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DavConflictSnapshotsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DavConflictSnapshotsTable> {
+  $$DavConflictSnapshotsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baselineEtag => $composableBuilder(
+    column: $table.baselineEtag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baselineRawIcs => $composableBuilder(
+    column: $table.baselineRawIcs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localCandidateRawIcs => $composableBuilder(
+    column: $table.localCandidateRawIcs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteEtag => $composableBuilder(
+    column: $table.remoteEtag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteRawIcs => $composableBuilder(
+    column: $table.remoteRawIcs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get conflictCode => $composableBuilder(
+    column: $table.conflictCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resolvedAtUtc => $composableBuilder(
+    column: $table.resolvedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resolution => $composableBuilder(
+    column: $table.resolution,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableOrderingComposer get davCollectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableOrderingComposer get davObjectId {
+    final $$DavObjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavConflictSnapshotsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DavConflictSnapshotsTable> {
+  $$DavConflictSnapshotsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get baselineEtag => $composableBuilder(
+    column: $table.baselineEtag,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get baselineRawIcs => $composableBuilder(
+    column: $table.baselineRawIcs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get localCandidateRawIcs => $composableBuilder(
+    column: $table.localCandidateRawIcs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get remoteEtag => $composableBuilder(
+    column: $table.remoteEtag,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get remoteRawIcs => $composableBuilder(
+    column: $table.remoteRawIcs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get conflictCode => $composableBuilder(
+    column: $table.conflictCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resolvedAtUtc => $composableBuilder(
+    column: $table.resolvedAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resolution => $composableBuilder(
+    column: $table.resolution,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableAnnotationComposer get davCollectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableAnnotationComposer get davObjectId {
+    final $$DavObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> pendingOpsRefs<T extends Object>(
+    Expression<T> Function($$PendingOpsTableAnnotationComposer a) f,
+  ) {
+    final $$PendingOpsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.pendingOps,
+      getReferencedColumn: (t) => t.conflictSnapshotId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PendingOpsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.pendingOps,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DavConflictSnapshotsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DavConflictSnapshotsTable,
+          DavConflictSnapshot,
+          $$DavConflictSnapshotsTableFilterComposer,
+          $$DavConflictSnapshotsTableOrderingComposer,
+          $$DavConflictSnapshotsTableAnnotationComposer,
+          $$DavConflictSnapshotsTableCreateCompanionBuilder,
+          $$DavConflictSnapshotsTableUpdateCompanionBuilder,
+          (DavConflictSnapshot, $$DavConflictSnapshotsTableReferences),
+          DavConflictSnapshot,
+          PrefetchHooks Function({
+            bool accountId,
+            bool davCollectionId,
+            bool davObjectId,
+            bool pendingOpsRefs,
+          })
+        > {
+  $$DavConflictSnapshotsTableTableManager(
+    _$AppDatabase db,
+    $DavConflictSnapshotsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DavConflictSnapshotsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DavConflictSnapshotsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DavConflictSnapshotsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String?> davObjectId = const Value.absent(),
+                Value<String?> baselineEtag = const Value.absent(),
+                Value<String> baselineRawIcs = const Value.absent(),
+                Value<String> localCandidateRawIcs = const Value.absent(),
+                Value<String?> remoteEtag = const Value.absent(),
+                Value<String> remoteRawIcs = const Value.absent(),
+                Value<String> conflictCode = const Value.absent(),
+                Value<String> createdAtUtc = const Value.absent(),
+                Value<String?> resolvedAtUtc = const Value.absent(),
+                Value<String?> resolution = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavConflictSnapshotsCompanion(
+                id: id,
+                accountId: accountId,
+                davCollectionId: davCollectionId,
+                davObjectId: davObjectId,
+                baselineEtag: baselineEtag,
+                baselineRawIcs: baselineRawIcs,
+                localCandidateRawIcs: localCandidateRawIcs,
+                remoteEtag: remoteEtag,
+                remoteRawIcs: remoteRawIcs,
+                conflictCode: conflictCode,
+                createdAtUtc: createdAtUtc,
+                resolvedAtUtc: resolvedAtUtc,
+                resolution: resolution,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String accountId,
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String?> davObjectId = const Value.absent(),
+                Value<String?> baselineEtag = const Value.absent(),
+                required String baselineRawIcs,
+                required String localCandidateRawIcs,
+                Value<String?> remoteEtag = const Value.absent(),
+                required String remoteRawIcs,
+                required String conflictCode,
+                required String createdAtUtc,
+                Value<String?> resolvedAtUtc = const Value.absent(),
+                Value<String?> resolution = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavConflictSnapshotsCompanion.insert(
+                id: id,
+                accountId: accountId,
+                davCollectionId: davCollectionId,
+                davObjectId: davObjectId,
+                baselineEtag: baselineEtag,
+                baselineRawIcs: baselineRawIcs,
+                localCandidateRawIcs: localCandidateRawIcs,
+                remoteEtag: remoteEtag,
+                remoteRawIcs: remoteRawIcs,
+                conflictCode: conflictCode,
+                createdAtUtc: createdAtUtc,
+                resolvedAtUtc: resolvedAtUtc,
+                resolution: resolution,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$DavConflictSnapshotsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                accountId = false,
+                davCollectionId = false,
+                davObjectId = false,
+                pendingOpsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [if (pendingOpsRefs) db.pendingOps],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable:
+                                        $$DavConflictSnapshotsTableReferences
+                                            ._accountIdTable(db),
+                                    referencedColumn:
+                                        $$DavConflictSnapshotsTableReferences
+                                            ._accountIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (davCollectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davCollectionId,
+                                    referencedTable:
+                                        $$DavConflictSnapshotsTableReferences
+                                            ._davCollectionIdTable(db),
+                                    referencedColumn:
+                                        $$DavConflictSnapshotsTableReferences
+                                            ._davCollectionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (davObjectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davObjectId,
+                                    referencedTable:
+                                        $$DavConflictSnapshotsTableReferences
+                                            ._davObjectIdTable(db),
+                                    referencedColumn:
+                                        $$DavConflictSnapshotsTableReferences
+                                            ._davObjectIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (pendingOpsRefs)
+                        await $_getPrefetchedData<
+                          DavConflictSnapshot,
+                          $DavConflictSnapshotsTable,
+                          PendingOp
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavConflictSnapshotsTableReferences
+                              ._pendingOpsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavConflictSnapshotsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).pendingOpsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.conflictSnapshotId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DavConflictSnapshotsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DavConflictSnapshotsTable,
+      DavConflictSnapshot,
+      $$DavConflictSnapshotsTableFilterComposer,
+      $$DavConflictSnapshotsTableOrderingComposer,
+      $$DavConflictSnapshotsTableAnnotationComposer,
+      $$DavConflictSnapshotsTableCreateCompanionBuilder,
+      $$DavConflictSnapshotsTableUpdateCompanionBuilder,
+      (DavConflictSnapshot, $$DavConflictSnapshotsTableReferences),
+      DavConflictSnapshot,
+      PrefetchHooks Function({
+        bool accountId,
+        bool davCollectionId,
+        bool davObjectId,
+        bool pendingOpsRefs,
       })
     >;
 typedef $$TaskListsTableCreateCompanionBuilder =
     TaskListsCompanion Function({
       required String accountId,
       required String id,
+      Value<String?> davCollectionId,
       Value<String?> kind,
       Value<String?> etag,
       required String title,
@@ -15465,6 +29567,7 @@ typedef $$TaskListsTableUpdateCompanionBuilder =
     TaskListsCompanion Function({
       Value<String> accountId,
       Value<String> id,
+      Value<String?> davCollectionId,
       Value<String?> kind,
       Value<String?> etag,
       Value<String> title,
@@ -15502,6 +29605,28 @@ final class $$TaskListsTableReferences
       $_db.accounts,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(
+          db.taskLists.davCollectionId,
+          db.davCollections.id,
+        ),
+      );
+
+  $$DavCollectionsTableProcessedTableManager? get davCollectionId {
+    final $_column = $_itemColumn<String>('dav_collection_id');
+    if ($_column == null) return null;
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davCollectionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -15622,6 +29747,29 @@ class $$TaskListsTableFilterComposer
           }) => $$AccountsTableFilterComposer(
             $db: $db,
             $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableFilterComposer get davCollectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15753,6 +29901,29 @@ class $$TaskListsTableOrderingComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableOrderingComposer get davCollectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$TaskListsTableAnnotationComposer
@@ -15858,6 +30029,29 @@ class $$TaskListsTableAnnotationComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableAnnotationComposer get davCollectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$TaskListsTableTableManager
@@ -15873,7 +30067,7 @@ class $$TaskListsTableTableManager
           $$TaskListsTableUpdateCompanionBuilder,
           (TaskList, $$TaskListsTableReferences),
           TaskList,
-          PrefetchHooks Function({bool accountId})
+          PrefetchHooks Function({bool accountId, bool davCollectionId})
         > {
   $$TaskListsTableTableManager(_$AppDatabase db, $TaskListsTable table)
     : super(
@@ -15890,6 +30084,7 @@ class $$TaskListsTableTableManager
               ({
                 Value<String> accountId = const Value.absent(),
                 Value<String> id = const Value.absent(),
+                Value<String?> davCollectionId = const Value.absent(),
                 Value<String?> kind = const Value.absent(),
                 Value<String?> etag = const Value.absent(),
                 Value<String> title = const Value.absent(),
@@ -15911,6 +30106,7 @@ class $$TaskListsTableTableManager
               }) => TaskListsCompanion(
                 accountId: accountId,
                 id: id,
+                davCollectionId: davCollectionId,
                 kind: kind,
                 etag: etag,
                 title: title,
@@ -15934,6 +30130,7 @@ class $$TaskListsTableTableManager
               ({
                 required String accountId,
                 required String id,
+                Value<String?> davCollectionId = const Value.absent(),
                 Value<String?> kind = const Value.absent(),
                 Value<String?> etag = const Value.absent(),
                 required String title,
@@ -15955,6 +30152,7 @@ class $$TaskListsTableTableManager
               }) => TaskListsCompanion.insert(
                 accountId: accountId,
                 id: id,
+                davCollectionId: davCollectionId,
                 kind: kind,
                 etag: etag,
                 title: title,
@@ -15982,47 +30180,61 @@ class $$TaskListsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({accountId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable: $$TaskListsTableReferences
-                                    ._accountIdTable(db),
-                                referencedColumn: $$TaskListsTableReferences
-                                    ._accountIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({accountId = false, davCollectionId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable: $$TaskListsTableReferences
+                                        ._accountIdTable(db),
+                                    referencedColumn: $$TaskListsTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (davCollectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davCollectionId,
+                                    referencedTable: $$TaskListsTableReferences
+                                        ._davCollectionIdTable(db),
+                                    referencedColumn: $$TaskListsTableReferences
+                                        ._davCollectionIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -16039,13 +30251,31 @@ typedef $$TaskListsTableProcessedTableManager =
       $$TaskListsTableUpdateCompanionBuilder,
       (TaskList, $$TaskListsTableReferences),
       TaskList,
-      PrefetchHooks Function({bool accountId})
+      PrefetchHooks Function({bool accountId, bool davCollectionId})
     >;
 typedef $$TasksTableCreateCompanionBuilder =
     TasksCompanion Function({
       required String accountId,
       required String taskListId,
       required String id,
+      Value<String?> davCollectionId,
+      Value<String?> davObjectId,
+      Value<String?> davComponentId,
+      Value<String?> icalUid,
+      Value<String?> recurrenceIdKey,
+      Value<int?> icalPriority,
+      Value<int?> percentComplete,
+      Value<String?> taskLocation,
+      Value<String?> taskUrl,
+      Value<String?> taskClassification,
+      Value<bool?> taskPinned,
+      Value<bool?> taskHideSubtasks,
+      Value<bool?> taskHideCompletedSubtasks,
+      Value<String?> taskAlarmsJson,
+      Value<String?> parentUid,
+      Value<int?> sortOrder,
+      Value<String?> providerExtensionProjectionJson,
+      Value<int> projectionVersion,
       Value<String?> kind,
       Value<String?> etag,
       required String title,
@@ -16069,6 +30299,7 @@ typedef $$TasksTableCreateCompanionBuilder =
       Value<bool?> microsoftIsReminderOn,
       Value<String?> microsoftCompletedDateTime,
       Value<String?> microsoftCompletedTimeZone,
+      Value<String?> microsoftChecklistItemsJson,
       Value<String?> recurrenceJson,
       Value<String?> importance,
       Value<String?> categoriesJson,
@@ -16096,6 +30327,24 @@ typedef $$TasksTableUpdateCompanionBuilder =
       Value<String> accountId,
       Value<String> taskListId,
       Value<String> id,
+      Value<String?> davCollectionId,
+      Value<String?> davObjectId,
+      Value<String?> davComponentId,
+      Value<String?> icalUid,
+      Value<String?> recurrenceIdKey,
+      Value<int?> icalPriority,
+      Value<int?> percentComplete,
+      Value<String?> taskLocation,
+      Value<String?> taskUrl,
+      Value<String?> taskClassification,
+      Value<bool?> taskPinned,
+      Value<bool?> taskHideSubtasks,
+      Value<bool?> taskHideCompletedSubtasks,
+      Value<String?> taskAlarmsJson,
+      Value<String?> parentUid,
+      Value<int?> sortOrder,
+      Value<String?> providerExtensionProjectionJson,
+      Value<int> projectionVersion,
       Value<String?> kind,
       Value<String?> etag,
       Value<String> title,
@@ -16119,6 +30368,7 @@ typedef $$TasksTableUpdateCompanionBuilder =
       Value<bool?> microsoftIsReminderOn,
       Value<String?> microsoftCompletedDateTime,
       Value<String?> microsoftCompletedTimeZone,
+      Value<String?> microsoftChecklistItemsJson,
       Value<String?> recurrenceJson,
       Value<String?> importance,
       Value<String?> categoriesJson,
@@ -16162,6 +30412,66 @@ final class $$TasksTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(db.tasks.davCollectionId, db.davCollections.id),
+      );
+
+  $$DavCollectionsTableProcessedTableManager? get davCollectionId {
+    final $_column = $_itemColumn<String>('dav_collection_id');
+    if ($_column == null) return null;
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davCollectionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
+      db.davObjects.createAlias(
+        $_aliasNameGenerator(db.tasks.davObjectId, db.davObjects.id),
+      );
+
+  $$DavObjectsTableProcessedTableManager? get davObjectId {
+    final $_column = $_itemColumn<String>('dav_object_id');
+    if ($_column == null) return null;
+    final manager = $$DavObjectsTableTableManager(
+      $_db,
+      $_db.davObjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davObjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavObjectComponentsTable _davComponentIdTable(_$AppDatabase db) =>
+      db.davObjectComponents.createAlias(
+        $_aliasNameGenerator(
+          db.tasks.davComponentId,
+          db.davObjectComponents.id,
+        ),
+      );
+
+  $$DavObjectComponentsTableProcessedTableManager? get davComponentId {
+    final $_column = $_itemColumn<String>('dav_component_id');
+    if ($_column == null) return null;
+    final manager = $$DavObjectComponentsTableTableManager(
+      $_db,
+      $_db.davObjectComponents,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davComponentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 }
 
 class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
@@ -16179,6 +30489,82 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get icalUid => $composableBuilder(
+    column: $table.icalUid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get icalPriority => $composableBuilder(
+    column: $table.icalPriority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get percentComplete => $composableBuilder(
+    column: $table.percentComplete,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taskLocation => $composableBuilder(
+    column: $table.taskLocation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taskUrl => $composableBuilder(
+    column: $table.taskUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taskClassification => $composableBuilder(
+    column: $table.taskClassification,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get taskPinned => $composableBuilder(
+    column: $table.taskPinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get taskHideSubtasks => $composableBuilder(
+    column: $table.taskHideSubtasks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get taskHideCompletedSubtasks => $composableBuilder(
+    column: $table.taskHideCompletedSubtasks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taskAlarmsJson => $composableBuilder(
+    column: $table.taskAlarmsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentUid => $composableBuilder(
+    column: $table.parentUid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerExtensionProjectionJson =>
+      $composableBuilder(
+        column: $table.providerExtensionProjectionJson,
+        builder: (column) => ColumnFilters(column),
+      );
+
+  ColumnFilters<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16294,6 +30680,11 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<String> get microsoftCompletedTimeZone => $composableBuilder(
     column: $table.microsoftCompletedTimeZone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get microsoftChecklistItemsJson => $composableBuilder(
+    column: $table.microsoftChecklistItemsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16419,6 +30810,75 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
     );
     return composer;
   }
+
+  $$DavCollectionsTableFilterComposer get davCollectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableFilterComposer get davObjectId {
+    final $$DavObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectComponentsTableFilterComposer get davComponentId {
+    final $$DavObjectComponentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davComponentId,
+      referencedTable: $db.davObjectComponents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectComponentsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjectComponents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$TasksTableOrderingComposer
@@ -16437,6 +30897,82 @@ class $$TasksTableOrderingComposer
 
   ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get icalUid => $composableBuilder(
+    column: $table.icalUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get icalPriority => $composableBuilder(
+    column: $table.icalPriority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get percentComplete => $composableBuilder(
+    column: $table.percentComplete,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taskLocation => $composableBuilder(
+    column: $table.taskLocation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taskUrl => $composableBuilder(
+    column: $table.taskUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taskClassification => $composableBuilder(
+    column: $table.taskClassification,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get taskPinned => $composableBuilder(
+    column: $table.taskPinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get taskHideSubtasks => $composableBuilder(
+    column: $table.taskHideSubtasks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get taskHideCompletedSubtasks => $composableBuilder(
+    column: $table.taskHideCompletedSubtasks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taskAlarmsJson => $composableBuilder(
+    column: $table.taskAlarmsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get parentUid => $composableBuilder(
+    column: $table.parentUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerExtensionProjectionJson =>
+      $composableBuilder(
+        column: $table.providerExtensionProjectionJson,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -16552,6 +31088,11 @@ class $$TasksTableOrderingComposer
 
   ColumnOrderings<String> get microsoftCompletedTimeZone => $composableBuilder(
     column: $table.microsoftCompletedTimeZone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get microsoftChecklistItemsJson => $composableBuilder(
+    column: $table.microsoftChecklistItemsJson,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -16677,6 +31218,76 @@ class $$TasksTableOrderingComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableOrderingComposer get davCollectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableOrderingComposer get davObjectId {
+    final $$DavObjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectComponentsTableOrderingComposer get davComponentId {
+    final $$DavObjectComponentsTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.davComponentId,
+          referencedTable: $db.davObjectComponents,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavObjectComponentsTableOrderingComposer(
+                $db: $db,
+                $table: $db.davObjectComponents,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
 }
 
 class $$TasksTableAnnotationComposer
@@ -16695,6 +31306,74 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get icalUid =>
+      $composableBuilder(column: $table.icalUid, builder: (column) => column);
+
+  GeneratedColumn<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get icalPriority => $composableBuilder(
+    column: $table.icalPriority,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get percentComplete => $composableBuilder(
+    column: $table.percentComplete,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get taskLocation => $composableBuilder(
+    column: $table.taskLocation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get taskUrl =>
+      $composableBuilder(column: $table.taskUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get taskClassification => $composableBuilder(
+    column: $table.taskClassification,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get taskPinned => $composableBuilder(
+    column: $table.taskPinned,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get taskHideSubtasks => $composableBuilder(
+    column: $table.taskHideSubtasks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get taskHideCompletedSubtasks => $composableBuilder(
+    column: $table.taskHideCompletedSubtasks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get taskAlarmsJson => $composableBuilder(
+    column: $table.taskAlarmsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get parentUid =>
+      $composableBuilder(column: $table.parentUid, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get providerExtensionProjectionJson =>
+      $composableBuilder(
+        column: $table.providerExtensionProjectionJson,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
@@ -16790,6 +31469,11 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<String> get microsoftCompletedTimeZone => $composableBuilder(
     column: $table.microsoftCompletedTimeZone,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get microsoftChecklistItemsJson => $composableBuilder(
+    column: $table.microsoftChecklistItemsJson,
     builder: (column) => column,
   );
 
@@ -16907,6 +31591,76 @@ class $$TasksTableAnnotationComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableAnnotationComposer get davCollectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableAnnotationComposer get davObjectId {
+    final $$DavObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectComponentsTableAnnotationComposer get davComponentId {
+    final $$DavObjectComponentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.davComponentId,
+          referencedTable: $db.davObjectComponents,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavObjectComponentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davObjectComponents,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
 }
 
 class $$TasksTableTableManager
@@ -16922,7 +31676,12 @@ class $$TasksTableTableManager
           $$TasksTableUpdateCompanionBuilder,
           (Task, $$TasksTableReferences),
           Task,
-          PrefetchHooks Function({bool accountId})
+          PrefetchHooks Function({
+            bool accountId,
+            bool davCollectionId,
+            bool davObjectId,
+            bool davComponentId,
+          })
         > {
   $$TasksTableTableManager(_$AppDatabase db, $TasksTable table)
     : super(
@@ -16940,6 +31699,25 @@ class $$TasksTableTableManager
                 Value<String> accountId = const Value.absent(),
                 Value<String> taskListId = const Value.absent(),
                 Value<String> id = const Value.absent(),
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String?> davObjectId = const Value.absent(),
+                Value<String?> davComponentId = const Value.absent(),
+                Value<String?> icalUid = const Value.absent(),
+                Value<String?> recurrenceIdKey = const Value.absent(),
+                Value<int?> icalPriority = const Value.absent(),
+                Value<int?> percentComplete = const Value.absent(),
+                Value<String?> taskLocation = const Value.absent(),
+                Value<String?> taskUrl = const Value.absent(),
+                Value<String?> taskClassification = const Value.absent(),
+                Value<bool?> taskPinned = const Value.absent(),
+                Value<bool?> taskHideSubtasks = const Value.absent(),
+                Value<bool?> taskHideCompletedSubtasks = const Value.absent(),
+                Value<String?> taskAlarmsJson = const Value.absent(),
+                Value<String?> parentUid = const Value.absent(),
+                Value<int?> sortOrder = const Value.absent(),
+                Value<String?> providerExtensionProjectionJson =
+                    const Value.absent(),
+                Value<int> projectionVersion = const Value.absent(),
                 Value<String?> kind = const Value.absent(),
                 Value<String?> etag = const Value.absent(),
                 Value<String> title = const Value.absent(),
@@ -16964,6 +31742,8 @@ class $$TasksTableTableManager
                 Value<String?> microsoftCompletedDateTime =
                     const Value.absent(),
                 Value<String?> microsoftCompletedTimeZone =
+                    const Value.absent(),
+                Value<String?> microsoftChecklistItemsJson =
                     const Value.absent(),
                 Value<String?> recurrenceJson = const Value.absent(),
                 Value<String?> importance = const Value.absent(),
@@ -16990,6 +31770,25 @@ class $$TasksTableTableManager
                 accountId: accountId,
                 taskListId: taskListId,
                 id: id,
+                davCollectionId: davCollectionId,
+                davObjectId: davObjectId,
+                davComponentId: davComponentId,
+                icalUid: icalUid,
+                recurrenceIdKey: recurrenceIdKey,
+                icalPriority: icalPriority,
+                percentComplete: percentComplete,
+                taskLocation: taskLocation,
+                taskUrl: taskUrl,
+                taskClassification: taskClassification,
+                taskPinned: taskPinned,
+                taskHideSubtasks: taskHideSubtasks,
+                taskHideCompletedSubtasks: taskHideCompletedSubtasks,
+                taskAlarmsJson: taskAlarmsJson,
+                parentUid: parentUid,
+                sortOrder: sortOrder,
+                providerExtensionProjectionJson:
+                    providerExtensionProjectionJson,
+                projectionVersion: projectionVersion,
                 kind: kind,
                 etag: etag,
                 title: title,
@@ -17013,6 +31812,7 @@ class $$TasksTableTableManager
                 microsoftIsReminderOn: microsoftIsReminderOn,
                 microsoftCompletedDateTime: microsoftCompletedDateTime,
                 microsoftCompletedTimeZone: microsoftCompletedTimeZone,
+                microsoftChecklistItemsJson: microsoftChecklistItemsJson,
                 recurrenceJson: recurrenceJson,
                 importance: importance,
                 categoriesJson: categoriesJson,
@@ -17040,6 +31840,25 @@ class $$TasksTableTableManager
                 required String accountId,
                 required String taskListId,
                 required String id,
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String?> davObjectId = const Value.absent(),
+                Value<String?> davComponentId = const Value.absent(),
+                Value<String?> icalUid = const Value.absent(),
+                Value<String?> recurrenceIdKey = const Value.absent(),
+                Value<int?> icalPriority = const Value.absent(),
+                Value<int?> percentComplete = const Value.absent(),
+                Value<String?> taskLocation = const Value.absent(),
+                Value<String?> taskUrl = const Value.absent(),
+                Value<String?> taskClassification = const Value.absent(),
+                Value<bool?> taskPinned = const Value.absent(),
+                Value<bool?> taskHideSubtasks = const Value.absent(),
+                Value<bool?> taskHideCompletedSubtasks = const Value.absent(),
+                Value<String?> taskAlarmsJson = const Value.absent(),
+                Value<String?> parentUid = const Value.absent(),
+                Value<int?> sortOrder = const Value.absent(),
+                Value<String?> providerExtensionProjectionJson =
+                    const Value.absent(),
+                Value<int> projectionVersion = const Value.absent(),
                 Value<String?> kind = const Value.absent(),
                 Value<String?> etag = const Value.absent(),
                 required String title,
@@ -17064,6 +31883,8 @@ class $$TasksTableTableManager
                 Value<String?> microsoftCompletedDateTime =
                     const Value.absent(),
                 Value<String?> microsoftCompletedTimeZone =
+                    const Value.absent(),
+                Value<String?> microsoftChecklistItemsJson =
                     const Value.absent(),
                 Value<String?> recurrenceJson = const Value.absent(),
                 Value<String?> importance = const Value.absent(),
@@ -17090,6 +31911,25 @@ class $$TasksTableTableManager
                 accountId: accountId,
                 taskListId: taskListId,
                 id: id,
+                davCollectionId: davCollectionId,
+                davObjectId: davObjectId,
+                davComponentId: davComponentId,
+                icalUid: icalUid,
+                recurrenceIdKey: recurrenceIdKey,
+                icalPriority: icalPriority,
+                percentComplete: percentComplete,
+                taskLocation: taskLocation,
+                taskUrl: taskUrl,
+                taskClassification: taskClassification,
+                taskPinned: taskPinned,
+                taskHideSubtasks: taskHideSubtasks,
+                taskHideCompletedSubtasks: taskHideCompletedSubtasks,
+                taskAlarmsJson: taskAlarmsJson,
+                parentUid: parentUid,
+                sortOrder: sortOrder,
+                providerExtensionProjectionJson:
+                    providerExtensionProjectionJson,
+                projectionVersion: projectionVersion,
                 kind: kind,
                 etag: etag,
                 title: title,
@@ -17113,6 +31953,7 @@ class $$TasksTableTableManager
                 microsoftIsReminderOn: microsoftIsReminderOn,
                 microsoftCompletedDateTime: microsoftCompletedDateTime,
                 microsoftCompletedTimeZone: microsoftCompletedTimeZone,
+                microsoftChecklistItemsJson: microsoftChecklistItemsJson,
                 recurrenceJson: recurrenceJson,
                 importance: importance,
                 categoriesJson: categoriesJson,
@@ -17141,47 +31982,92 @@ class $$TasksTableTableManager
                     (e.readTable(table), $$TasksTableReferences(db, table, e)),
               )
               .toList(),
-          prefetchHooksCallback: ({accountId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable: $$TasksTableReferences
-                                    ._accountIdTable(db),
-                                referencedColumn: $$TasksTableReferences
-                                    ._accountIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                accountId = false,
+                davCollectionId = false,
+                davObjectId = false,
+                davComponentId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable: $$TasksTableReferences
+                                        ._accountIdTable(db),
+                                    referencedColumn: $$TasksTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (davCollectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davCollectionId,
+                                    referencedTable: $$TasksTableReferences
+                                        ._davCollectionIdTable(db),
+                                    referencedColumn: $$TasksTableReferences
+                                        ._davCollectionIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (davObjectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davObjectId,
+                                    referencedTable: $$TasksTableReferences
+                                        ._davObjectIdTable(db),
+                                    referencedColumn: $$TasksTableReferences
+                                        ._davObjectIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (davComponentId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davComponentId,
+                                    referencedTable: $$TasksTableReferences
+                                        ._davComponentIdTable(db),
+                                    referencedColumn: $$TasksTableReferences
+                                        ._davComponentIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -17198,7 +32084,12 @@ typedef $$TasksTableProcessedTableManager =
       $$TasksTableUpdateCompanionBuilder,
       (Task, $$TasksTableReferences),
       Task,
-      PrefetchHooks Function({bool accountId})
+      PrefetchHooks Function({
+        bool accountId,
+        bool davCollectionId,
+        bool davObjectId,
+        bool davComponentId,
+      })
     >;
 typedef $$PendingOpsTableCreateCompanionBuilder =
     PendingOpsCompanion Function({
@@ -17213,6 +32104,22 @@ typedef $$PendingOpsTableCreateCompanionBuilder =
       Value<String?> calendarSourceId,
       Value<String?> providerCalendarId,
       Value<String?> eventId,
+      Value<String?> davCollectionId,
+      Value<String?> davCollectionHref,
+      Value<String?> davObjectId,
+      Value<String?> davMemberHref,
+      Value<String?> baselineEtag,
+      Value<String?> baselineRawIcs,
+      Value<String?> mutationPatchJson,
+      Value<int?> mutationPatchSchemaVersion,
+      Value<String?> targetComponentKey,
+      Value<String?> mutationScope,
+      Value<String?> destinationCollectionId,
+      Value<String?> destinationCollectionHref,
+      Value<String?> destinationMemberHref,
+      Value<String?> conflictState,
+      Value<String?> conflictSnapshotId,
+      Value<String?> retryClassification,
       Value<String?> localTempId,
       Value<String?> dependsOnOpId,
       required String requestJson,
@@ -17241,6 +32148,22 @@ typedef $$PendingOpsTableUpdateCompanionBuilder =
       Value<String?> calendarSourceId,
       Value<String?> providerCalendarId,
       Value<String?> eventId,
+      Value<String?> davCollectionId,
+      Value<String?> davCollectionHref,
+      Value<String?> davObjectId,
+      Value<String?> davMemberHref,
+      Value<String?> baselineEtag,
+      Value<String?> baselineRawIcs,
+      Value<String?> mutationPatchJson,
+      Value<int?> mutationPatchSchemaVersion,
+      Value<String?> targetComponentKey,
+      Value<String?> mutationScope,
+      Value<String?> destinationCollectionId,
+      Value<String?> destinationCollectionHref,
+      Value<String?> destinationMemberHref,
+      Value<String?> conflictState,
+      Value<String?> conflictSnapshotId,
+      Value<String?> retryClassification,
       Value<String?> localTempId,
       Value<String?> dependsOnOpId,
       Value<String> requestJson,
@@ -17274,6 +32197,94 @@ final class $$PendingOpsTableReferences
       $_db.accounts,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(
+          db.pendingOps.davCollectionId,
+          db.davCollections.id,
+        ),
+      );
+
+  $$DavCollectionsTableProcessedTableManager? get davCollectionId {
+    final $_column = $_itemColumn<String>('dav_collection_id');
+    if ($_column == null) return null;
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davCollectionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
+      db.davObjects.createAlias(
+        $_aliasNameGenerator(db.pendingOps.davObjectId, db.davObjects.id),
+      );
+
+  $$DavObjectsTableProcessedTableManager? get davObjectId {
+    final $_column = $_itemColumn<String>('dav_object_id');
+    if ($_column == null) return null;
+    final manager = $$DavObjectsTableTableManager(
+      $_db,
+      $_db.davObjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davObjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavCollectionsTable _destinationCollectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(
+          db.pendingOps.destinationCollectionId,
+          db.davCollections.id,
+        ),
+      );
+
+  $$DavCollectionsTableProcessedTableManager? get destinationCollectionId {
+    final $_column = $_itemColumn<String>('destination_collection_id');
+    if ($_column == null) return null;
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(
+      _destinationCollectionIdTable($_db),
+    );
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavConflictSnapshotsTable _conflictSnapshotIdTable(
+    _$AppDatabase db,
+  ) => db.davConflictSnapshots.createAlias(
+    $_aliasNameGenerator(
+      db.pendingOps.conflictSnapshotId,
+      db.davConflictSnapshots.id,
+    ),
+  );
+
+  $$DavConflictSnapshotsTableProcessedTableManager? get conflictSnapshotId {
+    final $_column = $_itemColumn<String>('conflict_snapshot_id');
+    if ($_column == null) return null;
+    final manager = $$DavConflictSnapshotsTableTableManager(
+      $_db,
+      $_db.davConflictSnapshots,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_conflictSnapshotIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -17337,6 +32348,66 @@ class $$PendingOpsTableFilterComposer
 
   ColumnFilters<String> get eventId => $composableBuilder(
     column: $table.eventId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get davCollectionHref => $composableBuilder(
+    column: $table.davCollectionHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get davMemberHref => $composableBuilder(
+    column: $table.davMemberHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baselineEtag => $composableBuilder(
+    column: $table.baselineEtag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baselineRawIcs => $composableBuilder(
+    column: $table.baselineRawIcs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mutationPatchJson => $composableBuilder(
+    column: $table.mutationPatchJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get mutationPatchSchemaVersion => $composableBuilder(
+    column: $table.mutationPatchSchemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetComponentKey => $composableBuilder(
+    column: $table.targetComponentKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mutationScope => $composableBuilder(
+    column: $table.mutationScope,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get destinationCollectionHref => $composableBuilder(
+    column: $table.destinationCollectionHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get destinationMemberHref => $composableBuilder(
+    column: $table.destinationMemberHref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get conflictState => $composableBuilder(
+    column: $table.conflictState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get retryClassification => $composableBuilder(
+    column: $table.retryClassification,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17427,6 +32498,98 @@ class $$PendingOpsTableFilterComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableFilterComposer get davCollectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableFilterComposer get davObjectId {
+    final $$DavObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableFilterComposer get destinationCollectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.destinationCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavConflictSnapshotsTableFilterComposer get conflictSnapshotId {
+    final $$DavConflictSnapshotsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.conflictSnapshotId,
+      referencedTable: $db.davConflictSnapshots,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavConflictSnapshotsTableFilterComposer(
+            $db: $db,
+            $table: $db.davConflictSnapshots,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$PendingOpsTableOrderingComposer
@@ -17485,6 +32648,66 @@ class $$PendingOpsTableOrderingComposer
 
   ColumnOrderings<String> get eventId => $composableBuilder(
     column: $table.eventId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get davCollectionHref => $composableBuilder(
+    column: $table.davCollectionHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get davMemberHref => $composableBuilder(
+    column: $table.davMemberHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baselineEtag => $composableBuilder(
+    column: $table.baselineEtag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baselineRawIcs => $composableBuilder(
+    column: $table.baselineRawIcs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mutationPatchJson => $composableBuilder(
+    column: $table.mutationPatchJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get mutationPatchSchemaVersion => $composableBuilder(
+    column: $table.mutationPatchSchemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetComponentKey => $composableBuilder(
+    column: $table.targetComponentKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mutationScope => $composableBuilder(
+    column: $table.mutationScope,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get destinationCollectionHref => $composableBuilder(
+    column: $table.destinationCollectionHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get destinationMemberHref => $composableBuilder(
+    column: $table.destinationMemberHref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get conflictState => $composableBuilder(
+    column: $table.conflictState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get retryClassification => $composableBuilder(
+    column: $table.retryClassification,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -17575,6 +32798,99 @@ class $$PendingOpsTableOrderingComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableOrderingComposer get davCollectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableOrderingComposer get davObjectId {
+    final $$DavObjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableOrderingComposer get destinationCollectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.destinationCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavConflictSnapshotsTableOrderingComposer get conflictSnapshotId {
+    final $$DavConflictSnapshotsTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.conflictSnapshotId,
+          referencedTable: $db.davConflictSnapshots,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavConflictSnapshotsTableOrderingComposer(
+                $db: $db,
+                $table: $db.davConflictSnapshots,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
 }
 
 class $$PendingOpsTableAnnotationComposer
@@ -17625,6 +32941,66 @@ class $$PendingOpsTableAnnotationComposer
 
   GeneratedColumn<String> get eventId =>
       $composableBuilder(column: $table.eventId, builder: (column) => column);
+
+  GeneratedColumn<String> get davCollectionHref => $composableBuilder(
+    column: $table.davCollectionHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get davMemberHref => $composableBuilder(
+    column: $table.davMemberHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get baselineEtag => $composableBuilder(
+    column: $table.baselineEtag,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get baselineRawIcs => $composableBuilder(
+    column: $table.baselineRawIcs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mutationPatchJson => $composableBuilder(
+    column: $table.mutationPatchJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get mutationPatchSchemaVersion => $composableBuilder(
+    column: $table.mutationPatchSchemaVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetComponentKey => $composableBuilder(
+    column: $table.targetComponentKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mutationScope => $composableBuilder(
+    column: $table.mutationScope,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get destinationCollectionHref => $composableBuilder(
+    column: $table.destinationCollectionHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get destinationMemberHref => $composableBuilder(
+    column: $table.destinationMemberHref,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get conflictState => $composableBuilder(
+    column: $table.conflictState,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get retryClassification => $composableBuilder(
+    column: $table.retryClassification,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get localTempId => $composableBuilder(
     column: $table.localTempId,
@@ -17709,6 +33085,99 @@ class $$PendingOpsTableAnnotationComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableAnnotationComposer get davCollectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableAnnotationComposer get davObjectId {
+    final $$DavObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableAnnotationComposer get destinationCollectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.destinationCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavConflictSnapshotsTableAnnotationComposer get conflictSnapshotId {
+    final $$DavConflictSnapshotsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.conflictSnapshotId,
+          referencedTable: $db.davConflictSnapshots,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavConflictSnapshotsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davConflictSnapshots,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
 }
 
 class $$PendingOpsTableTableManager
@@ -17724,7 +33193,13 @@ class $$PendingOpsTableTableManager
           $$PendingOpsTableUpdateCompanionBuilder,
           (PendingOp, $$PendingOpsTableReferences),
           PendingOp,
-          PrefetchHooks Function({bool accountId})
+          PrefetchHooks Function({
+            bool accountId,
+            bool davCollectionId,
+            bool davObjectId,
+            bool destinationCollectionId,
+            bool conflictSnapshotId,
+          })
         > {
   $$PendingOpsTableTableManager(_$AppDatabase db, $PendingOpsTable table)
     : super(
@@ -17750,6 +33225,22 @@ class $$PendingOpsTableTableManager
                 Value<String?> calendarSourceId = const Value.absent(),
                 Value<String?> providerCalendarId = const Value.absent(),
                 Value<String?> eventId = const Value.absent(),
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String?> davCollectionHref = const Value.absent(),
+                Value<String?> davObjectId = const Value.absent(),
+                Value<String?> davMemberHref = const Value.absent(),
+                Value<String?> baselineEtag = const Value.absent(),
+                Value<String?> baselineRawIcs = const Value.absent(),
+                Value<String?> mutationPatchJson = const Value.absent(),
+                Value<int?> mutationPatchSchemaVersion = const Value.absent(),
+                Value<String?> targetComponentKey = const Value.absent(),
+                Value<String?> mutationScope = const Value.absent(),
+                Value<String?> destinationCollectionId = const Value.absent(),
+                Value<String?> destinationCollectionHref = const Value.absent(),
+                Value<String?> destinationMemberHref = const Value.absent(),
+                Value<String?> conflictState = const Value.absent(),
+                Value<String?> conflictSnapshotId = const Value.absent(),
+                Value<String?> retryClassification = const Value.absent(),
                 Value<String?> localTempId = const Value.absent(),
                 Value<String?> dependsOnOpId = const Value.absent(),
                 Value<String> requestJson = const Value.absent(),
@@ -17776,6 +33267,22 @@ class $$PendingOpsTableTableManager
                 calendarSourceId: calendarSourceId,
                 providerCalendarId: providerCalendarId,
                 eventId: eventId,
+                davCollectionId: davCollectionId,
+                davCollectionHref: davCollectionHref,
+                davObjectId: davObjectId,
+                davMemberHref: davMemberHref,
+                baselineEtag: baselineEtag,
+                baselineRawIcs: baselineRawIcs,
+                mutationPatchJson: mutationPatchJson,
+                mutationPatchSchemaVersion: mutationPatchSchemaVersion,
+                targetComponentKey: targetComponentKey,
+                mutationScope: mutationScope,
+                destinationCollectionId: destinationCollectionId,
+                destinationCollectionHref: destinationCollectionHref,
+                destinationMemberHref: destinationMemberHref,
+                conflictState: conflictState,
+                conflictSnapshotId: conflictSnapshotId,
+                retryClassification: retryClassification,
                 localTempId: localTempId,
                 dependsOnOpId: dependsOnOpId,
                 requestJson: requestJson,
@@ -17804,6 +33311,22 @@ class $$PendingOpsTableTableManager
                 Value<String?> calendarSourceId = const Value.absent(),
                 Value<String?> providerCalendarId = const Value.absent(),
                 Value<String?> eventId = const Value.absent(),
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String?> davCollectionHref = const Value.absent(),
+                Value<String?> davObjectId = const Value.absent(),
+                Value<String?> davMemberHref = const Value.absent(),
+                Value<String?> baselineEtag = const Value.absent(),
+                Value<String?> baselineRawIcs = const Value.absent(),
+                Value<String?> mutationPatchJson = const Value.absent(),
+                Value<int?> mutationPatchSchemaVersion = const Value.absent(),
+                Value<String?> targetComponentKey = const Value.absent(),
+                Value<String?> mutationScope = const Value.absent(),
+                Value<String?> destinationCollectionId = const Value.absent(),
+                Value<String?> destinationCollectionHref = const Value.absent(),
+                Value<String?> destinationMemberHref = const Value.absent(),
+                Value<String?> conflictState = const Value.absent(),
+                Value<String?> conflictSnapshotId = const Value.absent(),
+                Value<String?> retryClassification = const Value.absent(),
                 Value<String?> localTempId = const Value.absent(),
                 Value<String?> dependsOnOpId = const Value.absent(),
                 required String requestJson,
@@ -17830,6 +33353,22 @@ class $$PendingOpsTableTableManager
                 calendarSourceId: calendarSourceId,
                 providerCalendarId: providerCalendarId,
                 eventId: eventId,
+                davCollectionId: davCollectionId,
+                davCollectionHref: davCollectionHref,
+                davObjectId: davObjectId,
+                davMemberHref: davMemberHref,
+                baselineEtag: baselineEtag,
+                baselineRawIcs: baselineRawIcs,
+                mutationPatchJson: mutationPatchJson,
+                mutationPatchSchemaVersion: mutationPatchSchemaVersion,
+                targetComponentKey: targetComponentKey,
+                mutationScope: mutationScope,
+                destinationCollectionId: destinationCollectionId,
+                destinationCollectionHref: destinationCollectionHref,
+                destinationMemberHref: destinationMemberHref,
+                conflictState: conflictState,
+                conflictSnapshotId: conflictSnapshotId,
+                retryClassification: retryClassification,
                 localTempId: localTempId,
                 dependsOnOpId: dependsOnOpId,
                 requestJson: requestJson,
@@ -17853,47 +33392,112 @@ class $$PendingOpsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({accountId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable: $$PendingOpsTableReferences
-                                    ._accountIdTable(db),
-                                referencedColumn: $$PendingOpsTableReferences
-                                    ._accountIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                accountId = false,
+                davCollectionId = false,
+                davObjectId = false,
+                destinationCollectionId = false,
+                conflictSnapshotId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable: $$PendingOpsTableReferences
+                                        ._accountIdTable(db),
+                                    referencedColumn:
+                                        $$PendingOpsTableReferences
+                                            ._accountIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (davCollectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davCollectionId,
+                                    referencedTable: $$PendingOpsTableReferences
+                                        ._davCollectionIdTable(db),
+                                    referencedColumn:
+                                        $$PendingOpsTableReferences
+                                            ._davCollectionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (davObjectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davObjectId,
+                                    referencedTable: $$PendingOpsTableReferences
+                                        ._davObjectIdTable(db),
+                                    referencedColumn:
+                                        $$PendingOpsTableReferences
+                                            ._davObjectIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (destinationCollectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn:
+                                        table.destinationCollectionId,
+                                    referencedTable: $$PendingOpsTableReferences
+                                        ._destinationCollectionIdTable(db),
+                                    referencedColumn:
+                                        $$PendingOpsTableReferences
+                                            ._destinationCollectionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (conflictSnapshotId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.conflictSnapshotId,
+                                    referencedTable: $$PendingOpsTableReferences
+                                        ._conflictSnapshotIdTable(db),
+                                    referencedColumn:
+                                        $$PendingOpsTableReferences
+                                            ._conflictSnapshotIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -17910,7 +33514,13 @@ typedef $$PendingOpsTableProcessedTableManager =
       $$PendingOpsTableUpdateCompanionBuilder,
       (PendingOp, $$PendingOpsTableReferences),
       PendingOp,
-      PrefetchHooks Function({bool accountId})
+      PrefetchHooks Function({
+        bool accountId,
+        bool davCollectionId,
+        bool davObjectId,
+        bool destinationCollectionId,
+        bool conflictSnapshotId,
+      })
     >;
 typedef $$SyncRunsTableCreateCompanionBuilder =
     SyncRunsCompanion Function({
@@ -18378,6 +33988,7 @@ typedef $$CalendarSourcesTableCreateCompanionBuilder =
       required String accountId,
       required String provider,
       required String providerCalendarId,
+      Value<String?> davCollectionId,
       required String summary,
       Value<String?> description,
       Value<bool> primaryCalendar,
@@ -18401,6 +34012,7 @@ typedef $$CalendarSourcesTableUpdateCompanionBuilder =
       Value<String> accountId,
       Value<String> provider,
       Value<String> providerCalendarId,
+      Value<String?> davCollectionId,
       Value<String> summary,
       Value<String?> description,
       Value<bool> primaryCalendar,
@@ -18447,6 +34059,28 @@ final class $$CalendarSourcesTableReferences
     );
   }
 
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(
+          db.calendarSources.davCollectionId,
+          db.davCollections.id,
+        ),
+      );
+
+  $$DavCollectionsTableProcessedTableManager? get davCollectionId {
+    final $_column = $_itemColumn<String>('dav_collection_id');
+    if ($_column == null) return null;
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davCollectionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
   static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
   _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.calendarEvents,
@@ -18468,28 +34102,22 @@ final class $$CalendarSourcesTableReferences
     );
   }
 
-  static MultiTypedResultKey<$CalendarSyncStatesTable, List<CalendarSyncState>>
-  _calendarSyncStatesRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.calendarSyncStates,
-        aliasName: $_aliasNameGenerator(
-          db.calendarSources.id,
-          db.calendarSyncStates.calendarSourceId,
-        ),
-      );
+  static MultiTypedResultKey<$SyncCursorsTable, List<SyncCursor>>
+  _syncCursorsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.syncCursors,
+    aliasName: $_aliasNameGenerator(
+      db.calendarSources.id,
+      db.syncCursors.projectionSourceId,
+    ),
+  );
 
-  $$CalendarSyncStatesTableProcessedTableManager get calendarSyncStatesRefs {
-    final manager =
-        $$CalendarSyncStatesTableTableManager(
-          $_db,
-          $_db.calendarSyncStates,
-        ).filter(
-          (f) => f.calendarSourceId.id.sqlEquals($_itemColumn<String>('id')!),
+  $$SyncCursorsTableProcessedTableManager get syncCursorsRefs {
+    final manager = $$SyncCursorsTableTableManager($_db, $_db.syncCursors)
+        .filter(
+          (f) => f.projectionSourceId.id.sqlEquals($_itemColumn<String>('id')!),
         );
 
-    final cache = $_typedResult.readTableOrNull(
-      _calendarSyncStatesRefsTable($_db),
-    );
+    final cache = $_typedResult.readTableOrNull(_syncCursorsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -18618,6 +34246,29 @@ class $$CalendarSourcesTableFilterComposer
     return composer;
   }
 
+  $$DavCollectionsTableFilterComposer get davCollectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<bool> calendarEventsRefs(
     Expression<bool> Function($$CalendarEventsTableFilterComposer f) f,
   ) {
@@ -18643,22 +34294,22 @@ class $$CalendarSourcesTableFilterComposer
     return f(composer);
   }
 
-  Expression<bool> calendarSyncStatesRefs(
-    Expression<bool> Function($$CalendarSyncStatesTableFilterComposer f) f,
+  Expression<bool> syncCursorsRefs(
+    Expression<bool> Function($$SyncCursorsTableFilterComposer f) f,
   ) {
-    final $$CalendarSyncStatesTableFilterComposer composer = $composerBuilder(
+    final $$SyncCursorsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.calendarSyncStates,
-      getReferencedColumn: (t) => t.calendarSourceId,
+      referencedTable: $db.syncCursors,
+      getReferencedColumn: (t) => t.projectionSourceId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$CalendarSyncStatesTableFilterComposer(
+          }) => $$SyncCursorsTableFilterComposer(
             $db: $db,
-            $table: $db.calendarSyncStates,
+            $table: $db.syncCursors,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -18790,6 +34441,29 @@ class $$CalendarSourcesTableOrderingComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableOrderingComposer get davCollectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$CalendarSourcesTableAnnotationComposer
@@ -18894,6 +34568,29 @@ class $$CalendarSourcesTableAnnotationComposer
     return composer;
   }
 
+  $$DavCollectionsTableAnnotationComposer get davCollectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<T> calendarEventsRefs<T extends Object>(
     Expression<T> Function($$CalendarEventsTableAnnotationComposer a) f,
   ) {
@@ -18919,29 +34616,28 @@ class $$CalendarSourcesTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> calendarSyncStatesRefs<T extends Object>(
-    Expression<T> Function($$CalendarSyncStatesTableAnnotationComposer a) f,
+  Expression<T> syncCursorsRefs<T extends Object>(
+    Expression<T> Function($$SyncCursorsTableAnnotationComposer a) f,
   ) {
-    final $$CalendarSyncStatesTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.calendarSyncStates,
-          getReferencedColumn: (t) => t.calendarSourceId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
+    final $$SyncCursorsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.syncCursors,
+      getReferencedColumn: (t) => t.projectionSourceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SyncCursorsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.syncCursors,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
                 $removeJoinBuilderFromRootComposer,
-              }) => $$CalendarSyncStatesTableAnnotationComposer(
-                $db: $db,
-                $table: $db.calendarSyncStates,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
+          ),
+    );
     return f(composer);
   }
 }
@@ -18961,8 +34657,9 @@ class $$CalendarSourcesTableTableManager
           CalendarSource,
           PrefetchHooks Function({
             bool accountId,
+            bool davCollectionId,
             bool calendarEventsRefs,
-            bool calendarSyncStatesRefs,
+            bool syncCursorsRefs,
           })
         > {
   $$CalendarSourcesTableTableManager(
@@ -18984,6 +34681,7 @@ class $$CalendarSourcesTableTableManager
                 Value<String> accountId = const Value.absent(),
                 Value<String> provider = const Value.absent(),
                 Value<String> providerCalendarId = const Value.absent(),
+                Value<String?> davCollectionId = const Value.absent(),
                 Value<String> summary = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<bool> primaryCalendar = const Value.absent(),
@@ -19005,6 +34703,7 @@ class $$CalendarSourcesTableTableManager
                 accountId: accountId,
                 provider: provider,
                 providerCalendarId: providerCalendarId,
+                davCollectionId: davCollectionId,
                 summary: summary,
                 description: description,
                 primaryCalendar: primaryCalendar,
@@ -19028,6 +34727,7 @@ class $$CalendarSourcesTableTableManager
                 required String accountId,
                 required String provider,
                 required String providerCalendarId,
+                Value<String?> davCollectionId = const Value.absent(),
                 required String summary,
                 Value<String?> description = const Value.absent(),
                 Value<bool> primaryCalendar = const Value.absent(),
@@ -19049,6 +34749,7 @@ class $$CalendarSourcesTableTableManager
                 accountId: accountId,
                 provider: provider,
                 providerCalendarId: providerCalendarId,
+                davCollectionId: davCollectionId,
                 summary: summary,
                 description: description,
                 primaryCalendar: primaryCalendar,
@@ -19077,14 +34778,15 @@ class $$CalendarSourcesTableTableManager
           prefetchHooksCallback:
               ({
                 accountId = false,
+                davCollectionId = false,
                 calendarEventsRefs = false,
-                calendarSyncStatesRefs = false,
+                syncCursorsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (calendarEventsRefs) db.calendarEvents,
-                    if (calendarSyncStatesRefs) db.calendarSyncStates,
+                    if (syncCursorsRefs) db.syncCursors,
                   ],
                   addJoins:
                       <
@@ -19117,6 +34819,21 @@ class $$CalendarSourcesTableTableManager
                                   )
                                   as T;
                         }
+                        if (davCollectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davCollectionId,
+                                    referencedTable:
+                                        $$CalendarSourcesTableReferences
+                                            ._davCollectionIdTable(db),
+                                    referencedColumn:
+                                        $$CalendarSourcesTableReferences
+                                            ._davCollectionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
                         return state;
                       },
@@ -19143,24 +34860,24 @@ class $$CalendarSourcesTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (calendarSyncStatesRefs)
+                      if (syncCursorsRefs)
                         await $_getPrefetchedData<
                           CalendarSource,
                           $CalendarSourcesTable,
-                          CalendarSyncState
+                          SyncCursor
                         >(
                           currentTable: table,
                           referencedTable: $$CalendarSourcesTableReferences
-                              ._calendarSyncStatesRefsTable(db),
+                              ._syncCursorsRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$CalendarSourcesTableReferences(
                                 db,
                                 table,
                                 p0,
-                              ).calendarSyncStatesRefs,
+                              ).syncCursorsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.calendarSourceId == item.id,
+                                (e) => e.projectionSourceId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -19186,8 +34903,9 @@ typedef $$CalendarSourcesTableProcessedTableManager =
       CalendarSource,
       PrefetchHooks Function({
         bool accountId,
+        bool davCollectionId,
         bool calendarEventsRefs,
-        bool calendarSyncStatesRefs,
+        bool syncCursorsRefs,
       })
     >;
 typedef $$CalendarEventsTableCreateCompanionBuilder =
@@ -19198,6 +34916,13 @@ typedef $$CalendarEventsTableCreateCompanionBuilder =
       required String provider,
       required String providerCalendarId,
       required String providerEventId,
+      Value<String?> davCollectionId,
+      Value<String?> davObjectId,
+      Value<String?> davComponentId,
+      Value<String?> icalUid,
+      Value<String?> recurrenceIdKey,
+      Value<String?> occurrenceKey,
+      Value<int> projectionVersion,
       Value<String?> providerRecurringEventId,
       Value<String?> providerOriginalStartKey,
       Value<String?> etagOrChangeKey,
@@ -19245,6 +34970,13 @@ typedef $$CalendarEventsTableUpdateCompanionBuilder =
       Value<String> provider,
       Value<String> providerCalendarId,
       Value<String> providerEventId,
+      Value<String?> davCollectionId,
+      Value<String?> davObjectId,
+      Value<String?> davComponentId,
+      Value<String?> icalUid,
+      Value<String?> recurrenceIdKey,
+      Value<String?> occurrenceKey,
+      Value<int> projectionVersion,
       Value<String?> providerRecurringEventId,
       Value<String?> providerOriginalStartKey,
       Value<String?> etagOrChangeKey,
@@ -19328,6 +35060,69 @@ final class $$CalendarEventsTableReferences
       $_db.calendarSources,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_calendarSourceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(
+          db.calendarEvents.davCollectionId,
+          db.davCollections.id,
+        ),
+      );
+
+  $$DavCollectionsTableProcessedTableManager? get davCollectionId {
+    final $_column = $_itemColumn<String>('dav_collection_id');
+    if ($_column == null) return null;
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davCollectionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
+      db.davObjects.createAlias(
+        $_aliasNameGenerator(db.calendarEvents.davObjectId, db.davObjects.id),
+      );
+
+  $$DavObjectsTableProcessedTableManager? get davObjectId {
+    final $_column = $_itemColumn<String>('dav_object_id');
+    if ($_column == null) return null;
+    final manager = $$DavObjectsTableTableManager(
+      $_db,
+      $_db.davObjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davObjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavObjectComponentsTable _davComponentIdTable(_$AppDatabase db) =>
+      db.davObjectComponents.createAlias(
+        $_aliasNameGenerator(
+          db.calendarEvents.davComponentId,
+          db.davObjectComponents.id,
+        ),
+      );
+
+  $$DavObjectComponentsTableProcessedTableManager? get davComponentId {
+    final $_column = $_itemColumn<String>('dav_component_id');
+    if ($_column == null) return null;
+    final manager = $$DavObjectComponentsTableTableManager(
+      $_db,
+      $_db.davObjectComponents,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davComponentIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -19423,6 +35218,26 @@ class $$CalendarEventsTableFilterComposer
 
   ColumnFilters<String> get providerEventId => $composableBuilder(
     column: $table.providerEventId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get icalUid => $composableBuilder(
+    column: $table.icalUid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get occurrenceKey => $composableBuilder(
+    column: $table.occurrenceKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -19657,6 +35472,75 @@ class $$CalendarEventsTableFilterComposer
     return composer;
   }
 
+  $$DavCollectionsTableFilterComposer get davCollectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableFilterComposer get davObjectId {
+    final $$DavObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectComponentsTableFilterComposer get davComponentId {
+    final $$DavObjectComponentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davComponentId,
+      referencedTable: $db.davObjectComponents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectComponentsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjectComponents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<bool> calendarEventAttendeesRefs(
     Expression<bool> Function($$CalendarEventAttendeesTableFilterComposer f) f,
   ) {
@@ -19736,6 +35620,26 @@ class $$CalendarEventsTableOrderingComposer
 
   ColumnOrderings<String> get providerEventId => $composableBuilder(
     column: $table.providerEventId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get icalUid => $composableBuilder(
+    column: $table.icalUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get occurrenceKey => $composableBuilder(
+    column: $table.occurrenceKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -19969,6 +35873,76 @@ class $$CalendarEventsTableOrderingComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableOrderingComposer get davCollectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableOrderingComposer get davObjectId {
+    final $$DavObjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectComponentsTableOrderingComposer get davComponentId {
+    final $$DavObjectComponentsTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.davComponentId,
+          referencedTable: $db.davObjectComponents,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavObjectComponentsTableOrderingComposer(
+                $db: $db,
+                $table: $db.davObjectComponents,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
 }
 
 class $$CalendarEventsTableAnnotationComposer
@@ -19993,6 +35967,24 @@ class $$CalendarEventsTableAnnotationComposer
 
   GeneratedColumn<String> get providerEventId => $composableBuilder(
     column: $table.providerEventId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get icalUid =>
+      $composableBuilder(column: $table.icalUid, builder: (column) => column);
+
+  GeneratedColumn<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get occurrenceKey => $composableBuilder(
+    column: $table.occurrenceKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
     builder: (column) => column,
   );
 
@@ -20203,6 +36195,76 @@ class $$CalendarEventsTableAnnotationComposer
     return composer;
   }
 
+  $$DavCollectionsTableAnnotationComposer get davCollectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableAnnotationComposer get davObjectId {
+    final $$DavObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectComponentsTableAnnotationComposer get davComponentId {
+    final $$DavObjectComponentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.davComponentId,
+          referencedTable: $db.davObjectComponents,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavObjectComponentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davObjectComponents,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
   Expression<T> calendarEventAttendeesRefs<T extends Object>(
     Expression<T> Function($$CalendarEventAttendeesTableAnnotationComposer a) f,
   ) {
@@ -20272,6 +36334,9 @@ class $$CalendarEventsTableTableManager
           PrefetchHooks Function({
             bool accountId,
             bool calendarSourceId,
+            bool davCollectionId,
+            bool davObjectId,
+            bool davComponentId,
             bool calendarEventAttendeesRefs,
             bool calendarEventRemindersRefs,
           })
@@ -20297,6 +36362,13 @@ class $$CalendarEventsTableTableManager
                 Value<String> provider = const Value.absent(),
                 Value<String> providerCalendarId = const Value.absent(),
                 Value<String> providerEventId = const Value.absent(),
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String?> davObjectId = const Value.absent(),
+                Value<String?> davComponentId = const Value.absent(),
+                Value<String?> icalUid = const Value.absent(),
+                Value<String?> recurrenceIdKey = const Value.absent(),
+                Value<String?> occurrenceKey = const Value.absent(),
+                Value<int> projectionVersion = const Value.absent(),
                 Value<String?> providerRecurringEventId = const Value.absent(),
                 Value<String?> providerOriginalStartKey = const Value.absent(),
                 Value<String?> etagOrChangeKey = const Value.absent(),
@@ -20342,6 +36414,13 @@ class $$CalendarEventsTableTableManager
                 provider: provider,
                 providerCalendarId: providerCalendarId,
                 providerEventId: providerEventId,
+                davCollectionId: davCollectionId,
+                davObjectId: davObjectId,
+                davComponentId: davComponentId,
+                icalUid: icalUid,
+                recurrenceIdKey: recurrenceIdKey,
+                occurrenceKey: occurrenceKey,
+                projectionVersion: projectionVersion,
                 providerRecurringEventId: providerRecurringEventId,
                 providerOriginalStartKey: providerOriginalStartKey,
                 etagOrChangeKey: etagOrChangeKey,
@@ -20389,6 +36468,13 @@ class $$CalendarEventsTableTableManager
                 required String provider,
                 required String providerCalendarId,
                 required String providerEventId,
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String?> davObjectId = const Value.absent(),
+                Value<String?> davComponentId = const Value.absent(),
+                Value<String?> icalUid = const Value.absent(),
+                Value<String?> recurrenceIdKey = const Value.absent(),
+                Value<String?> occurrenceKey = const Value.absent(),
+                Value<int> projectionVersion = const Value.absent(),
                 Value<String?> providerRecurringEventId = const Value.absent(),
                 Value<String?> providerOriginalStartKey = const Value.absent(),
                 Value<String?> etagOrChangeKey = const Value.absent(),
@@ -20434,6 +36520,13 @@ class $$CalendarEventsTableTableManager
                 provider: provider,
                 providerCalendarId: providerCalendarId,
                 providerEventId: providerEventId,
+                davCollectionId: davCollectionId,
+                davObjectId: davObjectId,
+                davComponentId: davComponentId,
+                icalUid: icalUid,
+                recurrenceIdKey: recurrenceIdKey,
+                occurrenceKey: occurrenceKey,
+                projectionVersion: projectionVersion,
                 providerRecurringEventId: providerRecurringEventId,
                 providerOriginalStartKey: providerOriginalStartKey,
                 etagOrChangeKey: etagOrChangeKey,
@@ -20485,6 +36578,9 @@ class $$CalendarEventsTableTableManager
               ({
                 accountId = false,
                 calendarSourceId = false,
+                davCollectionId = false,
+                davObjectId = false,
+                davComponentId = false,
                 calendarEventAttendeesRefs = false,
                 calendarEventRemindersRefs = false,
               }) {
@@ -20536,6 +36632,51 @@ class $$CalendarEventsTableTableManager
                                     referencedColumn:
                                         $$CalendarEventsTableReferences
                                             ._calendarSourceIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (davCollectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davCollectionId,
+                                    referencedTable:
+                                        $$CalendarEventsTableReferences
+                                            ._davCollectionIdTable(db),
+                                    referencedColumn:
+                                        $$CalendarEventsTableReferences
+                                            ._davCollectionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (davObjectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davObjectId,
+                                    referencedTable:
+                                        $$CalendarEventsTableReferences
+                                            ._davObjectIdTable(db),
+                                    referencedColumn:
+                                        $$CalendarEventsTableReferences
+                                            ._davObjectIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (davComponentId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davComponentId,
+                                    referencedTable:
+                                        $$CalendarEventsTableReferences
+                                            ._davComponentIdTable(db),
+                                    referencedColumn:
+                                        $$CalendarEventsTableReferences
+                                            ._davComponentIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -20610,6 +36751,9 @@ typedef $$CalendarEventsTableProcessedTableManager =
       PrefetchHooks Function({
         bool accountId,
         bool calendarSourceId,
+        bool davCollectionId,
+        bool davObjectId,
+        bool davComponentId,
         bool calendarEventAttendeesRefs,
         bool calendarEventRemindersRefs,
       })
@@ -21443,57 +37587,58 @@ typedef $$CalendarEventRemindersTableProcessedTableManager =
       CalendarEventReminder,
       PrefetchHooks Function({bool calendarEventId})
     >;
-typedef $$CalendarSyncStatesTableCreateCompanionBuilder =
-    CalendarSyncStatesCompanion Function({
+typedef $$SyncCursorsTableCreateCompanionBuilder =
+    SyncCursorsCompanion Function({
       required String id,
       required String accountId,
-      Value<String?> calendarSourceId,
+      Value<String?> projectionSourceId,
       required String provider,
-      required String syncKind,
+      required String transport,
+      required String syncScopeKind,
+      Value<String?> davCollectionId,
+      required String cursorKind,
+      required String cursorValue,
       Value<String?> rangeStart,
       Value<String?> rangeEnd,
-      Value<String?> googleSyncToken,
-      Value<String?> microsoftDeltaLink,
-      Value<int?> lastFullSyncAt,
-      Value<int?> lastIncrementalSyncAt,
-      Value<String?> lastError,
-      Value<String?> rawStateJson,
+      Value<int> baselineGeneration,
+      Value<String?> inProgressCursor,
+      Value<int?> inProgressGeneration,
+      Value<int?> lastCompleteSyncAt,
+      Value<String?> lastFailureCode,
+      Value<int> stateSchemaVersion,
+      Value<String?> stateJson,
       Value<int> rowid,
     });
-typedef $$CalendarSyncStatesTableUpdateCompanionBuilder =
-    CalendarSyncStatesCompanion Function({
+typedef $$SyncCursorsTableUpdateCompanionBuilder =
+    SyncCursorsCompanion Function({
       Value<String> id,
       Value<String> accountId,
-      Value<String?> calendarSourceId,
+      Value<String?> projectionSourceId,
       Value<String> provider,
-      Value<String> syncKind,
+      Value<String> transport,
+      Value<String> syncScopeKind,
+      Value<String?> davCollectionId,
+      Value<String> cursorKind,
+      Value<String> cursorValue,
       Value<String?> rangeStart,
       Value<String?> rangeEnd,
-      Value<String?> googleSyncToken,
-      Value<String?> microsoftDeltaLink,
-      Value<int?> lastFullSyncAt,
-      Value<int?> lastIncrementalSyncAt,
-      Value<String?> lastError,
-      Value<String?> rawStateJson,
+      Value<int> baselineGeneration,
+      Value<String?> inProgressCursor,
+      Value<int?> inProgressGeneration,
+      Value<int?> lastCompleteSyncAt,
+      Value<String?> lastFailureCode,
+      Value<int> stateSchemaVersion,
+      Value<String?> stateJson,
       Value<int> rowid,
     });
 
-final class $$CalendarSyncStatesTableReferences
-    extends
-        BaseReferences<
-          _$AppDatabase,
-          $CalendarSyncStatesTable,
-          CalendarSyncState
-        > {
-  $$CalendarSyncStatesTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
+final class $$SyncCursorsTableReferences
+    extends BaseReferences<_$AppDatabase, $SyncCursorsTable, SyncCursor> {
+  $$SyncCursorsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
       db.accounts.createAlias(
-        $_aliasNameGenerator(db.calendarSyncStates.accountId, db.accounts.id),
+        $_aliasNameGenerator(db.syncCursors.accountId, db.accounts.id),
       );
 
   $$AccountsTableProcessedTableManager get accountId {
@@ -21510,22 +37655,44 @@ final class $$CalendarSyncStatesTableReferences
     );
   }
 
-  static $CalendarSourcesTable _calendarSourceIdTable(_$AppDatabase db) =>
+  static $CalendarSourcesTable _projectionSourceIdTable(_$AppDatabase db) =>
       db.calendarSources.createAlias(
         $_aliasNameGenerator(
-          db.calendarSyncStates.calendarSourceId,
+          db.syncCursors.projectionSourceId,
           db.calendarSources.id,
         ),
       );
 
-  $$CalendarSourcesTableProcessedTableManager? get calendarSourceId {
-    final $_column = $_itemColumn<String>('calendar_source_id');
+  $$CalendarSourcesTableProcessedTableManager? get projectionSourceId {
+    final $_column = $_itemColumn<String>('projection_source_id');
     if ($_column == null) return null;
     final manager = $$CalendarSourcesTableTableManager(
       $_db,
       $_db.calendarSources,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_calendarSourceIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_projectionSourceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
+      db.davCollections.createAlias(
+        $_aliasNameGenerator(
+          db.syncCursors.davCollectionId,
+          db.davCollections.id,
+        ),
+      );
+
+  $$DavCollectionsTableProcessedTableManager? get davCollectionId {
+    final $_column = $_itemColumn<String>('dav_collection_id');
+    if ($_column == null) return null;
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davCollectionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -21533,9 +37700,9 @@ final class $$CalendarSyncStatesTableReferences
   }
 }
 
-class $$CalendarSyncStatesTableFilterComposer
-    extends Composer<_$AppDatabase, $CalendarSyncStatesTable> {
-  $$CalendarSyncStatesTableFilterComposer({
+class $$SyncCursorsTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncCursorsTable> {
+  $$SyncCursorsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21552,8 +37719,23 @@ class $$CalendarSyncStatesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get syncKind => $composableBuilder(
-    column: $table.syncKind,
+  ColumnFilters<String> get transport => $composableBuilder(
+    column: $table.transport,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncScopeKind => $composableBuilder(
+    column: $table.syncScopeKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cursorKind => $composableBuilder(
+    column: $table.cursorKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cursorValue => $composableBuilder(
+    column: $table.cursorValue,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -21567,33 +37749,38 @@ class $$CalendarSyncStatesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get googleSyncToken => $composableBuilder(
-    column: $table.googleSyncToken,
+  ColumnFilters<int> get baselineGeneration => $composableBuilder(
+    column: $table.baselineGeneration,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get microsoftDeltaLink => $composableBuilder(
-    column: $table.microsoftDeltaLink,
+  ColumnFilters<String> get inProgressCursor => $composableBuilder(
+    column: $table.inProgressCursor,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get lastFullSyncAt => $composableBuilder(
-    column: $table.lastFullSyncAt,
+  ColumnFilters<int> get inProgressGeneration => $composableBuilder(
+    column: $table.inProgressGeneration,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get lastIncrementalSyncAt => $composableBuilder(
-    column: $table.lastIncrementalSyncAt,
+  ColumnFilters<int> get lastCompleteSyncAt => $composableBuilder(
+    column: $table.lastCompleteSyncAt,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get lastError => $composableBuilder(
-    column: $table.lastError,
+  ColumnFilters<String> get lastFailureCode => $composableBuilder(
+    column: $table.lastFailureCode,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get rawStateJson => $composableBuilder(
-    column: $table.rawStateJson,
+  ColumnFilters<int> get stateSchemaVersion => $composableBuilder(
+    column: $table.stateSchemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stateJson => $composableBuilder(
+    column: $table.stateJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -21620,10 +37807,10 @@ class $$CalendarSyncStatesTableFilterComposer
     return composer;
   }
 
-  $$CalendarSourcesTableFilterComposer get calendarSourceId {
+  $$CalendarSourcesTableFilterComposer get projectionSourceId {
     final $$CalendarSourcesTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.calendarSourceId,
+      getCurrentColumn: (t) => t.projectionSourceId,
       referencedTable: $db.calendarSources,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -21642,11 +37829,34 @@ class $$CalendarSyncStatesTableFilterComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableFilterComposer get davCollectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
-class $$CalendarSyncStatesTableOrderingComposer
-    extends Composer<_$AppDatabase, $CalendarSyncStatesTable> {
-  $$CalendarSyncStatesTableOrderingComposer({
+class $$SyncCursorsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncCursorsTable> {
+  $$SyncCursorsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21663,8 +37873,23 @@ class $$CalendarSyncStatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get syncKind => $composableBuilder(
-    column: $table.syncKind,
+  ColumnOrderings<String> get transport => $composableBuilder(
+    column: $table.transport,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get syncScopeKind => $composableBuilder(
+    column: $table.syncScopeKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cursorKind => $composableBuilder(
+    column: $table.cursorKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cursorValue => $composableBuilder(
+    column: $table.cursorValue,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -21678,33 +37903,38 @@ class $$CalendarSyncStatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get googleSyncToken => $composableBuilder(
-    column: $table.googleSyncToken,
+  ColumnOrderings<int> get baselineGeneration => $composableBuilder(
+    column: $table.baselineGeneration,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get microsoftDeltaLink => $composableBuilder(
-    column: $table.microsoftDeltaLink,
+  ColumnOrderings<String> get inProgressCursor => $composableBuilder(
+    column: $table.inProgressCursor,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get lastFullSyncAt => $composableBuilder(
-    column: $table.lastFullSyncAt,
+  ColumnOrderings<int> get inProgressGeneration => $composableBuilder(
+    column: $table.inProgressGeneration,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get lastIncrementalSyncAt => $composableBuilder(
-    column: $table.lastIncrementalSyncAt,
+  ColumnOrderings<int> get lastCompleteSyncAt => $composableBuilder(
+    column: $table.lastCompleteSyncAt,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get lastError => $composableBuilder(
-    column: $table.lastError,
+  ColumnOrderings<String> get lastFailureCode => $composableBuilder(
+    column: $table.lastFailureCode,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get rawStateJson => $composableBuilder(
-    column: $table.rawStateJson,
+  ColumnOrderings<int> get stateSchemaVersion => $composableBuilder(
+    column: $table.stateSchemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stateJson => $composableBuilder(
+    column: $table.stateJson,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -21731,10 +37961,10 @@ class $$CalendarSyncStatesTableOrderingComposer
     return composer;
   }
 
-  $$CalendarSourcesTableOrderingComposer get calendarSourceId {
+  $$CalendarSourcesTableOrderingComposer get projectionSourceId {
     final $$CalendarSourcesTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.calendarSourceId,
+      getCurrentColumn: (t) => t.projectionSourceId,
       referencedTable: $db.calendarSources,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -21753,11 +37983,34 @@ class $$CalendarSyncStatesTableOrderingComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableOrderingComposer get davCollectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
-class $$CalendarSyncStatesTableAnnotationComposer
-    extends Composer<_$AppDatabase, $CalendarSyncStatesTable> {
-  $$CalendarSyncStatesTableAnnotationComposer({
+class $$SyncCursorsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncCursorsTable> {
+  $$SyncCursorsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21770,8 +38023,23 @@ class $$CalendarSyncStatesTableAnnotationComposer
   GeneratedColumn<String> get provider =>
       $composableBuilder(column: $table.provider, builder: (column) => column);
 
-  GeneratedColumn<String> get syncKind =>
-      $composableBuilder(column: $table.syncKind, builder: (column) => column);
+  GeneratedColumn<String> get transport =>
+      $composableBuilder(column: $table.transport, builder: (column) => column);
+
+  GeneratedColumn<String> get syncScopeKind => $composableBuilder(
+    column: $table.syncScopeKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cursorKind => $composableBuilder(
+    column: $table.cursorKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cursorValue => $composableBuilder(
+    column: $table.cursorValue,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get rangeStart => $composableBuilder(
     column: $table.rangeStart,
@@ -21781,33 +38049,38 @@ class $$CalendarSyncStatesTableAnnotationComposer
   GeneratedColumn<String> get rangeEnd =>
       $composableBuilder(column: $table.rangeEnd, builder: (column) => column);
 
-  GeneratedColumn<String> get googleSyncToken => $composableBuilder(
-    column: $table.googleSyncToken,
+  GeneratedColumn<int> get baselineGeneration => $composableBuilder(
+    column: $table.baselineGeneration,
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get microsoftDeltaLink => $composableBuilder(
-    column: $table.microsoftDeltaLink,
+  GeneratedColumn<String> get inProgressCursor => $composableBuilder(
+    column: $table.inProgressCursor,
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get lastFullSyncAt => $composableBuilder(
-    column: $table.lastFullSyncAt,
+  GeneratedColumn<int> get inProgressGeneration => $composableBuilder(
+    column: $table.inProgressGeneration,
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get lastIncrementalSyncAt => $composableBuilder(
-    column: $table.lastIncrementalSyncAt,
+  GeneratedColumn<int> get lastCompleteSyncAt => $composableBuilder(
+    column: $table.lastCompleteSyncAt,
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get lastError =>
-      $composableBuilder(column: $table.lastError, builder: (column) => column);
-
-  GeneratedColumn<String> get rawStateJson => $composableBuilder(
-    column: $table.rawStateJson,
+  GeneratedColumn<String> get lastFailureCode => $composableBuilder(
+    column: $table.lastFailureCode,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get stateSchemaVersion => $composableBuilder(
+    column: $table.stateSchemaVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get stateJson =>
+      $composableBuilder(column: $table.stateJson, builder: (column) => column);
 
   $$AccountsTableAnnotationComposer get accountId {
     final $$AccountsTableAnnotationComposer composer = $composerBuilder(
@@ -21832,10 +38105,10 @@ class $$CalendarSyncStatesTableAnnotationComposer
     return composer;
   }
 
-  $$CalendarSourcesTableAnnotationComposer get calendarSourceId {
+  $$CalendarSourcesTableAnnotationComposer get projectionSourceId {
     final $$CalendarSourcesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.calendarSourceId,
+      getCurrentColumn: (t) => t.projectionSourceId,
       referencedTable: $db.calendarSources,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -21854,113 +38127,159 @@ class $$CalendarSyncStatesTableAnnotationComposer
     );
     return composer;
   }
+
+  $$DavCollectionsTableAnnotationComposer get davCollectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davCollectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
-class $$CalendarSyncStatesTableTableManager
+class $$SyncCursorsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $CalendarSyncStatesTable,
-          CalendarSyncState,
-          $$CalendarSyncStatesTableFilterComposer,
-          $$CalendarSyncStatesTableOrderingComposer,
-          $$CalendarSyncStatesTableAnnotationComposer,
-          $$CalendarSyncStatesTableCreateCompanionBuilder,
-          $$CalendarSyncStatesTableUpdateCompanionBuilder,
-          (CalendarSyncState, $$CalendarSyncStatesTableReferences),
-          CalendarSyncState,
-          PrefetchHooks Function({bool accountId, bool calendarSourceId})
+          $SyncCursorsTable,
+          SyncCursor,
+          $$SyncCursorsTableFilterComposer,
+          $$SyncCursorsTableOrderingComposer,
+          $$SyncCursorsTableAnnotationComposer,
+          $$SyncCursorsTableCreateCompanionBuilder,
+          $$SyncCursorsTableUpdateCompanionBuilder,
+          (SyncCursor, $$SyncCursorsTableReferences),
+          SyncCursor,
+          PrefetchHooks Function({
+            bool accountId,
+            bool projectionSourceId,
+            bool davCollectionId,
+          })
         > {
-  $$CalendarSyncStatesTableTableManager(
-    _$AppDatabase db,
-    $CalendarSyncStatesTable table,
-  ) : super(
+  $$SyncCursorsTableTableManager(_$AppDatabase db, $SyncCursorsTable table)
+    : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$CalendarSyncStatesTableFilterComposer($db: db, $table: table),
+              $$SyncCursorsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$CalendarSyncStatesTableOrderingComposer($db: db, $table: table),
+              $$SyncCursorsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$CalendarSyncStatesTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
+              $$SyncCursorsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> accountId = const Value.absent(),
-                Value<String?> calendarSourceId = const Value.absent(),
+                Value<String?> projectionSourceId = const Value.absent(),
                 Value<String> provider = const Value.absent(),
-                Value<String> syncKind = const Value.absent(),
+                Value<String> transport = const Value.absent(),
+                Value<String> syncScopeKind = const Value.absent(),
+                Value<String?> davCollectionId = const Value.absent(),
+                Value<String> cursorKind = const Value.absent(),
+                Value<String> cursorValue = const Value.absent(),
                 Value<String?> rangeStart = const Value.absent(),
                 Value<String?> rangeEnd = const Value.absent(),
-                Value<String?> googleSyncToken = const Value.absent(),
-                Value<String?> microsoftDeltaLink = const Value.absent(),
-                Value<int?> lastFullSyncAt = const Value.absent(),
-                Value<int?> lastIncrementalSyncAt = const Value.absent(),
-                Value<String?> lastError = const Value.absent(),
-                Value<String?> rawStateJson = const Value.absent(),
+                Value<int> baselineGeneration = const Value.absent(),
+                Value<String?> inProgressCursor = const Value.absent(),
+                Value<int?> inProgressGeneration = const Value.absent(),
+                Value<int?> lastCompleteSyncAt = const Value.absent(),
+                Value<String?> lastFailureCode = const Value.absent(),
+                Value<int> stateSchemaVersion = const Value.absent(),
+                Value<String?> stateJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => CalendarSyncStatesCompanion(
+              }) => SyncCursorsCompanion(
                 id: id,
                 accountId: accountId,
-                calendarSourceId: calendarSourceId,
+                projectionSourceId: projectionSourceId,
                 provider: provider,
-                syncKind: syncKind,
+                transport: transport,
+                syncScopeKind: syncScopeKind,
+                davCollectionId: davCollectionId,
+                cursorKind: cursorKind,
+                cursorValue: cursorValue,
                 rangeStart: rangeStart,
                 rangeEnd: rangeEnd,
-                googleSyncToken: googleSyncToken,
-                microsoftDeltaLink: microsoftDeltaLink,
-                lastFullSyncAt: lastFullSyncAt,
-                lastIncrementalSyncAt: lastIncrementalSyncAt,
-                lastError: lastError,
-                rawStateJson: rawStateJson,
+                baselineGeneration: baselineGeneration,
+                inProgressCursor: inProgressCursor,
+                inProgressGeneration: inProgressGeneration,
+                lastCompleteSyncAt: lastCompleteSyncAt,
+                lastFailureCode: lastFailureCode,
+                stateSchemaVersion: stateSchemaVersion,
+                stateJson: stateJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String id,
                 required String accountId,
-                Value<String?> calendarSourceId = const Value.absent(),
+                Value<String?> projectionSourceId = const Value.absent(),
                 required String provider,
-                required String syncKind,
+                required String transport,
+                required String syncScopeKind,
+                Value<String?> davCollectionId = const Value.absent(),
+                required String cursorKind,
+                required String cursorValue,
                 Value<String?> rangeStart = const Value.absent(),
                 Value<String?> rangeEnd = const Value.absent(),
-                Value<String?> googleSyncToken = const Value.absent(),
-                Value<String?> microsoftDeltaLink = const Value.absent(),
-                Value<int?> lastFullSyncAt = const Value.absent(),
-                Value<int?> lastIncrementalSyncAt = const Value.absent(),
-                Value<String?> lastError = const Value.absent(),
-                Value<String?> rawStateJson = const Value.absent(),
+                Value<int> baselineGeneration = const Value.absent(),
+                Value<String?> inProgressCursor = const Value.absent(),
+                Value<int?> inProgressGeneration = const Value.absent(),
+                Value<int?> lastCompleteSyncAt = const Value.absent(),
+                Value<String?> lastFailureCode = const Value.absent(),
+                Value<int> stateSchemaVersion = const Value.absent(),
+                Value<String?> stateJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => CalendarSyncStatesCompanion.insert(
+              }) => SyncCursorsCompanion.insert(
                 id: id,
                 accountId: accountId,
-                calendarSourceId: calendarSourceId,
+                projectionSourceId: projectionSourceId,
                 provider: provider,
-                syncKind: syncKind,
+                transport: transport,
+                syncScopeKind: syncScopeKind,
+                davCollectionId: davCollectionId,
+                cursorKind: cursorKind,
+                cursorValue: cursorValue,
                 rangeStart: rangeStart,
                 rangeEnd: rangeEnd,
-                googleSyncToken: googleSyncToken,
-                microsoftDeltaLink: microsoftDeltaLink,
-                lastFullSyncAt: lastFullSyncAt,
-                lastIncrementalSyncAt: lastIncrementalSyncAt,
-                lastError: lastError,
-                rawStateJson: rawStateJson,
+                baselineGeneration: baselineGeneration,
+                inProgressCursor: inProgressCursor,
+                inProgressGeneration: inProgressGeneration,
+                lastCompleteSyncAt: lastCompleteSyncAt,
+                lastFailureCode: lastFailureCode,
+                stateSchemaVersion: stateSchemaVersion,
+                stateJson: stateJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$CalendarSyncStatesTableReferences(db, table, e),
+                  $$SyncCursorsTableReferences(db, table, e),
                 ),
               )
               .toList(),
           prefetchHooksCallback:
-              ({accountId = false, calendarSourceId = false}) {
+              ({
+                accountId = false,
+                projectionSourceId = false,
+                davCollectionId = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [],
@@ -21986,26 +38305,41 @@ class $$CalendarSyncStatesTableTableManager
                                     currentTable: table,
                                     currentColumn: table.accountId,
                                     referencedTable:
-                                        $$CalendarSyncStatesTableReferences
+                                        $$SyncCursorsTableReferences
                                             ._accountIdTable(db),
                                     referencedColumn:
-                                        $$CalendarSyncStatesTableReferences
+                                        $$SyncCursorsTableReferences
                                             ._accountIdTable(db)
                                             .id,
                                   )
                                   as T;
                         }
-                        if (calendarSourceId) {
+                        if (projectionSourceId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.calendarSourceId,
+                                    currentColumn: table.projectionSourceId,
                                     referencedTable:
-                                        $$CalendarSyncStatesTableReferences
-                                            ._calendarSourceIdTable(db),
+                                        $$SyncCursorsTableReferences
+                                            ._projectionSourceIdTable(db),
                                     referencedColumn:
-                                        $$CalendarSyncStatesTableReferences
-                                            ._calendarSourceIdTable(db)
+                                        $$SyncCursorsTableReferences
+                                            ._projectionSourceIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (davCollectionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.davCollectionId,
+                                    referencedTable:
+                                        $$SyncCursorsTableReferences
+                                            ._davCollectionIdTable(db),
+                                    referencedColumn:
+                                        $$SyncCursorsTableReferences
+                                            ._davCollectionIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -22022,19 +38356,23 @@ class $$CalendarSyncStatesTableTableManager
       );
 }
 
-typedef $$CalendarSyncStatesTableProcessedTableManager =
+typedef $$SyncCursorsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $CalendarSyncStatesTable,
-      CalendarSyncState,
-      $$CalendarSyncStatesTableFilterComposer,
-      $$CalendarSyncStatesTableOrderingComposer,
-      $$CalendarSyncStatesTableAnnotationComposer,
-      $$CalendarSyncStatesTableCreateCompanionBuilder,
-      $$CalendarSyncStatesTableUpdateCompanionBuilder,
-      (CalendarSyncState, $$CalendarSyncStatesTableReferences),
-      CalendarSyncState,
-      PrefetchHooks Function({bool accountId, bool calendarSourceId})
+      $SyncCursorsTable,
+      SyncCursor,
+      $$SyncCursorsTableFilterComposer,
+      $$SyncCursorsTableOrderingComposer,
+      $$SyncCursorsTableAnnotationComposer,
+      $$SyncCursorsTableCreateCompanionBuilder,
+      $$SyncCursorsTableUpdateCompanionBuilder,
+      (SyncCursor, $$SyncCursorsTableReferences),
+      SyncCursor,
+      PrefetchHooks Function({
+        bool accountId,
+        bool projectionSourceId,
+        bool davCollectionId,
+      })
     >;
 typedef $$CalendarColorsTableCreateCompanionBuilder =
     CalendarColorsCompanion Function({
@@ -23140,6 +39478,16 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$AccountsTableTableManager get accounts =>
       $$AccountsTableTableManager(_db, _db.accounts);
+  $$DavAccountServicesTableTableManager get davAccountServices =>
+      $$DavAccountServicesTableTableManager(_db, _db.davAccountServices);
+  $$DavCollectionsTableTableManager get davCollections =>
+      $$DavCollectionsTableTableManager(_db, _db.davCollections);
+  $$DavObjectsTableTableManager get davObjects =>
+      $$DavObjectsTableTableManager(_db, _db.davObjects);
+  $$DavObjectComponentsTableTableManager get davObjectComponents =>
+      $$DavObjectComponentsTableTableManager(_db, _db.davObjectComponents);
+  $$DavConflictSnapshotsTableTableManager get davConflictSnapshots =>
+      $$DavConflictSnapshotsTableTableManager(_db, _db.davConflictSnapshots);
   $$TaskListsTableTableManager get taskLists =>
       $$TaskListsTableTableManager(_db, _db.taskLists);
   $$TasksTableTableManager get tasks =>
@@ -23162,8 +39510,8 @@ class $AppDatabaseManager {
         _db,
         _db.calendarEventReminders,
       );
-  $$CalendarSyncStatesTableTableManager get calendarSyncStates =>
-      $$CalendarSyncStatesTableTableManager(_db, _db.calendarSyncStates);
+  $$SyncCursorsTableTableManager get syncCursors =>
+      $$SyncCursorsTableTableManager(_db, _db.syncCursors);
   $$CalendarColorsTableTableManager get calendarColors =>
       $$CalendarColorsTableTableManager(_db, _db.calendarColors);
   $$ScheduleItemOverridesTableTableManager get scheduleItemOverrides =>
@@ -23174,6 +39522,7 @@ class $AppDatabaseManager {
 
 mixin _$TaskListsDaoMixin on DatabaseAccessor<AppDatabase> {
   $AccountsTable get accounts => attachedDatabase.accounts;
+  $DavCollectionsTable get davCollections => attachedDatabase.davCollections;
   $TaskListsTable get taskLists => attachedDatabase.taskLists;
   TaskListsDaoManager get managers => TaskListsDaoManager(this);
 }
@@ -23183,13 +39532,22 @@ class TaskListsDaoManager {
   TaskListsDaoManager(this._db);
   $$AccountsTableTableManager get accounts =>
       $$AccountsTableTableManager(_db.attachedDatabase, _db.accounts);
+  $$DavCollectionsTableTableManager get davCollections =>
+      $$DavCollectionsTableTableManager(
+        _db.attachedDatabase,
+        _db.davCollections,
+      );
   $$TaskListsTableTableManager get taskLists =>
       $$TaskListsTableTableManager(_db.attachedDatabase, _db.taskLists);
 }
 
 mixin _$TasksDaoMixin on DatabaseAccessor<AppDatabase> {
   $AccountsTable get accounts => attachedDatabase.accounts;
+  $DavCollectionsTable get davCollections => attachedDatabase.davCollections;
   $TaskListsTable get taskLists => attachedDatabase.taskLists;
+  $DavObjectsTable get davObjects => attachedDatabase.davObjects;
+  $DavObjectComponentsTable get davObjectComponents =>
+      attachedDatabase.davObjectComponents;
   $TasksTable get tasks => attachedDatabase.tasks;
   TasksDaoManager get managers => TasksDaoManager(this);
 }
@@ -23199,14 +39557,30 @@ class TasksDaoManager {
   TasksDaoManager(this._db);
   $$AccountsTableTableManager get accounts =>
       $$AccountsTableTableManager(_db.attachedDatabase, _db.accounts);
+  $$DavCollectionsTableTableManager get davCollections =>
+      $$DavCollectionsTableTableManager(
+        _db.attachedDatabase,
+        _db.davCollections,
+      );
   $$TaskListsTableTableManager get taskLists =>
       $$TaskListsTableTableManager(_db.attachedDatabase, _db.taskLists);
+  $$DavObjectsTableTableManager get davObjects =>
+      $$DavObjectsTableTableManager(_db.attachedDatabase, _db.davObjects);
+  $$DavObjectComponentsTableTableManager get davObjectComponents =>
+      $$DavObjectComponentsTableTableManager(
+        _db.attachedDatabase,
+        _db.davObjectComponents,
+      );
   $$TasksTableTableManager get tasks =>
       $$TasksTableTableManager(_db.attachedDatabase, _db.tasks);
 }
 
 mixin _$PendingOpsDaoMixin on DatabaseAccessor<AppDatabase> {
   $AccountsTable get accounts => attachedDatabase.accounts;
+  $DavCollectionsTable get davCollections => attachedDatabase.davCollections;
+  $DavObjectsTable get davObjects => attachedDatabase.davObjects;
+  $DavConflictSnapshotsTable get davConflictSnapshots =>
+      attachedDatabase.davConflictSnapshots;
   $PendingOpsTable get pendingOps => attachedDatabase.pendingOps;
   PendingOpsDaoManager get managers => PendingOpsDaoManager(this);
 }
@@ -23216,6 +39590,18 @@ class PendingOpsDaoManager {
   PendingOpsDaoManager(this._db);
   $$AccountsTableTableManager get accounts =>
       $$AccountsTableTableManager(_db.attachedDatabase, _db.accounts);
+  $$DavCollectionsTableTableManager get davCollections =>
+      $$DavCollectionsTableTableManager(
+        _db.attachedDatabase,
+        _db.davCollections,
+      );
+  $$DavObjectsTableTableManager get davObjects =>
+      $$DavObjectsTableTableManager(_db.attachedDatabase, _db.davObjects);
+  $$DavConflictSnapshotsTableTableManager get davConflictSnapshots =>
+      $$DavConflictSnapshotsTableTableManager(
+        _db.attachedDatabase,
+        _db.davConflictSnapshots,
+      );
   $$PendingOpsTableTableManager get pendingOps =>
       $$PendingOpsTableTableManager(_db.attachedDatabase, _db.pendingOps);
 }

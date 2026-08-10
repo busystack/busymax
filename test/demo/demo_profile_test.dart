@@ -5,7 +5,7 @@ import 'package:busymax/src/demo/demo_seed.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -75,10 +75,7 @@ void main() {
       isA<DemoOAuthGateway>(),
     );
     expect(container.read(applicationMicrosoftOAuthServiceProvider), isNull);
-    expect(
-      container.read(oAuthTokenStoreProvider),
-      isA<InMemoryOAuthTokenStore>(),
-    );
+    expect(container.read(secretStoreProvider), isA<InMemorySecretStore>());
     expect(
       container.read(
         taskRemoteApiClientForAccountProvider(busyMaxDemoAccountId),

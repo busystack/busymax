@@ -4,8 +4,10 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../db/app_database.dart';
-import '../../../google_tasks/api/google_tasks_api_client.dart';
-import '../../../google_tasks/api/google_tasks_api_models.dart';
+import '../../../dav/mutation/dav_task_list_mutation_service.dart';
+import '../../../providers/busy_provider.dart';
+import '../../tasks/domain/task_remote_client.dart';
+import '../../tasks/domain/task_remote_models.dart';
 
 class TaskListEntity {
   const TaskListEntity({
@@ -20,6 +22,7 @@ class TaskListEntity {
     this.providerListKind,
     this.isOwner,
     this.isShared,
+    this.davCollectionId,
   });
 
   factory TaskListEntity.fromRow(TaskList row) {
@@ -35,6 +38,7 @@ class TaskListEntity {
       providerListKind: row.providerListKind,
       isOwner: row.isOwner,
       isShared: row.isShared,
+      davCollectionId: row.davCollectionId,
     );
   }
 
@@ -49,6 +53,7 @@ class TaskListEntity {
   final String? providerListKind;
   final bool? isOwner;
   final bool? isShared;
+  final String? davCollectionId;
 
   bool get isMicrosoftBuiltIn =>
       providerListKind == 'defaultList' || providerListKind == 'flaggedEmails';
@@ -61,20 +66,23 @@ class TaskListsRepository {
   TaskListsRepository({
     required AppDatabase database,
     required String accountId,
-    GoogleTasksApiClient? apiClient,
+    TaskRemoteClient? apiClient,
+    DavTaskListMutationClient? davMutationClient,
     void Function()? onMutationQueued,
     Uuid uuid = const Uuid(),
     DateTime Function()? nowUtc,
   }) : _database = database,
        _accountId = accountId,
        _apiClient = apiClient,
+       _davMutationClient = davMutationClient,
        _onMutationQueued = onMutationQueued,
        _uuid = uuid,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
   final String _accountId;
-  final GoogleTasksApiClient? _apiClient;
+  final TaskRemoteClient? _apiClient;
+  final DavTaskListMutationClient? _davMutationClient;
   final void Function()? _onMutationQueued;
   final Uuid _uuid;
   final DateTime Function() _nowUtc;
@@ -108,6 +116,10 @@ class TaskListsRepository {
   }
 
   Future<void> createTaskList(String title) async {
+    if (await _usesNextcloudDav()) {
+      await _requiredDavMutationClient().createTaskList(title);
+      return;
+    }
     final now = _now();
     final localId = 'local-tasklist-${_uuid.v4()}';
     await _database.transaction(() async {
@@ -136,6 +148,13 @@ class TaskListsRepository {
   Future<void> renameTaskList(String id, String title) async {
     final now = _now();
     final baseline = await _baselineRow(id);
+    if (baseline?.davCollectionId != null) {
+      await _requiredDavMutationClient().renameTaskList(
+        baseline!.davCollectionId!,
+        title,
+      );
+      return;
+    }
     await _updateLocalList(
       id,
       TaskListsCompanion(
@@ -159,6 +178,18 @@ class TaskListsRepository {
     final now = _now();
     final baseline = await _baselineRow(id);
     final title = replacement.fields['title']?.toString();
+    if (baseline?.davCollectionId != null) {
+      if (title == null) {
+        throw ArgumentError(
+          'A complete DAV task-list update must include its title.',
+        );
+      }
+      await _requiredDavMutationClient().renameTaskList(
+        baseline!.davCollectionId!,
+        title,
+      );
+      return;
+    }
     if (title != null) {
       await _updateLocalList(
         id,
@@ -183,6 +214,12 @@ class TaskListsRepository {
   Future<void> deleteTaskList(String id) async {
     final now = _now();
     final baseline = await _baselineRow(id);
+    if (baseline?.davCollectionId != null) {
+      await _requiredDavMutationClient().deleteTaskList(
+        baseline!.davCollectionId!,
+      );
+      return;
+    }
     await _updateLocalList(
       id,
       TaskListsCompanion(
@@ -251,6 +288,23 @@ class TaskListsRepository {
           _database.taskLists,
         )..where((row) => row.accountId.equals(_accountId) & row.id.equals(id)))
         .getSingleOrNull();
+  }
+
+  Future<bool> _usesNextcloudDav() async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(_accountId))).getSingleOrNull();
+    return account != null &&
+        BusyProviderCodec.requireStorageValue(account.provider) ==
+            BusyProvider.nextcloud;
+  }
+
+  DavTaskListMutationClient _requiredDavMutationClient() {
+    final client = _davMutationClient;
+    if (client == null) {
+      throw StateError('The Nextcloud task-list mutation client is missing.');
+    }
+    return client;
   }
 
   String _now() => _nowUtc().toIso8601String();

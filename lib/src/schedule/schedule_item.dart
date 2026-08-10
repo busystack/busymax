@@ -1,4 +1,5 @@
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import '../features/tasks/domain/task_checklist_item.dart';
 
 enum ScheduleItemKind { calendarEvent, task, localReminder }
 
@@ -132,6 +133,11 @@ class TaskScheduleItem implements ScheduleItem {
     this.notes,
     this.categories = const [],
     this.reminder,
+    this.parentId,
+    this.parentTitle,
+    this.hierarchyDepth = 0,
+    this.hasSubtasks = false,
+    this.checklistItems = const [],
     this.sourceName,
     this.accountDisplayName,
     this.accountEmail,
@@ -159,6 +165,11 @@ class TaskScheduleItem implements ScheduleItem {
   @override
   final List<String> categories;
   final DateTime? reminder;
+  final String? parentId;
+  final String? parentTitle;
+  final int hierarchyDepth;
+  final bool hasSubtasks;
+  final List<TaskChecklistItemEntity> checklistItems;
   @override
   final String? sourceName;
   @override

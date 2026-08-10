@@ -7,22 +7,24 @@ import 'package:cryptography/cryptography.dart';
 import 'package:dbus/dbus.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
+import 'package:posix/posix.dart' show chmod;
 
-import '../../core/logging/redacting_logger.dart';
-import 'oauth_models.dart';
-import 'oauth_token_store.dart';
+import '../../providers/busy_provider.dart';
+import '../auth/oauth_models.dart';
+import '../logging/redacting_logger.dart';
+import 'secret_store.dart';
 
 const _encryptedTokenStoreVersion = 1;
 
-class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
-  PortalEncryptedOAuthTokenStore({
+class PortalEncryptedSecretStore implements SecretStore {
+  PortalEncryptedSecretStore({
     SecretPortalClient? portalClient,
     File? storageFile,
     RedactingLogger? logger,
   }) : _portalClient = portalClient ?? XdgSecretPortalClient(),
        _storageFile = storageFile ?? _defaultStorageFile(),
        _logger =
-           logger ?? RedactingLogger(Logger('PortalEncryptedOAuthTokenStore'));
+           logger ?? RedactingLogger(Logger('PortalEncryptedSecretStore'));
 
   final SecretPortalClient _portalClient;
   final File _storageFile;
@@ -32,53 +34,45 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
   PortalSecret? _cachedSecret;
   var _loggedRuntime = false;
 
-  static const _activeAccountKey = SecureOAuthTokenStore.activeAccountKey;
+  static const _activeAccountKey = SecureSecretStore.activeAccountKey;
+  static const _legacyActiveAccountKey =
+      SecureSecretStore.legacyActiveAccountKey;
   static const _kdfInfo = 'io.busystack.busymax.oauth-token-store.v1';
 
   @override
-  Future<String?> readActiveAccountId() => _read(_activeAccountKey);
-
-  @override
-  Future<OAuthTokenSet?> readTokenSet(String accountId) async {
-    final accessToken = await _read(_key(accountId, 'access_token'));
-    final expiresAtText = await _read(_key(accountId, 'expires_at_utc'));
-    if (accessToken == null || expiresAtText == null) {
+  Future<String?> readActiveAccountId() async {
+    final current = await _read(_activeAccountKey);
+    if (current != null) {
+      return current;
+    }
+    final legacy = await _read(_legacyActiveAccountKey);
+    if (legacy == null) {
       return null;
     }
-
-    final refreshToken = await _read(_key(accountId, 'refresh_token'));
-    final tokenType = await _read(_key(accountId, 'token_type'));
-    final scopeText = await _read(_key(accountId, 'scope'));
-    final idToken = await _read(_key(accountId, 'id_token'));
-
-    return OAuthTokenSet(
-      accessToken: accessToken,
-      refreshToken: refreshToken,
-      idToken: idToken,
-      expiresAtUtc: DateTime.parse(expiresAtText).toUtc(),
-      tokenType: tokenType ?? 'Bearer',
-      scopes: (scopeText ?? '')
-          .split(RegExp(r'\s+'))
-          .where((scope) => scope.isNotEmpty)
-          .toSet(),
-    );
+    await _write(_activeAccountKey, legacy);
+    if (await _read(_activeAccountKey) != legacy) {
+      throw const SecretStoreException(
+        'SecretStoreMigrationVerificationFailed',
+        'The active account secret migration could not be verified.',
+      );
+    }
+    await _delete(_legacyActiveAccountKey);
+    return legacy;
   }
 
   @override
-  Future<void> saveTokenSet(String accountId, OAuthTokenSet tokenSet) async {
+  Future<SecretRecord?> readCredential(String accountId) async {
+    final serialized = await _read(_credentialKey(accountId));
+    if (serialized == null) {
+      return null;
+    }
+    return _decodePortalCredential(serialized);
+  }
+
+  @override
+  Future<void> saveCredential(String accountId, SecretRecord credential) async {
     final values = await _readAll('write');
-    values[_key(accountId, 'access_token')] = tokenSet.accessToken;
-    if (tokenSet.refreshToken != null) {
-      values[_key(accountId, 'refresh_token')] = tokenSet.refreshToken!;
-    }
-    if (tokenSet.idToken != null) {
-      values[_key(accountId, 'id_token')] = tokenSet.idToken!;
-    }
-    values[_key(accountId, 'expires_at_utc')] = tokenSet.expiresAtUtc
-        .toUtc()
-        .toIso8601String();
-    values[_key(accountId, 'token_type')] = tokenSet.tokenType;
-    values[_key(accountId, 'scope')] = tokenSet.scopes.join(' ');
+    values[_credentialKey(accountId)] = jsonEncode(credential.toJson());
     await _writeAll(values, 'write');
   }
 
@@ -88,19 +82,60 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
   }
 
   @override
-  Future<void> clearTokenSet(String accountId) async {
+  Future<void> deleteCredential(String accountId) async {
     final values = await _readAll('delete');
-    final beforeLength = values.length;
-    values.remove(_key(accountId, 'access_token'));
-    values.remove(_key(accountId, 'refresh_token'));
-    values.remove(_key(accountId, 'id_token'));
-    values.remove(_key(accountId, 'expires_at_utc'));
-    values.remove(_key(accountId, 'token_type'));
-    values.remove(_key(accountId, 'scope'));
-    if (values.length == beforeLength) {
+    if (values.remove(_credentialKey(accountId)) == null) {
       return;
     }
     await _writeAll(values, 'delete');
+  }
+
+  @override
+  Future<bool> migrateLegacyOAuthCredential(
+    String accountId,
+    BusyProvider provider,
+  ) async {
+    if (provider != BusyProvider.google && provider != BusyProvider.microsoft) {
+      return false;
+    }
+    final values = await _readAll('migrate');
+    if (values.containsKey(_credentialKey(accountId))) {
+      return false;
+    }
+    final accessToken = values[_legacyKey(accountId, 'access_token')];
+    final expiresAt = values[_legacyKey(accountId, 'expires_at_utc')];
+    if (accessToken == null || expiresAt == null) {
+      return false;
+    }
+    final record = OAuthSecretRecord(
+      provider: provider,
+      tokenSet: OAuthTokenSet(
+        accessToken: accessToken,
+        refreshToken: values[_legacyKey(accountId, 'refresh_token')],
+        idToken: values[_legacyKey(accountId, 'id_token')],
+        expiresAtUtc: DateTime.parse(expiresAt).toUtc(),
+        tokenType: values[_legacyKey(accountId, 'token_type')] ?? 'Bearer',
+        scopes: (values[_legacyKey(accountId, 'scope')] ?? '')
+            .split(RegExp(r'\s+'))
+            .where((scope) => scope.isNotEmpty)
+            .toSet(),
+      ),
+    );
+    values[_credentialKey(accountId)] = jsonEncode(record.toJson());
+    await _writeAll(values, 'migrate-write');
+    final verified = await readOAuthTokenSet(accountId, provider);
+    if (verified == null || verified.accessToken != accessToken) {
+      throw const SecretStoreException(
+        'SecretStoreMigrationVerificationFailed',
+        'The OAuth credential migration could not be verified.',
+      );
+    }
+    final migrated = await _readAll('migrate-delete');
+    for (final name in _legacyOAuthFieldNames) {
+      migrated.remove(_legacyKey(accountId, name));
+    }
+    await _writeAll(migrated, 'migrate-delete');
+    return true;
   }
 
   @override
@@ -135,6 +170,7 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
     }
 
     try {
+      await _restrictExistingStoragePermissions();
       final envelope = _asStringObjectMap(
         jsonDecode(await _storageFile.readAsString()),
       );
@@ -152,7 +188,7 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
       final clearBytes = await _cipher.decrypt(box, secretKey: key);
       return _asStringMap(jsonDecode(utf8.decode(clearBytes)));
     } on Object catch (error) {
-      if (error is OAuthException) {
+      if (error is SecretStoreException) {
         rethrow;
       }
       throw _storageException(operation, error);
@@ -163,6 +199,7 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
     _logRuntime();
     try {
       await _storageFile.parent.create(recursive: true);
+      _restrictPermissions(_storageFile.parent.path, '700');
       final existing = await _readEnvelopeIfPresent();
       final salt = existing == null
           ? _randomBytes(16)
@@ -190,10 +227,24 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
           'portal_token': secret.token,
       };
       final tempFile = File('${_storageFile.path}.tmp');
+      final tempType = await FileSystemEntity.type(
+        tempFile.path,
+        followLinks: false,
+      );
+      if (tempType == FileSystemEntityType.notFound) {
+        await tempFile.create(exclusive: true);
+      } else if (tempType != FileSystemEntityType.file) {
+        throw FileSystemException(
+          'The encrypted credential temporary path is not a regular file.',
+          tempFile.path,
+        );
+      }
+      _restrictPermissions(tempFile.path, '600');
       await tempFile.writeAsString(jsonEncode(envelope), flush: true);
       await tempFile.rename(_storageFile.path);
+      _restrictPermissions(_storageFile.path, '600');
     } on Object catch (error) {
-      if (error is OAuthException) {
+      if (error is SecretStoreException) {
         rethrow;
       }
       throw _storageException(operation, error);
@@ -204,7 +255,29 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
     if (!await _storageFile.exists()) {
       return null;
     }
+    await _restrictExistingStoragePermissions();
     return _asStringObjectMap(jsonDecode(await _storageFile.readAsString()));
+  }
+
+  Future<void> _restrictExistingStoragePermissions() async {
+    final type = await FileSystemEntity.type(
+      _storageFile.path,
+      followLinks: false,
+    );
+    if (type != FileSystemEntityType.file) {
+      throw FileSystemException(
+        'The encrypted credential path is not a regular file.',
+        _storageFile.path,
+      );
+    }
+    _restrictPermissions(_storageFile.parent.path, '700');
+    _restrictPermissions(_storageFile.path, '600');
+  }
+
+  void _restrictPermissions(String path, String permissions) {
+    if (Platform.isLinux || Platform.isMacOS) {
+      chmod(path, permissions);
+    }
   }
 
   Future<PortalSecret> _retrieveSecret(
@@ -219,7 +292,7 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
       final secret = await _portalClient.retrieveSecret(token: token);
       _cachedSecret = secret;
       _logger.info(
-        'Secure token storage portal retrieve succeeded: '
+        'Secure credential storage portal retrieve succeeded: '
         'operation=$operation snap=${_isRunningInSnap()} '
         'secret_backend=${_secretBackendLabel()} has_portal_token=${secret.token != null}',
       );
@@ -243,26 +316,28 @@ class PortalEncryptedOAuthTokenStore implements OAuthTokenStore {
     }
     _loggedRuntime = true;
     _logger.info(
-      'Secure token storage runtime: backend=xdg-secret-portal-file '
+      'Secure credential storage runtime: backend=xdg-secret-portal-file '
       'snap=${_isRunningInSnap()} secret_backend=${_secretBackendLabel()}',
     );
   }
 
-  OAuthException _storageException(String operation, Object error) {
+  SecretStoreException _storageException(String operation, Object error) {
     _logger.warning(
-      'Secure token storage $operation failed: '
+      'Secure credential storage $operation failed: '
       '${sanitizedSecureStorageError(error)}',
     );
-    if (error is OAuthException) {
+    if (error is SecretStoreException) {
       return error;
     }
-    return const OAuthException(
-      'OAuthSecureStorageUnavailable',
-      secureTokenStorageUnavailableMessage,
+    return const SecretStoreException(
+      'SecretStoreUnavailable',
+      secretStorageUnavailableMessage,
     );
   }
 
-  String _key(String accountId, String name) =>
+  String _credentialKey(String accountId) => 'busymax.secret.$accountId.v1';
+
+  String _legacyKey(String accountId, String name) =>
       'busymax.oauth.$accountId.$name';
 }
 
@@ -447,6 +522,25 @@ Map<String, String> _asStringMap(Object? value) {
   });
 }
 
+SecretRecord _decodePortalCredential(String serialized) {
+  try {
+    final decoded = jsonDecode(serialized);
+    if (decoded is! Map) {
+      throw const SecretStoreCorruptException(
+        'The encrypted credential record is not a JSON object.',
+      );
+    }
+    return SecretRecord.fromJson(decoded.cast<String, Object?>());
+  } on SecretStoreException {
+    rethrow;
+  } on Object catch (error) {
+    throw SecretStoreCorruptException(
+      'The encrypted credential record could not be decoded '
+      '(${error.runtimeType}).',
+    );
+  }
+}
+
 Map<String, String> _asStringObjectMap(Object? value) {
   if (value is! Map) {
     throw const FormatException('Encrypted token store envelope is not a map.');
@@ -479,6 +573,15 @@ List<int> _randomBytes(int length) {
   final random = Random.secure();
   return List<int>.generate(length, (_) => random.nextInt(256));
 }
+
+const _legacyOAuthFieldNames = <String>[
+  'access_token',
+  'refresh_token',
+  'id_token',
+  'expires_at_utc',
+  'token_type',
+  'scope',
+];
 
 String _requestToken() {
   final bytes = _randomBytes(16);

@@ -1,3 +1,9 @@
+enum RecurringEventMutationScope {
+  entireSeries,
+  singleOccurrence,
+  thisAndFuture,
+}
+
 class EventAttendeeDraft {
   const EventAttendeeDraft({
     required this.email,
@@ -69,6 +75,7 @@ class EventEditorDraft {
     required this.allDay,
     this.eventId,
     this.providerRecurringEventId,
+    this.recurringMutationScope,
     this.start,
     this.end,
     this.startTimeZone,
@@ -124,6 +131,7 @@ class EventEditorDraft {
     DateTime? end,
     String? location,
     String? providerRecurringEventId,
+    RecurringEventMutationScope? recurringMutationScope,
     String? description,
     String? descriptionContentType,
     String? descriptionHtml,
@@ -149,6 +157,7 @@ class EventEditorDraft {
       sourceId: sourceId,
       providerCalendarId: providerCalendarId,
       providerRecurringEventId: providerRecurringEventId,
+      recurringMutationScope: recurringMutationScope,
       title: title,
       allDay: allDay,
       start: start,
@@ -177,6 +186,7 @@ class EventEditorDraft {
 
   final String? eventId;
   final String? providerRecurringEventId;
+  final RecurringEventMutationScope? recurringMutationScope;
   final String accountId;
   final String sourceId;
   final String providerCalendarId;
@@ -257,6 +267,7 @@ class EventEditorDraft {
     bool? responseRequested,
     bool? hideAttendees,
     bool? allowNewTimeProposals,
+    RecurringEventMutationScope? recurringMutationScope,
     bool clearLocation = false,
     bool clearDescription = false,
     bool clearRecurrence = false,
@@ -266,10 +277,14 @@ class EventEditorDraft {
     bool clearVisibilityOrSensitivity = false,
     bool clearColorId = false,
     bool clearConference = false,
+    bool clearRecurringMutationScope = false,
   }) {
     return EventEditorDraft(
       eventId: eventId,
       providerRecurringEventId: providerRecurringEventId,
+      recurringMutationScope: clearRecurringMutationScope
+          ? null
+          : recurringMutationScope ?? this.recurringMutationScope,
       accountId: accountId ?? this.accountId,
       sourceId: sourceId ?? this.sourceId,
       providerCalendarId: providerCalendarId ?? this.providerCalendarId,
@@ -318,6 +333,7 @@ class EventEditorDraft {
     return other is EventEditorDraft &&
         other.eventId == eventId &&
         other.providerRecurringEventId == providerRecurringEventId &&
+        other.recurringMutationScope == recurringMutationScope &&
         other.accountId == accountId &&
         other.sourceId == sourceId &&
         other.providerCalendarId == providerCalendarId &&
@@ -353,6 +369,7 @@ class EventEditorDraft {
   int get hashCode => Object.hashAll([
     eventId,
     providerRecurringEventId,
+    recurringMutationScope,
     accountId,
     sourceId,
     providerCalendarId,

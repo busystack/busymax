@@ -1,3 +1,4 @@
+/// OAuth token record shared by the Google and Microsoft adapters.
 class OAuthTokenSet {
   const OAuthTokenSet({
     required this.accessToken,

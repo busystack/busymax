@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 CalendarSourceDto googleCalendarSourceFromJson(Map<String, Object?> json) {
   final accessRole = json['accessRole']?.toString();
   return CalendarSourceDto(
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
     providerCalendarId: json['id']?.toString() ?? '',
     summary: json['summary']?.toString().trim().isNotEmpty == true
         ? json['summary']!.toString()
@@ -37,7 +37,7 @@ CalendarEventDto googleCalendarEventFromJson(
   final startDate = start['date']?.toString();
   final status = json['status']?.toString();
   return CalendarEventDto(
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
     providerCalendarId: calendarId,
     providerEventId: json['id']?.toString() ?? '',
     providerRecurringEventId: json['recurringEventId']?.toString(),

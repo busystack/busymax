@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_surface_colors.dart';
+import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'schedule_event_block.dart';
@@ -41,6 +43,9 @@ class ScheduleTaskChip extends StatelessWidget {
       scheduleTimeRange(context, item),
       ScheduleProjection.sourceLabelForScheduleItem(item),
     ].join(' · ');
+    final hierarchyDetails = item.parentTitle == null
+        ? null
+        : '${context.l10n.parent}: ${item.parentTitle}';
     final blockWidth = scheduleSafeBlockWidth(width);
     final blockHeight = scheduleSafeBlockHeight(height);
     final horizontalPadding = compact ? 5.0 : 8.0;
@@ -53,7 +58,11 @@ class ScheduleTaskChip extends StatelessWidget {
 
     Offset? pointerDownPosition;
     return Tooltip(
-      message: '${item.title}\n$details',
+      message: [
+        item.title,
+        if (hierarchyDetails != null) hierarchyDetails,
+        details,
+      ].join('\n'),
       waitDuration: const Duration(milliseconds: 600),
       child: SizedBox(
         width: blockWidth,
@@ -92,6 +101,19 @@ class ScheduleTaskChip extends StatelessWidget {
               child: showContent
                   ? Row(
                       children: [
+                        if ((item.parentId != null || item.hasSubtasks) &&
+                            contentWidth >= 20) ...[
+                          Icon(
+                            item.parentId != null
+                                ? BusyMaxGlyphs.subdirectoryFor(
+                                    Directionality.of(context),
+                                  )
+                                : Icons.account_tree_outlined,
+                            size: compact ? 12 : BusyMaxSizes.iconSm,
+                            color: surfaceColors.mutedForeground,
+                          ),
+                          const SizedBox(width: BusyMaxSpacing.xs),
+                        ],
                         if (showCheckbox) ...[
                           SizedBox.square(
                             dimension: checkboxSize,

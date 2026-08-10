@@ -6,8 +6,8 @@ import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/sync/sync_scheduler.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
   test('scheduler reports background sync failure', () async {
@@ -154,7 +154,9 @@ Future<void> _waitFor(bool Function() condition) async {
 AccountEntity _account(String id) {
   return AccountEntity(
     id: id,
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
+    authority: 'https://accounts.google.com',
+    providerAccountId: id,
     authState: 'signed_in',
   );
 }

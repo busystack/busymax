@@ -7,21 +7,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_client.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
-import 'package:busymax/src/microsoft_todo/api/microsoft_todo_google_tasks_adapter.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 
 void main() {
   late AppDatabase database;
-  late _FakeGoogleTasksApiClient apiClient;
+  late _FakeTaskRemoteClient apiClient;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
-    apiClient = _FakeGoogleTasksApiClient();
+    apiClient = _FakeTaskRemoteClient();
     await _insertAccount(database);
     await database.taskListsDao.upsertTaskList(_taskList('list-1'));
   });
@@ -151,6 +152,98 @@ void main() {
     final lists = await database.taskListsDao.listTaskLists('account');
     expect(lists.map((list) => list.id), contains('list-server'));
     expect(lists.map((list) => list.id), isNot(contains('local-tasklist-1')));
+  });
+
+  test(
+    'Google subtask is moved under its parent after a root insert',
+    () async {
+      await database.tasksDao.upsertTask(_task('list-1', 'parent'));
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        apiClient: apiClient,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await repository.createSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'parent',
+        title: 'Child',
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 2);
+      expect(apiClient.calls, ['create_task:list-1', 'move_task:task-server']);
+      expect(apiClient.createParentTaskIds, ['parent']);
+      expect(apiClient.moveParentTaskIds, ['parent']);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final tasks = await database.tasksDao.listTasks('account', 'list-1');
+      final child = tasks.singleWhere((task) => task.id == 'task-server');
+      expect(child.parent, 'parent');
+    },
+  );
+
+  test('failed Google subtask move retries without another insert', () async {
+    await database.tasksDao.upsertTask(_task('list-1', 'parent'));
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      apiClient: apiClient,
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    await repository.createSubtask(
+      taskListId: 'list-1',
+      parentTaskId: 'parent',
+      title: 'Child',
+    );
+    apiClient.moveTaskError = const GoogleTasksApiError(
+      statusCode: 503,
+      message: 'Temporarily unavailable',
+    );
+
+    final firstApplied = await PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+    ).replayDueOps();
+
+    expect(firstApplied, 1);
+    var pending = await database.select(database.pendingOps).get();
+    expect(pending, hasLength(1));
+    expect(pending.single.operation, 'move_task');
+    expect(pending.single.taskId, 'task-server');
+    expect(apiClient.calls, ['create_task:list-1', 'move_task:task-server']);
+
+    apiClient.moveTaskError = null;
+    final secondApplied = await PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+    ).replayDueOps();
+
+    expect(secondApplied, 1);
+    pending = await database.select(database.pendingOps).get();
+    expect(pending, isEmpty);
+    expect(apiClient.calls, [
+      'create_task:list-1',
+      'move_task:task-server',
+      'move_task:task-server',
+    ]);
+    final tasks = await database.tasksDao.listTasks('account', 'list-1');
+    expect(
+      tasks.singleWhere((task) => task.id == 'task-server').parent,
+      'parent',
+    );
   });
 
   test('404 delete is treated as success', () async {
@@ -939,12 +1032,75 @@ void main() {
     expect(op.lastErrorMessage, contains('Clear completed'));
     expect(op.nextAttemptAtUtc, startsWith('9999-12-31'));
   });
+
+  test(
+    'replays checklist create and dependent patch against the server id',
+    () async {
+      final checklistClient = _ChecklistTaskRemoteClient();
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          checklistItemsJson: jsonEncode([
+            {'id': 'local-step', 'displayName': 'Step', 'isChecked': false},
+          ]),
+        ),
+      );
+      await _enqueue(
+        database,
+        id: '01',
+        operation: 'create_task_checklist_item',
+        entityType: 'task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        localTempId: 'local-step',
+        request: {
+          'checklistItemId': 'local-step',
+          'body': {'displayName': 'Step', 'isChecked': false},
+        },
+      );
+      await _enqueue(
+        database,
+        id: '02',
+        operation: 'patch_task_checklist_item',
+        entityType: 'task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: {
+          'checklistItemId': 'local-step',
+          'body': {'isChecked': true},
+        },
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: checklistClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).replayDueOps();
+
+      final task = (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single;
+      final item = decodeTaskChecklistItems(
+        task.microsoftChecklistItemsJson,
+      ).single;
+      expect(applied, 2);
+      expect(checklistClient.checklistCalls, [
+        'create:Step',
+        'update:server-step:true',
+      ]);
+      expect(item.id, 'server-step');
+      expect(item.completed, isTrue);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
 }
 
-MicrosoftTodoGoogleTasksAdapter _microsoftAdapter(
-  MicrosoftTodoApiClient client,
-) {
-  return MicrosoftTodoGoogleTasksAdapter(
+MicrosoftTodoTaskRemoteClient _microsoftAdapter(MicrosoftTodoApiClient client) {
+  return MicrosoftTodoTaskRemoteClient(
     client: client,
     defaultTimeZone: 'UTC',
     nowUtc: () => DateTime.utc(2026, 6, 4),
@@ -990,12 +1146,15 @@ class _ThrowingMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
+class _FakeTaskRemoteClient implements TaskRemoteClient {
   final calls = <String>[];
   final taskPatchFields = <Map<String, Object?>>[];
+  final createParentTaskIds = <String?>[];
+  final moveParentTaskIds = <String?>[];
   GoogleTasksApiError? patchTaskListError;
   GoogleTasksApiError? deleteTaskError;
   GoogleTasksApiError? clearCompletedError;
+  GoogleTasksApiError? moveTaskError;
   TaskListDto? remoteTaskList;
   TaskDto? remoteTask;
   bool persistTaskPatches = false;
@@ -1046,6 +1205,7 @@ class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
     required TaskCreate create,
   }) async {
     calls.add('create_task:$taskListId');
+    createParentTaskIds.add(parentTaskId);
     return _taskDto('task-server', title: create.fields['title'].toString());
   }
 
@@ -1107,7 +1267,10 @@ class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
     String? destinationTaskListId,
   }) async {
     calls.add('move_task:$taskId');
-    return _taskDto(taskId, title: 'Moved');
+    moveParentTaskIds.add(parentTaskId);
+    final error = moveTaskError;
+    if (error != null) throw error;
+    return _taskDto(taskId, title: 'Moved', parent: parentTaskId);
   }
 
   @override
@@ -1157,12 +1320,78 @@ class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
   }
 }
 
+class _ChecklistTaskRemoteClient extends _FakeTaskRemoteClient
+    implements TaskChecklistRemoteClient {
+  final checklistCalls = <String>[];
+
+  @override
+  Future<TaskChecklistItemDto> createChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String title,
+    bool completed = false,
+  }) async {
+    checklistCalls.add('create:$title');
+    return TaskChecklistItemDto(
+      id: 'server-step',
+      title: title,
+      completed: completed,
+      rawJson: {
+        'id': 'server-step',
+        'displayName': title,
+        'isChecked': completed,
+      },
+    );
+  }
+
+  @override
+  Future<TaskChecklistItemDto> updateChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+    String? title,
+    bool? completed,
+  }) async {
+    checklistCalls.add('update:$checklistItemId:$completed');
+    return TaskChecklistItemDto(
+      id: checklistItemId,
+      title: title ?? 'Step',
+      completed: completed ?? false,
+      rawJson: {
+        'id': checklistItemId,
+        'displayName': title ?? 'Step',
+        'isChecked': completed ?? false,
+      },
+    );
+  }
+
+  @override
+  Future<void> deleteChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+  }) async {
+    checklistCalls.add('delete:$checklistItemId');
+  }
+
+  @override
+  Future<TaskChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? pageToken,
+  }) async => const TaskChecklistItemsPageDto(items: [], rawJson: {});
+}
+
 Future<void> _insertAccount(AppDatabase database) {
   return database
       .into(database.accounts)
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'google-account',
+          credentialKind: 'oauth',
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),
@@ -1192,6 +1421,7 @@ TasksCompanion _task(
   String title = 'Task',
   String? updatedUtc,
   String? rawJson,
+  String? checklistItemsJson,
 }) {
   return TasksCompanion.insert(
     accountId: 'account',
@@ -1200,6 +1430,7 @@ TasksCompanion _task(
     title: title,
     updatedUtc: Value(updatedUtc),
     rawJson: rawJson ?? jsonEncode({'id': id, 'title': title}),
+    microsoftChecklistItemsJson: Value(checklistItemsJson),
     localDirty: Value(id.startsWith('local-')),
     localCreated: Value(id.startsWith('local-')),
     createdLocalAtUtc: _now,
@@ -1262,6 +1493,7 @@ TaskDto _taskDto(
   String? notes,
   DateTime? updated,
   String? status,
+  String? parent,
 }) {
   return TaskDto(
     id: id,
@@ -1269,12 +1501,14 @@ TaskDto _taskDto(
     notes: notes,
     updated: updated,
     status: status,
+    parent: parent,
     rawJson: {
       'id': id,
       'title': title,
       if (notes != null) 'notes': notes,
       if (updated != null) 'updated': updated.toIso8601String(),
       if (status != null) 'status': status,
+      if (parent != null) 'parent': parent,
     },
   );
 }

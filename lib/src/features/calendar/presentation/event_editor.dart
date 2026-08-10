@@ -10,7 +10,8 @@ import '../../../calendar_providers/calendar_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../schedule/schedule_projection.dart';
-import '../../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import '../../accounts/data/accounts_repository.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../data/calendar_repository.dart';
 import 'event_description_editor.dart';
@@ -20,6 +21,7 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   BuildContext context, {
   required EventEditorDraft initialDraft,
   required List<CalendarSourceEntity> sources,
+  required List<AccountEntity> accounts,
   LinuxHeaderBarService? headerBarService,
   bool allowDelete = true,
   Map<String, List<String>> categorySuggestionsByAccount = const {},
@@ -33,15 +35,16 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
       return EventEditor(
         initialDraft: initialDraft,
         sources: sources,
+        accounts: accounts,
         categorySuggestionsByAccount: categorySuggestionsByAccount,
         headerBarService: headerBarService,
         onCancel: () => Navigator.of(context).pop(),
         onSave: (draft) =>
             Navigator.of(context).pop(EventEditorDialogResult.save(draft)),
         onDelete: allowDelete && initialDraft.eventId != null
-            ? (eventId) => Navigator.of(
+            ? (eventId, scope) => Navigator.of(
                 context,
-              ).pop(EventEditorDialogResult.delete(eventId))
+              ).pop(EventEditorDialogResult.delete(eventId, scope: scope))
             : null,
       );
     },
@@ -49,19 +52,33 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
 }
 
 class EventEditorDialogResult {
-  const EventEditorDialogResult._({this.draft, this.deletedEventId});
+  const EventEditorDialogResult._({
+    this.draft,
+    this.deletedEventId,
+    this.deletionScope,
+  });
 
   factory EventEditorDialogResult.save(EventEditorDraft draft) {
     return EventEditorDialogResult._(draft: draft);
   }
 
-  factory EventEditorDialogResult.delete(String eventId) {
-    return EventEditorDialogResult._(deletedEventId: eventId);
+  factory EventEditorDialogResult.delete(
+    String eventId, {
+    RecurringEventMutationScope? scope,
+  }) {
+    return EventEditorDialogResult._(
+      deletedEventId: eventId,
+      deletionScope: scope,
+    );
   }
 
   final EventEditorDraft? draft;
   final String? deletedEventId;
+  final RecurringEventMutationScope? deletionScope;
 }
+
+typedef EventEditorDeleteCallback =
+    void Function(String eventId, RecurringEventMutationScope? scope);
 
 class EventEditor extends StatefulWidget {
   const EventEditor({
@@ -70,6 +87,7 @@ class EventEditor extends StatefulWidget {
     required this.sources,
     required this.onCancel,
     required this.onSave,
+    this.accounts = const [],
     this.onDelete,
     this.categorySuggestionsByAccount = const {},
     this.headerBarService,
@@ -77,10 +95,11 @@ class EventEditor extends StatefulWidget {
 
   final EventEditorDraft initialDraft;
   final List<CalendarSourceEntity> sources;
+  final List<AccountEntity> accounts;
   final Map<String, List<String>> categorySuggestionsByAccount;
   final VoidCallback onCancel;
   final ValueChanged<EventEditorDraft> onSave;
-  final ValueChanged<String>? onDelete;
+  final EventEditorDeleteCallback? onDelete;
   final LinuxHeaderBarService? headerBarService;
 
   @override
@@ -115,6 +134,9 @@ class _EventEditorState extends State<EventEditor> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final dirty = _hasUnsavedChanges;
+    final title = widget.initialDraft.eventId == null
+        ? l10n.newEvent
+        : l10n.editEvent;
     CalendarSourceEntity? currentSource;
     for (final source in widget.sources) {
       if (source.id == _draft.sourceId) {
@@ -122,12 +144,42 @@ class _EventEditorState extends State<EventEditor> {
         break;
       }
     }
-    final provider = currentSource?.provider ?? TaskProvider.google;
-    final title = widget.initialDraft.eventId == null
-        ? l10n.newEvent
-        : l10n.editEvent;
+    if (currentSource == null) {
+      return BusyMaxModalEditorScaffold(
+        title: title,
+        cancelLabel: l10n.cancel,
+        saveLabel: l10n.save,
+        onCancel: widget.onCancel,
+        onSave: null,
+        children: [
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
+              BusyMaxActionRow(
+                title: l10n.calendar,
+                subtitle: l10n.noCalendarsSynced,
+                leading: const Icon(YaruIcons.calendar),
+                enabled: false,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    final provider = currentSource.provider;
+    final schedulingReadOnly =
+        provider == BusyProvider.appleICloud ||
+        provider == BusyProvider.nextcloud;
+    final davRecurring =
+        schedulingReadOnly && _draft.providerRecurringEventId != null;
     final timeFieldsValid = _draft.allDay || (_startTimeValid && _endTimeValid);
-    final canSave = dirty && _draft.canSave && timeFieldsValid;
+    final recurringScopeValid =
+        !davRecurring ||
+        (_draft.recurringMutationScope != null &&
+            _draft.recurringMutationScope !=
+                RecurringEventMutationScope.thisAndFuture);
+    final canSave =
+        dirty && _draft.canSave && timeFieldsValid && recurringScopeValid;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -184,7 +236,10 @@ class _EventEditorState extends State<EventEditor> {
                 ),
               ],
             ),
-            BusyMaxGroupedList(filled: true, children: [_calendarRow()]),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [_accountRow(), _calendarRow()],
+            ),
             BusyMaxGroupedList(
               filled: true,
               children: [
@@ -260,6 +315,12 @@ class _EventEditorState extends State<EventEditor> {
                   ),
               ],
             ),
+            if (davRecurring)
+              BusyMaxGroupedList(
+                title: l10n.recurringEventScope,
+                filled: true,
+                children: _recurringScopeRows(),
+              ),
             if (_draft.providerRecurringEventId == null)
               BusyMaxGroupedList(
                 filled: true,
@@ -270,12 +331,13 @@ class _EventEditorState extends State<EventEditor> {
               filled: true,
               children: _reminderRows(provider),
             ),
-            BusyMaxGroupedList(
-              title: l10n.guests,
-              filled: true,
-              children: _guestRows(),
-            ),
-            if (provider == TaskProvider.microsoft)
+            if (!schedulingReadOnly || _draft.attendees.isNotEmpty)
+              BusyMaxGroupedList(
+                title: l10n.guests,
+                filled: true,
+                children: _guestRows(readOnly: schedulingReadOnly),
+              ),
+            if (provider == BusyProvider.microsoft || schedulingReadOnly)
               BusyMaxGroupedList(
                 title: l10n.organizationSection,
                 filled: true,
@@ -330,7 +392,9 @@ class _EventEditorState extends State<EventEditor> {
                       ),
                     ),
                     destructive: true,
-                    onTap: _deleteCurrentEvent,
+                    onTap: davRecurring && _draft.recurringMutationScope == null
+                        ? null
+                        : _deleteCurrentEvent,
                   ),
                 ],
               ),
@@ -384,7 +448,9 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   bool get _canDeleteWithShortcut {
-    return _draft.eventId != null && widget.onDelete != null;
+    return _draft.eventId != null &&
+        widget.onDelete != null &&
+        (!_requiresRecurringScope || _draft.recurringMutationScope != null);
   }
 
   bool _isEditableTextFocused() {
@@ -399,8 +465,59 @@ class _EventEditorState extends State<EventEditor> {
   void _deleteCurrentEvent() {
     final eventId = _draft.eventId;
     if (eventId != null && widget.onDelete != null) {
-      widget.onDelete!(eventId);
+      widget.onDelete!(eventId, _draft.recurringMutationScope);
     }
+  }
+
+  bool get _requiresRecurringScope {
+    if (_draft.providerRecurringEventId == null) return false;
+    for (final source in widget.sources) {
+      if (source.id != _draft.sourceId) continue;
+      return source.provider == BusyProvider.appleICloud ||
+          source.provider == BusyProvider.nextcloud;
+    }
+    return false;
+  }
+
+  List<Widget> _recurringScopeRows() {
+    final l10n = context.l10n;
+    return [
+      BusyMaxActionRow(
+        title: l10n.entireSeries,
+        subtitle: l10n.chooseRecurringEventScope,
+        leading: Icon(
+          _draft.recurringMutationScope ==
+                  RecurringEventMutationScope.entireSeries
+              ? Icons.radio_button_checked
+              : Icons.radio_button_unchecked,
+        ),
+        onTap: () => setState(() {
+          _draft = _draft.copyWith(
+            recurringMutationScope: RecurringEventMutationScope.entireSeries,
+          );
+        }),
+      ),
+      BusyMaxActionRow(
+        title: l10n.singleOccurrence,
+        leading: Icon(
+          _draft.recurringMutationScope ==
+                  RecurringEventMutationScope.singleOccurrence
+              ? Icons.radio_button_checked
+              : Icons.radio_button_unchecked,
+        ),
+        onTap: () => setState(() {
+          _draft = _draft.copyWith(
+            recurringMutationScope:
+                RecurringEventMutationScope.singleOccurrence,
+          );
+        }),
+      ),
+      BusyMaxActionRow(
+        title: l10n.thisAndFutureUnavailable,
+        leading: const Icon(Icons.update_disabled_outlined),
+        enabled: false,
+      ),
+    ];
   }
 
   Widget _repeatRow(BusyProvider provider) {
@@ -430,16 +547,46 @@ class _EventEditorState extends State<EventEditor> {
     );
   }
 
+  Widget _accountRow() {
+    final existingAccountId = widget.initialDraft.eventId == null
+        ? null
+        : widget.initialDraft.accountId;
+    final accountIds =
+        <String>{
+          for (final source in widget.sources)
+            if (existingAccountId == null ||
+                source.accountId == existingAccountId)
+              source.accountId,
+        }.toList()..sort((first, second) {
+          final labelOrder = _accountLabel(
+            first,
+          ).toLowerCase().compareTo(_accountLabel(second).toLowerCase());
+          return labelOrder != 0 ? labelOrder : first.compareTo(second);
+        });
+    final selected = accountIds.contains(_draft.accountId)
+        ? _draft.accountId
+        : accountIds.first;
+    return BusyMaxComboRow<String>(
+      title: context.l10n.account,
+      leading: const Icon(YaruIcons.user),
+      values: accountIds,
+      selected: selected,
+      enabled: existingAccountId == null,
+      labelFor: _accountLabel,
+      onSelected: _selectAccount,
+    );
+  }
+
   Widget _calendarRow() {
     final existingSourceId = widget.initialDraft.eventId == null
         ? null
         : widget.initialDraft.sourceId;
-    final sources = existingSourceId == null
-        ? widget.sources
-        : [
-            for (final source in widget.sources)
-              if (source.id == existingSourceId) source,
-          ];
+    final sources = [
+      for (final source in widget.sources)
+        if (source.accountId == _draft.accountId &&
+            (existingSourceId == null || source.id == existingSourceId))
+          source,
+    ]..sort(_compareCalendarSources);
     if (sources.isEmpty) {
       return BusyMaxActionRow(
         title: context.l10n.calendar,
@@ -449,49 +596,92 @@ class _EventEditorState extends State<EventEditor> {
     }
     final selected = sources.any((source) => source.id == _draft.sourceId)
         ? _draft.sourceId
-        : sources.first.id;
+        : _preferredCalendarSource(sources).id;
+    final sourcesById = {for (final source in sources) source.id: source};
     return BusyMaxComboRow<String>(
       title: context.l10n.calendar,
       leading: const Icon(YaruIcons.calendar),
       values: [for (final source in sources) source.id],
       selected: selected,
       enabled: existingSourceId == null,
-      labelFor: (value) =>
-          sources.firstWhere((source) => source.id == value).summary,
+      labelFor: (value) => sourcesById[value]!.summary,
       selectorLeadingBuilder: (context, value) {
-        final source = sources.firstWhere((source) => source.id == value);
+        final source = sourcesById[value]!;
         return _CalendarSourceDot(color: _calendarSourceColor(context, source));
       },
-      onSelected: (value) {
-        final source = sources.firstWhere((source) => source.id == value);
-        final recurrenceType = _recurrenceType(_draft.recurrence);
-        final adjustedRecurrence =
-            _draft.recurrenceChanged && recurrenceType != 'none'
-            ? _recurrenceFor(source.provider, recurrenceType, _draft.start)
-            : null;
-        setState(() {
-          if (source.provider != TaskProvider.microsoft) {
-            _addingCategory = false;
-          }
-          _draft = _draft.copyWith(
-            accountId: source.accountId,
-            sourceId: source.id,
-            providerCalendarId: source.providerCalendarId,
-            categories: source.provider == TaskProvider.microsoft
-                ? _draft.categories
-                : const [],
-            recurrence: adjustedRecurrence,
-          );
-        });
-      },
+      onSelected: (value) => _selectCalendarSource(sourcesById[value]!),
     );
+  }
+
+  int _compareCalendarSources(
+    CalendarSourceEntity first,
+    CalendarSourceEntity second,
+  ) {
+    final summaryOrder = first.summary.toLowerCase().compareTo(
+      second.summary.toLowerCase(),
+    );
+    if (summaryOrder != 0) return summaryOrder;
+    return first.id.compareTo(second.id);
+  }
+
+  String _accountLabel(String accountId) {
+    for (final candidate in widget.accounts) {
+      if (candidate.id == accountId) {
+        return candidate.selectorLabel;
+      }
+    }
+    for (final source in widget.sources) {
+      if (source.accountId == accountId) return source.provider.displayName;
+    }
+    return context.l10n.account;
+  }
+
+  void _selectAccount(String accountId) {
+    if (accountId == _draft.accountId) return;
+    final sources = [
+      for (final source in widget.sources)
+        if (source.accountId == accountId) source,
+    ]..sort(_compareCalendarSources);
+    if (sources.isEmpty) return;
+    _selectCalendarSource(_preferredCalendarSource(sources));
+  }
+
+  CalendarSourceEntity _preferredCalendarSource(
+    List<CalendarSourceEntity> sources,
+  ) {
+    for (final source in sources) {
+      if (source.primaryCalendar) return source;
+    }
+    return sources.first;
+  }
+
+  void _selectCalendarSource(CalendarSourceEntity source) {
+    final recurrenceType = _recurrenceType(_draft.recurrence);
+    final adjustedRecurrence =
+        _draft.recurrenceChanged && recurrenceType != 'none'
+        ? _recurrenceFor(source.provider, recurrenceType, _draft.start)
+        : null;
+    setState(() {
+      if (source.provider == BusyProvider.google) {
+        _addingCategory = false;
+      }
+      _draft = _draft.copyWith(
+        accountId: source.accountId,
+        sourceId: source.id,
+        providerCalendarId: source.providerCalendarId,
+        categories: source.provider != BusyProvider.google
+            ? _draft.categories
+            : const [],
+        recurrence: adjustedRecurrence,
+      );
+    });
   }
 
   List<Widget> _reminderRows(BusyProvider provider) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
     final minutes = _reminderMinutesList(_draft.reminders);
-    final supportsMultiple = provider == TaskProvider.google;
+    final supportsMultiple = provider != BusyProvider.microsoft;
     final canAddReminder =
         minutes.isEmpty ||
         (supportsMultiple &&
@@ -552,29 +742,34 @@ class _EventEditorState extends State<EventEditor> {
     ];
   }
 
-  List<Widget> _guestRows() {
+  List<Widget> _guestRows({required bool readOnly}) {
     final rows = <Widget>[
       for (final attendee in _draft.attendees)
         BusyMaxActionRow(
           title: attendee.email,
           subtitle: attendee.displayName,
           leading: const Icon(Icons.person_outline),
-          trailing: YaruIconButton(
-            tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
-            icon: const Icon(YaruIcons.window_close),
-            onPressed: () {
-              setState(() {
-                _draft = _draft.copyWith(
-                  attendees: [
-                    for (final item in _draft.attendees)
-                      if (item != attendee) item,
-                  ],
-                );
-              });
-            },
-          ),
+          trailing: readOnly
+              ? null
+              : YaruIconButton(
+                  tooltip: MaterialLocalizations.of(
+                    context,
+                  ).deleteButtonTooltip,
+                  icon: const Icon(YaruIcons.window_close),
+                  onPressed: () {
+                    setState(() {
+                      _draft = _draft.copyWith(
+                        attendees: [
+                          for (final item in _draft.attendees)
+                            if (item != attendee) item,
+                        ],
+                      );
+                    });
+                  },
+                ),
         ),
     ];
+    if (readOnly) return rows;
     if (!_addingGuest) {
       rows.add(
         BusyMaxActionRow(
@@ -652,12 +847,12 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   Widget _availabilityRow(BusyProvider provider) {
-    final values = provider == TaskProvider.google
+    final values = provider != BusyProvider.microsoft
         ? const ['opaque', 'transparent']
         : const ['free', 'tentative', 'busy', 'oof', 'workingElsewhere'];
     final selected = values.contains(_draft.showAs)
         ? _draft.showAs!
-        : provider == TaskProvider.google
+        : provider != BusyProvider.microsoft
         ? 'opaque'
         : 'busy';
     return BusyMaxComboRow<String>(
@@ -675,7 +870,7 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   Widget _visibilityRow(BusyProvider provider) {
-    final values = provider == TaskProvider.google
+    final values = provider != BusyProvider.microsoft
         ? const ['default', 'public', 'private', 'confidential']
         : const ['normal', 'personal', 'private', 'confidential'];
     final selected = values.contains(_draft.visibilityOrSensitivity)
@@ -772,7 +967,7 @@ class _EventEditorState extends State<EventEditor> {
     final end = _draft.end;
     final recurrenceType = _recurrenceType(_draft.recurrence);
     final adjustedRecurrence =
-        provider == TaskProvider.microsoft &&
+        provider == BusyProvider.microsoft &&
             _draft.recurrenceChanged &&
             recurrenceType != 'none'
         ? _recurrenceFor(provider, recurrenceType, start)
@@ -897,6 +1092,14 @@ String _recurrenceType(Object? recurrence) {
     if (value.contains('FREQ=YEARLY')) return 'yearly';
   }
   if (recurrence is Map) {
+    final rules = recurrence['rules'];
+    if (rules is List && rules.isNotEmpty) {
+      final value = rules.first.toString().toUpperCase();
+      if (value.contains('FREQ=DAILY')) return 'daily';
+      if (value.contains('FREQ=WEEKLY')) return 'weekly';
+      if (value.contains('FREQ=MONTHLY')) return 'monthly';
+      if (value.contains('FREQ=YEARLY')) return 'yearly';
+    }
     final pattern = recurrence['pattern'];
     if (pattern is Map) {
       final type = pattern['type']?.toString();
@@ -920,7 +1123,7 @@ Object _recurrenceFor(BusyProvider provider, String type, DateTime? start) {
     'yearly' => 'YEARLY',
     _ => 'DAILY',
   };
-  if (provider == TaskProvider.google) {
+  if (provider != BusyProvider.microsoft) {
     return ['RRULE:FREQ=$freq;INTERVAL=1'];
   }
   final recurrenceStart = start ?? DateTime.now();
@@ -991,7 +1194,7 @@ Object? _remindersFor(BusyProvider provider, List<int> minutes) {
   if (normalized.isEmpty) {
     return null;
   }
-  if (provider == TaskProvider.google) {
+  if (provider != BusyProvider.microsoft) {
     return {
       'useDefault': false,
       'overrides': [
@@ -1004,7 +1207,7 @@ Object? _remindersFor(BusyProvider provider, List<int> minutes) {
 }
 
 Object _disabledRemindersFor(BusyProvider provider) {
-  if (provider == TaskProvider.google) {
+  if (provider != BusyProvider.microsoft) {
     return {'useDefault': false, 'overrides': const []};
   }
   return {'isReminderOn': false};

@@ -1,5 +1,5 @@
 import '../../core/logging/redacting_logger.dart';
-import '../../google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 
 const accountReconnectRequiredSyncMessage =
     'This account needs to be reconnected.';

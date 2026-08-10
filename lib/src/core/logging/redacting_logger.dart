@@ -3,41 +3,76 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-final _sensitivePatterns = <RegExp>[
-  RegExp(r'Bearer\s+[A-Za-z0-9._~+/=-]+', caseSensitive: false),
-  RegExp(r'(^|[?&\s])access_token=[^&\s]+', caseSensitive: false),
-  RegExp(r'(^|[?&\s])refresh_token=[^&\s]+', caseSensitive: false),
-  // RFC 7009 uses the generic `token` field. Restrict this pattern to URL
-  // query syntax so ordinary prose such as "token=value" remains readable.
-  RegExp(r'([?&])token=[^&\s]+', caseSensitive: false),
-  RegExp(r'(^|[?&\s])client_secret=[^&\s]+', caseSensitive: false),
-  RegExp(r'"client_secret"\s*:\s*"[^"]*"', caseSensitive: false),
-  RegExp(r'client_secret\s*:\s*[^,\n\s]+', caseSensitive: false),
-  RegExp(r'(^|[?&\s])code_verifier=[^&\s]+', caseSensitive: false),
-  RegExp(r'(^|[?&\s])code=[^&\s]+', caseSensitive: false),
-  RegExp(r'Authorization:\s*[^,\n]+', caseSensitive: false),
-];
-
 String redactForLog(Object? value) {
   var text = value?.toString() ?? '';
-  for (final pattern in _sensitivePatterns) {
-    text = text.replaceAllMapped(pattern, (match) {
-      final source = match.group(0) ?? '';
-      if (source.contains('=')) {
-        return '${source.split('=').first}=[REDACTED]';
-      }
-      if (source.trimLeft().startsWith('"')) {
-        return '"client_secret":"[REDACTED]"';
-      }
-      if (source.toLowerCase().contains('client_secret')) {
-        return 'client_secret: [REDACTED]';
-      }
-      if (source.toLowerCase().startsWith('authorization:')) {
-        return 'Authorization: [REDACTED]';
-      }
-      return 'Bearer [REDACTED]';
-    });
-  }
+  text = text.replaceAllMapped(
+    RegExp(r'\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+', caseSensitive: false),
+    (match) => '${match.group(1)} [REDACTED]',
+  );
+  text = text.replaceAllMapped(
+    RegExp(
+      r'\bAuthorization\s*[:=]\s*(?:(Bearer|Basic)\s+)?[^,\r\n}]+',
+      caseSensitive: false,
+    ),
+    (match) =>
+        'Authorization: ${match.group(1) == null ? '' : '${match.group(1)} '}'
+        '[REDACTED]',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'\b(?:Set-)?Cookie\s*[:=]\s*[^\r\n]+', caseSensitive: false),
+    (match) =>
+        '${(match.group(0) ?? '').split(RegExp(r'[:=]')).first}: '
+        '[REDACTED]',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'(https?://)[^/@\s]+@', caseSensitive: false),
+    (match) => '${match.group(1)}[REDACTED]@',
+  );
+  text = text.replaceAllMapped(
+    RegExp(
+      r'(^|[\s])((?:access|refresh|id)[_-]?token|code|code[_-]?verifier|client[_-]?secret|password|app[_-]?password|app[_-]?specific[_-]?password|poll[_-]?token)=([^&\s]+)',
+      caseSensitive: false,
+      multiLine: true,
+    ),
+    (match) => '${match.group(1)}${match.group(2)}=[REDACTED]',
+  );
+  text = text.replaceAllMapped(
+    RegExp(
+      r'([?&])((?:access|refresh|id)[_-]?token|token|code|code_verifier|client_secret|password|app[_-]?password|ticket|session|key)=([^&#\s]+)',
+      caseSensitive: false,
+    ),
+    (match) => '${match.group(1)}${match.group(2)}=[REDACTED]',
+  );
+  text = text.replaceAllMapped(
+    RegExp(
+      r'"(accessToken|refreshToken|idToken|token|clientSecret|client_secret|codeVerifier|appPassword|appSpecificPassword|password|pollToken|login|loginUrl|requestBody|responseBody|body|cookie)"\s*:\s*(?:"(?:\\.|[^"])*"|[^,}\s]+)',
+      caseSensitive: false,
+    ),
+    (match) => '"${match.group(1)}":"[REDACTED]"',
+  );
+  text = text.replaceAllMapped(
+    RegExp(
+      r'\b(access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|code[_-]?verifier|app[_-]?password|app[_-]?specific[_-]?password|password|poll[_-]?token|loginUrl|requestBody|responseBody|cookie)\s*([:=])\s*(?:"(?:\\.|[^"])*"|\x27[^\x27]*\x27|[^,}\s&#]+)',
+      caseSensitive: false,
+    ),
+    (match) =>
+        '${match.group(1)}${match.group(2)}'
+        '${match.group(2) == '=' ? '' : ' '}[REDACTED]',
+  );
+  text = text.replaceAllMapped(
+    RegExp(
+      r'\b(href|requestUri|objectUri|collectionUri)\s*([:=])\s*[^,}\s]+',
+      caseSensitive: false,
+    ),
+    (match) => '${match.group(1)}${match.group(2)} [REDACTED]',
+  );
+  text = text.replaceAllMapped(
+    RegExp(
+      r'\b(SUMMARY|DESCRIPTION|LOCATION|ATTENDEE|ORGANIZER|COMMENT|CONTACT|ATTACH|X-ALT-DESC)(?:;[^:\r\n]*)?:[^\r\n]*',
+      caseSensitive: false,
+    ),
+    (match) => '${match.group(1)}:[REDACTED]',
+  );
   return text;
 }
 

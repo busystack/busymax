@@ -8,7 +8,8 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
-import '../../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
@@ -73,7 +74,7 @@ class NewTaskEditorPanel extends ConsumerStatefulWidget {
     this.initialDueUtc,
     this.categorySuggestionsForAccount,
     this.useNativeDatePicker = false,
-  });
+  }) : assert(accounts.length > 0, 'A task editor requires an account.');
 
   final List<AccountEntity> accounts;
   final String? initialAccountId;
@@ -106,9 +107,8 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
   @override
   Widget build(BuildContext context) {
     final accountId = _accountId ?? widget.accounts.first.id;
-    final account = _accountForId(accountId);
-    final provider = account?.provider ?? TaskProvider.google;
-    final capabilities = capabilitiesForProvider(provider);
+    final account = _requireAccount(accountId);
+    final provider = account.provider;
     final localTimeZone = ref.watch(localTimeZoneProvider);
     final repository = ref.watch(
       taskListsRepositoryForAccountProvider(accountId),
@@ -128,6 +128,11 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
           builder: (context, snapshot) {
             final taskLists = snapshot.data ?? const <TaskListEntity>[];
             final effectiveListId = _effectiveListId(taskLists);
+            final capabilities = _capabilitiesFor(
+              provider,
+              accountId,
+              effectiveListId,
+            );
             final editorTask = _newTaskEntity(
               accountId: accountId,
               taskListId: effectiveListId ?? '',
@@ -152,23 +157,27 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
               accountIds: [for (final account in widget.accounts) account.id],
               selectedAccountId: accountId,
               accountLabelFor: _accountLabel,
-              accountSecondaryLabelFor: _accountSecondaryLabel,
               onAccountSelected: _selectAccount,
               allowTaskListSelection: true,
               showAdvancedActions: false,
               showDeleteAction: false,
+              isCreate: true,
               confirmTaskSwitch: false,
               useNativeDatePicker: widget.useNativeDatePicker,
               headerBarService: ref.read(linuxHeaderBarServiceProvider),
               categorySuggestions: categorySuggestions,
               canSaveDraft: (draft) => draft.taskListId.isNotEmpty,
               onDraftChanged: (draft) {
-                _draftSnapshot = draft;
+                if (_draftSnapshot?.taskListId != draft.taskListId) {
+                  setState(() => _draftSnapshot = draft);
+                } else {
+                  _draftSnapshot = draft;
+                }
               },
               onRefresh: () {},
               onSave: (draft, _) =>
                   _submit(draft, capabilities, localTimeZone: localTimeZone),
-              onCreateSubtask: (_) {},
+              onCreateSubtask: (_) async {},
               onMoveToTop: () {},
               onDelete: () async {},
               onCancel: widget.onCancel,
@@ -191,6 +200,26 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
       return null;
     }
     return taskLists.first.id;
+  }
+
+  TaskCollectionCapabilities _capabilitiesFor(
+    BusyProvider provider,
+    String accountId,
+    String? taskListId,
+  ) {
+    if (provider == BusyProvider.google || provider == BusyProvider.microsoft) {
+      return adapterDefaultTaskCapabilities(provider);
+    }
+    if (taskListId == null) return noTaskCollectionCapabilities;
+    return ref
+            .watch(
+              davTaskCollectionCapabilitiesProvider((
+                accountId: accountId,
+                taskListId: taskListId,
+              )),
+            )
+            .valueOrNull ??
+        noTaskCollectionCapabilities;
   }
 
   TaskDetailsDraft? _initialDraftFor(
@@ -240,18 +269,22 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
     return null;
   }
 
-  String _accountLabel(String accountId) {
-    return _accountForId(accountId)?.displayLabel ?? accountId;
+  AccountEntity _requireAccount(String accountId) {
+    final account = _accountForId(accountId);
+    if (account == null) {
+      throw StateError('The selected task account is unavailable.');
+    }
+    return account;
   }
 
-  String? _accountSecondaryLabel(String accountId) {
-    return _accountForId(accountId)?.secondaryLabel;
+  String _accountLabel(String accountId) {
+    return _accountForId(accountId)?.selectorLabel ?? accountId;
   }
 
   String _accountEditorLabel(
     BuildContext context,
     AccountEntity? account,
-    TaskProvider provider,
+    BusyProvider provider,
   ) {
     final label = account?.displayLabel.trim();
     if (label != null && label.isNotEmpty) {
@@ -264,8 +297,8 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
     if (value == _accountId) {
       return;
     }
-    final provider = _accountForId(value)?.provider ?? TaskProvider.google;
-    final capabilities = capabilitiesForProvider(provider);
+    final provider = _requireAccount(value).provider;
+    final capabilities = adapterDefaultTaskCapabilities(provider);
     setState(() {
       _accountId = value;
       _taskListId = null;
@@ -277,7 +310,7 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
 
   Future<void> _submit(
     TaskDetailsDraft draft,
-    TaskProviderCapabilities capabilities, {
+    TaskCollectionCapabilities capabilities, {
     required String localTimeZone,
   }) async {
     final accountId = _accountId;

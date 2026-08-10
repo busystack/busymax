@@ -6,15 +6,20 @@ import 'package:http/testing.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/google_tasks/http/authenticated_http_client.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
   test('attaches bearer authorization header', () async {
     late String? authorization;
-    final store = InMemoryOAuthTokenStore();
-    await store.saveTokenSet('account', _tokenSet('access'));
+    final store = InMemorySecretStore();
+    await store.saveOAuthTokenSet(
+      'account',
+      BusyProvider.google,
+      _tokenSet('access'),
+    );
     await store.setActiveAccountId('account');
 
     final client = AuthenticatedHttpClient(
@@ -37,8 +42,12 @@ void main() {
   });
 
   test('refreshes once after 401 and retries original request', () async {
-    final store = InMemoryOAuthTokenStore();
-    await store.saveTokenSet('account', _tokenSet('old-access'));
+    final store = InMemorySecretStore();
+    await store.saveOAuthTokenSet(
+      'account',
+      BusyProvider.google,
+      _tokenSet('old-access'),
+    );
     await store.setActiveAccountId('account');
 
     var apiCalls = 0;
@@ -78,7 +87,7 @@ void main() {
   });
 }
 
-OAuthService _service(OAuthTokenStore store, http.Client tokenClient) {
+OAuthService _service(SecretStore store, http.Client tokenClient) {
   return OAuthService(
     config: const BuildConfig(
       googleOAuthClientId: 'client-id',

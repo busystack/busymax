@@ -6,7 +6,7 @@ import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_provider_capabilities.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'google_calendar_errors.dart';
 import 'google_calendar_mapper.dart';
 import 'google_calendar_models.dart';
@@ -28,7 +28,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
   final Future<void> Function()? _unauthorizedRefreshProvider;
 
   @override
-  BusyProvider get provider => TaskProvider.google;
+  BusyProvider get provider => BusyProvider.google;
 
   @override
   CalendarProviderCapabilities get capabilities =>

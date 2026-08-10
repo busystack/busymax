@@ -11,10 +11,11 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
-import '../../../task_providers/task_provider.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
 import 'desktop_date_time_fields.dart';
+import 'ical_task_fields_editor.dart';
 import 'task_details_draft.dart';
 
 class TaskDetailsEditor extends StatefulWidget {
@@ -31,6 +32,13 @@ class TaskDetailsEditor extends StatefulWidget {
     required this.onMoveToTop,
     required this.onDelete,
     required this.onCancel,
+    this.hierarchy = const TaskHierarchySnapshot(parent: null, subtasks: []),
+    this.onHierarchyTaskSelected,
+    this.onSubtaskCompletionChanged,
+    this.onChecklistSubtaskRenamed,
+    this.onChecklistSubtaskDeleted,
+    this.onDuplicate,
+    this.onExport,
     this.onSaved,
     this.onTaskSwitchCancelled,
     this.onDirtyChanged,
@@ -52,11 +60,12 @@ class TaskDetailsEditor extends StatefulWidget {
     this.dialogBarrierColor,
     this.headerBarService,
     this.canSaveDraft,
+    this.isCreate = false,
   });
 
   final TaskEntity task;
   final List<TaskListEntity> taskLists;
-  final TaskProviderCapabilities capabilities;
+  final TaskCollectionCapabilities capabilities;
   final String localTimeZone;
   final String? accountLabel;
   final VoidCallback onRefresh;
@@ -65,10 +74,20 @@ class TaskDetailsEditor extends StatefulWidget {
     Map<String, Object?> patch,
   )
   onSave;
-  final ValueChanged<String> onCreateSubtask;
+  final Future<void> Function(String title) onCreateSubtask;
   final VoidCallback onMoveToTop;
   final Future<void> Function() onDelete;
   final VoidCallback onCancel;
+  final TaskHierarchySnapshot hierarchy;
+  final Future<void> Function(TaskEntity task)? onHierarchyTaskSelected;
+  final Future<void> Function(TaskSubtaskEntity subtask, bool completed)?
+  onSubtaskCompletionChanged;
+  final Future<void> Function(TaskSubtaskEntity subtask, String title)?
+  onChecklistSubtaskRenamed;
+  final Future<void> Function(TaskSubtaskEntity subtask)?
+  onChecklistSubtaskDeleted;
+  final Future<void> Function()? onDuplicate;
+  final Future<void> Function()? onExport;
   final VoidCallback? onSaved;
   final ValueChanged<TaskEntity>? onTaskSwitchCancelled;
   final ValueChanged<bool>? onDirtyChanged;
@@ -90,6 +109,7 @@ class TaskDetailsEditor extends StatefulWidget {
   final Color? dialogBarrierColor;
   final LinuxHeaderBarService? headerBarService;
   final bool Function(TaskDetailsDraft draft)? canSaveDraft;
+  final bool isCreate;
 
   @override
   State<TaskDetailsEditor> createState() => _TaskDetailsEditorState();
@@ -109,6 +129,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   var _addingCategory = false;
   var _confirmingTaskSwitch = false;
   var _confirmingDelete = false;
+  var _creatingSubtask = false;
 
   @override
   void initState() {
@@ -153,10 +174,14 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final l10n = context.l10n;
     final hasChanges = _hasEditorChanges(draft);
     final scheduledAllDay = _isScheduledAllDay(draft);
+    final scheduleIssue = draft.scheduleIssue;
     final canSave =
+        _canWrite &&
         draft.title.trim().isNotEmpty &&
         hasChanges &&
         !_saving &&
+        scheduleIssue == TaskScheduleIssue.none &&
+        draft.hasValidTaskUrl &&
         _timeFieldsAreValid(draft, scheduledAllDay) &&
         (widget.canSaveDraft?.call(draft) ?? true);
     final currentList = _listTitle(draft.taskListId);
@@ -200,6 +225,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         YaruListTile.square(
                           title: TextField(
                             controller: _titleController,
+                            enabled: _canWrite,
                             decoration: busyMaxGroupedTextFieldDecoration(
                               context,
                               labelText: l10n.title,
@@ -219,79 +245,99 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       filled: true,
                       children: [_listRow(draft, listValue)],
                     ),
-                    BusyMaxGroupedList(
-                      title: l10n.dueGroup,
-                      filled: true,
-                      children: [
-                        if (_supportsScheduledTimeMode)
-                          BusyMaxTimeModeRow(
-                            allDay: scheduledAllDay,
+                    if (widget.capabilities.supportsDueDate)
+                      BusyMaxGroupedList(
+                        title: l10n.dueGroup,
+                        filled: true,
+                        children: [
+                          if (_supportsScheduledTimeMode)
+                            IgnorePointer(
+                              ignoring: !_canWrite,
+                              child: BusyMaxTimeModeRow(
+                                allDay: scheduledAllDay,
+                                onChanged: (value) =>
+                                    _setScheduledAllDay(draft, value),
+                              ),
+                            ),
+                          DesktopDateValueRow(
+                            label: l10n.dueDate,
+                            date: draft.dueDate,
+                            enabled: _canWrite,
                             onChanged: (value) =>
-                                _setScheduledAllDay(draft, value),
-                          ),
-                        DesktopDateValueRow(
-                          label: l10n.dueDate,
-                          date: draft.dueDate,
-                          onChanged: (value) =>
-                              _updateDraft(draft.copyWith(dueDate: value)),
-                          useNativePicker: widget.useNativeDatePicker,
-                          onClear: () => _updateDraft(
-                            draft.copyWith(
-                              dueDate: null,
-                              microsoftDueTime:
-                                  widget.capabilities.supportsDueTime
-                                  ? null
-                                  : draft.microsoftDueTime,
-                            ),
-                          ),
-                        ),
-                        if (widget.capabilities.supportsDueTime &&
-                            !scheduledAllDay)
-                          DesktopTimeValueRow(
-                            label: l10n.dueTime,
-                            time: draft.microsoftDueTime,
-                            onChanged: (value) => _updateDraft(
-                              draft.copyWith(microsoftDueTime: value),
-                            ),
-                            timeZone: draft.microsoftDueTimeZone,
-                            onTimeZoneChanged: (value) => _updateDraft(
-                              draft.copyWith(microsoftDueTimeZone: value),
-                            ),
-                            onValidityChanged: (valid) => _setTimeFieldValidity(
-                              _TaskTimeField.due,
-                              valid,
-                            ),
+                                _updateDraft(draft.copyWith(dueDate: value)),
                             useNativePicker: widget.useNativeDatePicker,
+                            onClear: () => unawaited(
+                              _clearScheduledDate(draft, due: true),
+                            ),
                           ),
-                      ],
-                    ),
+                          if (widget.capabilities.supportsDueTime &&
+                              !scheduledAllDay)
+                            DesktopTimeValueRow(
+                              label: l10n.dueTime,
+                              time: draft.microsoftDueTime,
+                              enabled: _canWrite,
+                              onChanged: (value) => _updateDraft(
+                                draft.copyWith(microsoftDueTime: value),
+                              ),
+                              timeZone: draft.microsoftDueTimeZone,
+                              onTimeZoneChanged: (value) => _updateDraft(
+                                draft.copyWith(microsoftDueTimeZone: value),
+                              ),
+                              onValidityChanged: (valid) =>
+                                  _setTimeFieldValidity(
+                                    _TaskTimeField.due,
+                                    valid,
+                                  ),
+                              useNativePicker: widget.useNativeDatePicker,
+                            ),
+                        ],
+                      ),
                     if (widget.capabilities.supportsStartDateTime)
                       BusyMaxGroupedList(
                         title: l10n.startGroup,
                         filled: true,
                         children: _startRows(draft, scheduledAllDay),
                       ),
-                    if (widget.capabilities.supportsReminderDateTime)
+                    if (scheduleIssue != TaskScheduleIssue.none)
+                      _taskScheduleError(scheduleIssue),
+                    if (_supportsIcalFields)
+                      IcalTaskFieldsEditor(
+                        draft: draft,
+                        capabilities: widget.capabilities,
+                        enabled: _canWrite,
+                        useNativeDatePicker: widget.useNativeDatePicker,
+                        dialogBarrierColor: widget.dialogBarrierColor,
+                        headerBarService: widget.headerBarService,
+                        onChanged: _updateDraft,
+                      ),
+                    if (widget.capabilities.supportsReminderDateTime &&
+                        !widget.capabilities.supportsMultipleReminders)
                       BusyMaxGroupedList(
                         title: l10n.reminderGroup,
                         filled: true,
                         children: _reminderRows(draft),
                       ),
-                    if (widget.capabilities.supportsRecurrence)
+                    if (widget.capabilities.supportsRecurrence &&
+                        !widget.capabilities.supportsAdvancedRecurrence)
                       BusyMaxGroupedList(
                         filled: true,
                         children: [_repeatRow(draft)],
                       ),
-                    if (widget.capabilities.supportsImportance ||
+                    if ((widget.capabilities.supportsImportance &&
+                            !widget.capabilities.supportsIcalPriority) ||
                         widget.capabilities.supportsCategories)
                       BusyMaxGroupedList(
                         title: l10n.organizationSection,
                         filled: true,
                         children: [
-                          if (widget.capabilities.supportsImportance)
+                          if (widget.capabilities.supportsImportance &&
+                              !widget.capabilities.supportsIcalPriority)
                             _importanceRow(draft),
                           if (widget.capabilities.supportsCategories)
-                            _categoriesRow(draft),
+                            IgnorePointer(
+                              ignoring: !_canWrite,
+                              child: _categoriesRow(draft),
+                            ),
                         ],
                       ),
                     BusyMaxGroupedList(
@@ -300,6 +346,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         YaruListTile.square(
                           title: TextField(
                             controller: _notesController,
+                            enabled: _canWrite,
                             minLines: 3,
                             maxLines: 5,
                             decoration: busyMaxGroupedTextFieldDecoration(
@@ -315,27 +362,50 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                     ),
                     if (widget.showAdvancedActions &&
                         widget.capabilities.supportsTaskHierarchy)
+                      _subtasksSection(),
+                    if (widget.showAdvancedActions &&
+                        (widget.capabilities.supportsTaskReparenting ||
+                            widget.capabilities.supportsDuplicate ||
+                            widget.capabilities.supportsNativeExport))
                       BusyMaxGroupedList(
                         title: l10n.advancedSection,
                         filled: true,
                         children: [
-                          BusyMaxActionRow(
-                            title: l10n.createSubtask,
-                            leading: Icon(
-                              BusyMaxGlyphs.subdirectoryFor(
-                                Directionality.of(context),
-                              ),
+                          if (widget.capabilities.supportsTaskReparenting)
+                            BusyMaxActionRow(
+                              title: l10n.moveToTop,
+                              leading: const Icon(Icons.vertical_align_top),
+                              enabled: widget.capabilities.canUpdateTasks,
+                              onTap: widget.capabilities.canUpdateTasks
+                                  ? widget.onMoveToTop
+                                  : null,
                             ),
-                            onTap: _createSubtask,
-                          ),
-                          BusyMaxActionRow(
-                            title: l10n.moveToTop,
-                            leading: const Icon(Icons.vertical_align_top),
-                            onTap: widget.onMoveToTop,
-                          ),
+                          if (widget.capabilities.supportsDuplicate)
+                            BusyMaxActionRow(
+                              title: l10n.duplicateTask,
+                              leading: const Icon(Icons.copy_outlined),
+                              enabled:
+                                  widget.capabilities.canCreateTasks &&
+                                  widget.onDuplicate != null,
+                              onTap:
+                                  widget.capabilities.canCreateTasks &&
+                                      widget.onDuplicate != null
+                                  ? () => unawaited(widget.onDuplicate!())
+                                  : null,
+                            ),
+                          if (widget.capabilities.supportsNativeExport)
+                            BusyMaxActionRow(
+                              title: l10n.export,
+                              leading: const Icon(Icons.file_download_outlined),
+                              enabled: widget.onExport != null,
+                              onTap: widget.onExport == null
+                                  ? null
+                                  : () => unawaited(widget.onExport!()),
+                            ),
                         ],
                       ),
-                    if (widget.showDeleteAction) ...[
+                    if (widget.showDeleteAction &&
+                        widget.capabilities.canDeleteTasks) ...[
                       const SizedBox(height: BusyMaxSpacing.md),
                       BusyMaxGroupedList(
                         filled: true,
@@ -372,6 +442,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent ||
         !widget.showDeleteAction ||
+        !widget.capabilities.canDeleteTasks ||
         _isEditableTextFocused()) {
       return KeyEventResult.ignored;
     }
@@ -399,6 +470,23 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         widget.accountLabelFor != null &&
         widget.onAccountSelected != null;
   }
+
+  bool get _canWrite => widget.isCreate
+      ? widget.capabilities.canCreateTasks
+      : widget.capabilities.canUpdateTasks;
+
+  bool get _supportsIcalFields =>
+      widget.capabilities.supportsIcalPriority ||
+      widget.capabilities.supportsPercentComplete ||
+      widget.capabilities.supportsTaskStatus ||
+      widget.capabilities.supportsCompletedDateTime ||
+      widget.capabilities.supportsLocation ||
+      widget.capabilities.supportsUrl ||
+      widget.capabilities.supportsClassification ||
+      widget.capabilities.supportsMultipleReminders ||
+      widget.capabilities.supportsAdvancedRecurrence ||
+      widget.capabilities.supportsPinning ||
+      widget.capabilities.supportsSubtaskVisibility;
 
   Widget _accountRow() {
     final l10n = context.l10n;
@@ -445,6 +533,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       subtitle: widget.accountLabel,
       values: [for (final list in widget.taskLists) list.id],
       selected: draft.taskListId,
+      enabled: widget.isCreate || _canWrite,
       labelFor: (value) => _listTitle(value) ?? l10n.noneValue,
       onSelected: (value) => _updateDraft(draft.copyWith(taskListId: value)),
     );
@@ -456,17 +545,17 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopDateValueRow(
         label: l10n.startDate,
         date: draft.microsoftStartDate,
+        enabled: _canWrite,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftStartDate: value)),
         useNativePicker: widget.useNativeDatePicker,
-        onClear: () => _updateDraft(
-          draft.copyWith(microsoftStartDate: null, microsoftStartTime: null),
-        ),
+        onClear: () => unawaited(_clearScheduledDate(draft, due: false)),
       ),
       if (!scheduledAllDay)
         DesktopTimeValueRow(
           label: l10n.startTime,
           time: draft.microsoftStartTime,
+          enabled: _canWrite,
           onChanged: (value) =>
               _updateDraft(draft.copyWith(microsoftStartTime: value)),
           timeZone: draft.microsoftStartTimeZone,
@@ -477,6 +566,137 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           useNativePicker: widget.useNativeDatePicker,
         ),
     ];
+  }
+
+  Future<void> _clearScheduledDate(
+    TaskDetailsDraft draft, {
+    required bool due,
+  }) async {
+    final relatedIndexes = <int>[];
+    for (var index = 0; index < draft.alarms.length; index += 1) {
+      final alarm = draft.alarms[index];
+      if (alarm.relativeOffset != null && alarm.isRelatedToDue == due) {
+        relatedIndexes.add(index);
+      }
+    }
+
+    var alarms = draft.alarms;
+    if (relatedIndexes.isNotEmpty) {
+      final reference = draft.reminderReferenceUtc(
+        due: due,
+        localTimeZone: widget.localTimeZone,
+      );
+      final choice = await showBusyMaxModalDialog<_RelatedReminderChoice>(
+        context,
+        barrierColor: widget.dialogBarrierColor,
+        headerBarService: widget.headerBarService,
+        barrierDismissible: false,
+        builder: (dialogContext) => BusyMaxDialogShell(
+          title: dialogContext.l10n.relatedRemindersTitle,
+          actions: [
+            BusyMaxPushButton.standard(
+              autofocus: true,
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(dialogContext.l10n.cancel),
+            ),
+            BusyMaxPushButton.destructive(
+              context: dialogContext,
+              onPressed: () =>
+                  Navigator.pop(dialogContext, _RelatedReminderChoice.discard),
+              child: Text(dialogContext.l10n.discardRelatedReminders),
+            ),
+            BusyMaxPushButton.suggested(
+              onPressed: reference == null
+                  ? null
+                  : () => Navigator.pop(
+                      dialogContext,
+                      _RelatedReminderChoice.keepAbsolute,
+                    ),
+              child: Text(dialogContext.l10n.keepRelatedReminders),
+            ),
+          ],
+          children: [
+            Text(
+              dialogContext.l10n.relatedRemindersDescription(
+                relatedIndexes.length,
+              ),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || choice == null) return;
+      final related = relatedIndexes.toSet();
+      alarms = switch (choice) {
+        _RelatedReminderChoice.discard => [
+          for (var index = 0; index < draft.alarms.length; index += 1)
+            if (!related.contains(index)) draft.alarms[index],
+        ],
+        _RelatedReminderChoice.keepAbsolute => [
+          for (var index = 0; index < draft.alarms.length; index += 1)
+            if (related.contains(index))
+              draft.alarms[index].withAbsoluteTrigger(
+                reference!.add(draft.alarms[index].relativeOffset!),
+              )
+            else
+              draft.alarms[index],
+        ],
+      };
+    }
+
+    final noOtherDate = due
+        ? draft.microsoftStartDate == null
+        : draft.dueDate == null;
+    _updateDraft(
+      due
+          ? draft.copyWith(
+              dueDate: null,
+              microsoftDueTime: widget.capabilities.supportsDueTime
+                  ? null
+                  : draft.microsoftDueTime,
+              recurrenceJson: noOtherDate ? null : draft.recurrenceJson,
+              alarms: alarms,
+            )
+          : draft.copyWith(
+              microsoftStartDate: null,
+              microsoftStartTime: null,
+              recurrenceJson: noOtherDate ? null : draft.recurrenceJson,
+              alarms: alarms,
+            ),
+    );
+  }
+
+  Widget _taskScheduleError(TaskScheduleIssue issue) {
+    final message = switch (issue) {
+      TaskScheduleIssue.dueBeforeStart => context.l10n.taskDueBeforeStart,
+      TaskScheduleIssue.mixedTimeModes =>
+        context.l10n.taskStartDueTimeModeMismatch,
+      TaskScheduleIssue.none => '',
+    };
+    final color = Theme.of(context).colorScheme.error;
+    return Padding(
+      key: const ValueKey('task-schedule-error'),
+      padding: const EdgeInsets.fromLTRB(
+        BusyMaxSpacing.lg,
+        BusyMaxSpacing.xs,
+        BusyMaxSpacing.lg,
+        BusyMaxSpacing.sm,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, size: 16, color: color),
+          const SizedBox(width: BusyMaxSpacing.xs),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: color),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   bool get _supportsScheduledTimeMode {
@@ -541,9 +761,16 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       leading: const Icon(YaruIcons.repeat),
       values: options.keys.toList(),
       selected: type,
+      enabled: _canWrite,
       labelFor: (value) => options[value] ?? l10n.repeatNone,
       onSelected: (value) => _updateDraft(
-        draft.copyWith(recurrenceJson: _recurrenceJsonFor(value, draft)),
+        draft.copyWith(
+          recurrenceJson: _recurrenceJsonFor(
+            value,
+            draft,
+            dav: _editingTask.davCollectionId != null,
+          ),
+        ),
       ),
     );
   }
@@ -560,6 +787,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       leading: const Icon(YaruIcons.task_important),
       values: labels.keys.toList(),
       selected: draft.importance,
+      enabled: _canWrite,
       labelFor: (value) => labels[value] ?? l10n.importanceNormal,
       onSelected: (value) => _updateDraft(draft.copyWith(importance: value)),
     );
@@ -622,6 +850,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     final draft = _draft;
     if (draft == null ||
         _saving ||
+        !_canWrite ||
+        draft.scheduleIssue != TaskScheduleIssue.none ||
+        !draft.hasValidTaskUrl ||
         !_timeFieldsAreValid(draft, _isScheduledAllDay(draft))) {
       return;
     }
@@ -697,7 +928,148 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     }
   }
 
+  Widget _subtasksSection() {
+    final l10n = context.l10n;
+    final hierarchy = widget.hierarchy;
+    return BusyMaxGroupedList(
+      title: l10n.subtasks,
+      filled: true,
+      children: [
+        if (hierarchy.parent case final parent?)
+          BusyMaxActionRow(
+            key: ValueKey('task-parent-${parent.id}'),
+            title: parent.title,
+            subtitle: l10n.parent,
+            leading: const Icon(Icons.account_tree_outlined),
+            trailing: Icon(
+              BusyMaxGlyphs.chevronForwardFor(Directionality.of(context)),
+            ),
+            enabled: widget.onHierarchyTaskSelected != null,
+            onTap: widget.onHierarchyTaskSelected == null
+                ? null
+                : () => unawaited(widget.onHierarchyTaskSelected!(parent)),
+          ),
+        for (final subtask in hierarchy.subtasks) _subtaskRow(subtask),
+        BusyMaxActionRow(
+          key: const ValueKey('create-subtask-action'),
+          title: l10n.createSubtask,
+          leading: Icon(
+            BusyMaxGlyphs.subdirectoryFor(Directionality.of(context)),
+          ),
+          enabled: widget.capabilities.canCreateTasks && !_creatingSubtask,
+          onTap: widget.capabilities.canCreateTasks && !_creatingSubtask
+              ? _createSubtask
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _subtaskRow(TaskSubtaskEntity subtask) {
+    final task = subtask.task;
+    final canToggle =
+        widget.capabilities.canUpdateTasks &&
+        widget.onSubtaskCompletionChanged != null;
+    final title = Text(
+      subtask.title,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        decoration: subtask.completed ? TextDecoration.lineThrough : null,
+        color: subtask.completed
+            ? Theme.of(context).colorScheme.onSurfaceVariant
+            : Theme.of(context).colorScheme.onSurface,
+      ),
+    );
+    return BusyMaxActionRow(
+      key: ValueKey('subtask-${subtask.kind.name}-${subtask.id}'),
+      title: subtask.title,
+      titleWidget: title,
+      leading: Icon(BusyMaxGlyphs.subdirectoryFor(Directionality.of(context))),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          YaruCheckbox(
+            value: subtask.completed,
+            onChanged: !canToggle
+                ? null
+                : (value) => unawaited(
+                    widget.onSubtaskCompletionChanged!(subtask, value ?? false),
+                  ),
+          ),
+          if (task != null)
+            Icon(BusyMaxGlyphs.chevronForwardFor(Directionality.of(context)))
+          else if (widget.onChecklistSubtaskRenamed != null ||
+              widget.onChecklistSubtaskDeleted != null)
+            BusyMaxMenuButton<_ChecklistSubtaskAction>(
+              tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
+              onSelected: (action) =>
+                  unawaited(_handleChecklistSubtaskAction(subtask, action)),
+              entries: [
+                if (widget.onChecklistSubtaskRenamed != null)
+                  BusyMaxMenuEntry(
+                    value: _ChecklistSubtaskAction.rename,
+                    label: context.l10n.rename,
+                    icon: Icons.edit_outlined,
+                  ),
+                if (widget.onChecklistSubtaskDeleted != null)
+                  BusyMaxMenuEntry(
+                    value: _ChecklistSubtaskAction.delete,
+                    label: context.l10n.delete,
+                    icon: YaruIcons.trash,
+                    destructive: true,
+                  ),
+              ],
+            ),
+        ],
+      ),
+      enabled: task == null || widget.onHierarchyTaskSelected != null,
+      onTap: task == null || widget.onHierarchyTaskSelected == null
+          ? null
+          : () => unawaited(widget.onHierarchyTaskSelected!(task)),
+    );
+  }
+
+  Future<void> _handleChecklistSubtaskAction(
+    TaskSubtaskEntity subtask,
+    _ChecklistSubtaskAction action,
+  ) async {
+    switch (action) {
+      case _ChecklistSubtaskAction.rename:
+        final title = await showBusyMaxTextPrompt(
+          context,
+          title: context.l10n.rename,
+          label: context.l10n.title,
+          actionLabel: context.l10n.save,
+          initialValue: subtask.title,
+          barrierColor: widget.dialogBarrierColor,
+          headerBarService: widget.headerBarService,
+        );
+        final normalized = title?.trim();
+        if (normalized == null ||
+            normalized.isEmpty ||
+            normalized == subtask.title) {
+          return;
+        }
+        await widget.onChecklistSubtaskRenamed?.call(subtask, normalized);
+      case _ChecklistSubtaskAction.delete:
+        final confirmed = await showBusyMaxConfirm(
+          context,
+          title: context.l10n.delete,
+          message: context.l10n.deleteTaskConfirmation(subtask.title),
+          confirmLabel: context.l10n.delete,
+          destructive: true,
+          barrierColor: widget.dialogBarrierColor,
+          headerBarService: widget.headerBarService,
+        );
+        if (confirmed) {
+          await widget.onChecklistSubtaskDeleted?.call(subtask);
+        }
+    }
+  }
+
   Future<void> _createSubtask() async {
+    if (!widget.capabilities.canCreateTasks || _creatingSubtask) return;
     final title = await showBusyMaxTextPrompt(
       context,
       title: context.l10n.newSubtask,
@@ -709,11 +1081,16 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (title == null || title.trim().isEmpty) {
       return;
     }
-    widget.onCreateSubtask(title.trim());
+    setState(() => _creatingSubtask = true);
+    try {
+      await widget.onCreateSubtask(title.trim());
+    } finally {
+      if (mounted) setState(() => _creatingSubtask = false);
+    }
   }
 
   Future<void> _deleteTask() async {
-    if (_confirmingDelete) {
+    if (_confirmingDelete || !widget.capabilities.canDeleteTasks) {
       return;
     }
     _confirmingDelete = true;
@@ -840,14 +1217,17 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
               ],
             ),
           ),
-          onTap: () => _updateDraft(
-            draft.copyWith(
-              microsoftReminderEnabled: true,
-              microsoftReminderDate:
-                  draft.dueDate ?? encodeGoogleDateOnly(DateTime.now()),
-              microsoftReminderTime: '09:00',
-            ),
-          ),
+          enabled: _canWrite,
+          onTap: _canWrite
+              ? () => _updateDraft(
+                  draft.copyWith(
+                    microsoftReminderEnabled: true,
+                    microsoftReminderDate:
+                        draft.dueDate ?? encodeGoogleDateOnly(DateTime.now()),
+                    microsoftReminderTime: '09:00',
+                  ),
+                )
+              : null,
         ),
       ];
     }
@@ -856,6 +1236,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopDateValueRow(
         label: l10n.reminderDate,
         date: draft.microsoftReminderDate,
+        enabled: _canWrite,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderDate: value)),
         useNativePicker: widget.useNativeDatePicker,
@@ -865,6 +1246,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       DesktopTimeValueRow(
         label: l10n.reminderTime,
         time: draft.microsoftReminderTime,
+        enabled: _canWrite,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderTime: value)),
         timeZone: draft.microsoftReminderTimeZone,
@@ -877,20 +1259,25 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       BusyMaxActionRow(
         title: l10n.removeReminder,
         leading: const Icon(YaruIcons.window_close),
-        onTap: () {
-          _invalidTimeFields.remove(_TaskTimeField.reminder);
-          _updateDraft(
-            draft.copyWith(
-              microsoftReminderEnabled: false,
-              microsoftReminderDate: null,
-              microsoftReminderTime: null,
-            ),
-          );
-        },
+        enabled: _canWrite,
+        onTap: _canWrite
+            ? () {
+                _invalidTimeFields.remove(_TaskTimeField.reminder);
+                _updateDraft(
+                  draft.copyWith(
+                    microsoftReminderEnabled: false,
+                    microsoftReminderDate: null,
+                    microsoftReminderTime: null,
+                  ),
+                );
+              }
+            : null,
       ),
     ];
   }
 }
+
+enum _ChecklistSubtaskAction { rename, delete }
 
 TextStyle? _taskEditorProminentActionStyle(
   BuildContext context, {
@@ -903,6 +1290,8 @@ TextStyle? _taskEditorProminentActionStyle(
 }
 
 enum _TaskTimeField { due, start, reminder }
+
+enum _RelatedReminderChoice { discard, keepAbsolute }
 
 class _TaskDetailsHeader extends StatelessWidget {
   const _TaskDetailsHeader({
@@ -945,11 +1334,26 @@ bool _taskChanged(TaskEntity oldTask, TaskEntity newTask) {
       oldTask.notes != newTask.notes ||
       oldTask.dueUtc != newTask.dueUtc ||
       oldTask.microsoftDueDateTime != newTask.microsoftDueDateTime ||
+      oldTask.microsoftDueTimeZone != newTask.microsoftDueTimeZone ||
       oldTask.microsoftStartDateTime != newTask.microsoftStartDateTime ||
+      oldTask.microsoftStartTimeZone != newTask.microsoftStartTimeZone ||
       oldTask.microsoftReminderDateTime != newTask.microsoftReminderDateTime ||
+      oldTask.microsoftReminderTimeZone != newTask.microsoftReminderTimeZone ||
+      oldTask.microsoftIsReminderOn != newTask.microsoftIsReminderOn ||
       oldTask.recurrenceJson != newTask.recurrenceJson ||
       oldTask.importance != newTask.importance ||
-      oldTask.categoriesJson != newTask.categoriesJson;
+      oldTask.categoriesJson != newTask.categoriesJson ||
+      oldTask.icalPriority != newTask.icalPriority ||
+      oldTask.percentComplete != newTask.percentComplete ||
+      oldTask.providerStatus != newTask.providerStatus ||
+      oldTask.completedUtc != newTask.completedUtc ||
+      oldTask.taskLocation != newTask.taskLocation ||
+      oldTask.taskUrl != newTask.taskUrl ||
+      oldTask.taskClassification != newTask.taskClassification ||
+      oldTask.taskPinned != newTask.taskPinned ||
+      oldTask.taskHideSubtasks != newTask.taskHideSubtasks ||
+      oldTask.taskHideCompletedSubtasks != newTask.taskHideCompletedSubtasks ||
+      oldTask.taskAlarmsJson != newTask.taskAlarmsJson;
 }
 
 Map<String, String> _repeatOptions(BuildContext context) {
@@ -974,6 +1378,14 @@ String _recurrenceType(String? recurrenceJson) {
       if (pattern is Map) {
         return pattern['type']?.toString() ?? 'none';
       }
+      final rules = decoded['rules'];
+      if (rules is List && rules.isNotEmpty) {
+        final rule = rules.first.toString().toUpperCase();
+        if (rule.contains('FREQ=DAILY')) return 'daily';
+        if (rule.contains('FREQ=WEEKLY')) return 'weekly';
+        if (rule.contains('FREQ=MONTHLY')) return 'absoluteMonthly';
+        if (rule.contains('FREQ=YEARLY')) return 'absoluteYearly';
+      }
     }
   } on FormatException {
     return 'none';
@@ -981,11 +1393,40 @@ String _recurrenceType(String? recurrenceJson) {
   return 'none';
 }
 
-String? _recurrenceJsonFor(String type, TaskDetailsDraft draft) {
+String? _recurrenceJsonFor(
+  String type,
+  TaskDetailsDraft draft, {
+  required bool dav,
+}) {
   if (type == 'none') {
     return null;
   }
   final now = DateTime.now();
+  final recurrenceStart = DateTime.tryParse(draft.dueDate ?? '') ?? now;
+  if (dav) {
+    final frequency = switch (type) {
+      'daily' => 'DAILY',
+      'weekly' => 'WEEKLY',
+      'absoluteMonthly' => 'MONTHLY',
+      'absoluteYearly' => 'YEARLY',
+      _ => 'DAILY',
+    };
+    final parts = <String>['FREQ=$frequency', 'INTERVAL=1'];
+    if (type == 'weekly') {
+      parts.add('BYDAY=${_weekdayCode(recurrenceStart.weekday)}');
+    } else if (type == 'absoluteMonthly') {
+      parts.add('BYMONTHDAY=${recurrenceStart.day}');
+    } else if (type == 'absoluteYearly') {
+      parts
+        ..add('BYMONTH=${recurrenceStart.month}')
+        ..add('BYMONTHDAY=${recurrenceStart.day}');
+    }
+    return jsonEncode({
+      'rules': [parts.join(';')],
+      'dates': const <String>[],
+      'excludedDates': const <String>[],
+    });
+  }
   final pattern = switch (type) {
     'daily' => {'type': 'daily', 'interval': 1},
     'weekly' => {
@@ -1015,6 +1456,16 @@ String? _recurrenceJsonFor(String type, TaskDetailsDraft draft) {
     },
   });
 }
+
+String _weekdayCode(int weekday) => switch (weekday) {
+  DateTime.monday => 'MO',
+  DateTime.tuesday => 'TU',
+  DateTime.wednesday => 'WE',
+  DateTime.thursday => 'TH',
+  DateTime.friday => 'FR',
+  DateTime.saturday => 'SA',
+  _ => 'SU',
+};
 
 String _weekdayName(int weekday) {
   return switch (weekday) {

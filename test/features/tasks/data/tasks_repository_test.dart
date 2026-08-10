@@ -5,6 +5,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 
 void main() {
   late AppDatabase database;
@@ -58,6 +60,34 @@ void main() {
       'due': '2026-06-05T00:00:00.000Z',
     });
     expect(mutationQueuedCalls, 1);
+  });
+
+  test('Google subtask queues a dependent hierarchy move', () async {
+    await database.tasksDao.upsertTask(_task(id: 'parent', position: '1'));
+
+    await repository.createSubtask(
+      taskListId: 'list-1',
+      parentTaskId: 'parent',
+      title: 'Child',
+    );
+
+    final tasks = await database.tasksDao.listTasks('account', 'list-1');
+    final child = tasks.singleWhere((task) => task.id.startsWith('local-'));
+    final ops = await database.pendingOpsDao.pendingOpsForReplay(
+      'account',
+      DateTime.utc(2026, 6, 4, 1),
+    );
+    final create = ops.singleWhere((op) => op.operation == 'create_task');
+    final move = ops.singleWhere((op) => op.operation == 'move_task');
+
+    expect(child.parent, 'parent');
+    expect(jsonDecode(create.requestJson), {
+      'body': {'title': 'Child'},
+      'parent': 'parent',
+    });
+    expect(move.taskId, child.id);
+    expect(move.dependsOnOpId, create.id);
+    expect(jsonDecode(move.requestJson), {'parent': 'parent'});
   });
 
   test('createTask writes and queues extended task fields', () async {
@@ -290,6 +320,145 @@ void main() {
       expect(tree.map((node) => node.task.id), ['task-10', 'task-2']);
     },
   );
+
+  test('watchTaskTree sorts DAV task order numerically', () async {
+    await database.tasksDao.upsertTask(
+      _task(id: 'task-2', position: '2', sortOrder: const Value(2)),
+    );
+    await database.tasksDao.upsertTask(
+      _task(id: 'task-10', position: '10', sortOrder: const Value(10)),
+    );
+
+    final tree = await repository
+        .watchTaskTree('list-1', const TaskViewFilter())
+        .first;
+
+    expect(tree.map((node) => node.task.id), ['task-2', 'task-10']);
+  });
+
+  test('resolves Google ids and Nextcloud UIDs into task hierarchy', () async {
+    await database.tasksDao.upsertTask(
+      _task(id: 'google-parent', position: '1'),
+    );
+    await database.tasksDao.upsertTask(
+      _task(
+        id: 'google-child',
+        position: '2',
+        parent: const Value('google-parent'),
+      ),
+    );
+    await database.tasksDao.upsertTask(
+      _task(
+        id: 'nextcloud-parent',
+        position: '3',
+        icalUid: const Value('parent-uid'),
+      ),
+    );
+    await database.tasksDao.upsertTask(
+      _task(
+        id: 'nextcloud-child',
+        position: '4',
+        parentUid: const Value('parent-uid'),
+      ),
+    );
+
+    final google = await repository
+        .watchTaskHierarchy('list-1', 'google-parent')
+        .first;
+    final nextcloud = await repository
+        .watchTaskHierarchy('list-1', 'nextcloud-child')
+        .first;
+    final tree = await repository
+        .watchTaskTree('list-1', const TaskViewFilter())
+        .first;
+
+    expect(google.subtasks.single.id, 'google-child');
+    expect(nextcloud.parent?.id, 'nextcloud-parent');
+    expect(
+      tree
+          .singleWhere((node) => node.task.id == 'google-parent')
+          .children
+          .single
+          .task
+          .id,
+      'google-child',
+    );
+    expect(
+      tree
+          .singleWhere((node) => node.task.id == 'nextcloud-parent')
+          .children
+          .single
+          .task
+          .id,
+      'nextcloud-child',
+    );
+  });
+
+  test(
+    'Microsoft checklist subtask mutations keep an optimistic hierarchy',
+    () async {
+      var mutationCalls = 0;
+      repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        apiClient: _ChecklistTaskRemoteClient(),
+        onMutationQueued: () => mutationCalls += 1,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await database.tasksDao.upsertTask(_task(id: 'parent', position: '1'));
+
+      await repository.createSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'parent',
+        title: 'Checklist step',
+      );
+      var task = (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single;
+      final created = decodeTaskChecklistItems(
+        task.microsoftChecklistItemsJson,
+      ).single;
+      var hierarchy = await repository
+          .watchTaskHierarchy('list-1', 'parent')
+          .first;
+      var operations = await database.pendingOpsDao.pendingOpsForReplay(
+        'account',
+        DateTime.utc(2026, 6, 4, 1),
+      );
+
+      expect(created.title, 'Checklist step');
+      expect(hierarchy.subtasks.single.kind, TaskSubtaskKind.checklistItem);
+      expect(operations.single.entityType, 'task_checklist_item');
+      expect(operations.single.operation, 'create_task_checklist_item');
+
+      await repository.patchChecklistSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'parent',
+        checklistItemId: created.id,
+        completed: true,
+      );
+      hierarchy = await repository.watchTaskHierarchy('list-1', 'parent').first;
+      expect(hierarchy.subtasks.single.completed, isTrue);
+
+      await repository.deleteChecklistSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'parent',
+        checklistItemId: created.id,
+      );
+      task = (await database.tasksDao.listTasks('account', 'list-1')).single;
+      operations = await database.pendingOpsDao.pendingOpsForReplay(
+        'account',
+        DateTime.utc(2026, 6, 4, 1),
+      );
+      expect(
+        decodeTaskChecklistItems(task.microsoftChecklistItemsJson),
+        isEmpty,
+      );
+      expect(operations, isEmpty);
+      expect(mutationCalls, 3);
+    },
+  );
 }
 
 TasksRepository _repository(
@@ -312,6 +481,10 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'google-account',
+          credentialKind: 'oauth',
           authState: const Value('signed_in'),
           createdAtUtc: _now,
           updatedAtUtc: _now,
@@ -337,6 +510,11 @@ TasksCompanion _task({
   Value<bool> serverMissing = const Value.absent(),
   Value<String?> status = const Value.absent(),
   Value<String?> updatedUtc = const Value.absent(),
+  Value<int?> sortOrder = const Value.absent(),
+  Value<String?> parent = const Value.absent(),
+  Value<String?> parentUid = const Value.absent(),
+  Value<String?> icalUid = const Value.absent(),
+  Value<String?> microsoftChecklistItemsJson = const Value.absent(),
   String rawJson = '{}',
 }) {
   return TasksCompanion.insert(
@@ -345,6 +523,11 @@ TasksCompanion _task({
     id: id,
     title: id,
     position: Value(position),
+    sortOrder: sortOrder,
+    parent: parent,
+    parentUid: parentUid,
+    icalUid: icalUid,
+    microsoftChecklistItemsJson: microsoftChecklistItemsJson,
     hidden: hidden,
     serverMissing: serverMissing,
     status: status,
@@ -356,3 +539,9 @@ TasksCompanion _task({
 }
 
 const _now = '2026-06-04T00:00:00.000Z';
+
+class _ChecklistTaskRemoteClient
+    implements TaskRemoteClient, TaskChecklistRemoteClient {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}

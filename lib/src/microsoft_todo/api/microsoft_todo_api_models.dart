@@ -180,6 +180,59 @@ class MicrosoftTodoTaskDto {
   final String? removedReason;
 }
 
+class MicrosoftTodoChecklistItemDto {
+  const MicrosoftTodoChecklistItemDto({
+    required this.id,
+    required this.rawJson,
+    this.displayName,
+    this.isChecked,
+    this.createdDateTime,
+    this.checkedDateTime,
+  });
+
+  factory MicrosoftTodoChecklistItemDto.fromJson(Map<String, Object?> json) {
+    return MicrosoftTodoChecklistItemDto(
+      id: json['id']?.toString() ?? '',
+      displayName: microsoftStringOrNull(json['displayName']),
+      isChecked: microsoftBoolOrNull(json['isChecked']),
+      createdDateTime: microsoftStringOrNull(json['createdDateTime']),
+      checkedDateTime: microsoftStringOrNull(json['checkedDateTime']),
+      rawJson: Map.unmodifiable(json),
+    );
+  }
+
+  final String id;
+  final String? displayName;
+  final bool? isChecked;
+  final String? createdDateTime;
+  final String? checkedDateTime;
+  final Map<String, Object?> rawJson;
+}
+
+class MicrosoftTodoChecklistItemsPageDto {
+  const MicrosoftTodoChecklistItemsPageDto({
+    required this.items,
+    required this.rawJson,
+    this.nextLink,
+  });
+
+  factory MicrosoftTodoChecklistItemsPageDto.fromJson(
+    Map<String, Object?> json,
+  ) {
+    return MicrosoftTodoChecklistItemsPageDto(
+      items: microsoftJsonObjectList(
+        json['value'],
+      ).map(MicrosoftTodoChecklistItemDto.fromJson).toList(),
+      nextLink: microsoftStringOrNull(json['@odata.nextLink']),
+      rawJson: Map.unmodifiable(json),
+    );
+  }
+
+  final List<MicrosoftTodoChecklistItemDto> items;
+  final String? nextLink;
+  final Map<String, Object?> rawJson;
+}
+
 class MicrosoftTodoTaskListsPageDto {
   const MicrosoftTodoTaskListsPageDto({
     required this.items,

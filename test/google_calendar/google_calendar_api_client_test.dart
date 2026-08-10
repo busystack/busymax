@@ -67,7 +67,10 @@ void main() {
           .insert(
             AccountsCompanion.insert(
               id: 'account',
-              provider: const Value('google'),
+              provider: 'google',
+              authority: 'https://accounts.google.com',
+              providerAccountId: 'google-account',
+              credentialKind: 'oauth',
               authState: const Value('signed_in'),
               grantedScopes: const Value(''),
               createdAtUtc: '2026-07-01T00:00:00.000Z',

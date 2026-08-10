@@ -1,4 +1,4 @@
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'calendar_mutation.dart';
 import 'calendar_provider_capabilities.dart';
 import 'calendar_sync_dto.dart';

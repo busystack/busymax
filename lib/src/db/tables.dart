@@ -2,8 +2,12 @@ import 'package:drift/drift.dart';
 
 class Accounts extends Table {
   TextColumn get id => text()();
-  TextColumn get provider => text().withDefault(const Constant('google'))();
-  TextColumn get providerAccountId => text().nullable()();
+  TextColumn get provider => text()();
+  TextColumn get authority => text()();
+  TextColumn get providerAccountId => text()();
+  TextColumn get credentialKind => text()();
+  IntColumn get providerProfileVersion =>
+      integer().withDefault(const Constant(1))();
   TextColumn get displayName => text().nullable()();
   TextColumn get email => text().nullable()();
   TextColumn get tenantId => text().nullable()();
@@ -22,12 +26,179 @@ class Accounts extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    "CHECK (provider IN ('google', 'microsoft', 'apple_icloud', 'nextcloud'))",
+    "CHECK (credential_kind IN ('oauth', 'apple_app_specific_password', "
+        "'nextcloud_app_password'))",
+    'CHECK (length(trim(authority)) > 0)',
+    'CHECK (length(trim(provider_account_id)) > 0)',
+  ];
+}
+
+class DavAccountServices extends Table {
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get canonicalServiceUri => text()();
+  TextColumn get canonicalOrigin => text()();
+  TextColumn get principalHref => text().nullable()();
+  TextColumn get calendarHomeHref => text().nullable()();
+  TextColumn get calendarUserAddressesJson =>
+      text().withDefault(const Constant('[]'))();
+  TextColumn get scheduleInboxHref => text().nullable()();
+  TextColumn get scheduleOutboxHref => text().nullable()();
+  TextColumn get capabilitiesJson => text().withDefault(const Constant('{}'))();
+  IntColumn get capabilitiesSchemaVersion =>
+      integer().withDefault(const Constant(1))();
+  IntColumn get providerProfileVersion =>
+      integer().withDefault(const Constant(1))();
+  TextColumn get discoveredAtUtc => text()();
+  TextColumn get lastValidatedAtUtc => text().nullable()();
+  TextColumn get lastDiscoveryErrorCode => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {accountId};
+}
+
+class DavCollections extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get hrefKey => text()();
+  TextColumn get requestUri => text()();
+  TextColumn get displayName => text()();
+  TextColumn get description => text().nullable()();
+  TextColumn get resourceTypesJson =>
+      text().withDefault(const Constant('[]'))();
+  IntColumn get supportedComponentMask =>
+      integer().withDefault(const Constant(0))();
+  TextColumn get supportedCalendarDataJson =>
+      text().withDefault(const Constant('[]'))();
+  TextColumn get supportedReportsJson =>
+      text().withDefault(const Constant('[]'))();
+  TextColumn get currentUserPrivilegesJson =>
+      text().withDefault(const Constant('[]'))();
+  TextColumn get ownerHref => text().nullable()();
+  TextColumn get safeDisplayMetadataJson => text().nullable()();
+  TextColumn get color => text().nullable()();
+  IntColumn get sortOrder => integer().nullable()();
+  TextColumn get calendarTimeZone => text().nullable()();
+  TextColumn get calendarTimeZoneId => text().nullable()();
+  TextColumn get scheduleTransparency => text().nullable()();
+  IntColumn get maximumResourceSize => integer().nullable()();
+  IntColumn get maximumInstances => integer().nullable()();
+  TextColumn get syncToken => text().nullable()();
+  TextColumn get ctag => text().nullable()();
+  BoolColumn get readOnly => boolean().withDefault(const Constant(true))();
+  BoolColumn get eventProjectionEnabled =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get taskProjectionEnabled =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get eventsSelected =>
+      boolean().withDefault(const Constant(true))();
+  BoolColumn get tasksSelected => boolean().withDefault(const Constant(true))();
+  BoolColumn get serverMissing =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get deleted => boolean().withDefault(const Constant(false))();
+  TextColumn get lastInventoryAtUtc => text().nullable()();
+  TextColumn get lastSyncAtUtc => text().nullable()();
+  IntColumn get parserVersion => integer().withDefault(const Constant(1))();
+  IntColumn get projectionVersion => integer().withDefault(const Constant(1))();
+  TextColumn get createdAtUtc => text()();
+  TextColumn get updatedAtUtc => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class DavObjects extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get collectionId =>
+      text().references(DavCollections, #id, onDelete: KeyAction.cascade)();
+  TextColumn get hrefKey => text()();
+  TextColumn get requestUri => text()();
+  TextColumn get etag => text().nullable()();
+  TextColumn get contentType => text().nullable()();
+  TextColumn get dominantComponentType => text().nullable()();
+  IntColumn get componentMask => integer().withDefault(const Constant(0))();
+  TextColumn get primaryUid => text().nullable()();
+  TextColumn get rawIcsBody => text()();
+  TextColumn get rawBodyHash => text()();
+  TextColumn get semanticHash => text().nullable()();
+  BoolColumn get serverDeleted =>
+      boolean().withDefault(const Constant(false))();
+  IntColumn get baselineGeneration =>
+      integer().withDefault(const Constant(0))();
+  TextColumn get firstSeenAtUtc => text()();
+  TextColumn get lastFetchedAtUtc => text()();
+  TextColumn get lastChangedAtUtc => text()();
+  TextColumn get lastParseStatus =>
+      text().withDefault(const Constant('unparsed'))();
+  TextColumn get lastParseErrorCode => text().nullable()();
+  IntColumn get parserVersion => integer().withDefault(const Constant(1))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class DavObjectComponents extends Table {
+  TextColumn get id => text()();
+  TextColumn get davObjectId =>
+      text().references(DavObjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get componentType => text()();
+  TextColumn get uid => text()();
+  TextColumn get recurrenceIdKey => text().nullable()();
+  IntColumn get sequence => integer().nullable()();
+  TextColumn get dtstampUtc => text().nullable()();
+  TextColumn get lastModifiedUtc => text().nullable()();
+  TextColumn get semanticHash => text()();
+  IntColumn get parserProfileVersion =>
+      integer().withDefault(const Constant(1))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class DavConflictSnapshots extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get davCollectionId => text().nullable().references(
+    DavCollections,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get davObjectId => text().nullable().references(
+    DavObjects,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get baselineEtag => text().nullable()();
+  TextColumn get baselineRawIcs => text()();
+  TextColumn get localCandidateRawIcs => text()();
+  TextColumn get remoteEtag => text().nullable()();
+  TextColumn get remoteRawIcs => text()();
+  TextColumn get conflictCode => text()();
+  TextColumn get createdAtUtc => text()();
+  TextColumn get resolvedAtUtc => text().nullable()();
+  TextColumn get resolution => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
 }
 
 class TaskLists extends Table {
   TextColumn get accountId =>
       text().references(Accounts, #id, onDelete: KeyAction.cascade)();
   TextColumn get id => text()();
+  TextColumn get davCollectionId => text().nullable().references(
+    DavCollections,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
   TextColumn get kind => text().nullable()();
   TextColumn get etag => text().nullable()();
   TextColumn get title => text()();
@@ -57,6 +228,36 @@ class Tasks extends Table {
       text().references(Accounts, #id, onDelete: KeyAction.cascade)();
   TextColumn get taskListId => text()();
   TextColumn get id => text()();
+  TextColumn get davCollectionId => text().nullable().references(
+    DavCollections,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get davObjectId => text().nullable().references(
+    DavObjects,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get davComponentId => text().nullable().references(
+    DavObjectComponents,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get icalUid => text().nullable()();
+  TextColumn get recurrenceIdKey => text().nullable()();
+  IntColumn get icalPriority => integer().nullable()();
+  IntColumn get percentComplete => integer().nullable()();
+  TextColumn get taskLocation => text().nullable()();
+  TextColumn get taskUrl => text().nullable()();
+  TextColumn get taskClassification => text().nullable()();
+  BoolColumn get taskPinned => boolean().nullable()();
+  BoolColumn get taskHideSubtasks => boolean().nullable()();
+  BoolColumn get taskHideCompletedSubtasks => boolean().nullable()();
+  TextColumn get taskAlarmsJson => text().nullable()();
+  TextColumn get parentUid => text().nullable()();
+  IntColumn get sortOrder => integer().nullable()();
+  TextColumn get providerExtensionProjectionJson => text().nullable()();
+  IntColumn get projectionVersion => integer().withDefault(const Constant(1))();
   TextColumn get kind => text().nullable()();
   TextColumn get etag => text().nullable()();
   TextColumn get title => text()();
@@ -80,6 +281,7 @@ class Tasks extends Table {
   BoolColumn get microsoftIsReminderOn => boolean().nullable()();
   TextColumn get microsoftCompletedDateTime => text().nullable()();
   TextColumn get microsoftCompletedTimeZone => text().nullable()();
+  TextColumn get microsoftChecklistItemsJson => text().nullable()();
   TextColumn get recurrenceJson => text().nullable()();
   TextColumn get importance => text().nullable()();
   TextColumn get categoriesJson => text().nullable()();
@@ -126,6 +328,38 @@ class PendingOps extends Table {
   TextColumn get calendarSourceId => text().nullable()();
   TextColumn get providerCalendarId => text().nullable()();
   TextColumn get eventId => text().nullable()();
+  TextColumn get davCollectionId => text().nullable().references(
+    DavCollections,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get davCollectionHref => text().nullable()();
+  TextColumn get davObjectId => text().nullable().references(
+    DavObjects,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get davMemberHref => text().nullable()();
+  TextColumn get baselineEtag => text().nullable()();
+  TextColumn get baselineRawIcs => text().nullable()();
+  TextColumn get mutationPatchJson => text().nullable()();
+  IntColumn get mutationPatchSchemaVersion => integer().nullable()();
+  TextColumn get targetComponentKey => text().nullable()();
+  TextColumn get mutationScope => text().nullable()();
+  TextColumn get destinationCollectionId => text().nullable().references(
+    DavCollections,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get destinationCollectionHref => text().nullable()();
+  TextColumn get destinationMemberHref => text().nullable()();
+  TextColumn get conflictState => text().nullable()();
+  TextColumn get conflictSnapshotId => text().nullable().references(
+    DavConflictSnapshots,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get retryClassification => text().nullable()();
   TextColumn get localTempId => text().nullable()();
   TextColumn get dependsOnOpId => text().nullable()();
   TextColumn get requestJson => text()();
@@ -150,6 +384,11 @@ class CalendarSources extends Table {
       text().references(Accounts, #id, onDelete: KeyAction.cascade)();
   TextColumn get provider => text()();
   TextColumn get providerCalendarId => text()();
+  TextColumn get davCollectionId => text().nullable().references(
+    DavCollections,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
   TextColumn get summary => text()();
   TextColumn get description => text().nullable()();
   BoolColumn get primaryCalendar =>
@@ -180,6 +419,25 @@ class CalendarEvents extends Table {
   TextColumn get provider => text()();
   TextColumn get providerCalendarId => text()();
   TextColumn get providerEventId => text()();
+  TextColumn get davCollectionId => text().nullable().references(
+    DavCollections,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get davObjectId => text().nullable().references(
+    DavObjects,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get davComponentId => text().nullable().references(
+    DavObjectComponents,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get icalUid => text().nullable()();
+  TextColumn get recurrenceIdKey => text().nullable()();
+  TextColumn get occurrenceKey => text().nullable()();
+  IntColumn get projectionVersion => integer().withDefault(const Constant(1))();
   TextColumn get providerRecurringEventId => text().nullable()();
   TextColumn get providerOriginalStartKey => text().nullable()();
   TextColumn get etagOrChangeKey => text().nullable()();
@@ -253,25 +511,36 @@ class CalendarEventReminders extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-class CalendarSyncStates extends Table {
+class SyncCursors extends Table {
   TextColumn get id => text()();
   TextColumn get accountId =>
       text().references(Accounts, #id, onDelete: KeyAction.cascade)();
-  TextColumn get calendarSourceId => text().nullable().references(
+  TextColumn get projectionSourceId => text().nullable().references(
     CalendarSources,
     #id,
     onDelete: KeyAction.cascade,
   )();
   TextColumn get provider => text()();
-  TextColumn get syncKind => text()();
+  TextColumn get transport => text()();
+  TextColumn get syncScopeKind => text()();
+  TextColumn get davCollectionId => text().nullable().references(
+    DavCollections,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  TextColumn get cursorKind => text()();
+  TextColumn get cursorValue => text()();
   TextColumn get rangeStart => text().nullable()();
   TextColumn get rangeEnd => text().nullable()();
-  TextColumn get googleSyncToken => text().nullable()();
-  TextColumn get microsoftDeltaLink => text().nullable()();
-  IntColumn get lastFullSyncAt => integer().nullable()();
-  IntColumn get lastIncrementalSyncAt => integer().nullable()();
-  TextColumn get lastError => text().nullable()();
-  TextColumn get rawStateJson => text().nullable()();
+  IntColumn get baselineGeneration =>
+      integer().withDefault(const Constant(0))();
+  TextColumn get inProgressCursor => text().nullable()();
+  IntColumn get inProgressGeneration => integer().nullable()();
+  IntColumn get lastCompleteSyncAt => integer().nullable()();
+  TextColumn get lastFailureCode => text().nullable()();
+  IntColumn get stateSchemaVersion =>
+      integer().withDefault(const Constant(1))();
+  TextColumn get stateJson => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

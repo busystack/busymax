@@ -1,4 +1,4 @@
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 String? calendarSourceBackgroundColorHex({
   required BusyProvider provider,
@@ -9,7 +9,7 @@ String? calendarSourceBackgroundColorHex({
   if (explicitColor != null) {
     return explicitColor;
   }
-  if (provider == TaskProvider.microsoft) {
+  if (provider == BusyProvider.microsoft) {
     return microsoftCalendarColorHex(colorId);
   }
   return null;

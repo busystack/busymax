@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/dav/mutation/dav_task_list_mutation_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 
 void main() {
@@ -117,6 +118,69 @@ void main() {
     expect(lists.map((list) => list.id), ['visible']);
     expect(watchedLists.map((list) => list.id), ['visible']);
   });
+
+  test(
+    'Nextcloud list mutations use CalDAV instead of REST pending ops',
+    () async {
+      await (database.update(
+        database.accounts,
+      )..where((row) => row.id.equals('account'))).write(
+        const AccountsCompanion(
+          provider: Value('nextcloud'),
+          authority: Value('https://cloud.example.test'),
+          providerAccountId: Value('alex'),
+          credentialKind: Value('nextcloud_app_password'),
+        ),
+      );
+      await database
+          .into(database.davCollections)
+          .insert(
+            DavCollectionsCompanion.insert(
+              id: 'collection',
+              accountId: 'account',
+              hrefKey: '/remote.php/dav/calendars/alex/tasks/',
+              requestUri:
+                  'https://cloud.example.test/remote.php/dav/calendars/alex/tasks/',
+              displayName: 'Tasks',
+              supportedComponentMask: const Value(2),
+              taskProjectionEnabled: const Value(true),
+              createdAtUtc: _now,
+              updatedAtUtc: _now,
+            ),
+          );
+      await database.taskListsDao.upsertTaskList(
+        TaskListsCompanion.insert(
+          accountId: 'account',
+          id: 'dav-list',
+          davCollectionId: const Value('collection'),
+          title: 'Tasks',
+          rawJson: '{}',
+          createdLocalAtUtc: _now,
+          updatedLocalAtUtc: _now,
+        ),
+      );
+      final dav = _FakeDavTaskListMutations();
+      repository = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        davMutationClient: dav,
+      );
+
+      await repository.createTaskList('New list');
+      await repository.renameTaskList('dav-list', 'Renamed');
+      await repository.deleteTaskList('dav-list');
+
+      expect(dav.created, ['New list']);
+      expect(dav.renamed, [('collection', 'Renamed')]);
+      expect(dav.deleted, ['collection']);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        (await database.select(database.taskLists).getSingle()).title,
+        'Tasks',
+        reason: 'DAV projections change only after server-confirmed discovery.',
+      );
+    },
+  );
 }
 
 TaskListsRepository _repository(
@@ -137,6 +201,10 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'google-account',
+          credentialKind: 'oauth',
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),
@@ -160,4 +228,23 @@ TaskListsCompanion _taskList(
     createdLocalAtUtc: _now,
     updatedLocalAtUtc: _now,
   );
+}
+
+final class _FakeDavTaskListMutations implements DavTaskListMutationClient {
+  final created = <String>[];
+  final renamed = <(String, String)>[];
+  final deleted = <String>[];
+
+  @override
+  Future<void> createTaskList(String title) async => created.add(title);
+
+  @override
+  Future<void> deleteTaskList(String collectionId) async {
+    deleted.add(collectionId);
+  }
+
+  @override
+  Future<void> renameTaskList(String collectionId, String title) async {
+    renamed.add((collectionId, title));
+  }
 }

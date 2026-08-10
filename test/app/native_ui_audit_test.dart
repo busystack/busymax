@@ -344,7 +344,7 @@ void main() {
         'lib/src/app/app_bootstrap.dart',
       ).readAsStringSync();
       final portalStore = File(
-        'lib/src/google_tasks/oauth/portal_encrypted_oauth_token_store.dart',
+        'lib/src/core/secrets/portal_encrypted_secret_store.dart',
       ).readAsStringSync();
 
       expect(snapcraft, contains('- desktop'));
@@ -352,7 +352,7 @@ void main() {
       expect(snapcraft, contains('GDK_BACKEND: wayland,x11'));
       expect(snapcraft, contains('SECRET_BACKEND: file'));
       expect(snapcraft, isNot(contains('password-manager-service')));
-      expect(bootstrap, contains('PortalEncryptedOAuthTokenStore'));
+      expect(bootstrap, contains('PortalEncryptedSecretStore'));
       expect(portalStore, contains('org.freedesktop.portal.Secret'));
       expect(portalStore, contains('RetrieveSecret'));
       expect(portalStore, contains('AesGcm.with256bits'));

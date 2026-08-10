@@ -147,12 +147,14 @@ Future<T?> showBusyMaxModalEditorDialog<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   LinuxHeaderBarService? headerBarService,
+  Color? barrierColor,
   double maxWidth = BusyMaxSizes.compactDetailsWidth,
   double? maxHeight = 760,
 }) async {
   return showBusyMaxModalDialog<T>(
     context,
     headerBarService: headerBarService,
+    barrierColor: barrierColor,
     barrierDismissible: false,
     builder: (dialogContext) {
       return BusyMaxModalEditorSurface(

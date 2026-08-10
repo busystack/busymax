@@ -5,17 +5,18 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_client.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 
 void main() {
   late AppDatabase database;
-  late FakeGoogleTasksApiClient apiClient;
+  late FakeTaskRemoteClient apiClient;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
     await _insertAccount(database);
-    apiClient = FakeGoogleTasksApiClient();
+    apiClient = FakeTaskRemoteClient();
   });
 
   tearDown(() async {
@@ -371,17 +372,127 @@ void main() {
     expect(op == null, isFalse);
     expect(op!.attemptCount, 1);
   });
+
+  test(
+    'sync stores Microsoft checklist children on their parent task',
+    () async {
+      apiClient.taskListsPages = [
+        TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+      ];
+      apiClient.taskPages['list-1'] = [
+        TasksPageDto(items: [_taskDto('task-1')], rawJson: const {}),
+      ];
+      apiClient.checklistPages['list-1/task-1'] = [
+        TaskChecklistItemsPageDto(
+          items: [
+            TaskChecklistItemDto(
+              id: 'step-1',
+              title: 'First step',
+              completed: false,
+              createdAtUtc: DateTime.utc(2026, 6, 1),
+              rawJson: const {
+                'id': 'step-1',
+                'displayName': 'First step',
+                'isChecked': false,
+              },
+            ),
+            const TaskChecklistItemDto(
+              id: 'step-2',
+              title: 'Second step',
+              completed: true,
+              rawJson: {
+                'id': 'step-2',
+                'displayName': 'Second step',
+                'isChecked': true,
+              },
+            ),
+          ],
+          rawJson: const {},
+        ),
+      ];
+
+      await SyncEngine(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        fullRefreshOnly: true,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).fullSync();
+
+      final task = (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single;
+      final checklist = decodeTaskChecklistItems(
+        task.microsoftChecklistItemsJson,
+      );
+      expect(checklist.map((item) => item.title), [
+        'First step',
+        'Second step',
+      ]);
+      expect(checklist.last.completed, isTrue);
+      expect(apiClient.checklistPageTokens['list-1/task-1'], [null]);
+    },
+  );
 }
 
-class FakeGoogleTasksApiClient implements GoogleTasksApiClient {
+class FakeTaskRemoteClient
+    implements TaskRemoteClient, TaskChecklistRemoteClient {
   var taskListsPages = <TaskListsPageDto>[];
   final taskPages = <String, List<TasksPageDto>>{};
   final calls = <String>[];
   final listPageTokens = <String?>[];
   final taskPageTokens = <String, List<String?>>{};
+  final checklistPages = <String, List<TaskChecklistItemsPageDto>>{};
+  final checklistPageTokens = <String, List<String?>>{};
   DateTime? lastUpdatedMin;
   var _taskListPageIndex = 0;
   final _taskPageIndexes = <String, int>{};
+  final _checklistPageIndexes = <String, int>{};
+
+  @override
+  Future<TaskChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? pageToken,
+  }) async {
+    final key = '$taskListId/$taskId';
+    checklistPageTokens.putIfAbsent(key, () => []).add(pageToken);
+    final pages = checklistPages[key];
+    if (pages == null) {
+      return const TaskChecklistItemsPageDto(items: [], rawJson: {});
+    }
+    final index = _checklistPageIndexes.update(
+      key,
+      (value) => value + 1,
+      ifAbsent: () => 0,
+    );
+    return pages[index];
+  }
+
+  @override
+  Future<TaskChecklistItemDto> createChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String title,
+    bool completed = false,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<TaskChecklistItemDto> updateChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+    String? title,
+    bool? completed,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> deleteChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+  }) => throw UnimplementedError();
 
   @override
   Future<TaskListsPageDto> listTaskListsPage({
@@ -499,6 +610,10 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'google-account',
+          credentialKind: 'oauth',
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),

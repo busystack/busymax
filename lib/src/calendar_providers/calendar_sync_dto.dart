@@ -1,4 +1,4 @@
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 class CalendarSourceDto {
   const CalendarSourceDto({

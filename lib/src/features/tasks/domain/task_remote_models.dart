@@ -1,4 +1,4 @@
-import 'google_tasks_json.dart';
+import '../../../google_tasks/api/google_tasks_json.dart';
 
 class TaskListDto {
   const TaskListDto({
@@ -130,6 +130,36 @@ class TaskDto {
   final Map<String, Object?> rawJson;
 }
 
+class TaskChecklistItemDto {
+  const TaskChecklistItemDto({
+    required this.id,
+    required this.title,
+    required this.completed,
+    required this.rawJson,
+    this.createdAtUtc,
+    this.completedAtUtc,
+  });
+
+  final String id;
+  final String title;
+  final bool completed;
+  final DateTime? createdAtUtc;
+  final DateTime? completedAtUtc;
+  final Map<String, Object?> rawJson;
+}
+
+class TaskChecklistItemsPageDto {
+  const TaskChecklistItemsPageDto({
+    required this.items,
+    required this.rawJson,
+    this.nextPageToken,
+  });
+
+  final List<TaskChecklistItemDto> items;
+  final Map<String, Object?> rawJson;
+  final String? nextPageToken;
+}
+
 class TaskLinkDto {
   const TaskLinkDto({
     required this.rawJson,
@@ -179,27 +209,27 @@ class TasksPageDto {
   final Map<String, Object?> rawJson;
 }
 
-abstract class GoogleTasksMutation {
-  const GoogleTasksMutation(this.fields);
+abstract class TaskMutation {
+  const TaskMutation(this.fields);
 
   final Map<String, Object?> fields;
 
   Map<String, Object?> toJson() => Map.unmodifiable(fields);
 }
 
-class TaskListPatch extends GoogleTasksMutation {
+class TaskListPatch extends TaskMutation {
   const TaskListPatch(super.fields);
 
   factory TaskListPatch.title(String title) => TaskListPatch({'title': title});
 }
 
-class TaskListPut extends GoogleTasksMutation {
+class TaskListPut extends TaskMutation {
   const TaskListPut(super.fields);
 
   factory TaskListPut.title(String title) => TaskListPut({'title': title});
 }
 
-class TaskCreate extends GoogleTasksMutation {
+class TaskCreate extends TaskMutation {
   const TaskCreate.fields(super.fields);
 
   factory TaskCreate({
@@ -217,7 +247,7 @@ class TaskCreate extends GoogleTasksMutation {
   }
 }
 
-class TaskPatch extends GoogleTasksMutation {
+class TaskPatch extends TaskMutation {
   const TaskPatch.fields(super.fields);
 
   factory TaskPatch({
@@ -243,7 +273,7 @@ class TaskPatch extends GoogleTasksMutation {
   }
 }
 
-class TaskPut extends GoogleTasksMutation {
+class TaskPut extends TaskMutation {
   const TaskPut.fields(super.fields);
 
   factory TaskPut({

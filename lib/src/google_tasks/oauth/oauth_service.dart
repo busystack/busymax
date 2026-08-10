@@ -7,10 +7,11 @@ import 'package:logging/logging.dart';
 
 import '../../config/build_config.dart';
 import '../../core/logging/redacting_logger.dart';
+import '../../providers/busy_provider.dart';
 import '../api/google_tasks_api_surface.dart';
 import 'oauth_loopback_flow.dart';
-import 'oauth_models.dart';
-import 'oauth_token_store.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 
 abstract interface class OAuthGateway {
   Future<String?> get activeAccountId;
@@ -36,7 +37,7 @@ class OAuthService implements OAuthGateway {
   OAuthService({
     required BuildConfig config,
     required http.Client httpClient,
-    required OAuthTokenStore tokenStore,
+    required SecretStore tokenStore,
     required OAuthLoopbackFlow loopbackFlow,
     DateTime Function()? nowUtc,
     Duration authorizationRevocationTimeout = const Duration(seconds: 10),
@@ -49,7 +50,7 @@ class OAuthService implements OAuthGateway {
 
   final BuildConfig _config;
   final http.Client _httpClient;
-  final OAuthTokenStore _tokenStore;
+  final SecretStore _tokenStore;
   final OAuthLoopbackFlow _loopbackFlow;
   final DateTime Function() _nowUtc;
   final Duration _authorizationRevocationTimeout;
@@ -64,11 +65,11 @@ class OAuthService implements OAuthGateway {
     if (accountId == null) {
       return null;
     }
-    return _tokenStore.readTokenSet(accountId);
+    return _readTokenSet(accountId);
   }
 
   Future<OAuthTokenSet?> readTokenSet(String accountId) {
-    return _tokenStore.readTokenSet(accountId);
+    return _readTokenSet(accountId);
   }
 
   @override
@@ -99,7 +100,7 @@ class OAuthService implements OAuthGateway {
   }
 
   Future<OAuthTokenSet> validTokenForAccount(String accountId) async {
-    final tokenSet = await _tokenStore.readTokenSet(accountId);
+    final tokenSet = await _readTokenSet(accountId);
     if (tokenSet == null) {
       throw const OAuthException(
         'OAuthMissingToken',
@@ -140,7 +141,11 @@ class OAuthService implements OAuthGateway {
       fallbackScopeText: result.callback.scope,
     );
     final accountId = deriveAccountId(tokenSet);
-    await _tokenStore.saveTokenSet(accountId, tokenSet);
+    await _tokenStore.saveOAuthTokenSet(
+      accountId,
+      BusyProvider.google,
+      tokenSet,
+    );
     await _tokenStore.setActiveAccountId(accountId);
     return OAuthSignInResult(accountId: accountId, tokenSet: tokenSet);
   }
@@ -213,7 +218,7 @@ class OAuthService implements OAuthGateway {
   }
 
   Future<OAuthTokenSet> refreshTokenForAccount(String accountId) async {
-    final current = await _tokenStore.readTokenSet(accountId);
+    final current = await _readTokenSet(accountId);
     if (current == null || !current.canRefresh) {
       throw const OAuthException(
         'OAuthRefreshFailed',
@@ -223,7 +228,11 @@ class OAuthService implements OAuthGateway {
 
     try {
       final refreshed = await refreshToken(current);
-      await _tokenStore.saveTokenSet(accountId, refreshed);
+      await _tokenStore.saveOAuthTokenSet(
+        accountId,
+        BusyProvider.google,
+        refreshed,
+      );
       return refreshed;
     } on OAuthException catch (error) {
       if (error is OAuthRefreshException && error.statusCode == 400) {
@@ -290,7 +299,7 @@ class OAuthService implements OAuthGateway {
 
   @override
   Future<void> revokeAuthorization(String accountId) async {
-    final tokenSet = await _tokenStore.readTokenSet(accountId);
+    final tokenSet = await _readTokenSet(accountId);
     final token = tokenSet?.refreshToken ?? tokenSet?.accessToken;
     if (token == null || token.isEmpty) {
       throw const OAuthException(
@@ -329,7 +338,7 @@ class OAuthService implements OAuthGateway {
     final targetAccountId =
         accountId ?? await _tokenStore.readActiveAccountId();
     if (targetAccountId != null) {
-      await _tokenStore.clearTokenSet(targetAccountId);
+      await _tokenStore.deleteCredential(targetAccountId);
     }
     if (targetAccountId == null ||
         await _tokenStore.readActiveAccountId() == targetAccountId) {
@@ -339,10 +348,18 @@ class OAuthService implements OAuthGateway {
 
   Future<void> _clearAccountAfterInvalidRefresh(String accountId) async {
     final active = await _tokenStore.readActiveAccountId();
-    await _tokenStore.clearTokenSet(accountId);
+    await _tokenStore.deleteCredential(accountId);
     if (active == accountId) {
       await _tokenStore.clearActiveAccount();
     }
+  }
+
+  Future<OAuthTokenSet?> _readTokenSet(String accountId) async {
+    await _tokenStore.migrateLegacyOAuthCredential(
+      accountId,
+      BusyProvider.google,
+    );
+    return _tokenStore.readOAuthTokenSet(accountId, BusyProvider.google);
   }
 }
 
