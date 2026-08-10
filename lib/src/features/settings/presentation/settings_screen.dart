@@ -1097,10 +1097,11 @@ class _AccountManagementSection extends StatelessWidget {
           if (account.provider == BusyProvider.appleICloud ||
               account.provider == BusyProvider.nextcloud)
             _DavCollectionsCard(
-              account: account,
               collections: [
                 for (final collection in davCollections)
-                  if (collection.accountId == account.id) collection,
+                  if (collection.accountId == account.id &&
+                      (collection.supportsEvents || collection.supportsTasks))
+                    collection,
               ],
               onEventsSelected: onEventsSelected,
               onTasksSelected: onTasksSelected,
@@ -1218,13 +1219,11 @@ class _AccountManagementCard extends StatelessWidget {
 
 class _DavCollectionsCard extends StatelessWidget {
   const _DavCollectionsCard({
-    required this.account,
     required this.collections,
     required this.onEventsSelected,
     required this.onTasksSelected,
   });
 
-  final AccountEntity account;
   final List<DavCollectionSettingsEntity> collections;
   final void Function(DavCollectionSettingsEntity collection, bool selected)
   onEventsSelected;
@@ -1233,60 +1232,133 @@ class _DavCollectionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (collections.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     final l10n = context.l10n;
     return BusyMaxGroupedList(
       title: l10n.collectionSettings,
-      description: account.displayLabel,
       filled: true,
       children: [
-        for (final collection in collections) ...[
-          BusyMaxActionRow(
+        for (final collection in collections)
+          _DavCollectionItem(
             key: ValueKey('dav-collection-${collection.id}'),
-            title: collection.name,
-            subtitle: _davCollectionSummary(context, collection),
-            leading: _DavCollectionColor(color: collection.color),
-          ),
-          if (collection.supportsEvents)
-            BusyMaxSwitchRow(
-              key: ValueKey('dav-events-toggle-${collection.id}'),
-              title: l10n.calendarContent,
-              subtitle: collection.readOnly ? l10n.readOnlyCalendar : null,
-              value: collection.eventsSelected,
-              onChanged: (selected) => onEventsSelected(collection, selected),
-              leading: const Icon(YaruIcons.calendar),
-            ),
-          if (collection.supportsTasks)
-            BusyMaxSwitchRow(
-              key: ValueKey('dav-tasks-toggle-${collection.id}'),
-              title: l10n.taskContent,
-              subtitle: collection.readOnly
-                  ? l10n.readOnlySharedCollection
-                  : null,
-              value: collection.tasksSelected,
-              onChanged: (selected) => onTasksSelected(collection, selected),
-              leading: const Icon(YaruIcons.checkmark),
-            ),
-        ],
-        if (collections.isEmpty)
-          BusyMaxActionRow(
-            title: l10n.collectionSettings,
-            subtitle: l10n.davNeverSynced,
-            leading: const Icon(YaruIcons.calendar),
+            collection: collection,
+            onEventsSelected: onEventsSelected,
+            onTasksSelected: onTasksSelected,
           ),
       ],
     );
   }
 }
 
-class _DavCollectionColor extends StatelessWidget {
-  const _DavCollectionColor({required this.color});
+class _DavCollectionItem extends StatelessWidget {
+  const _DavCollectionItem({
+    super.key,
+    required this.collection,
+    required this.onEventsSelected,
+    required this.onTasksSelected,
+  });
+
+  final DavCollectionSettingsEntity collection;
+  final void Function(DavCollectionSettingsEntity collection, bool selected)
+  onEventsSelected;
+  final void Function(DavCollectionSettingsEntity collection, bool selected)
+  onTasksSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final supportsEvents = collection.supportsEvents;
+    final supportsTasks = collection.supportsTasks;
+    final details = _davCollectionDetails(context, collection);
+    final indicator = _DavCollectionIndicator(color: collection.color);
+
+    if (supportsEvents && !supportsTasks) {
+      return BusyMaxSwitchRow(
+        key: ValueKey('dav-events-toggle-${collection.id}'),
+        title: collection.name,
+        subtitle: details,
+        value: collection.eventsSelected,
+        onChanged: (selected) => onEventsSelected(collection, selected),
+        leading: indicator,
+      );
+    }
+
+    if (supportsTasks && !supportsEvents) {
+      return BusyMaxSwitchRow(
+        key: ValueKey('dav-tasks-toggle-${collection.id}'),
+        title: collection.name,
+        subtitle: details,
+        value: collection.tasksSelected,
+        onChanged: (selected) => onTasksSelected(collection, selected),
+        leading: indicator,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BusyMaxActionRow(
+          title: collection.name,
+          subtitle: details,
+          leading: indicator,
+        ),
+        Padding(
+          padding: const EdgeInsetsDirectional.only(start: BusyMaxSpacing.xxl),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: BorderDirectional(
+                start: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: BusyMaxSpacing.xs,
+              ),
+              child: Column(
+                children: [
+                  BusyMaxSwitchRow(
+                    key: ValueKey('dav-events-toggle-${collection.id}'),
+                    title: context.l10n.calendarContent,
+                    value: collection.eventsSelected,
+                    onChanged: (selected) =>
+                        onEventsSelected(collection, selected),
+                    leading: const Icon(YaruIcons.calendar),
+                  ),
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  BusyMaxSwitchRow(
+                    key: ValueKey('dav-tasks-toggle-${collection.id}'),
+                    title: context.l10n.taskContent,
+                    value: collection.tasksSelected,
+                    onChanged: (selected) =>
+                        onTasksSelected(collection, selected),
+                    leading: const Icon(YaruIcons.checkmark),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DavCollectionIndicator extends StatelessWidget {
+  const _DavCollectionIndicator({required this.color});
 
   final String? color;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      label: context.l10n.calendar,
+    return ExcludeSemantics(
       child: Container(
         width: BusyMaxSizes.iconSm,
         height: BusyMaxSizes.iconSm,
@@ -1484,7 +1556,7 @@ String _accountConnectionStateLabel(
   AccountConnectionState.signedOut => context.l10n.davSignedOut,
 };
 
-String _davCollectionSummary(
+String _davCollectionDetails(
   BuildContext context,
   DavCollectionSettingsEntity collection,
 ) {
@@ -1498,19 +1570,17 @@ String _davCollectionSummary(
     (false, true) => l10n.collectionSupportsTasks,
     _ => l10n.collectionSettings,
   };
-  final access = collection.readOnly
-      ? l10n.readOnlyCalendar
-      : collection.shared
-      ? l10n.sharedCollection
-      : l10n.writableCollection;
-  final sync = collection.syncErrorCode != null
-      ? l10n.collectionSyncError(collection.syncErrorCode!)
-      : collection.lastSyncAtUtc == null
-      ? l10n.davNeverSynced
-      : l10n.collectionLastSynced(
-          _formatDavDateTime(context, collection.lastSyncAtUtc!),
-        );
-  return '$support · $access\n$sync';
+  final details = <String>[support];
+  if (collection.readOnly) {
+    details.add(l10n.readOnlySharedCollection);
+  }
+  if (collection.shared) {
+    details.add(l10n.sharedCollection);
+  }
+  if (collection.syncErrorCode case final errorCode?) {
+    details.add(l10n.collectionSyncError(errorCode));
+  }
+  return details.join(' · ');
 }
 
 String _formatDavDateTime(BuildContext context, DateTime value) {

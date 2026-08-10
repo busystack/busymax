@@ -15,8 +15,10 @@ import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
 import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/storage/dav_settings_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
@@ -26,6 +28,7 @@ import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/providers/provider_capabilities.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:drift/native.dart';
 import 'package:http/http.dart' as http;
@@ -367,6 +370,109 @@ void main() {
 
     expect(find.text('Add Google account'), findsOneWidget);
     expect(find.text('Add Microsoft account'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Settings presents DAV calendars and task lists as named controls',
+    (tester) async {
+      final container = _container(
+        selectedAccountId: _nextcloudAccount.id,
+        authRepository: _FakeAuthRepository(),
+        accounts: const [_nextcloudAccount],
+        davCollections: [
+          _davCollection(
+            id: 'personal-calendar',
+            name: 'Personal',
+            supportsEvents: true,
+            color: '#3366cc',
+          ),
+          _davCollection(
+            id: 'task-list',
+            name: 'NCC Task List',
+            supportsTasks: true,
+            tasksSelected: false,
+            readOnly: true,
+            lastSyncAtUtc: DateTime.utc(2026, 8, 10),
+            syncErrorCode: 'CalDavUnavailable',
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await _pumpSettings(
+        tester,
+        container,
+        logicalSize: const Size(1000, 900),
+      );
+
+      expect(find.text('Calendars and task lists'), findsOneWidget);
+      expect(find.text('Collections'), findsNothing);
+      expect(find.text('Refresh calendars and task lists'), findsOneWidget);
+
+      final calendar = find.byKey(
+        const ValueKey('dav-collection-personal-calendar'),
+      );
+      final taskList = find.byKey(const ValueKey('dav-collection-task-list'));
+      expect(
+        find.descendant(
+          of: calendar,
+          matching: find.byType(YaruSwitchListTile),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: taskList,
+          matching: find.byType(YaruSwitchListTile),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Personal'), findsOneWidget);
+      expect(find.text('NCC Task List'), findsOneWidget);
+      expect(
+        find.text('Task list · Read-only · Sync issue: CalDavUnavailable'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Last synchronized:'), findsNothing);
+    },
+  );
+
+  testWidgets('Settings nests controls for combined DAV content', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: _nextcloudAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_nextcloudAccount],
+      davCollections: [
+        _davCollection(
+          id: 'combined',
+          name: 'Team schedule',
+          supportsEvents: true,
+          supportsTasks: true,
+          shared: true,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+
+    final combined = find.byKey(const ValueKey('dav-collection-combined'));
+    expect(find.text('Team schedule'), findsOneWidget);
+    expect(find.text('Events and tasks · Shared'), findsOneWidget);
+    expect(
+      find.descendant(of: combined, matching: find.byType(YaruSwitchListTile)),
+      findsNWidgets(2),
+    );
+    expect(
+      find.descendant(of: combined, matching: find.text('Calendar events')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: combined, matching: find.text('Tasks')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Settings sidebar separates settings pages', (tester) async {
@@ -803,6 +909,7 @@ ProviderContainer _container({
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
   bool useFlutterHeader = false,
   DavAccountOnboardingService? davOnboardingService,
+  List<DavCollectionSettingsEntity> davCollections = const [],
 }) {
   return ProviderContainer(
     overrides: [
@@ -819,7 +926,7 @@ ProviderContainer _container({
         (ref) => Stream.value(accounts),
       ),
       davCollectionsStreamProvider.overrideWith(
-        (ref) => Stream.value(const []),
+        (ref) => Stream.value(davCollections),
       ),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),
@@ -1031,6 +1138,45 @@ const _nextcloudAccount = AccountEntity(
   displayName: 'Nextcloud User',
   authState: accountAuthStateSignedIn,
 );
+
+DavCollectionSettingsEntity _davCollection({
+  required String id,
+  required String name,
+  bool supportsEvents = false,
+  bool supportsTasks = false,
+  bool eventsSelected = true,
+  bool tasksSelected = true,
+  bool readOnly = false,
+  bool shared = false,
+  DateTime? lastSyncAtUtc,
+  String? syncErrorCode,
+  String? color,
+}) {
+  return DavCollectionSettingsEntity(
+    id: id,
+    accountId: _nextcloudAccount.id,
+    provider: BusyProvider.nextcloud,
+    accountLabel: _nextcloudAccount.displayName!,
+    accountAuthority: _nextcloudAccount.authority,
+    connectionState: AccountConnectionState.connected,
+    name: name,
+    color: color,
+    readOnly: readOnly,
+    shared: shared,
+    supportsEvents: supportsEvents,
+    supportsTasks: supportsTasks,
+    eventsSelected: eventsSelected,
+    tasksSelected: tasksSelected,
+    lastSyncAtUtc: lastSyncAtUtc,
+    syncErrorCode: syncErrorCode,
+    capabilities: CollectionCapabilities(
+      canRead: true,
+      canWriteContent: !readOnly,
+      supportsEvents: supportsEvents,
+      supportsTasks: supportsTasks,
+    ),
+  );
+}
 
 const _reconnectRequiredGoogleAccount = AccountEntity(
   id: 'google:g',

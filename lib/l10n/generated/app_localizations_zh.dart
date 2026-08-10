@@ -1623,7 +1623,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'This server or provider profile is not supported.';
 
   @override
-  String get collectionSettings => 'Collections';
+  String get collectionSettings => 'Calendars and task lists';
 
   @override
   String get calendarContent => 'Calendar events';
@@ -1632,7 +1632,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get taskContent => 'Tasks';
 
   @override
-  String get readOnlySharedCollection => 'Read-only or shared';
+  String get readOnlySharedCollection => 'Read-only';
 
   @override
   String get pendingLocally => 'Pending locally';
@@ -1676,7 +1676,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get davNeverSynced => 'Not synchronized yet';
 
   @override
-  String get refreshCollections => 'Refresh collections';
+  String get refreshCollections => 'Refresh calendars and task lists';
 
   @override
   String nextcloudServerHost(String host) {
@@ -3367,7 +3367,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       'This server or provider profile is not supported.';
 
   @override
-  String get collectionSettings => 'Collections';
+  String get collectionSettings => 'Calendars and task lists';
 
   @override
   String get calendarContent => 'Calendar events';
@@ -3376,7 +3376,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get taskContent => 'Tasks';
 
   @override
-  String get readOnlySharedCollection => 'Read-only or shared';
+  String get readOnlySharedCollection => 'Read-only';
 
   @override
   String get pendingLocally => 'Pending locally';
@@ -3420,7 +3420,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get davNeverSynced => 'Not synchronized yet';
 
   @override
-  String get refreshCollections => 'Refresh collections';
+  String get refreshCollections => 'Refresh calendars and task lists';
 
   @override
   String nextcloudServerHost(String host) {
@@ -5112,7 +5112,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       'This server or provider profile is not supported.';
 
   @override
-  String get collectionSettings => 'Collections';
+  String get collectionSettings => 'Calendars and task lists';
 
   @override
   String get calendarContent => 'Calendar events';
@@ -5121,7 +5121,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get taskContent => 'Tasks';
 
   @override
-  String get readOnlySharedCollection => 'Read-only or shared';
+  String get readOnlySharedCollection => 'Read-only';
 
   @override
   String get pendingLocally => 'Pending locally';
@@ -5165,7 +5165,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get davNeverSynced => 'Not synchronized yet';
 
   @override
-  String get refreshCollections => 'Refresh collections';
+  String get refreshCollections => 'Refresh calendars and task lists';
 
   @override
   String nextcloudServerHost(String host) {

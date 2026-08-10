@@ -454,10 +454,10 @@
   "davTemporarilyUnavailable": "This account is temporarily unavailable.",
   "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
   "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Collections",
+  "collectionSettings": "Calendars and task lists",
   "calendarContent": "Calendar events",
   "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only or shared",
+  "readOnlySharedCollection": "Read-only",
   "pendingLocally": "Pending locally",
   "conflictBlocked": "Blocked by conflict",
   "authenticationBlocked": "Blocked until reconnect",
@@ -486,7 +486,7 @@
     }
   },
   "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh collections",
+  "refreshCollections": "Refresh calendars and task lists",
   "nextcloudServerHost": "Server: {host}",
   "@nextcloudServerHost": {
     "placeholders": {

@@ -3063,7 +3063,7 @@ abstract class AppLocalizations {
   /// No description provided for @collectionSettings.
   ///
   /// In en, this message translates to:
-  /// **'Collections'**
+  /// **'Calendars and task lists'**
   String get collectionSettings;
 
   /// No description provided for @calendarContent.
@@ -3081,7 +3081,7 @@ abstract class AppLocalizations {
   /// No description provided for @readOnlySharedCollection.
   ///
   /// In en, this message translates to:
-  /// **'Read-only or shared'**
+  /// **'Read-only'**
   String get readOnlySharedCollection;
 
   /// No description provided for @pendingLocally.
@@ -3165,7 +3165,7 @@ abstract class AppLocalizations {
   /// No description provided for @refreshCollections.
   ///
   /// In en, this message translates to:
-  /// **'Refresh collections'**
+  /// **'Refresh calendars and task lists'**
   String get refreshCollections;
 
   /// No description provided for @nextcloudServerHost.
