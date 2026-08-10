@@ -2,7 +2,9 @@
 
 BusyMax is a Linux desktop calendar and task manager built with Flutter.
 
-It brings calendar events and tasks into a native-feeling Linux desktop interface, with support for `Google Calendar`, `Google Tasks`, `Microsoft Calendar`, and `Microsoft To Do`.
+It brings calendar events and tasks into a native-feeling Linux desktop
+interface. BusyMax connects directly to Google, Microsoft, Apple iCloud
+Calendar, and Nextcloud. Apple Reminders is not supported.
 
 [![busymax](https://snapcraft.io/busymax/badge.svg)](https://snapcraft.io/busymax)
 
@@ -20,10 +22,18 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 
 - Linux desktop app built with Flutter.
 - Calendar views for day, week, month, year, and agenda planning.
-- Task creation with lists, due dates, reminders, and repeat options.
-- Event editing with calendar selection, time controls, repeat rules, and reminders.
+- Task creation with lists, start/due dates, reminders, repeat options,
+  subtasks, status, progress, priority, categories, location, and URL.
+- Nextcloud task-list creation/rename/delete, recursive task duplicate/delete,
+  raw iCalendar export, clear-completed, and cross-list subtree moves.
+- Event editing with calendar selection, time controls, repeat rules, and
+  reminders.
 - Tray shortcut for opening the main Agenda view.
-- Integrations with Google Calendar, Google Tasks, Microsoft Calendar, and Microsoft To Do.
+- Direct integrations with Google Calendar, Google Tasks, Microsoft Calendar,
+  Microsoft To Do, Apple iCloud Calendar, Nextcloud Calendar, and Nextcloud
+  Tasks.
+- Offline-first local cache, conditional DAV writes, recurrence exceptions,
+  alarms, and explicit conflict handling for CalDAV accounts.
 
 ## Screenshots
 
@@ -60,6 +70,12 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 <br>
 
 <p>
+  <img src="docs/screenshots/account_provider_selection.png"
+       alt="BusyMax account provider selection"
+       width="700">
+</p>
+
+<p>
   <img src="docs/screenshots/main_window_year.png" alt="BusyMax year view" width="700">
 </p>
 
@@ -71,11 +87,19 @@ It brings calendar events and tasks into a native-feeling Linux desktop interfac
 
 ## Prerequisites
 
-- Flutter: https://docs.flutter.dev/install
+- [Flutter SDK](https://docs.flutter.dev/install)
 - GTK 3 and libhandy development packages (`libgtk-3-dev` and
   `libhandy-1-dev` on Ubuntu/Debian)
-- `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, see [Google Setup](docs/google_setup.md)
+- `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`; see
+  [Google setup](docs/google_setup.md)
 - `MICROSOFT_OAUTH_CLIENT_ID`, see [Microsoft Setup](docs/microsoft_setup.md)
+
+Apple and Nextcloud do not require compile-time client credentials:
+
+- [Apple iCloud Calendar setup](docs/apple_icloud_setup.md) requires two-factor
+  authentication and an Apple app-specific password.
+- [Nextcloud setup](docs/nextcloud_setup.md) requires an HTTPS server and
+  completes authorization in the default browser.
 
 ## Run locally
 
@@ -127,7 +151,15 @@ flutter run -d linux \
 
 The local Snap helper accepts the same value with
 `--dart-define BUSYSTACK_FEEDBACK_ENDPOINT=http://127.0.0.1:8090/api/feedback`.
-No API, CAPTCHA, or other private server credential is used by the desktop application.
+No API, CAPTCHA, or other private server credential is used by the desktop
+application.
+
+## Provider support
+
+The [provider capability matrix](docs/provider_support_matrix.md) lists the
+features and limitations of each integration. Maintainers can use the
+[live-provider test guide](docs/live_provider_testing.md) for opt-in Nextcloud
+and iCloud integration tests.
 
 ## Build and publish the Snap
 

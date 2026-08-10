@@ -43,6 +43,12 @@ See [Google Setup](google_setup.md) and
 and can be extracted, so use only native Desktop/public-client credentials.
 Never use server credentials or commit the JSON or generated `.snap` files.
 
+Apple iCloud Calendar and Nextcloud do not use compile-time client secrets.
+Read [Apple iCloud setup](apple_icloud_setup.md) and [Nextcloud
+setup](nextcloud_setup.md). Apple requires a per-user app-specific password;
+Nextcloud creates a per-client app password through Login Flow v2 in the
+default browser. Never put either credential in the defines file.
+
 ## Build
 
 From the repository root:
@@ -117,11 +123,32 @@ Before upload, verify:
 - Desktop search shows one BusyMax launcher; the tray Agenda action opens the
   Agenda view in the main window.
 - Google and Microsoft sign-in complete successfully.
+- Apple iCloud setup accepts only an Apple Account email and app-specific
+  password, discovers calendars over verified TLS, and reconnects after a
+  controlled app-password revocation.
+- Nextcloud Login Flow v2 opens the system default browser, completes after the
+  user returns to BusyMax, preserves an installation path, and uses the
+  server-returned canonical credentials.
 - Tasks and events can be created, edited, completed, and deleted; a task
   created in Agenda appears immediately without manual refresh.
 - Accounts, settings, and data survive restart.
+- The XDG Secret portal-backed encrypted credential file works while strictly
+  confined: connect, quit, restart the desktop session if practical, reopen,
+  sync, reconnect, then remove the account and confirm its local credential is
+  gone.
+- Revoked Apple/Nextcloud credentials pause synchronization while cached data
+  and pending work remain visible.
+- Read-only/shared DAV collections remain visible but do not expose mutation
+  controls; a server ACL change is enforced after refresh.
+- Network, DNS, platform TLS rejection, recurrence/alarm projection, and
+  notifications work under confinement.
 - Notifications and tray actions, including opening Agenda in the main window
   and Quit, work.
+- Upgrade a copy of data from the last released package and verify schema-5 to
+  schema-8 migration, existing provider credentials/cursors/pending
+  operations, DAV projections, and account removal/local cleanup.
+- `snap/snapcraft.yaml`, metainfo, and screenshots describe exactly the tested
+  providers. Apple wording says iCloud Calendar, not Apple Reminders.
 
 ## Upload To Beta
 
@@ -177,6 +204,10 @@ snap info busymax
 ```
 
 Repeat the local smoke checks against the Store-delivered revision.
+
+Record the downloaded revision, channel, checksum, test machine, and smoke-test
+result in the release record. Do not include account identities, credentials,
+DAV resource paths, or calendar and task content.
 
 Official references: [build environments](https://documentation.ubuntu.com/snapcraft/stable/reference/build-environment-options/),
 [upload](https://documentation.ubuntu.com/snapcraft/stable/reference/commands/upload/),

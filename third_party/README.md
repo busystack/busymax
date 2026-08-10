@@ -1,6 +1,37 @@
 # Third-Party Dependencies
 
-This directory contains third-party source that is vendored into BusyMax.
+This directory contains third-party source vendored into BusyMax. Direct Dart
+dependencies with security or licensing significance are also listed here.
+
+## xml
+
+- Package: `xml`
+- Pinned version: `6.6.1`
+- Source: https://github.com/renggli/dart-xml
+- License: MIT
+- Purpose: namespace-aware WebDAV/CalDAV XML parsing
+- Native/transitive review: pure Dart; no transitive native dependency is
+  introduced by this direct dependency.
+
+BusyMax applies its own parser limits and rejects DTD and entity declarations.
+DAV properties are identified by namespace URI and local name, not by prefix.
+
+## posix
+
+- Package: `posix`
+- Pinned lockfile version: `6.5.0`
+- Source: https://github.com/onepub-dev/dart_posix
+- License: MIT
+- Purpose: apply restrictive `0700` directory and `0600` file modes to the
+  strict-Snap portal-encrypted credential store
+- Native/transitive review: Dart FFI calls the platform C library; BusyMax uses
+  only `chmod`, only on Linux/macOS, and maps failures to the typed
+  secret-store-unavailable state.
+
+The encrypted credential store repairs inherited permissions before reading
+and creates replacement files atomically. See
+[`docs/icalendar_data_model.md`](../docs/icalendar_data_model.md) for the
+CalDAV and iCalendar dependency decision.
 
 ## xdg_status_notifier_item
 
@@ -34,11 +65,8 @@ BusyMax-specific patches currently include:
 - Adding `ItemIsMenu`, custom menu path, object path accessors, and diagnostic
   logging hooks used by BusyMax tray tests and runtime diagnostics.
 
-Plan:
+### Maintenance
 
-- Keep the vendored package scoped to tray support only.
-- Do not commit build artifacts, generated outputs, or dependency caches under
-  `third_party`.
 - Upstream the StatusNotifierItem/DBusMenu fixes where practical, or replace
   this vendored copy with a maintained pub.dev release once the required
   behavior is available.

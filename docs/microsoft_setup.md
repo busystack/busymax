@@ -1,38 +1,33 @@
-# Microsoft Setup
+# Microsoft OAuth setup
 
-This setup is required to get `MICROSOFT_OAUTH_CLIENT_ID`.
+BusyMax requires a Microsoft public-client application ID, supplied as
+`MICROSOFT_OAUTH_CLIENT_ID` at build time.
 
-## 1 Create app registration
+## Create the application registration
 
-Open Microsoft Entra: https://entra.microsoft.com
+1. Open [Microsoft Entra](https://entra.microsoft.com/).
+2. Go to **App registrations** and select **New registration**.
+3. Enter an application name.
+4. Select the account type that supports both organizational and personal
+   Microsoft accounts.
+5. Add a **Public client/native mobile and desktop** redirect URI:
 
-Go to:
+   ```text
+   http://localhost
+   ```
 
-```text
-App registrations -> New registration
-```
+6. Register the application and copy its **Application (client) ID**. Supply
+   that value as `MICROSOFT_OAUTH_CLIENT_ID`.
 
-Enter:
-- **Name**: <APP NAME>
-- **Supported account types**: `Any Entra ID Tenant + Personal Microsoft accounts`
-- **Redirect**: `Public client/native mobile & desktop` with url `http://localhost`
+## Add delegated Microsoft Graph permissions
 
-Click "Register".
-
-Copy `Application (client) ID` and use as `MICROSOFT_OAUTH_CLIENT_ID`.
-
-## 2 Add Microsoft Graph delegated permissions
-
-Go to:
-
-```text
-App registrations -> <APP NAME> -> API permissions -> Add a permission -> Microsoft Graph -> Delegated permissions
-```
-
-Add:
+Under **API permissions**, add these delegated Microsoft Graph permissions:
 
 ```text
 User.Read
 Tasks.ReadWrite
 Calendars.ReadWrite
 ```
+
+Do not create or embed a client secret. BusyMax uses the public-client OAuth
+flow.
