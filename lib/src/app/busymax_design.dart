@@ -3053,38 +3053,58 @@ class BusyMaxEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final hasMessage = message != null && message!.isNotEmpty;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(BusyMaxSpacing.xl),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: YaruInfoBox(
-            yaruInfoType: YaruInfoType.information,
-            color: colorScheme.onSurfaceVariant,
-            icon: Icon(icon),
-            title: Text(title),
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Semantics(
+            container: true,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                if (message != null && message!.isNotEmpty)
+                ExcludeSemantics(
+                  child: Icon(
+                    icon,
+                    size: 56,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: BusyMaxSpacing.lg),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (hasMessage) ...[
+                  const SizedBox(height: BusyMaxSpacing.sm),
                   Text(
                     message!,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
+                ],
                 if (actions.isNotEmpty) ...[
-                  if (message != null && message!.isNotEmpty)
-                    const SizedBox(height: BusyMaxSpacing.lg),
+                  const SizedBox(height: BusyMaxSpacing.lg),
                   Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     spacing: BusyMaxSpacing.sm,
                     runSpacing: BusyMaxSpacing.sm,
                     children: actions,
                   ),
                 ],
-                if ((message == null || message!.isEmpty) && actions.isEmpty)
-                  const SizedBox.shrink(),
               ],
             ),
           ),

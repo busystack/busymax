@@ -6,16 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../../../core/logging/redacting_logger.dart';
+import '../../../dav/dav_errors.dart';
 import '../../../db/app_database.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../google_tasks/api/google_tasks_api_surface.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
-import '../../../google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import '../../../google_tasks/oauth/oauth_service.dart';
-import '../../../google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../sync/sync_auth_error.dart';
-import '../../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 enum AuthSessionStatus {
   unconfigured,
@@ -105,7 +106,11 @@ class AuthRepository {
   final RedactingLogger _logger = RedactingLogger(Logger('AuthRepository'));
 
   Future<AuthSessionState> loadSession() async {
-    final accounts = await _accountsRepository.listSignedInAccounts();
+    final connectedAccounts = await _accountsRepository.listSignedInAccounts();
+    if (connectedAccounts.isNotEmpty) {
+      return AuthSessionState.signedIn(connectedAccounts.first.id);
+    }
+    final accounts = await _accountsRepository.listVisibleAccounts();
     if (accounts.isEmpty) {
       return const AuthSessionState.signedOut();
     }
@@ -153,7 +158,7 @@ class AuthRepository {
 
     await _accountsRepository.upsertSignedInAccount(
       id: result.accountId,
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       providerAccountId: result.user.id,
       displayName: result.user.displayName,
       email: result.user.mail ?? result.user.userPrincipalName,
@@ -187,10 +192,15 @@ class AuthRepository {
       await _deleteScheduledNotifications(accountId);
     });
     switch (account.provider) {
-      case TaskProvider.microsoft:
+      case BusyProvider.microsoft:
         await _microsoftOAuth?.signOutAccount(accountId);
-      case TaskProvider.google:
+      case BusyProvider.google:
         await _oAuth.clearLocalSession(accountId: accountId);
+      case BusyProvider.appleICloud:
+      case BusyProvider.nextcloud:
+        // DAV credentials are cleared through SecretStore once the account is
+        // moved to reauthentication-required state.
+        break;
     }
   }
 
@@ -204,7 +214,7 @@ class AuthRepository {
     }
 
     var revocationStatus = AccountAuthorizationRevocationStatus.notRequested;
-    if (revokeAuthorization && account.provider == TaskProvider.google) {
+    if (revokeAuthorization && account.provider == BusyProvider.google) {
       try {
         await _oAuth.revokeAuthorization(accountId);
         revocationStatus = AccountAuthorizationRevocationStatus.succeeded;
@@ -217,7 +227,7 @@ class AuthRepository {
       }
     }
 
-    if (account.provider == TaskProvider.microsoft) {
+    if (account.provider == BusyProvider.microsoft) {
       await _microsoftOAuth?.signOutAccount(accountId);
     } else {
       await _oAuth.clearLocalSession(accountId: accountId);
@@ -291,7 +301,7 @@ class AuthRepository {
     final userInfo = await _fetchGoogleUserInfo(tokenSet);
     await _accountsRepository.upsertSignedInAccount(
       id: accountId,
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerAccountId: _firstNonBlank([
         userInfo?.subject,
         idTokenClaims['sub']?.toString(),
@@ -474,6 +484,9 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
 }
 
 String authErrorMessage(Object error) {
+  if (error is DavException) {
+    return error.safeMessage;
+  }
   if (error is OAuthException) {
     if (_isCallbackFailure(error.code)) {
       if (error.message == microsoftSignInCallbackNotReceivedMessage) {
@@ -484,7 +497,7 @@ String authErrorMessage(Object error) {
     return error.message;
   }
   if (error is PlatformException) {
-    return secureTokenStorageUnavailableMessage;
+    return secretStorageUnavailableMessage;
   }
   return error.toString();
 }

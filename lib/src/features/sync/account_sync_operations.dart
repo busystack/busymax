@@ -1,5 +1,6 @@
 typedef AccountSyncAction =
     Future<void> Function(String accountId, {required bool full});
+typedef AccountUsesDav = Future<bool> Function(String accountId);
 
 abstract interface class AccountSyncOperations {
   Future<void> syncAccount(String accountId, {required bool full});
@@ -47,4 +48,49 @@ final class DisabledAccountSyncOperations implements AccountSyncOperations {
 
   @override
   Future<void> syncCalendar(String accountId, {required bool full}) async {}
+}
+
+final class RoutingAccountSyncOperations implements AccountSyncOperations {
+  const RoutingAccountSyncOperations({
+    required AccountUsesDav usesDav,
+    required AccountSyncAction syncDav,
+    required AccountSyncAction syncTasksRest,
+    required AccountSyncAction syncCalendarRest,
+  }) : _usesDav = usesDav,
+       _syncDav = syncDav,
+       _syncTasksRest = syncTasksRest,
+       _syncCalendarRest = syncCalendarRest;
+
+  final AccountUsesDav _usesDav;
+  final AccountSyncAction _syncDav;
+  final AccountSyncAction _syncTasksRest;
+  final AccountSyncAction _syncCalendarRest;
+
+  @override
+  Future<void> syncAccount(String accountId, {required bool full}) async {
+    if (await _usesDav(accountId)) {
+      await _syncDav(accountId, full: full);
+      return;
+    }
+    await _syncTasksRest(accountId, full: full);
+    await _syncCalendarRest(accountId, full: full);
+  }
+
+  @override
+  Future<void> syncCalendar(String accountId, {required bool full}) async {
+    if (await _usesDav(accountId)) {
+      await _syncDav(accountId, full: full);
+      return;
+    }
+    await _syncCalendarRest(accountId, full: full);
+  }
+
+  @override
+  Future<void> syncTasks(String accountId, {required bool full}) async {
+    if (await _usesDav(accountId)) {
+      await _syncDav(accountId, full: full);
+      return;
+    }
+    await _syncTasksRest(accountId, full: full);
+  }
 }

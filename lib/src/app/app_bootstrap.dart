@@ -5,10 +5,22 @@ import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 
 import '../config/build_config.dart';
 import '../core/time/local_time_zone.dart';
 import '../db/app_database.dart';
+import '../dav/auth/dav_account_onboarding_service.dart';
+import '../dav/auth/nextcloud_app_password_revoker.dart';
+import '../dav/auth/nextcloud_login_flow_v2.dart';
+import '../dav/dav_provider_profile.dart';
+import '../dav/discovery/dav_discovery_service.dart';
+import '../dav/http/dav_http_transport.dart';
+import '../dav/mutation/dav_conflict_repository.dart';
+import '../dav/mutation/dav_pending_operations.dart';
+import '../dav/mutation/dav_task_list_mutation_service.dart';
+import '../dav/sync/dav_account_sync_engine.dart';
+import '../dav/storage/dav_settings_repository.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/auth/data/auth_repository.dart';
@@ -24,20 +36,22 @@ import '../features/sync/sync_auth_error.dart';
 import '../features/sync/sync_engine.dart';
 import '../features/task_lists/data/task_lists_repository.dart';
 import '../features/tasks/data/tasks_repository.dart';
+import '../features/tasks/domain/task_remote_client.dart';
 import '../google_tasks/api/google_tasks_api_client.dart';
 import '../google_tasks/http/authenticated_http_client.dart';
 import '../google_tasks/http/retrying_http_client.dart';
 import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
-import '../google_tasks/oauth/oauth_token_store.dart';
-import '../google_tasks/oauth/portal_encrypted_oauth_token_store.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/core/secrets/portal_encrypted_secret_store.dart';
 import '../google_calendar/google_calendar_api_client.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
-import '../microsoft_todo/api/microsoft_todo_google_tasks_adapter.dart';
+import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/linux_window_service.dart';
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
 import 'app_router.dart';
@@ -66,6 +80,69 @@ final baseHttpClientProvider = Provider<http.Client>((ref) {
   return client;
 });
 
+final nextcloudLoginFlowV2Provider = Provider<NextcloudLoginFlowV2>((ref) {
+  return NextcloudLoginFlowV2(client: ref.watch(baseHttpClientProvider));
+});
+
+final davAccountOnboardingServiceProvider =
+    Provider<DavAccountOnboardingService>((ref) {
+      final client = ref.watch(baseHttpClientProvider);
+      return DavAccountOnboardingService(
+        database: ref.watch(databaseProvider),
+        secretStore: ref.watch(secretStoreProvider),
+        accountsRepository: ref.watch(accountsRepositoryProvider),
+        nextcloudLoginFlow: ref.watch(nextcloudLoginFlowV2Provider),
+        discover:
+            ({
+              required accountId,
+              required provider,
+              required accountAuthority,
+              required credential,
+              cancellationToken,
+            }) {
+              final profile = davProviderProfile(
+                provider,
+                nextcloudServer: provider == BusyProvider.nextcloud
+                    ? accountAuthority
+                    : null,
+              );
+              final transport = DavHttpTransport(
+                client: client,
+                profile: profile,
+                accountAuthority: accountAuthority,
+              );
+              return DavDiscoveryService(
+                transport: transport,
+                profile: profile,
+                accountAuthority: accountAuthority,
+                accountId: accountId,
+                credential: credential,
+              ).discover(
+                correlationId: const Uuid().v4(),
+                cancellationToken: cancellationToken,
+              );
+            },
+        nextcloudCredentialRevoker:
+            ({required accountId, required credential}) {
+              final profile = davProviderProfile(
+                BusyProvider.nextcloud,
+                nextcloudServer: credential.canonicalServer,
+              );
+              return NextcloudAppPasswordRevoker(
+                transport: DavHttpTransport(
+                  client: client,
+                  profile: profile,
+                  accountAuthority: credential.canonicalServer,
+                ),
+              ).revoke(
+                accountId: accountId,
+                credential: credential,
+                correlationId: const Uuid().v4(),
+              );
+            },
+      );
+    });
+
 final retryingHttpClientProvider = Provider<http.Client>((ref) {
   return RetryingHttpClient(inner: ref.watch(baseHttpClientProvider));
 });
@@ -80,20 +157,20 @@ final feedbackSubmissionServiceProvider = Provider<FeedbackSubmissionService>((
   );
 });
 
-final oAuthTokenStoreProvider = Provider<OAuthTokenStore>((ref) {
+final secretStoreProvider = Provider<SecretStore>((ref) {
   if (Platform.isLinux && (Platform.environment['SNAP']?.isNotEmpty ?? false)) {
     // flutter_secure_storage_linux warms up direct libsecret first, so
     // SECRET_BACKEND=file cannot avoid a locked keyring inside strict snaps.
-    return PortalEncryptedOAuthTokenStore();
+    return PortalEncryptedSecretStore();
   }
-  return SecureOAuthTokenStore(ref.watch(secureStorageProvider));
+  return SecureSecretStore(ref.watch(secureStorageProvider));
 });
 
 final applicationOAuthServiceProvider = Provider<OAuthService>((ref) {
   return OAuthService(
     config: ref.watch(buildConfigProvider),
     httpClient: ref.watch(baseHttpClientProvider),
-    tokenStore: ref.watch(oAuthTokenStoreProvider),
+    tokenStore: ref.watch(secretStoreProvider),
     loopbackFlow: OAuthLoopbackFlow(),
   );
 });
@@ -108,7 +185,7 @@ final microsoftOAuthServiceProvider = Provider<MicrosoftOAuthService>((ref) {
   return MicrosoftOAuthService(
     config: ref.watch(buildConfigProvider),
     httpClient: ref.watch(baseHttpClientProvider),
-    tokenStore: ref.watch(oAuthTokenStoreProvider),
+    tokenStore: ref.watch(secretStoreProvider),
     loopbackFlow: OAuthLoopbackFlow(),
   );
 });
@@ -173,6 +250,49 @@ final accountManagementStreamProvider = StreamProvider<List<AccountEntity>>((
   return ref.watch(accountsRepositoryProvider).watchVisibleAccounts();
 });
 
+final davSettingsRepositoryProvider = Provider<DavSettingsRepository>((ref) {
+  return DavSettingsRepository(
+    database: ref.watch(databaseProvider),
+    onVisibilityChanged: (_) =>
+        ref.read(notificationSchedulerProvider).checkNow(),
+  );
+});
+
+final davCollectionsStreamProvider =
+    StreamProvider<List<DavCollectionSettingsEntity>>((ref) {
+      return ref.watch(davSettingsRepositoryProvider).watchCollections();
+    });
+
+final davConflictRepositoryProvider = Provider<DavConflictRepository>((ref) {
+  return DavConflictRepository(database: ref.watch(databaseProvider));
+});
+
+final davConflictsStreamProvider = StreamProvider<List<DavConflictEntity>>((
+  ref,
+) {
+  return ref.watch(davConflictRepositoryProvider).watchUnresolved();
+});
+
+final davConflictResolutionServiceProvider =
+    Provider<DavConflictResolutionService>((ref) {
+      final database = ref.watch(databaseProvider);
+      return DavConflictResolutionService(
+        database: database,
+        pendingQueue: DavPendingOperationQueue(database: database),
+      );
+    });
+
+final davTaskCollectionCapabilitiesProvider =
+    FutureProvider.family<
+      TaskCollectionCapabilities?,
+      ({String accountId, String taskListId})
+    >((ref, key) async {
+      final collection = await ref
+          .watch(davSettingsRepositoryProvider)
+          .collectionByTaskListId(key.accountId, key.taskListId);
+      return collection?.taskCapabilities;
+    });
+
 final selectedAccountIdProvider = StateProvider<String?>((ref) => null);
 
 final selectedAccountProvider = Provider<AccountEntity?>((ref) {
@@ -191,17 +311,18 @@ final selectedAccountProvider = Provider<AccountEntity?>((ref) {
   return null;
 });
 
-final selectedAccountCapabilitiesProvider = Provider<TaskProviderCapabilities>((
-  ref,
-) {
-  final account = ref.watch(selectedAccountProvider);
-  return capabilitiesForProvider(account?.provider ?? TaskProvider.google);
-});
+final selectedAccountCapabilitiesProvider =
+    Provider<TaskCollectionCapabilities>((ref) {
+      final account = ref.watch(selectedAccountProvider);
+      return account == null
+          ? noTaskCollectionCapabilities
+          : adapterDefaultTaskCapabilities(account.provider);
+    });
 
 final localTimeZoneProvider = Provider<String>((ref) => localIanaTimeZone());
 
 final googleTasksApiClientForAccountProvider =
-    Provider.family<GoogleTasksApiClient, String>((ref, accountId) {
+    Provider.family<TaskRemoteClient, String>((ref, accountId) {
       final config = ref.watch(buildConfigProvider);
       return GoogleTasksRestApiClient(
         httpClient: ref.watch(retryingHttpClientProvider),
@@ -261,16 +382,16 @@ final microsoftCalendarApiClientForAccountProvider =
       );
     });
 
-final microsoftAsGoogleTasksApiClientForAccountProvider =
-    Provider.family<GoogleTasksApiClient, String>((ref, accountId) {
-      return MicrosoftTodoGoogleTasksAdapter(
+final microsoftTodoTaskRemoteClientForAccountProvider =
+    Provider.family<TaskRemoteClient, String>((ref, accountId) {
+      return MicrosoftTodoTaskRemoteClient(
         client: ref.watch(microsoftTodoApiClientForAccountProvider(accountId)),
         defaultTimeZone: ref.watch(localTimeZoneProvider),
       );
     });
 
 final taskRemoteApiClientForAccountProvider =
-    Provider.family<GoogleTasksApiClient?, String>((ref, accountId) {
+    Provider.family<TaskRemoteClient?, String>((ref, accountId) {
       final accounts = ref.watch(accountsStreamProvider).valueOrNull;
       AccountEntity? account;
       for (final candidate in accounts ?? const <AccountEntity>[]) {
@@ -283,27 +404,32 @@ final taskRemoteApiClientForAccountProvider =
         return null;
       }
       return switch (account.provider) {
-        TaskProvider.microsoft => ref.watch(
-          microsoftAsGoogleTasksApiClientForAccountProvider(accountId),
+        BusyProvider.microsoft => ref.watch(
+          microsoftTodoTaskRemoteClientForAccountProvider(accountId),
         ),
-        TaskProvider.google => ref.watch(
+        BusyProvider.google => ref.watch(
           googleTasksApiClientForAccountProvider(accountId),
         ),
+        BusyProvider.appleICloud || BusyProvider.nextcloud => null,
       };
     });
 
 typedef SyncEngineForAccountFactory =
-    SyncEngine Function(String accountId, TaskProvider provider);
+    SyncEngine Function(String accountId, BusyProvider provider);
 
 final syncEngineForAccountFactoryProvider =
     Provider<SyncEngineForAccountFactory>((ref) {
       return (accountId, provider) {
         final apiClient = switch (provider) {
-          TaskProvider.microsoft => ref.read(
-            microsoftAsGoogleTasksApiClientForAccountProvider(accountId),
+          BusyProvider.microsoft => ref.read(
+            microsoftTodoTaskRemoteClientForAccountProvider(accountId),
           ),
-          TaskProvider.google => ref.read(
+          BusyProvider.google => ref.read(
             googleTasksApiClientForAccountProvider(accountId),
+          ),
+          BusyProvider.appleICloud ||
+          BusyProvider.nextcloud => throw StateError(
+            'DAV task accounts must use DavSynchronizationEngine.',
           ),
         };
 
@@ -311,7 +437,7 @@ final syncEngineForAccountFactoryProvider =
           database: ref.read(databaseProvider),
           apiClient: apiClient,
           accountId: accountId,
-          fullRefreshOnly: provider == TaskProvider.microsoft,
+          fullRefreshOnly: provider == BusyProvider.microsoft,
           onConflictBlocked: ref
               .read(desktopNotificationServiceProvider)
               .notifyConflict,
@@ -320,17 +446,21 @@ final syncEngineForAccountFactoryProvider =
     });
 
 typedef CalendarSyncEngineForAccountFactory =
-    CalendarSyncEngine Function(String accountId, TaskProvider provider);
+    CalendarSyncEngine Function(String accountId, BusyProvider provider);
 
 final calendarSyncEngineForAccountFactoryProvider =
     Provider<CalendarSyncEngineForAccountFactory>((ref) {
       return (accountId, provider) {
         final client = switch (provider) {
-          TaskProvider.microsoft => ref.read(
+          BusyProvider.microsoft => ref.read(
             microsoftCalendarApiClientForAccountProvider(accountId),
           ),
-          TaskProvider.google => ref.read(
+          BusyProvider.google => ref.read(
             googleCalendarApiClientForAccountProvider(accountId),
+          ),
+          BusyProvider.appleICloud ||
+          BusyProvider.nextcloud => throw StateError(
+            'DAV calendar accounts must use DavSynchronizationEngine.',
           ),
         };
         return CalendarSyncEngine(
@@ -346,10 +476,28 @@ final calendarSyncEngineForAccountFactoryProvider =
       };
     });
 
+typedef DavAccountSyncEngineFactory =
+    DavAccountSyncEngine Function(String accountId);
+
+final davAccountSyncEngineFactoryProvider =
+    Provider<DavAccountSyncEngineFactory>((ref) {
+      return (accountId) => DavAccountSyncEngine(
+        database: ref.read(databaseProvider),
+        secretStore: ref.read(secretStoreProvider),
+        httpClient: ref.read(baseHttpClientProvider),
+        accountId: accountId,
+        rebuildNotifications: (accountId, affectedObjectIds) =>
+            ref.read(notificationSchedulerProvider).checkNow(),
+        reportPendingMutationFailure: (accountId, error) => ref
+            .read(desktopNotificationServiceProvider)
+            .notifySyncFailure(error.safeMessage),
+      );
+    });
+
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
 
-  Future<TaskProvider> providerForAccount(String accountId) async {
+  Future<BusyProvider> providerForAccount(String accountId) async {
     final account = await accountsRepository.accountById(accountId);
     if (account == null) {
       throw StateError('Account $accountId is unavailable.');
@@ -357,8 +505,18 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
     return account.provider;
   }
 
-  return DelegatingAccountSyncOperations(
-    syncTasks: (accountId, {required full}) async {
+  return RoutingAccountSyncOperations(
+    usesDav: (accountId) async {
+      final provider = await providerForAccount(accountId);
+      return provider == BusyProvider.appleICloud ||
+          provider == BusyProvider.nextcloud;
+    },
+    syncDav: (accountId, {required full}) async {
+      await ref
+          .read(davAccountSyncEngineFactoryProvider)(accountId)
+          .synchronize(full: full);
+    },
+    syncTasksRest: (accountId, {required full}) async {
       final provider = await providerForAccount(accountId);
       final engine = ref.read(syncEngineForAccountFactoryProvider)(
         accountId,
@@ -370,7 +528,7 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
         await engine.incrementalSync();
       }
     },
-    syncCalendar: (accountId, {required full}) async {
+    syncCalendarRest: (accountId, {required full}) async {
       final provider = await providerForAccount(accountId);
       final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
         accountId,
@@ -418,7 +576,7 @@ final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
     return runAllSignedInAccountSync(
       listSignedInAccounts: ref
           .read(accountsRepositoryProvider)
-          .listSignedInAccounts,
+          .listSyncEligibleAccounts,
       syncAccount: syncAccount,
       onSyncFailure: ref
           .read(desktopNotificationServiceProvider)
@@ -466,13 +624,26 @@ final Provider<String?> activeAccountProvider = Provider<String?>((ref) {
   return session.isSignedIn ? session.accountId : null;
 });
 
-final googleTasksApiClientProvider = Provider<GoogleTasksApiClient?>((ref) {
+final googleTasksApiClientProvider = Provider<TaskRemoteClient?>((ref) {
   final accountId = ref.watch(activeAccountProvider);
   if (accountId == null) {
     return null;
   }
   return ref.watch(taskRemoteApiClientForAccountProvider(accountId));
 });
+
+final davTaskListMutationClientForAccountProvider =
+    Provider.family<DavTaskListMutationClient, String>((ref, accountId) {
+      return DavTaskListMutationService(
+        database: ref.watch(databaseProvider),
+        secretStore: ref.watch(secretStoreProvider),
+        httpClient: ref.watch(baseHttpClientProvider),
+        accountId: accountId,
+        refreshAfterMutation: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncAccount(accountId, full: true),
+      );
+    });
 
 final taskListsRepositoryProvider = Provider<TaskListsRepository?>((ref) {
   final accountId = ref.watch(activeAccountProvider);
@@ -483,6 +654,9 @@ final taskListsRepositoryProvider = Provider<TaskListsRepository?>((ref) {
     database: ref.watch(databaseProvider),
     accountId: accountId,
     apiClient: ref.watch(googleTasksApiClientProvider),
+    davMutationClient: ref.watch(
+      davTaskListMutationClientForAccountProvider(accountId),
+    ),
     onMutationQueued: ref.watch(pendingMutationSyncRequesterProvider)?.request,
   );
 });
@@ -492,6 +666,13 @@ final taskListsRepositoryForAccountProvider =
       return TaskListsRepository(
         database: ref.watch(databaseProvider),
         accountId: accountId,
+        apiClient: ref.watch(taskRemoteApiClientForAccountProvider(accountId)),
+        davMutationClient: ref.watch(
+          davTaskListMutationClientForAccountProvider(accountId),
+        ),
+        onMutationQueued: ref
+            .watch(pendingMutationSyncRequesterForAccountProvider(accountId))
+            .request,
       );
     });
 
@@ -535,7 +716,7 @@ final Provider<SyncEngine?> syncEngineProvider = Provider<SyncEngine?>((ref) {
     database: ref.watch(databaseProvider),
     apiClient: apiClient,
     accountId: accountId,
-    fullRefreshOnly: account!.provider == TaskProvider.microsoft,
+    fullRefreshOnly: account!.provider == BusyProvider.microsoft,
     onConflictBlocked: ref
         .watch(desktopNotificationServiceProvider)
         .notifyConflict,

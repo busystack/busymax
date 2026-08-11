@@ -24,8 +24,10 @@ Future<void> seedBusyMaxDemoData(AppDatabase database, {DateTime? now}) async {
         .insert(
           AccountsCompanion.insert(
             id: busyMaxDemoAccountId,
-            provider: const Value('google'),
-            providerAccountId: const Value('demo-user'),
+            provider: 'google',
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'demo-user',
+            credentialKind: 'oauth',
             displayName: const Value('Alex Morgan'),
             email: const Value('alex@example.com'),
             authState: const Value(accountAuthStateSignedIn),

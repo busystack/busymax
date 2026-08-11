@@ -10,7 +10,7 @@ import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../db/app_database.dart';
 import '../../google_calendar/google_calendar_errors.dart';
 import '../../microsoft_calendar/microsoft_calendar_errors.dart';
-import '../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
 
 class CalendarPendingOpsReplayer {
@@ -145,7 +145,7 @@ class CalendarPendingOpsReplayer {
   }
 
   bool _isMissingTimeZoneCreateFailure(PendingOp op) {
-    return op.provider == TaskProvider.google.storageValue &&
+    return op.provider == BusyProvider.google.storageValue &&
         op.entityType == 'event' &&
         op.operationType == 'event.create' &&
         op.lastErrorCode == 'GoogleCalendarApiError' &&
@@ -421,7 +421,7 @@ class CalendarPendingOpsReplayer {
     BusyProvider provider,
     Map<String, Object?> raw,
   ) {
-    if (provider == TaskProvider.google) {
+    if (provider == BusyProvider.google) {
       final start = _mapValue(raw['start']);
       final end = _mapValue(raw['end']);
       return {

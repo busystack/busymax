@@ -14,12 +14,16 @@ import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/tasks/presentation/ical_task_fields_editor.dart';
+import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
@@ -34,6 +38,13 @@ final _vancouverTimeZoneCode = BusyMaxTimeZoneCatalog.location(
 String _withVancouverTimeZone(String time) {
   return '$time ($_vancouverTimeZoneCode)';
 }
+
+String _testAuthority(BusyProvider provider) => switch (provider) {
+  BusyProvider.google => 'https://accounts.google.com',
+  BusyProvider.microsoft => 'https://login.microsoftonline.com/common',
+  BusyProvider.appleICloud => 'https://caldav.icloud.com',
+  BusyProvider.nextcloud => 'https://cloud.example.test',
+};
 
 void main() {
   setUp(() {
@@ -58,7 +69,7 @@ void main() {
   });
 
   testWidgets('Task Details header shows Cancel and Save', (tester) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Edit Task'), findsOneWidget);
@@ -73,10 +84,102 @@ void main() {
     );
   });
 
+  testWidgets(
+    'task details renders parent, task children, and checklist steps',
+    (tester) async {
+      final parent = _switchTask('parent-task', 'Parent task');
+      final child = _switchTask('child-task', 'Child task');
+      final repository = _FakeTasksRepository(
+        hierarchy: TaskHierarchySnapshot(
+          parent: parent,
+          subtasks: [
+            TaskSubtaskEntity.task(child, hasChildren: false),
+            TaskSubtaskEntity.checklistItem(
+              const TaskChecklistItemEntity(
+                id: 'step-1',
+                title: 'Checklist step',
+                completed: false,
+                rawJson: {
+                  'id': 'step-1',
+                  'displayName': 'Checklist step',
+                  'isChecked': false,
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+
+      await _pumpDetails(
+        tester,
+        microsoftTaskCollectionCapabilities,
+        repository: repository,
+      );
+
+      expect(find.text('Subtasks'), findsOneWidget);
+      expect(find.text('Parent task'), findsOneWidget);
+      expect(find.text('Child task'), findsOneWidget);
+      expect(find.text('Checklist step'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('create-subtask-action')),
+        findsOneWidget,
+      );
+      expect(find.text('Move to top'), findsNothing);
+    },
+  );
+
+  testWidgets('read-only DAV task disables editing and deletion', (
+    tester,
+  ) async {
+    await _pumpDetails(
+      tester,
+      nextcloudTaskCollectionCapabilities.asReadOnly(),
+      providerOverride: BusyProvider.nextcloud,
+      accountIdOverride: 'nextcloud:alex',
+      repository: _FakeTasksRepository(accountId: 'nextcloud:alex'),
+    );
+
+    final titleField = tester.widget<TextField>(find.byType(TextField).first);
+    expect(titleField.enabled, isFalse);
+    expect(find.text('Delete Task'), findsNothing);
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.ancestor(
+              of: find.text('Save'),
+              matching: find.byType(ElevatedButton),
+            ),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('recurring DAV task occurrence remains read-only', (
+    tester,
+  ) async {
+    await _pumpDetails(
+      tester,
+      nextcloudTaskCollectionCapabilities,
+      providerOverride: BusyProvider.nextcloud,
+      accountIdOverride: 'nextcloud:alex',
+      repository: _FakeTasksRepository(
+        accountId: 'nextcloud:alex',
+        recurrenceIdKey: 'UTC:2026-06-06T14:30:00.000Z',
+      ),
+    );
+
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).enabled,
+      isFalse,
+    );
+    expect(find.text('Delete Task'), findsNothing);
+  });
+
   testWidgets('Cancel and Save use natural-width themed controls', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     expect(
       find.ancestor(
@@ -121,7 +224,7 @@ void main() {
 
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       theme: theme,
       modalEditorSurface: true,
     );
@@ -155,7 +258,7 @@ void main() {
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       theme: theme,
       modalEditorSurface: true,
     );
@@ -232,7 +335,7 @@ void main() {
   ) async {
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       theme: BusyMaxYaruTheme.build(
         brightness: Brightness.light,
         accentColor: const Color(0xFF3584E4),
@@ -252,7 +355,7 @@ void main() {
   testWidgets('header places Cancel before centered title and Save after', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     final cancelLeft = tester.getTopLeft(find.text('Cancel')).dx;
     final titleCenter = tester.getCenter(find.text('Edit Task')).dx;
@@ -268,7 +371,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -281,7 +384,7 @@ void main() {
   });
 
   testWidgets('editing title enables Save', (tester) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     await tester.enterText(find.byType(TextField).first, 'Renamed task');
     await tester.pump();
@@ -289,11 +392,36 @@ void main() {
     expect(_headerButtonOnPressed(tester, 'Save'), isNotNull);
   });
 
+  testWidgets('Nextcloud due-before-start task explains and blocks Save', (
+    tester,
+  ) async {
+    final repository = _FakeTasksRepository(
+      accountId: 'nextcloud:alex',
+      dueUtc: '2026-08-09',
+      microsoftDueDateTime: '2026-08-09',
+      microsoftStartDateTime: '2026-08-10',
+    );
+    await _pumpDetails(
+      tester,
+      nextcloudTaskCollectionCapabilities,
+      providerOverride: BusyProvider.nextcloud,
+      accountIdOverride: 'nextcloud:alex',
+      repository: repository,
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'Renamed task');
+    await tester.pump();
+
+    expect(find.text('Due must not be before start.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-schedule-error')), findsOneWidget);
+    expect(_headerButtonOnPressed(tester, 'Save'), isNull);
+  });
+
   testWidgets('Cancel discards draft without patching', (tester) async {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -311,7 +439,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -328,7 +456,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -350,7 +478,7 @@ void main() {
       var closed = false;
       await _pumpDetails(
         tester,
-        microsoftTaskProviderCapabilities,
+        microsoftTaskCollectionCapabilities,
         repository: repository,
         onClose: () => closed = true,
       );
@@ -394,7 +522,7 @@ void main() {
     var closed = false;
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
       onClose: () {
         closed = true;
@@ -416,7 +544,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -559,14 +687,60 @@ void main() {
   });
 
   testWidgets('status controls are absent from Task Details', (tester) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     expect(find.text('Open'), findsNothing);
     expect(find.text('Done'), findsNothing);
   });
 
+  testWidgets(
+    'shared public DAV task keeps status editable and classification locked',
+    (tester) async {
+      final task = TaskEntity(
+        accountId: 'nextcloud:n',
+        taskListId: 'list-1',
+        id: 'task-1',
+        title: 'Shared task',
+        status: 'needsAction',
+        providerStatus: 'NEEDS-ACTION',
+        taskClassification: 'PUBLIC',
+        localDirty: false,
+        pendingDelete: false,
+        pendingMove: false,
+        rawJson: '{}',
+        updatedLocalAtUtc: '2026-08-09T00:00:00.000Z',
+      );
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: IcalTaskFieldsEditor(
+                draft: TaskDetailsDraft.fromTask(task, 'UTC'),
+                capabilities: nextcloudTaskCollectionCapabilities
+                    .withoutClassificationEditing(),
+                enabled: true,
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      BusyMaxComboRow<String> combo(String title) =>
+          tester.widget<BusyMaxComboRow<String>>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is BusyMaxComboRow<String> && widget.title == title,
+            ),
+          );
+
+      expect(combo('Status').enabled, isTrue);
+      expect(combo('Classification').enabled, isFalse);
+    },
+  );
+
   testWidgets('no visible timezone helper text or UTC appears', (tester) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     expect(find.textContaining('Time zone:'), findsNothing);
     expect(find.text('UTC'), findsNothing);
@@ -576,7 +750,7 @@ void main() {
   testWidgets('Task Details uses BusyMax grouped rows without section blocks', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     expect(find.byType(Dialog), findsNothing);
     expect(find.byType(TaskDetailsPane), findsOneWidget);
@@ -592,7 +766,7 @@ void main() {
   testWidgets('Task Details section labels use shared section typography', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     final dueText = tester.widget<Text>(find.text('Due'));
     final context = tester.element(find.text('Due'));
@@ -616,7 +790,7 @@ void main() {
     var closed = false;
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: _FakeTasksRepository(missingTask: true),
       onClose: () {
         closed = true;
@@ -664,7 +838,7 @@ void main() {
   ) async {
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       alwaysUse24HourFormat: true,
     );
 
@@ -684,7 +858,7 @@ void main() {
   ) async {
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       alwaysUse24HourFormat: false,
     );
 
@@ -703,7 +877,7 @@ void main() {
   ) async {
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       locale: const Locale('de'),
       alwaysUse24HourFormat: true,
     );
@@ -718,7 +892,7 @@ void main() {
   ) async {
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       locale: const Locale('fr'),
       alwaysUse24HourFormat: true,
     );
@@ -733,7 +907,7 @@ void main() {
   ) async {
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       locale: const Locale('es'),
       alwaysUse24HourFormat: true,
     );
@@ -767,7 +941,7 @@ void main() {
   testWidgets('Google keeps unsupported fields out of main editor by default', (
     tester,
   ) async {
-    await _pumpDetails(tester, googleTaskProviderCapabilities);
+    await _pumpDetails(tester, googleTaskCollectionCapabilities);
 
     expect(find.text('Due'), findsOneWidget);
     expect(_dateRowFinder('Due date'), findsOneWidget);
@@ -791,7 +965,7 @@ void main() {
   ) async {
     await _pumpDetails(
       tester,
-      googleTaskProviderCapabilities,
+      googleTaskCollectionCapabilities,
       accountIdOverride: 'google-generated-local-id',
       includeAccountIdentity: false,
     );
@@ -809,7 +983,7 @@ void main() {
 
       await _pumpDetails(
         tester,
-        microsoftTaskProviderCapabilities,
+        microsoftTaskCollectionCapabilities,
         accountIdOverride: accountId,
         accountsStream: accounts.stream,
       );
@@ -819,7 +993,9 @@ void main() {
       accounts.add([
         const AccountEntity(
           id: accountId,
-          provider: TaskProvider.microsoft,
+          provider: BusyProvider.microsoft,
+          authority: 'https://login.microsoftonline.com/common',
+          providerAccountId: accountId,
           authState: 'signed_in',
           displayName: 'Microsoft User',
           email: 'microsoft@example.com',
@@ -851,7 +1027,7 @@ void main() {
 
       await _pumpDetails(
         tester,
-        microsoftTaskProviderCapabilities,
+        microsoftTaskCollectionCapabilities,
         accountIdOverride: accountId,
         accountsStream: accounts.stream,
         onClose: () => closeCalls += 1,
@@ -861,7 +1037,9 @@ void main() {
       accounts.add([
         const AccountEntity(
           id: accountId,
-          provider: TaskProvider.microsoft,
+          provider: BusyProvider.microsoft,
+          authority: 'https://login.microsoftonline.com/common',
+          providerAccountId: accountId,
           authState: 'signed_in',
           displayName: 'Microsoft User',
           email: 'microsoft@example.com',
@@ -885,7 +1063,7 @@ void main() {
   testWidgets('unsupported provider text is not rendered for Google', (
     tester,
   ) async {
-    await _pumpDetails(tester, googleTaskProviderCapabilities);
+    await _pumpDetails(tester, googleTaskCollectionCapabilities);
 
     expect(find.text('Provider features'), findsNothing);
     expect(find.text('Not supported by Google Tasks.'), findsNothing);
@@ -899,7 +1077,7 @@ void main() {
   testWidgets(
     'Microsoft shows Due, Start, Reminder, Repeat, and Organization',
     (tester) async {
-      await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+      await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
       expect(find.text('Due'), findsOneWidget);
       expect(find.text('Start'), findsOneWidget);
@@ -916,7 +1094,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -955,7 +1133,7 @@ void main() {
     );
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -985,7 +1163,7 @@ void main() {
   });
 
   testWidgets('Due group appears before separate Start group', (tester) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     final dueTop = tester.getTopLeft(find.text('Due')).dy;
     final startTop = tester.getTopLeft(find.text('Start')).dy;
@@ -1000,7 +1178,7 @@ void main() {
   testWidgets('Reminder absent state shows centered Add Reminder', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     expect(find.text('Add Reminder'), findsOneWidget);
     expect(
@@ -1016,7 +1194,7 @@ void main() {
   testWidgets('reminder uses date and time rows when enabled', (tester) async {
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       reminderOn: true,
       alwaysUse24HourFormat: true,
     );
@@ -1035,7 +1213,7 @@ void main() {
   });
 
   testWidgets('delete action is separated and destructive', (tester) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     await tester.scrollUntilVisible(
       find.text('Delete Task'),
@@ -1059,7 +1237,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -1081,7 +1259,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -1095,7 +1273,7 @@ void main() {
   });
 
   testWidgets('metadata is not shown in Edit Task', (tester) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     expect(find.text('Metadata'), findsNothing);
     expect(find.text('task-1'), findsNothing);
@@ -1105,7 +1283,7 @@ void main() {
   testWidgets('list move unsupported explanation is not rendered', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     expect(
       find.text(
@@ -1141,7 +1319,7 @@ void main() {
           calls.add(call);
           return null;
         });
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     await _openDatePicker(tester, 'Due date');
 
@@ -1232,7 +1410,7 @@ void main() {
           });
       await _pumpDetails(
         tester,
-        microsoftTaskProviderCapabilities,
+        microsoftTaskCollectionCapabilities,
         alwaysUse24HourFormat: false,
       );
 
@@ -1254,7 +1432,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -1292,7 +1470,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -1325,7 +1503,7 @@ void main() {
       );
       await _pumpDetails(
         tester,
-        microsoftTaskProviderCapabilities,
+        microsoftTaskCollectionCapabilities,
         repository: repository,
       );
 
@@ -1363,7 +1541,7 @@ void main() {
     );
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       repository: repository,
     );
 
@@ -1382,7 +1560,7 @@ void main() {
   testWidgets('populated time field renders its floating label and value', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
     final field = _labeledTextFormFieldFinder('Due time');
     final label = find.text('Due time');
 
@@ -1479,7 +1657,7 @@ void main() {
     final repository = _FakeTasksRepository();
     await _pumpDetails(
       tester,
-      microsoftTaskProviderCapabilities,
+      microsoftTaskCollectionCapabilities,
       alwaysUse24HourFormat: true,
       repository: repository,
     );
@@ -1510,7 +1688,7 @@ void main() {
   testWidgets('date field does not render a Flutter calendar grid', (
     tester,
   ) async {
-    await _pumpDetails(tester, microsoftTaskProviderCapabilities);
+    await _pumpDetails(tester, microsoftTaskCollectionCapabilities);
 
     await _openDatePicker(tester, 'Due date');
 
@@ -1529,7 +1707,7 @@ Finder _confirmDialogButton(String label) {
 
 Future<void> _pumpDetails(
   WidgetTester tester,
-  TaskProviderCapabilities capabilities, {
+  TaskCollectionCapabilities capabilities, {
   Locale locale = const Locale('en'),
   bool? alwaysUse24HourFormat,
   bool reminderOn = false,
@@ -1542,13 +1720,16 @@ Future<void> _pumpDetails(
   Stream<List<AccountEntity>>? accountsStream,
   ThemeData? theme,
   bool modalEditorSurface = false,
+  BusyProvider? providerOverride,
 }) async {
   final accountId =
       accountIdOverride ??
       (capabilities.supportsDueTime ? 'microsoft:m' : 'google:g');
-  final provider = capabilities.supportsDueTime
-      ? TaskProvider.microsoft
-      : TaskProvider.google;
+  final provider =
+      providerOverride ??
+      (capabilities.supportsDueTime
+          ? BusyProvider.microsoft
+          : BusyProvider.google);
   final accountDisplayName = includeAccountIdentity
       ? displayName ??
             (capabilities.supportsDueTime ? 'Microsoft User' : 'Google User')
@@ -1571,12 +1752,20 @@ Future<void> _pumpDetails(
           AccountEntity(
             id: accountId,
             provider: provider,
+            authority: _testAuthority(provider),
+            providerAccountId: accountId,
             authState: 'signed_in',
             displayName: accountDisplayName,
             email: accountEmail,
           ),
         ),
         selectedAccountCapabilitiesProvider.overrideWithValue(capabilities),
+        davTaskCollectionCapabilitiesProvider.overrideWith(
+          (ref, key) async => capabilities,
+        ),
+        davCollectionsStreamProvider.overrideWith(
+          (ref) => Stream.value(const []),
+        ),
         localTimeZoneProvider.overrideWithValue('UTC'),
         accountsStreamProvider.overrideWith((ref) {
           return accountsStream ??
@@ -1584,6 +1773,8 @@ Future<void> _pumpDetails(
                 AccountEntity(
                   id: accountId,
                   provider: provider,
+                  authority: _testAuthority(provider),
+                  providerAccountId: accountId,
                   authState: 'signed_in',
                   displayName: accountDisplayName,
                   email: accountEmail,
@@ -1647,11 +1838,16 @@ Future<void> _pumpSwitchingDetails(
     ProviderScope(
       overrides: [
         localTimeZoneProvider.overrideWithValue('UTC'),
+        davCollectionsStreamProvider.overrideWith(
+          (ref) => Stream.value(const []),
+        ),
         accountsStreamProvider.overrideWith((ref) {
           return Stream.value([
             const AccountEntity(
               id: 'microsoft:m',
-              provider: TaskProvider.microsoft,
+              provider: BusyProvider.microsoft,
+              authority: 'https://login.microsoftonline.com/common',
+              providerAccountId: 'm',
               authState: 'signed_in',
               displayName: 'Microsoft User',
               email: 'microsoft@example.com',
@@ -1820,17 +2016,23 @@ class _FakeTasksRepository implements TasksRepository {
     this.accountId = 'microsoft:m',
     this.reminderOn = false,
     this.missingTask = false,
+    this.dueUtc = '2026-06-06',
     this.microsoftDueDateTime = '2026-06-06T14:30:00',
     this.microsoftStartDateTime = '2026-06-04T07:00:00.0000000',
     this.categorySuggestions = const [],
+    this.recurrenceIdKey,
+    this.hierarchy = const TaskHierarchySnapshot(parent: null, subtasks: []),
   });
 
   final String accountId;
   final bool reminderOn;
   final bool missingTask;
+  final String dueUtc;
   final String microsoftDueDateTime;
   final String? microsoftStartDateTime;
   final List<String> categorySuggestions;
+  final String? recurrenceIdKey;
+  final TaskHierarchySnapshot hierarchy;
   final List<TaskPatchInput> patches = [];
   final List<TaskMoveInput> moves = [];
   var deleteCalls = 0;
@@ -1851,8 +2053,9 @@ class _FakeTasksRepository implements TasksRepository {
         pendingMove: false,
         rawJson: '{}',
         updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
+        recurrenceIdKey: recurrenceIdKey,
         status: 'needsAction',
-        dueUtc: '2026-06-06',
+        dueUtc: dueUtc,
         microsoftDueDateTime: microsoftDueDateTime,
         microsoftDueTimeZone: 'America/Vancouver',
         microsoftStartDateTime: microsoftStartDateTime,
@@ -1869,6 +2072,14 @@ class _FakeTasksRepository implements TasksRepository {
   @override
   Stream<List<String>> watchCategorySuggestions() {
     return Stream.value(categorySuggestions);
+  }
+
+  @override
+  Stream<TaskHierarchySnapshot> watchTaskHierarchy(
+    String taskListId,
+    String taskId,
+  ) {
+    return Stream.value(hierarchy);
   }
 
   @override
@@ -1920,6 +2131,16 @@ class _SwitchingTasksRepository implements TasksRepository {
     yield* _controllers
         .putIfAbsent(taskId, () => StreamController<TaskEntity?>.broadcast())
         .stream;
+  }
+
+  @override
+  Stream<TaskHierarchySnapshot> watchTaskHierarchy(
+    String taskListId,
+    String taskId,
+  ) {
+    return Stream.value(
+      const TaskHierarchySnapshot(parent: null, subtasks: []),
+    );
   }
 
   @override

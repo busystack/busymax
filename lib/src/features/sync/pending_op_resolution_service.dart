@@ -1,16 +1,16 @@
 import 'dart:convert';
 
 import '../../db/app_database.dart';
-import '../../google_tasks/api/google_tasks_api_client.dart';
-import '../../google_tasks/api/google_tasks_api_error.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
+import '../tasks/domain/task_remote_client.dart';
+import '../tasks/domain/task_remote_error.dart';
 import 'sync_engine.dart';
 
 class PendingOpResolutionService {
   PendingOpResolutionService({
     required AppDatabase database,
-    required GoogleTasksApiClient apiClient,
+    required TaskRemoteClient apiClient,
     required String accountId,
     required SyncEngine syncEngine,
     DateTime Function()? nowUtc,
@@ -21,7 +21,7 @@ class PendingOpResolutionService {
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
-  final GoogleTasksApiClient _apiClient;
+  final TaskRemoteClient _apiClient;
   final String _accountId;
   final SyncEngine _syncEngine;
   final DateTime Function() _nowUtc;
@@ -78,7 +78,7 @@ class PendingOpResolutionService {
           taskId,
         );
       }
-    } on GoogleTasksApiError catch (error) {
+    } on TaskRemoteError catch (error) {
       if (error.statusCode != 404) {
         rethrow;
       }
@@ -103,7 +103,7 @@ class PendingOpResolutionService {
       await _database.tasksDao.upsertTask(
         taskFromDto(_accountId, taskListId, dto, _now()),
       );
-    } on GoogleTasksApiError catch (error) {
+    } on TaskRemoteError catch (error) {
       if (error.statusCode != 404) {
         rethrow;
       }
@@ -117,7 +117,7 @@ class PendingOpResolutionService {
       await _database.taskListsDao.upsertTaskList(
         taskListFromDto(_accountId, dto, _now()),
       );
-    } on GoogleTasksApiError catch (error) {
+    } on TaskRemoteError catch (error) {
       if (error.statusCode != 404) {
         rethrow;
       }

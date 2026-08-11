@@ -93,8 +93,13 @@ class BuildConfig {
       useFakeProviderData || googleOAuthClientId.trim().isNotEmpty;
   bool get hasMicrosoftOAuthClientId =>
       !useFakeProviderData && microsoftOAuthClientId.trim().isNotEmpty;
+  bool get hasAppleICloudProvider => !useFakeProviderData;
+  bool get hasNextcloudProvider => !useFakeProviderData;
   bool get hasAnyProviderConfigured =>
-      hasGoogleOAuthClientId || hasMicrosoftOAuthClientId;
+      hasGoogleOAuthClientId ||
+      hasMicrosoftOAuthClientId ||
+      hasAppleICloudProvider ||
+      hasNextcloudProvider;
 
   String get missingClientIdMessage {
     if (kReleaseMode) {

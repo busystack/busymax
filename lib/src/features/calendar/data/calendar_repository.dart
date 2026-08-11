@@ -5,9 +5,15 @@ import 'package:uuid/uuid.dart';
 
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_sync_dto.dart';
+import '../../../dav/ical/ical_document.dart';
+import '../../../dav/ical/ical_semantics.dart';
+import '../../../dav/mutation/dav_mutation_patch.dart';
+import '../../../dav/mutation/dav_pending_operations.dart';
+import '../../../dav/mutation/dav_projection_mutations.dart';
+import '../../../dav/storage/dav_object_repository.dart';
 import '../../../db/app_database.dart';
 import '../../notifications/notification_schedule_service.dart';
-import '../../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import '../presentation/event_editor_draft.dart';
 
 class CalendarSourceEntity {
@@ -21,31 +27,35 @@ class CalendarSourceEntity {
     required this.hidden,
     required this.readOnly,
     required this.isDeleted,
+    this.primaryCalendar = false,
     this.description,
     this.backgroundColor,
     this.foregroundColor,
     this.colorId,
     this.timeZone,
     this.accessRole,
+    this.davCollectionId,
   });
 
   factory CalendarSourceEntity.fromRow(CalendarSource row) {
     return CalendarSourceEntity(
       id: row.id,
       accountId: row.accountId,
-      provider: TaskProviderParsing.fromStorageValue(row.provider),
+      provider: BusyProviderCodec.requireStorageValue(row.provider),
       providerCalendarId: row.providerCalendarId,
       summary: row.summary,
       selected: row.selected,
       hidden: row.hidden,
       readOnly: row.readOnly,
       isDeleted: row.isDeleted,
+      primaryCalendar: row.primaryCalendar,
       description: row.description,
       backgroundColor: row.backgroundColor,
       foregroundColor: row.foregroundColor,
       colorId: row.colorId,
       timeZone: row.timeZone,
       accessRole: row.accessRole,
+      davCollectionId: row.davCollectionId,
     );
   }
 
@@ -58,12 +68,14 @@ class CalendarSourceEntity {
   final bool hidden;
   final bool readOnly;
   final bool isDeleted;
+  final bool primaryCalendar;
   final String? description;
   final String? backgroundColor;
   final String? foregroundColor;
   final String? colorId;
   final String? timeZone;
   final String? accessRole;
+  final String? davCollectionId;
 
   CalendarSourceCapabilities get capabilities =>
       CalendarSourceCapabilities.fromSource(this);
@@ -439,11 +451,11 @@ class CalendarRepository {
     String? calendarSourceId,
     String? rangeStart,
     String? rangeEnd,
-    String? googleSyncToken,
-    String? microsoftDeltaLink,
+    required String cursorKind,
+    required String cursorValue,
     bool full = false,
     String? lastError,
-    String? rawStateJson,
+    String? stateJson,
   }) async {
     final id = syncStateId(
       accountId: accountId,
@@ -456,34 +468,35 @@ class CalendarRepository {
       // Older releases keyed state by exact range bounds. Remove those rows
       // before inserting the stable scope key; the legacy unique index still
       // includes the range columns.
-      await (_database.delete(_database.calendarSyncStates)..where((row) {
+      await (_database.delete(_database.syncCursors)..where((row) {
             final sameSource = calendarSourceId == null
-                ? row.calendarSourceId.isNull()
-                : row.calendarSourceId.equals(calendarSourceId);
+                ? row.projectionSourceId.isNull()
+                : row.projectionSourceId.equals(calendarSourceId);
             return row.accountId.equals(accountId) &
                 row.provider.equals(provider.storageValue) &
-                row.syncKind.equals(syncKind) &
+                row.syncScopeKind.equals(syncKind) &
                 sameSource &
                 row.id.equals(id).not();
           }))
           .go();
       await _database
-          .into(_database.calendarSyncStates)
+          .into(_database.syncCursors)
           .insertOnConflictUpdate(
-            CalendarSyncStatesCompanion.insert(
+            SyncCursorsCompanion.insert(
               id: id,
               accountId: accountId,
-              calendarSourceId: Value(calendarSourceId),
+              projectionSourceId: Value(calendarSourceId),
               provider: provider.storageValue,
-              syncKind: syncKind,
+              transport: 'rest',
+              syncScopeKind: syncKind,
+              cursorKind: cursorKind,
+              cursorValue: cursorValue,
               rangeStart: Value(rangeStart),
               rangeEnd: Value(rangeEnd),
-              googleSyncToken: Value(googleSyncToken),
-              microsoftDeltaLink: Value(microsoftDeltaLink),
-              lastFullSyncAt: full ? Value(now) : const Value.absent(),
-              lastIncrementalSyncAt: full ? const Value.absent() : Value(now),
-              lastError: Value(lastError),
-              rawStateJson: Value(rawStateJson),
+              baselineGeneration: Value(full ? now : 0),
+              lastCompleteSyncAt: Value(now),
+              lastFailureCode: Value(lastError),
+              stateJson: Value(stateJson),
             ),
           );
     });
@@ -504,8 +517,11 @@ class CalendarRepository {
         sourceId: source.id,
       );
     }
+    if (source.davCollectionId != null) {
+      return _createLocalDavEvent(source, draft);
+    }
     final now = _now().millisecondsSinceEpoch;
-    final provider = TaskProviderParsing.fromStorageValue(source.provider);
+    final provider = BusyProviderCodec.requireStorageValue(source.provider);
     final localEventId = 'local:${const Uuid().v4()}';
     final startTimeZone = _effectiveStartTimeZone(
       draft,
@@ -627,6 +643,9 @@ class CalendarRepository {
         'supported.',
       );
     }
+    if (source.davCollectionId != null) {
+      return _updateLocalDavEvent(source, existing, draft);
+    }
     if (draft.recurrenceChanged && existing.providerRecurringEventId != null) {
       throw UnsupportedError(
         'Editing a recurring series from an individual occurrence is not '
@@ -634,7 +653,7 @@ class CalendarRepository {
       );
     }
     final now = _now().millisecondsSinceEpoch;
-    final provider = TaskProviderParsing.fromStorageValue(source.provider);
+    final provider = BusyProviderCodec.requireStorageValue(source.provider);
     final startTimeZone = _effectiveStartTimeZone(
       draft,
       source.timeZone,
@@ -758,7 +777,10 @@ class CalendarRepository {
     return edits.isEmpty ? null : edits.first;
   }
 
-  Future<String> deleteLocalEvent(String eventId) async {
+  Future<String> deleteLocalEvent(
+    String eventId, {
+    RecurringEventMutationScope? recurringScope,
+  }) async {
     final existing = await (_database.select(
       _database.calendarEvents,
     )..where((row) => row.id.equals(eventId))).getSingle();
@@ -769,6 +791,13 @@ class CalendarRepository {
       source,
       operation: CalendarMutationOperation.deleteEvent,
     );
+    if (source.davCollectionId != null) {
+      return _deleteLocalDavEvent(
+        source,
+        existing,
+        recurringScope: recurringScope,
+      );
+    }
     final now = _now().millisecondsSinceEpoch;
     await _database.transaction(() async {
       await (_database.update(
@@ -806,6 +835,492 @@ class CalendarRepository {
     );
     await _onNotificationScheduleChanged?.call();
     return existing.accountId;
+  }
+
+  Future<void> _createLocalDavEvent(
+    CalendarSource source,
+    EventEditorDraft draft,
+  ) async {
+    _requireDavSchedulingUnchanged(draft, creating: true);
+    final start = draft.start;
+    final end = draft.end;
+    final collectionId = source.davCollectionId;
+    if (start == null ||
+        end == null ||
+        collectionId == null ||
+        !draft.canSave) {
+      throw ArgumentError(
+        'A valid DAV event range and collection are required.',
+      );
+    }
+    final startTimeZone = _effectiveStartTimeZone(
+      draft,
+      source.timeZone,
+      _localTimeZone,
+    );
+    final endTimeZone = _effectiveEndTimeZone(
+      draft,
+      source.timeZone,
+      startTimeZone,
+      _localTimeZone,
+    );
+    final object = buildDavEventObject(
+      _davEventInput(
+        draft,
+        start: start,
+        end: end,
+        startTimeZone: startTimeZone,
+        endTimeZone: endTimeZone,
+      ),
+      nowUtc: () => _now().toUtc(),
+    );
+    final projectionId = 'dav-local-event-${const Uuid().v4()}';
+    final now = _now();
+    final nowMillis = now.millisecondsSinceEpoch;
+    final projectionJson = jsonEncode({
+      'transport': 'caldav',
+      'uid': object.uid,
+      'localPendingCreate': true,
+    });
+    await _database.transaction(() async {
+      await _database
+          .into(_database.calendarEvents)
+          .insert(
+            CalendarEventsCompanion.insert(
+              id: projectionId,
+              accountId: draft.accountId,
+              calendarSourceId: source.id,
+              provider: source.provider,
+              providerCalendarId: source.providerCalendarId,
+              providerEventId: object.uid,
+              davCollectionId: Value(collectionId),
+              icalUid: Value(object.uid),
+              occurrenceKey: Value(object.uid),
+              providerRecurringEventId: Value(
+                _hasDavRecurrence(draft.recurrence) ? object.uid : null,
+              ),
+              title: draft.title.trim(),
+              description: Value(draft.description),
+              location: Value(draft.location),
+              allDay: Value(draft.allDay),
+              startDate: Value(draft.allDay ? _date(start) : null),
+              startDateTime: Value(
+                draft.allDay ? null : start.toIso8601String(),
+              ),
+              startTimeZone: Value(startTimeZone),
+              endDate: Value(draft.allDay ? _date(end) : null),
+              endDateTime: Value(draft.allDay ? null : end.toIso8601String()),
+              endTimeZone: Value(endTimeZone),
+              recurrenceJson: Value(_json(draft.recurrence)),
+              remindersJson: Value(_json(draft.reminders)),
+              attendeesJson: const Value(null),
+              categoriesJson: Value(_json(draft.categories)),
+              visibility: Value(draft.visibilityOrSensitivity),
+              transparencyOrShowAs: Value(draft.showAs),
+              isDeleted: const Value(false),
+              rawJson: Value(projectionJson),
+              baselineRawJson: Value(projectionJson),
+              createdAtLocal: nowMillis,
+              updatedAtLocal: nowMillis,
+              syncStatus: const Value('pending'),
+            ),
+          );
+      await DavPendingOperationQueue(
+        database: _database,
+        nowUtc: () => _now().toUtc(),
+      ).enqueueCreate(
+        accountId: draft.accountId,
+        collectionId: collectionId,
+        object: object,
+        localProjectionId: projectionId,
+      );
+    });
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      draft.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> _updateLocalDavEvent(
+    CalendarSource source,
+    CalendarEvent existing,
+    EventEditorDraft draft,
+  ) async {
+    _requireDavSchedulingUnchanged(draft, creating: false);
+    final collectionId = source.davCollectionId;
+    final uid = existing.icalUid;
+    final start = draft.start;
+    final end = draft.end;
+    if (collectionId == null || uid == null || start == null || end == null) {
+      throw StateError('The DAV event projection is incomplete.');
+    }
+    final recurring = existing.providerRecurringEventId != null;
+    final recurringScope = draft.recurringMutationScope;
+    if (recurring &&
+        (recurringScope == null ||
+            recurringScope == RecurringEventMutationScope.thisAndFuture)) {
+      throw UnsupportedError(
+        'A supported recurring-event editing scope is required.',
+      );
+    }
+    final startTimeZone = _effectiveStartTimeZone(
+      draft,
+      source.timeZone,
+      _localTimeZone,
+    );
+    final endTimeZone = _effectiveEndTimeZone(
+      draft,
+      source.timeZone,
+      startTimeZone,
+      _localTimeZone,
+    );
+    var input = _davEventInput(
+      draft,
+      start: start,
+      end: end,
+      startTimeZone: startTimeZone,
+      endTimeZone: endTimeZone,
+    );
+    final target = IcalComponentKey(
+      componentType: 'VEVENT',
+      uid: uid,
+      recurrenceIdKey: existing.recurrenceIdKey,
+    );
+    final queue = DavPendingOperationQueue(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    );
+    DavMutationPatch? patch;
+    late final String baselineRawIcs;
+    final objectId = existing.davObjectId;
+    if (objectId == null) {
+      final create = await _pendingDavCreateForProjection(existing.id);
+      if (create == null) {
+        throw StateError('The pending DAV event create is unavailable.');
+      }
+      baselineRawIcs = _pendingCreateRawIcs(create);
+    } else {
+      baselineRawIcs = await queue.editableRawIcsForObject(
+        accountId: existing.accountId,
+        collectionId: collectionId,
+        objectId: objectId,
+      );
+    }
+    if (recurringScope == RecurringEventMutationScope.entireSeries) {
+      input = _seriesDavEventInput(
+        baselineRawIcs: baselineRawIcs,
+        uid: uid,
+        existing: existing,
+        desired: input,
+      );
+      patch = buildDavEventUpdatePatch(
+        target: IcalComponentKey(componentType: 'VEVENT', uid: uid),
+        baselineRawIcs: baselineRawIcs,
+        input: input,
+      );
+    } else if (recurringScope == RecurringEventMutationScope.singleOccurrence &&
+        existing.recurrenceIdKey == null) {
+      final occurrenceKey = existing.occurrenceKey;
+      if (occurrenceKey == null || objectId == null) {
+        throw UnsupportedError(
+          'One-occurrence editing requires a synchronized occurrence.',
+        );
+      }
+      patch = buildDavEventOccurrenceExceptionPatch(
+        uid: uid,
+        occurrenceKey: occurrenceKey,
+        baselineRawIcs: baselineRawIcs,
+        input: input,
+        nowUtc: () => _now().toUtc(),
+      );
+    } else {
+      patch = buildDavEventUpdatePatch(
+        target: target,
+        baselineRawIcs: baselineRawIcs,
+        input: input,
+      );
+    }
+    if (patch == null) return;
+    final candidate = patch.applyTo(baselineRawIcs, nowUtc: _now().toUtc());
+
+    await _database.transaction(() async {
+      if (objectId == null) {
+        final updated = await queue.updateUnsentCreate(
+          accountId: existing.accountId,
+          collectionId: collectionId,
+          localProjectionId: existing.id,
+          patch: patch!,
+        );
+        if (!updated) {
+          throw StateError(
+            'The pending DAV event create is no longer editable.',
+          );
+        }
+      } else {
+        await queue.enqueueUpdate(
+          accountId: existing.accountId,
+          collectionId: collectionId,
+          objectId: objectId,
+          patch: patch!,
+        );
+      }
+      if (objectId == null) {
+        await _writeDavEventProjection(
+          existing.id,
+          draft,
+          startTimeZone: startTimeZone,
+          endTimeZone: endTimeZone,
+        );
+      } else {
+        await DavObjectRepository(
+          database: _database,
+        ).projectLocalMutationCandidate(
+          accountId: existing.accountId,
+          collectionId: collectionId,
+          provider: BusyProviderCodec.requireStorageValue(source.provider),
+          objectId: objectId,
+          candidateRawIcs: candidate,
+          projectedAtUtc: _now().toUtc(),
+        );
+      }
+    });
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      existing.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<String> _deleteLocalDavEvent(
+    CalendarSource source,
+    CalendarEvent existing, {
+    RecurringEventMutationScope? recurringScope,
+  }) async {
+    final collectionId = source.davCollectionId;
+    final uid = existing.icalUid;
+    if (collectionId == null || uid == null) {
+      throw StateError('The DAV event projection is incomplete.');
+    }
+    final recurring = existing.providerRecurringEventId != null;
+    if (recurring &&
+        (recurringScope == null ||
+            recurringScope == RecurringEventMutationScope.thisAndFuture)) {
+      throw UnsupportedError(
+        'A supported recurring-event deletion scope is required.',
+      );
+    }
+    final queue = DavPendingOperationQueue(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    );
+    final objectId = existing.davObjectId;
+    await _database.transaction(() async {
+      if (objectId == null) {
+        if (recurringScope == RecurringEventMutationScope.singleOccurrence) {
+          throw UnsupportedError(
+            'One-occurrence deletion requires a synchronized occurrence.',
+          );
+        }
+        final cancelled = await queue.cancelUnsentCreate(
+          accountId: existing.accountId,
+          collectionId: collectionId,
+          localProjectionId: existing.id,
+        );
+        if (!cancelled) {
+          throw StateError(
+            'The DAV event create may already be in progress and cannot be '
+            'cancelled locally.',
+          );
+        }
+        await (_database.delete(
+          _database.calendarEvents,
+        )..where((row) => row.id.equals(existing.id))).go();
+        return;
+      }
+
+      final object = await (_database.select(
+        _database.davObjects,
+      )..where((row) => row.id.equals(objectId))).getSingleOrNull();
+      if (object == null || object.collectionId != collectionId) {
+        throw StateError('The DAV event baseline is unavailable.');
+      }
+      final provider = BusyProviderCodec.requireStorageValue(source.provider);
+      if (recurringScope == RecurringEventMutationScope.singleOccurrence) {
+        final occurrenceKey = existing.occurrenceKey;
+        if (occurrenceKey == null) {
+          throw StateError('The DAV occurrence identity is unavailable.');
+        }
+        final editableRawIcs = await queue.editableRawIcsForObject(
+          accountId: existing.accountId,
+          collectionId: collectionId,
+          objectId: objectId,
+        );
+        final patch = buildDavEventOccurrenceCancellationPatch(
+          uid: uid,
+          occurrenceKey: occurrenceKey,
+          baselineRawIcs: editableRawIcs,
+          nowUtc: () => _now().toUtc(),
+        );
+        final candidate = patch.applyTo(editableRawIcs, nowUtc: _now().toUtc());
+        await queue.enqueueUpdate(
+          accountId: existing.accountId,
+          collectionId: collectionId,
+          objectId: objectId,
+          patch: patch,
+        );
+        await DavObjectRepository(
+          database: _database,
+        ).projectLocalMutationCandidate(
+          accountId: existing.accountId,
+          collectionId: collectionId,
+          provider: provider,
+          objectId: objectId,
+          candidateRawIcs: candidate,
+          projectedAtUtc: _now().toUtc(),
+        );
+        return;
+      }
+
+      final semantic = IcalSemanticDocument.parse(object.rawIcsBody);
+      final targets = <IcalComponentKey>[
+        for (final component in semantic.components)
+          if (component.componentType == 'VEVENT' &&
+              component.uid == uid &&
+              (recurringScope == RecurringEventMutationScope.entireSeries ||
+                  component.recurrenceIdKey == existing.recurrenceIdKey))
+            IcalComponentKey(
+              componentType: component.componentType,
+              uid: uid,
+              recurrenceIdKey: component.recurrenceIdKey,
+            ),
+      ];
+      if (targets.isEmpty) {
+        throw StateError('The DAV event component is unavailable.');
+      }
+      final targetIdentities = targets.map(_icalComponentIdentity).toSet();
+      final targetDocumentComponents = {
+        for (final component in semantic.components)
+          if (targetIdentities.contains(
+            _icalComponentIdentity(
+              IcalComponentKey(
+                componentType: component.componentType,
+                uid: component.uid!,
+                recurrenceIdKey: component.recurrenceIdKey,
+              ),
+            ),
+          ))
+            component.documentComponent,
+      };
+      final hasUntargetedCalendarComponent = semantic
+          .document
+          .calendarComponents
+          .any(
+            (component) =>
+                component.name != 'VTIMEZONE' &&
+                !targetDocumentComponents.contains(component),
+          );
+      if (!hasUntargetedCalendarComponent) {
+        await queue.enqueueDelete(
+          accountId: existing.accountId,
+          collectionId: collectionId,
+          objectId: objectId,
+          target: targets.first,
+          scope: recurring
+              ? DavMutationScope.recurrenceMaster
+              : DavMutationScope.object,
+        );
+        await (_database.update(
+          _database.calendarEvents,
+        )..where((row) => row.davObjectId.equals(objectId))).write(
+          CalendarEventsCompanion(
+            isDeleted: const Value(true),
+            syncStatus: const Value('pending'),
+            updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+          ),
+        );
+        return;
+      }
+      final patch = buildDavComponentRemovalPatch(
+        targets: targets,
+        scope: recurring
+            ? DavMutationScope.recurrenceMaster
+            : DavMutationScope.object,
+      );
+      final candidate = patch.applyTo(
+        object.rawIcsBody,
+        nowUtc: _now().toUtc(),
+      );
+      await queue.enqueueUpdate(
+        accountId: existing.accountId,
+        collectionId: collectionId,
+        objectId: objectId,
+        patch: patch,
+      );
+      await DavObjectRepository(
+        database: _database,
+      ).projectLocalMutationCandidate(
+        accountId: existing.accountId,
+        collectionId: collectionId,
+        provider: provider,
+        objectId: objectId,
+        candidateRawIcs: candidate,
+        projectedAtUtc: _now().toUtc(),
+      );
+    });
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      existing.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
+    return existing.accountId;
+  }
+
+  Future<PendingOp?> _pendingDavCreateForProjection(String projectionId) {
+    return (_database.select(_database.pendingOps)
+          ..where(
+            (row) =>
+                row.eventId.equals(projectionId) &
+                row.operationType.equals('dav.create') &
+                row.state.equals('pending') &
+                row.attemptCount.equals(0),
+          )
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<void> _writeDavEventProjection(
+    String eventId,
+    EventEditorDraft draft, {
+    required String? startTimeZone,
+    required String? endTimeZone,
+  }) {
+    return (_database.update(
+      _database.calendarEvents,
+    )..where((row) => row.id.equals(eventId))).write(
+      CalendarEventsCompanion(
+        title: Value(draft.title.trim()),
+        description: Value(draft.description),
+        location: Value(draft.location),
+        allDay: Value(draft.allDay),
+        startDate: Value(draft.allDay ? _date(draft.start) : null),
+        startDateTime: Value(
+          draft.allDay ? null : draft.start?.toIso8601String(),
+        ),
+        startTimeZone: Value(startTimeZone),
+        endDate: Value(draft.allDay ? _date(draft.end) : null),
+        endDateTime: Value(draft.allDay ? null : draft.end?.toIso8601String()),
+        endTimeZone: Value(endTimeZone),
+        recurrenceJson: draft.recurrenceChanged
+            ? Value(_json(draft.recurrence))
+            : const Value.absent(),
+        remindersJson: Value(_json(draft.reminders)),
+        categoriesJson: draft.categoriesChanged
+            ? Value(_json(draft.categories))
+            : const Value.absent(),
+        visibility: Value(draft.visibilityOrSensitivity),
+        transparencyOrShowAs: Value(draft.showAs),
+        updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+        syncStatus: const Value('pending'),
+      ),
+    );
   }
 
   NotificationScheduleService _notificationScheduleService() {
@@ -873,14 +1388,14 @@ class CalendarRepository {
     }
     final source = sourceId(
       accountId: accountId,
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: providerCalendarId,
     );
     await (_database.update(_database.calendarEvents)..where(
           (row) =>
               row.accountId.equals(accountId) &
               row.calendarSourceId.equals(source) &
-              row.provider.equals(TaskProvider.google.storageValue) &
+              row.provider.equals(BusyProvider.google.storageValue) &
               row.providerEventId.isIn(providerRecurringEventIds) &
               row.providerRecurringEventId.isNull() &
               row.syncStatus.equals('synced') &
@@ -895,7 +1410,7 @@ class CalendarRepository {
         );
   }
 
-  Future<CalendarSyncState?> syncState({
+  Future<SyncCursor?> syncState({
     required String accountId,
     required BusyProvider provider,
     required String syncKind,
@@ -908,7 +1423,7 @@ class CalendarRepository {
       calendarSourceId: calendarSourceId,
     );
     return (_database.select(
-      _database.calendarSyncStates,
+      _database.syncCursors,
     )..where((row) => row.id.equals(id))).getSingleOrNull();
   }
 
@@ -961,6 +1476,170 @@ void _requireWritableSource(
   throw CalendarMutationNotAllowed(operation: operation, sourceId: source.id);
 }
 
+void _requireDavSchedulingUnchanged(
+  EventEditorDraft draft, {
+  required bool creating,
+}) {
+  final changesAttendees = creating
+      ? draft.attendees.isNotEmpty
+      : draft.attendeesChanged;
+  if (changesAttendees ||
+      draft.createConference ||
+      (creating && draft.conference != null)) {
+    throw UnsupportedError(
+      'DAV attendee and scheduling mutations are disabled until scheduling '
+      'inbox/outbox interoperability is available.',
+    );
+  }
+}
+
+DavEventMutationInput _davEventInput(
+  EventEditorDraft draft, {
+  required DateTime start,
+  required DateTime end,
+  required String? startTimeZone,
+  required String? endTimeZone,
+}) {
+  return DavEventMutationInput(
+    title: draft.title,
+    allDay: draft.allDay,
+    start: start,
+    end: end,
+    startTimeZone: startTimeZone,
+    endTimeZone: endTimeZone,
+    description: draft.description,
+    location: draft.location,
+    recurrence: draft.recurrence,
+    recurrenceChanged: draft.recurrenceChanged,
+    reminders: draft.reminders,
+    categories: draft.categories,
+    categoriesChanged: draft.categoriesChanged,
+    classification: draft.visibilityOrSensitivity,
+    transparency: draft.showAs,
+  );
+}
+
+DavEventMutationInput _seriesDavEventInput({
+  required String baselineRawIcs,
+  required String uid,
+  required CalendarEvent existing,
+  required DavEventMutationInput desired,
+}) {
+  final semantic = IcalSemanticDocument.parse(baselineRawIcs);
+  final masters = semantic.components.where(
+    (component) =>
+        component.componentType == 'VEVENT' &&
+        component.uid == uid &&
+        component.recurrenceIdKey == null,
+  );
+  if (masters.length != 1 || masters.single.start == null) {
+    throw StateError('The DAV recurrence master is unavailable.');
+  }
+  final master = masters.single;
+  final masterStart = _editableIcalTemporal(master.start!);
+  final masterEnd = master.end == null
+      ? masterStart.add(master.duration?.duration ?? const Duration(hours: 1))
+      : _editableIcalTemporal(master.end!);
+  final projectedStart = DateTime.tryParse(
+    existing.allDay ? existing.startDate ?? '' : existing.startDateTime ?? '',
+  );
+  final projectedEnd = DateTime.tryParse(
+    existing.allDay ? existing.endDate ?? '' : existing.endDateTime ?? '',
+  );
+  if (projectedStart == null || projectedEnd == null) {
+    throw StateError('The DAV occurrence projection is incomplete.');
+  }
+  final startChanged = desired.start != projectedStart;
+  final endChanged = desired.end != projectedEnd;
+  final allDayChanged = desired.allDay != existing.allDay;
+  final seriesStart = startChanged
+      ? masterStart.add(desired.start.difference(projectedStart))
+      : masterStart;
+  final seriesEnd = endChanged
+      ? masterEnd.add(desired.end.difference(projectedEnd))
+      : masterEnd;
+  final masterTimeZone = _icalTimeZone(master.start!);
+  final masterEndTimeZone = master.end == null
+      ? masterTimeZone
+      : _icalTimeZone(master.end!);
+  return DavEventMutationInput(
+    title: desired.title != existing.title
+        ? desired.title
+        : master.summary ?? '',
+    allDay: allDayChanged ? desired.allDay : master.start!.isDate,
+    start: seriesStart,
+    end: seriesEnd,
+    startTimeZone: startChanged || allDayChanged
+        ? desired.startTimeZone
+        : masterTimeZone,
+    endTimeZone: endChanged || allDayChanged
+        ? desired.endTimeZone
+        : masterEndTimeZone,
+    description: (desired.description ?? '') != (existing.description ?? '')
+        ? desired.description
+        : master.description,
+    location: (desired.location ?? '') != (existing.location ?? '')
+        ? desired.location
+        : master.location,
+    recurrence: desired.recurrence,
+    recurrenceChanged: desired.recurrenceChanged,
+    reminders: desired.reminders,
+    categories: desired.categories,
+    categoriesChanged: desired.categoriesChanged,
+    classification:
+        (desired.classification ?? '') != (existing.visibility ?? '')
+        ? desired.classification
+        : master.classification,
+    transparency:
+        (desired.transparency ?? '') != (existing.transparencyOrShowAs ?? '')
+        ? desired.transparency
+        : master.transparency,
+  );
+}
+
+DateTime _editableIcalTemporal(IcalTemporalValue value) {
+  final wall = value.localValue;
+  if (value.kind == IcalTemporalKind.utcDateTime) return wall.toUtc();
+  return DateTime(
+    wall.year,
+    wall.month,
+    wall.day,
+    wall.hour,
+    wall.minute,
+    wall.second,
+  );
+}
+
+String? _icalTimeZone(IcalTemporalValue value) => switch (value.kind) {
+  IcalTemporalKind.utcDateTime => 'UTC',
+  IcalTemporalKind.tzidDateTime => value.timeZoneId,
+  IcalTemporalKind.date || IcalTemporalKind.floatingDateTime => null,
+};
+
+String _icalComponentIdentity(IcalComponentKey key) =>
+    '${key.componentType.toUpperCase()}\u0000${key.uid}\u0000'
+    '${key.recurrenceIdKey ?? ''}';
+
+bool _hasDavRecurrence(Object? recurrence) {
+  if (recurrence is List) return recurrence.isNotEmpty;
+  if (recurrence is Map && recurrence['rules'] is List) {
+    return (recurrence['rules']! as List).isNotEmpty;
+  }
+  return false;
+}
+
+String _pendingCreateRawIcs(PendingOp operation) {
+  try {
+    final decoded = jsonDecode(operation.requestJson);
+    if (decoded is Map && decoded['rawIcs'] is String) {
+      return decoded['rawIcs']! as String;
+    }
+  } on FormatException {
+    // Invalid pending payloads use the same local-state error.
+  }
+  throw StateError('The pending DAV event body is invalid.');
+}
+
 String? _json(Object? value) => value == null ? null : jsonEncode(value);
 
 Map<String, Object?> _eventRequest(
@@ -996,10 +1675,10 @@ Map<String, Object?> _eventRequest(
     'colorId': draft.colorId,
     if (isCreate || draft.categoriesChanged)
       'categoriesJson': _categoriesJson(draft, provider),
-    'visibility': provider == TaskProvider.google
+    'visibility': provider == BusyProvider.google
         ? draft.visibilityOrSensitivity
         : null,
-    'sensitivity': provider == TaskProvider.microsoft
+    'sensitivity': provider == BusyProvider.microsoft
         ? draft.visibilityOrSensitivity
         : null,
     'transparencyOrShowAs': draft.showAs,
@@ -1081,14 +1760,14 @@ Object? _attendeesJson(EventEditorDraft draft, BusyProvider provider) {
   }
   return [
     for (final attendee in draft.attendees)
-      provider == TaskProvider.microsoft
+      provider == BusyProvider.microsoft
           ? attendee.toMicrosoftJson()
           : attendee.toGoogleJson(),
   ];
 }
 
 Object? _categoriesJson(EventEditorDraft draft, BusyProvider provider) {
-  if (provider != TaskProvider.microsoft) {
+  if (provider != BusyProvider.microsoft) {
     return null;
   }
   return draft.categories;

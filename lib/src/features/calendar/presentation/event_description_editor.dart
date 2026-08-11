@@ -4,7 +4,7 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../calendar_providers/calendar_description.dart';
 import '../../../l10n/l10n.dart';
-import '../../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 class EventDescriptionValue {
   const EventDescriptionValue({
@@ -42,7 +42,7 @@ class _EventDescriptionEditorState extends State<EventDescriptionEditor> {
   late final _RichDescriptionController _controller;
   var _notifying = false;
 
-  bool get _supportsRichText => widget.provider == TaskProvider.microsoft;
+  bool get _supportsRichText => widget.provider == BusyProvider.microsoft;
 
   @override
   void initState() {

@@ -32,11 +32,12 @@ import '../../../schedule/schedule_repository.dart';
 import '../../../schedule/schedule_scope.dart';
 import '../../../schedule/schedule_source_visibility.dart';
 import '../../../schedule/schedule_view_mode.dart';
-import '../../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import '../../calendar/presentation/event_editor.dart';
 import '../../calendar/presentation/event_editor_draft.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/data/tasks_repository.dart';
+import '../../tasks/domain/task_checklist_item.dart';
 import '../../tasks/presentation/new_task_dialog.dart';
 import '../../tasks/presentation/task_details_pane.dart';
 import 'schedule_agenda_view.dart';
@@ -558,6 +559,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                       ),
                               onItemAnchorAvailable: _handleItemAnchorAvailable,
                               onTaskCompletionChanged: _setTaskCompleted,
+                              onChecklistItemCompletionChanged:
+                                  _setChecklistItemCompleted,
                               canCreateEvent: writableSources.isNotEmpty,
                               canCreateTask: canCreateTask,
                               searchActive: searchHasQuery,
@@ -595,6 +598,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 unawaited(_requestCloseTaskDetails()),
                             onDirtyChanged: (dirty) {
                               _taskDetailsDirty = dirty;
+                            },
+                            onMutationCommitted: () {
+                              if (mounted) setState(() {});
                             },
                             child: body,
                           );
@@ -951,8 +957,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     final datedItems = await currentItems;
     final overduePage = await overdueTasks;
     final noDatePage = await noDateTasks;
+    final items = await repository.includeTaskAncestors(
+      [...datedItems, ...overduePage.items, ...noDatePage.items],
+      filters: ScheduleFilters(
+        accountIds: accountIds,
+        taskListKeys: taskListKeys,
+        taskListFilterActive: true,
+        includeTasks: _scope != ScheduleScope.events,
+      ),
+    );
     return _ScheduleItemsResult(
-      items: [...datedItems, ...overduePage.items, ...noDatePage.items],
+      items: items,
       hasMoreOverdueTasks: overduePage.hasMore,
       hasMoreNoDateTasks: noDatePage.hasMore,
     );
@@ -1560,7 +1575,18 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   Future<void> _exportItem(ScheduleItem item) async {
     try {
-      final file = await exportScheduleItemWithSaveDialog(item);
+      String? rawICalendar;
+      if (item is TaskScheduleItem &&
+          (item.provider == BusyProvider.nextcloud ||
+              item.provider == BusyProvider.appleICloud)) {
+        rawICalendar = await ref
+            .read(tasksRepositoryForAccountProvider(item.accountId))
+            .nativeTaskExport(item.sourceId, item.id);
+      }
+      final file = await exportScheduleItemWithSaveDialog(
+        item,
+        rawICalendar: rawICalendar,
+      );
       if (file == null) {
         return;
       }
@@ -1900,6 +1926,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       context,
       initialDraft: draft,
       sources: editableSources,
+      accounts: _latestAccounts,
       categorySuggestionsByAccount: _categorySuggestionsByAccount(),
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
@@ -1908,7 +1935,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     final deletedEventId = result.deletedEventId;
     if (deletedEventId != null) {
-      await _deleteEvent(deletedEventId);
+      await _deleteEvent(deletedEventId, recurringScope: result.deletionScope);
       return;
     }
     final savedDraft = result.draft;
@@ -1917,10 +1944,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
-  Future<void> _deleteEvent(String eventId) async {
+  Future<void> _deleteEvent(
+    String eventId, {
+    RecurringEventMutationScope? recurringScope,
+  }) async {
     final accountId = await ref
         .read(calendarRepositoryProvider)
-        .deleteLocalEvent(eventId);
+        .deleteLocalEvent(eventId, recurringScope: recurringScope);
     _requestCalendarMutationSync(accountId);
     if (mounted) {
       setState(() {});
@@ -1930,6 +1960,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   Future<void> _deleteItem(ScheduleItem item) async {
     if (!item.capabilities.canDelete) {
       return;
+    }
+    RecurringEventMutationScope? recurringScope;
+    if (item is CalendarScheduleItem &&
+        item.providerRecurringEventId != null &&
+        (item.provider == BusyProvider.appleICloud ||
+            item.provider == BusyProvider.nextcloud)) {
+      recurringScope = await _chooseRecurringEventMutationScope();
+      if (recurringScope == null || !mounted) return;
     }
     final confirmed = await showBusyMaxConfirm(
       context,
@@ -1947,7 +1985,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     if (item is CalendarScheduleItem) {
-      await _deleteEvent(item.id);
+      await _deleteEvent(item.id, recurringScope: recurringScope);
       return;
     }
     if (item is TaskScheduleItem) {
@@ -1958,6 +1996,48 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         setState(() {});
       }
     }
+  }
+
+  Future<RecurringEventMutationScope?> _chooseRecurringEventMutationScope() {
+    return showBusyMaxModalEditorDialog<RecurringEventMutationScope>(
+      context,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      maxHeight: 420,
+      builder: (dialogContext) => BusyMaxModalEditorScaffold(
+        title: context.l10n.recurringEventScope,
+        cancelLabel: context.l10n.cancel,
+        saveLabel: context.l10n.delete,
+        onCancel: () => Navigator.of(dialogContext).pop(),
+        onSave: null,
+        children: [
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
+              BusyMaxActionRow(
+                title: context.l10n.entireSeries,
+                subtitle: context.l10n.chooseRecurringEventScope,
+                leading: const Icon(Icons.repeat),
+                onTap: () => Navigator.of(
+                  dialogContext,
+                ).pop(RecurringEventMutationScope.entireSeries),
+              ),
+              BusyMaxActionRow(
+                title: context.l10n.singleOccurrence,
+                leading: const Icon(Icons.event_outlined),
+                onTap: () => Navigator.of(
+                  dialogContext,
+                ).pop(RecurringEventMutationScope.singleOccurrence),
+              ),
+              BusyMaxActionRow(
+                title: context.l10n.thisAndFutureUnavailable,
+                leading: const Icon(Icons.update_disabled_outlined),
+                enabled: false,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openNewTask(
@@ -2045,6 +2125,29 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         .patchTask(item.sourceId, item.id, TaskPatchInput(fields));
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  Future<void> _setChecklistItemCompleted(
+    TaskScheduleItem parent,
+    TaskChecklistItemEntity item,
+    bool completed,
+  ) async {
+    try {
+      await ref
+          .read(tasksRepositoryForAccountProvider(parent.accountId))
+          .patchChecklistSubtask(
+            taskListId: parent.sourceId,
+            parentTaskId: parent.id,
+            checklistItemId: item.id,
+            completed: completed,
+          );
+      if (mounted) setState(() {});
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.syncFailed(error.toString()))),
+      );
     }
   }
 
@@ -2195,7 +2298,7 @@ Object? _eventRemindersForEdit(BusyProvider provider, List<int> minutes) {
   if (normalized.isEmpty) {
     return null;
   }
-  if (provider == TaskProvider.google) {
+  if (provider != BusyProvider.microsoft) {
     return {
       'useDefault': false,
       'overrides': [
@@ -2268,6 +2371,7 @@ class _ScheduleBody extends StatelessWidget {
     required this.onItemSelected,
     required this.onItemAnchorAvailable,
     required this.onTaskCompletionChanged,
+    required this.onChecklistItemCompletionChanged,
     required this.canCreateEvent,
     required this.canCreateTask,
     required this.searchActive,
@@ -2306,6 +2410,12 @@ class _ScheduleBody extends StatelessWidget {
   final ScheduleItemAnchorCallback onItemAnchorAvailable;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
+  final void Function(
+    TaskScheduleItem parent,
+    TaskChecklistItemEntity item,
+    bool completed,
+  )
+  onChecklistItemCompletionChanged;
   final bool canCreateEvent;
   final bool canCreateTask;
   final bool searchActive;
@@ -2399,6 +2509,7 @@ class _ScheduleBody extends StatelessWidget {
         onItemSelected: onItemSelected,
         onItemAnchorAvailable: onItemAnchorAvailable,
         onTaskCompletionChanged: onTaskCompletionChanged,
+        onChecklistItemCompletionChanged: onChecklistItemCompletionChanged,
       ),
     };
   }
@@ -2441,12 +2552,14 @@ class _ScheduleTaskDetailsOverlay extends StatefulWidget {
     required this.target,
     required this.onClose,
     required this.onDirtyChanged,
+    required this.onMutationCommitted,
   });
 
   final Widget child;
   final _TaskDetailsTarget? target;
   final VoidCallback onClose;
   final ValueChanged<bool> onDirtyChanged;
+  final VoidCallback onMutationCommitted;
 
   @override
   State<_ScheduleTaskDetailsOverlay> createState() =>
@@ -2547,6 +2660,8 @@ class _ScheduleTaskDetailsOverlayState
                             taskId: target.taskId,
                             onClose: widget.onClose,
                             onDirtyChanged: widget.onDirtyChanged,
+                            onTaskMutationCommitted: (_) =>
+                                widget.onMutationCommitted(),
                             dialogBarrierColor: Colors.transparent,
                           ),
                         ),

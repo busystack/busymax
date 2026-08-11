@@ -4,9 +4,24 @@ import 'package:file_selector/file_selector.dart';
 
 import '../../../schedule/schedule_item.dart';
 
-Future<File?> exportScheduleItemWithSaveDialog(ScheduleItem item) async {
-  final location = await getSaveLocation(
+Future<File?> exportScheduleItemWithSaveDialog(
+  ScheduleItem item, {
+  String? rawICalendar,
+}) {
+  return exportICalendarWithSaveDialog(
     suggestedName: scheduleExportFileName(item),
+    calendarData:
+        rawICalendar ??
+        scheduleItemToICalendar(item, nowUtc: DateTime.now().toUtc()),
+  );
+}
+
+Future<File?> exportICalendarWithSaveDialog({
+  required String suggestedName,
+  required String calendarData,
+}) async {
+  final location = await getSaveLocation(
+    suggestedName: suggestedName,
     acceptedTypeGroups: const [
       XTypeGroup(
         label: 'iCalendar',
@@ -20,10 +35,14 @@ Future<File?> exportScheduleItemWithSaveDialog(ScheduleItem item) async {
   }
   final file = File(_ensureIcsExtension(location.path));
   await file.parent.create(recursive: true);
-  await file.writeAsString(
-    scheduleItemToICalendar(item, nowUtc: DateTime.now().toUtc()),
-  );
+  await file.writeAsString(calendarData);
   return file;
+}
+
+String taskExportFileName({required String title, String? dueDate}) {
+  final date = DateTime.tryParse(dueDate ?? '');
+  return 'busymax-task-${date == null ? 'no-date' : _formatDate(date)}-'
+      '${_sanitizeFilePart(title)}.ics';
 }
 
 String scheduleExportFileName(ScheduleItem item) {

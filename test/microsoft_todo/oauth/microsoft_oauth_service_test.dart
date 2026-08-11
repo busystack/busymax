@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
 
 void main() {
@@ -148,7 +148,7 @@ MicrosoftOAuthService _service(
       oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',
     ),
     httpClient: MockClient(handler),
-    tokenStore: InMemoryOAuthTokenStore(),
+    tokenStore: InMemorySecretStore(),
     loopbackFlow: OAuthLoopbackFlow(authorizationLauncher: (_) async => true),
     nowUtc: () => DateTime.utc(2026, 6, 6),
   );

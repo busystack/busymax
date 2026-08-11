@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
@@ -5,7 +7,7 @@ import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,7 +19,7 @@ void main() {
       final item = CalendarScheduleItem(
         id: 'event-1',
         accountId: 'google:g',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         sourceId: 'cal-1',
         providerCalendarId: 'cal-1',
         title: 'Design review',
@@ -42,7 +44,7 @@ void main() {
       const item = TaskScheduleItem(
         id: 'task-1',
         accountId: 'microsoft:m',
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         sourceId: 'list-1',
         title: 'Submit report',
         completed: false,
@@ -86,7 +88,7 @@ void main() {
     () async {
       final database = AppDatabase(NativeDatabase.memory());
       addTearDown(database.close);
-      await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+      await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
       final calendarRepository = CalendarRepository(
         database: database,
         now: () => DateTime.utc(2026, 6, 9),
@@ -94,7 +96,7 @@ void main() {
       await calendarRepository.upsertSource(
         accountId: 'account',
         source: const CalendarSourceDto(
-          provider: TaskProvider.microsoft,
+          provider: BusyProvider.microsoft,
           providerCalendarId: 'calendar',
           summary: 'Work',
         ),
@@ -102,7 +104,7 @@ void main() {
       await calendarRepository.upsertEvent(
         accountId: 'account',
         event: const CalendarEventDto(
-          provider: TaskProvider.microsoft,
+          provider: BusyProvider.microsoft,
           providerCalendarId: 'calendar',
           providerEventId: 'event',
           title: 'Company holiday',
@@ -139,7 +141,7 @@ void main() {
   test('Microsoft timed calendar event keeps time zones for editing', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
     final calendarRepository = CalendarRepository(
       database: database,
       now: () => DateTime.utc(2026, 6, 9),
@@ -147,7 +149,7 @@ void main() {
     await calendarRepository.upsertSource(
       accountId: 'account',
       source: const CalendarSourceDto(
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         providerCalendarId: 'calendar',
         summary: 'Work',
       ),
@@ -155,7 +157,7 @@ void main() {
     await calendarRepository.upsertEvent(
       accountId: 'account',
       event: const CalendarEventDto(
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         providerCalendarId: 'calendar',
         providerEventId: 'event',
         providerRecurringEventId: 'series-master',
@@ -187,7 +189,7 @@ void main() {
   test('Google RFC3339 offsets convert to local display time', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
     final calendarRepository = CalendarRepository(
       database: database,
       now: () => DateTime.utc(2026, 6, 9),
@@ -195,7 +197,7 @@ void main() {
     await calendarRepository.upsertSource(
       accountId: 'account',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar',
         summary: 'Work',
       ),
@@ -203,7 +205,7 @@ void main() {
     await calendarRepository.upsertEvent(
       accountId: 'account',
       event: const CalendarEventDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar',
         providerEventId: 'event',
         title: 'Planning',
@@ -237,7 +239,7 @@ void main() {
   test('UTC calendar instants convert to local display time', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
     final calendarRepository = CalendarRepository(
       database: database,
       now: () => DateTime.utc(2026, 6, 9),
@@ -245,7 +247,7 @@ void main() {
     await calendarRepository.upsertSource(
       accountId: 'account',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar',
         summary: 'Work',
       ),
@@ -253,7 +255,7 @@ void main() {
     await calendarRepository.upsertEvent(
       accountId: 'account',
       event: const CalendarEventDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar',
         providerEventId: 'event',
         title: 'Planning',
@@ -281,7 +283,7 @@ void main() {
   test('calendar event keeps recurrence and attendees for editing', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
     final calendarRepository = CalendarRepository(
       database: database,
       now: () => DateTime.utc(2026, 6, 9),
@@ -289,7 +291,7 @@ void main() {
     await calendarRepository.upsertSource(
       accountId: 'account',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar',
         summary: 'Work',
       ),
@@ -297,7 +299,7 @@ void main() {
     await calendarRepository.upsertEvent(
       accountId: 'account',
       event: const CalendarEventDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'calendar',
         providerEventId: 'event',
         title: 'Weekly planning',
@@ -336,7 +338,7 @@ void main() {
     () async {
       final database = AppDatabase(NativeDatabase.memory());
       addTearDown(database.close);
-      await _insertScheduleAccount(database, provider: TaskProvider.google);
+      await _insertScheduleAccount(database, provider: BusyProvider.google);
       final calendarRepository = CalendarRepository(
         database: database,
         now: () => DateTime.utc(2026, 6, 9),
@@ -344,7 +346,7 @@ void main() {
       await calendarRepository.upsertSource(
         accountId: 'account',
         source: const CalendarSourceDto(
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: 'calendar',
           summary: 'Work',
           rawJson: {
@@ -358,7 +360,7 @@ void main() {
       await calendarRepository.upsertEvent(
         accountId: 'account',
         event: const CalendarEventDto(
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: 'calendar',
           providerEventId: 'event',
           title: 'Planning',
@@ -385,7 +387,7 @@ void main() {
   test('Microsoft task with start and due appears on start day', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
     await _insertTaskList(database);
     await database
         .into(database.tasks)
@@ -432,7 +434,7 @@ void main() {
   test('Microsoft task with midnight due appears as timed slot', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
     await _insertTaskList(database);
     await database
         .into(database.tasks)
@@ -475,7 +477,7 @@ void main() {
   test('Microsoft UTC task reminder appears as local display time', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
     await _insertTaskList(database);
     await database
         .into(database.tasks)
@@ -512,7 +514,7 @@ void main() {
   test('Microsoft task with date-only due appears as all-day', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.microsoft);
+    await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
     await _insertTaskList(database);
     await database
         .into(database.tasks)
@@ -550,7 +552,7 @@ void main() {
   test('repository limits no-date task bucket', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
     await _insertTaskList(database);
     for (var index = 0; index < 10; index += 1) {
       await _insertTask(
@@ -592,7 +594,7 @@ void main() {
   test('repository limits overdue task bucket', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
     await _insertTaskList(database);
     for (var index = 0; index < 10; index += 1) {
       final due = DateTime(2026, 6, 9).subtract(Duration(days: index));
@@ -663,7 +665,10 @@ void main() {
             .insert(
               AccountsCompanion.insert(
                 id: accountId,
-                provider: const Value('google'),
+                provider: 'google',
+                authority: 'https://accounts.google.com',
+                providerAccountId: accountId,
+                credentialKind: 'oauth',
                 authState: const Value('signed_in'),
                 createdAtUtc: _now,
                 updatedAtUtc: _now,
@@ -719,7 +724,10 @@ void main() {
         .insert(
           AccountsCompanion.insert(
             id: 'account-a',
-            provider: const Value('google'),
+            provider: 'google',
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'account-a',
+            credentialKind: 'oauth',
             authState: const Value('signed_in'),
             createdAtUtc: _now,
             updatedAtUtc: _now,
@@ -787,7 +795,7 @@ void main() {
   test('repository hides unavailable tasks', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
-    await _insertScheduleAccount(database, provider: TaskProvider.google);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
     await _insertTaskList(database);
     await _insertTask(
       database,
@@ -864,10 +872,304 @@ void main() {
     expect(noDateItems.items.map((item) => item.title), ['Visible no date']);
     expect(overdueItems.items.map((item) => item.title), ['Visible overdue']);
   });
+
+  test(
+    'DAV task selection and cached connection states govern visibility',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertDavScheduleFixture(
+        database,
+        authState: 'reauth_required',
+        tasksSelected: false,
+      );
+      await _insertDavTask(
+        database,
+        id: 'cached-task',
+        title: 'Cached task',
+        dueUtc: '2026-06-12',
+        providerMetadata: {
+          'nativeDue': {'raw': '20260612', 'kind': 'date'},
+        },
+      );
+
+      final repository = ScheduleRepository(database);
+      const filters = ScheduleFilters(
+        accountIds: {'dav-account'},
+        includeCalendarEvents: false,
+        showNoDateTasks: false,
+      );
+      expect(
+        await repository.listItems(
+          range: ScheduleRange.day(DateTime(2026, 6, 12)),
+          filters: filters,
+        ),
+        isEmpty,
+      );
+
+      await (database.update(database.davCollections)
+            ..where((row) => row.id.equals('dav-collection')))
+          .write(const DavCollectionsCompanion(tasksSelected: Value(true)));
+      final visible = await repository.listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 12)),
+        filters: filters,
+      );
+      expect(visible.map((item) => item.title), ['Cached task']);
+      expect(visible.single.capabilities.canEdit, isTrue);
+      expect(
+        await repository.findTaskTarget(
+          accountId: 'dav-account',
+          taskListId: 'dav-list',
+          taskId: 'cached-task',
+        ),
+        const ScheduleTaskTarget(
+          accountId: 'dav-account',
+          taskListId: 'dav-list',
+          taskId: 'cached-task',
+        ),
+      );
+
+      await (database.update(
+        database.davCollections,
+      )..where((row) => row.id.equals('dav-collection'))).write(
+        const DavCollectionsCompanion(
+          currentUserPrivilegesJson: Value('["{DAV:}read"]'),
+          readOnly: Value(true),
+        ),
+      );
+      final readOnly = await repository.listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 12)),
+        filters: filters,
+      );
+      expect(readOnly.single.capabilities.canEdit, isFalse);
+      expect(readOnly.single.capabilities.canDelete, isFalse);
+    },
+  );
+
+  test('DAV DTSTART retains timed task scheduling semantics', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertDavScheduleFixture(
+      database,
+      authState: 'temporarily_unavailable',
+    );
+    await _insertDavTask(
+      database,
+      id: 'timed-task',
+      title: 'Timed DAV task',
+      dueUtc: '2026-06-12T17:00:00',
+      providerMetadata: {
+        'nativeStart': {'raw': '20260611T093000', 'kind': 'floatingDateTime'},
+        'nativeDue': {'raw': '20260612T170000', 'kind': 'floatingDateTime'},
+      },
+    );
+
+    final repository = ScheduleRepository(database);
+    const filters = ScheduleFilters(
+      accountIds: {'dav-account'},
+      includeCalendarEvents: false,
+      showNoDateTasks: false,
+    );
+    final startDay = await repository.listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: filters,
+    );
+    final dueDay = await repository.listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 12)),
+      filters: filters,
+    );
+
+    expect(startDay, hasLength(1));
+    final task = startDay.single as TaskScheduleItem;
+    expect(task.start, DateTime(2026, 6, 11, 9, 30));
+    expect(task.end, DateTime(2026, 6, 11, 10));
+    expect(task.allDay, isFalse);
+    expect(dueDay, isEmpty);
+  });
+
+  test('no-date task bucket resolves and orders Google hierarchy', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
+    await _insertTaskList(database);
+    await _insertTask(database, id: 'child', title: 'Child', parent: 'parent');
+    await _insertTask(database, id: 'parent', title: 'Parent');
+
+    final page = await ScheduleRepository(database).listNoDateTasks(
+      limit: 10,
+      filters: const ScheduleFilters(accountIds: {'account'}),
+    );
+
+    expect(page.items.map((item) => item.id), ['parent', 'child']);
+    expect(page.items.first.hasSubtasks, isTrue);
+    expect(page.items.last.parentId, 'parent');
+    expect(page.items.last.parentTitle, 'Parent');
+    expect(page.items.last.hierarchyDepth, 1);
+  });
+
+  test(
+    'agenda ancestor closure restores a parent outside a bounded bucket',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertDavScheduleFixture(database, authState: 'signed_in');
+      for (var index = 0; index < 8; index += 1) {
+        await _insertDavTask(
+          database,
+          id: 'older-$index',
+          title: 'Older $index',
+          dueUtc: '2026-06-0${index + 1}',
+          providerMetadata: {
+            'nativeDue': {'raw': '2026060${index + 1}', 'kind': 'date'},
+          },
+        );
+      }
+      await _insertDavTask(
+        database,
+        id: 'parent-object',
+        title: 'Parent',
+        dueUtc: '2026-06-09',
+        icalUid: 'parent-uid',
+        providerMetadata: const {
+          'nativeDue': {'raw': '20260609', 'kind': 'date'},
+        },
+      );
+      await _insertDavTask(
+        database,
+        id: 'child-object',
+        title: 'Child',
+        parentUid: 'parent-uid',
+      );
+
+      final repository = ScheduleRepository(database);
+      final filters = ScheduleFilters(
+        accountIds: {'dav-account'},
+        taskListFilterActive: true,
+        taskListKeys: {
+          ScheduleTaskListKey(accountId: 'dav-account', taskListId: 'dav-list'),
+        },
+      );
+      final overdue = await repository.listOverdueTasks(
+        before: DateTime(2026, 6, 10),
+        limit: 8,
+        filters: filters,
+      );
+      final noDate = await repository.listNoDateTasks(
+        limit: 8,
+        filters: filters,
+      );
+      final boundedItems = <ScheduleItem>[...overdue.items, ...noDate.items];
+
+      expect(overdue.hasMore, isTrue);
+      expect(
+        boundedItems.map((item) => item.id),
+        isNot(contains('parent-object')),
+      );
+      expect(boundedItems.map((item) => item.id), contains('child-object'));
+
+      final agendaItems = await repository.includeTaskAncestors(
+        boundedItems,
+        filters: filters,
+      );
+      final child = agendaItems.whereType<TaskScheduleItem>().singleWhere(
+        (item) => item.id == 'child-object',
+      );
+      final parent = agendaItems.whereType<TaskScheduleItem>().singleWhere(
+        (item) => item.id == 'parent-object',
+      );
+      expect(child.parentId, parent.id);
+      expect(parent.hasSubtasks, isTrue);
+    },
+  );
+}
+
+Future<void> _insertDavScheduleFixture(
+  AppDatabase database, {
+  required String authState,
+  bool tasksSelected = true,
+}) async {
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'dav-account',
+          provider: BusyProvider.nextcloud.storageValue,
+          authority: 'https://cloud.example.test',
+          providerAccountId: 'alex',
+          credentialKind: 'nextcloud_app_password',
+          authState: Value(authState),
+          createdAtUtc: _now,
+          updatedAtUtc: _now,
+        ),
+      );
+  await database
+      .into(database.davCollections)
+      .insert(
+        DavCollectionsCompanion.insert(
+          id: 'dav-collection',
+          accountId: 'dav-account',
+          hrefKey: '/remote.php/dav/calendars/alex/tasks/',
+          requestUri:
+              'https://cloud.example.test/remote.php/dav/calendars/alex/tasks/',
+          displayName: 'Tasks',
+          supportedComponentMask: const Value(2),
+          currentUserPrivilegesJson: const Value(
+            '["{DAV:}read","{DAV:}write"]',
+          ),
+          readOnly: const Value(false),
+          taskProjectionEnabled: const Value(true),
+          tasksSelected: Value(tasksSelected),
+          createdAtUtc: _now,
+          updatedAtUtc: _now,
+        ),
+      );
+  await database
+      .into(database.taskLists)
+      .insert(
+        TaskListsCompanion.insert(
+          accountId: 'dav-account',
+          id: 'dav-list',
+          davCollectionId: const Value('dav-collection'),
+          title: 'Tasks',
+          rawJson: '{}',
+          createdLocalAtUtc: _now,
+          updatedLocalAtUtc: _now,
+        ),
+      );
+}
+
+Future<void> _insertDavTask(
+  AppDatabase database, {
+  required String id,
+  required String title,
+  String? dueUtc,
+  Map<String, Object?> providerMetadata = const {},
+  String? icalUid,
+  String? parentUid,
+}) {
+  return database
+      .into(database.tasks)
+      .insert(
+        TasksCompanion.insert(
+          accountId: 'dav-account',
+          taskListId: 'dav-list',
+          id: id,
+          davCollectionId: const Value('dav-collection'),
+          title: title,
+          status: const Value('needsAction'),
+          dueUtc: Value(dueUtc),
+          providerMetadataJson: Value(jsonEncode(providerMetadata)),
+          icalUid: Value(icalUid),
+          parentUid: Value(parentUid),
+          rawJson: '{}',
+          createdLocalAtUtc: _now,
+          updatedLocalAtUtc: _now,
+        ),
+      );
 }
 
 Future<void> _seedSearchDatabase(AppDatabase database) async {
-  await _insertScheduleAccount(database, provider: TaskProvider.google);
+  await _insertScheduleAccount(database, provider: BusyProvider.google);
   await _insertTaskList(database);
   await database
       .into(database.tasks)
@@ -888,14 +1190,19 @@ Future<void> _seedSearchDatabase(AppDatabase database) async {
 
 Future<void> _insertScheduleAccount(
   AppDatabase database, {
-  required TaskProvider provider,
+  required BusyProvider provider,
 }) {
   return database
       .into(database.accounts)
       .insert(
         AccountsCompanion.insert(
           id: 'account',
-          provider: Value(provider.storageValue),
+          provider: provider.storageValue,
+          authority: provider == BusyProvider.microsoft
+              ? 'https://login.microsoftonline.com/common'
+              : 'https://accounts.google.com',
+          providerAccountId: 'account',
+          credentialKind: 'oauth',
           displayName: const Value('Ada Lovelace'),
           email: const Value('ada@example.com'),
           authState: const Value('signed_in'),
@@ -928,6 +1235,7 @@ Future<void> _insertTask(
   bool serverMissing = false,
   bool? deleted,
   bool? hidden,
+  String? parent,
 }) {
   return database
       .into(database.tasks)
@@ -942,6 +1250,7 @@ Future<void> _insertTask(
           serverMissing: Value(serverMissing),
           deleted: Value(deleted),
           hidden: Value(hidden),
+          parent: Value(parent),
           rawJson: '{}',
           createdLocalAtUtc: _now,
           updatedLocalAtUtc: _now,

@@ -1,6 +1,6 @@
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -30,12 +30,59 @@ void main() {
     expect(
       draft.toPatch(
         task,
-        microsoftTaskProviderCapabilities,
+        microsoftTaskCollectionCapabilities,
         localTimeZone: 'America/Vancouver',
       ),
       isEmpty,
     );
   });
+
+  test('schedule reports a due date before the start date', () {
+    final draft = TaskDetailsDraft.fromTask(
+      _task(due: '2026-08-09', start: '2026-08-10'),
+      'America/Vancouver',
+    );
+
+    expect(draft.scheduleIssue, TaskScheduleIssue.dueBeforeStart);
+  });
+
+  test('schedule accepts the same all-day start and due date', () {
+    final draft = TaskDetailsDraft.fromTask(
+      _task(due: '2026-08-10', start: '2026-08-10'),
+      'America/Vancouver',
+    );
+
+    expect(draft.scheduleIssue, TaskScheduleIssue.none);
+  });
+
+  test('schedule reports mixed all-day and timed values', () {
+    final draft = TaskDetailsDraft.fromTask(
+      _task(due: '2026-08-10', start: '2026-08-10T09:00:00'),
+      'America/Vancouver',
+    );
+
+    expect(draft.scheduleIssue, TaskScheduleIssue.mixedTimeModes);
+  });
+}
+
+TaskEntity _task({required String due, required String start}) {
+  return TaskEntity(
+    accountId: 'account',
+    taskListId: 'inbox',
+    id: 'task-1',
+    title: 'Task',
+    status: 'needsAction',
+    dueUtc: due.substring(0, 10),
+    microsoftDueDateTime: due,
+    microsoftDueTimeZone: 'America/Vancouver',
+    microsoftStartDateTime: start,
+    microsoftStartTimeZone: 'America/Vancouver',
+    localDirty: false,
+    pendingDelete: false,
+    pendingMove: false,
+    rawJson: '{}',
+    updatedLocalAtUtc: '2026-08-09T00:00:00.000Z',
+  );
 }
 
 String _dateOnly(DateTime value) {

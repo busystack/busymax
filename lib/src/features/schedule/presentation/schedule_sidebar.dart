@@ -18,7 +18,8 @@ import '../../accounts/data/accounts_repository.dart';
 import '../../calendar/data/calendar_repository.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
-import '../../../task_providers/task_provider.dart';
+import '../../tasks/domain/task_capabilities.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'mini_calendar.dart';
 
 class ScheduleSidebar extends ConsumerWidget {
@@ -76,12 +77,14 @@ class ScheduleSidebar extends ConsumerWidget {
 }
 
 class _SourceRow extends ConsumerWidget {
-  const _SourceRow({super.key, required this.source});
+  const _SourceRow({super.key, required this.account, required this.source});
 
+  final AccountEntity account;
   final CalendarSourceEntity source;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final providerWebUri = scheduleCalendarProviderWebUri(account, source);
     return _CompactSourceRow(
       title: source.summary,
       leading: _SourceDot(
@@ -110,7 +113,9 @@ class _SourceRow extends ConsumerWidget {
               case 'refresh':
                 unawaited(_refreshCalendarSource(context, ref, source));
               case 'open':
-                unawaited(_openProviderWeb(_calendarWebUri(source)));
+                if (providerWebUri != null) {
+                  unawaited(_openProviderWeb(providerWebUri));
+                }
               case 'rename':
                 unawaited(_renameCalendar(context, ref, source));
               case 'delete':
@@ -123,11 +128,12 @@ class _SourceRow extends ConsumerWidget {
               label: context.l10n.refreshCalendar,
               icon: YaruIcons.refresh,
             ),
-            BusyMaxMenuEntry(
-              value: 'open',
-              label: context.l10n.openInProvider,
-              icon: Icons.open_in_browser_outlined,
-            ),
+            if (providerWebUri != null)
+              BusyMaxMenuEntry(
+                value: 'open',
+                label: context.l10n.openInProvider,
+                icon: Icons.open_in_browser_outlined,
+              ),
             BusyMaxMenuEntry(
               value: 'rename',
               label: context.l10n.rename,
@@ -431,6 +437,7 @@ class _AccountCalendarSources extends ConsumerWidget {
                   source.accountId,
                   source.id,
                 )),
+                account: account,
                 source: source,
               ),
           ],
@@ -477,11 +484,36 @@ class _TaskListScheduleRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsControllerProvider);
+    final providerWebUri = scheduleTaskProviderWebUri(account);
     final visible = settings.isTaskListVisibleInSchedule(
       list.accountId,
       list.id,
     );
-    final title = _taskListLabel(context, account, list);
+    final title = scheduleTaskListLabel(context, account, list);
+    final davCapabilities = list.davCollectionId == null
+        ? null
+        : ref
+              .watch(
+                davTaskCollectionCapabilitiesProvider((
+                  accountId: list.accountId,
+                  taskListId: list.id,
+                )),
+              )
+              .valueOrNull;
+    final canRename = _canRenameTaskList(account, list, davCapabilities);
+    final canDelete = _canDeleteTaskList(account, list, davCapabilities);
+    final renameRestriction = _taskListRenameRestriction(
+      context,
+      account,
+      list,
+      canRename,
+    );
+    final deleteRestriction = _taskListDeleteRestriction(
+      context,
+      account,
+      list,
+      canDelete,
+    );
     return _CompactSourceRow(
       title: title,
       leading: _SourceDot(
@@ -509,7 +541,9 @@ class _TaskListScheduleRow extends ConsumerWidget {
               case 'refresh':
                 unawaited(_refreshTaskListAccount(context, ref, account.id));
               case 'open':
-                unawaited(_openProviderWeb(_taskProviderWebUri(account)));
+                if (providerWebUri != null) {
+                  unawaited(_openProviderWeb(providerWebUri));
+                }
               case 'rename':
                 unawaited(_renameTaskList(context, ref, list));
               case 'delete':
@@ -522,28 +556,29 @@ class _TaskListScheduleRow extends ConsumerWidget {
               label: context.l10n.refreshList,
               icon: YaruIcons.refresh,
             ),
-            BusyMaxMenuEntry(
-              value: 'open',
-              label: context.l10n.openInProvider,
-              icon: Icons.open_in_browser_outlined,
-            ),
+            if (providerWebUri != null)
+              BusyMaxMenuEntry(
+                value: 'open',
+                label: context.l10n.openInProvider,
+                icon: Icons.open_in_browser_outlined,
+              ),
             BusyMaxMenuEntry(
               value: 'rename',
               label: context.l10n.rename,
               icon: Icons.edit_outlined,
-              enabled: _canRenameOrDeleteTaskList(account, list),
-              tooltip: _canRenameOrDeleteTaskList(account, list)
-                  ? null
-                  : context.l10n.builtInMicrosoftListCannotRenameDelete,
+              enabled: canRename,
+              tooltip: renameRestriction,
             ),
             BusyMaxMenuEntry(
               value: 'delete',
-              label: context.l10n.delete,
+              label:
+                  account.provider == BusyProvider.nextcloud &&
+                      list.isShared == true
+                  ? context.l10n.unshare
+                  : context.l10n.delete,
               icon: YaruIcons.trash,
-              enabled: _canRenameOrDeleteTaskList(account, list),
-              tooltip: _canRenameOrDeleteTaskList(account, list)
-                  ? null
-                  : context.l10n.builtInMicrosoftListCannotRenameDelete,
+              enabled: canDelete,
+              tooltip: deleteRestriction,
               destructive: true,
             ),
           ],
@@ -553,14 +588,18 @@ class _TaskListScheduleRow extends ConsumerWidget {
   }
 }
 
-String _taskListLabel(
+@visibleForTesting
+String scheduleTaskListLabel(
   BuildContext context,
   AccountEntity account,
   TaskListEntity list,
 ) {
-  final provider = account.provider == BusyProvider.google
-      ? context.l10n.googleTasksProvider
-      : context.l10n.microsoftTodoProvider;
+  final provider = switch (account.provider) {
+    BusyProvider.google => context.l10n.googleTasksProvider,
+    BusyProvider.microsoft => context.l10n.microsoftTodoProvider,
+    BusyProvider.appleICloud => context.l10n.appleICloudTasksProvider,
+    BusyProvider.nextcloud => context.l10n.nextcloudTasksProvider,
+  };
   final title = list.title.trim();
   if (title.isEmpty ||
       title.toLowerCase() == provider.toLowerCase() ||
@@ -579,20 +618,48 @@ Color? _colorFromHex(String? value) {
   return parsed == null ? null : Color(0xff000000 | parsed);
 }
 
-Uri _calendarWebUri(CalendarSourceEntity source) {
-  if (source.provider == TaskProvider.google) {
-    return Uri.https('calendar.google.com', '/calendar/u/0/r', {
-      'cid': source.providerCalendarId,
-    });
+@visibleForTesting
+Uri? scheduleCalendarProviderWebUri(
+  AccountEntity account,
+  CalendarSourceEntity source,
+) {
+  if (source.accountId != account.id || source.provider != account.provider) {
+    return null;
   }
-  return Uri.https('outlook.live.com', '/calendar/0/view/month');
+  return switch (account.provider) {
+    BusyProvider.google => Uri.https('calendar.google.com', '/calendar/u/0/r', {
+      'cid': source.providerCalendarId,
+    }),
+    BusyProvider.microsoft => Uri.https(
+      'outlook.live.com',
+      '/calendar/0/view/month',
+    ),
+    BusyProvider.appleICloud => null,
+    BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
+  };
 }
 
-Uri _taskProviderWebUri(AccountEntity account) {
-  if (account.provider == TaskProvider.google) {
-    return Uri.https('tasks.google.com', '/');
+@visibleForTesting
+Uri? scheduleTaskProviderWebUri(AccountEntity account) {
+  return switch (account.provider) {
+    BusyProvider.google => Uri.https('tasks.google.com', '/'),
+    BusyProvider.microsoft => Uri.https('to-do.office.com', '/tasks/'),
+    BusyProvider.appleICloud => null,
+    BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
+  };
+}
+
+Uri? _safeAccountWebUri(String authority) {
+  final uri = Uri.tryParse(authority.trim());
+  if (uri == null ||
+      uri.scheme.toLowerCase() != 'https' ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.hasFragment) {
+    return null;
   }
-  return Uri.https('to-do.office.com', '/tasks/');
+  return uri;
 }
 
 Future<void> _openProviderWeb(Uri uri) async {
@@ -656,11 +723,60 @@ Future<void> _handleRefreshFailure(
   );
 }
 
-bool _canRenameOrDeleteTaskList(AccountEntity account, TaskListEntity list) {
-  if (account.provider == TaskProvider.microsoft) {
+bool _canRenameTaskList(
+  AccountEntity account,
+  TaskListEntity list,
+  TaskCollectionCapabilities? davCapabilities,
+) {
+  if (account.provider == BusyProvider.microsoft) {
     return list.canRenameOrDeleteForMicrosoft;
   }
+  if (list.davCollectionId != null) {
+    return davCapabilities?.supportsListRename ?? false;
+  }
   return true;
+}
+
+bool _canDeleteTaskList(
+  AccountEntity account,
+  TaskListEntity list,
+  TaskCollectionCapabilities? davCapabilities,
+) {
+  if (account.provider == BusyProvider.microsoft) {
+    return list.canRenameOrDeleteForMicrosoft;
+  }
+  if (list.davCollectionId != null) {
+    return davCapabilities?.supportsListDelete ?? false;
+  }
+  return true;
+}
+
+String? _taskListRenameRestriction(
+  BuildContext context,
+  AccountEntity account,
+  TaskListEntity list,
+  bool enabled,
+) {
+  if (enabled) return null;
+  if (account.provider == BusyProvider.microsoft &&
+      !list.canRenameOrDeleteForMicrosoft) {
+    return context.l10n.builtInMicrosoftListCannotRenameDelete;
+  }
+  return context.l10n.readOnlyTaskListCannotRename;
+}
+
+String? _taskListDeleteRestriction(
+  BuildContext context,
+  AccountEntity account,
+  TaskListEntity list,
+  bool enabled,
+) {
+  if (enabled) return null;
+  if (account.provider == BusyProvider.microsoft &&
+      !list.canRenameOrDeleteForMicrosoft) {
+    return context.l10n.builtInMicrosoftListCannotRenameDelete;
+  }
+  return context.l10n.taskListCannotDelete;
 }
 
 Future<void> _renameCalendar(
@@ -725,9 +841,21 @@ Future<void> _renameTaskList(
       title.trim() == list.title) {
     return;
   }
-  await ref
-      .read(taskListsRepositoryForAccountProvider(list.accountId))
-      .renameTaskList(list.id, title.trim());
+  try {
+    await ref
+        .read(taskListsRepositoryForAccountProvider(list.accountId))
+        .renameTaskList(list.id, title.trim());
+  } on Object catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.taskListRenameFailed(syncFailureMessage(error)),
+          ),
+        ),
+      );
+    }
+  }
 }
 
 Future<void> _deleteTaskList(
@@ -737,16 +865,34 @@ Future<void> _deleteTaskList(
 ) async {
   final confirmed = await showBusyMaxConfirm(
     context,
-    title: context.l10n.deleteList,
-    message: context.l10n.deleteListConfirmation(list.title),
-    confirmLabel: context.l10n.delete,
+    title: list.isShared == true
+        ? context.l10n.unshare
+        : context.l10n.deleteList,
+    message: list.isShared == true
+        ? context.l10n.unshareTaskListConfirmation(list.title)
+        : context.l10n.deleteTaskListConfirmation(list.title),
+    confirmLabel: list.isShared == true
+        ? context.l10n.unshare
+        : context.l10n.delete,
     destructive: true,
     headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;
   }
-  await ref
-      .read(taskListsRepositoryForAccountProvider(list.accountId))
-      .deleteTaskList(list.id);
+  try {
+    await ref
+        .read(taskListsRepositoryForAccountProvider(list.accountId))
+        .deleteTaskList(list.id);
+  } on Object catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.taskListDeleteFailed(syncFailureMessage(error)),
+          ),
+        ),
+      );
+    }
+  }
 }

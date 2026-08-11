@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 
 void main() {
   test('callback parser accepts code and validates state', () {

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:logging/logging.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'pkce.dart';
 
 const googleTasksOAuthScope = 'https://www.googleapis.com/auth/tasks';

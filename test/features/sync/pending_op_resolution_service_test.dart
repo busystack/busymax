@@ -6,19 +6,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_client.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 
 void main() {
   late AppDatabase database;
-  late _FakeGoogleTasksApiClient apiClient;
+  late _FakeTaskRemoteClient apiClient;
   late _FakeSyncEngine syncEngine;
   late PendingOpResolutionService service;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
-    apiClient = _FakeGoogleTasksApiClient();
+    apiClient = _FakeTaskRemoteClient();
     syncEngine = _FakeSyncEngine();
     service = PendingOpResolutionService(
       database: database,
@@ -341,7 +341,7 @@ void main() {
   });
 }
 
-class _FakeGoogleTasksApiClient implements GoogleTasksApiClient {
+class _FakeTaskRemoteClient implements TaskRemoteClient {
   TaskDto? remoteTask;
   TaskListDto? remoteTaskList;
   GoogleTasksApiError? getTaskError;
@@ -390,6 +390,10 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'google-account',
+          credentialKind: 'oauth',
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),

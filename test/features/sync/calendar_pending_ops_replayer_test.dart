@@ -10,7 +10,7 @@ import 'package:busymax/src/features/calendar/presentation/event_editor_draft.da
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,7 +26,7 @@ void main() {
     await CalendarRepository(database: database).upsertSource(
       accountId: 'account',
       source: const CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'cal-1',
         summary: 'Work',
         timeZone: 'America/Vancouver',
@@ -79,7 +79,7 @@ void main() {
       await CalendarRepository(database: database).upsertSource(
         accountId: 'account',
         source: const CalendarSourceDto(
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: 'cal-1',
           summary: 'Work',
           timeZone: 'UTC',
@@ -116,7 +116,7 @@ void main() {
       await CalendarRepository(database: database).upsertSource(
         accountId: 'account',
         source: const CalendarSourceDto(
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: 'cal-1',
           summary: 'Work',
           timeZone: 'UTC',
@@ -171,7 +171,10 @@ void main() {
           .insert(
             AccountsCompanion.insert(
               id: 'microsoft-account',
-              provider: const Value('microsoft'),
+              provider: 'microsoft',
+              authority: 'https://login.microsoftonline.com/common',
+              providerAccountId: 'microsoft-account',
+              credentialKind: 'oauth',
               authState: const Value('signed_in'),
               grantedScopes: const Value(''),
               createdAtUtc: '2026-06-08T00:00:00.000Z',
@@ -181,7 +184,7 @@ void main() {
       await CalendarRepository(database: database).upsertSource(
         accountId: 'account',
         source: const CalendarSourceDto(
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: 'cal-2',
           summary: 'Personal',
           timeZone: 'America/Vancouver',
@@ -190,7 +193,7 @@ void main() {
       await CalendarRepository(database: database).upsertSource(
         accountId: 'microsoft-account',
         source: const CalendarSourceDto(
-          provider: TaskProvider.microsoft,
+          provider: BusyProvider.microsoft,
           providerCalendarId: 'ms-cal-1',
           summary: 'Outlook',
           timeZone: 'America/Vancouver',
@@ -871,7 +874,10 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
-          provider: const Value('google'),
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'google-account',
+          credentialKind: 'oauth',
           authState: const Value('signed_in'),
           grantedScopes: const Value(''),
           createdAtUtc: '2026-06-08T00:00:00.000Z',
@@ -888,7 +894,7 @@ Future<String> _insertEvent(
   String? endTimeZone,
 }) async {
   final event = CalendarEventDto(
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
     providerCalendarId: 'cal-1',
     providerEventId: providerEventId,
     providerRecurringEventId: providerRecurringEventId,
@@ -909,7 +915,7 @@ Future<String> _insertEvent(
   ).upsertEvent(accountId: 'account', event: event);
   return CalendarRepository.eventId(
     accountId: 'account',
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
     providerCalendarId: 'cal-1',
     providerEventId: providerEventId,
   );
@@ -964,7 +970,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
   GoogleCalendarApiError? deleteError;
 
   @override
-  BusyProvider get provider => TaskProvider.google;
+  BusyProvider get provider => BusyProvider.google;
 
   @override
   CalendarProviderCapabilities get capabilities =>
@@ -975,7 +981,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     calls.add('listCalendars');
     return const [
       CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'cal-1',
         summary: 'Work',
       ),
@@ -1090,7 +1096,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     String? endTimeZone,
   }) {
     return CalendarEventDto(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: 'cal-1',
       providerEventId: id,
       etagOrChangeKey: etagOrChangeKey,
@@ -1115,7 +1121,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
   Future<CalendarSourceDto> createCalendar(CalendarMutation mutation) async {
     calls.add('createCalendar:${mutation.summary}');
     return CalendarSourceDto(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: 'cal-created',
       summary: mutation.summary ?? 'Calendar',
     );
@@ -1162,7 +1168,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
   ) async {
     calls.add('updateCalendar:$calendarId:${mutation.summary}');
     return CalendarSourceDto(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: calendarId,
       summary: mutation.summary ?? 'Calendar',
     );

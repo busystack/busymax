@@ -1,6 +1,6 @@
 import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../db/app_database.dart';
-import '../../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
 import 'calendar_pending_ops_replayer.dart';
@@ -84,14 +84,17 @@ class CalendarSyncEngine {
       final rangeMatches =
           state?.rangeStart == rangeStartValue &&
           state?.rangeEnd == rangeEndValue;
-      final savedCursor = provider == TaskProvider.google
-          ? state?.googleSyncToken
-          : state?.microsoftDeltaLink;
+      final expectedCursorKind = provider == BusyProvider.google
+          ? 'google_sync_token'
+          : 'microsoft_delta_link';
+      final savedCursor = state?.cursorKind == expectedCursorKind
+          ? state?.cursorValue
+          : null;
       final supportsIncrementalCursor =
-          provider == TaskProvider.google || calendar.primaryCalendar;
+          provider == BusyProvider.google || calendar.primaryCalendar;
       final syncOptionsMatch =
-          provider != TaskProvider.google ||
-          state?.rawStateJson == _googleExpandedEventsSyncState;
+          provider != BusyProvider.google ||
+          state?.stateJson == _googleExpandedEventsSyncState;
       final tokenOrLink =
           supportsIncrementalCursor &&
               rangeMatches &&
@@ -101,7 +104,7 @@ class CalendarSyncEngine {
           : null;
       final requiresSnapshot =
           tokenOrLink == null ||
-          (provider == TaskProvider.microsoft && !calendar.primaryCalendar);
+          (provider == BusyProvider.microsoft && !calendar.primaryCalendar);
       await _syncCalendarRange(
         providerCalendarId: calendar.providerCalendarId,
         primaryCalendar: calendar.primaryCalendar,
@@ -154,7 +157,7 @@ class CalendarSyncEngine {
           preservePendingLocalChanges: true,
         );
         final recurringMasterId = event.providerRecurringEventId;
-        if (provider == TaskProvider.google &&
+        if (provider == BusyProvider.google &&
             recurringMasterId != null &&
             recurringMasterId.isNotEmpty) {
           expandedRecurringMasterIds.add(recurringMasterId);
@@ -177,7 +180,7 @@ class CalendarSyncEngine {
         calendarId: providerCalendarId,
         rangeStart: rangeStart,
         rangeEnd: rangeEnd,
-        syncTokenOrDeltaLink: provider == TaskProvider.google
+        syncTokenOrDeltaLink: provider == BusyProvider.google
             ? tokenOrLink
             : next,
         primaryCalendar: primaryCalendar,
@@ -199,12 +202,12 @@ class CalendarSyncEngine {
         continue;
       }
       page = nextPage;
-      if (provider == TaskProvider.google && page.nextPageTokenOrUrl == next) {
+      if (provider == BusyProvider.google && page.nextPageTokenOrUrl == next) {
         break;
       }
     }
 
-    if (provider == TaskProvider.google) {
+    if (provider == BusyProvider.google) {
       await _repository.markGoogleRecurringMastersDeleted(
         accountId: _accountId,
         providerCalendarId: providerCalendarId,
@@ -217,6 +220,7 @@ class CalendarSyncEngine {
       provider: provider,
       providerCalendarId: providerCalendarId,
     );
+    final completedCursor = page.nextSyncTokenOrDeltaLink;
     await _repository.saveSyncState(
       accountId: _accountId,
       provider: provider,
@@ -224,14 +228,14 @@ class CalendarSyncEngine {
       calendarSourceId: sourceId,
       rangeStart: rangeStart.toIso8601String(),
       rangeEnd: rangeEnd.toIso8601String(),
-      googleSyncToken: provider == TaskProvider.google
-          ? page.nextSyncTokenOrDeltaLink
-          : null,
-      microsoftDeltaLink: provider == TaskProvider.microsoft
-          ? page.nextSyncTokenOrDeltaLink
-          : null,
+      cursorKind: completedCursor == null
+          ? 'snapshot_generation'
+          : provider == BusyProvider.google
+          ? 'google_sync_token'
+          : 'microsoft_delta_link',
+      cursorValue: completedCursor ?? '0',
       full: full,
-      rawStateJson: provider == TaskProvider.google
+      stateJson: provider == BusyProvider.google
           ? _googleExpandedEventsSyncState
           : null,
     );

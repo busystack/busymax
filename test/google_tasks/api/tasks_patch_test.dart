@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 
 import 'test_api_client_support.dart';
 

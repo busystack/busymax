@@ -1,24 +1,38 @@
 part of '../app_database.dart';
 
-@DriftAccessor(tables: [Accounts, TaskLists, Tasks])
+@DriftAccessor(tables: [Accounts, DavCollections, TaskLists, Tasks])
 class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
   TasksDao(super.db);
 
   Stream<List<Task>> watchTaskTree(String accountId, String taskListId) {
-    final query = select(tasks)
-      ..where(
-        (row) =>
-            row.accountId.equals(accountId) &
-            row.taskListId.equals(taskListId) &
-            row.pendingDelete.equals(false) &
-            row.serverMissing.equals(false),
-      )
-      ..orderBy([
-        (row) => OrderingTerm.asc(row.parent),
-        (row) => OrderingTerm.asc(row.position),
-        (row) => OrderingTerm.asc(row.title),
-      ]);
-    return query.watch();
+    final query =
+        select(tasks).join([
+            innerJoin(
+              taskLists,
+              taskLists.accountId.equalsExp(tasks.accountId) &
+                  taskLists.id.equalsExp(tasks.taskListId),
+            ),
+            leftOuterJoin(
+              davCollections,
+              davCollections.id.equalsExp(taskLists.davCollectionId),
+            ),
+          ])
+          ..where(
+            tasks.accountId.equals(accountId) &
+                tasks.taskListId.equals(taskListId) &
+                tasks.pendingDelete.equals(false) &
+                tasks.serverMissing.equals(false) &
+                (taskLists.davCollectionId.isNull() |
+                    davCollections.tasksSelected.equals(true)),
+          )
+          ..orderBy([
+            OrderingTerm.asc(tasks.parent),
+            OrderingTerm.asc(tasks.position),
+            OrderingTerm.asc(tasks.title),
+          ]);
+    return query.watch().map(
+      (rows) => [for (final row in rows) row.readTable(tasks)],
+    );
   }
 
   Stream<List<TaskWithContextRow>> watchAllTaskTrees(List<String> accountIds) {
@@ -34,6 +48,10 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
                   taskLists.id.equalsExp(tasks.taskListId),
             ),
             innerJoin(accounts, accounts.id.equalsExp(tasks.accountId)),
+            leftOuterJoin(
+              davCollections,
+              davCollections.id.equalsExp(taskLists.davCollectionId),
+            ),
           ])
           ..where(
             tasks.accountId.isIn(accountIds) &
@@ -41,7 +59,15 @@ class TasksDao extends DatabaseAccessor<AppDatabase> with _$TasksDaoMixin {
                 tasks.serverMissing.equals(false) &
                 taskLists.pendingDelete.equals(false) &
                 taskLists.serverMissing.equals(false) &
-                accounts.authState.equals('signed_in'),
+                (taskLists.davCollectionId.isNull() |
+                    davCollections.tasksSelected.equals(true)) &
+                accounts.authState.isIn(const [
+                  'signed_in',
+                  'reauth_required',
+                  'temporarily_unavailable',
+                  'permission_changed',
+                  'unsupported_server_profile',
+                ]),
           )
           ..orderBy([
             OrderingTerm.asc(accounts.provider),

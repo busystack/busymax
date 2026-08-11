@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'schedule_item.dart';
 import 'schedule_range.dart';
 import 'schedule_scope.dart';
@@ -25,7 +25,7 @@ class ScheduleProjection {
       ScheduleScope.upcoming => List<ScheduleItem>.of(items),
     };
     filtered.sort(compareScheduleItems);
-    return filtered;
+    return arrangeHierarchy(filtered);
   }
 
   static List<ScheduleItem> itemsForDay(
@@ -35,7 +35,7 @@ class ScheduleProjection {
     final range = ScheduleRange.day(day);
     final matches = items.where((item) => intersects(item, range)).toList();
     matches.sort(compareScheduleItems);
-    return matches;
+    return arrangeHierarchy(matches);
   }
 
   static Map<DateTime, List<ScheduleItem>> groupByDay(
@@ -50,8 +50,9 @@ class ScheduleProjection {
       final key = day(start);
       groups.putIfAbsent(key, () => <ScheduleItem>[]).add(item);
     }
-    for (final entry in groups.entries) {
-      entry.value.sort(compareScheduleItems);
+    for (final key in groups.keys.toList()) {
+      groups[key]!.sort(compareScheduleItems);
+      groups[key] = arrangeHierarchy(groups[key]!);
     }
     return groups;
   }
@@ -63,6 +64,65 @@ class ScheduleProjection {
         )
         .toList();
     result.sort(compareScheduleItems);
+    return arrangeHierarchy(result);
+  }
+
+  static List<T> arrangeHierarchy<T extends ScheduleItem>(List<T> items) {
+    if (items.length < 2) return List<T>.of(items);
+    final tasks = <String, TaskScheduleItem>{};
+    for (final item in items) {
+      if (item is TaskScheduleItem) {
+        tasks[_taskHierarchyKey(item)] = item;
+      }
+    }
+    if (tasks.isEmpty) return List<T>.of(items);
+
+    final children = <String, List<TaskScheduleItem>>{};
+    for (final task in tasks.values) {
+      final parentId = task.parentId;
+      if (parentId == null) continue;
+      final parentKey = _taskHierarchyKeyFor(
+        accountId: task.accountId,
+        sourceId: task.sourceId,
+        taskId: parentId,
+      );
+      if (!tasks.containsKey(parentKey)) continue;
+      children.putIfAbsent(parentKey, () => []).add(task);
+    }
+
+    final result = <T>[];
+    final emitted = <String>{};
+    void emitTask(TaskScheduleItem task, Set<String> ancestors) {
+      final key = _taskHierarchyKey(task);
+      if (!emitted.add(key)) return;
+      result.add(task as T);
+      if (!ancestors.add(key)) return;
+      for (final child in children[key] ?? const <TaskScheduleItem>[]) {
+        emitTask(child, ancestors);
+      }
+      ancestors.remove(key);
+    }
+
+    for (final item in items) {
+      if (item is! TaskScheduleItem) {
+        result.add(item);
+        continue;
+      }
+      final parentId = item.parentId;
+      final parentIsPresent =
+          parentId != null &&
+          tasks.containsKey(
+            _taskHierarchyKeyFor(
+              accountId: item.accountId,
+              sourceId: item.sourceId,
+              taskId: parentId,
+            ),
+          );
+      if (!parentIsPresent) emitTask(item, <String>{});
+    }
+    for (final task in tasks.values) {
+      emitTask(task, <String>{});
+    }
     return result;
   }
 
@@ -82,8 +142,10 @@ class ScheduleProjection {
     if (item is TaskScheduleItem) {
       final listName = _cleanLabel(item.sourceName) ?? 'Tasks';
       return switch (item.provider) {
-        TaskProvider.google => _dedupeProvider('Google Tasks', listName),
-        TaskProvider.microsoft => _dedupeProvider('Microsoft To Do', listName),
+        BusyProvider.google => _dedupeProvider('Google Tasks', listName),
+        BusyProvider.microsoft => _dedupeProvider('Microsoft To Do', listName),
+        BusyProvider.appleICloud => _dedupeProvider('Apple iCloud', listName),
+        BusyProvider.nextcloud => _dedupeProvider('Nextcloud Tasks', listName),
       };
     }
     return 'BusyMax';
@@ -133,6 +195,18 @@ class ScheduleProjection {
     return DateTime(value.year, value.month, value.day);
   }
 }
+
+String _taskHierarchyKey(TaskScheduleItem task) => _taskHierarchyKeyFor(
+  accountId: task.accountId,
+  sourceId: task.sourceId,
+  taskId: task.id,
+);
+
+String _taskHierarchyKeyFor({
+  required String accountId,
+  required String sourceId,
+  required String taskId,
+}) => '$accountId\u0000$sourceId\u0000$taskId';
 
 Color? _colorFromHex(String? value) {
   if (value == null) {

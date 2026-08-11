@@ -1,12 +1,13 @@
-import '../../google_tasks/api/google_tasks_api_client.dart';
-import '../../google_tasks/api/google_tasks_api_error.dart';
-import '../../google_tasks/api/google_tasks_api_models.dart';
+import '../../features/tasks/domain/task_remote_client.dart';
+import '../../features/tasks/domain/task_remote_error.dart';
+import '../../features/tasks/domain/task_remote_models.dart';
 import 'microsoft_todo_api_client.dart';
 import 'microsoft_todo_api_error.dart';
 import 'microsoft_todo_api_models.dart';
 
-class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
-  MicrosoftTodoGoogleTasksAdapter({
+class MicrosoftTodoTaskRemoteClient
+    implements TaskRemoteClient, TaskChecklistRemoteClient {
+  MicrosoftTodoTaskRemoteClient({
     required MicrosoftTodoApiClient client,
     required String defaultTimeZone,
     DateTime Function()? nowUtc,
@@ -46,7 +47,7 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
       nextLink = page.nextLink;
     } while (nextLink != null && nextLink.isNotEmpty);
 
-    throw const GoogleTasksApiError(
+    throw const TaskRemoteError(
       statusCode: 404,
       code: 'not_found',
       message: 'Microsoft To Do task list was not found.',
@@ -100,10 +101,84 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
 
   @override
   Future<void> clearCompletedTasks(String taskListId) {
-    throw const GoogleTasksApiError(
+    throw const TaskRemoteError(
       statusCode: 400,
       code: 'unsupported_provider_operation',
       message: 'Clear completed is not supported for Microsoft To Do accounts.',
+    );
+  }
+
+  @override
+  Future<TaskChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? pageToken,
+  }) async {
+    final page = await _translateMicrosoftErrors(
+      () => _checklistClient.listChecklistItemsPage(
+        taskListId: taskListId,
+        taskId: taskId,
+        nextLink: pageToken,
+      ),
+    );
+    return TaskChecklistItemsPageDto(
+      items: page.items.map(_checklistItemDto).toList(),
+      nextPageToken: page.nextLink,
+      rawJson: page.rawJson,
+    );
+  }
+
+  @override
+  Future<TaskChecklistItemDto> createChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String title,
+    bool completed = false,
+  }) async {
+    final item = await _translateMicrosoftErrors(
+      () => _checklistClient.createChecklistItem(
+        taskListId: taskListId,
+        taskId: taskId,
+        body: {'displayName': title, 'isChecked': completed},
+      ),
+    );
+    return _checklistItemDto(item);
+  }
+
+  @override
+  Future<TaskChecklistItemDto> updateChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+    String? title,
+    bool? completed,
+  }) async {
+    final item = await _translateMicrosoftErrors(
+      () => _checklistClient.updateChecklistItem(
+        taskListId: taskListId,
+        taskId: taskId,
+        checklistItemId: checklistItemId,
+        patch: {
+          if (title != null) 'displayName': title,
+          if (completed != null) 'isChecked': completed,
+        },
+      ),
+    );
+    return _checklistItemDto(item);
+  }
+
+  @override
+  Future<void> deleteChecklistItem({
+    required String taskListId,
+    required String taskId,
+    required String checklistItemId,
+  }) {
+    return _translateMicrosoftErrors(
+      () => _checklistClient.deleteChecklistItem(
+        taskListId: taskListId,
+        taskId: taskId,
+        checklistItemId: checklistItemId,
+      ),
     );
   }
 
@@ -115,7 +190,7 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     required TaskCreate create,
   }) async {
     if (parentTaskId != null || previousSiblingTaskId != null) {
-      throw const GoogleTasksApiError(
+      throw const TaskRemoteError(
         statusCode: 400,
         code: 'unsupported_provider_operation',
         message:
@@ -185,7 +260,7 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     String? previousSiblingTaskId,
     String? destinationTaskListId,
   }) {
-    throw const GoogleTasksApiError(
+    throw const TaskRemoteError(
       statusCode: 400,
       code: 'unsupported_provider_operation',
       message:
@@ -247,13 +322,26 @@ class MicrosoftTodoGoogleTasksAdapter implements GoogleTasksApiClient {
     try {
       return await request();
     } on MicrosoftTodoApiError catch (error) {
-      throw GoogleTasksApiError(
+      throw TaskRemoteError(
         statusCode: error.statusCode,
-        code: error.code,
+        code: error.code ?? 'microsoft_todo_error',
         message: error.message,
-        rawJson: error.rawJson,
+        providerDetails: error.rawJson,
+        retryable: error.statusCode == 429 || error.statusCode >= 500,
       );
     }
+  }
+
+  MicrosoftTodoChecklistApiClient get _checklistClient {
+    final client = _client;
+    if (client is MicrosoftTodoChecklistApiClient) {
+      return client as MicrosoftTodoChecklistApiClient;
+    }
+    throw const TaskRemoteError(
+      statusCode: 400,
+      code: 'unsupported_provider_operation',
+      message: 'Microsoft To Do checklist operations are unavailable.',
+    );
   }
 
   Map<String, Object?> _microsoftTaskPatch(Map<String, Object?> fields) {
@@ -365,6 +453,17 @@ TaskDto _taskDto(MicrosoftTodoTaskDto dto) {
     hidden: false,
     rawJson: dto.rawJson,
     kind: '#microsoft.graph.todoTask',
+  );
+}
+
+TaskChecklistItemDto _checklistItemDto(MicrosoftTodoChecklistItemDto dto) {
+  return TaskChecklistItemDto(
+    id: dto.id,
+    title: dto.displayName ?? '',
+    completed: dto.isChecked ?? false,
+    createdAtUtc: _parseUtc(dto.createdDateTime),
+    completedAtUtc: _parseUtc(dto.checkedDateTime),
+    rawJson: dto.rawJson,
   );
 }
 

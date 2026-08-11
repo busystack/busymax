@@ -1,78 +1,43 @@
-# Google Setup
+# Google OAuth setup
 
-This setup is required to get `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+BusyMax requires a Google desktop OAuth client. Its client ID and client secret
+are supplied as `GOOGLE_OAUTH_CLIENT_ID` and
+`GOOGLE_OAUTH_CLIENT_SECRET` at build time.
 
-## 1 Enable APIs
+## Create a Google Cloud project
 
-### 1.1 Create New Project
+1. Open the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create or select a project.
+3. Enable the Google Tasks API and Google Calendar API.
 
-Go to `Google Cloud Console`: https://console.cloud.google.com
+## Configure the consent screen
 
-Click `Open project picker` (top-left corner) and create a new project. Then, select it.
+1. Open [Google Auth Platform](https://console.cloud.google.com/auth/).
+2. Complete the initial setup with the application name, support email,
+   audience, and contact email.
+3. Under **Audience**, add development accounts as test users while the app is
+   in testing mode.
+4. Under **Data access**, add these scopes:
 
-### 1.1 Enable Task and Calendar API
+   ```text
+   openid
+   https://www.googleapis.com/auth/userinfo.email
+   https://www.googleapis.com/auth/userinfo.profile
+   https://www.googleapis.com/auth/tasks
+   https://www.googleapis.com/auth/calendar
+   ```
 
-Search and enable the following:
+The identity scopes provide the stable account identity and display label. The
+Tasks and Calendar scopes allow BusyMax to synchronize and edit the
+corresponding data.
 
-- Google Tasks API
-- Google Calendar API
+## Create the desktop client
 
-## 2 Google Auth Platform
+1. Open **Clients** and select **Create client**.
+2. Choose **Desktop app** as the application type.
+3. Give the client a recognizable name.
+4. Store the client ID and client secret securely and provide them to the build
+   as `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`.
 
-### 2.1 Initial Setup
-
-Go to `Google Auth Platform`: https://console.cloud.google.com/auth/
-
-Click `Get Started`.
-
-Enter:
-
-- App name: <APP NAME>
-- User support email: <YOUR EMAIL>
-- Audience: `External`
-- Contact Information: <YOUR EMAIL>
-
-Click `Save`.
-
-### 2.2 Branding
-
-Click `Branding` to provide additional information if needed.
-
-### 2.3 Audience
-
-Click `Audience` to add test users. While publishing status is set to "Testing", only test users are
-able to access the app.
-
-### 2.4 Clients
-
-Click `Clients` -> `Create Client` and enter:
-
-- Application type: Desktop app
-- Name: <APP NAME>
-
-!!! **Important**: copy and save `Client ID` and `Client secret`. **You will no longer be able to
-view or download the client secret once you close this dialog. Make sure you have copied or
-downloaded the information below and securely stored it.** Use it as `GOOGLE_OAUTH_CLIENT_ID` and
-`GOOGLE_OAUTH_CLIENT_SECRET`.
-
-#### 2.5 Data Access
-
-Click `Add or remove scopes`
-
-Check the following:
-
-- openid
-- https://www.googleapis.com/auth/userinfo.email
-- https://www.googleapis.com/auth/userinfo.profile
-- https://www.googleapis.com/auth/tasks
-- https://www.googleapis.com/auth/calendar
-
-Click `Update` and `Save`.
-
-Rationale:
-
-```text
-openid/email/profile -> stable account identity and display label
-tasks -> Google Tasks create/edit/delete/sync
-calendar -> CalendarList, Calendars, Events, Colors, Freebusy support
-```
+Use only credentials created for this desktop application. Do not commit them
+to the repository.

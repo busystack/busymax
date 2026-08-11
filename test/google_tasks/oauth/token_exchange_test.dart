@@ -7,9 +7,10 @@ import 'package:logging/logging.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
   test('fetchUserInfo reads Google profile from OpenID userinfo', () async {
@@ -27,7 +28,7 @@ void main() {
           200,
         );
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -68,7 +69,7 @@ void main() {
             200,
           );
         }),
-        tokenStore: InMemoryOAuthTokenStore(),
+        tokenStore: InMemorySecretStore(),
         loopbackFlow: OAuthLoopbackFlow(),
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
@@ -111,7 +112,7 @@ void main() {
             200,
           );
         }),
-        tokenStore: InMemoryOAuthTokenStore(),
+        tokenStore: InMemorySecretStore(),
         loopbackFlow: OAuthLoopbackFlow(),
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
@@ -134,7 +135,7 @@ void main() {
   test(
     'Google sign-in requests incremental auth and does not assume missing granted scopes',
     () async {
-      final tokenStore = InMemoryOAuthTokenStore();
+      final tokenStore = InMemorySecretStore();
       final loopbackFlow = _FakeOAuthLoopbackFlow(
         callback: const OAuthCallbackResult(code: 'code', scope: null),
       );
@@ -157,7 +158,10 @@ void main() {
       );
 
       final result = await service.signIn();
-      final storedTokenSet = await tokenStore.readTokenSet(result.accountId);
+      final storedTokenSet = await tokenStore.readOAuthTokenSet(
+        result.accountId,
+        BusyProvider.google,
+      );
 
       expect(loopbackFlow.extraAuthorizationParameters, {
         'include_granted_scopes': 'true',
@@ -189,7 +193,7 @@ void main() {
             200,
           );
         }),
-        tokenStore: InMemoryOAuthTokenStore(),
+        tokenStore: InMemorySecretStore(),
         loopbackFlow: loopbackFlow,
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
@@ -222,7 +226,7 @@ void main() {
             200,
           );
         }),
-        tokenStore: InMemoryOAuthTokenStore(),
+        tokenStore: InMemorySecretStore(),
         loopbackFlow: OAuthLoopbackFlow(),
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
@@ -268,7 +272,7 @@ void main() {
           200,
         );
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -296,7 +300,7 @@ void main() {
           400,
         );
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -343,7 +347,7 @@ void main() {
           400,
         );
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -398,7 +402,7 @@ void main() {
           400,
         );
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -431,7 +435,7 @@ void main() {
         posted = true;
         return http.Response('{}', 200);
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -461,7 +465,7 @@ void main() {
         posted = true;
         return http.Response('{}', 200);
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -491,7 +495,7 @@ void main() {
         posted = true;
         return http.Response('{}', 200);
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -531,7 +535,7 @@ void main() {
             200,
           );
         }),
-        tokenStore: InMemoryOAuthTokenStore(),
+        tokenStore: InMemorySecretStore(),
         loopbackFlow: OAuthLoopbackFlow(),
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
@@ -566,7 +570,7 @@ void main() {
           200,
         );
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -594,7 +598,7 @@ void main() {
             200,
           );
         }),
-        tokenStore: InMemoryOAuthTokenStore(),
+        tokenStore: InMemorySecretStore(),
         loopbackFlow: OAuthLoopbackFlow(),
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
@@ -609,13 +613,15 @@ void main() {
   );
 
   test('signOutAccount clears only requested Google account', () async {
-    final tokenStore = InMemoryOAuthTokenStore();
-    await tokenStore.saveTokenSet(
+    final tokenStore = InMemorySecretStore();
+    await tokenStore.saveOAuthTokenSet(
       'google-a',
+      BusyProvider.google,
       const OAuthTokenSetFixture().tokenSet,
     );
-    await tokenStore.saveTokenSet(
+    await tokenStore.saveOAuthTokenSet(
       'google-b',
+      BusyProvider.google,
       const OAuthTokenSetFixture().tokenSet.copyWith(accessToken: 'access-b'),
     );
     await tokenStore.setActiveAccountId('google-b');
@@ -628,25 +634,34 @@ void main() {
 
     await service.clearLocalSession(accountId: 'google-a');
 
-    expect(await tokenStore.readTokenSet('google-a'), isNull);
-    expect(await tokenStore.readTokenSet('google-b'), isNotNull);
+    expect(
+      await tokenStore.readOAuthTokenSet('google-a', BusyProvider.google),
+      isNull,
+    );
+    expect(
+      await tokenStore.readOAuthTokenSet('google-b', BusyProvider.google),
+      isNotNull,
+    );
     expect(await tokenStore.readActiveAccountId(), 'google-b');
   });
 
   test(
     'revokeAndSignOutAccount clears only requested Google account',
     () async {
-      final tokenStore = InMemoryOAuthTokenStore();
-      await tokenStore.saveTokenSet(
+      final tokenStore = InMemorySecretStore();
+      await tokenStore.saveOAuthTokenSet(
         'google-a',
+        BusyProvider.google,
         const OAuthTokenSetFixture().tokenSet,
       );
-      await tokenStore.saveTokenSet(
+      await tokenStore.saveOAuthTokenSet(
         'google-b',
+        BusyProvider.google,
         const OAuthTokenSetFixture().tokenSet.copyWith(accessToken: 'access-b'),
       );
-      await tokenStore.saveTokenSet(
+      await tokenStore.saveOAuthTokenSet(
         'microsoft:m',
+        BusyProvider.microsoft,
         const OAuthTokenSetFixture().tokenSet.copyWith(
           accessToken: 'ms-access',
         ),
@@ -667,9 +682,21 @@ void main() {
 
       expect(captured.url.queryParameters, isEmpty);
       expect(Uri.splitQueryString(captured.body)['token'], 'refresh');
-      expect(await tokenStore.readTokenSet('google-a'), isNull);
-      expect(await tokenStore.readTokenSet('google-b'), isNotNull);
-      expect(await tokenStore.readTokenSet('microsoft:m'), isNotNull);
+      expect(
+        await tokenStore.readOAuthTokenSet('google-a', BusyProvider.google),
+        isNull,
+      );
+      expect(
+        await tokenStore.readOAuthTokenSet('google-b', BusyProvider.google),
+        isNotNull,
+      );
+      expect(
+        await tokenStore.readOAuthTokenSet(
+          'microsoft:m',
+          BusyProvider.microsoft,
+        ),
+        isNotNull,
+      );
       expect(await tokenStore.readActiveAccountId(), 'google-b');
     },
   );
@@ -677,9 +704,10 @@ void main() {
   test(
     'revokeAuthorization reports non-success without clearing credentials',
     () async {
-      final tokenStore = InMemoryOAuthTokenStore();
-      await tokenStore.saveTokenSet(
+      final tokenStore = InMemorySecretStore();
+      await tokenStore.saveOAuthTokenSet(
         'google-a',
+        BusyProvider.google,
         const OAuthTokenSetFixture().tokenSet,
       );
       final service = OAuthService(
@@ -700,22 +728,28 @@ void main() {
         ),
       );
 
-      expect(await tokenStore.readTokenSet('google-a'), isNotNull);
+      expect(
+        await tokenStore.readOAuthTokenSet('google-a', BusyProvider.google),
+        isNotNull,
+      );
     },
   );
 
   test('refresh 400 clears only account being refreshed', () async {
-    final tokenStore = InMemoryOAuthTokenStore();
-    await tokenStore.saveTokenSet(
+    final tokenStore = InMemorySecretStore();
+    await tokenStore.saveOAuthTokenSet(
       'google-a',
+      BusyProvider.google,
       const OAuthTokenSetFixture().tokenSet,
     );
-    await tokenStore.saveTokenSet(
+    await tokenStore.saveOAuthTokenSet(
       'google-b',
+      BusyProvider.google,
       const OAuthTokenSetFixture().tokenSet.copyWith(accessToken: 'access-b'),
     );
-    await tokenStore.saveTokenSet(
+    await tokenStore.saveOAuthTokenSet(
       'microsoft:m',
+      BusyProvider.microsoft,
       const OAuthTokenSetFixture().tokenSet.copyWith(accessToken: 'ms-access'),
     );
     await tokenStore.setActiveAccountId('google-b');
@@ -739,9 +773,18 @@ void main() {
       throwsA(isA<OAuthException>()),
     );
 
-    expect(await tokenStore.readTokenSet('google-a'), isNull);
-    expect(await tokenStore.readTokenSet('google-b'), isNotNull);
-    expect(await tokenStore.readTokenSet('microsoft:m'), isNotNull);
+    expect(
+      await tokenStore.readOAuthTokenSet('google-a', BusyProvider.google),
+      isNull,
+    );
+    expect(
+      await tokenStore.readOAuthTokenSet('google-b', BusyProvider.google),
+      isNotNull,
+    );
+    expect(
+      await tokenStore.readOAuthTokenSet('microsoft:m', BusyProvider.microsoft),
+      isNotNull,
+    );
     expect(await tokenStore.readActiveAccountId(), 'google-b');
   });
 
@@ -757,7 +800,7 @@ void main() {
           400,
         );
       }),
-      tokenStore: InMemoryOAuthTokenStore(),
+      tokenStore: InMemorySecretStore(),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );

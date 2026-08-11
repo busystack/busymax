@@ -141,7 +141,7 @@ abstract class AppLocalizations {
   /// No description provided for @connectGoogleAccount.
   ///
   /// In en, this message translates to:
-  /// **'Connect Google and Microsoft accounts to sync calendars and tasks.'**
+  /// **'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.'**
   String get connectGoogleAccount;
 
   /// No description provided for @googlePermissionsConsentNotice.
@@ -183,7 +183,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingAccountsStepDescription.
   ///
   /// In en, this message translates to:
-  /// **'Add all Google and Microsoft accounts you want to use. BusyMax syncs calendars, events, task lists, and tasks from each account.'**
+  /// **'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.'**
   String get onboardingAccountsStepDescription;
 
   /// No description provided for @onboardingPreferencesStepTitle.
@@ -1215,7 +1215,7 @@ abstract class AppLocalizations {
   /// No description provided for @removeAccountConfirmation.
   ///
   /// In en, this message translates to:
-  /// **'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Nothing will be deleted from Google or Microsoft.'**
+  /// **'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.'**
   String get removeAccountConfirmation;
 
   /// No description provided for @revokeGoogleAccess.
@@ -1248,11 +1248,29 @@ abstract class AppLocalizations {
   /// **'The account was removed from this device, but BusyMax could not revoke Google access. You can revoke it from your Google Account.'**
   String get accountRemovedGoogleRevokeFailed;
 
-  /// No description provided for @newList.
+  /// No description provided for @newTaskList.
   ///
   /// In en, this message translates to:
-  /// **'New list'**
-  String get newList;
+  /// **'New task list'**
+  String get newTaskList;
+
+  /// No description provided for @taskListCreateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create the task list: {error}'**
+  String taskListCreateFailed(String error);
+
+  /// No description provided for @taskListRenameFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not rename the task list: {error}'**
+  String taskListRenameFailed(String error);
+
+  /// No description provided for @taskListDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete the task list: {error}'**
+  String taskListDeleteFailed(String error);
 
   /// No description provided for @signInToViewTaskLists.
   ///
@@ -1296,6 +1314,24 @@ abstract class AppLocalizations {
   /// **'Delete list'**
   String get deleteList;
 
+  /// No description provided for @unshare.
+  ///
+  /// In en, this message translates to:
+  /// **'Unshare'**
+  String get unshare;
+
+  /// No description provided for @readOnlyTaskListCannotRename.
+  ///
+  /// In en, this message translates to:
+  /// **'This task list is read-only and cannot be renamed.'**
+  String get readOnlyTaskListCannotRename;
+
+  /// No description provided for @taskListCannotDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'This task list cannot be deleted with your current permissions.'**
+  String get taskListCannotDelete;
+
   /// No description provided for @builtInMicrosoftList.
   ///
   /// In en, this message translates to:
@@ -1313,6 +1349,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete \"{title}\" from Google Tasks?'**
   String deleteListConfirmation(String title);
+
+  /// No description provided for @deleteTaskListConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete \"{title}\" and all of its tasks?'**
+  String deleteTaskListConfirmation(String title);
+
+  /// No description provided for @unshareTaskListConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Unshare \"{title}\" from this account?'**
+  String unshareTaskListConfirmation(String title);
 
   /// No description provided for @deleteEvent.
   ///
@@ -1536,6 +1584,126 @@ abstract class AppLocalizations {
   /// **'Done'**
   String get doneStatus;
 
+  /// No description provided for @taskStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get taskStatus;
+
+  /// No description provided for @taskStatusNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No status'**
+  String get taskStatusNone;
+
+  /// No description provided for @taskStatusNeedsAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs action'**
+  String get taskStatusNeedsAction;
+
+  /// No description provided for @taskStatusInProcess.
+  ///
+  /// In en, this message translates to:
+  /// **'In process'**
+  String get taskStatusInProcess;
+
+  /// No description provided for @taskStatusCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get taskStatusCompleted;
+
+  /// No description provided for @taskStatusCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get taskStatusCancelled;
+
+  /// No description provided for @completionPercent.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% completed'**
+  String completionPercent(int percent);
+
+  /// No description provided for @completionDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Completion date'**
+  String get completionDate;
+
+  /// No description provided for @priority.
+  ///
+  /// In en, this message translates to:
+  /// **'Priority'**
+  String get priority;
+
+  /// No description provided for @priorityNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No priority'**
+  String get priorityNone;
+
+  /// No description provided for @priorityHighValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Priority {priority} · High'**
+  String priorityHighValue(int priority);
+
+  /// No description provided for @priorityMediumValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Priority {priority} · Medium'**
+  String priorityMediumValue(int priority);
+
+  /// No description provided for @priorityLowValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Priority {priority} · Low'**
+  String priorityLowValue(int priority);
+
+  /// No description provided for @taskUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'URL'**
+  String get taskUrl;
+
+  /// No description provided for @invalidTaskUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an absolute URL, including its scheme.'**
+  String get invalidTaskUrl;
+
+  /// No description provided for @classification.
+  ///
+  /// In en, this message translates to:
+  /// **'Classification'**
+  String get classification;
+
+  /// No description provided for @classificationPublic.
+  ///
+  /// In en, this message translates to:
+  /// **'When shared, show the full task'**
+  String get classificationPublic;
+
+  /// No description provided for @classificationConfidential.
+  ///
+  /// In en, this message translates to:
+  /// **'When shared, show only busy'**
+  String get classificationConfidential;
+
+  /// No description provided for @classificationPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'When shared, hide this task'**
+  String get classificationPrivate;
+
+  /// No description provided for @pinTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Pin task'**
+  String get pinTask;
+
   /// No description provided for @notes.
   ///
   /// In en, this message translates to:
@@ -1608,6 +1776,156 @@ abstract class AppLocalizations {
   /// **'Add Reminder'**
   String get addReminder;
 
+  /// No description provided for @reminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders'**
+  String get reminders;
+
+  /// No description provided for @noReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'No reminders'**
+  String get noReminders;
+
+  /// No description provided for @editReminder.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit reminder'**
+  String get editReminder;
+
+  /// No description provided for @beforeTaskStarts.
+  ///
+  /// In en, this message translates to:
+  /// **'Before the task starts'**
+  String get beforeTaskStarts;
+
+  /// No description provided for @beforeTaskDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Before the task is due'**
+  String get beforeTaskDue;
+
+  /// No description provided for @afterTaskStarts.
+  ///
+  /// In en, this message translates to:
+  /// **'After the task starts'**
+  String get afterTaskStarts;
+
+  /// No description provided for @afterTaskDue.
+  ///
+  /// In en, this message translates to:
+  /// **'After the task is due'**
+  String get afterTaskDue;
+
+  /// No description provided for @relativeToTaskStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Relative to the task start date'**
+  String get relativeToTaskStart;
+
+  /// No description provided for @relativeToTaskDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Relative to the task due date'**
+  String get relativeToTaskDue;
+
+  /// No description provided for @reminderTimeOfDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Time of day'**
+  String get reminderTimeOfDay;
+
+  /// No description provided for @absoluteReminder.
+  ///
+  /// In en, this message translates to:
+  /// **'At a date and time'**
+  String get absoluteReminder;
+
+  /// No description provided for @reminderAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount'**
+  String get reminderAmount;
+
+  /// No description provided for @reminderUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'Unit'**
+  String get reminderUnit;
+
+  /// No description provided for @reminderUnitSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Seconds'**
+  String get reminderUnitSeconds;
+
+  /// No description provided for @reminderUnitMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Minutes'**
+  String get reminderUnitMinutes;
+
+  /// No description provided for @reminderUnitHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Hours'**
+  String get reminderUnitHours;
+
+  /// No description provided for @reminderUnitDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Days'**
+  String get reminderUnitDays;
+
+  /// No description provided for @reminderUnitWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'Weeks'**
+  String get reminderUnitWeeks;
+
+  /// No description provided for @reminderAtTaskStart.
+  ///
+  /// In en, this message translates to:
+  /// **'At the task start'**
+  String get reminderAtTaskStart;
+
+  /// No description provided for @reminderAtTaskDue.
+  ///
+  /// In en, this message translates to:
+  /// **'At the task due time'**
+  String get reminderAtTaskDue;
+
+  /// No description provided for @unsupportedReminder.
+  ///
+  /// In en, this message translates to:
+  /// **'This reminder type is preserved but its time cannot be edited.'**
+  String get unsupportedReminder;
+
+  /// No description provided for @relatedRemindersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep related reminders?'**
+  String get relatedRemindersTitle;
+
+  /// No description provided for @relatedRemindersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This date has {count} related reminders. Keep them at their current date and time?'**
+  String relatedRemindersDescription(int count);
+
+  /// No description provided for @discardRelatedReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard reminders'**
+  String get discardRelatedReminders;
+
+  /// No description provided for @keepRelatedReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep reminders'**
+  String get keepRelatedReminders;
+
   /// No description provided for @addGuest.
   ///
   /// In en, this message translates to:
@@ -1673,6 +1991,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yearly'**
   String get repeatYearly;
+
+  /// No description provided for @repeatEvery.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat every'**
+  String get repeatEvery;
+
+  /// No description provided for @repeatOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat on'**
+  String get repeatOn;
+
+  /// No description provided for @repeatEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End repeat'**
+  String get repeatEnd;
+
+  /// No description provided for @repeatNever.
+  ///
+  /// In en, this message translates to:
+  /// **'Never'**
+  String get repeatNever;
+
+  /// No description provided for @repeatUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'On date'**
+  String get repeatUntil;
+
+  /// No description provided for @repeatAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'After a number of occurrences'**
+  String get repeatAfter;
+
+  /// No description provided for @repeatCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Occurrences'**
+  String get repeatCount;
+
+  /// No description provided for @repeatDayOfMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'Days of month'**
+  String get repeatDayOfMonth;
+
+  /// No description provided for @repeatMonths.
+  ///
+  /// In en, this message translates to:
+  /// **'Months'**
+  String get repeatMonths;
+
+  /// No description provided for @repeatOrdinal.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekday position'**
+  String get repeatOrdinal;
+
+  /// No description provided for @repeatSpecificDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Specific days'**
+  String get repeatSpecificDays;
+
+  /// No description provided for @repeatFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'First'**
+  String get repeatFirst;
+
+  /// No description provided for @repeatSecond.
+  ///
+  /// In en, this message translates to:
+  /// **'Second'**
+  String get repeatSecond;
+
+  /// No description provided for @repeatThird.
+  ///
+  /// In en, this message translates to:
+  /// **'Third'**
+  String get repeatThird;
+
+  /// No description provided for @repeatFourth.
+  ///
+  /// In en, this message translates to:
+  /// **'Fourth'**
+  String get repeatFourth;
+
+  /// No description provided for @repeatFifth.
+  ///
+  /// In en, this message translates to:
+  /// **'Fifth'**
+  String get repeatFifth;
+
+  /// No description provided for @repeatSecondToLast.
+  ///
+  /// In en, this message translates to:
+  /// **'Second to last'**
+  String get repeatSecondToLast;
+
+  /// No description provided for @repeatLast.
+  ///
+  /// In en, this message translates to:
+  /// **'Last'**
+  String get repeatLast;
+
+  /// No description provided for @repeatAnyDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Day'**
+  String get repeatAnyDay;
+
+  /// No description provided for @repeatWeekday.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekday'**
+  String get repeatWeekday;
+
+  /// No description provided for @repeatWeekendDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekend day'**
+  String get repeatWeekendDay;
+
+  /// No description provided for @repeatEveryDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Every {count} days'**
+  String repeatEveryDays(int count);
+
+  /// No description provided for @repeatEveryWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'Every {count} weeks'**
+  String repeatEveryWeeks(int count);
+
+  /// No description provided for @repeatEveryMonths.
+  ///
+  /// In en, this message translates to:
+  /// **'Every {count} months'**
+  String repeatEveryMonths(int count);
+
+  /// No description provided for @repeatEveryYears.
+  ///
+  /// In en, this message translates to:
+  /// **'Every {count} years'**
+  String repeatEveryYears(int count);
+
+  /// No description provided for @repeatOnDaysSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'on {days}'**
+  String repeatOnDaysSummary(String days);
+
+  /// No description provided for @repeatOnMonthDaysSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'on day {days}'**
+  String repeatOnMonthDaysSummary(String days);
+
+  /// No description provided for @repeatOnOrdinalSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'on the {ordinal} {days}'**
+  String repeatOnOrdinalSummary(String ordinal, String days);
+
+  /// No description provided for @repeatInMonthsSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'in {months}'**
+  String repeatInMonthsSummary(String months);
+
+  /// No description provided for @repeatTimesSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} times'**
+  String repeatTimesSummary(int count);
+
+  /// No description provided for @repeatUntilSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'until {date}'**
+  String repeatUntilSummary(String date);
+
+  /// No description provided for @unsupportedRecurrencePreserved.
+  ///
+  /// In en, this message translates to:
+  /// **'This recurrence rule uses options that this editor does not change.'**
+  String get unsupportedRecurrencePreserved;
 
   /// No description provided for @importance.
   ///
@@ -1770,6 +2280,42 @@ abstract class AppLocalizations {
   /// **'Create subtask'**
   String get createSubtask;
 
+  /// No description provided for @subtasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Subtasks'**
+  String get subtasks;
+
+  /// No description provided for @duplicateTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate task'**
+  String get duplicateTask;
+
+  /// No description provided for @taskDuplicated.
+  ///
+  /// In en, this message translates to:
+  /// **'Task duplicated.'**
+  String get taskDuplicated;
+
+  /// No description provided for @taskDuplicateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not duplicate the task: {error}'**
+  String taskDuplicateFailed(String error);
+
+  /// No description provided for @hideSubtasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide subtasks'**
+  String get hideSubtasks;
+
+  /// No description provided for @hideClosedSubtasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide closed subtasks'**
+  String get hideClosedSubtasks;
+
   /// No description provided for @moveToTop.
   ///
   /// In en, this message translates to:
@@ -1791,7 +2337,7 @@ abstract class AppLocalizations {
   /// No description provided for @deleteTaskConfirmation.
   ///
   /// In en, this message translates to:
-  /// **'Delete \"{title}\" from Google Tasks?'**
+  /// **'Delete \"{title}\"?'**
   String deleteTaskConfirmation(String title);
 
   /// No description provided for @metadata.
@@ -2351,6 +2897,390 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No locations found'**
   String get noLocationsFound;
+
+  /// No description provided for @requiredField.
+  ///
+  /// In en, this message translates to:
+  /// **'This field is required.'**
+  String get requiredField;
+
+  /// No description provided for @providerConnectionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect calendars and tasks from one of these providers.'**
+  String get providerConnectionDescription;
+
+  /// No description provided for @appleICloudProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple iCloud Calendar'**
+  String get appleICloudProvider;
+
+  /// No description provided for @nextcloudProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud'**
+  String get nextcloudProvider;
+
+  /// No description provided for @appleICloudTasksProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple iCloud'**
+  String get appleICloudTasksProvider;
+
+  /// No description provided for @nextcloudTasksProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud Tasks'**
+  String get nextcloudTasksProvider;
+
+  /// No description provided for @addAppleICloudAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Apple iCloud Calendar account'**
+  String get addAppleICloudAccount;
+
+  /// No description provided for @addNextcloudAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Nextcloud account'**
+  String get addNextcloudAccount;
+
+  /// No description provided for @waitingForAppleICloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to Apple iCloud…'**
+  String get waitingForAppleICloud;
+
+  /// No description provided for @waitingForNextcloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for Nextcloud authorization…'**
+  String get waitingForNextcloud;
+
+  /// No description provided for @connectAppleICloudTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Apple iCloud Calendar'**
+  String get connectAppleICloudTitle;
+
+  /// No description provided for @appleAccountEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple Account email'**
+  String get appleAccountEmail;
+
+  /// No description provided for @appleAppSpecificPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'App-specific password'**
+  String get appleAppSpecificPassword;
+
+  /// No description provided for @appleAppSpecificPasswordHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Create an app-specific password after enabling two-factor authentication for your Apple Account.'**
+  String get appleAppSpecificPasswordHelp;
+
+  /// No description provided for @appleAppSpecificPasswordResetWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Resetting your Apple Account password revokes app-specific passwords.'**
+  String get appleAppSpecificPasswordResetWarning;
+
+  /// No description provided for @connectNextcloudTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Nextcloud'**
+  String get connectNextcloudTitle;
+
+  /// No description provided for @nextcloudServerUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud server or CalDAV address'**
+  String get nextcloudServerUrl;
+
+  /// No description provided for @nextcloudServerUrlHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.'**
+  String get nextcloudServerUrlHelp;
+
+  /// No description provided for @nextcloudBrowserAuthorizationHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax will open your browser. Approve access there, then return to BusyMax.'**
+  String get nextcloudBrowserAuthorizationHelp;
+
+  /// No description provided for @connectAccountAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get connectAccountAction;
+
+  /// No description provided for @cancelAccountConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel connection'**
+  String get cancelAccountConnection;
+
+  /// No description provided for @nextcloudAccountRemovedRevokeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The account was removed locally, but its Nextcloud app password could not be revoked.'**
+  String get nextcloudAccountRemovedRevokeFailed;
+
+  /// No description provided for @davCachedOfflineNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar and task data is cached locally for offline use.'**
+  String get davCachedOfflineNotice;
+
+  /// No description provided for @davReauthenticationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect this account to resume synchronization.'**
+  String get davReauthenticationRequired;
+
+  /// No description provided for @davTemporarilyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This account is temporarily unavailable.'**
+  String get davTemporarilyUnavailable;
+
+  /// No description provided for @davPermissionChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Server permissions changed. Pending edits are paused.'**
+  String get davPermissionChanged;
+
+  /// No description provided for @davUnsupportedServer.
+  ///
+  /// In en, this message translates to:
+  /// **'This server or provider profile is not supported.'**
+  String get davUnsupportedServer;
+
+  /// No description provided for @collectionSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendars and task lists'**
+  String get collectionSettings;
+
+  /// No description provided for @calendarContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar events'**
+  String get calendarContent;
+
+  /// No description provided for @taskContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks'**
+  String get taskContent;
+
+  /// No description provided for @readOnlySharedCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only'**
+  String get readOnlySharedCollection;
+
+  /// No description provided for @pendingLocally.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending locally'**
+  String get pendingLocally;
+
+  /// No description provided for @conflictBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked by conflict'**
+  String get conflictBlocked;
+
+  /// No description provided for @authenticationBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked until reconnect'**
+  String get authenticationBlocked;
+
+  /// No description provided for @operationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Operation failed'**
+  String get operationFailed;
+
+  /// No description provided for @keepServerVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep server version'**
+  String get keepServerVersion;
+
+  /// No description provided for @reapplyLocalChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Review and reapply local change'**
+  String get reapplyLocalChange;
+
+  /// No description provided for @duplicateLocalItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate as new item'**
+  String get duplicateLocalItem;
+
+  /// No description provided for @davConnectionState.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection state'**
+  String get davConnectionState;
+
+  /// No description provided for @davConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get davConnected;
+
+  /// No description provided for @davConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting…'**
+  String get davConnecting;
+
+  /// No description provided for @davSignedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed out'**
+  String get davSignedOut;
+
+  /// No description provided for @davLastSuccessfulSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Last successful sync: {time}'**
+  String davLastSuccessfulSync(String time);
+
+  /// No description provided for @davNeverSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Not synchronized yet'**
+  String get davNeverSynced;
+
+  /// No description provided for @refreshCollections.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh calendars and task lists'**
+  String get refreshCollections;
+
+  /// No description provided for @nextcloudServerHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Server: {host}'**
+  String nextcloudServerHost(String host);
+
+  /// No description provided for @collectionSupportsEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Event calendar'**
+  String get collectionSupportsEvents;
+
+  /// No description provided for @collectionSupportsTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Task list'**
+  String get collectionSupportsTasks;
+
+  /// No description provided for @collectionSupportsEventsAndTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Events and tasks'**
+  String get collectionSupportsEventsAndTasks;
+
+  /// No description provided for @writableCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Writable'**
+  String get writableCollection;
+
+  /// No description provided for @sharedCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared'**
+  String get sharedCollection;
+
+  /// No description provided for @collectionLastSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Last synchronized: {time}'**
+  String collectionLastSynced(String time);
+
+  /// No description provided for @collectionSyncError.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync issue: {code}'**
+  String collectionSyncError(String code);
+
+  /// No description provided for @syncConflicts.
+  ///
+  /// In en, this message translates to:
+  /// **'Synchronization conflicts'**
+  String get syncConflicts;
+
+  /// No description provided for @remoteChangedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Server changed: {time}'**
+  String remoteChangedAt(String time);
+
+  /// No description provided for @localPendingEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Local edit: {summary}'**
+  String localPendingEdit(String summary);
+
+  /// No description provided for @conflictResolutionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The conflict could not be resolved.'**
+  String get conflictResolutionFailed;
+
+  /// No description provided for @recurringEventScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Recurring event scope'**
+  String get recurringEventScope;
+
+  /// No description provided for @entireSeries.
+  ///
+  /// In en, this message translates to:
+  /// **'Entire series'**
+  String get entireSeries;
+
+  /// No description provided for @singleOccurrence.
+  ///
+  /// In en, this message translates to:
+  /// **'This occurrence'**
+  String get singleOccurrence;
+
+  /// No description provided for @thisAndFutureUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This and future (not available)'**
+  String get thisAndFutureUnavailable;
+
+  /// No description provided for @chooseRecurringEventScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose whether this change applies to the entire series or only this occurrence.'**
+  String get chooseRecurringEventScope;
+
+  /// No description provided for @taskDueBeforeStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Due must not be before start.'**
+  String get taskDueBeforeStart;
+
+  /// No description provided for @taskStartDueTimeModeMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Set times for both start and due, or make the task all day.'**
+  String get taskStartDueTimeModeMismatch;
 
   /// No description provided for @deleteCalendarConfirmation.
   ///

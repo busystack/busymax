@@ -6,8 +6,9 @@ import 'package:logging/logging.dart';
 import '../../config/build_config.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../google_tasks/oauth/oauth_loopback_flow.dart';
-import '../../google_tasks/oauth/oauth_models.dart';
-import '../../google_tasks/oauth/oauth_token_store.dart';
+import '../../providers/busy_provider.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../api/microsoft_todo_api_client.dart';
 import '../api/microsoft_todo_api_models.dart';
 
@@ -26,7 +27,7 @@ class MicrosoftOAuthService {
   MicrosoftOAuthService({
     required BuildConfig config,
     required http.Client httpClient,
-    required OAuthTokenStore tokenStore,
+    required SecretStore tokenStore,
     required OAuthLoopbackFlow loopbackFlow,
     DateTime Function()? nowUtc,
   }) : _config = config,
@@ -37,7 +38,7 @@ class MicrosoftOAuthService {
 
   final BuildConfig _config;
   final http.Client _httpClient;
-  final OAuthTokenStore _tokenStore;
+  final SecretStore _tokenStore;
   final OAuthLoopbackFlow _loopbackFlow;
   final DateTime Function() _nowUtc;
   final RedactingLogger _logger = RedactingLogger(
@@ -84,7 +85,11 @@ class MicrosoftOAuthService {
     }
 
     final accountId = 'microsoft:${user.id}';
-    await _tokenStore.saveTokenSet(accountId, tokenSet);
+    await _tokenStore.saveOAuthTokenSet(
+      accountId,
+      BusyProvider.microsoft,
+      tokenSet,
+    );
     await _tokenStore.setActiveAccountId(accountId);
     return MicrosoftOAuthSignInResult(
       accountId: accountId,
@@ -96,11 +101,11 @@ class MicrosoftOAuthService {
   Future<void> cancelSignIn() => _loopbackFlow.cancel();
 
   Future<OAuthTokenSet?> readTokenSet(String accountId) {
-    return _tokenStore.readTokenSet(accountId);
+    return _readTokenSet(accountId);
   }
 
   Future<OAuthTokenSet> validTokenForAccount(String accountId) async {
-    final tokenSet = await _tokenStore.readTokenSet(accountId);
+    final tokenSet = await _readTokenSet(accountId);
     if (tokenSet == null) {
       throw const OAuthException(
         'MicrosoftOAuthMissingToken',
@@ -169,7 +174,7 @@ class MicrosoftOAuthService {
   }
 
   Future<OAuthTokenSet> refreshTokenForAccount(String accountId) async {
-    final current = await _tokenStore.readTokenSet(accountId);
+    final current = await _readTokenSet(accountId);
     if (current == null || !current.canRefresh) {
       throw const OAuthException(
         'MicrosoftOAuthRefreshFailed',
@@ -178,7 +183,11 @@ class MicrosoftOAuthService {
     }
 
     final refreshed = await refreshToken(current);
-    await _tokenStore.saveTokenSet(accountId, refreshed);
+    await _tokenStore.saveOAuthTokenSet(
+      accountId,
+      BusyProvider.microsoft,
+      refreshed,
+    );
     return refreshed;
   }
 
@@ -226,10 +235,18 @@ class MicrosoftOAuthService {
   }
 
   Future<void> signOutAccount(String accountId) async {
-    await _tokenStore.clearTokenSet(accountId);
+    await _tokenStore.deleteCredential(accountId);
     if (await _tokenStore.readActiveAccountId() == accountId) {
       await _tokenStore.clearActiveAccount();
     }
+  }
+
+  Future<OAuthTokenSet?> _readTokenSet(String accountId) async {
+    await _tokenStore.migrateLegacyOAuthCredential(
+      accountId,
+      BusyProvider.microsoft,
+    );
+    return _tokenStore.readOAuthTokenSet(accountId, BusyProvider.microsoft);
   }
 
   Future<MicrosoftTodoUserDto> _getMe(OAuthTokenSet tokenSet) {

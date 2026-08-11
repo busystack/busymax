@@ -14,10 +14,11 @@ import 'package:busymax/src/features/schedule/presentation/schedule_item_exporte
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
+import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -1567,7 +1568,7 @@ void main() {
     final event = CalendarScheduleItem(
       id: 'event:read-only',
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       sourceId: 'calendar:shared',
       providerCalendarId: 'shared',
       title: 'Shared calendar event',
@@ -1613,7 +1614,7 @@ void main() {
     final event = CalendarScheduleItem(
       id: 'event:long',
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       sourceId: 'calendar:primary',
       providerCalendarId: 'primary',
       title: 'A detailed event with a deliberately long title for sizing',
@@ -1717,7 +1718,7 @@ void main() {
     final task = TaskScheduleItem(
       id: 'task:1',
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       sourceId: 'tasks:inbox',
       title: 'Submit report',
       completed: false,
@@ -1760,7 +1761,7 @@ void main() {
     final event = CalendarScheduleItem(
       id: 'event:1',
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       sourceId: 'calendar:primary',
       providerCalendarId: 'cal-1',
       title: 'Design review',
@@ -1806,7 +1807,7 @@ void main() {
     final event = CalendarScheduleItem(
       id: 'event:localized-reminders',
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       sourceId: 'calendar:primary',
       providerCalendarId: 'primary',
       title: 'Termin',
@@ -1850,7 +1851,7 @@ void main() {
     final task = TaskScheduleItem(
       id: 'task:1',
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       sourceId: 'tasks:inbox',
       title: 'Submit report',
       completed: false,
@@ -2048,7 +2049,7 @@ void main() {
     final event = CalendarScheduleItem(
       id: 'event:1',
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       sourceId: 'calendar:primary',
       providerCalendarId: 'primary',
       title: 'Review, plan',
@@ -2061,7 +2062,7 @@ void main() {
     final task = TaskScheduleItem(
       id: 'task:1',
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       sourceId: 'tasks:inbox',
       title: 'Submit report',
       completed: true,
@@ -2118,7 +2119,7 @@ void main() {
                 CalendarScheduleItem(
                   id: 'event:past',
                   accountId: 'google:g',
-                  provider: TaskProvider.google,
+                  provider: BusyProvider.google,
                   sourceId: 'calendar:primary',
                   providerCalendarId: 'primary',
                   title: 'Yesterday event',
@@ -2140,7 +2141,7 @@ void main() {
                 TaskScheduleItem(
                   id: 'task:overdue',
                   accountId: 'microsoft:m',
-                  provider: TaskProvider.microsoft,
+                  provider: BusyProvider.microsoft,
                   sourceId: 'tasks:inbox',
                   title: 'Pay invoice',
                   completed: false,
@@ -2151,7 +2152,7 @@ void main() {
                 TaskScheduleItem(
                   id: 'task:completed-overdue',
                   accountId: 'microsoft:m',
-                  provider: TaskProvider.microsoft,
+                  provider: BusyProvider.microsoft,
                   sourceId: 'tasks:inbox',
                   title: 'Completed old task',
                   completed: true,
@@ -2163,7 +2164,7 @@ void main() {
                 const TaskScheduleItem(
                   id: 'task:no-date',
                   accountId: 'google:g',
-                  provider: TaskProvider.google,
+                  provider: BusyProvider.google,
                   sourceId: 'tasks:inbox',
                   title: 'Plan someday',
                   completed: false,
@@ -2195,6 +2196,306 @@ void main() {
     expect(
       tester.getTopLeft(find.text('No date')).dy,
       lessThan(tester.getTopLeft(find.text('Design review')).dy),
+    );
+  });
+
+  testWidgets('agenda nests task children and Microsoft checklist steps', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    bool? checklistCompleted;
+    String? selectedTaskId;
+    const googleParent = TaskScheduleItem(
+      id: 'parent',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'google-list',
+      title: 'Parent task',
+      completed: false,
+      allDay: true,
+      hasSubtasks: true,
+      sourceName: 'Inbox',
+    );
+    const googleChild = TaskScheduleItem(
+      id: 'child',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'google-list',
+      title: 'Child task',
+      completed: false,
+      allDay: true,
+      parentId: 'parent',
+      parentTitle: 'Parent task',
+      hierarchyDepth: 1,
+      hasSubtasks: true,
+      sourceName: 'Inbox',
+    );
+    const googleGrandchild = TaskScheduleItem(
+      id: 'grandchild',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'google-list',
+      title: 'Grandchild task',
+      completed: false,
+      allDay: true,
+      parentId: 'child',
+      parentTitle: 'Child task',
+      hierarchyDepth: 2,
+      sourceName: 'Inbox',
+    );
+    const checklistItem = TaskChecklistItemEntity(
+      id: 'step-1',
+      title: 'Checklist step',
+      completed: false,
+      rawJson: {
+        'id': 'step-1',
+        'displayName': 'Checklist step',
+        'isChecked': false,
+      },
+    );
+    const microsoftParent = TaskScheduleItem(
+      id: 'ms-parent',
+      accountId: 'microsoft:m',
+      provider: BusyProvider.microsoft,
+      sourceId: 'microsoft-list',
+      title: 'Microsoft parent',
+      completed: false,
+      allDay: true,
+      hasSubtasks: true,
+      checklistItems: [checklistItem],
+      sourceName: 'Tasks',
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 700,
+            child: ScheduleAgendaView(
+              range: ScheduleRange.week(selectedDate),
+              items: const [
+                googleGrandchild,
+                googleChild,
+                microsoftParent,
+                googleParent,
+              ],
+              onItemSelected: (_, item, [_]) {
+                if (item is TaskScheduleItem) selectedTaskId = item.id;
+              },
+              onTaskCompletionChanged: (_, _) {},
+              onChecklistItemCompletionChanged: (_, _, completed) {
+                checklistCompleted = completed;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final googleGroup = find.byKey(
+      const ValueKey('agenda-task-group-google:g-google-list-parent'),
+    );
+    final googleChildRow = find.byKey(
+      const ValueKey('agenda-subtask-google:g-google-list-child'),
+    );
+    final googleGrandchildRow = find.byKey(
+      const ValueKey('agenda-subtask-google:g-google-list-grandchild'),
+    );
+    final microsoftGroup = find.byKey(
+      const ValueKey('agenda-task-group-microsoft:m-microsoft-list-ms-parent'),
+    );
+    final checklistRow = find.byKey(
+      const ValueKey('agenda-checklist-ms-parent-step-1'),
+    );
+
+    expect(googleGroup, findsOneWidget);
+    expect(
+      find.descendant(of: googleGroup, matching: googleChildRow),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: googleGroup, matching: googleGrandchildRow),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: microsoftGroup, matching: checklistRow),
+      findsOneWidget,
+    );
+    expect(
+      tester.getTopLeft(find.text('Parent task')).dy,
+      lessThan(tester.getTopLeft(find.text('Child task')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Child task')).dx,
+      greaterThan(tester.getTopLeft(find.text('Parent task')).dx),
+    );
+    expect(
+      tester.getTopLeft(find.text('Grandchild task')).dx,
+      greaterThan(tester.getTopLeft(find.text('Child task')).dx),
+    );
+    expect(find.textContaining('Parent: Parent task'), findsNothing);
+    expect(find.text('Checklist step'), findsOneWidget);
+
+    await tester.tap(find.text('Child task'));
+    await tester.pump();
+    expect(selectedTaskId, 'child');
+
+    await tester.tap(
+      find.descendant(of: checklistRow, matching: find.byType(YaruCheckbox)),
+    );
+    await tester.pump();
+    expect(checklistCompleted, isTrue);
+  });
+
+  testWidgets('agenda groups detached siblings under one parent context', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    const firstChild = TaskScheduleItem(
+      id: 'child-1',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'google-list',
+      title: 'First child',
+      completed: false,
+      allDay: true,
+      parentId: 'parent',
+      parentTitle: 'Parent outside this section',
+      hierarchyDepth: 1,
+      sourceName: 'Inbox',
+    );
+    const secondChild = TaskScheduleItem(
+      id: 'child-2',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'google-list',
+      title: 'Second child',
+      completed: false,
+      allDay: true,
+      parentId: 'parent',
+      parentTitle: 'Parent outside this section',
+      hierarchyDepth: 1,
+      sourceName: 'Inbox',
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 700,
+            child: ScheduleAgendaView(
+              range: ScheduleRange.week(selectedDate),
+              items: const [firstChild, secondChild],
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final detachedGroup = find.byKey(
+      const ValueKey('agenda-detached-task-group-google:g-google-list-parent'),
+    );
+    expect(detachedGroup, findsOneWidget);
+    expect(
+      find.descendant(of: detachedGroup, matching: find.text('First child')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: detachedGroup, matching: find.text('Second child')),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Parent: Parent outside this section'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('agenda keeps an undated Google child under its overdue parent', (
+    tester,
+  ) async {
+    final selectedDate = DateTime(2026, 1, 15);
+    final parent = TaskScheduleItem(
+      id: 'dated-parent',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'google-list',
+      title: 'Dated parent',
+      completed: false,
+      allDay: true,
+      start: selectedDate.subtract(const Duration(days: 1)),
+      hasSubtasks: true,
+      sourceName: 'Projects',
+    );
+    const child = TaskScheduleItem(
+      id: 'undated-child',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'google-list',
+      title: 'Undated child',
+      completed: false,
+      allDay: true,
+      parentId: 'dated-parent',
+      parentTitle: 'Dated parent',
+      hierarchyDepth: 1,
+      sourceName: 'Projects',
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 700,
+            child: ScheduleAgendaView(
+              range: ScheduleRange(
+                start: selectedDate,
+                end: selectedDate.add(const Duration(days: 7)),
+              ),
+              items: [child, parent],
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final parentGroup = find.byKey(
+      const ValueKey('agenda-task-group-google:g-google-list-dated-parent'),
+    );
+    final childRow = find.byKey(
+      const ValueKey('agenda-subtask-google:g-google-list-undated-child'),
+    );
+    expect(parentGroup, findsOneWidget);
+    expect(
+      find.descendant(of: parentGroup, matching: childRow),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const ValueKey('agenda-task-group-google:g-google-list-undated-child'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byKey(
+        const ValueKey(
+          'agenda-detached-task-group-google:g-google-list-dated-parent',
+        ),
+      ),
+      findsNothing,
+    );
+    expect(find.text('No date'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Dated parent')).dy,
+      lessThan(tester.getTopLeft(find.text('Undated child')).dy),
     );
   });
 
@@ -2278,7 +2579,7 @@ void main() {
                   TaskScheduleItem(
                     id: 'task:$index',
                     accountId: 'google:g',
-                    provider: TaskProvider.google,
+                    provider: BusyProvider.google,
                     sourceId: 'tasks:inbox',
                     title: 'Task $index',
                     completed: false,
@@ -2324,7 +2625,7 @@ void main() {
                 TaskScheduleItem(
                   id: 'task:overdue',
                   accountId: 'google:g',
-                  provider: TaskProvider.google,
+                  provider: BusyProvider.google,
                   sourceId: 'tasks:inbox',
                   title: 'Pay invoice',
                   completed: false,
@@ -2335,7 +2636,7 @@ void main() {
                 const TaskScheduleItem(
                   id: 'task:no-date',
                   accountId: 'google:g',
-                  provider: TaskProvider.google,
+                  provider: BusyProvider.google,
                   sourceId: 'tasks:inbox',
                   title: 'Plan someday',
                   completed: false,
@@ -2484,7 +2785,10 @@ void main() {
 
     expect(source, contains('calendarRepositoryProvider).updateLocalEvent'));
     expect(source, contains('_requestCalendarMutationSync(draft.accountId)'));
-    expect(source, contains('.deleteLocalEvent(eventId)'));
+    expect(
+      source,
+      contains('.deleteLocalEvent(eventId, recurringScope: recurringScope)'),
+    );
     expect(source, contains('_requestCalendarMutationSync(accountId)'));
     expect(source, contains('accountSyncOperationsProvider'));
     expect(source, isNot(contains('signedInSyncRunnerProvider)(accountId')));
@@ -2499,7 +2803,8 @@ void main() {
     expect(source, contains('ScheduleItemDetailsAction.export'));
     expect(source, contains('ScheduleItemDetailsAction.edit'));
     expect(source, contains('ScheduleItemDetailsAction.delete'));
-    expect(source, contains('exportScheduleItemWithSaveDialog(item)'));
+    expect(source, contains('exportScheduleItemWithSaveDialog('));
+    expect(source, contains('rawICalendar: rawICalendar'));
     expect(source, isNot(contains('exportScheduleItemToDownloads(item)')));
     expect(source, contains('void _editItem('));
     expect(source, contains('Future<void> _deleteItem('));
@@ -3685,6 +3990,7 @@ void main() {
     expect(source, contains('final noDateTasks = repository.listNoDateTasks'));
     expect(source, contains('limit: _agendaNoDateTaskLimit'));
     expect(source, contains('showCompletedTasks: false'));
+    expect(source, contains('repository.includeTaskAncestors'));
     expect(source, contains('hasMoreOverdueTasks: overduePage.hasMore'));
     expect(source, contains('hasMoreNoDateTasks: noDatePage.hasMore'));
     expect(source, contains('List<ScheduleItem> _agendaItems'));
@@ -3697,12 +4003,14 @@ void main() {
     expect(source, contains('return !item.completed;'));
   });
 
-  test('agenda task markers use task list icons, not checkbox icons', () {
+  test('agenda task markers distinguish hierarchy without checkbox icons', () {
     final agenda = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
     ).readAsStringSync();
 
-    expect(agenda, contains('isTask ? YaruIcons.task_list'));
+    expect(agenda, contains('YaruIcons.task_list'));
+    expect(agenda, contains('BusyMaxGlyphs.subdirectoryFor'));
+    expect(agenda, contains('Icons.account_tree_outlined'));
     expect(agenda, contains('YaruCheckbox('));
     expect(agenda, isNot(contains('selectedColor:')));
     expect(agenda, isNot(contains('checkmarkColor:')));
@@ -3868,7 +4176,7 @@ List<ScheduleItem> _itemsFor(DateTime day) {
     CalendarScheduleItem(
       id: 'event:1',
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       sourceId: 'calendar:primary',
       providerCalendarId: 'primary',
       title: 'Design review',
@@ -3881,7 +4189,7 @@ List<ScheduleItem> _itemsFor(DateTime day) {
     TaskScheduleItem(
       id: 'task:1',
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       sourceId: 'tasks:inbox',
       title: 'Submit report',
       completed: false,
@@ -3900,7 +4208,7 @@ List<ScheduleItem> _sameSlotItemsFor(DateTime day) {
     CalendarScheduleItem(
       id: 'event:1',
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       sourceId: 'calendar:primary',
       providerCalendarId: 'primary',
       title: 'Design review',
@@ -3913,7 +4221,7 @@ List<ScheduleItem> _sameSlotItemsFor(DateTime day) {
     CalendarScheduleItem(
       id: 'event:2',
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       sourceId: 'calendar:primary',
       providerCalendarId: 'primary',
       title: 'Pairing session',
@@ -3926,7 +4234,7 @@ List<ScheduleItem> _sameSlotItemsFor(DateTime day) {
     TaskScheduleItem(
       id: 'task:1',
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       sourceId: 'tasks:inbox',
       title: 'Submit report',
       completed: false,
@@ -3938,7 +4246,7 @@ List<ScheduleItem> _sameSlotItemsFor(DateTime day) {
     TaskScheduleItem(
       id: 'task:2',
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       sourceId: 'tasks:inbox',
       title: 'Review notes',
       completed: false,
@@ -3958,7 +4266,7 @@ List<ScheduleItem> _manyAllDayItemsFor(DateTime day) {
       TaskScheduleItem(
         id: 'all-day-task:$index',
         accountId: index.isEven ? 'google:g' : 'microsoft:m',
-        provider: index.isEven ? TaskProvider.google : TaskProvider.microsoft,
+        provider: index.isEven ? BusyProvider.google : BusyProvider.microsoft,
         sourceId: 'tasks:inbox',
         title: 'All-day task ${index + 1}',
         completed: false,

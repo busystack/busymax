@@ -11,7 +11,14 @@ import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/config/build_config.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
+import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/storage/dav_settings_repository.dart';
+import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
@@ -20,8 +27,12 @@ import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/providers/provider_capabilities.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:drift/native.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
 import '../../../test_localized_app.dart';
@@ -110,6 +121,84 @@ void main() {
     ]);
     expect(container.read(selectedAccountIdProvider), 'microsoft:m');
   });
+
+  testWidgets(
+    'Settings reports failed Nextcloud revocation after complete local removal',
+    (tester) async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final secrets = InMemorySecretStore();
+      await AccountsRepository(database: database).upsertSignedInAccount(
+        id: _nextcloudAccount.id,
+        provider: BusyProvider.nextcloud,
+        authority: _nextcloudAccount.authority,
+        providerAccountId: _nextcloudAccount.providerAccountId,
+        credentialKind: CredentialKind.nextcloudAppPassword,
+        displayName: _nextcloudAccount.displayName,
+        grantedScopes: '',
+      );
+      await secrets.saveCredential(
+        _nextcloudAccount.id,
+        NextcloudSecretRecord(
+          canonicalServer: Uri.parse(_nextcloudAccount.authority),
+          loginName: _nextcloudAccount.providerAccountId,
+          appPassword: 'test-app-password',
+        ),
+      );
+      await secrets.setActiveAccountId(_nextcloudAccount.id);
+      final onboarding = DavAccountOnboardingService(
+        database: database,
+        secretStore: secrets,
+        nextcloudLoginFlow: _unusedNextcloudLoginFlow(),
+        discover:
+            ({
+              required accountId,
+              required provider,
+              required accountAuthority,
+              required credential,
+              cancellationToken,
+            }) async => throw StateError('Discovery is not used by removal.'),
+        nextcloudCredentialRevoker:
+            ({required accountId, required credential}) async {
+              throw const DavException(
+                kind: DavErrorKind.network,
+                code: 'RevocationOffline',
+                safeMessage: 'Offline.',
+              );
+            },
+      );
+      final auth = _FakeAuthRepository();
+      final container = _container(
+        selectedAccountId: _nextcloudAccount.id,
+        authRepository: auth,
+        accounts: const [_googleAccount, _nextcloudAccount],
+        davOnboardingService: onboarding,
+      );
+      addTearDown(container.dispose);
+
+      await _pumpSettings(tester, container);
+      await _openAccountRemovalDialog(tester);
+      expect(
+        find.byKey(const Key('revoke-google-authorization')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const Key('confirm-account-removal')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'The account was removed locally, but its Nextcloud app password '
+          'could not be revoked.',
+        ),
+        findsOneWidget,
+      );
+      expect(auth.removalCalls, isEmpty);
+      expect(container.read(selectedAccountIdProvider), _googleAccount.id);
+      expect(await database.select(database.accounts).get(), isEmpty);
+      expect(await secrets.readCredential(_nextcloudAccount.id), isNull);
+      expect(await secrets.readActiveAccountId(), isNull);
+    },
+  );
 
   testWidgets('Settings cancels account removal without mutation', (
     tester,
@@ -257,8 +346,11 @@ void main() {
     await _pumpSettings(tester, container);
 
     expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
-    expect(find.text(accountReconnectRequiredSyncMessage), findsOneWidget);
-    expect(find.text('New list'), findsNothing);
+    expect(
+      find.text('Reconnect this account to resume synchronization.'),
+      findsOneWidget,
+    );
+    expect(find.text('New task list'), findsNothing);
     expect(find.text('Remove account…'), findsOneWidget);
 
     await _openAccountRemovalDialog(tester);
@@ -278,6 +370,109 @@ void main() {
 
     expect(find.text('Add Google account'), findsOneWidget);
     expect(find.text('Add Microsoft account'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Settings presents DAV calendars and task lists as named controls',
+    (tester) async {
+      final container = _container(
+        selectedAccountId: _nextcloudAccount.id,
+        authRepository: _FakeAuthRepository(),
+        accounts: const [_nextcloudAccount],
+        davCollections: [
+          _davCollection(
+            id: 'personal-calendar',
+            name: 'Personal',
+            supportsEvents: true,
+            color: '#3366cc',
+          ),
+          _davCollection(
+            id: 'task-list',
+            name: 'NCC Task List',
+            supportsTasks: true,
+            tasksSelected: false,
+            readOnly: true,
+            lastSyncAtUtc: DateTime.utc(2026, 8, 10),
+            syncErrorCode: 'CalDavUnavailable',
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await _pumpSettings(
+        tester,
+        container,
+        logicalSize: const Size(1000, 900),
+      );
+
+      expect(find.text('Calendars and task lists'), findsOneWidget);
+      expect(find.text('Collections'), findsNothing);
+      expect(find.text('Refresh calendars and task lists'), findsOneWidget);
+
+      final calendar = find.byKey(
+        const ValueKey('dav-collection-personal-calendar'),
+      );
+      final taskList = find.byKey(const ValueKey('dav-collection-task-list'));
+      expect(
+        find.descendant(
+          of: calendar,
+          matching: find.byType(YaruSwitchListTile),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: taskList,
+          matching: find.byType(YaruSwitchListTile),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Personal'), findsOneWidget);
+      expect(find.text('NCC Task List'), findsOneWidget);
+      expect(
+        find.text('Task list · Read-only · Sync issue: CalDavUnavailable'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Last synchronized:'), findsNothing);
+    },
+  );
+
+  testWidgets('Settings nests controls for combined DAV content', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: _nextcloudAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_nextcloudAccount],
+      davCollections: [
+        _davCollection(
+          id: 'combined',
+          name: 'Team schedule',
+          supportsEvents: true,
+          supportsTasks: true,
+          shared: true,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+
+    final combined = find.byKey(const ValueKey('dav-collection-combined'));
+    expect(find.text('Team schedule'), findsOneWidget);
+    expect(find.text('Events and tasks · Shared'), findsOneWidget);
+    expect(
+      find.descendant(of: combined, matching: find.byType(YaruSwitchListTile)),
+      findsNWidgets(2),
+    );
+    expect(
+      find.descendant(of: combined, matching: find.text('Calendar events')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: combined, matching: find.text('Tasks')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Settings sidebar separates settings pages', (tester) async {
@@ -549,7 +744,7 @@ void main() {
     expect(second.state.scheduleDayEndMinute, 24 * 60);
   });
 
-  testWidgets('Settings creates a new list for the account card', (
+  testWidgets('Settings creates a new task list for the account card', (
     tester,
   ) async {
     final googleLists = _FakeTaskListsRepository();
@@ -568,11 +763,11 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    final newListButtons = find.text('New list');
-    expect(newListButtons, findsNWidgets(2));
+    final newTaskListButtons = find.text('New task list');
+    expect(newTaskListButtons, findsNWidgets(2));
 
-    await tester.ensureVisible(newListButtons.at(1));
-    await tester.tap(newListButtons.at(1));
+    await tester.ensureVisible(newTaskListButtons.at(1));
+    await tester.tap(newTaskListButtons.at(1));
     await tester.pumpAndSettle();
 
     final promptField = find.descendant(
@@ -602,10 +797,12 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    expect(find.text('Google Tasks'), findsOneWidget);
+    expect(find.text('Google'), findsOneWidget);
     expect(find.text('Google User · google@example.com'), findsOneWidget);
-    expect(find.text('Microsoft To Do'), findsOneWidget);
+    expect(find.text('Microsoft'), findsOneWidget);
     expect(find.text('Microsoft User · microsoft@example.com'), findsOneWidget);
+    expect(find.text('Google Tasks'), findsNothing);
+    expect(find.text('Microsoft To Do'), findsNothing);
     expect(find.text('Current account'), findsNothing);
     expect(find.text('Switch account'), findsNothing);
     expect(find.text('Fluent UI'), findsNothing);
@@ -695,7 +892,10 @@ Finder _settingsMenuItemWithLabel(String label) {
 }
 
 Future<void> _openAccountRemovalDialog(WidgetTester tester) async {
-  await tester.tap(find.text('Remove account…').first);
+  final removeAction = find.text('Remove account…').first;
+  await tester.ensureVisible(removeAction);
+  await tester.pumpAndSettle();
+  await tester.tap(removeAction);
   await tester.pumpAndSettle();
   expect(find.textContaining('from BusyMax?'), findsOneWidget);
 }
@@ -708,10 +908,16 @@ ProviderContainer _container({
   Map<String, _FakeTaskListsRepository>? taskListRepositories,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
   bool useFlutterHeader = false,
+  DavAccountOnboardingService? davOnboardingService,
+  List<DavCollectionSettingsEntity> davCollections = const [],
 }) {
   return ProviderContainer(
     overrides: [
       authRepositoryProvider.overrideWithValue(authRepository),
+      if (davOnboardingService != null)
+        davAccountOnboardingServiceProvider.overrideWithValue(
+          davOnboardingService,
+        ),
       accountsRepositoryProvider.overrideWithValue(
         _FakeAccountsRepository(accounts),
       ),
@@ -719,6 +925,10 @@ ProviderContainer _container({
       accountManagementStreamProvider.overrideWith(
         (ref) => Stream.value(accounts),
       ),
+      davCollectionsStreamProvider.overrideWith(
+        (ref) => Stream.value(davCollections),
+      ),
+      davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),
       if (activeAccountIdOverride != _useDefaultActiveAccountId)
         activeAccountProvider.overrideWithValue(activeAccountIdOverride),
@@ -739,6 +949,11 @@ ProviderContainer _container({
 }
 
 const _useDefaultActiveAccountId = '__busymax_default_active_account__';
+
+NextcloudLoginFlowV2 _unusedNextcloudLoginFlow() => NextcloudLoginFlowV2(
+  client: MockClient((_) async => http.Response('', 500)),
+  browserLauncher: (_) async => false,
+);
 
 Future<void> _pumpSettings(
   WidgetTester tester,
@@ -861,6 +1076,9 @@ class _FakeAccountsRepository implements AccountsRepository {
   final List<AccountEntity> accounts;
 
   @override
+  Future<List<AccountEntity>> listVisibleAccounts() async => accounts;
+
+  @override
   Future<List<AccountEntity>> listSignedInAccounts() async => accounts;
 
   @override
@@ -893,7 +1111,9 @@ class _MemorySettingsStore implements LocalSettingsStore {
 
 const _googleAccount = AccountEntity(
   id: 'google:g',
-  provider: TaskProvider.google,
+  provider: BusyProvider.google,
+  authority: 'https://accounts.google.com',
+  providerAccountId: 'g',
   displayName: 'Google User',
   email: 'google@example.com',
   authState: 'signed_in',
@@ -901,15 +1121,68 @@ const _googleAccount = AccountEntity(
 
 const _microsoftAccount = AccountEntity(
   id: 'microsoft:m',
-  provider: TaskProvider.microsoft,
+  provider: BusyProvider.microsoft,
+  authority: 'https://login.microsoftonline.com/common',
+  providerAccountId: 'm',
   displayName: 'Microsoft User',
   email: 'microsoft@example.com',
   authState: 'signed_in',
 );
 
+const _nextcloudAccount = AccountEntity(
+  id: 'nextcloud:n',
+  provider: BusyProvider.nextcloud,
+  authority: 'https://cloud.example.test',
+  providerAccountId: 'alex',
+  credentialKind: CredentialKind.nextcloudAppPassword,
+  displayName: 'Nextcloud User',
+  authState: accountAuthStateSignedIn,
+);
+
+DavCollectionSettingsEntity _davCollection({
+  required String id,
+  required String name,
+  bool supportsEvents = false,
+  bool supportsTasks = false,
+  bool eventsSelected = true,
+  bool tasksSelected = true,
+  bool readOnly = false,
+  bool shared = false,
+  DateTime? lastSyncAtUtc,
+  String? syncErrorCode,
+  String? color,
+}) {
+  return DavCollectionSettingsEntity(
+    id: id,
+    accountId: _nextcloudAccount.id,
+    provider: BusyProvider.nextcloud,
+    accountLabel: _nextcloudAccount.displayName!,
+    accountAuthority: _nextcloudAccount.authority,
+    connectionState: AccountConnectionState.connected,
+    name: name,
+    color: color,
+    readOnly: readOnly,
+    shared: shared,
+    supportsEvents: supportsEvents,
+    supportsTasks: supportsTasks,
+    eventsSelected: eventsSelected,
+    tasksSelected: tasksSelected,
+    lastSyncAtUtc: lastSyncAtUtc,
+    syncErrorCode: syncErrorCode,
+    capabilities: CollectionCapabilities(
+      canRead: true,
+      canWriteContent: !readOnly,
+      supportsEvents: supportsEvents,
+      supportsTasks: supportsTasks,
+    ),
+  );
+}
+
 const _reconnectRequiredGoogleAccount = AccountEntity(
   id: 'google:g',
-  provider: TaskProvider.google,
+  provider: BusyProvider.google,
+  authority: 'https://accounts.google.com',
+  providerAccountId: 'g',
   displayName: 'Google User',
   email: 'google@example.com',
   authState: accountAuthStateReauthRequired,

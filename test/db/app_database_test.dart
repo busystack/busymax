@@ -7,7 +7,8 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
-import 'package:busymax/src/google_tasks/api/google_tasks_api_models.dart';
+import 'package:busymax/src/db/migrations.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 
 void main() {
   late AppDatabase database;
@@ -20,7 +21,7 @@ void main() {
     await database.close();
   });
 
-  test('opens schema version 5 and creates required indexes', () async {
+  test('opens schema version 8 and creates required indexes', () async {
     final version = await database
         .customSelect('PRAGMA user_version')
         .getSingle();
@@ -31,22 +32,41 @@ void main() {
         )
         .get();
 
-    expect(version.data['user_version'], 5);
+    final taskColumns = await database
+        .customSelect('PRAGMA table_info(tasks)')
+        .get();
+
+    expect(version.data['user_version'], 8);
+    expect(
+      taskColumns.map((row) => row.read<String>('name')),
+      contains('microsoft_checklist_items_json'),
+    );
     expect(indexes.map((row) => row.data['name']).toSet(), {
       'idx_accounts_provider',
-      'idx_accounts_provider_account',
+      'idx_accounts_remote_identity',
+      'idx_dav_collections_href',
+      'idx_dav_collections_sync',
+      'idx_dav_objects_href',
+      'idx_dav_objects_projection',
+      'idx_dav_components_logical_key',
+      'idx_dav_components_uid',
       'idx_task_lists_account_title',
       'idx_task_lists_dirty',
+      'idx_task_lists_dav_collection',
       'idx_tasks_dirty',
       'idx_tasks_list_order',
       'idx_tasks_status_due',
       'idx_tasks_updated',
+      'idx_tasks_dav_component',
       'idx_calendar_events_dirty',
       'idx_calendar_events_provider_id',
       'idx_calendar_events_range',
+      'idx_calendar_events_dav_occurrence',
       'idx_calendar_sources_provider_id',
       'idx_calendar_sources_visible',
-      'idx_calendar_sync_states_scope',
+      'idx_calendar_sources_dav_collection',
+      'idx_sync_cursors_scope',
+      'idx_pending_ops_dav_replay',
       'idx_notification_schedule_due',
     });
   });
@@ -223,6 +243,150 @@ void main() {
   });
 
   test(
+    'production-like schema 5 fixture migrates both providers without loss',
+    () async {
+      await database.close();
+      final fixture = await _openSchema5Fixture();
+      database = fixture.database;
+
+      final version = await database
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+      expect(version.read<int>('user_version'), 8);
+
+      final accounts = await database.select(database.accounts).get();
+      expect(accounts, hasLength(2));
+      expect(
+        accounts
+            .map(
+              (account) => (
+                account.provider,
+                account.authority,
+                account.providerAccountId,
+                account.credentialKind,
+              ),
+            )
+            .toSet(),
+        {
+          ('google', 'https://accounts.google.com', 'g-sub', 'oauth'),
+          (
+            'microsoft',
+            'https://login.microsoftonline.com/tenant-a',
+            'm-sub',
+            'oauth',
+          ),
+        },
+      );
+
+      final tasks = await database.select(database.tasks).get();
+      expect(tasks, hasLength(3));
+      expect(tasks.every((task) => task.taskLocation == null), isTrue);
+      expect(tasks.every((task) => task.taskUrl == null), isTrue);
+      expect(tasks.every((task) => task.taskClassification == null), isTrue);
+      expect(tasks.every((task) => task.taskPinned == null), isTrue);
+      expect(tasks.every((task) => task.taskAlarmsJson == null), isTrue);
+      expect(
+        tasks.singleWhere((task) => task.id == 'g-child').parent,
+        'g-parent',
+      );
+      expect(
+        tasks.singleWhere((task) => task.id == 'm-recurring').recurrenceJson,
+        contains('weekly'),
+      );
+      expect(await database.select(database.taskLists).get(), hasLength(2));
+
+      final pendingOps = await database.select(database.pendingOps).get();
+      expect(pendingOps.map((op) => op.operationType).toSet(), {
+        'create',
+        'update',
+        'delete',
+      });
+      expect(
+        pendingOps.singleWhere((op) => op.id == 'op-update').baselineRawJson,
+        contains('Recurring task'),
+      );
+
+      final events = await database.select(database.calendarEvents).get();
+      expect(events, hasLength(2));
+      expect(
+        events.singleWhere((event) => event.id == 'g-event').recurrenceJson,
+        contains('RRULE:FREQ=WEEKLY'),
+      );
+      expect(
+        await database.select(database.calendarSources).get(),
+        hasLength(2),
+      );
+
+      final cursors = await database.select(database.syncCursors).get();
+      expect(cursors, hasLength(2));
+      expect(
+        cursors
+            .map((cursor) => (cursor.cursorKind, cursor.cursorValue))
+            .toSet(),
+        {
+          ('google_sync_token', 'g-token'),
+          ('microsoft_delta_link', 'https://graph.example/delta-2'),
+        },
+      );
+      expect(
+        await database
+            .customSelect(
+              "SELECT name FROM sqlite_master WHERE name = 'calendar_sync_states'",
+            )
+            .getSingleOrNull(),
+        equals(null),
+      );
+
+      expect(await database.select(database.davCollections).get(), isEmpty);
+      expect(await database.select(database.davObjects).get(), isEmpty);
+      expect(
+        await database.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
+      final accountColumns = await database
+          .customSelect('PRAGMA table_info(accounts)')
+          .get();
+      final providerColumn = accountColumns.singleWhere(
+        (row) => row.read<String>('name') == 'provider',
+      );
+      expect(providerColumn.data['dflt_value'], equals(null));
+      expect(providerColumn.read<int>('notnull'), 1);
+
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await fixture.directory.delete(recursive: true);
+    },
+  );
+
+  test('schema 5 migration rejects an unsupported provider value', () async {
+    await database.close();
+    final fixture = await _openSchema5Fixture(
+      prepare: (raw) {
+        raw.execute(
+          "UPDATE accounts SET provider = 'unsupported' "
+          "WHERE id = 'google:g-sub'",
+        );
+      },
+    );
+    database = fixture.database;
+
+    await expectLater(
+      database.customSelect('PRAGMA user_version').getSingle(),
+      throwsA(
+        isA<BusyMaxMigrationException>().having(
+          (error) => error.code,
+          'code',
+          'unsupported_provider_value',
+        ),
+      ),
+    );
+
+    await database.close();
+    database = AppDatabase(NativeDatabase.memory());
+    await fixture.directory.delete(recursive: true);
+  });
+
+  test(
     'migration to v2 preserves pending ops with null baselineRawJson',
     () async {
       await database.close();
@@ -285,7 +449,7 @@ void main() {
           .getSingle();
       final op = await database.pendingOpsDao.getOp('op-1');
 
-      expect(version.data['user_version'], 5);
+      expect(version.data['user_version'], 8);
       expect(op, isNot(equals(null)));
       expect(op!.baselineRawJson, equals(null));
 
@@ -302,6 +466,10 @@ Future<void> _insertAccount(AppDatabase database) {
       .insert(
         AccountsCompanion.insert(
           id: 'account',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'google-account',
+          credentialKind: 'oauth',
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),
@@ -358,3 +526,22 @@ PendingOpsCompanion _pendingOp({
 }
 
 const _now = '2026-06-04T00:00:00.000Z';
+
+Future<({AppDatabase database, Directory directory})> _openSchema5Fixture({
+  void Function(sqlite3.Database raw)? prepare,
+}) async {
+  final directory = await Directory.systemTemp.createTemp(
+    'busymax-schema5-fixture-',
+  );
+  final file = File('${directory.path}/busymax.sqlite');
+  final raw = sqlite3.sqlite3.open(file.path);
+  try {
+    raw.execute(
+      File('test/fixtures/schema_v5_production_like.sql').readAsStringSync(),
+    );
+    prepare?.call(raw);
+  } finally {
+    raw.close();
+  }
+  return (database: AppDatabase(NativeDatabase(file)), directory: directory);
+}

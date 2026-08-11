@@ -5,15 +5,16 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_models.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
-import 'package:busymax/src/google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
   late AppDatabase database;
@@ -32,6 +33,20 @@ void main() {
 
   tearDown(() async {
     await database.close();
+  });
+
+  test('DAV authentication failures expose only their safe message', () {
+    const error = DavException(
+      kind: DavErrorKind.authentication,
+      code: 'NextcloudLoginFlowStartRejected',
+      safeMessage: 'Nextcloud could not start browser authorization.',
+      statusCode: 401,
+    );
+
+    expect(
+      authErrorMessage(error),
+      'Nextcloud could not start browser authorization.',
+    );
   });
 
   test('successful sign-in upserts signed-in account row', () async {
@@ -129,7 +144,7 @@ void main() {
   test(
     'loadSession trusts signed-in account rows without reading tokens',
     () async {
-      await _insertAccount(database, 'account-1', TaskProvider.google);
+      await _insertAccount(database, 'account-1', BusyProvider.google);
       oAuth.activeId = 'account-1';
       oAuth.nextTokenSet = _tokenSet(scopes: {googleTasksReadOnlyScope});
 
@@ -146,7 +161,7 @@ void main() {
   test(
     'markReconnectRequired keeps account row visible but not syncable',
     () async {
-      await _insertAccount(database, 'google:g', TaskProvider.google);
+      await _insertAccount(database, 'google:g', BusyProvider.google);
       oAuth.activeId = 'google:g';
 
       await repository.markReconnectRequired('google:g');
@@ -166,8 +181,8 @@ void main() {
   );
 
   test('markReconnectRequired removes only target notifications', () async {
-    await _insertAccount(database, 'google-a', TaskProvider.google);
-    await _insertAccount(database, 'google-b', TaskProvider.google);
+    await _insertAccount(database, 'google-a', BusyProvider.google);
+    await _insertAccount(database, 'google-b', BusyProvider.google);
     await _insertNotification(database, 'google-a');
     await _insertNotification(database, 'google-b');
 
@@ -191,7 +206,7 @@ void main() {
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
       const opaqueAccountId = 'opaque-account-id';
-      await _insertAccount(database, opaqueAccountId, TaskProvider.microsoft);
+      await _insertAccount(database, opaqueAccountId, BusyProvider.microsoft);
 
       await repository.markReconnectRequired(opaqueAccountId);
 
@@ -208,8 +223,8 @@ void main() {
       microsoftOAuth: microsoftOAuth,
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
-    await _insertAccount(database, 'google-a', TaskProvider.google);
-    await _insertAccount(database, 'microsoft:m', TaskProvider.microsoft);
+    await _insertAccount(database, 'google-a', BusyProvider.google);
+    await _insertAccount(database, 'microsoft:m', BusyProvider.microsoft);
     await _insertNotification(database, 'google-a');
     await _insertNotification(database, 'microsoft:m');
 
@@ -240,8 +255,8 @@ void main() {
         microsoftOAuth: microsoftOAuth,
         nowUtc: () => DateTime.utc(2026, 6, 4),
       );
-      await _insertAccount(database, 'google:g', TaskProvider.google);
-      await _insertAccount(database, 'microsoft:m', TaskProvider.microsoft);
+      await _insertAccount(database, 'google:g', BusyProvider.google);
+      await _insertAccount(database, 'microsoft:m', BusyProvider.microsoft);
 
       final result = await repository.removeAccount(
         accountId: 'microsoft:m',
@@ -301,7 +316,7 @@ void main() {
   );
 
   test('removeAccount cascades pending offline operations', () async {
-    await _insertAccount(database, 'google-a', TaskProvider.google);
+    await _insertAccount(database, 'google-a', BusyProvider.google);
     await database
         .into(database.pendingOps)
         .insert(
@@ -441,14 +456,19 @@ OAuthTokenSet _tokenSet({Set<String>? scopes}) {
 Future<void> _insertAccount(
   AppDatabase database,
   String id,
-  TaskProvider provider,
+  BusyProvider provider,
 ) {
   return database
       .into(database.accounts)
       .insert(
         AccountsCompanion.insert(
           id: id,
-          provider: Value(provider.storageValue),
+          provider: provider.storageValue,
+          authority: provider == BusyProvider.microsoft
+              ? 'https://login.microsoftonline.com/common'
+              : 'https://accounts.google.com',
+          providerAccountId: id,
+          credentialKind: 'oauth',
           authState: const Value('signed_in'),
           createdAtUtc: '2026-06-04T00:00:00.000Z',
           updatedAtUtc: '2026-06-04T00:00:00.000Z',
@@ -479,7 +499,7 @@ class _FakeMicrosoftOAuthService extends MicrosoftOAuthService {
     : super(
         config: _config,
         httpClient: MockClient((request) async => http.Response('', 200)),
-        tokenStore: InMemoryOAuthTokenStore(),
+        tokenStore: InMemorySecretStore(),
         loopbackFlow: OAuthLoopbackFlow(),
       );
 

@@ -44,4 +44,69 @@ void main() {
 
     expect(redactForLog(message), message);
   });
+
+  test(
+    'redacts DAV Basic credentials, app passwords, cookies, and userinfo',
+    () {
+      final redacted = redactForLog(
+        'Authorization: Basic YWxleDphcHAtc2VjcmV0, '
+        '{"appPassword":"nextcloud-secret",'
+        '"appSpecificPassword":"apple-secret",'
+        '"pollToken":"poll-secret",'
+        '"login":"https://cloud.test/login/private"} '
+        'Cookie: session=cookie-secret\n'
+        'https://alex:password-secret@cloud.test/path',
+      );
+
+      for (final secret in const [
+        'YWxleDphcHAtc2VjcmV0',
+        'nextcloud-secret',
+        'apple-secret',
+        'poll-secret',
+        '/login/private',
+        'cookie-secret',
+        'alex:password-secret',
+      ]) {
+        expect(redacted, isNot(contains(secret)));
+      }
+      expect(redacted, contains('Basic [REDACTED]'));
+    },
+  );
+
+  test('redacts bodies, HREFs, and iCalendar user content', () {
+    final redacted = redactForLog(
+      'requestBody=private-payload '
+      'href=/remote.php/dav/calendars/alex/private/event.ics\n'
+      'BEGIN:VEVENT\n'
+      'SUMMARY:Private title\n'
+      'DESCRIPTION:Private notes\n'
+      'ATTENDEE;CN=Private Person:mailto:person@example.test\n'
+      'LOCATION:Private place\n'
+      'END:VEVENT',
+    );
+
+    for (final content in const [
+      'private-payload',
+      '/remote.php/dav/calendars/alex/private/event.ics',
+      'Private title',
+      'Private notes',
+      'person@example.test',
+      'Private place',
+    ]) {
+      expect(redacted, isNot(contains(content)));
+    }
+  });
+
+  test('redacts credential-like URL query parameters only by value', () {
+    final redacted = redactForLog(
+      'https://cloud.test/callback?app_password=secret-one'
+      '&ticket=secret-two&safe=value',
+    );
+
+    expect(redacted, contains('app_password=[REDACTED]'));
+    expect(redacted, contains('ticket=[REDACTED]'));
+    expect(redacted, contains('safe=value'));
+    expect(redacted, isNot(contains('secret-one')));
+    expect(redacted, isNot(contains('secret-two')));
+  });
 }

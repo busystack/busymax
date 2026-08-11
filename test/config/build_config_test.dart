@@ -61,7 +61,25 @@ void main() {
     expect(config.hasGoogleOAuthClientId, isTrue);
     expect(config.hasMicrosoftOAuthClientId, isFalse);
     expect(config.hasAnyProviderConfigured, isTrue);
+    expect(config.hasAppleICloudProvider, isFalse);
+    expect(config.hasNextcloudProvider, isFalse);
     expect(config.demoTheme, BusyMaxDemoTheme.dark);
+  });
+
+  test('CalDAV profiles keep a build usable without OAuth defines', () {
+    const config = BuildConfig(
+      googleOAuthClientId: '',
+      googleOAuthClientSecret: '',
+      oauthAuthorizationEndpoint: 'https://accounts.example/authorize',
+      oauthTokenEndpoint: 'https://accounts.example/token',
+      oauthRevocationEndpoint: 'https://accounts.example/revoke',
+    );
+
+    expect(config.hasGoogleOAuthClientId, isFalse);
+    expect(config.hasMicrosoftOAuthClientId, isFalse);
+    expect(config.hasAppleICloudProvider, isTrue);
+    expect(config.hasNextcloudProvider, isTrue);
+    expect(config.hasAnyProviderConfigured, isTrue);
   });
 
   test('demo theme parser is tolerant and defaults to system', () {

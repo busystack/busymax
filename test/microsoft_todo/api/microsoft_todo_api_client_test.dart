@@ -83,6 +83,55 @@ void main() {
     expect(requests[3].url.path, '/v1.0/me/todo/lists/list-1/tasks/task-1');
   });
 
+  test('checklist methods use the task child endpoints and bodies', () async {
+    final requests = <http.Request>[];
+    final client = _client((request) {
+      requests.add(request);
+      if (request.method == 'DELETE') return http.Response('', 204);
+      if (request.method == 'GET') {
+        return _json({
+          'value': [
+            {'id': 'step-1', 'displayName': 'Step', 'isChecked': false},
+          ],
+        });
+      }
+      return _json({
+        'id': 'step-1',
+        ...jsonDecode(request.body) as Map<String, Object?>,
+      });
+    });
+
+    await client.listChecklistItemsPage(taskListId: 'list-1', taskId: 'task-1');
+    await client.createChecklistItem(
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      body: {'displayName': 'Step'},
+    );
+    await client.updateChecklistItem(
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      checklistItemId: 'step-1',
+      patch: {'isChecked': true},
+    );
+    await client.deleteChecklistItem(
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      checklistItemId: 'step-1',
+    );
+
+    const path = '/v1.0/me/todo/lists/list-1/tasks/task-1/checklistItems';
+    expect(requests[0].method, 'GET');
+    expect(requests[0].url.path, path);
+    expect(requests[1].method, 'POST');
+    expect(requests[1].url.path, path);
+    expect(jsonDecode(requests[1].body), {'displayName': 'Step'});
+    expect(requests[2].method, 'PATCH');
+    expect(requests[2].url.path, '$path/step-1');
+    expect(jsonDecode(requests[2].body), {'isChecked': true});
+    expect(requests[3].method, 'DELETE');
+    expect(requests[3].url.path, '$path/step-1');
+  });
+
   test('delta and paging use full stored URLs unchanged', () async {
     final urls = <String>[];
     final client = _client((request) {
@@ -146,7 +195,7 @@ void main() {
   });
 }
 
-MicrosoftTodoApiClient _client(
+MicrosoftTodoRestApiClient _client(
   http.Response Function(http.Request request) handler,
 ) {
   return MicrosoftTodoRestApiClient(

@@ -4,9 +4,12 @@ import 'package:drift/drift.dart';
 
 import '../calendar_providers/calendar_colors.dart';
 import '../calendar_providers/calendar_description.dart';
-import '../db/app_database.dart';
 import '../core/time/provider_date_time.dart';
-import '../task_providers/task_provider.dart';
+import '../dav/storage/dav_collection_capabilities.dart';
+import '../db/app_database.dart';
+import '../features/accounts/data/accounts_repository.dart';
+import '../features/tasks/domain/task_checklist_item.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
 import 'schedule_projection.dart';
@@ -52,6 +55,12 @@ class ScheduleRepository {
               _database.accounts,
               _database.accounts.id.equalsExp(_database.tasks.accountId),
             ),
+            leftOuterJoin(
+              _database.davCollections,
+              _database.davCollections.id.equalsExp(
+                _database.taskLists.davCollectionId,
+              ),
+            ),
           ])
           ..where(_database.tasks.accountId.equals(accountId))
           ..where(_database.tasks.taskListId.equals(taskListId))
@@ -68,7 +77,13 @@ class ScheduleRepository {
           )
           ..where(_database.taskLists.pendingDelete.equals(false))
           ..where(_database.taskLists.serverMissing.equals(false))
-          ..where(_database.accounts.authState.equals('signed_in'));
+          ..where(
+            _database.taskLists.davCollectionId.isNull() |
+                _database.davCollections.tasksSelected.equals(true),
+          )
+          ..where(
+            _database.accounts.authState.isIn(accountCachedAvailableStates),
+          );
     return query.watchSingleOrNull().map((row) {
       if (row == null) {
         return null;
@@ -154,13 +169,134 @@ class ScheduleRepository {
     );
   }
 
-  Future<List<String>> _accountIds(ScheduleFilters filters) async {
-    if (filters.accountIds.isNotEmpty) {
-      return filters.accountIds.toList();
+  /// Adds every available ancestor of the tasks already present in [items].
+  ///
+  /// Agenda task buckets are paginated independently. Without this closure, a
+  /// no-date child can be loaded while its overdue parent sits beyond the
+  /// current overdue page, leaving one logical task tree split across sections.
+  Future<List<ScheduleItem>> includeTaskAncestors(
+    List<ScheduleItem> items, {
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) async {
+    final visibleTasks = items.whereType<TaskScheduleItem>().toList();
+    if (!filters.includeTasks ||
+        visibleTasks.isEmpty ||
+        (filters.taskListFilterActive && filters.taskListKeys.isEmpty)) {
+      return List<ScheduleItem>.of(items);
     }
-    final accounts = await (_database.select(
-      _database.accounts,
-    )..where((row) => row.authState.equals('signed_in'))).get();
+
+    final context = await _accountContext(filters);
+    if (context == null) return List<ScheduleItem>.of(items);
+
+    final query =
+        _database.select(_database.tasks).join([
+            leftOuterJoin(
+              _database.taskLists,
+              _database.taskLists.accountId.equalsExp(
+                    _database.tasks.accountId,
+                  ) &
+                  _database.taskLists.id.equalsExp(_database.tasks.taskListId),
+            ),
+            leftOuterJoin(
+              _database.davCollections,
+              _database.davCollections.id.equalsExp(
+                _database.taskLists.davCollectionId,
+              ),
+            ),
+          ])
+          ..where(_database.tasks.accountId.isIn(context.accountIds))
+          ..where(_database.tasks.pendingDelete.equals(false))
+          ..where(_database.tasks.serverMissing.equals(false))
+          ..where(
+            _database.tasks.deleted.isNull() |
+                _database.tasks.deleted.equals(false),
+          )
+          ..where(
+            _database.tasks.hidden.isNull() |
+                _database.tasks.hidden.equals(false),
+          )
+          ..where(
+            _database.taskLists.id.isNull() |
+                _database.taskLists.serverMissing.equals(false),
+          )
+          ..where(
+            _database.taskLists.davCollectionId.isNull() |
+                _database.davCollections.tasksSelected.equals(true),
+          );
+    if (filters.taskListFilterActive) {
+      query.where(_taskListFilter(filters.taskListKeys));
+    }
+
+    final rows = await query.get();
+    if (rows.isEmpty) return List<ScheduleItem>.of(items);
+
+    final tasks = <Task>[];
+    final rowsById = <String, TypedResult>{};
+    for (final row in rows) {
+      final task = row.readTable(_database.tasks);
+      tasks.add(task);
+      rowsById[_taskKey(task.accountId, task.taskListId, task.id)] = row;
+    }
+    final hierarchy = _TaskHierarchyContext(tasks);
+    final tasksById = <String, Task>{
+      for (final task in tasks)
+        _taskKey(task.accountId, task.taskListId, task.id): task,
+    };
+    final includedKeys = {
+      for (final task in visibleTasks)
+        _taskKey(task.accountId, task.sourceId, task.id),
+    };
+    final ancestorKeys = <String>{};
+
+    for (final visibleTask in visibleTasks) {
+      Task? current =
+          tasksById[_taskKey(
+            visibleTask.accountId,
+            visibleTask.sourceId,
+            visibleTask.id,
+          )];
+      final visiting = <String>{};
+      while (current != null) {
+        final currentKey = _taskKey(
+          current.accountId,
+          current.taskListId,
+          current.id,
+        );
+        if (!visiting.add(currentKey)) break;
+        final parent = hierarchy.parentOf(current);
+        if (parent == null || parent.id == current.id) break;
+        final parentKey = _taskKey(
+          parent.accountId,
+          parent.taskListId,
+          parent.id,
+        );
+        if (includedKeys.add(parentKey)) ancestorKeys.add(parentKey);
+        current = parent;
+      }
+    }
+
+    if (ancestorKeys.isEmpty) return List<ScheduleItem>.of(items);
+    return [
+      ...items,
+      for (final key in ancestorKeys)
+        if (rowsById[key] case final row?)
+          _taskItemFromRow(
+            row,
+            context.providers,
+            context.accountDisplayNames,
+            context.accountEmails,
+            hierarchy,
+          ),
+    ];
+  }
+
+  Future<List<String>> _accountIds(ScheduleFilters filters) async {
+    final query = _database.select(_database.accounts)
+      ..where((row) => row.authState.isIn(accountCachedAvailableStates));
+    if (filters.accountIds.isNotEmpty) {
+      query.where((row) => row.id.isIn(filters.accountIds));
+    }
+    final accounts = await query.get();
     return accounts.map((account) => account.id).toList();
   }
 
@@ -178,7 +314,7 @@ class ScheduleRepository {
       accountIds: accountIds,
       providers: {
         for (final account in accounts)
-          account.id: TaskProviderParsing.fromStorageValue(account.provider),
+          account.id: BusyProviderCodec.requireStorageValue(account.provider),
       },
       accountDisplayNames: {
         for (final account in accounts) account.id: account.displayName,
@@ -211,7 +347,8 @@ class ScheduleRepository {
             ),
           ])
           ..where(_database.calendarEvents.accountId.isIn(accountIds))
-          ..where(_database.calendarEvents.isDeleted.equals(false));
+          ..where(_database.calendarEvents.isDeleted.equals(false))
+          ..where(_database.calendarEvents.isCancelled.equals(false));
     if (filters.sourceFilterActive) {
       query.where(
         _database.calendarEvents.calendarSourceId.isIn(filters.sourceIds),
@@ -227,7 +364,7 @@ class ScheduleRepository {
       final descriptionBody = _eventDescriptionBody(event);
       final provider =
           providers[event.accountId] ??
-          TaskProviderParsing.fromStorageValue(event.provider);
+          BusyProviderCodec.requireStorageValue(event.provider);
       if (!searching && !_intersects(range, start, end)) {
         continue;
       }
@@ -303,6 +440,12 @@ class ScheduleRepository {
                   ) &
                   _database.taskLists.id.equalsExp(_database.tasks.taskListId),
             ),
+            leftOuterJoin(
+              _database.davCollections,
+              _database.davCollections.id.equalsExp(
+                _database.taskLists.davCollectionId,
+              ),
+            ),
           ])
           ..where(_database.tasks.accountId.isIn(accountIds))
           ..where(_database.tasks.pendingDelete.equals(false))
@@ -318,6 +461,10 @@ class ScheduleRepository {
           ..where(
             _database.taskLists.id.isNull() |
                 _database.taskLists.serverMissing.equals(false),
+          )
+          ..where(
+            _database.taskLists.davCollectionId.isNull() |
+                _database.davCollections.tasksSelected.equals(true),
           );
     if (filters.taskListFilterActive) {
       query.where(_taskListFilter(filters.taskListKeys));
@@ -326,10 +473,13 @@ class ScheduleRepository {
       query.where(_taskIncomplete());
     }
     if (!searching) {
-      final inRange = _taskScheduledInRange(range);
+      final inRange =
+          _taskScheduledInRange(range) |
+          _database.tasks.davCollectionId.isNotNull();
       query.where(filters.showNoDateTasks ? inRange | _taskNoDate() : inRange);
     }
     final rows = await query.get();
+    final hierarchy = await _taskHierarchy(rows);
     final items = <ScheduleItem>[];
     for (final row in rows) {
       final item = _taskItemFromRow(
@@ -337,6 +487,7 @@ class ScheduleRepository {
         providers,
         accountDisplayNames,
         accountEmails,
+        hierarchy,
       );
       if (!filters.showCompletedTasks && item.completed) {
         continue;
@@ -371,6 +522,11 @@ class ScheduleRepository {
     }
 
     final effectiveLimit = limit < 1 ? 1 : limit;
+    final includesDav = context.providers.values.any(
+      (provider) =>
+          provider == BusyProvider.appleICloud ||
+          provider == BusyProvider.nextcloud,
+    );
     final query =
         _database.select(_database.tasks).join([
             leftOuterJoin(
@@ -379,6 +535,12 @@ class ScheduleRepository {
                     _database.tasks.accountId,
                   ) &
                   _database.taskLists.id.equalsExp(_database.tasks.taskListId),
+            ),
+            leftOuterJoin(
+              _database.davCollections,
+              _database.davCollections.id.equalsExp(
+                _database.taskLists.davCollectionId,
+              ),
             ),
           ])
           ..where(_database.tasks.accountId.isIn(context.accountIds))
@@ -396,8 +558,15 @@ class ScheduleRepository {
             _database.taskLists.id.isNull() |
                 _database.taskLists.serverMissing.equals(false),
           )
-          ..where(databaseFilter)
-          ..limit(effectiveLimit + 1);
+          ..where(
+            _database.taskLists.davCollectionId.isNull() |
+                _database.davCollections.tasksSelected.equals(true),
+          )
+          ..where(
+            includesDav
+                ? databaseFilter | _database.tasks.davCollectionId.isNotNull()
+                : databaseFilter,
+          );
     if (filters.taskListFilterActive) {
       query.where(_taskListFilter(filters.taskListKeys));
     }
@@ -415,6 +584,7 @@ class ScheduleRepository {
     ]);
 
     final rows = await query.get();
+    final hierarchy = await _taskHierarchy(rows);
     final items = <TaskScheduleItem>[];
     for (final row in rows) {
       final item = _taskItemFromRow(
@@ -422,6 +592,7 @@ class ScheduleRepository {
         context.providers,
         context.accountDisplayNames,
         context.accountEmails,
+        hierarchy,
       );
       if (!filters.showCompletedTasks && item.completed) {
         continue;
@@ -430,16 +601,14 @@ class ScheduleRepository {
         continue;
       }
       items.add(item);
-      if (items.length > effectiveLimit) {
-        break;
-      }
     }
 
-    final visibleItems = items.take(effectiveLimit).toList()
-      ..sort(compareScheduleItems);
+    items.sort(compareScheduleItems);
+    final orderedItems = ScheduleProjection.arrangeHierarchy(items);
+    final visibleItems = orderedItems.take(effectiveLimit).toList();
     return ScheduleTaskBucketPage(
       items: visibleItems,
-      hasMore: items.length > effectiveLimit,
+      hasMore: orderedItems.length > effectiveLimit,
     );
   }
 
@@ -448,11 +617,21 @@ class ScheduleRepository {
     Map<String, BusyProvider> providers,
     Map<String, String?> accountDisplayNames,
     Map<String, String?> accountEmails,
+    _TaskHierarchyContext hierarchy,
   ) {
     final task = row.readTable(_database.tasks);
-    final provider = providers[task.accountId] ?? TaskProvider.google;
+    final provider = providers[task.accountId];
+    if (provider == null) {
+      throw StateError('Schedule task account provider is unavailable.');
+    }
     final list = row.readTableOrNull(_database.taskLists);
+    final davCollection = row.readTableOrNull(_database.davCollections);
     final start = _taskStart(task, provider);
+    final parent = hierarchy.parentOf(task);
+    final unresolvedParentId = task.parent ?? task.parentUid;
+    final checklistItems = decodeTaskChecklistItems(
+      task.microsoftChecklistItemsJson,
+    );
     return TaskScheduleItem(
       id: task.id,
       accountId: task.accountId,
@@ -471,9 +650,48 @@ class ScheduleRepository {
               task.microsoftReminderTimeZone,
             )
           : null,
+      parentId: parent?.id ?? unresolvedParentId,
+      parentTitle: parent?.title,
+      hierarchyDepth: hierarchy.depthOf(task),
+      hasSubtasks: hierarchy.hasChildren(task) || checklistItems.isNotEmpty,
+      checklistItems: checklistItems,
       sourceName: list?.title,
       accountDisplayName: accountDisplayNames[task.accountId],
       accountEmail: accountEmails[task.accountId],
+      capabilities: _taskScheduleCapabilities(davCollection),
+    );
+  }
+
+  Future<_TaskHierarchyContext> _taskHierarchy(
+    List<TypedResult> visibleRows,
+  ) async {
+    if (visibleRows.isEmpty) return _TaskHierarchyContext.empty;
+    final visibleTasks = [
+      for (final row in visibleRows) row.readTable(_database.tasks),
+    ];
+    final accountIds = {for (final task in visibleTasks) task.accountId};
+    final listKeys = {
+      for (final task in visibleTasks)
+        _taskListKey(task.accountId, task.taskListId),
+    };
+    final allRows =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.isIn(accountIds) &
+                  row.pendingDelete.equals(false) &
+                  row.serverMissing.equals(false) &
+                  (row.deleted.isNull() | row.deleted.equals(false)) &
+                  (row.hidden.isNull() | row.hidden.equals(false)),
+            ))
+            .get();
+    return _TaskHierarchyContext(
+      allRows
+          .where(
+            (task) => listKeys.contains(
+              _taskListKey(task.accountId, task.taskListId),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -559,6 +777,82 @@ class _ScheduleAccountContext {
   final Map<String, String?> accountEmails;
 }
 
+class _TaskHierarchyContext {
+  _TaskHierarchyContext(List<Task> tasks)
+    : _byId = {
+        for (final task in tasks)
+          _taskKey(task.accountId, task.taskListId, task.id): task,
+      },
+      _byUid = {
+        for (final task in tasks)
+          if (task.icalUid != null && task.icalUid!.isNotEmpty)
+            _taskKey(task.accountId, task.taskListId, task.icalUid!): task,
+      } {
+    for (final task in tasks) {
+      final parent = parentOf(task);
+      if (parent != null && parent.id != task.id) {
+        _parentsWithChildren.add(
+          _taskKey(parent.accountId, parent.taskListId, parent.id),
+        );
+      }
+    }
+  }
+
+  static final empty = _TaskHierarchyContext(const []);
+
+  final Map<String, Task> _byId;
+  final Map<String, Task> _byUid;
+  final Map<String, Task?> _parents = {};
+  final Map<String, int> _depths = {};
+  final Set<String> _parentsWithChildren = {};
+
+  Task? parentOf(Task task) {
+    final key = _taskKey(task.accountId, task.taskListId, task.id);
+    if (_parents.containsKey(key)) return _parents[key];
+    Task? parent;
+    final parentId = task.parent;
+    if (parentId != null && parentId.isNotEmpty) {
+      final lookup = _taskKey(task.accountId, task.taskListId, parentId);
+      parent = _byId[lookup] ?? _byUid[lookup];
+    }
+    final parentUid = task.parentUid;
+    if (parent == null && parentUid != null && parentUid.isNotEmpty) {
+      final lookup = _taskKey(task.accountId, task.taskListId, parentUid);
+      parent = _byUid[lookup] ?? _byId[lookup];
+    }
+    _parents[key] = parent;
+    return parent;
+  }
+
+  int depthOf(Task task) => _resolveDepth(task, <String>{});
+
+  int _resolveDepth(Task task, Set<String> visiting) {
+    final key = _taskKey(task.accountId, task.taskListId, task.id);
+    final cached = _depths[key];
+    if (cached != null) return cached;
+    if (!visiting.add(key)) return 0;
+    final parent = parentOf(task);
+    final depth = parent == null
+        ? (task.parent != null || task.parentUid != null ? 1 : 0)
+        : parent.id == task.id
+        ? 0
+        : 1 + _resolveDepth(parent, visiting);
+    visiting.remove(key);
+    _depths[key] = depth;
+    return depth;
+  }
+
+  bool hasChildren(Task task) => _parentsWithChildren.contains(
+    _taskKey(task.accountId, task.taskListId, task.id),
+  );
+}
+
+String _taskListKey(String accountId, String taskListId) =>
+    '$accountId\u0000$taskListId';
+
+String _taskKey(String accountId, String taskListId, String taskId) =>
+    '$accountId\u0000$taskListId\u0000$taskId';
+
 Expression<bool> _textBefore(GeneratedColumn<String> value, String upperBound) {
   return value.isNotNull() & value.isSmallerThanValue(upperBound);
 }
@@ -585,7 +879,7 @@ String _dateKey(DateTime value) {
 ({String? contentType, String? html}) _eventDescriptionBody(
   CalendarEvent event,
 ) {
-  if (event.provider != TaskProvider.microsoft.storageValue) {
+  if (event.provider != BusyProvider.microsoft.storageValue) {
     return (contentType: null, html: null);
   }
   final rawJson = event.rawJson;
@@ -627,16 +921,25 @@ bool matchesScheduleQuery(ScheduleItem item, String query) {
       item.description ?? '',
       ...item.categories,
     ],
-    if (item is TaskScheduleItem) ...[item.notes ?? '', ...item.categories],
+    if (item is TaskScheduleItem) ...[
+      item.notes ?? '',
+      item.parentTitle ?? '',
+      ...item.categories,
+      ...item.checklistItems.map((subtask) => subtask.title),
+    ],
   ].map((value) => value.toLowerCase()).toList();
   return terms.every((term) => fields.any((field) => field.contains(term)));
 }
 
 DateTime? _taskStart(Task task, BusyProvider provider) {
-  if (provider == TaskProvider.microsoft) {
+  if (provider == BusyProvider.microsoft) {
     return _parseDateTime(task.microsoftStartDateTime) ??
         _parseDateTime(task.microsoftDueDateTime) ??
         _parseDate(task.dueUtc);
+  }
+  if (_isDavProvider(provider)) {
+    final native = _davTaskScheduleTemporal(task);
+    return _parseDavTaskTemporal(native) ?? _parseDateTime(task.dueUtc);
   }
   return _parseDate(task.dueUtc);
 }
@@ -653,8 +956,13 @@ DateTime? _taskEnd(Task task, BusyProvider provider) {
 }
 
 bool _taskAllDay(Task task, BusyProvider provider) {
-  if (provider == TaskProvider.google) {
+  if (provider == BusyProvider.google) {
     return true;
+  }
+  if (_isDavProvider(provider)) {
+    final native = _davTaskScheduleTemporal(task);
+    return native?.kind == 'date' ||
+        (native == null && _isDateOnly(task.dueUtc ?? ''));
   }
   final scheduleDateTimes = [
     task.microsoftStartDateTime,
@@ -664,6 +972,80 @@ bool _taskAllDay(Task task, BusyProvider provider) {
 }
 
 bool _isDateOnly(String value) => !value.contains('T');
+
+bool _isDavProvider(BusyProvider provider) =>
+    provider == BusyProvider.appleICloud || provider == BusyProvider.nextcloud;
+
+_DavTaskTemporal? _davTaskScheduleTemporal(Task task) {
+  final source = task.providerMetadataJson;
+  if (source == null || source.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(source);
+    if (decoded is! Map) return null;
+    for (final key in const ['nativeStart', 'nativeDue']) {
+      final value = decoded[key];
+      if (value is! Map) continue;
+      final raw = value['raw'];
+      final kind = value['kind'];
+      if (raw is String && raw.isNotEmpty && kind is String) {
+        return _DavTaskTemporal(raw: raw, kind: kind);
+      }
+    }
+  } on FormatException {
+    return null;
+  }
+  return null;
+}
+
+DateTime? _parseDavTaskTemporal(_DavTaskTemporal? temporal) {
+  if (temporal == null) return null;
+  final match = RegExp(
+    r'^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(?:Z)?)?$',
+  ).firstMatch(temporal.raw);
+  if (match == null) return null;
+  final parts = [
+    for (var index = 1; index <= 6; index++)
+      int.tryParse(match.group(index) ?? '') ?? 0,
+  ];
+  final wall = DateTime(
+    parts[0],
+    parts[1],
+    parts[2],
+    parts[3],
+    parts[4],
+    parts[5],
+  );
+  if (temporal.kind != 'utcDateTime') return wall;
+  return DateTime.utc(
+    wall.year,
+    wall.month,
+    wall.day,
+    wall.hour,
+    wall.minute,
+    wall.second,
+  ).toLocal();
+}
+
+ScheduleItemCapabilities _taskScheduleCapabilities(DavCollection? collection) {
+  if (collection == null) return ScheduleItemCapabilities.editable;
+  try {
+    final capabilities = collectionCapabilitiesFromStored(collection);
+    return ScheduleItemCapabilities(
+      canEdit: capabilities.canUpdateTask,
+      canDelete: capabilities.canDeleteTask,
+    );
+  } on Object {
+    // Corrupt or stale capability state must fail closed in mutation UI.
+    return ScheduleItemCapabilities.readOnly;
+  }
+}
+
+final class _DavTaskTemporal {
+  const _DavTaskTemporal({required this.raw, required this.kind});
+
+  final String raw;
+  final String kind;
+}
 
 bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
   if (start == null) {
@@ -780,11 +1162,11 @@ List<int> _eventReminderMinutes(
     }
     final map = decoded.cast<String, Object?>();
     final minutes = switch (provider) {
-      TaskProvider.microsoft =>
+      BusyProvider.microsoft =>
         map['isReminderOn'] == true
             ? [map['reminderMinutesBeforeStart']]
             : const <Object?>[],
-      TaskProvider.google =>
+      BusyProvider.google =>
         map['useDefault'] == true
             ? _googleDefaultReminderMinutes(source)
             : switch (map['overrides']) {
@@ -795,6 +1177,12 @@ List<int> _eventReminderMinutes(
                 ],
                 _ => const <Object?>[],
               },
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud => switch (map['minutes'] ?? map['overrides']) {
+        final List<Object?> values => values,
+        final int value => [value],
+        _ => const <Object?>[],
+      },
     };
     return [
       for (final value in minutes)

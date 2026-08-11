@@ -3,53 +3,90 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../../db/app_database.dart';
-import '../../../task_providers/task_provider.dart';
+import '../domain/account_connection_state.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/providers/account_authority.dart';
 
 const accountAuthStateSignedIn = 'signed_in';
 const accountAuthStateReauthRequired = 'reauth_required';
+const accountAuthStateTemporarilyUnavailable = 'temporarily_unavailable';
+const accountAuthStatePermissionChanged = 'permission_changed';
+const accountAuthStateUnsupportedServer = 'unsupported_server_profile';
+
+const accountCachedAvailableStates = <String>[
+  accountAuthStateSignedIn,
+  accountAuthStateReauthRequired,
+  accountAuthStateTemporarilyUnavailable,
+  accountAuthStatePermissionChanged,
+  accountAuthStateUnsupportedServer,
+];
 
 class AccountEntity {
   const AccountEntity({
     required this.id,
     required this.provider,
+    required this.authority,
+    required this.providerAccountId,
+    this.credentialKind = CredentialKind.oauth,
+    this.providerProfileVersion = 1,
     required this.authState,
-    this.providerAccountId,
     this.displayName,
     this.email,
     this.tenantId,
     this.providerMetadataJson,
     this.calendarsEnabled = true,
     this.tasksEnabled = true,
+    this.lastSuccessfulSyncAtUtc,
+    this.lastFullSyncAtUtc,
   });
 
   factory AccountEntity.fromRow(Account row) {
     return AccountEntity(
       id: row.id,
-      provider: TaskProviderParsing.fromStorageValue(row.provider),
+      provider: BusyProviderCodec.requireStorageValue(row.provider),
+      authority: row.authority,
       providerAccountId: row.providerAccountId,
+      credentialKind: _credentialKindFromStorage(row.credentialKind),
+      providerProfileVersion: row.providerProfileVersion,
       displayName: row.displayName,
       email: row.email,
       tenantId: row.tenantId,
       providerMetadataJson: row.providerMetadataJson,
       calendarsEnabled: row.calendarsEnabled,
       tasksEnabled: row.tasksEnabled,
+      lastSuccessfulSyncAtUtc: DateTime.tryParse(
+        row.lastSuccessfulSyncAtUtc ?? '',
+      )?.toUtc(),
+      lastFullSyncAtUtc: DateTime.tryParse(
+        row.lastFullSyncAtUtc ?? '',
+      )?.toUtc(),
       authState: row.authState,
     );
   }
 
   final String id;
-  final TaskProvider provider;
-  final String? providerAccountId;
+  final BusyProvider provider;
+  final String authority;
+  final String providerAccountId;
+  final CredentialKind credentialKind;
+  final int providerProfileVersion;
   final String? displayName;
   final String? email;
   final String? tenantId;
   final String? providerMetadataJson;
   final bool calendarsEnabled;
   final bool tasksEnabled;
+  final DateTime? lastSuccessfulSyncAtUtc;
+  final DateTime? lastFullSyncAtUtc;
   final String authState;
+
+  AccountConnectionState get connectionState =>
+      AccountConnectionStateCodec.parse(authState);
 
   bool get isSignedIn => authState == accountAuthStateSignedIn;
   bool get needsReconnect => authState == accountAuthStateReauthRequired;
+  bool get hasConnectionIssue => authState != accountAuthStateSignedIn;
 
   String get displayLabel {
     final name = displayName?.trim();
@@ -70,6 +107,36 @@ class AccountEntity {
     }
     return address;
   }
+
+  String get selectorLabel {
+    final providerLabel = provider.displayName;
+    final identity = _selectorIdentity;
+    if (identity == null ||
+        identity.toLowerCase() == providerLabel.toLowerCase()) {
+      return providerLabel;
+    }
+    return '$providerLabel · $identity';
+  }
+
+  String? get _selectorIdentity {
+    final address = _trimmedAccountValue(email);
+    if (address != null) return address;
+    final name = _trimmedAccountValue(displayName);
+    if (provider != BusyProvider.nextcloud) return name;
+    final uri = Uri.tryParse(authority);
+    final host = uri == null || uri.host.isEmpty
+        ? null
+        : uri.hasPort
+        ? '${uri.host}:${uri.port}'
+        : uri.host;
+    if (name == null) return host;
+    return host == null ? name : '$name · $host';
+  }
+}
+
+String? _trimmedAccountValue(String? value) {
+  final trimmed = value?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
 }
 
 class AccountsRepository {
@@ -84,7 +151,7 @@ class AccountsRepository {
 
   Stream<List<AccountEntity>> watchAccounts() {
     final query = _database.select(_database.accounts)
-      ..where((row) => row.authState.equals(accountAuthStateSignedIn))
+      ..where((row) => row.authState.isIn(accountCachedAvailableStates))
       ..orderBy([
         (row) => OrderingTerm.asc(row.provider),
         (row) => OrderingTerm.asc(row.displayName),
@@ -97,12 +164,7 @@ class AccountsRepository {
 
   Stream<List<AccountEntity>> watchVisibleAccounts() {
     final query = _database.select(_database.accounts)
-      ..where(
-        (row) => row.authState.isIn([
-          accountAuthStateSignedIn,
-          accountAuthStateReauthRequired,
-        ]),
-      )
+      ..where((row) => row.authState.isIn([...accountCachedAvailableStates]))
       ..orderBy([
         (row) => OrderingTerm.asc(row.provider),
         (row) => OrderingTerm.asc(row.displayName),
@@ -125,6 +187,33 @@ class AccountsRepository {
     return rows.map(AccountEntity.fromRow).toList();
   }
 
+  Future<List<AccountEntity>> listSyncEligibleAccounts() async {
+    final query = _database.select(_database.accounts)
+      ..where(
+        (row) => row.authState.isIn(const [
+          accountAuthStateSignedIn,
+          accountAuthStateTemporarilyUnavailable,
+        ]),
+      )
+      ..orderBy([
+        (row) => OrderingTerm.asc(row.provider),
+        (row) => OrderingTerm.asc(row.displayName),
+        (row) => OrderingTerm.asc(row.email),
+      ]);
+    return (await query.get()).map(AccountEntity.fromRow).toList();
+  }
+
+  Future<List<AccountEntity>> listVisibleAccounts() async {
+    final query = _database.select(_database.accounts)
+      ..where((row) => row.authState.isIn(accountCachedAvailableStates))
+      ..orderBy([
+        (row) => OrderingTerm.asc(row.provider),
+        (row) => OrderingTerm.asc(row.displayName),
+        (row) => OrderingTerm.asc(row.email),
+      ]);
+    return (await query.get()).map(AccountEntity.fromRow).toList();
+  }
+
   Future<AccountEntity?> accountById(String accountId) async {
     final row = await (_database.select(
       _database.accounts,
@@ -134,9 +223,12 @@ class AccountsRepository {
 
   Future<void> upsertSignedInAccount({
     required String id,
-    required TaskProvider provider,
+    required BusyProvider provider,
     required String grantedScopes,
     String? providerAccountId,
+    String? authority,
+    CredentialKind? credentialKind,
+    int providerProfileVersion = 1,
     String? displayName,
     String? email,
     String? tenantId,
@@ -145,12 +237,26 @@ class AccountsRepository {
     Map<String, Object?>? providerMetadata,
   }) async {
     final now = _now();
+    final normalizedAuthority = normalizeAccountAuthority(
+      provider,
+      authority: authority,
+      tenantId: tenantId,
+    );
+    final normalizedProviderAccountId = normalizeProviderAccountId(
+      provider,
+      providerAccountId ?? id,
+    );
+    final resolvedCredentialKind =
+        credentialKind ?? _defaultCredentialKind(provider);
     final existing = await (_database.select(
       _database.accounts,
     )..where((account) => account.id.equals(id))).getSingleOrNull();
     final companion = AccountsCompanion(
       provider: Value(provider.storageValue),
-      providerAccountId: Value(providerAccountId),
+      authority: Value(normalizedAuthority),
+      providerAccountId: Value(normalizedProviderAccountId),
+      credentialKind: Value(resolvedCredentialKind.storageValue),
+      providerProfileVersion: Value(providerProfileVersion),
       displayName: Value(displayName),
       email: Value(email),
       tenantId: Value(tenantId),
@@ -172,8 +278,11 @@ class AccountsRepository {
               id: id,
               createdAtUtc: now,
               updatedAtUtc: now,
-              provider: Value(provider.storageValue),
-              providerAccountId: Value(providerAccountId),
+              provider: provider.storageValue,
+              authority: normalizedAuthority,
+              providerAccountId: normalizedProviderAccountId,
+              credentialKind: resolvedCredentialKind.storageValue,
+              providerProfileVersion: Value(providerProfileVersion),
               displayName: Value(displayName),
               email: Value(email),
               tenantId: Value(tenantId),
@@ -195,11 +304,21 @@ class AccountsRepository {
   }
 
   Future<void> markReconnectRequired(String accountId) {
+    return setConnectionState(
+      accountId,
+      AccountConnectionState.reauthenticationRequired,
+    );
+  }
+
+  Future<void> setConnectionState(
+    String accountId,
+    AccountConnectionState state,
+  ) {
     return (_database.update(
       _database.accounts,
     )..where((account) => account.id.equals(accountId))).write(
       AccountsCompanion(
-        authState: const Value(accountAuthStateReauthRequired),
+        authState: Value(state.storageValue),
         updatedAtUtc: Value(_now()),
       ),
     );
@@ -213,3 +332,19 @@ class AccountsRepository {
 
   String _now() => _nowUtc().toIso8601String();
 }
+
+CredentialKind _defaultCredentialKind(BusyProvider provider) =>
+    switch (provider) {
+      BusyProvider.google || BusyProvider.microsoft => CredentialKind.oauth,
+      BusyProvider.appleICloud => CredentialKind.appleAppSpecificPassword,
+      BusyProvider.nextcloud => CredentialKind.nextcloudAppPassword,
+    };
+
+CredentialKind _credentialKindFromStorage(String value) => switch (value) {
+  'oauth' => CredentialKind.oauth,
+  'apple_app_specific_password' => CredentialKind.appleAppSpecificPassword,
+  'nextcloud_app_password' => CredentialKind.nextcloudAppPassword,
+  _ => throw SecretStoreCorruptException(
+    'Unsupported stored credential kind for account metadata.',
+  ),
+};

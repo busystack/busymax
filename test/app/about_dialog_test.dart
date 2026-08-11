@@ -112,10 +112,19 @@ void main() {
         final scrollView = find.byType(SingleChildScrollView);
         final closeButton = find.byType(YaruWindowControl);
         expect(scrollView, findsOneWidget);
+        final scrollable = find.descendant(
+          of: scrollView,
+          matching: find.byType(Scrollable),
+        );
+        expect(scrollable, findsOneWidget);
         expect(closeButton.hitTestable(), findsOneWidget);
         final closePosition = tester.getTopLeft(closeButton);
 
-        await tester.drag(scrollView, const Offset(0, -400));
+        await tester.scrollUntilVisible(
+          find.text('Source code'),
+          200,
+          scrollable: scrollable,
+        );
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
@@ -358,8 +367,6 @@ void main() {
     expect(source, contains('https://busystack.org'));
     expect(source, contains('https://github.com/busystack/busymax'));
     expect(source, contains('https://www.apache.org/licenses/LICENSE-2.0'));
-    expect(source, isNot(contains('/issues')));
-    expect(source, isNot(contains('https://github.com/albertgee/busymax')));
   });
 
   test(

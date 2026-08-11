@@ -58,7 +58,8 @@
     <p xml:lang="zh">BusyMax 是一款面向 Linux 桌面的日历与任务管理工具，可在一个工作区中规划日程、任务、提醒和每日安排。</p>
     <p xml:lang="zh-Hans">BusyMax 是一款面向 Linux 桌面的日历与任务管理工具，可在一个工作区中规划日程、任务、提醒和每日安排。</p>
     <p xml:lang="zh-Hant">BusyMax 是一款適用於 Linux 桌面的行事曆與待辦事項管理工具，可在同一個工作區中規劃活動、待辦事項、提醒與每日行程。</p>
-    <p>It supports Google Calendar, Google Tasks, Microsoft Calendar, and Microsoft To Do.</p>
+    <p>BusyMax connects directly to Google Calendar and Google Tasks, Microsoft Calendar and Microsoft To Do, Apple iCloud Calendar, and Nextcloud Calendar and Nextcloud Tasks.</p>
+    <p>Apple iCloud Calendar uses an app-specific password. Nextcloud authorization opens in the default browser. Apple Reminders is not supported.</p>
     <p>This beta release is intended for early Ubuntu App Center and Snap Store testing.</p>
   </description>
   <developer id="io.busystack">
@@ -83,9 +84,18 @@
       <caption>BusyMax agenda view with upcoming events and tasks.</caption>
       <image type="source">https://raw.githubusercontent.com/busystack/busymax/main/docs/screenshots/main_window_agenda.png</image>
     </screenshot>
+    <screenshot>
+      <caption>Direct Google, Microsoft, Apple iCloud Calendar, and Nextcloud account choices.</caption>
+      <image type="source">https://raw.githubusercontent.com/busystack/busymax/main/docs/screenshots/account_provider_selection.png</image>
+    </screenshot>
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.5" date="2026-08-08" type="development">
+      <description>
+        <p>Adds Apple iCloud Calendar and Nextcloud Calendar and Tasks connections.</p>
+      </description>
+    </release>
     <release version="0.1.4" date="2026-07-30" type="development">
       <description>
         <p>Beta maintenance release.</p>

@@ -2,7 +2,7 @@ import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:desktop_notifications/desktop_notifications.dart';
 import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
@@ -33,7 +33,10 @@ void main() {
         .insert(
           AccountsCompanion.insert(
             id: 'microsoft:m',
-            provider: Value(TaskProvider.microsoft.storageValue),
+            provider: BusyProvider.microsoft.storageValue,
+            authority: 'https://login.microsoftonline.com/common',
+            providerAccountId: 'm',
+            credentialKind: 'oauth',
             authState: const Value('signed_in'),
             grantedScopes: const Value(''),
             createdAtUtc: '2026-06-08T00:00:00.000Z',
@@ -153,7 +156,10 @@ void main() {
         .insert(
           AccountsCompanion.insert(
             id: 'google:g',
-            provider: Value(TaskProvider.google.storageValue),
+            provider: BusyProvider.google.storageValue,
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'g',
+            credentialKind: 'oauth',
             authState: const Value('signed_out'),
             grantedScopes: const Value(''),
             createdAtUtc: '2026-06-08T00:00:00.000Z',

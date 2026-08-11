@@ -14,10 +14,14 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_yaru_theme.dart';
+import '../../../dav/auth/dav_account_dialogs.dart';
+import '../../../dav/dav_errors.dart';
+import '../../../dav/http/dav_http_transport.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../accounts/domain/account_connection_state.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
-import '../../../google_tasks/oauth/oauth_models.dart';
-import '../../../google_tasks/oauth/oauth_token_store.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../../../l10n/l10n.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../../platform/linux_header_bar_service.dart';
@@ -25,7 +29,7 @@ import '../../sync/sync_auth_error.dart';
 
 enum _OnboardingStep { accounts, preferences }
 
-enum _OnboardingProvider { google, microsoft }
+enum _OnboardingProvider { google, microsoft, appleICloud, nextcloud }
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -41,6 +45,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
   var _finishingSetup = false;
+  DavCancellationToken? _davCancellation;
   var _headerBarUpdateGeneration = 0;
   late final LinuxHeaderBarSession _headerBarSession;
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
@@ -154,6 +159,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                     isMicrosoftSigningIn:
                                         _signingInProvider ==
                                         _OnboardingProvider.microsoft,
+                                    isAppleSigningIn:
+                                        _signingInProvider ==
+                                        _OnboardingProvider.appleICloud,
+                                    isNextcloudSigningIn:
+                                        _signingInProvider ==
+                                        _OnboardingProvider.nextcloud,
                                     errorMessage: _errorMessage,
                                     missingConfigMessage: kReleaseMode
                                         ? l10n.providerNotConfigured
@@ -162,6 +173,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                         _signIn(_OnboardingProvider.google),
                                     onAddMicrosoft: () =>
                                         _signIn(_OnboardingProvider.microsoft),
+                                    onAddApple: () => _signIn(
+                                      _OnboardingProvider.appleICloud,
+                                    ),
+                                    onAddNextcloud: () =>
+                                        _signIn(_OnboardingProvider.nextcloud),
                                     onCancelSignIn: _cancelSignIn,
                                   ),
                                 _OnboardingStep.preferences =>
@@ -298,6 +314,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     if (_signingInProvider != null) {
       return;
     }
+    AppleICloudCredentialInput? appleInput;
+    String? nextcloudServer;
+    if (provider == _OnboardingProvider.appleICloud) {
+      appleInput = await showAppleICloudCredentialDialog(
+        context,
+        headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      );
+      if (appleInput == null || !mounted) return;
+    } else if (provider == _OnboardingProvider.nextcloud) {
+      nextcloudServer = await showNextcloudServerDialog(
+        context,
+        headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      );
+      if (nextcloudServer == null || !mounted) return;
+    }
     setState(() {
       _signingInProvider = provider;
       _errorMessage = null;
@@ -305,11 +336,36 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     try {
       final repository = ref.read(authRepositoryProvider);
-      final signedIn = switch (provider) {
-        _OnboardingProvider.google => await repository.signIn(),
-        _OnboardingProvider.microsoft => await repository.signInWithMicrosoft(),
-      };
-      final accountId = signedIn.accountId;
+      String? accountId;
+      switch (provider) {
+        case _OnboardingProvider.google:
+          accountId = (await repository.signIn()).accountId;
+        case _OnboardingProvider.microsoft:
+          accountId = (await repository.signInWithMicrosoft()).accountId;
+        case _OnboardingProvider.appleICloud:
+          final cancellation = DavCancellationToken();
+          _davCancellation = cancellation;
+          accountId =
+              (await ref
+                      .read(davAccountOnboardingServiceProvider)
+                      .connectAppleICloud(
+                        email: appleInput!.email,
+                        appSpecificPassword: appleInput.password,
+                        cancellationToken: cancellation,
+                      ))
+                  .accountId;
+        case _OnboardingProvider.nextcloud:
+          final cancellation = DavCancellationToken();
+          _davCancellation = cancellation;
+          accountId =
+              (await ref
+                      .read(davAccountOnboardingServiceProvider)
+                      .connectNextcloud(
+                        enteredServer: nextcloudServer!,
+                        cancellationToken: cancellation,
+                      ))
+                  .accountId;
+      }
       if (accountId != null) {
         unawaited(_runInitialSync(accountId));
       }
@@ -322,7 +378,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _signingInProvider = null);
+        setState(() {
+          _signingInProvider = null;
+          _davCancellation = null;
+        });
       }
     }
   }
@@ -347,6 +406,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _cancelSignIn() async {
+    _davCancellation?.cancel();
+    ref.read(davAccountOnboardingServiceProvider).cancelNextcloudLogin();
     await ref.read(authRepositoryProvider).cancelSignIn();
     if (mounted) {
       setState(() => _signingInProvider = null);
@@ -404,10 +465,14 @@ class _AccountsOnboardingStep extends StatelessWidget {
     required this.microsoftConfigured,
     required this.isGoogleSigningIn,
     required this.isMicrosoftSigningIn,
+    required this.isAppleSigningIn,
+    required this.isNextcloudSigningIn,
     required this.errorMessage,
     required this.missingConfigMessage,
     required this.onAddGoogle,
     required this.onAddMicrosoft,
+    required this.onAddApple,
+    required this.onAddNextcloud,
     required this.onCancelSignIn,
   });
 
@@ -416,32 +481,33 @@ class _AccountsOnboardingStep extends StatelessWidget {
   final bool microsoftConfigured;
   final bool isGoogleSigningIn;
   final bool isMicrosoftSigningIn;
+  final bool isAppleSigningIn;
+  final bool isNextcloudSigningIn;
   final String? errorMessage;
   final String missingConfigMessage;
   final VoidCallback onAddGoogle;
   final VoidCallback onAddMicrosoft;
+  final VoidCallback onAddApple;
+  final VoidCallback onAddNextcloud;
   final VoidCallback onCancelSignIn;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
-    final isSigningIn = isGoogleSigningIn || isMicrosoftSigningIn;
+    final isSigningIn =
+        isGoogleSigningIn ||
+        isMicrosoftSigningIn ||
+        isAppleSigningIn ||
+        isNextcloudSigningIn;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _OnboardingStepHeader(
           title: l10n.onboardingAccountsStepTitle,
-          description: l10n.connectGoogleAccount,
+          description: l10n.providerConnectionDescription,
         ),
         const SizedBox(height: BusyMaxSpacing.xl),
-        Text(
-          l10n.googlePermissionsConsentNotice,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-        ),
-        const SizedBox(height: BusyMaxSpacing.md),
         _ProviderSignInButton(
           label: l10n.addGoogleAccount,
           loadingLabel: l10n.waitingForGoogleSignIn,
@@ -452,6 +518,13 @@ class _AccountsOnboardingStep extends StatelessWidget {
               ? l10n.signInWithGoogle
               : l10n.providerNotConfigured,
           onPressed: onAddGoogle,
+        ),
+        const SizedBox(height: BusyMaxSpacing.sm),
+        Text(
+          l10n.googlePermissionsConsentNotice,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: BusyMaxSpacing.md),
         _ProviderSignInButton(
@@ -464,6 +537,26 @@ class _AccountsOnboardingStep extends StatelessWidget {
               ? l10n.signInWithMicrosoft
               : l10n.providerNotConfigured,
           onPressed: onAddMicrosoft,
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        _ProviderSignInButton(
+          label: l10n.addAppleICloudAccount,
+          loadingLabel: l10n.waitingForAppleICloud,
+          configured: true,
+          enabled: !isSigningIn,
+          loading: isAppleSigningIn,
+          tooltip: l10n.addAppleICloudAccount,
+          onPressed: onAddApple,
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        _ProviderSignInButton(
+          label: l10n.addNextcloudAccount,
+          loadingLabel: l10n.waitingForNextcloud,
+          configured: true,
+          enabled: !isSigningIn,
+          loading: isNextcloudSigningIn,
+          tooltip: l10n.addNextcloudAccount,
+          onPressed: onAddNextcloud,
         ),
         if (accounts.isNotEmpty) ...[
           const SizedBox(height: BusyMaxSpacing.lg),
@@ -534,15 +627,15 @@ class _SignedInAccountRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final secondary = account.secondaryLabel;
-    final needsReconnect = account.needsReconnect;
+    final hasIssue = account.hasConnectionIssue;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.xs),
       child: Row(
         children: [
           Icon(
-            needsReconnect ? YaruIcons.warning : YaruIcons.checkmark,
+            hasIssue ? YaruIcons.warning : YaruIcons.checkmark,
             size: BusyMaxSizes.iconSm,
-            color: needsReconnect ? colorScheme.error : colorScheme.primary,
+            color: hasIssue ? colorScheme.error : colorScheme.primary,
           ),
           const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
@@ -554,9 +647,9 @@ class _SignedInAccountRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (needsReconnect)
+                if (hasIssue)
                   Text(
-                    accountReconnectRequiredSyncMessage,
+                    _onboardingAccountIssueMessage(context, account),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(
@@ -580,6 +673,22 @@ class _SignedInAccountRow extends StatelessWidget {
     );
   }
 }
+
+String _onboardingAccountIssueMessage(
+  BuildContext context,
+  AccountEntity account,
+) => switch (account.connectionState) {
+  AccountConnectionState.reauthenticationRequired =>
+    context.l10n.davReauthenticationRequired,
+  AccountConnectionState.temporarilyUnavailable =>
+    context.l10n.davTemporarilyUnavailable,
+  AccountConnectionState.permissionChanged => context.l10n.davPermissionChanged,
+  AccountConnectionState.unsupportedServerProfile =>
+    context.l10n.davUnsupportedServer,
+  AccountConnectionState.connected ||
+  AccountConnectionState.connecting ||
+  AccountConnectionState.signedOut => '',
+};
 
 class _PreferencesOnboardingStep extends StatelessWidget {
   const _PreferencesOnboardingStep({
@@ -811,6 +920,9 @@ ButtonStyle _onboardingTextButtonStyle(BuildContext context) {
 }
 
 String _onboardingErrorMessage(BuildContext context, Object error) {
+  if (error is DavException) return error.safeMessage;
+  if (error is FormatException) return error.message;
+  if (error is SecretStoreException) return error.message;
   if (error is OAuthException) {
     if (error.code == 'OAuthMissingRequiredScope') {
       return context.l10n.googlePermissionsRequiredRetry;
@@ -824,7 +936,7 @@ String _onboardingErrorMessage(BuildContext context, Object error) {
     return error.message;
   }
   if (error is PlatformException) {
-    return secureTokenStorageUnavailableMessage;
+    return secretStorageUnavailableMessage;
   }
   return error.toString();
 }

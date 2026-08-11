@@ -1,13 +1,18 @@
 import 'dart:convert';
 
-class GoogleTasksApiError implements Exception {
+import '../../features/tasks/domain/task_remote_error.dart';
+
+class GoogleTasksApiError extends TaskRemoteError {
   const GoogleTasksApiError({
-    required this.statusCode,
-    required this.message,
-    this.code,
+    required super.statusCode,
+    required super.message,
+    super.code,
     this.status,
     this.rawJson,
-  });
+  }) : super(
+         retryable: statusCode == 429 || statusCode >= 500,
+         providerDetails: rawJson,
+       );
 
   factory GoogleTasksApiError.fromResponse({
     required int statusCode,
@@ -48,10 +53,7 @@ class GoogleTasksApiError implements Exception {
     }
   }
 
-  final int statusCode;
-  final String? code;
   final String? status;
-  final String message;
   final Map<String, Object?>? rawJson;
 
   @override

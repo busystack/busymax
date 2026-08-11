@@ -5,7 +5,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,12 +23,12 @@ void main() {
     await _insertAccount(
       database,
       id: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
     );
     await _insertAccount(
       database,
       id: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
     );
   });
 
@@ -40,7 +40,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       remindersJson: {
         'useDefault': false,
         'overrides': [
@@ -65,7 +65,7 @@ void main() {
       await _upsertEvent(
         database,
         accountId: 'google:g',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         remindersJson: {'useDefault': true},
         sourceRawJson: {
           'id': 'cal-1',
@@ -92,7 +92,7 @@ void main() {
       await _upsertEvent(
         database,
         accountId: 'google:g',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         remindersJson: {'useDefault': false, 'overrides': const []},
         sourceRawJson: {
           'id': 'cal-1',
@@ -115,7 +115,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 30},
     );
 
@@ -132,7 +132,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       startDateTime: '2026-06-08T09:00:00',
       startTimeZone: 'UTC',
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 30},
@@ -151,7 +151,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       startDateTime: '2026-06-08T09:00:00',
       startTimeZone: 'America/Vancouver',
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 30},
@@ -174,7 +174,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       startDateTime: '2026-06-08T04:26:00.000Z',
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 5},
     );
@@ -192,7 +192,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
     );
     await service.rebuildUpcomingEventNotifications('microsoft:m');
@@ -217,7 +217,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
     );
     await service.rebuildUpcomingEventNotifications('microsoft:m');
@@ -245,7 +245,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
     );
     await service.rebuildUpcomingEventNotifications('microsoft:m');
@@ -261,7 +261,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       startDateTime: '2026-06-08T09:45:00.000Z',
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
     );
@@ -282,7 +282,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
     );
     await service.rebuildUpcomingEventNotifications('microsoft:m');
@@ -303,7 +303,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       startDateTime: '2026-06-08T04:26:00.000Z',
       remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 5},
     );
@@ -323,7 +323,7 @@ void main() {
     await repository.upsertSource(
       accountId: 'microsoft:m',
       source: const CalendarSourceDto(
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         providerCalendarId: 'cal-1',
         summary: 'Calendar',
       ),
@@ -358,7 +358,7 @@ void main() {
     await _upsertEvent(
       database,
       accountId: 'google:g',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       remindersJson: {
         'overrides': [
           {'method': 'popup', 'minutes': 10},
@@ -456,14 +456,19 @@ void main() {
 Future<void> _insertAccount(
   AppDatabase database, {
   required String id,
-  required TaskProvider provider,
+  required BusyProvider provider,
 }) {
   return database
       .into(database.accounts)
       .insert(
         AccountsCompanion.insert(
           id: id,
-          provider: Value(provider.storageValue),
+          provider: provider.storageValue,
+          authority: provider == BusyProvider.microsoft
+              ? 'https://login.microsoftonline.com/common'
+              : 'https://accounts.google.com',
+          providerAccountId: id,
+          credentialKind: 'oauth',
           authState: const Value('signed_in'),
           grantedScopes: const Value(''),
           createdAtUtc: '2026-06-08T00:00:00.000Z',
@@ -475,7 +480,7 @@ Future<void> _insertAccount(
 Future<void> _upsertEvent(
   AppDatabase database, {
   required String accountId,
-  required TaskProvider provider,
+  required BusyProvider provider,
   required Object remindersJson,
   String startDateTime = '2026-06-08T09:00:00.000Z',
   String? startTimeZone,
@@ -515,7 +520,7 @@ Future<void> _expectSourceUpdateRemovesEventReminder({
   await _upsertEvent(
     database,
     accountId: 'google:g',
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
     remindersJson: {
       'overrides': [
         {'method': 'popup', 'minutes': 10},

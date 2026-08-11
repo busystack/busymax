@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
@@ -10,7 +11,7 @@ import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,6 +39,35 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
+
+  testWidgets(
+    'missing calendar source is surfaced without a provider fallback',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'missing-account',
+                sourceId: 'missing-source',
+                providerCalendarId: 'missing-calendar',
+                start: DateTime.utc(2026, 6, 8),
+                end: DateTime.utc(2026, 6, 8, 1),
+              ),
+              sources: const [],
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('No calendars synced yet.'), findsOneWidget);
+      expect(_headerButton(tester, 'Save').onPressed, isNull);
+      expect(saved, isNull);
+    },
+  );
 
   testWidgets('editor actions use natural-width themed controls', (
     tester,
@@ -590,7 +620,7 @@ void main() {
             sources: _sources,
             onCancel: () {},
             onSave: (_) {},
-            onDelete: (eventId) => deletedEventId = eventId,
+            onDelete: (eventId, _) => deletedEventId = eventId,
           ),
         ),
       ),
@@ -624,7 +654,7 @@ void main() {
             sources: _sources,
             onCancel: () {},
             onSave: (_) {},
-            onDelete: (eventId) => deletedEventId = eventId,
+            onDelete: (eventId, _) => deletedEventId = eventId,
           ),
         ),
       ),
@@ -780,7 +810,7 @@ void main() {
   }
 
   testWidgets(
-    'new event converts Google recurrence when Microsoft calendar is selected',
+    'new event converts Google recurrence when Microsoft account is selected',
     (tester) async {
       EventEditorDraft? saved;
       await tester.pumpWidget(
@@ -804,7 +834,7 @@ void main() {
 
       _comboRow(tester, 'Repeat').onSelected('weekly');
       await tester.pump();
-      _comboRow(tester, 'Calendar').onSelected('microsoft-source');
+      _comboRow(tester, 'Account').onSelected('microsoft-account');
       await tester.pump();
       await tester.tap(_headerButtonFinder('Save'));
 
@@ -816,7 +846,7 @@ void main() {
   );
 
   testWidgets(
-    'new event converts Microsoft recurrence when Google calendar is selected',
+    'new event converts Microsoft recurrence when Google account is selected',
     (tester) async {
       EventEditorDraft? saved;
       await tester.pumpWidget(
@@ -840,7 +870,7 @@ void main() {
 
       _comboRow(tester, 'Repeat').onSelected('weekly');
       await tester.pump();
-      _comboRow(tester, 'Calendar').onSelected('source');
+      _comboRow(tester, 'Account').onSelected('account');
       await tester.pump();
       await tester.tap(_headerButtonFinder('Save'));
 
@@ -877,6 +907,153 @@ void main() {
     expect(find.text('Repeat'), findsNothing);
   });
 
+  testWidgets('DAV recurring event requires an explicit supported scope', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    String? deletedId;
+    RecurringEventMutationScope? deletedScope;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'dav-occurrence',
+              providerRecurringEventId: 'dav-series',
+              accountId: 'nextcloud-account',
+              sourceId: 'nextcloud-source',
+              providerCalendarId: '/calendars/work/',
+              title: 'Weekly planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _nextcloudSources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+            onDelete: (eventId, scope) {
+              deletedId = eventId;
+              deletedScope = scope;
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Recurring event scope'), findsOneWidget);
+    expect(find.text('Entire series'), findsOneWidget);
+    expect(find.text('This occurrence'), findsOneWidget);
+    expect(find.text('This and future (not available)'), findsOneWidget);
+    expect(_headerButton(tester, 'Save').onPressed, isNull);
+    expect(_actionRow(tester, 'Delete Event').onTap, isNull);
+    expect(
+      _actionRow(tester, 'This and future (not available)').enabled,
+      isFalse,
+    );
+
+    await tester.ensureVisible(find.text('Entire series'));
+    await tester.tap(find.text('Entire series'));
+    await tester.pump();
+    expect(_headerButton(tester, 'Save').onPressed, isNotNull);
+    expect(_actionRow(tester, 'Delete Event').onTap, isNotNull);
+    await tester.tap(_headerButtonFinder('Save'));
+    expect(
+      saved?.recurringMutationScope,
+      RecurringEventMutationScope.entireSeries,
+    );
+
+    await tester.ensureVisible(find.text('This occurrence'));
+    await tester.tap(find.text('This occurrence'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Delete Event'));
+    await tester.tap(find.text('Delete Event'));
+    expect(deletedId, 'dav-occurrence');
+    expect(deletedScope, RecurringEventMutationScope.singleOccurrence);
+  });
+
+  testWidgets(
+    'DAV event keeps guests display-only and exposes categories and alarms',
+    (tester) async {
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'dav-event',
+                accountId: 'nextcloud-account',
+                sourceId: 'nextcloud-source',
+                providerCalendarId: '/calendars/work/',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+                attendees: const [
+                  EventAttendeeDraft(
+                    email: 'guest@example.test',
+                    displayName: 'Guest',
+                  ),
+                ],
+                categories: const ['Work'],
+                reminders: const {
+                  'useDefault': false,
+                  'overrides': [
+                    {'method': 'popup', 'minutes': 10},
+                    {'method': 'popup', 'minutes': 30},
+                  ],
+                },
+                showAs: 'transparent',
+                visibilityOrSensitivity: 'confidential',
+              ),
+              sources: _nextcloudSources,
+              onCancel: () {},
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('guest@example.test'), findsOneWidget);
+      expect(find.text('Guest'), findsOneWidget);
+      expect(find.text('Add guest email'), findsNothing);
+      expect(find.text('Add guest'), findsNothing);
+      expect(find.text('Work'), findsWidgets);
+      expect(find.byType(BusyMaxComboRow<int>), findsNWidgets(2));
+      expect(
+        _comboRow(tester, 'Availability / Show as').selected,
+        'transparent',
+      );
+      expect(_comboRow(tester, 'Visibility').selected, 'confidential');
+    },
+  );
+
+  testWidgets('new Nextcloud recurrence uses RFC RRULE values', (tester) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'nextcloud-account',
+              sourceId: 'nextcloud-source',
+              providerCalendarId: '/calendars/work/',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _nextcloudSources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    _comboRow(tester, 'Repeat').onSelected('weekly');
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.recurrence, ['RRULE:FREQ=WEEKLY;INTERVAL=1']);
+  });
+
   testWidgets('event editor does not show metadata fields', (tester) async {
     await tester.pumpWidget(
       localizedTestApp(
@@ -895,7 +1072,7 @@ void main() {
             sources: _sources,
             onCancel: () {},
             onSave: (_) {},
-            onDelete: (_) {},
+            onDelete: (_, _) {},
           ),
         ),
       ),
@@ -925,7 +1102,7 @@ void main() {
             sources: _sources,
             onCancel: () {},
             onSave: (_) {},
-            onDelete: (_) {},
+            onDelete: (_, _) {},
           ),
         ),
       ),
@@ -961,7 +1138,7 @@ void main() {
             sources: _multipleSources,
             onCancel: () {},
             onSave: (_) {},
-            onDelete: (_) {},
+            onDelete: (_, _) {},
           ),
         ),
       ),
@@ -977,6 +1154,10 @@ void main() {
     expect(calendarRow.selected, 'source');
     expect(calendarRow.values, ['source']);
     expect(calendarRow.enabled, isFalse);
+    final accountRow = _comboRow(tester, 'Account');
+    expect(accountRow.selected, 'account');
+    expect(accountRow.values, ['account']);
+    expect(accountRow.enabled, isFalse);
   });
 
   testWidgets('new event can still select any visible calendar', (
@@ -1008,8 +1189,110 @@ void main() {
       ),
     );
 
-    expect(calendarRow.values, ['source', 'destination-source']);
+    expect(calendarRow.values, ['destination-source', 'source']);
     expect(calendarRow.enabled, isTrue);
+  });
+
+  testWidgets(
+    'new event selects an account before choosing among its calendars',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'google-account',
+                sourceId: 'google-work',
+                providerCalendarId: 'google-work-calendar',
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ).copyWith(title: 'Planning'),
+              sources: _sameNamedCrossAccountSources,
+              accounts: _eventAccounts,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      var accountRow = _comboRow(tester, 'Account');
+      var calendarRow = _comboRow(tester, 'Calendar');
+      expect(accountRow.values, ['google-account', 'microsoft-account']);
+      expect(accountRow.selected, 'google-account');
+      expect(
+        accountRow.labelFor('google-account'),
+        'Google · personal@example.test',
+      );
+      expect(
+        accountRow.labelFor('microsoft-account'),
+        'Microsoft · work@example.test',
+      );
+      expect(calendarRow.values, ['google-work']);
+      expect(calendarRow.labelFor('google-work'), 'Work');
+
+      final accountSemantics = tester.widget<Semantics>(
+        find.descendant(
+          of: find.byType(BusyMaxComboRow<String>),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics && widget.properties.label == 'Account',
+          ),
+        ),
+      );
+      expect(
+        accountSemantics.properties.value,
+        'Google · personal@example.test',
+      );
+
+      accountRow.onSelected('microsoft-account');
+      await tester.pump();
+
+      accountRow = _comboRow(tester, 'Account');
+      calendarRow = _comboRow(tester, 'Calendar');
+      expect(accountRow.selected, 'microsoft-account');
+      expect(calendarRow.values, ['microsoft-work']);
+      expect(calendarRow.selected, 'microsoft-work');
+      expect(calendarRow.labelFor('microsoft-work'), 'Work');
+
+      await tester.tap(_headerButtonFinder('Save'));
+      expect(saved?.accountId, 'microsoft-account');
+      expect(saved?.sourceId, 'microsoft-work');
+      expect(saved?.providerCalendarId, 'microsoft-work-calendar');
+    },
+  );
+
+  testWidgets('changing event account selects its primary writable calendar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'google-account',
+              sourceId: 'google-work',
+              providerCalendarId: 'google-work-calendar',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sourcesWithMicrosoftPrimary,
+            accounts: _eventAccounts,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    _comboRow(tester, 'Account').onSelected('microsoft-account');
+    await tester.pump();
+
+    final calendarRow = _comboRow(tester, 'Calendar');
+    expect(calendarRow.values, ['microsoft-primary', 'microsoft-work']);
+    expect(calendarRow.selected, 'microsoft-primary');
+    expect(calendarRow.labelFor(calendarRow.selected), 'Calendar');
   });
 
   testWidgets('Google event editor saves multiple reminder overrides', (
@@ -1500,13 +1783,13 @@ void main() {
     ).readAsStringSync();
     final titleLabelIndex = editor.indexOf('labelText: l10n.title');
     final locationLabelIndex = editor.indexOf('labelText: l10n.location');
-    final calendarGroupIndex = editor.indexOf(
-      'BusyMaxGroupedList(filled: true, children: [_calendarRow()])',
+    final destinationGroupIndex = editor.indexOf(
+      'children: [_accountRow(), _calendarRow()]',
     );
 
     expect(titleLabelIndex, isNonNegative);
     expect(locationLabelIndex, greaterThan(titleLabelIndex));
-    expect(calendarGroupIndex, greaterThan(locationLabelIndex));
+    expect(destinationGroupIndex, greaterThan(locationLabelIndex));
   });
 
   test('event dropdown fields do not render duplicate section labels', () {
@@ -1717,6 +2000,17 @@ Finder _headerButtonFinder(String label) {
       .first;
 }
 
+ElevatedButton _headerButton(WidgetTester tester, String label) =>
+    tester.widget<ElevatedButton>(_headerButtonFinder(label));
+
+BusyMaxActionRow _actionRow(WidgetTester tester, String title) {
+  return tester.widget<BusyMaxActionRow>(
+    find.byWidgetPredicate(
+      (widget) => widget is BusyMaxActionRow && widget.title == title,
+    ),
+  );
+}
+
 BusyMaxComboRow<String> _comboRow(WidgetTester tester, String title) {
   return tester.widget<BusyMaxComboRow<String>>(
     find.byWidgetPredicate(
@@ -1791,11 +2085,76 @@ void _focusEditorShortcuts(WidgetTester tester) {
   focusWidget.focusNode!.requestFocus();
 }
 
+const _eventAccounts = [
+  AccountEntity(
+    id: 'google-account',
+    provider: BusyProvider.google,
+    authority: 'https://accounts.google.com',
+    providerAccountId: 'google-user',
+    authState: accountAuthStateSignedIn,
+    displayName: 'Personal account',
+    email: 'personal@example.test',
+  ),
+  AccountEntity(
+    id: 'microsoft-account',
+    provider: BusyProvider.microsoft,
+    authority: 'https://login.microsoftonline.com/common',
+    providerAccountId: 'microsoft-user',
+    authState: accountAuthStateSignedIn,
+    displayName: 'Work account',
+    email: 'work@example.test',
+  ),
+];
+
+const _sameNamedCrossAccountSources = [
+  CalendarSourceEntity(
+    id: 'google-work',
+    accountId: 'google-account',
+    provider: BusyProvider.google,
+    providerCalendarId: 'google-work-calendar',
+    summary: 'Work',
+    selected: true,
+    hidden: false,
+    readOnly: false,
+    isDeleted: false,
+    backgroundColor: '#3584e4',
+  ),
+  CalendarSourceEntity(
+    id: 'microsoft-work',
+    accountId: 'microsoft-account',
+    provider: BusyProvider.microsoft,
+    providerCalendarId: 'microsoft-work-calendar',
+    summary: 'Work',
+    selected: true,
+    hidden: false,
+    readOnly: false,
+    isDeleted: false,
+    backgroundColor: '#9141ac',
+  ),
+];
+
+const _sourcesWithMicrosoftPrimary = [
+  ..._sameNamedCrossAccountSources,
+  CalendarSourceEntity(
+    id: 'microsoft-primary',
+    accountId: 'microsoft-account',
+    provider: BusyProvider.microsoft,
+    providerCalendarId: 'microsoft-primary-calendar',
+    summary: 'Calendar',
+    selected: true,
+    hidden: false,
+    readOnly: false,
+    isDeleted: false,
+    primaryCalendar: true,
+    backgroundColor: '#e01b24',
+  ),
+];
+
 const _sources = [
   CalendarSourceEntity(
     id: 'source',
     accountId: 'account',
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
     providerCalendarId: 'cal-1',
     summary: 'Work',
     selected: true,
@@ -1811,7 +2170,7 @@ const _multipleSources = [
   CalendarSourceEntity(
     id: 'destination-source',
     accountId: 'account',
-    provider: TaskProvider.google,
+    provider: BusyProvider.google,
     providerCalendarId: 'cal-2',
     summary: 'Personal',
     selected: true,
@@ -1822,11 +2181,27 @@ const _multipleSources = [
   ),
 ];
 
+const _nextcloudSources = [
+  CalendarSourceEntity(
+    id: 'nextcloud-source',
+    accountId: 'nextcloud-account',
+    provider: BusyProvider.nextcloud,
+    providerCalendarId: '/calendars/work/',
+    davCollectionId: 'nextcloud-collection',
+    summary: 'Nextcloud Work',
+    selected: true,
+    hidden: false,
+    readOnly: false,
+    isDeleted: false,
+    backgroundColor: '#0082c9',
+  ),
+];
+
 const _microsoftSources = [
   CalendarSourceEntity(
     id: 'microsoft-source',
     accountId: 'microsoft-account',
-    provider: TaskProvider.microsoft,
+    provider: BusyProvider.microsoft,
     providerCalendarId: 'ms-cal-1',
     summary: 'Outlook',
     selected: true,

@@ -5,7 +5,7 @@ import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,31 +23,33 @@ void main() {
 
   test('same-month sync reuses its cursor and one sync-state row', () async {
     const source = CalendarSourceDto(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: 'cal-1',
       summary: 'Work',
       primaryCalendar: true,
     );
-    await _insertAccount(database, provider: TaskProvider.google);
+    await _insertAccount(database, provider: BusyProvider.google);
     await _insertSource(database, source);
     await database
-        .into(database.calendarSyncStates)
+        .into(database.syncCursors)
         .insert(
-          CalendarSyncStatesCompanion.insert(
+          SyncCursorsCompanion.insert(
             id:
                 'account|google|events|account|google|cal-1|'
                 '2025-07-01T00:00:00.000Z|2028-08-01T00:00:00.000Z',
             accountId: 'account',
             provider: 'google',
-            syncKind: 'events',
-            calendarSourceId: const Value('account|google|cal-1'),
+            transport: 'rest',
+            syncScopeKind: 'events',
+            cursorKind: 'google_sync_token',
+            cursorValue: 'legacy-token',
+            projectionSourceId: const Value('account|google|cal-1'),
             rangeStart: const Value('2025-07-01T00:00:00.000Z'),
             rangeEnd: const Value('2028-08-01T00:00:00.000Z'),
-            googleSyncToken: const Value('legacy-token'),
           ),
         );
     final client = _FakeCalendarClient(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       calendars: const [source],
       pages: const [
         CalendarSyncPageDto(
@@ -81,23 +83,24 @@ void main() {
       expect(call.rangeEnd, DateTime.utc(2028, 8));
       expect(call.primaryCalendar, isTrue);
     }
-    final states = await database.select(database.calendarSyncStates).get();
+    final states = await database.select(database.syncCursors).get();
     expect(states, hasLength(1));
     expect(states.single.id, 'account|google|events|account|google|cal-1');
-    expect(states.single.googleSyncToken, 'google-token-2');
+    expect(states.single.cursorKind, 'google_sync_token');
+    expect(states.single.cursorValue, 'google-token-2');
     expect(states.single.rangeStart, '2025-07-01T00:00:00.000Z');
     expect(states.single.rangeEnd, '2028-08-01T00:00:00.000Z');
   });
 
   test('a new month rebases the cursor without adding a state row', () async {
     const source = CalendarSourceDto(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: 'cal-1',
       summary: 'Work',
     );
-    await _insertAccount(database, provider: TaskProvider.google);
+    await _insertAccount(database, provider: BusyProvider.google);
     final client = _FakeCalendarClient(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       calendars: const [source],
       pages: const [
         CalendarSyncPageDto(
@@ -130,9 +133,9 @@ void main() {
     expect(client.syncCalls[0].rangeEnd, DateTime.utc(2028, 8));
     expect(client.syncCalls[1].rangeStart, DateTime.utc(2025, 8));
     expect(client.syncCalls[1].rangeEnd, DateTime.utc(2028, 9));
-    final states = await database.select(database.calendarSyncStates).get();
+    final states = await database.select(database.syncCursors).get();
     expect(states, hasLength(1));
-    expect(states.single.googleSyncToken, 'google-token-august');
+    expect(states.single.cursorValue, 'google-token-august');
     expect(states.single.rangeStart, '2025-08-01T00:00:00.000Z');
     expect(states.single.rangeEnd, '2028-09-01T00:00:00.000Z');
   });
@@ -141,29 +144,30 @@ void main() {
     'legacy Google state without expansion marker establishes a new baseline',
     () async {
       const source = CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'cal-1',
         summary: 'Work',
       );
-      await _insertAccount(database, provider: TaskProvider.google);
+      await _insertAccount(database, provider: BusyProvider.google);
       await _insertSource(database, source);
       final repository = CalendarRepository(database: database);
       await repository.saveSyncState(
         accountId: 'account',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         syncKind: 'events',
         calendarSourceId: CalendarRepository.sourceId(
           accountId: 'account',
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: source.providerCalendarId,
         ),
         rangeStart: '2025-07-01T00:00:00.000Z',
         rangeEnd: '2028-08-01T00:00:00.000Z',
-        googleSyncToken: 'legacy-unexpanded-token',
+        cursorKind: 'google_sync_token',
+        cursorValue: 'legacy-unexpanded-token',
         full: true,
       );
       final client = _FakeCalendarClient(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         calendars: const [source],
         pages: const [
           CalendarSyncPageDto(
@@ -192,17 +196,17 @@ void main() {
       ]);
       final state = await repository.syncState(
         accountId: 'account',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         syncKind: 'events',
         calendarSourceId: CalendarRepository.sourceId(
           accountId: 'account',
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: source.providerCalendarId,
         ),
       );
       expect(state, isNot(equals(null)));
-      expect(state!.googleSyncToken, 'expanded-token-2');
-      expect(state.rawStateJson, _expandedGoogleState);
+      expect(state!.cursorValue, 'expanded-token-2');
+      expect(state.stateJson, _expandedGoogleState);
     },
   );
 
@@ -210,15 +214,15 @@ void main() {
     'incremental Google instances retire their synchronized recurrence master',
     () async {
       const source = CalendarSourceDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'cal-1',
         summary: 'Work',
       );
-      await _insertAccount(database, provider: TaskProvider.google);
+      await _insertAccount(database, provider: BusyProvider.google);
       await _insertSource(database, source);
       final repository = CalendarRepository(database: database);
       const master = CalendarEventDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'cal-1',
         providerEventId: 'series-1',
         title: 'Weekly planning',
@@ -235,21 +239,22 @@ void main() {
       await repository.upsertEvent(accountId: 'account', event: master);
       await repository.saveSyncState(
         accountId: 'account',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         syncKind: 'events',
         calendarSourceId: CalendarRepository.sourceId(
           accountId: 'account',
-          provider: TaskProvider.google,
+          provider: BusyProvider.google,
           providerCalendarId: source.providerCalendarId,
         ),
         rangeStart: '2025-07-01T00:00:00.000Z',
         rangeEnd: '2028-08-01T00:00:00.000Z',
-        googleSyncToken: 'expanded-token-1',
-        rawStateJson: _expandedGoogleState,
+        cursorKind: 'google_sync_token',
+        cursorValue: 'expanded-token-1',
+        stateJson: _expandedGoogleState,
         full: true,
       );
       const instance = CalendarEventDto(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: 'cal-1',
         providerEventId: 'instance-1',
         providerRecurringEventId: 'series-1',
@@ -265,7 +270,7 @@ void main() {
         },
       );
       final client = _FakeCalendarClient(
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         calendars: const [source],
         pages: const [
           CalendarSyncPageDto(
@@ -285,13 +290,13 @@ void main() {
       expect(client.syncCalls.single.syncTokenOrDeltaLink, 'expanded-token-1');
       final masterId = CalendarRepository.eventId(
         accountId: 'account',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: source.providerCalendarId,
         providerEventId: master.providerEventId,
       );
       final instanceId = CalendarRepository.eventId(
         accountId: 'account',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: source.providerCalendarId,
         providerEventId: instance.providerEventId,
         providerOriginalStartKey: instance.providerOriginalStartKey,
@@ -307,19 +312,19 @@ void main() {
 
   test('no-cursor baseline reconciles a missing provider event', () async {
     const source = CalendarSourceDto(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: 'cal-1',
       summary: 'Work',
     );
-    await _insertAccount(database, provider: TaskProvider.google);
+    await _insertAccount(database, provider: BusyProvider.google);
     await _insertSource(database, source);
     final eventId = await _insertEvent(
       database,
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: source.providerCalendarId,
     );
     final client = _FakeCalendarClient(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       calendars: const [source],
       pages: const [
         CalendarSyncPageDto(
@@ -344,34 +349,35 @@ void main() {
 
   test('empty cursor delta does not delete unchanged local events', () async {
     const source = CalendarSourceDto(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: 'cal-1',
       summary: 'Work',
     );
-    await _insertAccount(database, provider: TaskProvider.google);
+    await _insertAccount(database, provider: BusyProvider.google);
     await _insertSource(database, source);
     final eventId = await _insertEvent(
       database,
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       providerCalendarId: source.providerCalendarId,
     );
     await CalendarRepository(database: database).saveSyncState(
       accountId: 'account',
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       syncKind: 'events',
       calendarSourceId: CalendarRepository.sourceId(
         accountId: 'account',
-        provider: TaskProvider.google,
+        provider: BusyProvider.google,
         providerCalendarId: source.providerCalendarId,
       ),
       rangeStart: '2025-07-01T00:00:00.000Z',
       rangeEnd: '2028-08-01T00:00:00.000Z',
-      googleSyncToken: 'google-token-1',
-      rawStateJson: _expandedGoogleState,
+      cursorKind: 'google_sync_token',
+      cursorValue: 'google-token-1',
+      stateJson: _expandedGoogleState,
       full: true,
     );
     final client = _FakeCalendarClient(
-      provider: TaskProvider.google,
+      provider: BusyProvider.google,
       calendars: const [source],
       pages: const [
         CalendarSyncPageDto(
@@ -399,7 +405,7 @@ void main() {
     'Microsoft primary sync persists and reuses the terminal delta link',
     () async {
       const source = CalendarSourceDto(
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         providerCalendarId: 'cal-primary',
         summary: 'Calendar',
         primaryCalendar: true,
@@ -407,9 +413,9 @@ void main() {
       const nextLink = 'https://graph.example/delta?page=2';
       const firstDeltaLink = 'https://graph.example/delta?state=one';
       const secondDeltaLink = 'https://graph.example/delta?state=two';
-      await _insertAccount(database, provider: TaskProvider.microsoft);
+      await _insertAccount(database, provider: BusyProvider.microsoft);
       final client = _FakeCalendarClient(
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         calendars: const [source],
         pages: const [
           CalendarSyncPageDto(events: [], nextPageTokenOrUrl: nextLink),
@@ -442,9 +448,10 @@ void main() {
         client.syncCalls.map((call) => call.primaryCalendar),
         everyElement(isTrue),
       );
-      final states = await database.select(database.calendarSyncStates).get();
+      final states = await database.select(database.syncCursors).get();
       expect(states, hasLength(1));
-      expect(states.single.microsoftDeltaLink, secondDeltaLink);
+      expect(states.single.cursorKind, 'microsoft_delta_link');
+      expect(states.single.cursorValue, secondDeltaLink);
     },
   );
 
@@ -452,38 +459,39 @@ void main() {
     'Microsoft non-primary incremental sync reconciles each full snapshot',
     () async {
       const source = CalendarSourceDto(
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         providerCalendarId: 'cal-secondary',
         summary: 'Shared',
         primaryCalendar: false,
       );
-      await _insertAccount(database, provider: TaskProvider.microsoft);
+      await _insertAccount(database, provider: BusyProvider.microsoft);
       await _insertSource(database, source);
       final eventId = await _insertEvent(
         database,
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         providerCalendarId: source.providerCalendarId,
       );
       await CalendarRepository(database: database).saveSyncState(
         accountId: 'account',
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         syncKind: 'events',
         calendarSourceId: CalendarRepository.sourceId(
           accountId: 'account',
-          provider: TaskProvider.microsoft,
+          provider: BusyProvider.microsoft,
           providerCalendarId: source.providerCalendarId,
         ),
         rangeStart: '2025-07-01T00:00:00.000Z',
         rangeEnd: '2028-08-01T00:00:00.000Z',
-        microsoftDeltaLink: 'https://graph.example/primary-delta',
+        cursorKind: 'microsoft_delta_link',
+        cursorValue: 'https://graph.example/primary-delta',
         full: true,
       );
       final providerEvent = _event(
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         providerCalendarId: source.providerCalendarId,
       );
       final client = _FakeCalendarClient(
-        provider: TaskProvider.microsoft,
+        provider: BusyProvider.microsoft,
         calendars: const [source],
         pages: [
           CalendarSyncPageDto(events: [providerEvent]),
@@ -532,7 +540,12 @@ Future<void> _insertAccount(
       .insert(
         AccountsCompanion.insert(
           id: 'account',
-          provider: Value(provider.storageValue),
+          provider: provider.storageValue,
+          authority: provider == BusyProvider.microsoft
+              ? 'https://login.microsoftonline.com/common'
+              : 'https://accounts.google.com',
+          providerAccountId: 'account',
+          credentialKind: 'oauth',
           authState: const Value('signed_in'),
           grantedScopes: const Value(''),
           createdAtUtc: '2026-07-01T00:00:00.000Z',
@@ -616,7 +629,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
 
   @override
   CalendarProviderCapabilities get capabilities =>
-      provider == TaskProvider.microsoft
+      provider == BusyProvider.microsoft
       ? microsoftCalendarProviderCapabilities
       : googleCalendarProviderCapabilities;
 

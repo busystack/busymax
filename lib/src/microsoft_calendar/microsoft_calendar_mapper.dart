@@ -2,12 +2,12 @@ import '../calendar_providers/calendar_colors.dart';
 import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_description.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
-import '../task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 CalendarSourceDto microsoftCalendarSourceFromJson(Map<String, Object?> json) {
   final canEdit = json['canEdit'];
   return CalendarSourceDto(
-    provider: TaskProvider.microsoft,
+    provider: BusyProvider.microsoft,
     providerCalendarId: json['id']?.toString() ?? '',
     summary: json['name']?.toString().trim().isNotEmpty == true
         ? json['name']!.toString()
@@ -17,7 +17,7 @@ CalendarSourceDto microsoftCalendarSourceFromJson(Map<String, Object?> json) {
     hidden: false,
     readOnly: canEdit is bool ? !canEdit : false,
     backgroundColor: calendarSourceBackgroundColorHex(
-      provider: TaskProvider.microsoft,
+      provider: BusyProvider.microsoft,
       backgroundColor: json['hexColor']?.toString(),
       colorId: json['color']?.toString(),
     ),
@@ -39,7 +39,7 @@ CalendarEventDto microsoftCalendarEventFromJson(
   final isAllDay = json['isAllDay'] == true;
   final status = json['isCancelled'] == true ? 'cancelled' : null;
   return CalendarEventDto(
-    provider: TaskProvider.microsoft,
+    provider: BusyProvider.microsoft,
     providerCalendarId: calendarId,
     providerEventId: json['id']?.toString() ?? '',
     providerRecurringEventId: json['seriesMasterId']?.toString(),

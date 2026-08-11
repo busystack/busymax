@@ -845,7 +845,7 @@ packages:
     source: hosted
     version: "1.5.2"
   posix:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: posix
       sha256: "185ef7606574f789b40f289c233efa52e96dead518aed988e040a10737febb07"
@@ -1273,7 +1273,7 @@ packages:
     source: path
     version: "0.0.1"
   xml:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: xml
       sha256: "971043b3a0d3da28727e40ed3e0b5d18b742fa5a68665cca88e74b7876d5e025"

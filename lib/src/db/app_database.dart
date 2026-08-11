@@ -17,6 +17,11 @@ part 'daos/tasks_dao.dart';
 @DriftDatabase(
   tables: [
     Accounts,
+    DavAccountServices,
+    DavCollections,
+    DavObjects,
+    DavObjectComponents,
+    DavConflictSnapshots,
     TaskLists,
     Tasks,
     PendingOps,
@@ -25,7 +30,7 @@ part 'daos/tasks_dao.dart';
     CalendarEvents,
     CalendarEventAttendees,
     CalendarEventReminders,
-    CalendarSyncStates,
+    SyncCursors,
     CalendarColors,
     ScheduleItemOverrides,
     NotificationSchedule,

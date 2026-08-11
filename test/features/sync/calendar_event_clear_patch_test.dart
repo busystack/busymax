@@ -8,7 +8,7 @@ import 'package:busymax/src/features/calendar/presentation/event_editor_draft.da
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
-import 'package:busymax/src/task_providers/task_provider.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,7 +16,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  for (final provider in [TaskProvider.google, TaskProvider.microsoft]) {
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     test(
       '${provider.storageValue} event edit explicitly clears recurrence only',
       () async {
@@ -31,7 +31,7 @@ void main() {
         expect(result.patchRequest.method, 'PATCH');
         expect(
           result.patchRequest.url.path,
-          provider == TaskProvider.google
+          provider == BusyProvider.google
               ? '/calendar/v3/calendars/cal-1/events/event-1'
               : '/v1.0/me/calendars/cal-1/events/event-1',
         );
@@ -40,7 +40,7 @@ void main() {
         expect(body, contains('recurrence'));
         expect(
           body['recurrence'],
-          provider == TaskProvider.google ? <Object?>[] : null,
+          provider == BusyProvider.google ? <Object?>[] : null,
         );
         expect(body, isNot(contains('attendees')));
         _expectUnrelatedOptionalFieldsOmitted(body);
@@ -82,7 +82,7 @@ Future<
   ({int applied, Map<String, Object?> queuedRequest, http.Request patchRequest})
 >
 _editAndReplay({
-  required TaskProvider provider,
+  required BusyProvider provider,
   bool clearRecurrence = false,
   bool clearAttendees = false,
 }) async {
@@ -93,7 +93,12 @@ _editAndReplay({
       .insert(
         AccountsCompanion.insert(
           id: 'account',
-          provider: Value(provider.storageValue),
+          provider: provider.storageValue,
+          authority: provider == BusyProvider.microsoft
+              ? 'https://login.microsoftonline.com/common'
+              : 'https://accounts.google.com',
+          providerAccountId: 'account',
+          credentialKind: 'oauth',
           authState: const Value('signed_in'),
           createdAtUtc: '2026-06-08T00:00:00.000Z',
           updatedAtUtc: '2026-06-08T00:00:00.000Z',
@@ -112,7 +117,7 @@ _editAndReplay({
       timeZone: 'UTC',
     ),
   );
-  final recurrence = provider == TaskProvider.google
+  final recurrence = provider == BusyProvider.google
       ? <Object?>['RRULE:FREQ=WEEKLY']
       : <String, Object?>{
           'pattern': {
@@ -126,7 +131,7 @@ _editAndReplay({
             'recurrenceTimeZone': 'UTC',
           },
         };
-  final attendees = provider == TaskProvider.google
+  final attendees = provider == BusyProvider.google
       ? <Object?>[
           {'email': 'guest@example.com', 'displayName': 'Guest'},
         ]
@@ -214,7 +219,7 @@ _editAndReplay({
     );
   }
 
-  final CloudCalendarClient client = provider == TaskProvider.google
+  final CloudCalendarClient client = provider == BusyProvider.google
       ? GoogleCalendarApiClient(
           httpClient: MockClient(handler),
           baseUri: Uri.parse('https://www.googleapis.com'),
@@ -241,12 +246,12 @@ _editAndReplay({
 }
 
 Map<String, Object?> _eventJson(
-  TaskProvider provider, {
+  BusyProvider provider, {
   required bool edited,
   required bool includeRecurrence,
   required bool includeAttendees,
 }) {
-  return provider == TaskProvider.google
+  return provider == BusyProvider.google
       ? _googleEventJson(
           edited: edited,
           includeRecurrence: includeRecurrence,

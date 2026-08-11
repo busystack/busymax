@@ -6,7 +6,9 @@ import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 
 void main() {
-  testWidgets('missing OAuth client ID screen is shown', (tester) async {
+  testWidgets('CalDAV setup remains available without OAuth client IDs', (
+    tester,
+  ) async {
     final database = AppDatabase.memoryForTests();
     addTearDown(database.close);
 
@@ -37,16 +39,12 @@ void main() {
     expect(find.text('Connect accounts'), findsOneWidget);
     expect(find.text('Add Google account'), findsOneWidget);
     expect(find.text('Add Microsoft account'), findsOneWidget);
+    expect(find.text('Add Apple iCloud Calendar account'), findsOneWidget);
+    expect(find.text('Add Nextcloud account'), findsOneWidget);
     expect(find.textContaining('GOOGLE_OAUTH_CLIENT_ID'), findsOneWidget);
     expect(
-      find.text(
-        'Connect Google and Microsoft accounts to sync calendars and tasks.',
-      ),
-      findsWidgets,
-    );
-    expect(
-      find.textContaining('Add all Google and Microsoft accounts'),
-      findsNothing,
+      find.text('Connect calendars and tasks from one of these providers.'),
+      findsOneWidget,
     );
     expect(find.text('Accounts'), findsNothing);
     expect(find.textContaining('sync task.'), findsNothing);

@@ -73,4 +73,26 @@ void main() {
     expect(list.removed, isTrue);
     expect(list.removedReason, 'deleted');
   });
+
+  test('parses checklist items and their completion timestamps', () {
+    final page = MicrosoftTodoChecklistItemsPageDto.fromJson({
+      '@odata.nextLink': 'https://graph.microsoft.com/v1.0/next',
+      'value': [
+        {
+          'id': 'step-1',
+          'displayName': 'Book venue',
+          'isChecked': true,
+          'createdDateTime': '2026-06-01T10:00:00Z',
+          'checkedDateTime': '2026-06-02T11:00:00Z',
+        },
+      ],
+    });
+
+    expect(page.nextLink, 'https://graph.microsoft.com/v1.0/next');
+    expect(page.items.single.id, 'step-1');
+    expect(page.items.single.displayName, 'Book venue');
+    expect(page.items.single.isChecked, isTrue);
+    expect(page.items.single.createdDateTime, '2026-06-01T10:00:00Z');
+    expect(page.items.single.checkedDateTime, '2026-06-02T11:00:00Z');
+  });
 }
