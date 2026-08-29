@@ -1,6 +1,8 @@
+import '../../providers/busy_provider.dart';
+
 typedef AccountSyncAction =
     Future<void> Function(String accountId, {required bool full});
-typedef AccountUsesDav = Future<bool> Function(String accountId);
+typedef AccountProvider = Future<BusyProvider> Function(String accountId);
 
 abstract interface class AccountSyncOperations {
   Future<void> syncAccount(String accountId, {required bool full});
@@ -82,45 +84,63 @@ final class DisabledAccountSyncOperations implements AccountSyncOperations {
 
 final class RoutingAccountSyncOperations implements AccountSyncOperations {
   const RoutingAccountSyncOperations({
-    required AccountUsesDav usesDav,
+    required AccountProvider providerForAccount,
     required AccountSyncAction syncDav,
+    required AccountSyncAction syncWebCal,
     required AccountSyncAction syncTasksRest,
     required AccountSyncAction syncCalendarRest,
-  }) : _usesDav = usesDav,
+  }) : _providerForAccount = providerForAccount,
        _syncDav = syncDav,
+       _syncWebCal = syncWebCal,
        _syncTasksRest = syncTasksRest,
        _syncCalendarRest = syncCalendarRest;
 
-  final AccountUsesDav _usesDav;
+  final AccountProvider _providerForAccount;
   final AccountSyncAction _syncDav;
+  final AccountSyncAction _syncWebCal;
   final AccountSyncAction _syncTasksRest;
   final AccountSyncAction _syncCalendarRest;
 
   @override
   Future<void> syncAccount(String accountId, {required bool full}) async {
-    if (await _usesDav(accountId)) {
-      await _syncDav(accountId, full: full);
-      return;
+    switch (await _providerForAccount(accountId)) {
+      case BusyProvider.appleICloud:
+      case BusyProvider.nextcloud:
+        await _syncDav(accountId, full: full);
+      case BusyProvider.webCal:
+        await _syncWebCal(accountId, full: full);
+      case BusyProvider.google:
+      case BusyProvider.microsoft:
+        await _syncTasksRest(accountId, full: full);
+        await _syncCalendarRest(accountId, full: full);
     }
-    await _syncTasksRest(accountId, full: full);
-    await _syncCalendarRest(accountId, full: full);
   }
 
   @override
   Future<void> syncCalendar(String accountId, {required bool full}) async {
-    if (await _usesDav(accountId)) {
-      await _syncDav(accountId, full: full);
-      return;
+    switch (await _providerForAccount(accountId)) {
+      case BusyProvider.appleICloud:
+      case BusyProvider.nextcloud:
+        await _syncDav(accountId, full: full);
+      case BusyProvider.webCal:
+        await _syncWebCal(accountId, full: full);
+      case BusyProvider.google:
+      case BusyProvider.microsoft:
+        await _syncCalendarRest(accountId, full: full);
     }
-    await _syncCalendarRest(accountId, full: full);
   }
 
   @override
   Future<void> syncTasks(String accountId, {required bool full}) async {
-    if (await _usesDav(accountId)) {
-      await _syncDav(accountId, full: full);
-      return;
+    switch (await _providerForAccount(accountId)) {
+      case BusyProvider.appleICloud:
+      case BusyProvider.nextcloud:
+        await _syncDav(accountId, full: full);
+      case BusyProvider.webCal:
+        return;
+      case BusyProvider.google:
+      case BusyProvider.microsoft:
+        await _syncTasksRest(accountId, full: full);
     }
-    await _syncTasksRest(accountId, full: full);
   }
 }

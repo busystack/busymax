@@ -492,6 +492,132 @@ abstract class AppLocalizations {
   /// **'Open BusyMax'**
   String get trayOpenBusyMax;
 
+  /// No description provided for @trayShowBusyMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Show BusyMax'**
+  String get trayShowBusyMax;
+
+  /// No description provided for @trayNewEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'New event…'**
+  String get trayNewEvent;
+
+  /// No description provided for @trayNewTask.
+  ///
+  /// In en, this message translates to:
+  /// **'New task…'**
+  String get trayNewTask;
+
+  /// No description provided for @trayToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get trayToday;
+
+  /// No description provided for @trayAllDay.
+  ///
+  /// In en, this message translates to:
+  /// **'All day'**
+  String get trayAllDay;
+
+  /// No description provided for @trayNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Now'**
+  String get trayNow;
+
+  /// No description provided for @trayCalendarEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar event'**
+  String get trayCalendarEvent;
+
+  /// No description provided for @trayUntitledEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Untitled event'**
+  String get trayUntitledEvent;
+
+  /// No description provided for @trayNothingElseToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing else today'**
+  String get trayNothingElseToday;
+
+  /// No description provided for @trayTasksDueToday.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 task due today} other{{count} tasks due today}}'**
+  String trayTasksDueToday(int count);
+
+  /// No description provided for @trayOpenTodayAgenda.
+  ///
+  /// In en, this message translates to:
+  /// **'Open today’s agenda'**
+  String get trayOpenTodayAgenda;
+
+  /// No description provided for @traySyncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get traySyncNow;
+
+  /// No description provided for @traySyncing.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing…'**
+  String get traySyncing;
+
+  /// No description provided for @trayNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected'**
+  String get trayNotConnected;
+
+  /// No description provided for @trayNotYetSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Not yet synced'**
+  String get trayNotYetSynced;
+
+  /// No description provided for @trayLastSyncedJustNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Last synced just now'**
+  String get trayLastSyncedJustNow;
+
+  /// No description provided for @trayLastSyncedMinutesAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Last synced 1 minute ago} other{Last synced {count} minutes ago}}'**
+  String trayLastSyncedMinutesAgo(int count);
+
+  /// No description provided for @trayLastSyncedHoursAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Last synced 1 hour ago} other{Last synced {count} hours ago}}'**
+  String trayLastSyncedHoursAgo(int count);
+
+  /// No description provided for @trayLastSyncedDaysAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Last synced 1 day ago} other{Last synced {count} days ago}}'**
+  String trayLastSyncedDaysAgo(int count);
+
+  /// No description provided for @traySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get traySettings;
+
+  /// No description provided for @trayQuitBusyMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit BusyMax'**
+  String get trayQuitBusyMax;
+
   /// No description provided for @agendaLoadMoreOverdue.
   ///
   /// In en, this message translates to:
@@ -3677,6 +3803,264 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Wait for this calendar’s pending changes to finish syncing before deleting or removing it.'**
   String get calendarPendingChangesPreventRemoval;
+
+  /// No description provided for @calendarSubscriptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar subscriptions'**
+  String get calendarSubscriptions;
+
+  /// No description provided for @calendarSubscriptionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Add read-only calendars that refresh from a secure WebCal URL.'**
+  String get calendarSubscriptionsDescription;
+
+  /// No description provided for @addCalendarSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Add calendar subscription'**
+  String get addCalendarSubscription;
+
+  /// No description provided for @subscriptionName.
+  ///
+  /// In en, this message translates to:
+  /// **'Local name'**
+  String get subscriptionName;
+
+  /// No description provided for @subscriptionUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription URL'**
+  String get subscriptionUrl;
+
+  /// No description provided for @subscriptionUrlHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.'**
+  String get subscriptionUrlHelp;
+
+  /// No description provided for @subscriptionUrlInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid HTTPS or webcal URL without user information or a fragment.'**
+  String get subscriptionUrlInvalid;
+
+  /// No description provided for @subscriptionColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Local color'**
+  String get subscriptionColor;
+
+  /// No description provided for @subscriptionColorHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a six-digit color such as #3584E4.'**
+  String get subscriptionColorHelp;
+
+  /// No description provided for @subscriptionColorInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a six-digit hexadecimal color.'**
+  String get subscriptionColorInvalid;
+
+  /// No description provided for @subscriptionRefreshMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh frequency'**
+  String get subscriptionRefreshMode;
+
+  /// No description provided for @subscriptionAutomatic.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get subscriptionAutomatic;
+
+  /// No description provided for @subscriptionHourly.
+  ///
+  /// In en, this message translates to:
+  /// **'Hourly'**
+  String get subscriptionHourly;
+
+  /// No description provided for @subscriptionSixHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Every six hours'**
+  String get subscriptionSixHours;
+
+  /// No description provided for @subscriptionDaily.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily'**
+  String get subscriptionDaily;
+
+  /// No description provided for @subscriptionSafeOrigin.
+  ///
+  /// In en, this message translates to:
+  /// **'Source: {origin}'**
+  String subscriptionSafeOrigin(String origin);
+
+  /// No description provided for @subscriptionSafeOriginUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid URL to preview its safe origin.'**
+  String get subscriptionSafeOriginUnavailable;
+
+  /// No description provided for @subscriptionReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only subscription'**
+  String get subscriptionReadOnly;
+
+  /// No description provided for @subscriptionNeverRefreshed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not refreshed yet'**
+  String get subscriptionNeverRefreshed;
+
+  /// No description provided for @subscriptionLastRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Last successful refresh: {time}'**
+  String subscriptionLastRefresh(String time);
+
+  /// No description provided for @subscriptionNextRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Next refresh: {time}'**
+  String subscriptionNextRefresh(String time);
+
+  /// No description provided for @subscriptionStatusHealthy.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to date'**
+  String get subscriptionStatusHealthy;
+
+  /// No description provided for @subscriptionStatusIssue.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh issue: {code}'**
+  String subscriptionStatusIssue(String code);
+
+  /// No description provided for @refreshNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh now'**
+  String get refreshNow;
+
+  /// No description provided for @unsubscribe.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsubscribe'**
+  String get unsubscribe;
+
+  /// No description provided for @unsubscribeCalendarTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsubscribe from “{name}”?'**
+  String unsubscribeCalendarTitle(String name);
+
+  /// No description provided for @unsubscribeCalendarConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the local subscription and its cached events. The published calendar is not changed.'**
+  String get unsubscribeCalendarConfirmation;
+
+  /// No description provided for @addSubscriptionAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Add subscription'**
+  String get addSubscriptionAction;
+
+  /// No description provided for @subscriptionOperationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar subscription failed: {error}'**
+  String subscriptionOperationFailed(String error);
+
+  /// No description provided for @subscriptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscriptions'**
+  String get subscriptions;
+
+  /// No description provided for @importIcsFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Import .ics file'**
+  String get importIcsFile;
+
+  /// No description provided for @importIcsPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Import calendar events'**
+  String get importIcsPreview;
+
+  /// No description provided for @importEventsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Importable event sets: {count}'**
+  String importEventsFound(int count);
+
+  /// No description provided for @importInvalidEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid events: {count}'**
+  String importInvalidEvents(int count);
+
+  /// No description provided for @importFieldsOmitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Intentionally omitted: {fields}'**
+  String importFieldsOmitted(String fields);
+
+  /// No description provided for @noWritableCalendars.
+  ///
+  /// In en, this message translates to:
+  /// **'No writable destination calendar is available.'**
+  String get noWritableCalendars;
+
+  /// No description provided for @importDestinationCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Destination calendar'**
+  String get importDestinationCalendar;
+
+  /// No description provided for @importIcsConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Import events'**
+  String get importIcsConfirm;
+
+  /// No description provided for @importIcsComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Import complete'**
+  String get importIcsComplete;
+
+  /// No description provided for @importQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported or queued: {count}'**
+  String importQueued(int count);
+
+  /// No description provided for @importDuplicatesSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicates skipped: {count}'**
+  String importDuplicatesSkipped(int count);
+
+  /// No description provided for @importUnsupportedSets.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported recurrence sets: {count}'**
+  String importUnsupportedSets(int count);
+
+  /// No description provided for @importIcsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not import the calendar file: {error}'**
+  String importIcsFailed(String error);
 
   /// No description provided for @networkOffline.
   ///

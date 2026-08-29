@@ -1240,7 +1240,9 @@ class _EventEditorState extends State<EventEditor> {
       BusyProvider.microsoft => source.allowedConferenceSolutions.contains(
         'teamsForBusiness',
       ),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => false,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => false,
     };
     if (hasConference || canCreateConference) {
       rows.add(

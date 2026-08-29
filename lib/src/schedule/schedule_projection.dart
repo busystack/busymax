@@ -146,6 +146,7 @@ class ScheduleProjection {
         BusyProvider.microsoft => _dedupeProvider('Microsoft To Do', listName),
         BusyProvider.appleICloud => _dedupeProvider('Apple iCloud', listName),
         BusyProvider.nextcloud => _dedupeProvider('Nextcloud Tasks', listName),
+        BusyProvider.webCal => listName,
       };
     }
     return 'BusyMax';

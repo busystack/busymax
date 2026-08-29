@@ -28,6 +28,8 @@ part 'daos/tasks_dao.dart';
     SyncRuns,
     CalendarSources,
     CalendarEvents,
+    IcalImportReceipts,
+    WebCalSubscriptions,
     CalendarEventAttendees,
     CalendarEventReminders,
     SyncCursors,

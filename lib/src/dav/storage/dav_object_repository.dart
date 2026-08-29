@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../db/app_database.dart';
+import '../../ical/ical_event_projection.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../ical/ical_document.dart';
@@ -892,70 +893,27 @@ final class DavObjectRepository {
         safeMessage: 'The calendar projection source was missing.',
       );
     }
-    final occurrences = _recurrenceExpander.expand(
-      semantic,
-      rangeStartUtc: commit.projectionRangeStartUtc,
-      rangeEndUtc: commit.projectionRangeEndUtc,
-    );
-    final timeZoneResolver = IcalTimeZoneResolver.fromDocument(semantic);
-    final recurringUids = {
-      for (final component in semantic.components)
-        if (component.componentType == 'VEVENT' &&
-            (component.recurrenceId != null ||
-                component.recurrenceRules.isNotEmpty ||
-                component.recurrenceDates.isNotEmpty ||
-                component.exceptionDates.isNotEmpty))
-          component.uid,
-    };
+    final projections =
+        IcalEventProjector(
+          recurrenceExpander: _recurrenceExpander,
+        ).projectSemantic(
+          semantic,
+          rangeStartUtc: commit.projectionRangeStartUtc,
+          rangeEndUtc: commit.projectionRangeEndUtc,
+          transport: 'caldav',
+        );
     final now = commit.completedAtUtc.toUtc().millisecondsSinceEpoch;
-    for (final occurrence in occurrences) {
-      final component = occurrence.effectiveComponent;
-      final identityComponent = occurrence.identityComponent;
+    for (final projected in projections) {
       final componentId =
           componentIds[_componentKey(
-            identityComponent.componentType,
-            identityComponent.uid!,
-            identityComponent.recurrenceIdKey,
+            'VEVENT',
+            projected.uid,
+            projected.recurrenceIdKey,
           )]!;
       final eventId = _stableProjectionId(
         'dav-event',
-        '$objectId\u0000${occurrence.occurrenceKey}',
+        '$objectId\u0000${projected.occurrenceKey}',
       );
-      final allDay = occurrence.start.kind == IcalTemporalKind.date;
-      final recurrence = {
-        'rules': occurrence.master.recurrenceRules,
-        'dates': occurrence.master.recurrenceDates,
-        'excludedDates': occurrence.master.exceptionDates,
-      };
-      final attendees = component.attendees.isEmpty
-          ? occurrence.master.attendees
-          : component.attendees;
-      final organizers = component.organizers.isEmpty
-          ? occurrence.master.organizers
-          : component.organizers;
-      final categories = component.categories.isEmpty
-          ? occurrence.master.categories
-          : component.categories;
-      final alarms = component.alarms.isEmpty
-          ? occurrence.master.alarms
-          : component.alarms;
-      final startUtc = _resolvedTemporalUtc(occurrence.start, timeZoneResolver);
-      final endUtc = occurrence.end == null
-          ? null
-          : _resolvedTemporalUtc(occurrence.end!, timeZoneResolver);
-      final projectionJson = jsonEncode({
-        'transport': 'caldav',
-        'uid': component.uid,
-        'occurrenceKey': occurrence.occurrenceKey,
-        'nativeStart': _temporalJson(occurrence.start),
-        if (occurrence.end != null) 'nativeEnd': _temporalJson(occurrence.end!),
-        if (startUtc != null) 'startUtc': startUtc.toIso8601String(),
-        if (endUtc != null) 'endUtc': endUtc.toIso8601String(),
-        'extensionProperties': {
-          ...occurrence.master.extensionProperties,
-          ...component.extensionProperties,
-        },
-      });
       await _database
           .into(_database.calendarEvents)
           .insertOnConflictUpdate(
@@ -969,93 +927,47 @@ final class DavObjectRepository {
               davCollectionId: Value(commit.collectionId),
               davObjectId: Value(objectId),
               davComponentId: Value(componentId),
-              icalUid: Value(component.uid),
-              recurrenceIdKey: Value(identityComponent.recurrenceIdKey),
-              occurrenceKey: Value(occurrence.occurrenceKey),
+              icalUid: Value(projected.uid),
+              recurrenceIdKey: Value(projected.recurrenceIdKey),
+              occurrenceKey: Value(projected.occurrenceKey),
               projectionVersion: const Value(davProjectionVersion),
               providerRecurringEventId: Value(
-                recurringUids.contains(occurrence.master.uid)
-                    ? occurrence.master.uid
-                    : null,
+                projected.recurring ? projected.uid : null,
               ),
               providerOriginalStartKey: Value(
-                recurringUids.contains(occurrence.master.uid)
-                    ? occurrence.occurrenceKey
-                    : null,
+                projected.recurring ? projected.occurrenceKey : null,
               ),
               etagOrChangeKey: Value(etag),
-              status: Value(component.status ?? occurrence.master.status),
-              title: occurrence.summary ?? '',
-              description: Value(occurrence.description),
-              location: Value(occurrence.location),
-              allDay: Value(allDay),
-              startDate: Value(
-                allDay ? _storageTemporal(occurrence.start) : null,
-              ),
-              startDateTime: Value(
-                allDay ? null : _storageTemporal(occurrence.start),
-              ),
-              startTimeZone: Value(_timeZoneName(occurrence.start)),
-              endDate: Value(
-                allDay && occurrence.end != null
-                    ? _storageTemporal(occurrence.end!)
-                    : null,
-              ),
-              endDateTime: Value(
-                !allDay && occurrence.end != null
-                    ? _storageTemporal(occurrence.end!)
-                    : null,
-              ),
-              endTimeZone: Value(
-                occurrence.end == null ? null : _timeZoneName(occurrence.end!),
-              ),
-              recurrenceJson: Value(jsonEncode(recurrence)),
-              remindersJson: Value(
-                jsonEncode({
-                  'minutes': _eventReminderMinutes(alarms),
-                  'alarms': _alarmProjection(alarms),
-                }),
-              ),
-              attendeesJson: Value(jsonEncode(attendees)),
-              categoriesJson: Value(jsonEncode(categories)),
-              organizerJson: Value(
-                organizers.isEmpty ? null : jsonEncode(organizers.first),
-              ),
+              status: Value(projected.status),
+              title: projected.title,
+              description: Value(projected.description),
+              location: Value(projected.location),
+              allDay: Value(projected.allDay),
+              startDate: Value(projected.startDate),
+              startDateTime: Value(projected.startDateTime),
+              startTimeZone: Value(projected.startTimeZone),
+              endDate: Value(projected.endDate),
+              endDateTime: Value(projected.endDateTime),
+              endTimeZone: Value(projected.endTimeZone),
+              recurrenceJson: Value(projected.recurrenceJson),
+              remindersJson: Value(projected.remindersJson),
+              attendeesJson: Value(projected.attendeesJson),
+              categoriesJson: Value(projected.categoriesJson),
+              organizerJson: Value(projected.organizerJson),
               colorHex: Value(collection.color),
-              visibility: Value(
-                component.classification ?? occurrence.master.classification,
-              ),
-              transparencyOrShowAs: Value(
-                component.transparency ?? occurrence.master.transparency,
-              ),
-              webLink: Value(
-                _propertyRaw(component, 'URL') ??
-                    _propertyRaw(occurrence.master, 'URL'),
-              ),
-              attachmentsJson: Value(
-                jsonEncode(
-                  _propertyRawValues(component, 'ATTACH').isEmpty
-                      ? _propertyRawValues(occurrence.master, 'ATTACH')
-                      : _propertyRawValues(component, 'ATTACH'),
-                ),
-              ),
-              isCancelled: Value(occurrence.isCancelled),
+              visibility: Value(projected.visibility),
+              transparencyOrShowAs: Value(projected.transparency),
+              webLink: Value(projected.webLink),
+              attachmentsJson: Value(projected.attachmentsJson),
+              isCancelled: Value(projected.cancelled),
               isDeleted: const Value(false),
-              rawJson: Value(projectionJson),
-              createdAtServer: Value(
-                _storageTemporalNullable(
-                  component.created ?? occurrence.master.created,
-                ),
-              ),
-              updatedAtServer: Value(
-                _storageTemporalNullable(
-                  component.lastModified ?? occurrence.master.lastModified,
-                ),
-              ),
+              rawJson: Value(projected.rawJson),
+              createdAtServer: Value(projected.createdAtServer),
+              updatedAtServer: Value(projected.updatedAtServer),
               createdAtLocal: now,
               updatedAtLocal: now,
               syncStatus: const Value('synced'),
-              baselineRawJson: Value(projectionJson),
+              baselineRawJson: Value(projected.rawJson),
             ),
           );
     }
@@ -1398,32 +1310,6 @@ List<Map<String, Object?>> _alarmProjection(List<IcalComponent> alarms) => [
     },
 ];
 
-List<int> _eventReminderMinutes(List<IcalComponent> alarms) {
-  final result = <int>[];
-  for (final alarm in alarms) {
-    final action = alarm.firstProperty('ACTION')?.rawValue.toUpperCase();
-    if (action != 'DISPLAY' && action != 'AUDIO') {
-      continue;
-    }
-    final trigger = alarm.firstProperty('TRIGGER');
-    if (trigger == null ||
-        trigger.parameterValue('RELATED')?.toUpperCase() == 'END') {
-      continue;
-    }
-    try {
-      final duration = parseIcalDuration(trigger.rawValue.toUpperCase());
-      if (duration == null || !duration.negative) continue;
-      final absolute = -duration.duration;
-      if (absolute.inSeconds <= 0 || absolute.inSeconds % 60 != 0) continue;
-      final minutes = absolute.inMinutes;
-      if (!result.contains(minutes)) result.add(minutes);
-    } on DavException {
-      // Absolute and unsupported trigger forms remain in the raw alarm list.
-    }
-  }
-  return result;
-}
-
 ({String dateTime, String? timeZone})? _taskReminderProjection(
   List<IcalComponent> alarms, {
   required IcalTemporalValue? start,
@@ -1492,15 +1378,6 @@ DateTime? _resolvedTemporalUtc(
     IcalTemporalKind.date || IcalTemporalKind.floatingDateTime => null,
   };
 }
-
-String? _propertyRaw(IcalSemanticComponent component, String name) =>
-    component.documentComponent.firstProperty(name)?.rawValue;
-
-List<String> _propertyRawValues(IcalSemanticComponent component, String name) =>
-    component.documentComponent
-        .propertiesNamed(name)
-        .map((property) => property.rawValue)
-        .toList(growable: false);
 
 bool _extensionFlag(Map<String, List<String>> extensions, String name) {
   final value = extensions[name]?.firstOrNull?.trim().toUpperCase();

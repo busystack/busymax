@@ -88,7 +88,9 @@ CalendarManagementCapabilities calendarManagementCapabilities(
   final cloudCapabilities = switch (provider) {
     BusyProvider.google => googleCalendarProviderCapabilities,
     BusyProvider.microsoft => microsoftCalendarProviderCapabilities,
-    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    BusyProvider.appleICloud ||
+    BusyProvider.nextcloud ||
+    BusyProvider.webCal => null,
   };
   return CalendarManagementCapabilities(
     supportsCreate: cloudCapabilities?.supportsCreateCalendar ?? false,

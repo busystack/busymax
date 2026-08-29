@@ -257,7 +257,15 @@ final class IcalSemanticDocument {
   });
 
   factory IcalSemanticDocument.parse(String rawIcs) {
-    final document = IcalDocument.parse(rawIcs);
+    return IcalSemanticDocument.fromDocument(IcalDocument.parse(rawIcs));
+  }
+
+  /// Builds the CalDAV semantic view from an already parsed document.
+  ///
+  /// This retains the existing one-component-type, one-UID recurrence-set
+  /// invariant. Multi-UID calendar ingestion must split a snapshot into
+  /// recurrence-set documents before using this factory.
+  factory IcalSemanticDocument.fromDocument(IcalDocument document) {
     final semanticComponents = <IcalSemanticComponent>[];
     final timeZones = <IcalComponent>[];
     for (final component in document.calendarComponents) {

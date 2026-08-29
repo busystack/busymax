@@ -94,11 +94,13 @@ abstract final class EventRecurrenceCodec {
       BusyProvider.microsoft => _decodeMicrosoft(value, baseDate: baseDate),
       BusyProvider.google ||
       BusyProvider.appleICloud ||
-      BusyProvider.nextcloud => _decodeIcalendar(value, baseDate: baseDate),
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => _decodeIcalendar(value, baseDate: baseDate),
     };
   }
 
   static bool canEncode(BusyProvider provider, RecurrenceRule rule) {
+    if (provider == BusyProvider.webCal) return false;
     return limitsFor(provider).supports(rule);
   }
 
@@ -131,6 +133,9 @@ abstract final class EventRecurrenceCodec {
         baseDate: baseDate,
         timeZone: timeZone,
         original: original,
+      ),
+      BusyProvider.webCal => throw StateError(
+        'WebCal subscriptions are read-only.',
       ),
     };
   }

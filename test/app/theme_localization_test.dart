@@ -11,6 +11,7 @@ import 'package:yaru/theme.dart';
 import 'package:yaru/widgets.dart' show YaruInfoType;
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_app.dart';
@@ -18,6 +19,8 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
+import 'package:busymax/src/features/tray/domain/tray_presentation.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
@@ -1860,7 +1863,7 @@ void main() {
     addTearDown(database.close);
     final store = _DelayedSettingsStore();
     final windowService = _RecordingWindowService();
-    final trayService = _RecordingTrayService(windowService);
+    _RecordingTrayService? trayService;
 
     await tester.pumpWidget(
       ProviderScope(
@@ -1871,18 +1874,14 @@ void main() {
           linuxWindowServiceProvider.overrideWithValue(windowService),
         ],
         child: BusyMaxApp(
-          trayServiceFactory:
-              ({
-                required windowService,
-                required labels,
-                required onOpenAgenda,
-              }) => trayService,
+          trayServiceFactory: (configuration) =>
+              trayService = _RecordingTrayService(configuration),
         ),
       ),
     );
     await tester.pump();
 
-    expect(trayService.startCalls, 0);
+    expect(trayService?.startCalls ?? 0, 0);
     expect(windowService.hideWindowCalls, 0);
 
     store.completeLoad(<String, Object?>{
@@ -1893,13 +1892,13 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(trayService.startCalls, 1);
+    expect(trayService!.startCalls, 1);
     expect(windowService.hideWindowCalls, 1);
 
     // A rebuild with the same loaded settings must not restart the tray or
     // hide an already-running window a second time.
     await tester.pump();
-    expect(trayService.startCalls, 1);
+    expect(trayService!.startCalls, 1);
     expect(windowService.hideWindowCalls, 1);
   });
 
@@ -1920,15 +1919,8 @@ void main() {
           linuxWindowServiceProvider.overrideWithValue(windowService),
         ],
         child: BusyMaxApp(
-          trayServiceFactory:
-              ({
-                required windowService,
-                required labels,
-                required onOpenAgenda,
-              }) => trayService = _RecordingTrayService(
-                windowService,
-                openAgendaCallback: onOpenAgenda,
-              ),
+          trayServiceFactory: (configuration) =>
+              trayService = _RecordingTrayService(configuration),
         ),
       ),
     );
@@ -1944,13 +1936,113 @@ void main() {
     final command = container.read(scheduleWorkspaceCommandProvider);
     expect(windowService.showWindowCalls, 1);
     expect(command?.kind, ScheduleWorkspaceCommandKind.agenda);
+    expect(command?.date, isNotNull);
+    expect(command!.date!.year, DateTime.now().year);
+    expect(command.date!.month, DateTime.now().month);
+    expect(command.date!.day, DateTime.now().day);
+  });
+
+  testWidgets('tray application actions use shared routing and commands', (
+    tester,
+  ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final windowService = _RecordingWindowService();
+    var syncEnumerations = 0;
+    final syncScheduler = AllAccountsSyncScheduler(
+      listSyncEligibleAccounts: () async {
+        syncEnumerations += 1;
+        return const [];
+      },
+      syncAccount: (_) async {},
+      onSyncFailure: (_) async {},
+      interval: Duration.zero,
+    );
+    addTearDown(syncScheduler.dispose);
+    late _RecordingTrayService trayService;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+          linuxWindowServiceProvider.overrideWithValue(windowService),
+          syncSchedulerProvider.overrideWithValue(syncScheduler),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory: (configuration) =>
+              trayService = _RecordingTrayService(configuration),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BusyMaxApp)),
+    );
+    final router = container.read(appRouterProvider);
+    final initialRoute = router.state.uri.toString();
+
+    await trayService.configuration.actions.showBusyMax();
+    expect(router.state.uri.toString(), initialRoute);
+
+    await trayService.configuration.actions.newEvent();
+    expect(
+      container.read(scheduleWorkspaceCommandProvider)?.kind,
+      ScheduleWorkspaceCommandKind.newEvent,
+    );
+
+    await trayService.configuration.actions.newTask();
+    expect(
+      container.read(scheduleWorkspaceCommandProvider)?.kind,
+      ScheduleWorkspaceCommandKind.newTask,
+    );
+
+    final event = BusyMaxTrayEventEntry(
+      eventId: 'event-id',
+      accountId: 'account-id',
+      calendarSourceId: 'source-id',
+      title: 'Event',
+      start: DateTime(2026, 8, 29, 10),
+      end: DateTime(2026, 8, 29, 11),
+      allDay: false,
+    );
+    await trayService.configuration.actions.openEvent(event);
+    final openEvent = container.read(scheduleWorkspaceCommandProvider);
+    expect(openEvent?.kind, ScheduleWorkspaceCommandKind.openCalendarEvent);
+    expect(openEvent?.itemId, 'event-id');
+    expect(openEvent?.accountId, 'account-id');
+    expect(openEvent?.sourceId, 'source-id');
+
+    await trayService.configuration.actions.openTasksDueToday();
+    expect(
+      container.read(scheduleWorkspaceCommandProvider)?.kind,
+      ScheduleWorkspaceCommandKind.agenda,
+    );
+    await trayService.configuration.actions.openTodayAgenda();
+    expect(
+      container.read(scheduleWorkspaceCommandProvider)?.kind,
+      ScheduleWorkspaceCommandKind.agenda,
+    );
+
+    await trayService.configuration.actions.openSettings();
+    expect(router.state.uri.path, '/settings');
+
+    final showsBeforeSync = windowService.showWindowCalls;
+    await trayService.configuration.actions.synchronize();
+    expect(syncEnumerations, 1);
+    expect(windowService.showWindowCalls, showsBeforeSync);
+
+    await trayService.configuration.actions.quitBusyMax();
+    expect(windowService.quitAppCalls, 1);
   });
 
   testWidgets('demo mode retains the local tray entry', (tester) async {
     final database = AppDatabase.memoryForTests();
     addTearDown(database.close);
     final windowService = _RecordingWindowService();
-    final trayService = _RecordingTrayService(windowService);
+    late _RecordingTrayService trayService;
 
     await tester.pumpWidget(
       ProviderScope(
@@ -1961,12 +2053,8 @@ void main() {
           linuxWindowServiceProvider.overrideWithValue(windowService),
         ],
         child: BusyMaxApp(
-          trayServiceFactory:
-              ({
-                required windowService,
-                required labels,
-                required onOpenAgenda,
-              }) => trayService,
+          trayServiceFactory: (configuration) =>
+              trayService = _RecordingTrayService(configuration),
         ),
       ),
     );
@@ -1995,7 +2083,7 @@ void main() {
       await changes.close();
     });
     final windowService = _RecordingWindowService();
-    final trayService = _RecordingTrayService(windowService);
+    late _RecordingTrayService trayService;
 
     await tester.pumpWidget(
       ProviderScope(
@@ -2007,24 +2095,73 @@ void main() {
           networkConnectivityMonitorProvider.overrideWithValue(monitor),
         ],
         child: BusyMaxApp(
-          trayServiceFactory:
-              ({
-                required windowService,
-                required labels,
-                required onOpenAgenda,
-              }) => trayService,
+          trayServiceFactory: (configuration) =>
+              trayService = _RecordingTrayService(configuration),
         ),
       ),
     );
     await tester.pump();
     await tester.pump();
     expect(trayService.offlineStates, contains(true));
+    final refreshCallsBeforeConnectivityChange = trayService.refreshCalls;
 
     changes.add([ConnectivityResult.wifi]);
-    await tester.pump();
-    await tester.pump();
+    for (var attempt = 0; attempt < 10; attempt += 1) {
+      await tester.pump(const Duration(milliseconds: 10));
+      if (trayService.offlineStates.isNotEmpty &&
+          trayService.offlineStates.last == false) {
+        break;
+      }
+    }
 
-    expect(trayService.offlineStates.last, isFalse);
+    expect(
+      trayService.refreshCalls,
+      greaterThan(refreshCallsBeforeConnectivityChange),
+    );
+    final currentPresentation = await tester.runAsync(
+      trayService.configuration.loadPresentation,
+    );
+    expect(currentPresentation!.offline, isFalse);
+  });
+
+  testWidgets('tray refreshes after privacy and locale changes', (
+    tester,
+  ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final windowService = _RecordingWindowService();
+    late _RecordingTrayService trayService;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+          linuxWindowServiceProvider.overrideWithValue(windowService),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory: (configuration) =>
+              trayService = _RecordingTrayService(configuration),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BusyMaxApp)),
+    );
+    final settings = container.read(appSettingsControllerProvider.notifier);
+
+    var previousRefreshCalls = trayService.refreshCalls;
+    await settings.setNotificationDetailLevel(NotificationDetailLevel.private);
+    await tester.pump();
+    expect(trayService.refreshCalls, greaterThan(previousRefreshCalls));
+
+    previousRefreshCalls = trayService.refreshCalls;
+    await settings.setLocaleTag('de');
+    await tester.pump();
+    expect(trayService.refreshCalls, greaterThan(previousRefreshCalls));
   });
 
   test('production sources avoid forbidden hardcoded accent colors', () {
@@ -2324,6 +2461,7 @@ class _DelayedSettingsStore implements LocalSettingsStore {
 class _RecordingWindowService extends LinuxWindowService {
   var hideWindowCalls = 0;
   var showWindowCalls = 0;
+  var quitAppCalls = 0;
 
   @override
   Future<void> hideWindow() async {
@@ -2336,29 +2474,22 @@ class _RecordingWindowService extends LinuxWindowService {
   }
 
   @override
+  Future<void> quitApp() async {
+    quitAppCalls += 1;
+  }
+
+  @override
   Future<void> setHideOnClose(bool enabled) async {}
 }
 
 class _RecordingTrayService extends BusyMaxTrayService {
-  _RecordingTrayService(
-    LinuxWindowService windowService, {
-    Future<void> Function() openAgendaCallback = _noop,
-  }) : _onOpenAgenda = openAgendaCallback,
-       super(
-         windowService: windowService,
-         labels: const BusyMaxTrayLabels(
-           openBusyMax: 'Open BusyMax',
-           agenda: 'Agenda',
-           quitBusyMax: 'Exit',
-           offline: 'Offline',
-           offlineDescription: 'Changes will sync when connected.',
-         ),
-         onOpenAgenda: openAgendaCallback,
-       );
+  _RecordingTrayService(this.configuration)
+    : super(configuration: configuration);
 
-  final Future<void> Function() _onOpenAgenda;
+  final BusyMaxTrayServiceConfiguration configuration;
 
   var startCalls = 0;
+  var refreshCalls = 0;
   var _available = false;
   final offlineStates = <bool>[];
 
@@ -2369,6 +2500,7 @@ class _RecordingTrayService extends BusyMaxTrayService {
   Future<void> start() async {
     startCalls += 1;
     _available = true;
+    offlineStates.add(configuration.initialPresentation.offline);
   }
 
   @override
@@ -2377,17 +2509,15 @@ class _RecordingTrayService extends BusyMaxTrayService {
   }
 
   @override
-  Future<void> updateLabels(BusyMaxTrayLabels labels) async {}
-
-  @override
-  Future<void> updateOfflineState(bool offline) async {
-    offlineStates.add(offline);
+  Future<bool> refreshPresentation() async {
+    refreshCalls += 1;
+    final presentation = await configuration.loadPresentation();
+    offlineStates.add(presentation.offline);
+    return true;
   }
 
-  Future<void> openAgenda() => _onOpenAgenda();
+  Future<void> openAgenda() => configuration.actions.openTodayAgenda();
 }
-
-Future<void> _noop() async {}
 
 const _missingConfig = BuildConfig(
   googleOAuthClientId: '',

@@ -17,12 +17,15 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(authSessionControllerProvider);
+  final hasSubscriptions =
+      ref.watch(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
+  final canOpenSchedule = session.isSignedIn || hasSubscriptions;
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: session.status == AuthSessionStatus.loading
         ? '/'
-        : session.isSignedIn
+        : canOpenSchedule
         ? '/schedule'
         : '/sign-in',
     redirect: (context, state) {
@@ -31,16 +34,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (state.matchedLocation == '/') {
-        return session.isSignedIn ? '/schedule' : '/sign-in';
+        return canOpenSchedule ? '/schedule' : '/sign-in';
       }
 
-      if (!session.isSignedIn && state.matchedLocation != '/sign-in') {
+      if (!canOpenSchedule &&
+          state.matchedLocation != '/sign-in' &&
+          state.matchedLocation != '/settings') {
         return '/sign-in';
       }
 
-      if (session.isSignedIn &&
-          session.status == AuthSessionStatus.signedIn &&
-          state.matchedLocation == '/sign-in') {
+      if (canOpenSchedule && state.matchedLocation == '/sign-in') {
         return '/schedule';
       }
       return null;

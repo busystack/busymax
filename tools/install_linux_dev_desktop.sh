@@ -110,7 +110,7 @@ GENERATED_DESKTOP="$TEMP_DIR/${APP_ID}.desktop"
 
 awk -v executable="$EXECUTABLE" -v icon="$ICON_DEST" '
   /^Exec=/ {
-    print "Exec=\"" executable "\""
+    print "Exec=\"" executable "\" %U"
     next
   }
   /^Icon=/ {

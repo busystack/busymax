@@ -21,7 +21,7 @@ void main() {
     await database.close();
   });
 
-  test('opens schema version 10 and creates required indexes', () async {
+  test('opens schema version 11 and creates required indexes', () async {
     final version = await database
         .customSelect('PRAGMA user_version')
         .getSingle();
@@ -39,7 +39,7 @@ void main() {
         .customSelect('PRAGMA table_info(calendar_sources)')
         .get();
 
-    expect(version.data['user_version'], 10);
+    expect(version.data['user_version'], 11);
     expect(
       taskColumns.map((row) => row.read<String>('name')),
       contains('microsoft_checklist_items_json'),
@@ -75,7 +75,65 @@ void main() {
       'idx_sync_cursors_scope',
       'idx_pending_ops_dav_replay',
       'idx_notification_schedule_due',
+      'idx_webcal_subscriptions_due',
     });
+  });
+
+  test('schema 10 migration preserves accounts and enables WebCal', () async {
+    await database.close();
+    final tempDir = await Directory.systemTemp.createTemp(
+      'busymax-db-v10-test-',
+    );
+    final file = File('${tempDir.path}/busymax.sqlite');
+    final schemaTenDatabase = AppDatabase(NativeDatabase(file));
+    await _insertAccount(schemaTenDatabase);
+    await schemaTenDatabase.close();
+
+    final raw = sqlite3.sqlite3.open(file.path);
+    try {
+      raw.execute('DROP TABLE ical_import_receipts');
+      raw.execute('DROP TABLE web_cal_subscriptions');
+      raw.execute('PRAGMA user_version = 10');
+    } finally {
+      raw.close();
+    }
+
+    database = AppDatabase(NativeDatabase(file));
+    final existing = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals('account'))).getSingle();
+    expect(existing.provider, 'google');
+    expect(
+      (await database.customSelect('PRAGMA user_version').getSingle())
+          .read<int>('user_version'),
+      11,
+    );
+
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'webcal-account-subscription',
+            provider: 'webcal',
+            authority: 'https://calendar.example.test',
+            providerAccountId: 'fingerprint',
+            credentialKind: 'webcal_subscription',
+            authState: const Value('signed_in'),
+            calendarsEnabled: const Value(true),
+            tasksEnabled: const Value(false),
+            grantedScopes: const Value(''),
+            createdAtUtc: _now,
+            updatedAtUtc: _now,
+          ),
+        );
+    expect(
+      await database.customSelect('PRAGMA foreign_key_check').get(),
+      isEmpty,
+    );
+
+    await database.close();
+    database = AppDatabase(NativeDatabase.memory());
+    await tempDir.delete(recursive: true);
   });
 
   test(
@@ -123,7 +181,7 @@ void main() {
         database.calendarSources,
       )..where((row) => row.id.equals('calendar'))).getSingle();
 
-      expect(version.read<int>('user_version'), 10);
+      expect(version.read<int>('user_version'), 11);
       expect(
         columns.map((row) => row.read<String>('name')),
         containsAll(['data_owner', 'is_removable']),
@@ -323,7 +381,7 @@ void main() {
       final version = await database
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(version.read<int>('user_version'), 10);
+      expect(version.read<int>('user_version'), 11);
 
       final accounts = await database.select(database.accounts).get();
       expect(accounts, hasLength(2));
@@ -524,7 +582,7 @@ void main() {
           .getSingle();
       final op = await database.pendingOpsDao.getOp('op-1');
 
-      expect(version.data['user_version'], 10);
+      expect(version.data['user_version'], 11);
       expect(op, isNot(equals(null)));
       expect(op!.baselineRawJson, equals(null));
 

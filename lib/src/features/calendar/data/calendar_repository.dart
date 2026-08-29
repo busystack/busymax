@@ -576,6 +576,9 @@ class CalendarRepository {
       BusyProvider.appleICloud || BusyProvider.nextcloud => throw StateError(
         'DAV calendar colors are not mutable.',
       ),
+      BusyProvider.webCal => throw StateError(
+        'WebCal subscription colors use local subscription operations.',
+      ),
     };
     await _database.transaction(() async {
       await (_database.update(
@@ -812,12 +815,16 @@ class CalendarRepository {
             ? baseline['summaryOverride']!.toString()
             : baseline['summary']?.toString(),
       BusyProvider.microsoft => baseline['name']?.toString(),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
     };
     final baselineColorId = switch (provider) {
       BusyProvider.google => baseline['colorId']?.toString(),
       BusyProvider.microsoft => baseline['color']?.toString(),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
     };
     final baselineBackground = switch (provider) {
       BusyProvider.google => baseline['backgroundColor']?.toString(),
@@ -826,7 +833,9 @@ class CalendarRepository {
         backgroundColor: baseline['hexColor']?.toString(),
         colorId: baselineColorId,
       ),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
     };
     await (_database.update(
       _database.calendarSources,
@@ -1030,6 +1039,7 @@ class CalendarRepository {
     EventEditorDraft draft, {
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    bool rebuildNotifications = true,
   }) async {
     final source = await (_database.select(
       _database.calendarSources,
@@ -1046,7 +1056,11 @@ class CalendarRepository {
       );
     }
     if (source.davCollectionId != null) {
-      return _createLocalDavEvent(source, draft);
+      return _createLocalDavEvent(
+        source,
+        draft,
+        rebuildNotifications: rebuildNotifications,
+      );
     }
     final calendarCreateOp = await _pendingCalendarCreate(source.id);
     final now = _now().millisecondsSinceEpoch;
@@ -1148,11 +1162,57 @@ class CalendarRepository {
             ),
           );
     });
+    if (rebuildNotifications) {
+      await _notificationScheduleService().rebuildUpcomingEventNotifications(
+        draft.accountId,
+      );
+      await _onNotificationScheduleChanged?.call();
+    }
+    return operationId;
+  }
+
+  Future<List<String>> createImportedEventsBatch({
+    required CalendarSourceEntity destination,
+    required List<({String icalUid, EventEditorDraft draft})> events,
+  }) async {
+    if (events.isEmpty) return const [];
+    if (events.any(
+      (event) =>
+          event.draft.accountId != destination.accountId ||
+          event.draft.sourceId != destination.id ||
+          event.draft.providerCalendarId != destination.providerCalendarId ||
+          event.draft.attendees.isNotEmpty ||
+          event.draft.createConference ||
+          event.draft.conference != null,
+    )) {
+      throw ArgumentError('The import batch contains an unsafe event draft.');
+    }
+    final operationIds = <String>[];
+    await _database.transaction(() async {
+      for (final event in events) {
+        final operationId = await createLocalEvent(
+          event.draft,
+          guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+          rebuildNotifications: false,
+        );
+        operationIds.add(operationId);
+        await _database
+            .into(_database.icalImportReceipts)
+            .insert(
+              IcalImportReceiptsCompanion.insert(
+                calendarSourceId: destination.id,
+                icalUid: event.icalUid,
+                eventId: const Value(null),
+                importedAtUtc: _now().toUtc().toIso8601String(),
+              ),
+            );
+      }
+    });
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
-      draft.accountId,
+      destination.accountId,
     );
     await _onNotificationScheduleChanged?.call();
-    return operationId;
+    return operationIds;
   }
 
   Future<void> updateLocalEvent(
@@ -2453,8 +2513,9 @@ class CalendarRepository {
 
   Future<String> _createLocalDavEvent(
     CalendarSource source,
-    EventEditorDraft draft,
-  ) async {
+    EventEditorDraft draft, {
+    required bool rebuildNotifications,
+  }) async {
     _requireDavSchedulingUnchanged(draft, creating: true);
     final start = draft.start;
     final end = draft.end;
@@ -2551,10 +2612,12 @@ class CalendarRepository {
             localProjectionId: projectionId,
           );
     });
-    await _notificationScheduleService().rebuildUpcomingEventNotifications(
-      draft.accountId,
-    );
-    await _onNotificationScheduleChanged?.call();
+    if (rebuildNotifications) {
+      await _notificationScheduleService().rebuildUpcomingEventNotifications(
+        draft.accountId,
+      );
+      await _onNotificationScheduleChanged?.call();
+    }
     return operationId;
   }
 
@@ -3515,7 +3578,9 @@ CalendarEventsCompanion _eventPatchProjection({
           request.containsKey('responseRequested') ||
           request.containsKey('hideAttendees') ||
           request.containsKey('allowNewTimeProposals'),
-    BusyProvider.appleICloud || BusyProvider.nextcloud => false,
+    BusyProvider.appleICloud ||
+    BusyProvider.nextcloud ||
+    BusyProvider.webCal => false,
   };
   return CalendarEventsCompanion(
     title: request.containsKey('title')
@@ -3731,7 +3796,9 @@ Object? _conferenceRequest(EventEditorDraft draft, BusyProvider provider) {
       },
     },
     BusyProvider.microsoft => 'teamsForBusiness',
-    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    BusyProvider.appleICloud ||
+    BusyProvider.nextcloud ||
+    BusyProvider.webCal => null,
   };
 }
 
@@ -3857,6 +3924,7 @@ Map<String, Object?> _optimisticEventRaw(
       }
     case BusyProvider.appleICloud:
     case BusyProvider.nextcloud:
+    case BusyProvider.webCal:
       break;
   }
   return raw;
@@ -3906,6 +3974,7 @@ Map<String, Object?> _optimisticEventRawForPatch(
       );
     case BusyProvider.appleICloud:
     case BusyProvider.nextcloud:
+    case BusyProvider.webCal:
       break;
   }
   return raw;

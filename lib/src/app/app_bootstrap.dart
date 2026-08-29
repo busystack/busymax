@@ -22,6 +22,7 @@ import '../dav/mutation/dav_task_list_mutation_service.dart';
 import '../dav/sync/dav_account_sync_engine.dart';
 import '../dav/storage/dav_settings_repository.dart';
 import '../features/calendar/data/calendar_repository.dart';
+import '../ical/ical_import_service.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/connectivity/network_connectivity_service.dart';
@@ -38,6 +39,7 @@ import '../features/sync/sync_failure_notification_policy.dart';
 import '../features/task_lists/data/task_lists_repository.dart';
 import '../features/tasks/data/tasks_repository.dart';
 import '../features/tasks/domain/task_remote_client.dart';
+import '../features/tray/data/tray_presentation_service.dart';
 import '../google_tasks/api/google_tasks_api_client.dart';
 import '../google_tasks/http/authenticated_http_client.dart';
 import '../google_tasks/http/retrying_http_client.dart';
@@ -51,11 +53,14 @@ import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/linux_window_service.dart';
+import '../platform/external_calendar_open_service.dart';
 import '../platform/linux_autostart_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
+import '../webcal/webcal_http_client.dart';
+import '../webcal/webcal_subscription_service.dart';
 import 'app_router.dart';
 import 'app_settings.dart';
 
@@ -257,6 +262,14 @@ final linuxWindowServiceProvider = Provider<LinuxWindowService>(
   (ref) => const LinuxWindowService(),
 );
 
+final externalCalendarOpenServiceProvider =
+    Provider<ExternalCalendarOpenService>((ref) {
+      final service = ExternalCalendarOpenService();
+      unawaited(service.initialize());
+      ref.onDispose(() => unawaited(service.dispose()));
+      return service;
+    });
+
 final linuxAutostartServiceProvider = Provider<LinuxAutostartService>(
   (ref) => LinuxAutostartService(),
 );
@@ -334,7 +347,9 @@ final davTaskCollectionCapabilitiesProvider =
 final selectedAccountIdProvider = StateProvider<String?>((ref) => null);
 
 final selectedAccountProvider = Provider<AccountEntity?>((ref) {
-  final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+  final accounts = (ref.watch(accountsStreamProvider).valueOrNull ?? const [])
+      .where((account) => account.isTaskCapable)
+      .toList(growable: false);
   final selectedId = ref.watch(selectedAccountIdProvider);
   if (selectedId != null) {
     for (final account in accounts) {
@@ -448,7 +463,9 @@ final taskRemoteApiClientForAccountProvider =
         BusyProvider.google => ref.watch(
           googleTasksApiClientForAccountProvider(accountId),
         ),
-        BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+        BusyProvider.appleICloud ||
+        BusyProvider.nextcloud ||
+        BusyProvider.webCal => null,
       };
     });
 
@@ -468,6 +485,9 @@ final syncEngineForAccountFactoryProvider =
           BusyProvider.appleICloud ||
           BusyProvider.nextcloud => throw StateError(
             'DAV task accounts must use DavSynchronizationEngine.',
+          ),
+          BusyProvider.webCal => throw StateError(
+            'WebCal subscriptions do not have a task client.',
           ),
         };
 
@@ -499,6 +519,9 @@ final calendarSyncEngineForAccountFactoryProvider =
           BusyProvider.appleICloud ||
           BusyProvider.nextcloud => throw StateError(
             'DAV calendar accounts must use DavSynchronizationEngine.',
+          ),
+          BusyProvider.webCal => throw StateError(
+            'WebCal subscriptions use WebCalSubscriptionService.',
           ),
         };
         return CalendarSyncEngine(
@@ -545,16 +568,15 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   }
 
   final routing = RoutingAccountSyncOperations(
-    usesDav: (accountId) async {
-      final provider = await providerForAccount(accountId);
-      return provider == BusyProvider.appleICloud ||
-          provider == BusyProvider.nextcloud;
-    },
+    providerForAccount: providerForAccount,
     syncDav: (accountId, {required full}) async {
       await ref
           .read(davAccountSyncEngineFactoryProvider)(accountId)
           .synchronize(full: full);
     },
+    syncWebCal: (accountId, {required full}) => ref
+        .read(webCalSubscriptionServiceProvider)
+        .refreshAccount(accountId, force: full),
     syncTasksRest: (accountId, {required full}) async {
       final provider = await providerForAccount(accountId);
       final engine = ref.read(syncEngineForAccountFactoryProvider)(
@@ -613,8 +635,8 @@ final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
 
   return () async {
     await ref.read(networkConnectivityMonitorProvider).requireNetwork();
-    await runAllSignedInAccountSync(
-      listSignedInAccounts: ref
+    await runAllSyncEligibleAccountSync(
+      listSyncEligibleAccounts: ref
           .read(accountsRepositoryProvider)
           .listSyncEligibleAccounts,
       syncAccount: syncAccount,
@@ -644,6 +666,34 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
     localTimeZone: ref.watch(localTimeZoneProvider),
     onNotificationScheduleChanged: () =>
         ref.read(notificationSchedulerProvider).checkNow(),
+  );
+});
+
+final webCalHttpTransportProvider = Provider<WebCalHttpTransport>(
+  (ref) => IoWebCalHttpTransport(),
+);
+
+final webCalSubscriptionServiceProvider = Provider<WebCalSubscriptionService>((
+  ref,
+) {
+  return WebCalSubscriptionService(
+    database: ref.watch(databaseProvider),
+    secretStore: ref.watch(secretStoreProvider),
+    httpTransport: ref.watch(webCalHttpTransportProvider),
+    onNotificationScheduleChanged: () =>
+        ref.read(notificationSchedulerProvider).checkNow(),
+  );
+});
+
+final webCalSubscriptionsProvider =
+    StreamProvider<List<WebCalSubscriptionEntity>>((ref) {
+      return ref.watch(webCalSubscriptionServiceProvider).watchSubscriptions();
+    });
+
+final icalImportServiceProvider = Provider<IcalImportService>((ref) {
+  return IcalImportService(
+    database: ref.watch(databaseProvider),
+    calendarRepository: ref.watch(calendarRepositoryProvider),
   );
 });
 
@@ -840,9 +890,9 @@ final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
   }
 
   final scheduler = AllAccountsSyncScheduler(
-    listSignedInAccounts: ref
+    listSyncEligibleAccounts: ref
         .read(accountsRepositoryProvider)
-        .listSignedInAccounts,
+        .listSyncEligibleAccounts,
     syncAccount: syncAccount,
     onSyncFailure: ref
         .watch(desktopNotificationServiceProvider)
@@ -852,15 +902,55 @@ final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
     canSync: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
   );
   scheduler.start();
-  ref.onDispose(scheduler.stop);
+  ref.onDispose(() => unawaited(scheduler.dispose()));
   return scheduler;
 });
+
+final syncSchedulerRunningProvider = StreamProvider<bool>((ref) {
+  return ref.watch(syncSchedulerProvider).watchRunning();
+});
+
+final trayPresentationServiceProvider =
+    Provider<BusyMaxTrayPresentationService>((ref) {
+      return BusyMaxTrayPresentationService(
+        accountsRepository: ref.watch(accountsRepositoryProvider),
+        calendarRepository: ref.watch(calendarRepositoryProvider),
+        scheduleRepository: ref.watch(scheduleRepositoryProvider),
+        listTaskLists: (account) => ref
+            .read(taskListsRepositoryForAccountProvider(account.id))
+            .listTaskLists(),
+        canCreateTask: (account, taskList) async {
+          if (account.provider == BusyProvider.google ||
+              account.provider == BusyProvider.microsoft) {
+            return adapterDefaultTaskCapabilities(
+              account.provider,
+            ).canCreateTasks;
+          }
+          if (account.provider != BusyProvider.nextcloud) return false;
+          final capabilities = await ref.read(
+            davTaskCollectionCapabilitiesProvider((
+              accountId: account.id,
+              taskListId: taskList.id,
+            )).future,
+          );
+          return capabilities?.canCreateTasks == true;
+        },
+        settings: () => ref.read(appSettingsControllerProvider),
+        connectivity: () =>
+            ref.read(networkConnectivityMonitorProvider).availability,
+        synchronizationRunning: () => ref.read(syncSchedulerProvider).isRunning,
+      );
+    });
 
 Future<void> _markAccountReconnectRequiredForSyncError(
   Ref ref,
   String accountId,
   Object error,
 ) async {
+  final account = await ref
+      .read(accountsRepositoryProvider)
+      .accountById(accountId);
+  if (account?.isAuthenticationAccount != true) return;
   if (syncFailureNotificationDisposition(error) !=
       SyncFailureNotificationDisposition.reconnectRequired) {
     return;

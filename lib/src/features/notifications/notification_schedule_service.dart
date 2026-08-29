@@ -456,7 +456,8 @@ List<_EventReminder> _eventReminders(
     ], startUtc: startUtc);
   }
   if ((provider == BusyProvider.appleICloud ||
-          provider == BusyProvider.nextcloud) &&
+          provider == BusyProvider.nextcloud ||
+          provider == BusyProvider.webCal) &&
       decoded is Map) {
     return _davEventReminders(
       decoded.cast<String, Object?>(),

@@ -290,24 +290,23 @@ void main() {
       },
     );
 
-    test('tray DBus menu labels come from injected labels', () {
+    test('tray DBus menu labels come from its injected presentation', () {
       final source = File(
         'lib/src/platform/busymax_tray_service.dart',
       ).readAsStringSync();
       final logo = File('assets/branding/busymax-logo.svg').readAsStringSync();
 
-      expect(source, contains('class BusyMaxTrayLabels'));
+      expect(source, contains('BusyMaxTrayMenuPresentation presentation'));
       expect(source, contains('buildBusyMaxTrayMenu'));
+      expect(source, contains('label: presentation.showBusyMaxLabel'));
+      expect(source, contains('label: presentation.todayLabel'));
+      expect(source, contains('static const orderedChildren'));
       expect(source, contains('busyMaxApplicationId'));
       expect(source, contains('io.busystack.busymax'));
       expect(source, contains('assets/branding/busymax-logo.svg'));
       expect(logo, contains('width="512" height="512"'));
       expect(logo, contains('viewBox="106 108 300 300"'));
       expect(logo, isNot(contains('viewBox="254 120 232 272"')));
-      expect(source, isNot(contains('BusyMaxTrayAgendaSnapshot')));
-      expect(source, isNot(contains('BusyMaxTrayAgendaEntry')));
-      expect(source, isNot(contains('_buildAgendaSubmenuItems')));
-      expect(source, isNot(contains('busyMaxTrayAgendaSlotCount')));
       expect(source, isNot(contains("iconName: 'busymax-symbolic'")));
       expect(source, isNot(contains("label: 'Show BusyMax'")));
       expect(source, isNot(contains("label: 'Today'")));
@@ -383,7 +382,12 @@ void main() {
       expect(app, contains("ref.read(appRouterProvider).go('/schedule')"));
       expect(commands, contains('agenda,'));
       expect(workspace, contains('case ScheduleWorkspaceCommandKind.agenda:'));
-      expect(workspace, contains('_setMode(ScheduleViewMode.agenda);'));
+      expect(
+        workspace,
+        contains(
+          '_setMode(ScheduleViewMode.agenda, agendaDate: command.date);',
+        ),
+      );
     });
 
     test('native headerbar keeps sidebar branded with GTK-owned centering', () {

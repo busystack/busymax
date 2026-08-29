@@ -177,13 +177,16 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
               )),
             )
             .valueOrNull,
-      BusyProvider.google || BusyProvider.microsoft => null,
+      BusyProvider.google ||
+      BusyProvider.microsoft ||
+      BusyProvider.webCal => null,
     };
     final capabilities = switch (account.provider) {
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud => davCapabilities ?? noTaskCollectionCapabilities,
       BusyProvider.google || BusyProvider.microsoft =>
         adapterDefaultTaskCapabilities(account.provider),
+      BusyProvider.webCal => noTaskCollectionCapabilities,
     };
 
     return StreamBuilder<TaskEntity?>(
@@ -776,6 +779,7 @@ String _providerEditorLabel(BuildContext context, BusyProvider provider) {
     BusyProvider.microsoft => l10n.microsoftTodoProvider,
     BusyProvider.appleICloud => 'Apple iCloud',
     BusyProvider.nextcloud => 'Nextcloud Tasks',
+    BusyProvider.webCal => 'WebCal',
   };
 }
 

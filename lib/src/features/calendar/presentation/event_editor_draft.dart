@@ -172,7 +172,9 @@ class EventEditorDraft {
     final isOrganizer = switch (detail.provider) {
       BusyProvider.google => _jsonBool(organizer?['self']),
       BusyProvider.microsoft => _jsonBool(raw['isOrganizer']),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
     };
     final hideAttendees = switch (detail.provider) {
       BusyProvider.google =>
@@ -180,7 +182,9 @@ class EventEditorDraft {
             ? !(raw['guestsCanSeeOtherGuests'] as bool)
             : null,
       BusyProvider.microsoft => _jsonBool(raw['hideAttendees']),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
     };
 
     return EventEditorDraft.existing(

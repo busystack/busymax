@@ -240,4 +240,5 @@ TaskCollectionCapabilities adapterDefaultTaskCapabilities(
   BusyProvider.microsoft => microsoftTaskCollectionCapabilities,
   BusyProvider.appleICloud => noTaskCollectionCapabilities,
   BusyProvider.nextcloud => nextcloudTaskCollectionCapabilities,
+  BusyProvider.webCal => noTaskCollectionCapabilities,
 };

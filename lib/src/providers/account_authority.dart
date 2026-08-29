@@ -30,7 +30,8 @@ String normalizeProviderAccountId(BusyProvider provider, String value) {
     BusyProvider.appleICloud => trimmed.toLowerCase(),
     BusyProvider.google ||
     BusyProvider.microsoft ||
-    BusyProvider.nextcloud => trimmed,
+    BusyProvider.nextcloud ||
+    BusyProvider.webCal => trimmed,
   };
 }
 
@@ -49,7 +50,34 @@ String normalizeAccountAuthority(
             'Nextcloud requires the canonical server returned by Login Flow v2.',
           )),
     ),
+    BusyProvider.webCal => _safeHttpsOrigin(
+      authority ??
+          (throw const InvalidAccountAuthorityException(
+            'WebCal requires a safe HTTPS origin.',
+          )),
+    ),
   };
+}
+
+String _safeHttpsOrigin(String value) {
+  final uri = Uri.tryParse(value.trim());
+  if (uri == null ||
+      uri.scheme != 'https' ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.hasFragment ||
+      (uri.path.isNotEmpty && uri.path != '/')) {
+    throw InvalidAccountAuthorityException(
+      'A WebCal authority must be a safe HTTPS origin.',
+      value,
+    );
+  }
+  return Uri(
+    scheme: 'https',
+    host: uri.host.toLowerCase(),
+    port: uri.hasPort && uri.port != 443 ? uri.port : null,
+  ).toString();
 }
 
 String normalizeNextcloudServerAuthority(String value) {

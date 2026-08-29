@@ -12,13 +12,19 @@ import '../logging/redacting_logger.dart';
 
 const secretRecordSchemaVersion = 1;
 
-enum CredentialKind { oauth, appleAppSpecificPassword, nextcloudAppPassword }
+enum CredentialKind {
+  oauth,
+  appleAppSpecificPassword,
+  nextcloudAppPassword,
+  webCalSubscription,
+}
 
 extension CredentialKindValue on CredentialKind {
   String get storageValue => switch (this) {
     CredentialKind.oauth => 'oauth',
     CredentialKind.appleAppSpecificPassword => 'apple_app_specific_password',
     CredentialKind.nextcloudAppPassword => 'nextcloud_app_password',
+    CredentialKind.webCalSubscription => 'webcal_subscription',
   };
 }
 
@@ -63,6 +69,19 @@ sealed class SecretRecord {
         ),
         loginName: _requiredSecretString(json, 'loginName'),
         appPassword: _requiredSecretString(json, 'appPassword'),
+      ),
+      'webcal_subscription' => WebCalSecretRecord(
+        normalizedSubscriptionUri: _requiredSecretString(
+          json,
+          'normalizedSubscriptionUri',
+        ),
+        validatorTargetUri: switch (_optionalSecretString(
+          json,
+          'validatorTargetUri',
+        )) {
+          final value? => Uri.parse(value),
+          null => null,
+        },
       ),
       final Object? value => throw SecretStoreCorruptException(
         'Unsupported credential kind $value.',
@@ -166,6 +185,49 @@ final class NextcloudSecretRecord extends SecretRecord {
     'loginName': loginName,
     'appPassword': appPassword,
   };
+}
+
+final class WebCalSecretRecord extends SecretRecord {
+  WebCalSecretRecord({
+    required this.normalizedSubscriptionUri,
+    this.validatorTargetUri,
+  }) : super(
+         provider: BusyProvider.webCal,
+         kind: CredentialKind.webCalSubscription,
+       ) {
+    _requireSafeSubscriptionUri(Uri.parse(normalizedSubscriptionUri));
+    final target = validatorTargetUri;
+    if (target != null) _requireSafeSubscriptionUri(target);
+  }
+
+  final String normalizedSubscriptionUri;
+  final Uri? validatorTargetUri;
+
+  @override
+  Map<String, Object?> toJson() => {
+    'schemaVersion': secretRecordSchemaVersion,
+    'kind': kind.storageValue,
+    'provider': provider.storageValue,
+    'normalizedSubscriptionUri': normalizedSubscriptionUri,
+    if (validatorTargetUri != null)
+      'validatorTargetUri': validatorTargetUri.toString(),
+  };
+
+  WebCalSecretRecord copyWithValidatorTarget(Uri? value) => WebCalSecretRecord(
+    normalizedSubscriptionUri: normalizedSubscriptionUri,
+    validatorTargetUri: value,
+  );
+}
+
+void _requireSafeSubscriptionUri(Uri value) {
+  if (value.scheme != 'https' ||
+      value.host.isEmpty ||
+      value.userInfo.isNotEmpty ||
+      value.hasFragment) {
+    throw const SecretStoreCorruptException(
+      'A WebCal credential contains an invalid subscription URI.',
+    );
+  }
 }
 
 abstract interface class SecretStore {

@@ -1011,7 +1011,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     List<AccountEntity> accounts,
   ) async {
     final allLists = <TaskListEntity>[];
-    for (final account in accounts) {
+    for (final account in accounts.where((account) => account.isTaskCapable)) {
       final repository = ref.read(
         taskListsRepositoryForAccountProvider(account.id),
       );
@@ -1142,15 +1142,18 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     });
   }
 
-  void _setMode(ScheduleViewMode mode) {
+  void _setMode(ScheduleViewMode mode, {DateTime? agendaDate}) {
     if (_mode == mode) {
+      if (mode == ScheduleViewMode.agenda && agendaDate != null) {
+        _setDate(agendaDate);
+      }
       return;
     }
     setState(() {
       _mode = mode;
       _lastSettingsMode = mode;
       if (mode == ScheduleViewMode.agenda) {
-        _selectedDate = _day(DateTime.now());
+        _selectedDate = _day(agendaDate ?? DateTime.now());
         _resetAgendaLoadedDays();
       }
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
@@ -2290,7 +2293,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     try {
       final accounts = await ref
           .read(accountsRepositoryProvider)
-          .listSignedInAccounts();
+          .listSyncEligibleAccounts();
       if (accounts.isEmpty) {
         return;
       }
@@ -2342,7 +2345,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         case ScheduleWorkspaceCommandKind.today:
           _goToToday();
         case ScheduleWorkspaceCommandKind.agenda:
-          _setMode(ScheduleViewMode.agenda);
+          _setMode(ScheduleViewMode.agenda, agendaDate: command.date);
         case ScheduleWorkspaceCommandKind.newEvent:
           unawaited(_openNewEvent(sources, _selectedDate));
         case ScheduleWorkspaceCommandKind.newTask:

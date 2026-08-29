@@ -105,12 +105,12 @@ class BusyMaxDemoProfile {
       ),
       syncSchedulerProvider.overrideWith((ref) {
         final scheduler = AllAccountsSyncScheduler(
-          listSignedInAccounts: () async => const [],
+          listSyncEligibleAccounts: () async => const [],
           syncAccount: (_) async {},
           onSyncFailure: (_) async {},
           interval: Duration.zero,
         );
-        ref.onDispose(scheduler.stop);
+        ref.onDispose(() => unawaited(scheduler.dispose()));
         return scheduler;
       }),
       notificationSchedulerProvider.overrideWith((ref) {

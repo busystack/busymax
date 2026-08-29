@@ -1,5 +1,5 @@
 /// Stable account provider identities persisted by BusyMax.
-enum BusyProvider { google, microsoft, appleICloud, nextcloud }
+enum BusyProvider { google, microsoft, appleICloud, nextcloud, webCal }
 
 extension BusyProviderValue on BusyProvider {
   String get storageValue => switch (this) {
@@ -7,6 +7,7 @@ extension BusyProviderValue on BusyProvider {
     BusyProvider.microsoft => 'microsoft',
     BusyProvider.appleICloud => 'apple_icloud',
     BusyProvider.nextcloud => 'nextcloud',
+    BusyProvider.webCal => 'webcal',
   };
 
   String get displayName => switch (this) {
@@ -14,6 +15,7 @@ extension BusyProviderValue on BusyProvider {
     BusyProvider.microsoft => 'Microsoft',
     BusyProvider.appleICloud => 'Apple iCloud',
     BusyProvider.nextcloud => 'Nextcloud',
+    BusyProvider.webCal => 'WebCal',
   };
 }
 
@@ -70,6 +72,7 @@ abstract final class BusyProviderCodec {
       'microsoft' => const SupportedBusyProvider(BusyProvider.microsoft),
       'apple_icloud' => const SupportedBusyProvider(BusyProvider.appleICloud),
       'nextcloud' => const SupportedBusyProvider(BusyProvider.nextcloud),
+      'webcal' => const SupportedBusyProvider(BusyProvider.webCal),
       _ => UnsupportedStoredProvider(value),
     };
   }

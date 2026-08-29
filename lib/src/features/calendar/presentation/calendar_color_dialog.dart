@@ -57,7 +57,9 @@ class _CalendarColorDialogState extends State<_CalendarColorDialog> {
       BusyProvider.microsoft => _findChoice(
         (choice) => choice.providerValue == widget.currentColorId,
       ),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
     };
   }
 

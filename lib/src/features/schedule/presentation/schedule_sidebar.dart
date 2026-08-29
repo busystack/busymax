@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -13,8 +14,11 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../l10n/l10n.dart';
+import '../../../ical/ical_import_service.dart';
+import '../../../ical/ical_ingestion.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import '../../../webcal/webcal_subscription_service.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../calendar/data/calendar_repository.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
@@ -64,10 +68,25 @@ class ScheduleSidebar extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
               children: [
-                for (final account in accounts)
+                BusyMaxActionRow(
+                  key: const ValueKey('import-ics-file'),
+                  title: context.l10n.importIcsFile,
+                  leading: const Icon(Icons.file_open_outlined),
+                  onTap: () => unawaited(showIcsImportFlow(context, ref)),
+                ),
+                for (final account in accounts.where(
+                  (account) => !account.isSubscription,
+                ))
                   _AccountSourcesGroup(
                     key: ValueKey(('schedule-account', account.id)),
                     account: account,
+                  ),
+                if (accounts.any((account) => account.isSubscription))
+                  _SubscriptionSourcesGroup(
+                    accounts: [
+                      for (final account in accounts)
+                        if (account.isSubscription) account,
+                    ],
                   ),
               ],
             ),
@@ -363,6 +382,114 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
   }
 }
 
+class _SubscriptionSourcesGroup extends ConsumerWidget {
+  const _SubscriptionSourcesGroup({required this.accounts});
+
+  final List<AccountEntity> accounts;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accountById = {for (final account in accounts) account.id: account};
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: BusyMaxSpacing.md,
+            top: BusyMaxSpacing.md,
+            end: BusyMaxSpacing.md,
+            bottom: BusyMaxSpacing.xs,
+          ),
+          child: Text(
+            context.l10n.subscriptions,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
+        StreamBuilder<List<CalendarSourceEntity>>(
+          stream: ref
+              .watch(calendarRepositoryProvider)
+              .watchSourcesForAccounts(accountById.keys.toList()),
+          builder: (context, snapshot) {
+            final sources = (snapshot.data ?? const <CalendarSourceEntity>[])
+                .where((source) => source.provider == BusyProvider.webCal);
+            return Column(
+              children: [
+                for (final source in sources)
+                  _SubscriptionSourceRow(
+                    key: ValueKey(('subscription-source', source.id)),
+                    source: source,
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _SubscriptionSourceRow extends ConsumerWidget {
+  const _SubscriptionSourceRow({super.key, required this.source});
+
+  final CalendarSourceEntity source;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _CompactSourceRow(
+      title: '${source.summary} · ${context.l10n.readOnlySharedCollection}',
+      leading: _SourceDot(seed: source.id, colorHex: source.backgroundColor),
+      trailing: _SourceRowActions(
+        visibilityButton: _SourceVisibilityButton(
+          value: source.selected && !source.hidden,
+          semanticLabel: source.summary,
+          onChanged: (value) => ref
+              .read(calendarRepositoryProvider)
+              .setSourceSelected(source.id, value),
+        ),
+        menuButton: BusyMaxMenuButton<String>(
+          tooltip: context.l10n.options,
+          highlightWhenOpen: false,
+          onSelected: (value) {
+            switch (value) {
+              case 'refresh':
+                unawaited(_refreshSubscriptionSource(context, ref, source));
+              case 'rename':
+                unawaited(_renameSubscriptionSource(context, ref, source));
+              case 'color':
+                unawaited(_colorSubscriptionSource(context, ref, source));
+              case 'unsubscribe':
+                unawaited(_unsubscribeSource(context, ref, source));
+            }
+          },
+          entries: [
+            BusyMaxMenuEntry(
+              value: 'refresh',
+              label: context.l10n.refreshNow,
+              icon: YaruIcons.refresh,
+            ),
+            BusyMaxMenuEntry(
+              value: 'rename',
+              label: context.l10n.rename,
+              icon: Icons.edit_outlined,
+            ),
+            BusyMaxMenuEntry(
+              value: 'color',
+              label: context.l10n.calendarColor,
+              icon: Icons.palette_outlined,
+            ),
+            BusyMaxMenuEntry(
+              value: 'unsubscribe',
+              label: context.l10n.unsubscribe,
+              icon: YaruIcons.trash,
+              destructive: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AccountHeaderRow extends StatelessWidget {
   const _AccountHeaderRow({
     required this.account,
@@ -641,6 +768,7 @@ String scheduleTaskListLabel(
     BusyProvider.microsoft => context.l10n.microsoftTodoProvider,
     BusyProvider.appleICloud => context.l10n.appleICloudTasksProvider,
     BusyProvider.nextcloud => context.l10n.nextcloudTasksProvider,
+    BusyProvider.webCal => 'WebCal',
   };
   final title = list.title.trim();
   if (title.isEmpty ||
@@ -678,6 +806,7 @@ Uri? scheduleCalendarProviderWebUri(
     ),
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
+    BusyProvider.webCal => null,
   };
 }
 
@@ -688,6 +817,7 @@ Uri? scheduleTaskProviderWebUri(AccountEntity account) {
     BusyProvider.microsoft => Uri.https('to-do.office.com', '/tasks/'),
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
+    BusyProvider.webCal => null,
   };
 }
 
@@ -1110,4 +1240,288 @@ Future<void> _deleteTaskList(
       );
     }
   }
+}
+
+Future<void> showIcsImportFlow(
+  BuildContext context,
+  WidgetRef ref, {
+  String? filePath,
+}) async {
+  const typeGroup = XTypeGroup(
+    label: 'iCalendar',
+    extensions: ['ics'],
+    mimeTypes: ['text/calendar'],
+  );
+  final file = filePath == null
+      ? await openFile(acceptedTypeGroups: const [typeGroup])
+      : XFile(filePath);
+  if (file == null || !context.mounted) return;
+  try {
+    final length = await file.length();
+    if (length > icalIngestionDecodedBodyLimit) {
+      throw const IcalIngestionException(
+        'IcalBodyTooLarge',
+        'The calendar data exceeds the 16 MiB limit.',
+      );
+    }
+    final service = ref.read(icalImportServiceProvider);
+    final preview = service.parsePreview(await file.readAsBytes());
+    final destinations = await service.writableDestinations();
+    final accountLabels = {
+      for (final account
+          in await ref.read(accountsRepositoryProvider).watchAccounts().first)
+        account.id: account.selectorLabel,
+    };
+    if (!context.mounted) return;
+    final destination = await showBusyMaxModalDialog<CalendarSourceEntity>(
+      context,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      barrierDismissible: false,
+      builder: (dialogContext) => _IcalImportPreviewDialog(
+        preview: preview,
+        destinations: destinations,
+        accountLabels: accountLabels,
+      ),
+    );
+    if (destination == null || !context.mounted) return;
+    final report = await service.importPreview(
+      preview: preview,
+      destination: destination,
+    );
+    if (!context.mounted) return;
+    await showBusyMaxModalDialog<void>(
+      context,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      builder: (dialogContext) => _IcalImportReportDialog(report: report),
+    );
+  } on Object catch (error) {
+    if (!context.mounted) return;
+    final code = switch (error) {
+      IcalIngestionException(:final code) => code,
+      _ => 'IcalImportFailed',
+    };
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.l10n.importIcsFailed(code))));
+  }
+}
+
+class _IcalImportPreviewDialog extends StatefulWidget {
+  const _IcalImportPreviewDialog({
+    required this.preview,
+    required this.destinations,
+    required this.accountLabels,
+  });
+
+  final IcalImportPreview preview;
+  final List<CalendarSourceEntity> destinations;
+  final Map<String, String> accountLabels;
+
+  @override
+  State<_IcalImportPreviewDialog> createState() =>
+      _IcalImportPreviewDialogState();
+}
+
+class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
+  CalendarSourceEntity? _destination;
+
+  @override
+  void initState() {
+    super.initState();
+    _destination = widget.destinations.firstOrNull;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final omitted = widget.preview.fieldsThatWillBeOmitted.toList()..sort();
+    return BusyMaxDialogShell(
+      title: l10n.importIcsPreview,
+      maxWidth: BusyMaxSizes.compactDetailsWidth,
+      actions: [
+        BusyMaxPushButton.standard(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.cancel),
+        ),
+        BusyMaxPushButton.suggested(
+          key: const ValueKey('confirm-ics-import'),
+          onPressed: _destination == null
+              ? null
+              : () => Navigator.of(context).pop(_destination),
+          child: Text(l10n.importIcsConfirm),
+        ),
+      ],
+      children: [
+        Text(l10n.importEventsFound(widget.preview.eventCount)),
+        if (widget.preview.invalidEventCount > 0)
+          Text(l10n.importInvalidEvents(widget.preview.invalidEventCount)),
+        if (omitted.isNotEmpty)
+          Text(l10n.importFieldsOmitted(omitted.join(', '))),
+        const SizedBox(height: BusyMaxSpacing.md),
+        if (widget.destinations.isEmpty)
+          Text(l10n.noWritableCalendars)
+        else
+          BusyMaxComboRow<CalendarSourceEntity>(
+            key: const ValueKey('ics-import-destination'),
+            title: l10n.importDestinationCalendar,
+            values: widget.destinations,
+            selected: _destination!,
+            labelFor: (source) =>
+                '${widget.accountLabels[source.accountId] ?? source.provider.displayName} · ${source.summary}',
+            onSelected: (value) => setState(() => _destination = value),
+          ),
+      ],
+    );
+  }
+}
+
+class _IcalImportReportDialog extends StatelessWidget {
+  const _IcalImportReportDialog({required this.report});
+
+  final IcalImportReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final omitted = report.fieldsIntentionallyOmitted.toList()..sort();
+    final unsupported = report.unsupportedRecurrenceSets
+        .map((item) => '${item.uid}: ${item.reason}')
+        .toList(growable: false);
+    return BusyMaxDialogShell(
+      title: l10n.importIcsComplete,
+      actions: [
+        BusyMaxPushButton.suggested(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.close),
+        ),
+      ],
+      children: [
+        Text(
+          [
+            l10n.importQueued(report.queued),
+            l10n.importDuplicatesSkipped(report.duplicatesSkipped),
+            l10n.importUnsupportedSets(report.unsupportedRecurrenceSets.length),
+            ...unsupported,
+            l10n.importInvalidEvents(report.invalidEvents),
+            if (omitted.isNotEmpty)
+              l10n.importFieldsOmitted(omitted.join(', ')),
+          ].join('\n'),
+        ),
+      ],
+    );
+  }
+}
+
+Future<WebCalSubscriptionEntity?> _subscriptionForSource(
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final subscriptions = await ref
+      .read(webCalSubscriptionServiceProvider)
+      .listSubscriptions();
+  return subscriptions
+      .where((subscription) => subscription.calendarSourceId == source.id)
+      .firstOrNull;
+}
+
+Future<void> _refreshSubscriptionSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  try {
+    final subscription = await _subscriptionForSource(ref, source);
+    if (subscription == null) return;
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .refreshSubscription(subscription.id, force: true);
+  } on Object catch (error) {
+    if (context.mounted) _showWebCalError(context, error);
+  }
+}
+
+Future<void> _renameSubscriptionSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final name = await showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.rename,
+    label: context.l10n.subscriptionName,
+    actionLabel: context.l10n.rename,
+    initialValue: source.summary,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (name == null || !context.mounted) return;
+  try {
+    final subscription = await _subscriptionForSource(ref, source);
+    if (subscription == null) return;
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .renameSubscription(subscription.id, name);
+  } on Object catch (error) {
+    if (context.mounted) _showWebCalError(context, error);
+  }
+}
+
+Future<void> _colorSubscriptionSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final color = await showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.calendarColor,
+    label: context.l10n.subscriptionColor,
+    actionLabel: context.l10n.save,
+    initialValue: source.backgroundColor,
+    message: context.l10n.subscriptionColorHelp,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (color == null || !context.mounted) return;
+  try {
+    final subscription = await _subscriptionForSource(ref, source);
+    if (subscription == null) return;
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .changeSubscriptionColor(subscription.id, color);
+  } on Object catch (error) {
+    if (context.mounted) _showWebCalError(context, error);
+  }
+}
+
+Future<void> _unsubscribeSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final confirmed = await showBusyMaxConfirm(
+    context,
+    title: context.l10n.unsubscribeCalendarTitle(source.summary),
+    message: context.l10n.unsubscribeCalendarConfirmation,
+    confirmLabel: context.l10n.unsubscribe,
+    destructive: true,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (!confirmed || !context.mounted) return;
+  try {
+    final subscription = await _subscriptionForSource(ref, source);
+    if (subscription == null) return;
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .unsubscribe(subscription.id);
+  } on Object catch (error) {
+    if (context.mounted) _showWebCalError(context, error);
+  }
+}
+
+void _showWebCalError(BuildContext context, Object error) {
+  final code = switch (error) {
+    WebCalSubscriptionException(:final code) => code,
+    _ => 'WebCalOperationFailed',
+  };
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(context.l10n.subscriptionOperationFailed(code))),
+  );
 }

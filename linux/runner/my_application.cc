@@ -18,6 +18,8 @@ constexpr char kNativeMenuChannel[] = "busymax/native_menus";
 constexpr char kWindowChannel[] = "io.busystack.busymax/window";
 constexpr char kHeaderBarChannel[] = "io.busystack.busymax/headerbar";
 constexpr char kGtkSettingsChannel[] = "io.busystack.busymax/gtk_settings";
+constexpr char kExternalCalendarOpenChannel[] =
+    "io.busystack.busymax/external_calendar_open";
 constexpr char kGtkFontSettingsEventChannel[] =
     "io.busystack.busymax/gtk_font_settings";
 constexpr char kGtkThemeColorsEventChannel[] =
@@ -98,6 +100,9 @@ struct _MyApplication {
   FlMethodChannel* window_channel;
   FlMethodChannel* header_bar_channel;
   FlMethodChannel* gtk_settings_channel;
+  FlMethodChannel* external_calendar_open_channel;
+  GQueue* pending_external_opens;
+  gboolean external_calendar_open_ready;
   FlEventChannel* gtk_font_settings_event_channel;
   FlEventChannel* gtk_theme_colors_event_channel;
   gulong gtk_font_settings_signal_id;
@@ -202,6 +207,19 @@ struct _MyApplication {
   gboolean header_onboarding_controls_visible;
   gint header_onboarding_content_width;
 };
+
+struct PendingExternalOpen {
+  gchar* kind;
+  gchar* value;
+};
+
+static void pending_external_open_free(gpointer data) {
+  auto* item = static_cast<PendingExternalOpen*>(data);
+  if (item == nullptr) return;
+  g_free(item->kind);
+  g_free(item->value);
+  g_free(item);
+}
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
@@ -4895,6 +4913,77 @@ static void window_method_call_cb(FlMethodChannel* channel,
   }
 }
 
+static void flush_external_calendar_opens(MyApplication* self) {
+  if (!self->external_calendar_open_ready ||
+      self->external_calendar_open_channel == nullptr ||
+      self->pending_external_opens == nullptr) {
+    return;
+  }
+  while (!g_queue_is_empty(self->pending_external_opens)) {
+    auto* item = static_cast<PendingExternalOpen*>(
+        g_queue_pop_head(self->pending_external_opens));
+    g_autoptr(FlValue) args = fl_value_new_map();
+    fl_value_set_string_take(args, "kind", fl_value_new_string(item->kind));
+    fl_value_set_string_take(args, "value", fl_value_new_string(item->value));
+    fl_method_channel_invoke_method(self->external_calendar_open_channel,
+                                    "openItem", args, nullptr, nullptr,
+                                    nullptr);
+    pending_external_open_free(item);
+  }
+}
+
+static void external_calendar_open_method_call_cb(FlMethodChannel*,
+                                                  FlMethodCall* method_call,
+                                                  gpointer user_data) {
+  auto* self = MY_APPLICATION(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (g_strcmp0(method, "ready") != 0) {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+    return;
+  }
+  self->external_calendar_open_ready = TRUE;
+  fl_method_call_respond_success(method_call, nullptr, nullptr);
+  flush_external_calendar_opens(self);
+}
+
+static void register_external_calendar_open_channel(MyApplication* self,
+                                                    FlView* view) {
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  self->external_calendar_open_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      kExternalCalendarOpenChannel, FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->external_calendar_open_channel,
+      external_calendar_open_method_call_cb, self, nullptr);
+}
+
+static void queue_external_calendar_open(MyApplication* self,
+                                         const gchar* kind,
+                                         const gchar* value) {
+  if (kind == nullptr || value == nullptr || value[0] == '\0') return;
+  auto* item = g_new0(PendingExternalOpen, 1);
+  item->kind = g_strdup(kind);
+  item->value = g_strdup(value);
+  g_queue_push_tail(self->pending_external_opens, item);
+  flush_external_calendar_opens(self);
+}
+
+static gboolean queue_supported_external_file(MyApplication* self,
+                                              GFile* file) {
+  g_autofree gchar* uri = g_file_get_uri(file);
+  if (uri != nullptr && g_ascii_strncasecmp(uri, "webcal:", 7) == 0) {
+    queue_external_calendar_open(self, "webcal", uri);
+    return TRUE;
+  }
+  if (!g_file_is_native(file)) return FALSE;
+  g_autofree gchar* path = g_file_get_path(file);
+  if (path == nullptr) return FALSE;
+  g_autofree gchar* lower = g_ascii_strdown(path, -1);
+  if (!g_str_has_suffix(lower, ".ics")) return FALSE;
+  queue_external_calendar_open(self, "ics", path);
+  return TRUE;
+}
+
 static void register_window_channel(MyApplication* self, FlView* view) {
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   self->window_channel = fl_method_channel_new(
@@ -4973,6 +5062,7 @@ static void my_application_activate(GApplication* application) {
   register_native_date_time_picker(self, view, window);
   register_native_dialogs(self, view, window);
   register_native_menus(self, view);
+  register_external_calendar_open_channel(self, view);
   register_window_channel(self, view);
   register_header_bar_channel(self, view);
   register_gtk_settings_channel(self, view);
@@ -4981,19 +5071,49 @@ static void my_application_activate(GApplication* application) {
   schedule_header_bar_focus_state_refresh(self);
 }
 
+// Implements GApplication::open.
+static void my_application_open(GApplication* application,
+                                GFile** files,
+                                gint file_count,
+                                const gchar*) {
+  MyApplication* self = MY_APPLICATION(application);
+  gboolean accepted = FALSE;
+  for (gint index = 0; index < file_count; index++) {
+    accepted = queue_supported_external_file(self, files[index]) || accepted;
+  }
+  if (!accepted) {
+    if (self->main_window == nullptr) {
+      g_application_activate(application);
+    }
+    return;
+  }
+  self->start_minimized = FALSE;
+  if (self->main_window == nullptr) {
+    g_application_activate(application);
+  } else {
+    restore_main_window(self);
+  }
+}
+
 // Implements GApplication::local_command_line.
 static gboolean my_application_local_command_line(GApplication* application,
                                                   gchar*** arguments,
                                                   int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
-  // Strip out the first argument as it is the binary name.
-  self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
+  g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   self->start_minimized = FALSE;
+  g_autoptr(GPtrArray) files = g_ptr_array_new_with_free_func(g_object_unref);
   for (gchar** argument = *arguments + 1; *argument != nullptr; argument++) {
     if (g_strcmp0(*argument, "--start-minimized") == 0) {
       self->start_minimized = TRUE;
-      break;
+      continue;
     }
+    if ((*argument)[0] == '-') continue;
+    g_ptr_array_add(files, g_file_new_for_commandline_arg(*argument));
+  }
+  self->dart_entrypoint_arguments = g_new0(gchar*, 2);
+  if (self->start_minimized) {
+    self->dart_entrypoint_arguments[0] = g_strdup("--start-minimized");
   }
 
   g_autoptr(GError) error = nullptr;
@@ -5003,7 +5123,12 @@ static gboolean my_application_local_command_line(GApplication* application,
     return TRUE;
   }
 
-  g_application_activate(application);
+  if (files->len > 0) {
+    g_application_open(
+        application, reinterpret_cast<GFile**>(files->pdata), files->len, "");
+  } else {
+    g_application_activate(application);
+  }
   *exit_status = 0;
 
   return TRUE;
@@ -5040,6 +5165,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->window_channel);
   g_clear_object(&self->header_bar_channel);
   g_clear_object(&self->gtk_settings_channel);
+  g_clear_object(&self->external_calendar_open_channel);
   disconnect_gtk_font_settings_signal(self);
   g_clear_object(&self->gtk_font_settings_event_channel);
   g_clear_object(&self->gtk_theme_colors_event_channel);
@@ -5129,11 +5255,17 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_keyboard_shortcuts_shortcut, g_free);
   g_clear_pointer(&self->header_search_query, g_free);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  if (self->pending_external_opens != nullptr) {
+    g_queue_free_full(
+        self->pending_external_opens, pending_external_open_free);
+    self->pending_external_opens = nullptr;
+  }
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 
 static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
+  G_APPLICATION_CLASS(klass)->open = my_application_open;
   G_APPLICATION_CLASS(klass)->local_command_line =
       my_application_local_command_line;
   G_APPLICATION_CLASS(klass)->startup = my_application_startup;
@@ -5149,6 +5281,9 @@ static void my_application_init(MyApplication* self) {
   self->window_channel = nullptr;
   self->header_bar_channel = nullptr;
   self->gtk_settings_channel = nullptr;
+  self->external_calendar_open_channel = nullptr;
+  self->pending_external_opens = g_queue_new();
+  self->external_calendar_open_ready = FALSE;
   self->gtk_font_settings_event_channel = nullptr;
   self->gtk_theme_colors_event_channel = nullptr;
   self->gtk_font_settings_signal_id = 0;
@@ -5266,6 +5401,6 @@ MyApplication* my_application_new() {
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID, "flags",
-                                     static_cast<GApplicationFlags>(0),
+                                     G_APPLICATION_HANDLES_OPEN,
                                      nullptr));
 }

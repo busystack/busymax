@@ -29,9 +29,10 @@ class Accounts extends Table {
 
   @override
   List<String> get customConstraints => const [
-    "CHECK (provider IN ('google', 'microsoft', 'apple_icloud', 'nextcloud'))",
+    "CHECK (provider IN ('google', 'microsoft', 'apple_icloud', 'nextcloud', "
+        "'webcal'))",
     "CHECK (credential_kind IN ('oauth', 'apple_app_specific_password', "
-        "'nextcloud_app_password'))",
+        "'nextcloud_app_password', 'webcal_subscription'))",
     'CHECK (length(trim(authority)) > 0)',
     'CHECK (length(trim(provider_account_id)) > 0)',
   ];
@@ -482,6 +483,58 @@ class CalendarEvents extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+}
+
+class IcalImportReceipts extends Table {
+  TextColumn get calendarSourceId =>
+      text().references(CalendarSources, #id, onDelete: KeyAction.cascade)();
+  TextColumn get icalUid => text()();
+  TextColumn get eventId => text().nullable()();
+  TextColumn get importedAtUtc => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {calendarSourceId, icalUid};
+}
+
+class WebCalSubscriptions extends Table {
+  TextColumn get id => text()();
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get calendarSourceId =>
+      text().references(CalendarSources, #id, onDelete: KeyAction.cascade)();
+  TextColumn get feedFingerprint => text().unique()();
+  TextColumn get safeOrigin => text()();
+  TextColumn get validatorTargetFingerprint => text().nullable()();
+  TextColumn get etag => text().nullable()();
+  TextColumn get lastModified => text().nullable()();
+  TextColumn get contentType => text().nullable()();
+  TextColumn get snapshotIcsBody => text()();
+  TextColumn get rawBodyHash => text()();
+  TextColumn get semanticHash => text()();
+  TextColumn get refreshMode => text()();
+  IntColumn get serverRefreshIntervalSeconds => integer().nullable()();
+  TextColumn get nextRefreshAtUtc => text()();
+  TextColumn get lastCheckedAtUtc => text().nullable()();
+  TextColumn get lastSuccessfulSyncAtUtc => text().nullable()();
+  TextColumn get lastChangedAtUtc => text().nullable()();
+  IntColumn get consecutiveFailureCount =>
+      integer().withDefault(const Constant(0))();
+  TextColumn get lastFailureCode => text().nullable()();
+  IntColumn get lastFailureHttpStatus => integer().nullable()();
+  IntColumn get generation => integer().withDefault(const Constant(1))();
+  IntColumn get parserVersion => integer().withDefault(const Constant(1))();
+  IntColumn get projectionVersion => integer().withDefault(const Constant(1))();
+  TextColumn get createdAtUtc => text()();
+  TextColumn get updatedAtUtc => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {accountId},
+    {calendarSourceId},
+  ];
 }
 
 class CalendarEventAttendees extends Table {

@@ -217,6 +217,101 @@ class AppLocalizationsFi extends AppLocalizations {
   String get trayOpenBusyMax => 'Avaa BusyMax';
 
   @override
+  String get trayShowBusyMax => 'Show BusyMax';
+
+  @override
+  String get trayNewEvent => 'New event…';
+
+  @override
+  String get trayNewTask => 'New task…';
+
+  @override
+  String get trayToday => 'Today';
+
+  @override
+  String get trayAllDay => 'All day';
+
+  @override
+  String get trayNow => 'Now';
+
+  @override
+  String get trayCalendarEvent => 'Calendar event';
+
+  @override
+  String get trayUntitledEvent => 'Untitled event';
+
+  @override
+  String get trayNothingElseToday => 'Nothing else today';
+
+  @override
+  String trayTasksDueToday(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tasks due today',
+      one: '1 task due today',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trayOpenTodayAgenda => 'Open today’s agenda';
+
+  @override
+  String get traySyncNow => 'Sync now';
+
+  @override
+  String get traySyncing => 'Syncing…';
+
+  @override
+  String get trayNotConnected => 'Not connected';
+
+  @override
+  String get trayNotYetSynced => 'Not yet synced';
+
+  @override
+  String get trayLastSyncedJustNow => 'Last synced just now';
+
+  @override
+  String trayLastSyncedMinutesAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Last synced $count minutes ago',
+      one: 'Last synced 1 minute ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Last synced $count hours ago',
+      one: 'Last synced 1 hour ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedDaysAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Last synced $count days ago',
+      one: 'Last synced 1 day ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get traySettings => 'Settings';
+
+  @override
+  String get trayQuitBusyMax => 'Quit BusyMax';
+
+  @override
   String get agendaLoadMoreOverdue => 'Lataa lisää myöhässä olevia tehtäviä';
 
   @override
@@ -2016,6 +2111,167 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get calendarPendingChangesPreventRemoval =>
       'Odota, että tämän kalenterin odottavat muutokset on synkronoitu, ennen kuin poistat kalenterin.';
+
+  @override
+  String get calendarSubscriptions => 'Calendar subscriptions';
+
+  @override
+  String get calendarSubscriptionsDescription =>
+      'Add read-only calendars that refresh from a secure WebCal URL.';
+
+  @override
+  String get addCalendarSubscription => 'Add calendar subscription';
+
+  @override
+  String get subscriptionName => 'Local name';
+
+  @override
+  String get subscriptionUrl => 'Subscription URL';
+
+  @override
+  String get subscriptionUrlHelp =>
+      'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.';
+
+  @override
+  String get subscriptionUrlInvalid =>
+      'Enter a valid HTTPS or webcal URL without user information or a fragment.';
+
+  @override
+  String get subscriptionColor => 'Local color';
+
+  @override
+  String get subscriptionColorHelp => 'Use a six-digit color such as #3584E4.';
+
+  @override
+  String get subscriptionColorInvalid => 'Enter a six-digit hexadecimal color.';
+
+  @override
+  String get subscriptionRefreshMode => 'Refresh frequency';
+
+  @override
+  String get subscriptionAutomatic => 'Automatic';
+
+  @override
+  String get subscriptionHourly => 'Hourly';
+
+  @override
+  String get subscriptionSixHours => 'Every six hours';
+
+  @override
+  String get subscriptionDaily => 'Daily';
+
+  @override
+  String subscriptionSafeOrigin(String origin) {
+    return 'Source: $origin';
+  }
+
+  @override
+  String get subscriptionSafeOriginUnavailable =>
+      'Enter a valid URL to preview its safe origin.';
+
+  @override
+  String get subscriptionReadOnly => 'Read-only subscription';
+
+  @override
+  String get subscriptionNeverRefreshed => 'Not refreshed yet';
+
+  @override
+  String subscriptionLastRefresh(String time) {
+    return 'Last successful refresh: $time';
+  }
+
+  @override
+  String subscriptionNextRefresh(String time) {
+    return 'Next refresh: $time';
+  }
+
+  @override
+  String get subscriptionStatusHealthy => 'Up to date';
+
+  @override
+  String subscriptionStatusIssue(String code) {
+    return 'Refresh issue: $code';
+  }
+
+  @override
+  String get refreshNow => 'Refresh now';
+
+  @override
+  String get unsubscribe => 'Unsubscribe';
+
+  @override
+  String unsubscribeCalendarTitle(String name) {
+    return 'Unsubscribe from “$name”?';
+  }
+
+  @override
+  String get unsubscribeCalendarConfirmation =>
+      'This removes the local subscription and its cached events. The published calendar is not changed.';
+
+  @override
+  String get addSubscriptionAction => 'Add subscription';
+
+  @override
+  String subscriptionOperationFailed(String error) {
+    return 'Calendar subscription failed: $error';
+  }
+
+  @override
+  String get subscriptions => 'Subscriptions';
+
+  @override
+  String get importIcsFile => 'Import .ics file';
+
+  @override
+  String get importIcsPreview => 'Import calendar events';
+
+  @override
+  String importEventsFound(int count) {
+    return 'Importable event sets: $count';
+  }
+
+  @override
+  String importInvalidEvents(int count) {
+    return 'Invalid events: $count';
+  }
+
+  @override
+  String importFieldsOmitted(String fields) {
+    return 'Intentionally omitted: $fields';
+  }
+
+  @override
+  String get noWritableCalendars =>
+      'No writable destination calendar is available.';
+
+  @override
+  String get importDestinationCalendar => 'Destination calendar';
+
+  @override
+  String get importIcsConfirm => 'Import events';
+
+  @override
+  String get importIcsComplete => 'Import complete';
+
+  @override
+  String importQueued(int count) {
+    return 'Imported or queued: $count';
+  }
+
+  @override
+  String importDuplicatesSkipped(int count) {
+    return 'Duplicates skipped: $count';
+  }
+
+  @override
+  String importUnsupportedSets(int count) {
+    return 'Unsupported recurrence sets: $count';
+  }
+
+  @override
+  String importIcsFailed(String error) {
+    return 'Could not import the calendar file: $error';
+  }
 
   @override
   String get networkOffline => 'Ei verkkoyhteyttä';

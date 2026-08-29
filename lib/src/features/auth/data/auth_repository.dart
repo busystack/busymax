@@ -201,6 +201,9 @@ class AuthRepository {
         // DAV credentials are cleared through SecretStore once the account is
         // moved to reauthentication-required state.
         break;
+      case BusyProvider.webCal:
+        // Subscriptions never participate in authentication recovery.
+        break;
     }
   }
 

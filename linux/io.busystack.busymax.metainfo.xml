@@ -66,6 +66,9 @@
     <name>BusyStack</name>
   </developer>
   <launchable type="desktop-id">io.busystack.busymax.desktop</launchable>
+  <provides>
+    <mediatype>text/calendar</mediatype>
+  </provides>
   <icon type="stock">io.busystack.busymax</icon>
   <categories>
     <category>Office</category>

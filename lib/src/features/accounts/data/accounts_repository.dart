@@ -85,6 +85,14 @@ class AccountEntity {
       AccountConnectionStateCodec.parse(authState);
 
   bool get isSignedIn => authState == accountAuthStateSignedIn;
+  bool get isSubscription => provider == BusyProvider.webCal;
+  bool get isAuthenticationAccount => !isSubscription;
+  bool get isTaskCapable =>
+      !isSubscription && tasksEnabled && provider != BusyProvider.appleICloud;
+  bool get isScheduleVisible => calendarsEnabled;
+  bool get isSyncEligible =>
+      authState == accountAuthStateSignedIn ||
+      authState == accountAuthStateTemporarilyUnavailable;
   bool get needsReconnect => authState == accountAuthStateReauthRequired;
   bool get hasConnectionIssue => authState != accountAuthStateSignedIn;
 
@@ -164,7 +172,11 @@ class AccountsRepository {
 
   Stream<List<AccountEntity>> watchVisibleAccounts() {
     final query = _database.select(_database.accounts)
-      ..where((row) => row.authState.isIn([...accountCachedAvailableStates]))
+      ..where(
+        (row) =>
+            row.authState.isIn([...accountCachedAvailableStates]) &
+            row.provider.equals(BusyProvider.webCal.storageValue).not(),
+      )
       ..orderBy([
         (row) => OrderingTerm.asc(row.provider),
         (row) => OrderingTerm.asc(row.displayName),
@@ -177,7 +189,11 @@ class AccountsRepository {
 
   Future<List<AccountEntity>> listSignedInAccounts() async {
     final query = _database.select(_database.accounts)
-      ..where((row) => row.authState.equals(accountAuthStateSignedIn))
+      ..where(
+        (row) =>
+            row.authState.equals(accountAuthStateSignedIn) &
+            row.provider.equals(BusyProvider.webCal.storageValue).not(),
+      )
       ..orderBy([
         (row) => OrderingTerm.asc(row.provider),
         (row) => OrderingTerm.asc(row.displayName),
@@ -205,7 +221,11 @@ class AccountsRepository {
 
   Future<List<AccountEntity>> listVisibleAccounts() async {
     final query = _database.select(_database.accounts)
-      ..where((row) => row.authState.isIn(accountCachedAvailableStates))
+      ..where(
+        (row) =>
+            row.authState.isIn(accountCachedAvailableStates) &
+            row.provider.equals(BusyProvider.webCal.storageValue).not(),
+      )
       ..orderBy([
         (row) => OrderingTerm.asc(row.provider),
         (row) => OrderingTerm.asc(row.displayName),
@@ -338,12 +358,14 @@ CredentialKind _defaultCredentialKind(BusyProvider provider) =>
       BusyProvider.google || BusyProvider.microsoft => CredentialKind.oauth,
       BusyProvider.appleICloud => CredentialKind.appleAppSpecificPassword,
       BusyProvider.nextcloud => CredentialKind.nextcloudAppPassword,
+      BusyProvider.webCal => CredentialKind.webCalSubscription,
     };
 
 CredentialKind _credentialKindFromStorage(String value) => switch (value) {
   'oauth' => CredentialKind.oauth,
   'apple_app_specific_password' => CredentialKind.appleAppSpecificPassword,
   'nextcloud_app_password' => CredentialKind.nextcloudAppPassword,
+  'webcal_subscription' => CredentialKind.webCalSubscription,
   _ => throw SecretStoreCorruptException(
     'Unsupported stored credential kind for account metadata.',
   ),

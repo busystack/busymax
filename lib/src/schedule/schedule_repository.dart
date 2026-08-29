@@ -1181,7 +1181,9 @@ bool? _eventIsOrganizer(
   return switch (provider) {
     BusyProvider.google => organizer?['self'] as bool?,
     BusyProvider.microsoft => raw['isOrganizer'] as bool?,
-    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    BusyProvider.appleICloud ||
+    BusyProvider.nextcloud ||
+    BusyProvider.webCal => null,
   };
 }
 
@@ -1190,6 +1192,7 @@ bool _eventAllowsFullEditing(
   bool? isOrganizer,
   Map<String, Object?> raw,
 ) {
+  if (provider == BusyProvider.webCal) return false;
   if (provider != BusyProvider.google) return true;
   return raw['locked'] != true &&
       (isOrganizer == true || raw['guestsCanModify'] == true);
@@ -1241,7 +1244,9 @@ String? _eventJoinMeetingUrl(
   final fallback = switch (provider) {
     BusyProvider.google => raw['hangoutLink']?.toString().trim(),
     BusyProvider.microsoft => raw['onlineMeetingUrl']?.toString().trim(),
-    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    BusyProvider.appleICloud ||
+    BusyProvider.nextcloud ||
+    BusyProvider.webCal => null,
   };
   return _isWebUrl(fallback) ? fallback : null;
 }
@@ -1285,7 +1290,8 @@ List<int> _eventReminderMinutes(
                 _ => const <Object?>[],
               },
       BusyProvider.appleICloud ||
-      BusyProvider.nextcloud => switch (map['minutes'] ?? map['overrides']) {
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => switch (map['minutes'] ?? map['overrides']) {
         final List<Object?> values => values,
         final int value => [value],
         _ => const <Object?>[],

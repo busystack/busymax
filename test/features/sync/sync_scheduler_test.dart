@@ -30,7 +30,7 @@ void main() {
   test('periodic all-account scheduler syncs all signed-in accounts', () async {
     final synced = <String>[];
     final scheduler = AllAccountsSyncScheduler(
-      listSignedInAccounts: () async => [_account('a'), _account('b')],
+      listSyncEligibleAccounts: () async => [_account('a'), _account('b')],
       syncAccount: (accountId) async {
         synced.add(accountId);
       },
@@ -39,7 +39,7 @@ void main() {
     );
 
     scheduler.start();
-    addTearDown(scheduler.stop);
+    addTearDown(scheduler.dispose);
 
     await _waitFor(() => synced.length >= 2);
     expect(synced.take(2), ['a', 'b']);
@@ -63,7 +63,7 @@ void main() {
   test('all-account sync does not enumerate accounts while offline', () async {
     var listCalls = 0;
     final scheduler = AllAccountsSyncScheduler(
-      listSignedInAccounts: () async {
+      listSyncEligibleAccounts: () async {
         listCalls += 1;
         return [_account('a')];
       },
@@ -72,6 +72,7 @@ void main() {
       canSync: () async => false,
       interval: Duration.zero,
     );
+    addTearDown(scheduler.dispose);
 
     await scheduler.runNow();
 
@@ -83,8 +84,8 @@ void main() {
     final failure = StateError('a failed');
     final failures = <Object>[];
 
-    await runAllSignedInAccountSync(
-      listSignedInAccounts: () async => [_account('a'), _account('b')],
+    await runAllSyncEligibleAccountSync(
+      listSyncEligibleAccounts: () async => [_account('a'), _account('b')],
       syncAccount: (accountId) async {
         synced.add(accountId);
         if (accountId == 'a') {
@@ -109,8 +110,8 @@ void main() {
     );
     final failures = <Object>[];
 
-    await runAllSignedInAccountSync(
-      listSignedInAccounts: () async => [_account('a'), _account('b')],
+    await runAllSyncEligibleAccountSync(
+      listSyncEligibleAccounts: () async => [_account('a'), _account('b')],
       syncAccount: (accountId) async {
         synced.add(accountId);
         if (accountId == 'a') {
@@ -136,7 +137,7 @@ void main() {
     var starts = 0;
     final release = Completer<void>();
     final scheduler = AllAccountsSyncScheduler(
-      listSignedInAccounts: () async => [_account('a')],
+      listSyncEligibleAccounts: () async => [_account('a')],
       syncAccount: (_) async {
         starts += 1;
         active += 1;
@@ -149,13 +150,38 @@ void main() {
     );
 
     scheduler.start();
-    addTearDown(scheduler.stop);
+    addTearDown(scheduler.dispose);
 
     await _waitFor(() => starts == 1);
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(starts, 1);
     expect(maxActive, 1);
     release.complete();
+  });
+
+  test('all-account scheduler exposes its read-only running state', () async {
+    final release = Completer<void>();
+    final states = <bool>[];
+    final scheduler = AllAccountsSyncScheduler(
+      listSyncEligibleAccounts: () async => [_account('a')],
+      syncAccount: (_) => release.future,
+      onSyncFailure: (_) async {},
+      interval: Duration.zero,
+    );
+    final subscription = scheduler.watchRunning().listen(states.add);
+    addTearDown(() async {
+      await subscription.cancel();
+      await scheduler.dispose();
+    });
+
+    await _waitFor(() => states.isNotEmpty);
+    final run = scheduler.runNow();
+    await _waitFor(() => scheduler.isRunning && states.contains(true));
+    release.complete();
+    await run;
+
+    expect(scheduler.isRunning, isFalse);
+    expect(states, [false, true, false]);
   });
 }
 
