@@ -1897,30 +1897,39 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   Future<void> _saveEvent(
     EventEditorDraft draft, {
+    String? originalAccountId,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
   }) async {
     await ref
         .read(calendarRepositoryProvider)
         .updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
-    _requestCalendarMutationSync(draft.accountId);
+    final sourceAccountId = originalAccountId;
+    if (sourceAccountId != null && sourceAccountId != draft.accountId) {
+      unawaited(_syncMovedEvent(draft.accountId, sourceAccountId));
+    } else {
+      _requestCalendarMutationSync(draft.accountId);
+    }
     if (mounted) {
       setState(() {});
     }
   }
 
   void _requestCalendarMutationSync(String accountId) {
-    unawaited(_syncCalendarMutation(accountId));
+    unawaited(() async {
+      await _syncCalendarMutation(accountId);
+    }());
   }
 
-  Future<void> _syncCalendarMutation(String accountId) async {
+  Future<bool> _syncCalendarMutation(String accountId) async {
     try {
       await ref
           .read(accountSyncOperationsProvider)
           .syncCalendar(accountId, full: false);
+      return true;
     } on Object catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1934,6 +1943,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           ),
         ),
       );
+      return false;
+    }
+  }
+
+  Future<void> _syncMovedEvent(
+    String destinationAccountId,
+    String sourceAccountId,
+  ) async {
+    final destinationSynced = await _syncCalendarMutation(destinationAccountId);
+    if (destinationSynced) {
+      await _syncCalendarMutation(sourceAccountId);
     }
   }
 
@@ -1967,7 +1987,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     final savedDraft = result.draft;
     if (savedDraft != null) {
-      await _saveEvent(savedDraft, guestUpdatePolicy: result.guestUpdatePolicy);
+      await _saveEvent(
+        savedDraft,
+        originalAccountId: draft.accountId,
+        guestUpdatePolicy: result.guestUpdatePolicy,
+      );
     }
   }
 
@@ -1995,11 +2019,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     RecurringEventMutationScope? recurringScope;
-    if (item is CalendarScheduleItem &&
-        item.providerRecurringEventId != null &&
-        (item.provider == BusyProvider.appleICloud ||
-            item.provider == BusyProvider.nextcloud)) {
-      recurringScope = await _chooseRecurringEventMutationScope();
+    if (item is CalendarScheduleItem && item.providerRecurringEventId != null) {
+      recurringScope = await _chooseRecurringEventMutationScope(item.provider);
       if (recurringScope == null || !mounted) return;
     }
     var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
@@ -2088,7 +2109,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
-  Future<RecurringEventMutationScope?> _chooseRecurringEventMutationScope() {
+  Future<RecurringEventMutationScope?> _chooseRecurringEventMutationScope(
+    BusyProvider provider,
+  ) {
+    final supportsFollowing = supportsThisAndFollowingEventMutation(provider);
     return showBusyMaxModalEditorDialog<RecurringEventMutationScope>(
       context,
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
@@ -2104,24 +2128,36 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             filled: true,
             children: [
               BusyMaxActionRow(
-                title: context.l10n.entireSeries,
-                subtitle: context.l10n.chooseRecurringEventScope,
-                leading: const Icon(Icons.repeat),
-                onTap: () => Navigator.of(
-                  dialogContext,
-                ).pop(RecurringEventMutationScope.entireSeries),
-              ),
-              BusyMaxActionRow(
                 title: context.l10n.singleOccurrence,
+                subtitle: context.l10n.chooseRecurringEventScope,
                 leading: const Icon(Icons.event_outlined),
                 onTap: () => Navigator.of(
                   dialogContext,
                 ).pop(RecurringEventMutationScope.singleOccurrence),
               ),
               BusyMaxActionRow(
-                title: context.l10n.thisAndFutureUnavailable,
-                leading: const Icon(Icons.update_disabled_outlined),
-                enabled: false,
+                title: context.l10n.thisAndFollowingEvents,
+                subtitle: supportsFollowing
+                    ? null
+                    : context.l10n.thisAndFutureUnavailable,
+                leading: Icon(
+                  supportsFollowing
+                      ? Icons.update_outlined
+                      : Icons.update_disabled_outlined,
+                ),
+                enabled: supportsFollowing,
+                onTap: supportsFollowing
+                    ? () => Navigator.of(
+                        dialogContext,
+                      ).pop(RecurringEventMutationScope.thisAndFuture)
+                    : null,
+              ),
+              BusyMaxActionRow(
+                title: context.l10n.entireSeries,
+                leading: const Icon(Icons.repeat),
+                onTap: () => Navigator.of(
+                  dialogContext,
+                ).pop(RecurringEventMutationScope.entireSeries),
               ),
             ],
           ),

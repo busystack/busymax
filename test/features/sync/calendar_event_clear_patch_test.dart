@@ -154,6 +154,9 @@ _editAndReplay({
       endTimeZone: 'UTC',
       recurrenceJson: recurrence,
       attendeesJson: attendees,
+      organizerJson: provider == BusyProvider.google
+          ? const {'self': true}
+          : null,
       updatedAtServer: '2026-06-08T00:00:00.000Z',
       rawJson: _eventJson(
         provider,
@@ -275,6 +278,7 @@ Map<String, Object?> _googleEventJson({
     'summary': edited ? 'Edited planning' : 'Planning',
     'start': {'dateTime': '2026-06-08T09:00:00.000Z', 'timeZone': 'UTC'},
     'end': {'dateTime': '2026-06-08T10:00:00.000Z', 'timeZone': 'UTC'},
+    'organizer': {'self': true},
     if (includeRecurrence) 'recurrence': ['RRULE:FREQ=WEEKLY'],
     if (includeAttendees)
       'attendees': [

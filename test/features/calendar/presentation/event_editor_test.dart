@@ -1,14 +1,14 @@
 import 'dart:io';
 
-import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
+import 'package:busymax/src/features/recurrence/presentation/recurrence_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
-import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -710,173 +710,194 @@ void main() {
     expect(attendee.optional, isTrue);
   });
 
-  for (final recurrenceCase in _microsoftRecurrenceCases.entries) {
-    testWidgets(
-      'Microsoft ${recurrenceCase.key} recurrence emits required Graph fields',
-      (tester) async {
-        EventEditorDraft? saved;
-        await tester.pumpWidget(
-          localizedTestApp(
-            child: Scaffold(
-              body: EventEditor(
-                initialDraft: EventEditorDraft.newEvent(
-                  accountId: 'microsoft-account',
-                  sourceId: 'microsoft-source',
-                  providerCalendarId: 'ms-cal-1',
-                  start: DateTime.utc(2026, 6, 10, 9),
-                  end: DateTime.utc(2026, 6, 10, 10),
-                ).copyWith(title: 'Planning'),
-                sources: _microsoftSources,
-                onCancel: () {},
-                onSave: (draft) => saved = draft,
-              ),
-            ),
+  testWidgets('recurrence editor creates a biweekly weekday schedule', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    final initial =
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'source',
+          providerCalendarId: 'cal-1',
+          start: DateTime(2026, 6, 10, 9),
+          end: DateTime(2026, 6, 10, 10),
+        ).copyWith(
+          title: 'Planning',
+          recurrence: const ['RRULE:FREQ=DAILY;INTERVAL=1;COUNT=10'],
+        );
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: initial,
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
           ),
-        );
-
-        final repeatRow = tester.widget<BusyMaxComboRow<String>>(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is BusyMaxComboRow<String> && widget.title == 'Repeat',
-          ),
-        );
-        repeatRow.onSelected(recurrenceCase.key);
-        await tester.pump();
-        await tester.tap(_headerButtonFinder('Save'));
-
-        final expectedRecurrence = <String, Object?>{
-          'pattern': recurrenceCase.value,
-          'range': const {'type': 'noEnd', 'startDate': '2026-06-10'},
-        };
-        final body = microsoftEventMutationToJson(
-          CalendarEventMutation(recurrence: saved?.recurrence),
-        );
-
-        expect(saved, isNotNull);
-        expect(body, {'recurrence': expectedRecurrence});
-      },
+        ),
+      ),
     );
-  }
 
-  for (final recurrenceCase in _microsoftReanchoredRecurrenceCases.entries) {
-    testWidgets(
-      'Microsoft ${recurrenceCase.key} recurrence follows a changed start date',
-      (tester) async {
-        EventEditorDraft? saved;
-        await tester.pumpWidget(
-          localizedTestApp(
-            child: Scaffold(
-              body: EventEditor(
-                initialDraft: EventEditorDraft.newEvent(
-                  accountId: 'microsoft-account',
-                  sourceId: 'microsoft-source',
-                  providerCalendarId: 'ms-cal-1',
-                  start: DateTime.utc(2026, 6, 10, 9),
-                  end: DateTime.utc(2026, 6, 10, 10),
-                ).copyWith(title: 'Planning'),
-                sources: _microsoftSources,
-                onCancel: () {},
-                onSave: (draft) => saved = draft,
-              ),
-            ),
+    _actionRow(tester, 'Repeat').onTap!();
+    await tester.pumpAndSettle();
+    final dialog = find.byType(RecurrenceEditorDialog);
+    expect(dialog, findsOneWidget);
+    tester
+        .widget<BusyMaxComboRow<RecurrenceFrequency>>(
+          find.descendant(
+            of: dialog,
+            matching: find.byType(BusyMaxComboRow<RecurrenceFrequency>),
           ),
-        );
+        )
+        .onSelected(RecurrenceFrequency.weekly);
+    await tester.pump();
 
-        final repeatRow = tester.widget<BusyMaxComboRow<String>>(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is BusyMaxComboRow<String> && widget.title == 'Repeat',
+    final fields = find.descendant(
+      of: dialog,
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(fields.at(0), '2');
+    await tester.enterText(fields.at(1), '9');
+    var weekdays = tester.widget<YaruChoiceChipBar>(
+      find.descendant(of: dialog, matching: find.byType(YaruChoiceChipBar)),
+    );
+    weekdays.onSelected!(0);
+    await tester.pump();
+    weekdays = tester.widget<YaruChoiceChipBar>(
+      find.descendant(of: dialog, matching: find.byType(YaruChoiceChipBar)),
+    );
+    weekdays.onSelected!(4);
+    await tester.pump();
+
+    await tester.tap(
+      find.descendant(
+        of: dialog,
+        matching: find.widgetWithText(ElevatedButton, 'Save'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Every 2 weeks'), findsOneWidget);
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.recurrence, const [
+      'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR;WKST=MO;COUNT=9',
+    ]);
+  });
+
+  testWidgets('Microsoft recurrence range follows a changed start date', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    final initial =
+        EventEditorDraft.newEvent(
+          accountId: 'microsoft-account',
+          sourceId: 'microsoft-source',
+          providerCalendarId: 'ms-cal-1',
+          start: DateTime(2026, 6, 9, 9),
+          end: DateTime(2026, 6, 9, 10),
+        ).copyWith(
+          title: 'Planning',
+          recurrence: const {
+            'pattern': {
+              'type': 'relativeMonthly',
+              'interval': 1,
+              'daysOfWeek': ['tuesday'],
+              'index': 'second',
+            },
+            'range': {
+              'type': 'endDate',
+              'startDate': '2026-06-09',
+              'endDate': '2026-12-31',
+            },
+          },
+        );
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: initial,
+            sources: _microsoftSources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
           ),
-        );
-        repeatRow.onSelected(recurrenceCase.key);
-        await tester.pump();
+        ),
+      ),
+    );
 
-        final startDateRow = tester.widget<DesktopDateValueRow>(
+    tester
+        .widget<DesktopDateValueRow>(
           find.byWidgetPredicate(
             (widget) =>
                 widget is DesktopDateValueRow && widget.label == 'Start date',
           ),
-        );
-        startDateRow.onChanged('2026-07-11');
-        await tester.pump();
-        await tester.tap(_headerButtonFinder('Save'));
+        )
+        .onChanged('2026-07-14');
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
 
-        expect(saved?.recurrence, {
-          'pattern': recurrenceCase.value,
-          'range': const {'type': 'noEnd', 'startDate': '2026-07-11'},
-        });
+    expect(saved?.recurrence, const {
+      'pattern': {
+        'type': 'relativeMonthly',
+        'interval': 1,
+        'daysOfWeek': ['tuesday'],
+        'index': 'second',
       },
+      'range': {
+        'type': 'endDate',
+        'startDate': '2026-07-14',
+        'endDate': '2026-12-31',
+      },
+    });
+  });
+
+  testWidgets('new event converts rich recurrence when provider changes', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    final initial =
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'source',
+          providerCalendarId: 'cal-1',
+          start: DateTime(2026, 6, 10, 9),
+          end: DateTime(2026, 6, 10, 10),
+        ).copyWith(
+          title: 'Planning',
+          recurrence: const [
+            'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR;WKST=MO;COUNT=9',
+          ],
+        );
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: initial,
+            sources: _mixedProviderSources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
     );
-  }
 
-  testWidgets(
-    'new event converts Google recurrence when Microsoft account is selected',
-    (tester) async {
-      EventEditorDraft? saved;
-      await tester.pumpWidget(
-        localizedTestApp(
-          child: Scaffold(
-            body: EventEditor(
-              initialDraft: EventEditorDraft.newEvent(
-                accountId: 'account',
-                sourceId: 'source',
-                providerCalendarId: 'cal-1',
-                start: DateTime.utc(2026, 6, 10, 9),
-                end: DateTime.utc(2026, 6, 10, 10),
-              ).copyWith(title: 'Planning'),
-              sources: _mixedProviderSources,
-              onCancel: () {},
-              onSave: (draft) => saved = draft,
-            ),
-          ),
-        ),
-      );
+    _comboRow(tester, 'Account').onSelected('microsoft-account');
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
 
-      _comboRow(tester, 'Repeat').onSelected('weekly');
-      await tester.pump();
-      _comboRow(tester, 'Account').onSelected('microsoft-account');
-      await tester.pump();
-      await tester.tap(_headerButtonFinder('Save'));
-
-      expect(saved?.recurrence, {
-        'pattern': _microsoftRecurrenceCases['weekly'],
-        'range': const {'type': 'noEnd', 'startDate': '2026-06-10'},
-      });
-    },
-  );
-
-  testWidgets(
-    'new event converts Microsoft recurrence when Google account is selected',
-    (tester) async {
-      EventEditorDraft? saved;
-      await tester.pumpWidget(
-        localizedTestApp(
-          child: Scaffold(
-            body: EventEditor(
-              initialDraft: EventEditorDraft.newEvent(
-                accountId: 'microsoft-account',
-                sourceId: 'microsoft-source',
-                providerCalendarId: 'ms-cal-1',
-                start: DateTime.utc(2026, 6, 10, 9),
-                end: DateTime.utc(2026, 6, 10, 10),
-              ).copyWith(title: 'Planning'),
-              sources: _mixedProviderSources,
-              onCancel: () {},
-              onSave: (draft) => saved = draft,
-            ),
-          ),
-        ),
-      );
-
-      _comboRow(tester, 'Repeat').onSelected('weekly');
-      await tester.pump();
-      _comboRow(tester, 'Account').onSelected('account');
-      await tester.pump();
-      await tester.tap(_headerButtonFinder('Save'));
-
-      expect(saved?.recurrence, ['RRULE:FREQ=WEEKLY;INTERVAL=1']);
-    },
-  );
+    expect(saved?.recurrence, const {
+      'pattern': {
+        'type': 'weekly',
+        'interval': 2,
+        'daysOfWeek': ['monday', 'wednesday', 'friday'],
+        'firstDayOfWeek': 'monday',
+      },
+      'range': {
+        'type': 'numbered',
+        'startDate': '2026-06-10',
+        'numberOfOccurrences': 9,
+      },
+    });
+  });
 
   testWidgets('recurring occurrence hides series recurrence control', (
     tester,
@@ -907,7 +928,7 @@ void main() {
     expect(find.text('Repeat'), findsNothing);
   });
 
-  testWidgets('DAV recurring event requires an explicit supported scope', (
+  testWidgets('DAV recurring event exposes every RFC-supported scope', (
     tester,
   ) async {
     EventEditorDraft? saved;
@@ -942,34 +963,301 @@ void main() {
 
     expect(find.text('Recurring event scope'), findsOneWidget);
     expect(find.text('Entire series'), findsOneWidget);
-    expect(find.text('This occurrence'), findsOneWidget);
-    expect(find.text('This and future (not available)'), findsOneWidget);
+    expect(find.text('This event'), findsOneWidget);
+    expect(find.text('This and following events'), findsOneWidget);
+    expect(find.text('Not supported by this provider.'), findsNothing);
     expect(_headerButton(tester, 'Save').onPressed, isNull);
     expect(_actionRow(tester, 'Delete Event').onTap, isNull);
-    expect(
-      _actionRow(tester, 'This and future (not available)').enabled,
-      isFalse,
-    );
+    expect(_actionRow(tester, 'This and following events').enabled, isTrue);
 
-    await tester.ensureVisible(find.text('Entire series'));
-    await tester.tap(find.text('Entire series'));
+    await tester.ensureVisible(find.text('This and following events'));
+    await tester.tap(find.text('This and following events'));
+    await tester.pump();
+    expect(_headerButton(tester, 'Save').onPressed, isNull);
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Changed following events',
+    );
     await tester.pump();
     expect(_headerButton(tester, 'Save').onPressed, isNotNull);
     expect(_actionRow(tester, 'Delete Event').onTap, isNotNull);
     await tester.tap(_headerButtonFinder('Save'));
     expect(
       saved?.recurringMutationScope,
-      RecurringEventMutationScope.entireSeries,
+      RecurringEventMutationScope.thisAndFuture,
     );
 
-    await tester.ensureVisible(find.text('This occurrence'));
-    await tester.tap(find.text('This occurrence'));
+    await tester.ensureVisible(find.text('This event'));
+    await tester.tap(find.text('This event'));
     await tester.pump();
     await tester.ensureVisible(find.text('Delete Event'));
     await tester.tap(find.text('Delete Event'));
     expect(deletedId, 'dav-occurrence');
     expect(deletedScope, RecurringEventMutationScope.singleOccurrence);
   });
+
+  testWidgets('Google recurring event exposes this-and-following scope', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'google-occurrence',
+              providerRecurringEventId: 'google-series',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Weekly planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    expect(_actionRow(tester, 'This and following events').enabled, isTrue);
+    await tester.ensureVisible(find.text('This and following events'));
+    await tester.tap(find.text('This and following events'));
+    await tester.pump();
+    expect(_headerButton(tester, 'Save').onPressed, isNull);
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Changed following events',
+    );
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(
+      saved?.recurringMutationScope,
+      RecurringEventMutationScope.thisAndFuture,
+    );
+  });
+
+  testWidgets(
+    'Microsoft recurring event disables undocumented following scope',
+    (tester) async {
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'microsoft-occurrence',
+                providerRecurringEventId: 'microsoft-series',
+                accountId: 'microsoft-account',
+                sourceId: 'microsoft-source',
+                providerCalendarId: 'ms-cal-1',
+                title: 'Weekly planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ),
+              sources: _microsoftSources,
+              onCancel: () {},
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(_actionRow(tester, 'This and following events').enabled, isFalse);
+      expect(find.text('Not supported by this provider.'), findsOneWidget);
+    },
+  );
+
+  testWidgets('moving a Google series natively allows the entire series', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'google-occurrence',
+              providerRecurringEventId: 'google-series',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Weekly planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _multipleSources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    _comboRow(tester, 'Calendar').onSelected('destination-source');
+    await tester.pump();
+
+    expect(_actionRow(tester, 'This event').enabled, isTrue);
+    expect(_actionRow(tester, 'This and following events').enabled, isFalse);
+    expect(_actionRow(tester, 'Entire series').enabled, isTrue);
+    expect(
+      find.text(
+        'This and following events cannot be moved safely. '
+        'Choose this event or the entire series.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('native Google move preserves an unsupported recurrence rule', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    const recurrence = ['RRULE:FREQ=WEEKLY;BYHOUR=9'];
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'google-occurrence',
+              providerRecurringEventId: 'google-series',
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              title: 'Weekly planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+              recurrence: recurrence,
+            ),
+            sources: _multipleSources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    _comboRow(tester, 'Calendar').onSelected('destination-source');
+    await tester.pump();
+    await tester.ensureVisible(find.text('Entire series'));
+    await tester.tap(find.text('Entire series'));
+    await tester.pump();
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Moved weekly planning',
+    );
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.recurrence, recurrence);
+    expect(saved?.recurrenceChanged, isFalse);
+    expect(
+      saved?.recurringMutationScope,
+      RecurringEventMutationScope.entireSeries,
+    );
+  });
+
+  testWidgets('copying a series requires a locally available recurrence rule', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.existing(
+              eventId: 'google-occurrence',
+              providerRecurringEventId: 'google-series',
+              accountId: 'google-account',
+              sourceId: 'google-work',
+              providerCalendarId: 'google-work-calendar',
+              title: 'Weekly planning',
+              allDay: false,
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ),
+            sources: _sameNamedCrossAccountSources,
+            accounts: _eventAccounts,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    _comboRow(tester, 'Account').onSelected('microsoft-account');
+    await tester.pump();
+
+    expect(_actionRow(tester, 'This event').enabled, isTrue);
+    expect(_actionRow(tester, 'This and following events').enabled, isFalse);
+    expect(_actionRow(tester, 'Entire series').enabled, isFalse);
+    expect(
+      find.text(
+        'The recurrence rule is not available locally. '
+        'Move this event instead.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'an occurrence with unsupported recurrence can move as one event',
+    (tester) async {
+      EventEditorDraft? saved;
+      const recurrence = ['RRULE:FREQ=WEEKLY;BYHOUR=9'];
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'google-occurrence',
+                providerRecurringEventId: 'google-series',
+                accountId: 'google-account',
+                sourceId: 'google-work',
+                providerCalendarId: 'google-work-calendar',
+                title: 'Weekly planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+                recurrence: recurrence,
+              ),
+              sources: _sameNamedCrossAccountSources,
+              accounts: _eventAccounts,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      _comboRow(tester, 'Account').onSelected('microsoft-account');
+      await tester.pump();
+
+      expect(_comboRow(tester, 'Account').selected, 'microsoft-account');
+      expect(_actionRow(tester, 'This event').enabled, isTrue);
+      expect(_actionRow(tester, 'Entire series').enabled, isFalse);
+      await tester.ensureVisible(find.text('This event'));
+      await tester.tap(find.text('This event'));
+      await tester.pump();
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'Moved occurrence',
+      );
+      await tester.pump();
+      await tester.tap(_headerButtonFinder('Save'));
+
+      expect(saved?.sourceId, 'microsoft-work');
+      expect(saved?.recurrence, recurrence);
+      expect(
+        saved?.recurringMutationScope,
+        RecurringEventMutationScope.singleOccurrence,
+      );
+    },
+  );
 
   testWidgets(
     'DAV event keeps guests display-only and exposes categories and alarms',
@@ -1026,19 +1314,30 @@ void main() {
     },
   );
 
-  testWidgets('new Nextcloud recurrence uses RFC RRULE values', (tester) async {
+  testWidgets('Nextcloud recurrence editor preserves a rich RFC rule', (
+    tester,
+  ) async {
     EventEditorDraft? saved;
+    final initial =
+        EventEditorDraft.newEvent(
+          accountId: 'nextcloud-account',
+          sourceId: 'nextcloud-source',
+          providerCalendarId: '/calendars/work/',
+          start: DateTime(2026, 6, 9, 9),
+          end: DateTime(2026, 6, 9, 10),
+        ).copyWith(
+          title: 'Planning',
+          recurrence: const {
+            'rules': ['FREQ=MONTHLY;INTERVAL=1;BYDAY=TU;BYSETPOS=2;COUNT=6'],
+            'dates': <String>[],
+            'excludedDates': <String>[],
+          },
+        );
     await tester.pumpWidget(
       localizedTestApp(
         child: Scaffold(
           body: EventEditor(
-            initialDraft: EventEditorDraft.newEvent(
-              accountId: 'nextcloud-account',
-              sourceId: 'nextcloud-source',
-              providerCalendarId: '/calendars/work/',
-              start: DateTime.utc(2026, 6, 8, 9),
-              end: DateTime.utc(2026, 6, 8, 10),
-            ).copyWith(title: 'Planning'),
+            initialDraft: initial,
             sources: _nextcloudSources,
             onCancel: () {},
             onSave: (draft) => saved = draft,
@@ -1047,11 +1346,25 @@ void main() {
       ),
     );
 
-    _comboRow(tester, 'Repeat').onSelected('weekly');
-    await tester.pump();
+    _actionRow(tester, 'Repeat').onTap!();
+    await tester.pumpAndSettle();
+    final dialog = find.byType(RecurrenceEditorDialog);
+    expect(find.text('Second'), findsWidgets);
+    expect(find.text('Tuesday'), findsWidgets);
+    await tester.tap(
+      find.descendant(
+        of: dialog,
+        matching: find.widgetWithText(ElevatedButton, 'Save'),
+      ),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(_headerButtonFinder('Save'));
 
-    expect(saved?.recurrence, ['RRULE:FREQ=WEEKLY;INTERVAL=1']);
+    expect(saved?.recurrence, const {
+      'rules': ['FREQ=MONTHLY;INTERVAL=1;BYDAY=TU;BYSETPOS=2;COUNT=6'],
+      'dates': <String>[],
+      'excludedDates': <String>[],
+    });
   });
 
   testWidgets('event editor does not show metadata fields', (tester) async {
@@ -1118,7 +1431,7 @@ void main() {
     );
   });
 
-  testWidgets('existing event only exposes its original calendar', (
+  testWidgets('existing event exposes writable destination calendars', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -1152,8 +1465,8 @@ void main() {
     );
 
     expect(calendarRow.selected, 'source');
-    expect(calendarRow.values, ['source']);
-    expect(calendarRow.enabled, isFalse);
+    expect(calendarRow.values, ['destination-source', 'source']);
+    expect(calendarRow.enabled, isTrue);
     final accountRow = _comboRow(tester, 'Account');
     expect(accountRow.selected, 'account');
     expect(accountRow.values, ['account']);
@@ -2361,37 +2674,3 @@ const _microsoftSources = [
 ];
 
 const _mixedProviderSources = [..._sources, ..._microsoftSources];
-
-const _microsoftRecurrenceCases = <String, Map<String, Object?>>{
-  'daily': {'type': 'daily', 'interval': 1},
-  'weekly': {
-    'type': 'weekly',
-    'interval': 1,
-    'daysOfWeek': ['wednesday'],
-    'firstDayOfWeek': 'sunday',
-  },
-  'monthly': {'type': 'absoluteMonthly', 'interval': 1, 'dayOfMonth': 10},
-  'yearly': {
-    'type': 'absoluteYearly',
-    'interval': 1,
-    'dayOfMonth': 10,
-    'month': 6,
-  },
-};
-
-const _microsoftReanchoredRecurrenceCases = <String, Map<String, Object?>>{
-  'daily': {'type': 'daily', 'interval': 1},
-  'weekly': {
-    'type': 'weekly',
-    'interval': 1,
-    'daysOfWeek': ['saturday'],
-    'firstDayOfWeek': 'sunday',
-  },
-  'monthly': {'type': 'absoluteMonthly', 'interval': 1, 'dayOfMonth': 11},
-  'yearly': {
-    'type': 'absoluteYearly',
-    'interval': 1,
-    'dayOfMonth': 11,
-    'month': 7,
-  },
-};

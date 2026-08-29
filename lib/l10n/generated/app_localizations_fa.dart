@@ -118,6 +118,39 @@ class AppLocalizationsFa extends AppLocalizations {
   String get calendars => 'تقویم‌ها';
 
   @override
+  String get newCalendar => 'تقویم جدید';
+
+  @override
+  String get calendarColor => 'رنگ تقویم';
+
+  @override
+  String calendarColorOption(int number) {
+    return 'رنگ $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'این ارائه‌دهنده از مدیریت تقویم در BusyMax پشتیبانی نمی‌کند.';
+
+  @override
+  String get primaryCalendarCannotDelete => 'تقویم اصلی را نمی‌توان حذف کرد.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'ایجاد تقویم ممکن نشد: $error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'به‌روزرسانی تقویم ممکن نشد: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'حذف تقویم ممکن نشد: $error';
+  }
+
+  @override
   String get newEvent => 'رویداد جدید';
 
   @override
@@ -1302,6 +1335,11 @@ class AppLocalizationsFa extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'این تکرار را نمی‌توان با $provider استفاده کرد.';
+  }
+
+  @override
   String get importance => 'اهمیت';
 
   @override
@@ -1938,10 +1976,33 @@ class AppLocalizationsFa extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'این رویداد';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'این رویداد و رویدادهای بعدی';
+
+  @override
+  String get thisAndFutureUnavailable =>
+      'این ارائه‌دهنده از آن پشتیبانی نمی‌کند.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'انتقال امن این رویداد و رویدادهای بعدی ممکن نیست. این رویداد یا کل مجموعه را انتخاب کنید.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'قاعدهٔ تکرار به‌صورت محلی در دسترس نیست. به‌جای آن فقط این رویداد را منتقل کنید.';
+
+  @override
+  String get copyEventAndDeleteOriginal => 'رویداد کپی و نسخهٔ اصلی حذف شود؟';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax نمی‌تواند این رویداد را مستقیماً از $source به $destination منتقل کند. ابتدا کپی را ایجاد می‌کند و فقط پس از موفقیت کپی، نسخهٔ اصلی را حذف می‌کند. شناسه‌های رویداد تغییر می‌کنند؛ ممکن است وضعیت پاسخ شرکت‌کنندگان بازنشانی شود و دعوت‌نامه یا لغو ارسال شود؛ و شاید پیوندهای جلسه، پیوست‌ها، یادآورها، فیلدهای ویژهٔ ارائه‌دهنده و استثناهای تکرار منتقل نشوند.';
+  }
+
+  @override
+  String get copyAndDelete => 'کپی و حذف';
 
   @override
   String get chooseRecurringEventScope =>

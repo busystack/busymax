@@ -117,6 +117,38 @@ class AppLocalizationsZh extends AppLocalizations {
   String get calendars => '日历';
 
   @override
+  String get newCalendar => '新建日历';
+
+  @override
+  String get calendarColor => '日历颜色';
+
+  @override
+  String calendarColorOption(int number) {
+    return '颜色 $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported => '此提供商不支持 BusyMax 中的日历管理。';
+
+  @override
+  String get primaryCalendarCannotDelete => '无法删除主日历。';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return '无法创建日历：$error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return '无法更新日历：$error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return '无法删除日历：$error';
+  }
+
+  @override
   String get newEvent => '新建日程';
 
   @override
@@ -1260,6 +1292,11 @@ class AppLocalizationsZh extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return '此重复规则不能用于 $provider。';
+  }
+
+  @override
   String get importance => '重要性';
 
   @override
@@ -1869,10 +1906,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => '此事件';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => '此事件及后续事件';
+
+  @override
+  String get thisAndFutureUnavailable => '此提供商不支持。';
+
+  @override
+  String get thisAndFutureMoveUnavailable => '无法安全移动此活动及后续活动。请选择此活动或整个系列。';
+
+  @override
+  String get entireSeriesMoveUnavailable => '本地没有可用的重复规则。请仅移动此活动。';
+
+  @override
+  String get copyEventAndDeleteOriginal => '复制活动并删除原活动？';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax 无法将此活动直接从 $source 移动到 $destination。应用会先创建副本，并且仅在复制成功后删除原活动。活动 ID 将发生变化；参与者的回复状态可能会重置，并可能发送邀请或取消通知；会议链接、附件、提醒、提供商特有的字段和重复例外可能无法保留。';
+  }
+
+  @override
+  String get copyAndDelete => '复制并删除';
 
   @override
   String get chooseRecurringEventScope =>
@@ -2008,6 +2065,38 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get calendars => '日历';
 
   @override
+  String get newCalendar => '新建日历';
+
+  @override
+  String get calendarColor => '日历颜色';
+
+  @override
+  String calendarColorOption(int number) {
+    return '颜色 $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported => '此提供商不支持 BusyMax 中的日历管理。';
+
+  @override
+  String get primaryCalendarCannotDelete => '无法删除主日历。';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return '无法创建日历：$error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return '无法更新日历：$error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return '无法删除日历：$error';
+  }
+
+  @override
   String get newEvent => '新建日程';
 
   @override
@@ -3151,6 +3240,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return '此重复规则不能用于 $provider。';
+  }
+
+  @override
   String get importance => '重要性';
 
   @override
@@ -3760,10 +3854,30 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => '此事件';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => '此事件及后续事件';
+
+  @override
+  String get thisAndFutureUnavailable => '此提供商不支持。';
+
+  @override
+  String get thisAndFutureMoveUnavailable => '无法安全移动此活动及后续活动。请选择此活动或整个系列。';
+
+  @override
+  String get entireSeriesMoveUnavailable => '本地没有可用的重复规则。请仅移动此活动。';
+
+  @override
+  String get copyEventAndDeleteOriginal => '复制活动并删除原活动？';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax 无法将此活动直接从 $source 移动到 $destination。应用会先创建副本，并且仅在复制成功后删除原活动。活动 ID 将发生变化；参与者的回复状态可能会重置，并可能发送邀请或取消通知；会议链接、附件、提醒、提供商特有的字段和重复例外可能无法保留。';
+  }
+
+  @override
+  String get copyAndDelete => '复制并删除';
 
   @override
   String get chooseRecurringEventScope =>
@@ -3897,6 +4011,38 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get calendars => '行事曆';
+
+  @override
+  String get newCalendar => '新增行事曆';
+
+  @override
+  String get calendarColor => '行事曆顏色';
+
+  @override
+  String calendarColorOption(int number) {
+    return '顏色 $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported => '此提供者不支援 BusyMax 中的行事曆管理。';
+
+  @override
+  String get primaryCalendarCannotDelete => '無法刪除主要行事曆。';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return '無法建立行事曆：$error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return '無法更新行事曆：$error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return '無法刪除行事曆：$error';
+  }
 
   @override
   String get newEvent => '新增活動';
@@ -5042,6 +5188,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return '此重複規則無法用於 $provider。';
+  }
+
+  @override
   String get importance => '重要性';
 
   @override
@@ -5652,10 +5803,30 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => '此事件';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => '此事件及後續事件';
+
+  @override
+  String get thisAndFutureUnavailable => '此提供者不支援。';
+
+  @override
+  String get thisAndFutureMoveUnavailable => '無法安全移動此活動及後續活動。請選擇此活動或整個系列。';
+
+  @override
+  String get entireSeriesMoveUnavailable => '本機沒有可用的重複規則。請只移動此活動。';
+
+  @override
+  String get copyEventAndDeleteOriginal => '複製活動並刪除原活動？';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax 無法將此活動直接從 $source 移動到 $destination。應用程式會先建立副本，並且只在複製成功後刪除原活動。活動 ID 將會變更；參與者的回覆狀態可能會重設，並可能傳送邀請或取消通知；會議連結、附件、提醒、提供者特有的欄位和重複例外可能無法保留。';
+  }
+
+  @override
+  String get copyAndDelete => '複製並刪除';
 
   @override
   String get chooseRecurringEventScope =>

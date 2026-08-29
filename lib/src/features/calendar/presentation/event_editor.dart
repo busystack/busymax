@@ -13,8 +13,12 @@ import '../../../platform/linux_header_bar_service.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../recurrence/domain/event_recurrence_codec.dart';
+import '../../recurrence/domain/recurrence_rule.dart';
+import '../../recurrence/presentation/recurrence_editor.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../data/calendar_repository.dart';
+import '../domain/event_move_policy.dart';
 import 'event_description_editor.dart';
 import 'event_editor_draft.dart';
 import 'event_guest_delivery_dialog.dart';
@@ -47,6 +51,7 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
             draft: draft,
             initialDraft: initialDraft,
             sources: sources,
+            accounts: accounts,
             headerBarService: headerBarService,
           ),
         ),
@@ -110,10 +115,30 @@ Future<void> _completeEventEditorSave(
   required EventEditorDraft draft,
   required EventEditorDraft initialDraft,
   required List<CalendarSourceEntity> sources,
+  required List<AccountEntity> accounts,
   LinuxHeaderBarService? headerBarService,
 }) async {
+  final move = _eventMoveContext(
+    initialDraft: initialDraft,
+    draft: draft,
+    sources: sources,
+  );
+  if (move != null &&
+      move.strategy == CalendarEventMoveStrategy.copyThenDelete) {
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: context.l10n.copyEventAndDeleteOriginal,
+      message: context.l10n.copyEventMoveWarning(
+        _calendarMoveLabel(move.source, accounts),
+        _calendarMoveLabel(move.destination, accounts),
+      ),
+      confirmLabel: context.l10n.copyAndDelete,
+      headerBarService: headerBarService,
+    );
+    if (!confirmed || !context.mounted) return;
+  }
   var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
-  final provider = _providerForDraft(draft, sources);
+  final provider = _guestDeliveryProvider(move, draft, sources);
   if (provider != null &&
       draft.isOrganizer == true &&
       _hasExternalGuests(draft.attendees, initialDraft.attendees)) {
@@ -130,6 +155,82 @@ Future<void> _completeEventEditorSave(
   Navigator.of(context).pop(
     EventEditorDialogResult.save(draft, guestUpdatePolicy: guestUpdatePolicy),
   );
+}
+
+BusyProvider? _guestDeliveryProvider(
+  _EventMoveContext? move,
+  EventEditorDraft draft,
+  List<CalendarSourceEntity> sources,
+) {
+  final destination = _providerForDraft(draft, sources);
+  if (destination == BusyProvider.google ||
+      destination == BusyProvider.microsoft) {
+    return destination;
+  }
+  final source = move?.source.provider;
+  return source == BusyProvider.google || source == BusyProvider.microsoft
+      ? source
+      : null;
+}
+
+_EventMoveContext? _eventMoveContext({
+  required EventEditorDraft initialDraft,
+  required EventEditorDraft draft,
+  required List<CalendarSourceEntity> sources,
+}) {
+  if (initialDraft.eventId == null) return null;
+  CalendarSourceEntity? source;
+  CalendarSourceEntity? destination;
+  for (final candidate in sources) {
+    if (candidate.id == initialDraft.sourceId) source = candidate;
+    if (candidate.id == draft.sourceId) destination = candidate;
+  }
+  if (source == null || destination == null) return null;
+  final strategy = calendarEventMoveStrategy(
+    sourceAccountId: source.accountId,
+    sourceId: source.id,
+    sourceProviderCalendarId: source.providerCalendarId,
+    sourceProvider: source.provider,
+    sourceDavCollectionId: source.davCollectionId,
+    destinationAccountId: destination.accountId,
+    destinationId: destination.id,
+    destinationProviderCalendarId: destination.providerCalendarId,
+    destinationProvider: destination.provider,
+    destinationDavCollectionId: destination.davCollectionId,
+    eventType: initialDraft.eventType,
+    recurring: initialDraft.providerRecurringEventId != null,
+    recurringScope: draft.recurringMutationScope,
+  );
+  if (strategy == CalendarEventMoveStrategy.none) return null;
+  return _EventMoveContext(
+    source: source,
+    destination: destination,
+    strategy: strategy,
+  );
+}
+
+String _calendarMoveLabel(
+  CalendarSourceEntity source,
+  List<AccountEntity> accounts,
+) {
+  for (final account in accounts) {
+    if (account.id == source.accountId) {
+      return '${account.selectorLabel} · ${source.summary}';
+    }
+  }
+  return '${source.provider.displayName} · ${source.summary}';
+}
+
+class _EventMoveContext {
+  const _EventMoveContext({
+    required this.source,
+    required this.destination,
+    required this.strategy,
+  });
+
+  final CalendarSourceEntity source;
+  final CalendarSourceEntity destination;
+  final CalendarEventMoveStrategy strategy;
 }
 
 Future<void> _completeEventEditorDelete(
@@ -277,14 +378,15 @@ class _EventEditorState extends State<EventEditor> {
     final schedulingReadOnly =
         provider == BusyProvider.appleICloud ||
         provider == BusyProvider.nextcloud;
-    final davRecurring =
-        schedulingReadOnly && _draft.providerRecurringEventId != null;
+    final recurringOccurrence = _draft.providerRecurringEventId != null;
     final timeFieldsValid = _draft.allDay || (_startTimeValid && _endTimeValid);
     final recurringScopeValid =
-        !davRecurring ||
+        !recurringOccurrence ||
         (_draft.recurringMutationScope != null &&
-            _draft.recurringMutationScope !=
-                RecurringEventMutationScope.thisAndFuture);
+            _supportsRecurringScope(
+              currentSource,
+              _draft.recurringMutationScope!,
+            ));
     final canSave =
         dirty && _draft.canSave && timeFieldsValid && recurringScopeValid;
     return CallbackShortcuts(
@@ -352,7 +454,7 @@ class _EventEditorState extends State<EventEditor> {
               children: [
                 BusyMaxTimeModeRow(
                   allDay: _draft.allDay,
-                  onChanged: _setAllDay,
+                  onChanged: (value) => _setAllDay(value, provider),
                 ),
               ],
             ),
@@ -376,9 +478,7 @@ class _EventEditorState extends State<EventEditor> {
                     },
                     timeZone: _draft.startTimeZone,
                     onTimeZoneChanged: (value) {
-                      setState(() {
-                        _draft = _draft.copyWith(startTimeZone: value);
-                      });
+                      _setStartTimeZone(value, provider);
                     },
                     allowEmpty: false,
                     onValidityChanged: (valid) {
@@ -422,11 +522,11 @@ class _EventEditorState extends State<EventEditor> {
                   ),
               ],
             ),
-            if (davRecurring)
+            if (recurringOccurrence)
               BusyMaxGroupedList(
                 title: l10n.recurringEventScope,
                 filled: true,
-                children: _recurringScopeRows(),
+                children: _recurringScopeRows(provider),
               ),
             if (_draft.providerRecurringEventId == null)
               BusyMaxGroupedList(
@@ -510,7 +610,9 @@ class _EventEditorState extends State<EventEditor> {
                       ),
                     ),
                     destructive: true,
-                    onTap: davRecurring && _draft.recurringMutationScope == null
+                    onTap:
+                        recurringOccurrence &&
+                            _draft.recurringMutationScope == null
                         ? null
                         : _deleteCurrentEvent,
                   ),
@@ -588,35 +690,29 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   bool get _requiresRecurringScope {
-    if (_draft.providerRecurringEventId == null) return false;
-    for (final source in widget.sources) {
-      if (source.id != _draft.sourceId) continue;
-      return source.provider == BusyProvider.appleICloud ||
-          source.provider == BusyProvider.nextcloud;
-    }
-    return false;
+    return _draft.providerRecurringEventId != null;
   }
 
-  List<Widget> _recurringScopeRows() {
+  List<Widget> _recurringScopeRows(BusyProvider provider) {
     final l10n = context.l10n;
+    final source = _sourceForId(_draft.sourceId);
+    final supportsFollowing =
+        source != null &&
+        _supportsRecurringScope(
+          source,
+          RecurringEventMutationScope.thisAndFuture,
+        );
+    final supportsEntire =
+        source != null &&
+        _supportsRecurringScope(
+          source,
+          RecurringEventMutationScope.entireSeries,
+        );
+    final moving = _isMovingTo(source);
     return [
       BusyMaxActionRow(
-        title: l10n.entireSeries,
-        subtitle: l10n.chooseRecurringEventScope,
-        leading: Icon(
-          _draft.recurringMutationScope ==
-                  RecurringEventMutationScope.entireSeries
-              ? Icons.radio_button_checked
-              : Icons.radio_button_unchecked,
-        ),
-        onTap: () => setState(() {
-          _draft = _draft.copyWith(
-            recurringMutationScope: RecurringEventMutationScope.entireSeries,
-          );
-        }),
-      ),
-      BusyMaxActionRow(
         title: l10n.singleOccurrence,
+        subtitle: l10n.chooseRecurringEventScope,
         leading: Icon(
           _draft.recurringMutationScope ==
                   RecurringEventMutationScope.singleOccurrence
@@ -631,56 +727,128 @@ class _EventEditorState extends State<EventEditor> {
         }),
       ),
       BusyMaxActionRow(
-        title: l10n.thisAndFutureUnavailable,
-        leading: const Icon(Icons.update_disabled_outlined),
-        enabled: false,
+        title: l10n.thisAndFollowingEvents,
+        subtitle: supportsFollowing
+            ? null
+            : moving
+            ? l10n.thisAndFutureMoveUnavailable
+            : l10n.thisAndFutureUnavailable,
+        leading: Icon(
+          _draft.recurringMutationScope ==
+                  RecurringEventMutationScope.thisAndFuture
+              ? Icons.radio_button_checked
+              : supportsFollowing
+              ? Icons.radio_button_unchecked
+              : Icons.update_disabled_outlined,
+        ),
+        enabled: supportsFollowing,
+        onTap: supportsFollowing
+            ? () => setState(() {
+                _draft = _draft.copyWith(
+                  recurringMutationScope:
+                      RecurringEventMutationScope.thisAndFuture,
+                );
+              })
+            : null,
+      ),
+      BusyMaxActionRow(
+        title: l10n.entireSeries,
+        subtitle: supportsEntire ? null : l10n.entireSeriesMoveUnavailable,
+        leading: Icon(
+          _draft.recurringMutationScope ==
+                  RecurringEventMutationScope.entireSeries
+              ? Icons.radio_button_checked
+              : supportsEntire
+              ? Icons.radio_button_unchecked
+              : Icons.update_disabled_outlined,
+        ),
+        enabled: supportsEntire,
+        onTap: supportsEntire
+            ? () => setState(() {
+                _draft = _draft.copyWith(
+                  recurringMutationScope:
+                      RecurringEventMutationScope.entireSeries,
+                );
+              })
+            : null,
       ),
     ];
   }
 
   Widget _repeatRow(BusyProvider provider) {
     final l10n = context.l10n;
-    final labels = {
-      'none': l10n.doesNotRepeat,
-      'daily': l10n.repeatDaily,
-      'weekly': l10n.repeatWeekly,
-      'monthly': l10n.repeatMonthly,
-      'yearly': l10n.repeatYearly,
-    };
-    return BusyMaxComboRow<String>(
+    final recurrence = EventRecurrenceCodec.decode(
+      provider,
+      _draft.recurrence,
+      baseDate: _draft.start,
+    );
+    if (!recurrence.isSupported) {
+      return BusyMaxActionRow(
+        title: l10n.repeat,
+        subtitle: l10n.unsupportedRecurrencePreserved,
+        leading: const Icon(Icons.repeat),
+        enabled: false,
+      );
+    }
+    return BusyMaxActionRow(
       title: l10n.repeat,
       leading: const Icon(Icons.repeat),
-      values: labels.keys.toList(),
-      selected: _recurrenceType(_draft.recurrence),
-      labelFor: (value) => labels[value] ?? l10n.doesNotRepeat,
-      onSelected: (value) {
-        setState(() {
-          _draft = value == 'none'
-              ? _draft.copyWith(clearRecurrence: true)
-              : _draft.copyWith(
-                  recurrence: _recurrenceFor(provider, value, _draft.start),
-                );
-        });
-      },
+      subtitle: recurrenceRuleSummary(
+        context,
+        recurrence,
+        timeZone: _draft.startTimeZone,
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => unawaited(_editRecurrence(provider, recurrence)),
     );
   }
 
+  Future<void> _editRecurrence(
+    BusyProvider provider,
+    RecurrenceRule initial,
+  ) async {
+    final baseDate = _draft.start ?? DateTime.now();
+    final result = await showRecurrenceEditorDialog(
+      context,
+      initial: initial,
+      allDay: _draft.allDay,
+      floating: _isFloatingDavTime(
+        provider,
+        allDay: _draft.allDay,
+        timeZone: _draft.startTimeZone,
+      ),
+      baseDate: baseDate,
+      minimumDate: baseDate,
+      timeZone: _draft.startTimeZone,
+      limits: EventRecurrenceCodec.limitsFor(provider),
+      useNativeDatePicker: false,
+      headerBarService: widget.headerBarService,
+    );
+    if (result == null || !mounted) return;
+    if (!result.repeats) {
+      setState(() => _draft = _draft.copyWith(clearRecurrence: true));
+      return;
+    }
+    final encoded = EventRecurrenceCodec.encode(
+      provider,
+      result,
+      baseDate: baseDate,
+      allDay: _draft.allDay,
+      timeZone: _draft.startTimeZone,
+      original: _draft.recurrence,
+    );
+    setState(() => _draft = _draft.copyWith(recurrence: encoded));
+  }
+
   Widget _accountRow() {
-    final existingAccountId = widget.initialDraft.eventId == null
-        ? null
-        : widget.initialDraft.accountId;
     final accountIds =
-        <String>{
-          for (final source in widget.sources)
-            if (existingAccountId == null ||
-                source.accountId == existingAccountId)
-              source.accountId,
-        }.toList()..sort((first, second) {
-          final labelOrder = _accountLabel(
-            first,
-          ).toLowerCase().compareTo(_accountLabel(second).toLowerCase());
-          return labelOrder != 0 ? labelOrder : first.compareTo(second);
-        });
+        <String>{for (final source in widget.sources) source.accountId}.toList()
+          ..sort((first, second) {
+            final labelOrder = _accountLabel(
+              first,
+            ).toLowerCase().compareTo(_accountLabel(second).toLowerCase());
+            return labelOrder != 0 ? labelOrder : first.compareTo(second);
+          });
     final selected = accountIds.contains(_draft.accountId)
         ? _draft.accountId
         : accountIds.first;
@@ -689,21 +857,16 @@ class _EventEditorState extends State<EventEditor> {
       leading: const Icon(YaruIcons.user),
       values: accountIds,
       selected: selected,
-      enabled: existingAccountId == null,
+      enabled: accountIds.length > 1,
       labelFor: _accountLabel,
       onSelected: _selectAccount,
     );
   }
 
   Widget _calendarRow() {
-    final existingSourceId = widget.initialDraft.eventId == null
-        ? null
-        : widget.initialDraft.sourceId;
     final sources = [
       for (final source in widget.sources)
-        if (source.accountId == _draft.accountId &&
-            (existingSourceId == null || source.id == existingSourceId))
-          source,
+        if (source.accountId == _draft.accountId) source,
     ]..sort(_compareCalendarSources);
     if (sources.isEmpty) {
       return BusyMaxActionRow(
@@ -721,7 +884,7 @@ class _EventEditorState extends State<EventEditor> {
       leading: const Icon(YaruIcons.calendar),
       values: [for (final source in sources) source.id],
       selected: selected,
-      enabled: existingSourceId == null,
+      enabled: sources.length > 1,
       labelFor: (value) => sourcesById[value]!.summary,
       selectorLeadingBuilder: (context, value) {
         final source = sourcesById[value]!;
@@ -774,25 +937,137 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   void _selectCalendarSource(CalendarSourceEntity source) {
-    final recurrenceType = _recurrenceType(_draft.recurrence);
-    final adjustedRecurrence =
-        _draft.recurrenceChanged && recurrenceType != 'none'
-        ? _recurrenceFor(source.provider, recurrenceType, _draft.start)
-        : null;
+    final currentProvider = _providerForDraft(_draft, widget.sources);
+    Object? adjustedRecurrence;
+    var clearRecurrence = false;
+    if (_draft.recurrence != null &&
+        currentProvider != null &&
+        currentProvider != source.provider) {
+      final rule = EventRecurrenceCodec.decode(
+        currentProvider,
+        _draft.recurrence,
+        baseDate: _draft.start,
+      );
+      final canConvert =
+          rule.isSupported &&
+          (!rule.repeats ||
+              EventRecurrenceCodec.canEncode(source.provider, rule));
+      if (!canConvert) {
+        if (_draft.providerRecurringEventId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.recurrenceUnsupportedByProvider(
+                  source.provider.displayName,
+                ),
+              ),
+            ),
+          );
+          return;
+        }
+      } else if (!rule.repeats) {
+        clearRecurrence = true;
+      } else {
+        adjustedRecurrence = EventRecurrenceCodec.encode(
+          source.provider,
+          rule,
+          baseDate: _draft.start ?? DateTime.now(),
+          allDay: _draft.allDay,
+          timeZone: _draft.startTimeZone,
+        );
+      }
+    }
+    final providerChanged =
+        currentProvider != null && currentProvider != source.provider;
+    final reminderMinutes = _reminderMinutesList(_draft.reminders);
+    final adjustedReminders = providerChanged
+        ? _remindersFor(source.provider, reminderMinutes) ??
+              _disabledRemindersFor(source.provider)
+        : _draft.reminders;
+    final adjustedShowAs = providerChanged
+        ? _showAsForProvider(_draft.showAs, source.provider)
+        : _draft.showAs;
+    final adjustedVisibility = providerChanged
+        ? _visibilityForProvider(
+            _draft.visibilityOrSensitivity,
+            source.provider,
+          )
+        : _draft.visibilityOrSensitivity;
+    var updated = _draft.copyWith(
+      accountId: source.accountId,
+      sourceId: source.id,
+      providerCalendarId: source.providerCalendarId,
+      reminders: providerChanged ? adjustedReminders : null,
+      showAs: adjustedShowAs,
+      visibilityOrSensitivity: adjustedVisibility,
+      categories: source.provider != BusyProvider.google
+          ? _draft.categories
+          : const [],
+      recurrence: adjustedRecurrence,
+      clearRecurrence: clearRecurrence,
+      clearImportance: source.provider != BusyProvider.microsoft,
+      clearColorId: _draft.accountId != source.accountId || providerChanged,
+    );
+    final scope = updated.recurringMutationScope;
+    if (scope != null && !_supportsRecurringScopeFor(updated, source, scope)) {
+      updated = updated.copyWith(clearRecurringMutationScope: true);
+    }
     setState(() {
       if (source.provider == BusyProvider.google) {
         _addingCategory = false;
       }
-      _draft = _draft.copyWith(
-        accountId: source.accountId,
-        sourceId: source.id,
-        providerCalendarId: source.providerCalendarId,
-        categories: source.provider != BusyProvider.google
-            ? _draft.categories
-            : const [],
-        recurrence: adjustedRecurrence,
-      );
+      _draft = updated;
     });
+  }
+
+  CalendarSourceEntity? _sourceForId(String sourceId) {
+    for (final source in widget.sources) {
+      if (source.id == sourceId) return source;
+    }
+    return null;
+  }
+
+  bool _isMovingTo(CalendarSourceEntity? destination) {
+    if (destination == null || widget.initialDraft.eventId == null) {
+      return false;
+    }
+    return destination.id != widget.initialDraft.sourceId ||
+        destination.accountId != widget.initialDraft.accountId ||
+        destination.providerCalendarId !=
+            widget.initialDraft.providerCalendarId;
+  }
+
+  bool _supportsRecurringScope(
+    CalendarSourceEntity destination,
+    RecurringEventMutationScope scope,
+  ) => _supportsRecurringScopeFor(_draft, destination, scope);
+
+  bool _supportsRecurringScopeFor(
+    EventEditorDraft draft,
+    CalendarSourceEntity destination,
+    RecurringEventMutationScope scope,
+  ) {
+    if (!_isMovingTo(destination)) {
+      return scope != RecurringEventMutationScope.thisAndFuture ||
+          supportsThisAndFollowingEventMutation(destination.provider);
+    }
+    if (scope == RecurringEventMutationScope.singleOccurrence) return true;
+    if (scope == RecurringEventMutationScope.thisAndFuture) return false;
+    final move = _eventMoveContext(
+      initialDraft: widget.initialDraft,
+      draft: draft.copyWith(recurringMutationScope: scope),
+      sources: widget.sources,
+    );
+    if (move == null ||
+        move.strategy != CalendarEventMoveStrategy.copyThenDelete) {
+      return true;
+    }
+    final rule = EventRecurrenceCodec.decode(
+      destination.provider,
+      draft.recurrence,
+      baseDate: draft.start,
+    );
+    return rule.isSupported && rule.repeats;
   }
 
   List<Widget> _reminderRows(BusyProvider provider) {
@@ -1186,9 +1461,17 @@ class _EventEditorState extends State<EventEditor> {
     });
   }
 
-  void _setAllDay(bool allDay) {
+  void _setAllDay(bool allDay, BusyProvider provider) {
     final start = _draft.start;
     final end = _draft.end;
+    final adjustedRecurrence = start == null
+        ? null
+        : _recurrenceForScheduleChange(
+            provider,
+            baseDate: start,
+            allDay: allDay,
+            timeZone: _draft.startTimeZone,
+          );
     setState(() {
       _startTimeValid = true;
       _endTimeValid = true;
@@ -1197,6 +1480,7 @@ class _EventEditorState extends State<EventEditor> {
         end: start != null && !_isValidEventEnd(start, end, allDay)
             ? _defaultEndFor(start, allDay)
             : end,
+        recurrence: adjustedRecurrence,
       );
     });
   }
@@ -1204,18 +1488,21 @@ class _EventEditorState extends State<EventEditor> {
   bool get _hasUnsavedChanges {
     final hasInvalidVisibleTime =
         !_draft.allDay && (!_startTimeValid || !_endTimeValid);
-    return _draft != widget.initialDraft || hasInvalidVisibleTime;
+    final contentDraft = _draft.copyWith(clearRecurringMutationScope: true);
+    final initialContent = widget.initialDraft.copyWith(
+      clearRecurringMutationScope: true,
+    );
+    return contentDraft != initialContent || hasInvalidVisibleTime;
   }
 
   void _setStart(DateTime start, BusyProvider provider) {
     final end = _draft.end;
-    final recurrenceType = _recurrenceType(_draft.recurrence);
-    final adjustedRecurrence =
-        provider == BusyProvider.microsoft &&
-            _draft.recurrenceChanged &&
-            recurrenceType != 'none'
-        ? _recurrenceFor(provider, recurrenceType, start)
-        : null;
+    final adjustedRecurrence = _recurrenceForScheduleChange(
+      provider,
+      baseDate: start,
+      allDay: _draft.allDay,
+      timeZone: _draft.startTimeZone,
+    );
     setState(() {
       _draft = _draft.copyWith(
         start: start,
@@ -1225,6 +1512,64 @@ class _EventEditorState extends State<EventEditor> {
         recurrence: adjustedRecurrence,
       );
     });
+  }
+
+  void _setStartTimeZone(String timeZone, BusyProvider provider) {
+    final start = _draft.start;
+    final adjustedRecurrence = start == null
+        ? null
+        : _recurrenceForScheduleChange(
+            provider,
+            baseDate: start,
+            allDay: _draft.allDay,
+            timeZone: timeZone,
+          );
+    setState(() {
+      _draft = _draft.copyWith(
+        startTimeZone: timeZone,
+        recurrence: adjustedRecurrence,
+      );
+    });
+  }
+
+  Object? _recurrenceForScheduleChange(
+    BusyProvider provider, {
+    required DateTime baseDate,
+    required bool allDay,
+    required String? timeZone,
+  }) {
+    if (_draft.providerRecurringEventId != null || _draft.recurrence == null) {
+      return null;
+    }
+    var rule = EventRecurrenceCodec.decode(
+      provider,
+      _draft.recurrence,
+      baseDate: _draft.start,
+    );
+    if (!rule.isSupported || !rule.repeats) return null;
+    final untilDate = rule.untilDateFor(timeZone: _draft.startTimeZone);
+    if (untilDate != null) {
+      rule = rule.withUntilDate(
+        untilDate,
+        allDay: allDay,
+        floating: _isFloatingDavTime(
+          provider,
+          allDay: allDay,
+          timeZone: timeZone,
+        ),
+        baseDate: baseDate,
+        timeZone: timeZone,
+      );
+    }
+    if (!EventRecurrenceCodec.canEncode(provider, rule)) return null;
+    return EventRecurrenceCodec.encode(
+      provider,
+      rule,
+      baseDate: baseDate,
+      allDay: allDay,
+      timeZone: timeZone,
+      original: _draft.recurrence,
+    );
   }
 
   void _setEnd(DateTime end) {
@@ -1327,88 +1672,6 @@ DateTime _calendarDate(DateTime value) {
   return DateTime.utc(value.year, value.month, value.day);
 }
 
-String _recurrenceType(Object? recurrence) {
-  if (recurrence is List && recurrence.isNotEmpty) {
-    final value = recurrence.first.toString().toUpperCase();
-    if (value.contains('FREQ=DAILY')) return 'daily';
-    if (value.contains('FREQ=WEEKLY')) return 'weekly';
-    if (value.contains('FREQ=MONTHLY')) return 'monthly';
-    if (value.contains('FREQ=YEARLY')) return 'yearly';
-  }
-  if (recurrence is Map) {
-    final rules = recurrence['rules'];
-    if (rules is List && rules.isNotEmpty) {
-      final value = rules.first.toString().toUpperCase();
-      if (value.contains('FREQ=DAILY')) return 'daily';
-      if (value.contains('FREQ=WEEKLY')) return 'weekly';
-      if (value.contains('FREQ=MONTHLY')) return 'monthly';
-      if (value.contains('FREQ=YEARLY')) return 'yearly';
-    }
-    final pattern = recurrence['pattern'];
-    if (pattern is Map) {
-      final type = pattern['type']?.toString();
-      return switch (type) {
-        'daily' => 'daily',
-        'weekly' => 'weekly',
-        'absoluteMonthly' => 'monthly',
-        'absoluteYearly' => 'yearly',
-        _ => 'none',
-      };
-    }
-  }
-  return 'none';
-}
-
-Object _recurrenceFor(BusyProvider provider, String type, DateTime? start) {
-  final freq = switch (type) {
-    'daily' => 'DAILY',
-    'weekly' => 'WEEKLY',
-    'monthly' => 'MONTHLY',
-    'yearly' => 'YEARLY',
-    _ => 'DAILY',
-  };
-  if (provider != BusyProvider.microsoft) {
-    return ['RRULE:FREQ=$freq;INTERVAL=1'];
-  }
-  final recurrenceStart = start ?? DateTime.now();
-  final patternType = switch (type) {
-    'daily' => 'daily',
-    'weekly' => 'weekly',
-    'monthly' => 'absoluteMonthly',
-    'yearly' => 'absoluteYearly',
-    _ => 'daily',
-  };
-  return {
-    'pattern': {
-      'type': patternType,
-      'interval': 1,
-      if (type == 'weekly') ...{
-        'daysOfWeek': [_microsoftDayOfWeek(recurrenceStart.weekday)],
-        'firstDayOfWeek': 'sunday',
-      },
-      if (type == 'monthly') 'dayOfMonth': recurrenceStart.day,
-      if (type == 'yearly') ...{
-        'dayOfMonth': recurrenceStart.day,
-        'month': recurrenceStart.month,
-      },
-    },
-    'range': {'type': 'noEnd', 'startDate': encodeDateOnly(recurrenceStart)},
-  };
-}
-
-String _microsoftDayOfWeek(int weekday) {
-  return switch (weekday) {
-    DateTime.monday => 'monday',
-    DateTime.tuesday => 'tuesday',
-    DateTime.wednesday => 'wednesday',
-    DateTime.thursday => 'thursday',
-    DateTime.friday => 'friday',
-    DateTime.saturday => 'saturday',
-    DateTime.sunday => 'sunday',
-    _ => throw ArgumentError.value(weekday, 'weekday'),
-  };
-}
-
 const _eventReminderMinuteOptions = [5, 10, 30, 60, 1440];
 
 List<int> _reminderMinutesList(Object? reminders) {
@@ -1429,6 +1692,10 @@ List<int> _reminderMinutesList(Object? reminders) {
       }
     }
     return _normalizedReminderMinutes(values);
+  }
+  final davMinutes = map['minutes'];
+  if (davMinutes is List) {
+    return _normalizedReminderMinutes(davMinutes.whereType<int>());
   }
   return const [];
 }
@@ -1455,6 +1722,35 @@ Object _disabledRemindersFor(BusyProvider provider) {
     return {'useDefault': false, 'overrides': const []};
   }
   return {'isReminderOn': false};
+}
+
+String _showAsForProvider(String? value, BusyProvider provider) {
+  if (provider == BusyProvider.microsoft) {
+    return switch (value) {
+      'free' || 'tentative' || 'busy' || 'oof' || 'workingElsewhere' => value!,
+      'transparent' => 'free',
+      _ => 'busy',
+    };
+  }
+  return switch (value) {
+    'opaque' || 'transparent' => value!,
+    'free' => 'transparent',
+    _ => 'opaque',
+  };
+}
+
+String _visibilityForProvider(String? value, BusyProvider provider) {
+  if (provider == BusyProvider.microsoft) {
+    return switch (value) {
+      'normal' || 'personal' || 'private' || 'confidential' => value!,
+      _ => 'normal',
+    };
+  }
+  return switch (value) {
+    'default' || 'public' || 'private' || 'confidential' => value!,
+    'personal' => 'private',
+    _ => 'default',
+  };
 }
 
 List<int> _normalizedReminderMinutes(Iterable<int> minutes) {
@@ -1523,6 +1819,17 @@ String _visibilityLabel(BuildContext context, String value) {
 
 bool _looksLikeEmail(String value) {
   return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
+}
+
+bool _isFloatingDavTime(
+  BusyProvider provider, {
+  required bool allDay,
+  required String? timeZone,
+}) {
+  return !allDay &&
+      (timeZone?.trim().isEmpty ?? true) &&
+      (provider == BusyProvider.appleICloud ||
+          provider == BusyProvider.nextcloud);
 }
 
 class _CalendarSourceDot extends StatelessWidget {

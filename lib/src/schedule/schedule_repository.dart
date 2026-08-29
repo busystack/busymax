@@ -369,6 +369,9 @@ class ScheduleRepository {
       final organizer = _jsonMapFromString(event.organizerJson);
       final conference = _jsonValueFromString(event.conferenceJson);
       final raw = _jsonMapFromString(event.rawJson) ?? const {};
+      final isOrganizer = _eventIsOrganizer(provider, organizer, raw);
+      final sourceWritable =
+          source != null && !source.readOnly && !source.isDeleted;
       if (!searching && !_intersects(range, start, end)) {
         continue;
       }
@@ -391,7 +394,11 @@ class ScheduleRepository {
           attendees: attendees,
           organizer: organizer,
           joinMeetingUrl: _eventJoinMeetingUrl(provider, conference, raw),
-          isOrganizer: _eventIsOrganizer(provider, organizer, raw),
+          isOrganizer: isOrganizer,
+          guestsCanModify: provider == BusyProvider.google
+              ? raw['guestsCanModify'] == true
+              : null,
+          locked: provider == BusyProvider.google && raw['locked'] == true,
           currentUserResponse: _eventCurrentUserResponse(
             provider,
             attendees,
@@ -413,9 +420,12 @@ class ScheduleRepository {
           sourceName: source?.summary,
           accountDisplayName: accountDisplayNames[event.accountId],
           accountEmail: accountEmails[event.accountId],
-          capabilities: source != null && !source.readOnly && !source.isDeleted
-              ? ScheduleItemCapabilities.editable
-              : ScheduleItemCapabilities.readOnly,
+          capabilities: ScheduleItemCapabilities(
+            canEdit:
+                sourceWritable &&
+                _eventAllowsFullEditing(provider, isOrganizer, raw),
+            canDelete: sourceWritable,
+          ),
         ),
       );
     }
@@ -1173,6 +1183,16 @@ bool? _eventIsOrganizer(
     BusyProvider.microsoft => raw['isOrganizer'] as bool?,
     BusyProvider.appleICloud || BusyProvider.nextcloud => null,
   };
+}
+
+bool _eventAllowsFullEditing(
+  BusyProvider provider,
+  bool? isOrganizer,
+  Map<String, Object?> raw,
+) {
+  if (provider != BusyProvider.google) return true;
+  return raw['locked'] != true &&
+      (isOrganizer == true || raw['guestsCanModify'] == true);
 }
 
 String? _eventCurrentUserResponse(

@@ -2,16 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../dav/ical/ical_task_alarm.dart';
-import '../../../dav/ical/ical_task_recurrence.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../recurrence/domain/recurrence_rule.dart';
+import '../../recurrence/presentation/recurrence_editor.dart';
 import '../domain/task_capabilities.dart';
 import 'desktop_date_time_fields.dart';
 import 'task_details_draft.dart';
@@ -363,7 +363,7 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
 
   Widget _recurrenceGroup() {
     final l10n = context.l10n;
-    final recurrence = IcalTaskRecurrence.fromJson(
+    final recurrence = RecurrenceRule.fromJson(
       widget.draft.recurrenceJson,
       baseDate: _recurrenceBaseDate,
     );
@@ -532,28 +532,28 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
   }
 
   Future<void> _editRecurrence() async {
-    final initial = IcalTaskRecurrence.fromJson(
+    final initial = RecurrenceRule.fromJson(
       widget.draft.recurrenceJson,
       baseDate: _recurrenceBaseDate,
     );
     if (!initial.isSupported) return;
-    final result = await showBusyMaxModalEditorDialog<IcalTaskRecurrence>(
+    final baseDate = _recurrenceBaseDate ?? DateTime.now();
+    final allDay =
+        widget.draft.microsoftDueTime == null &&
+        widget.draft.microsoftStartTime == null;
+    final result = await showRecurrenceEditorDialog(
       context,
+      initial: initial,
+      allDay: allDay,
+      floating:
+          !allDay &&
+          (widget.draft.microsoftStartTimeZone?.trim().isEmpty ?? true),
+      baseDate: baseDate,
+      minimumDate: baseDate,
+      timeZone: widget.draft.microsoftStartTimeZone,
+      useNativeDatePicker: widget.useNativeDatePicker,
       barrierColor: widget.dialogBarrierColor,
       headerBarService: widget.headerBarService,
-      maxWidth: 620,
-      maxHeight: 820,
-      builder: (context) => _TaskRecurrenceDialog(
-        initial: initial,
-        allDay:
-            widget.draft.microsoftDueTime == null &&
-            widget.draft.microsoftStartTime == null,
-        baseDate: DateTime.now(),
-        minimumDate:
-            DateTime.tryParse(widget.draft.microsoftStartDate ?? '') ??
-            DateTime.now(),
-        useNativeDatePicker: widget.useNativeDatePicker,
-      ),
     );
     if (result == null || !mounted) return;
     widget.onChanged(
@@ -613,75 +613,15 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
     return alarm.action;
   }
 
-  String _recurrenceSummary(IcalTaskRecurrence recurrence) {
-    if (!recurrence.repeats) return context.l10n.repeatNone;
-    final l10n = context.l10n;
-    var summary = recurrence.interval == 1
-        ? switch (recurrence.frequency) {
-            IcalTaskRecurrenceFrequency.daily => l10n.repeatDaily,
-            IcalTaskRecurrenceFrequency.weekly => l10n.repeatWeekly,
-            IcalTaskRecurrenceFrequency.monthly => l10n.repeatMonthly,
-            IcalTaskRecurrenceFrequency.yearly => l10n.repeatYearly,
-            IcalTaskRecurrenceFrequency.none => l10n.repeatNone,
-          }
-        : switch (recurrence.frequency) {
-            IcalTaskRecurrenceFrequency.daily => l10n.repeatEveryDays(
-              recurrence.interval,
-            ),
-            IcalTaskRecurrenceFrequency.weekly => l10n.repeatEveryWeeks(
-              recurrence.interval,
-            ),
-            IcalTaskRecurrenceFrequency.monthly => l10n.repeatEveryMonths(
-              recurrence.interval,
-            ),
-            IcalTaskRecurrenceFrequency.yearly => l10n.repeatEveryYears(
-              recurrence.interval,
-            ),
-            IcalTaskRecurrenceFrequency.none => l10n.repeatNone,
-          };
-    if (recurrence.frequency == IcalTaskRecurrenceFrequency.weekly &&
-        recurrence.byDay.isNotEmpty) {
-      summary =
-          '$summary ${l10n.repeatOnDaysSummary(recurrence.byDay.map(_weekdayLabel).join(', '))}';
-    } else if ((recurrence.frequency == IcalTaskRecurrenceFrequency.monthly ||
-            recurrence.frequency == IcalTaskRecurrenceFrequency.yearly) &&
-        recurrence.byMonthDay.isNotEmpty) {
-      summary =
-          '$summary ${l10n.repeatOnMonthDaysSummary(recurrence.byMonthDay.join(', '))}';
-    } else if (recurrence.bySetPosition case final position?) {
-      summary =
-          '$summary ${l10n.repeatOnOrdinalSummary(_ordinalLabel(position), _ordinalDayLabel(recurrence.byDay))}';
-    }
-    if (recurrence.frequency == IcalTaskRecurrenceFrequency.yearly &&
-        recurrence.byMonth.isNotEmpty) {
-      summary =
-          '$summary ${l10n.repeatInMonthsSummary(recurrence.byMonth.map(_monthLabel).join(', '))}';
-    }
-    if (recurrence.count != null) {
-      return '$summary · ${l10n.repeatTimesSummary(recurrence.count!)}';
-    }
-    final until = recurrence.untilDate;
-    if (until == null) return summary;
-    final date = DateTime.tryParse(until);
-    final label = date == null
-        ? until
-        : MaterialLocalizations.of(context).formatMediumDate(date);
-    return '$summary · ${l10n.repeatUntilSummary(label)}';
-  }
+  String _recurrenceSummary(RecurrenceRule recurrence) => recurrenceRuleSummary(
+    context,
+    recurrence,
+    timeZone: widget.draft.microsoftStartTimeZone,
+  );
 
   DateTime? get _recurrenceBaseDate => DateTime.tryParse(
     widget.draft.microsoftStartDate ?? widget.draft.dueDate ?? '',
   );
-
-  String _weekdayLabel(String day) =>
-      _localizedWeekday(context, day, abbreviated: false);
-
-  String _monthLabel(int month) => _localizedMonth(context, month);
-
-  String _ordinalLabel(int value) => _localizedOrdinal(context, value);
-
-  String _ordinalDayLabel(List<String> days) =>
-      _localizedOrdinalDay(context, days);
 }
 
 class _TaskValueSliderRow extends StatelessWidget {
@@ -1026,530 +966,6 @@ class _TaskReminderDialogState extends State<_TaskReminderDialog> {
         _ReminderUnit.days => l10n.reminderUnitDays,
         _ReminderUnit.weeks => l10n.reminderUnitWeeks,
       };
-}
-
-enum _RecurrenceEnd { never, until, count }
-
-class _TaskRecurrenceDialog extends StatefulWidget {
-  const _TaskRecurrenceDialog({
-    required this.initial,
-    required this.allDay,
-    required this.baseDate,
-    required this.minimumDate,
-    required this.useNativeDatePicker,
-  });
-
-  final IcalTaskRecurrence initial;
-  final bool allDay;
-  final DateTime baseDate;
-  final DateTime minimumDate;
-  final bool useNativeDatePicker;
-
-  @override
-  State<_TaskRecurrenceDialog> createState() => _TaskRecurrenceDialogState();
-}
-
-class _TaskRecurrenceDialogState extends State<_TaskRecurrenceDialog> {
-  late IcalTaskRecurrence _value;
-  late _RecurrenceEnd _end;
-  late final TextEditingController _intervalController;
-  late final TextEditingController _countController;
-
-  @override
-  void initState() {
-    super.initState();
-    _value = widget.initial.isSupported
-        ? widget.initial
-        : const IcalTaskRecurrence.none();
-    _end = _value.count != null
-        ? _RecurrenceEnd.count
-        : _value.untilRaw != null
-        ? _RecurrenceEnd.until
-        : _RecurrenceEnd.never;
-    _intervalController = TextEditingController(text: '${_value.interval}');
-    _countController = TextEditingController(text: '${_value.count ?? 10}');
-  }
-
-  @override
-  void dispose() {
-    _intervalController.dispose();
-    _countController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final repeats = _value.repeats;
-    return BusyMaxModalEditorScaffold(
-      title: l10n.repeat,
-      cancelLabel: l10n.cancel,
-      saveLabel: l10n.save,
-      onCancel: () => Navigator.pop(context),
-      onSave: _isValid ? () => Navigator.pop(context, _value) : null,
-      contentMaxWidth: 560,
-      children: [
-        BusyMaxGroupedList(
-          filled: true,
-          children: [
-            BusyMaxComboRow<IcalTaskRecurrenceFrequency>(
-              title: l10n.repeat,
-              values: IcalTaskRecurrenceFrequency.values,
-              selected: _value.frequency,
-              labelFor: _frequencyLabel,
-              onSelected: _setFrequency,
-            ),
-            if (repeats)
-              YaruListTile.square(
-                title: TextField(
-                  controller: _intervalController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: busyMaxGroupedTextFieldDecoration(
-                    context,
-                    labelText: l10n.repeatEvery,
-                  ),
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    setState(() {
-                      if (parsed != null && parsed >= 1 && parsed <= 366) {
-                        _value = _value.copyWith(interval: parsed);
-                      }
-                    });
-                  },
-                ),
-              ),
-          ],
-        ),
-        if (_value.frequency == IcalTaskRecurrenceFrequency.weekly)
-          BusyMaxGroupedList(
-            title: l10n.repeatOn,
-            filled: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(BusyMaxSpacing.md),
-                child: YaruChoiceChipBar(
-                  style: YaruChoiceChipBarStyle.wrap,
-                  labels: [
-                    for (final day in _weekdays) Text(_weekdayLabel(day)),
-                  ],
-                  isSelected: [
-                    for (final day in _weekdays) _value.byDay.contains(day),
-                  ],
-                  selectedFirst: false,
-                  clearOnSelect: false,
-                  onSelected: (index) {
-                    final day = _weekdays[index];
-                    _toggleWeekday(day, !_value.byDay.contains(day));
-                  },
-                ),
-              ),
-            ],
-          ),
-        if (_value.frequency == IcalTaskRecurrenceFrequency.monthly ||
-            _value.frequency == IcalTaskRecurrenceFrequency.yearly)
-          BusyMaxGroupedList(
-            title: l10n.repeatDayOfMonth,
-            filled: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(BusyMaxSpacing.md),
-                child: YaruChoiceChipBar(
-                  style: YaruChoiceChipBarStyle.wrap,
-                  labels: [for (var day = 1; day <= 31; day += 1) Text('$day')],
-                  isSelected: [
-                    for (var day = 1; day <= 31; day += 1)
-                      _value.byMonthDay.contains(day),
-                  ],
-                  selectedFirst: false,
-                  clearOnSelect: false,
-                  onSelected: _value.bySetPosition == null
-                      ? (index) {
-                          final day = index + 1;
-                          _toggleMonthDay(
-                            day,
-                            !_value.byMonthDay.contains(day),
-                          );
-                        }
-                      : null,
-                ),
-              ),
-              BusyMaxComboRow<int>(
-                title: l10n.repeatOrdinal,
-                values: const [0, ..._ordinalPositions],
-                selected: _value.bySetPosition ?? 0,
-                labelFor: (value) => value == 0
-                    ? l10n.repeatSpecificDays
-                    : _localizedOrdinal(context, value),
-                onSelected: _setOrdinal,
-              ),
-              if (_value.bySetPosition != null)
-                BusyMaxComboRow<String>(
-                  title: l10n.repeatOn,
-                  values: [for (final choice in _ordinalDayChoices) choice.key],
-                  selected: _ordinalDayChoiceKey(_value.byDay),
-                  labelFor: (value) => _localizedOrdinalDay(
-                    context,
-                    _ordinalDayChoices
-                        .firstWhere((choice) => choice.key == value)
-                        .days,
-                  ),
-                  onSelected: (value) {
-                    final days = _ordinalDayChoices
-                        .firstWhere((choice) => choice.key == value)
-                        .days;
-                    setState(() => _value = _value.copyWith(byDay: days));
-                  },
-                ),
-            ],
-          ),
-        if (_value.frequency == IcalTaskRecurrenceFrequency.yearly)
-          BusyMaxGroupedList(
-            title: l10n.repeatMonths,
-            filled: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(BusyMaxSpacing.md),
-                child: YaruChoiceChipBar(
-                  style: YaruChoiceChipBarStyle.wrap,
-                  labels: [
-                    for (var month = 1; month <= 12; month += 1)
-                      Text(_localizedMonth(context, month)),
-                  ],
-                  isSelected: [
-                    for (var month = 1; month <= 12; month += 1)
-                      _value.byMonth.contains(month),
-                  ],
-                  selectedFirst: false,
-                  clearOnSelect: false,
-                  onSelected: (index) {
-                    final month = index + 1;
-                    _toggleMonth(month, !_value.byMonth.contains(month));
-                  },
-                ),
-              ),
-            ],
-          ),
-        if (repeats)
-          BusyMaxGroupedList(
-            filled: true,
-            children: [
-              BusyMaxComboRow<_RecurrenceEnd>(
-                title: l10n.repeatEnd,
-                values: _RecurrenceEnd.values,
-                selected: _end,
-                labelFor: (value) => switch (value) {
-                  _RecurrenceEnd.never => l10n.repeatNever,
-                  _RecurrenceEnd.until => l10n.repeatUntil,
-                  _RecurrenceEnd.count => l10n.repeatAfter,
-                },
-                onSelected: _setEnd,
-              ),
-              if (_end == _RecurrenceEnd.until)
-                DesktopDateValueRow(
-                  label: l10n.repeatUntil,
-                  date:
-                      _value.untilDate ??
-                      _dateString(_oneMonthAfter(DateTime.now())),
-                  useNativePicker: widget.useNativeDatePicker,
-                  onChanged: _setUntilDate,
-                ),
-              if (_end == _RecurrenceEnd.count)
-                YaruListTile.square(
-                  title: TextField(
-                    controller: _countController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: busyMaxGroupedTextFieldDecoration(
-                      context,
-                      labelText: l10n.repeatCount,
-                    ),
-                    onChanged: (value) {
-                      final parsed = int.tryParse(value);
-                      setState(() {
-                        if (parsed != null && parsed >= 1 && parsed <= 3500) {
-                          _value = _value.copyWith(count: parsed);
-                        }
-                      });
-                    },
-                  ),
-                ),
-            ],
-          ),
-      ],
-    );
-  }
-
-  bool get _isValid {
-    if (!_value.repeats) return true;
-    final interval = int.tryParse(_intervalController.text);
-    if (interval == null || interval < 1 || interval > 366) return false;
-    if (_value.frequency == IcalTaskRecurrenceFrequency.weekly &&
-        _value.byDay.isEmpty) {
-      return false;
-    }
-    if ((_value.frequency == IcalTaskRecurrenceFrequency.monthly ||
-            _value.frequency == IcalTaskRecurrenceFrequency.yearly) &&
-        _value.byMonthDay.isEmpty &&
-        (_value.bySetPosition == null || _value.byDay.isEmpty)) {
-      return false;
-    }
-    if (_value.frequency == IcalTaskRecurrenceFrequency.yearly &&
-        _value.byMonth.isEmpty) {
-      return false;
-    }
-    if (_end == _RecurrenceEnd.until && _value.untilRaw == null) return false;
-    if (_end == _RecurrenceEnd.count) {
-      final count = int.tryParse(_countController.text);
-      if (count == null || count < 1 || count > 3500) return false;
-    }
-    return true;
-  }
-
-  void _setFrequency(IcalTaskRecurrenceFrequency frequency) {
-    final now = DateTime.now();
-    setState(() {
-      _value = switch (frequency) {
-        IcalTaskRecurrenceFrequency.none => _value.copyWith(
-          frequency: frequency,
-          byDay: const [],
-          byMonth: const [],
-          byMonthDay: const [],
-          bySetPosition: null,
-          count: null,
-          untilRaw: null,
-        ),
-        IcalTaskRecurrenceFrequency.weekly => _value.copyWith(
-          frequency: frequency,
-          byDay: [_weekdayCode(now.weekday)],
-          byMonth: const [],
-          byMonthDay: const [],
-          bySetPosition: null,
-        ),
-        IcalTaskRecurrenceFrequency.monthly => _value.copyWith(
-          frequency: frequency,
-          byDay: const [],
-          byMonth: const [],
-          byMonthDay: [now.day],
-          bySetPosition: null,
-        ),
-        IcalTaskRecurrenceFrequency.yearly => _value.copyWith(
-          frequency: frequency,
-          byDay: const [],
-          byMonth: [now.month],
-          byMonthDay: [now.day],
-          bySetPosition: null,
-        ),
-        IcalTaskRecurrenceFrequency.daily => _value.copyWith(
-          frequency: frequency,
-          byDay: const [],
-          byMonth: const [],
-          byMonthDay: const [],
-          bySetPosition: null,
-        ),
-      };
-    });
-  }
-
-  void _toggleWeekday(String day, bool selected) {
-    final values = [..._value.byDay];
-    if (selected) {
-      if (!values.contains(day)) values.add(day);
-    } else if (values.length > 1) {
-      values.remove(day);
-    }
-    values.sort(
-      (left, right) =>
-          _weekdays.indexOf(left).compareTo(_weekdays.indexOf(right)),
-    );
-    setState(() => _value = _value.copyWith(byDay: values));
-  }
-
-  void _toggleMonthDay(int day, bool selected) {
-    final values = [..._value.byMonthDay];
-    if (selected) {
-      if (!values.contains(day)) values.add(day);
-    } else if (values.length > 1) {
-      values.remove(day);
-    }
-    values.sort();
-    setState(() {
-      _value = _value.copyWith(
-        byMonthDay: values,
-        byDay: const [],
-        bySetPosition: null,
-      );
-    });
-  }
-
-  void _toggleMonth(int month, bool selected) {
-    final values = [..._value.byMonth];
-    if (selected) {
-      if (!values.contains(month)) values.add(month);
-    } else if (values.length > 1) {
-      values.remove(month);
-    }
-    values.sort();
-    setState(() => _value = _value.copyWith(byMonth: values));
-  }
-
-  void _setOrdinal(int? value) {
-    setState(() {
-      if (value == null || value == 0) {
-        _value = _value.copyWith(
-          bySetPosition: null,
-          byDay: const [],
-          byMonthDay: _value.byMonthDay.isEmpty
-              ? [widget.baseDate.day]
-              : _value.byMonthDay,
-        );
-      } else {
-        _value = _value.copyWith(
-          bySetPosition: value,
-          byDay: _value.byDay.isEmpty
-              ? [_weekdayCode(widget.baseDate.weekday)]
-              : _value.byDay,
-          byMonthDay: const [],
-        );
-      }
-    });
-  }
-
-  void _setEnd(_RecurrenceEnd value) {
-    setState(() {
-      _end = value;
-      _value = switch (value) {
-        _RecurrenceEnd.never => _value.copyWith(count: null, untilRaw: null),
-        _RecurrenceEnd.count => _value.copyWith(
-          count: int.tryParse(_countController.text) ?? 10,
-          untilRaw: null,
-        ),
-        _RecurrenceEnd.until =>
-          _value
-              .copyWith(count: null)
-              .withUntilDate(
-                _value.untilDate ?? _dateString(_oneMonthAfter(DateTime.now())),
-                allDay: widget.allDay,
-              ),
-      };
-    });
-  }
-
-  void _setUntilDate(String value) {
-    final date = DateTime.tryParse(value);
-    if (date == null) return;
-    final firstDate = DateTime(
-      widget.minimumDate.year,
-      widget.minimumDate.month,
-      widget.minimumDate.day,
-    );
-    if (date.isBefore(firstDate)) return;
-    setState(() {
-      _value = _value.withUntilDate(_dateString(date), allDay: widget.allDay);
-    });
-  }
-
-  String _frequencyLabel(IcalTaskRecurrenceFrequency frequency) =>
-      switch (frequency) {
-        IcalTaskRecurrenceFrequency.none => context.l10n.repeatNone,
-        IcalTaskRecurrenceFrequency.daily => context.l10n.repeatDaily,
-        IcalTaskRecurrenceFrequency.weekly => context.l10n.repeatWeekly,
-        IcalTaskRecurrenceFrequency.monthly => context.l10n.repeatMonthly,
-        IcalTaskRecurrenceFrequency.yearly => context.l10n.repeatYearly,
-      };
-
-  String _weekdayLabel(String day) {
-    return _localizedWeekday(context, day, abbreviated: true);
-  }
-}
-
-const _weekdays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
-const _ordinalPositions = [1, 2, 3, 4, 5, -2, -1];
-
-typedef _OrdinalDayChoice = ({String key, List<String> days});
-
-const _ordinalDayChoices = <_OrdinalDayChoice>[
-  (key: 'MO', days: ['MO']),
-  (key: 'TU', days: ['TU']),
-  (key: 'WE', days: ['WE']),
-  (key: 'TH', days: ['TH']),
-  (key: 'FR', days: ['FR']),
-  (key: 'SA', days: ['SA']),
-  (key: 'SU', days: ['SU']),
-  (key: 'day', days: ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']),
-  (key: 'weekday', days: ['MO', 'TU', 'WE', 'TH', 'FR']),
-  (key: 'weekend', days: ['SA', 'SU']),
-];
-
-String _weekdayCode(int weekday) => _weekdays[(weekday - 1).clamp(0, 6)];
-
-String _ordinalDayChoiceKey(List<String> days) {
-  for (final choice in _ordinalDayChoices) {
-    if (_sameDaySet(choice.days, days)) return choice.key;
-  }
-  return days.firstOrNull ?? 'MO';
-}
-
-String _localizedWeekday(
-  BuildContext context,
-  String day, {
-  required bool abbreviated,
-}) {
-  final index = _weekdays.indexOf(day);
-  if (index < 0) return day;
-  final date = DateTime(2024, 1, 1 + index);
-  final locale = Localizations.localeOf(context).toLanguageTag();
-  return DateFormat(abbreviated ? 'EEE' : 'EEEE', locale).format(date);
-}
-
-String _localizedMonth(BuildContext context, int month) {
-  if (month < 1 || month > 12) return '$month';
-  return DateFormat(
-    'MMM',
-    Localizations.localeOf(context).toLanguageTag(),
-  ).format(DateTime(2024, month));
-}
-
-String _localizedOrdinal(BuildContext context, int value) => switch (value) {
-  1 => context.l10n.repeatFirst,
-  2 => context.l10n.repeatSecond,
-  3 => context.l10n.repeatThird,
-  4 => context.l10n.repeatFourth,
-  5 => context.l10n.repeatFifth,
-  -2 => context.l10n.repeatSecondToLast,
-  -1 => context.l10n.repeatLast,
-  _ => '$value',
-};
-
-String _localizedOrdinalDay(BuildContext context, List<String> days) {
-  if (days.length == 1) {
-    return _localizedWeekday(context, days.single, abbreviated: false);
-  }
-  if (_sameDaySet(days, _ordinalDayChoices[7].days)) {
-    return context.l10n.repeatAnyDay;
-  }
-  if (_sameDaySet(days, _ordinalDayChoices[8].days)) {
-    return context.l10n.repeatWeekday;
-  }
-  if (_sameDaySet(days, _ordinalDayChoices[9].days)) {
-    return context.l10n.repeatWeekendDay;
-  }
-  return days
-      .map((day) => _localizedWeekday(context, day, abbreviated: false))
-      .join(', ');
-}
-
-bool _sameDaySet(List<String> left, List<String> right) {
-  if (left.length != right.length) return false;
-  final leftValues = {...left};
-  return leftValues.length == left.length && leftValues.containsAll(right);
-}
-
-DateTime _oneMonthAfter(DateTime value) {
-  final firstOfTarget = DateTime(value.year, value.month + 1);
-  final lastDay = DateTime(firstOfTarget.year, firstOfTarget.month + 1, 0).day;
-  final day = value.day > lastDay ? lastDay : value.day;
-  return DateTime(firstOfTarget.year, firstOfTarget.month, day);
 }
 
 String _dateString(DateTime value) =>

@@ -910,11 +910,12 @@ final class DavObjectRepository {
     final now = commit.completedAtUtc.toUtc().millisecondsSinceEpoch;
     for (final occurrence in occurrences) {
       final component = occurrence.effectiveComponent;
+      final identityComponent = occurrence.identityComponent;
       final componentId =
           componentIds[_componentKey(
-            component.componentType,
-            component.uid!,
-            component.recurrenceIdKey,
+            identityComponent.componentType,
+            identityComponent.uid!,
+            identityComponent.recurrenceIdKey,
           )]!;
       final eventId = _stableProjectionId(
         'dav-event',
@@ -969,7 +970,7 @@ final class DavObjectRepository {
               davObjectId: Value(objectId),
               davComponentId: Value(componentId),
               icalUid: Value(component.uid),
-              recurrenceIdKey: Value(component.recurrenceIdKey),
+              recurrenceIdKey: Value(identityComponent.recurrenceIdKey),
               occurrenceKey: Value(occurrence.occurrenceKey),
               projectionVersion: const Value(davProjectionVersion),
               providerRecurringEventId: Value(

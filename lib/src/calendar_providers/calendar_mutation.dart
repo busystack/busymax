@@ -20,6 +20,15 @@ const calendarEventClearFieldsKey = '_clearFields';
 const calendarEventRecurrenceField = 'recurrenceJson';
 const calendarEventAttendeesField = 'attendeesJson';
 const calendarEventGuestUpdatePolicyKey = '_guestUpdatePolicy';
+const calendarEventRecurringScopeKey = '_recurringScope';
+const calendarEventTargetProviderIdKey = '_targetProviderEventId';
+const calendarEventOriginalStartKey = '_originalStart';
+const calendarEventOriginalEndKey = '_originalEnd';
+const calendarEventDestinationCalendarIdKey = '_destinationCalendarId';
+const calendarEventDestinationSourceIdKey = '_destinationSourceId';
+const calendarEventCopyConfirmationRequiredKey = '_copyConfirmationRequired';
+const calendarEventCopyConfirmedKey = '_copyConfirmed';
+const calendarEventCopyDestinationEventIdKey = '_copyDestinationEventId';
 
 enum CalendarGuestUpdatePolicy { send, doNotSend }
 
@@ -54,6 +63,8 @@ class CalendarEventMutation {
     this.responseRequested,
     this.hideAttendees,
     this.allowNewTimeProposals,
+    this.providerEventId,
+    this.providerRaw,
   });
 
   final String? title;
@@ -83,4 +94,6 @@ class CalendarEventMutation {
   final bool? responseRequested;
   final bool? hideAttendees;
   final bool? allowNewTimeProposals;
+  final String? providerEventId;
+  final Map<String, Object?>? providerRaw;
 }

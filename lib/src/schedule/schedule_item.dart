@@ -59,6 +59,8 @@ class CalendarScheduleItem implements ScheduleItem {
     this.organizer,
     this.joinMeetingUrl,
     this.isOrganizer,
+    this.guestsCanModify,
+    this.locked = false,
     this.currentUserResponse,
     this.colorHex,
     this.categories = const [],
@@ -95,6 +97,8 @@ class CalendarScheduleItem implements ScheduleItem {
   final Map<String, Object?>? organizer;
   final String? joinMeetingUrl;
   final bool? isOrganizer;
+  final bool? guestsCanModify;
+  final bool locked;
   final String? currentUserResponse;
   final String? colorHex;
   @override

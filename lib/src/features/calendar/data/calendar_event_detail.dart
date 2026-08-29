@@ -43,6 +43,8 @@ final class CalendarEventDetail {
     required this.categories,
     required this.organizer,
     required this.creator,
+    required this.guestsCanModify,
+    required this.locked,
     required this.colorId,
     required this.colorHex,
     required this.visibility,
@@ -63,6 +65,8 @@ final class CalendarEventDetail {
   });
 
   factory CalendarEventDetail.fromRow(CalendarEvent row) {
+    final raw = _decodeJson(row.rawJson);
+    final rawMap = raw is Map ? Map<String, Object?>.from(raw) : const {};
     return CalendarEventDetail(
       id: row.id,
       accountId: row.accountId,
@@ -97,6 +101,8 @@ final class CalendarEventDetail {
       categories: _decodeJson(row.categoriesJson),
       organizer: _decodeJson(row.organizerJson),
       creator: _decodeJson(row.creatorJson),
+      guestsCanModify: rawMap['guestsCanModify'] == true,
+      locked: rawMap['locked'] == true,
       colorId: row.colorId,
       colorHex: row.colorHex,
       visibility: row.visibility,
@@ -107,7 +113,7 @@ final class CalendarEventDetail {
       attachments: _decodeJson(row.attachmentsJson),
       isCancelled: row.isCancelled,
       isDeleted: row.isDeleted,
-      raw: _decodeJson(row.rawJson),
+      raw: raw,
       createdAtServer: row.createdAtServer,
       updatedAtServer: row.updatedAtServer,
       createdAtLocal: row.createdAtLocal,
@@ -150,6 +156,8 @@ final class CalendarEventDetail {
   final Object? categories;
   final Object? organizer;
   final Object? creator;
+  final bool guestsCanModify;
+  final bool locked;
   final String? colorId;
   final String? colorHex;
   final String? visibility;

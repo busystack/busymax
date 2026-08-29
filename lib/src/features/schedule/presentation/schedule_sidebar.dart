@@ -11,11 +11,13 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
+import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../calendar/data/calendar_repository.dart';
+import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/domain/task_capabilities.dart';
@@ -85,6 +87,7 @@ class _SourceRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final providerWebUri = scheduleCalendarProviderWebUri(account, source);
+    final capabilities = source.capabilities;
     return _CompactSourceRow(
       title: source.summary,
       leading: _SourceDot(
@@ -125,6 +128,8 @@ class _SourceRow extends ConsumerWidget {
                         !source.remindersEnabled,
                       ),
                 );
+              case 'color':
+                unawaited(_changeCalendarColor(context, ref, source));
               case 'rename':
                 unawaited(_renameCalendar(context, ref, source));
               case 'delete':
@@ -150,18 +155,25 @@ class _SourceRow extends ConsumerWidget {
               selected: source.remindersEnabled,
             ),
             BusyMaxMenuEntry(
+              value: 'color',
+              label: context.l10n.calendarColor,
+              icon: Icons.palette_outlined,
+              enabled: capabilities.canChangeCalendarColor,
+              tooltip: _calendarColorRestriction(context, source),
+            ),
+            BusyMaxMenuEntry(
               value: 'rename',
               label: context.l10n.rename,
               icon: Icons.edit_outlined,
-              enabled: !source.readOnly,
-              tooltip: source.readOnly ? context.l10n.readOnlyCalendar : null,
+              enabled: capabilities.canRenameCalendar,
+              tooltip: _calendarRenameRestriction(context, source),
             ),
             BusyMaxMenuEntry(
               value: 'delete',
               label: context.l10n.delete,
               icon: YaruIcons.trash,
-              enabled: !source.readOnly,
-              tooltip: source.readOnly ? context.l10n.readOnlyCalendar : null,
+              enabled: capabilities.canDeleteCalendar,
+              tooltip: _calendarDeleteRestriction(context, source),
               destructive: true,
             ),
           ],
@@ -437,14 +449,16 @@ class _AccountCalendarSources extends ConsumerWidget {
       ]),
       builder: (context, snapshot) {
         final sources = snapshot.data ?? const <CalendarSourceEntity>[];
-        if (sources.isEmpty) {
-          return BusyMaxActionRow(
-            title: context.l10n.noCalendarsSynced,
-            leading: const Icon(YaruIcons.calendar),
-          );
-        }
+        final canCreate = calendarManagementCapabilities(
+          account.provider,
+        ).supportsCreate;
         return Column(
           children: [
+            if (sources.isEmpty)
+              BusyMaxActionRow(
+                title: context.l10n.noCalendarsSynced,
+                leading: const Icon(YaruIcons.calendar),
+              ),
             for (final source in sources)
               _SourceRow(
                 key: ValueKey((
@@ -454,6 +468,13 @@ class _AccountCalendarSources extends ConsumerWidget {
                 )),
                 account: account,
                 source: source,
+              ),
+            if (canCreate)
+              BusyMaxActionRow(
+                key: ValueKey(('new-calendar', account.id)),
+                title: context.l10n.newCalendar,
+                leading: const Icon(YaruIcons.plus),
+                onTap: () => unawaited(_createCalendar(context, ref, account)),
               ),
           ],
         );
@@ -801,6 +822,108 @@ String? _taskListDeleteRestriction(
   return context.l10n.taskListCannotDelete;
 }
 
+String? _calendarRenameRestriction(
+  BuildContext context,
+  CalendarSourceEntity source,
+) {
+  if (source.capabilities.canRenameCalendar) return null;
+  if (!calendarManagementCapabilities(source.provider).supportsRename) {
+    return context.l10n.calendarManagementUnsupported;
+  }
+  return context.l10n.readOnlyCalendar;
+}
+
+String? _calendarColorRestriction(
+  BuildContext context,
+  CalendarSourceEntity source,
+) {
+  if (source.capabilities.canChangeCalendarColor) return null;
+  if (!calendarManagementCapabilities(source.provider).supportsColor) {
+    return context.l10n.calendarManagementUnsupported;
+  }
+  return context.l10n.readOnlyCalendar;
+}
+
+String? _calendarDeleteRestriction(
+  BuildContext context,
+  CalendarSourceEntity source,
+) {
+  if (source.capabilities.canDeleteCalendar) return null;
+  if (!calendarManagementCapabilities(source.provider).supportsDelete) {
+    return context.l10n.calendarManagementUnsupported;
+  }
+  if (source.primaryCalendar) {
+    return context.l10n.primaryCalendarCannotDelete;
+  }
+  return context.l10n.readOnlyCalendar;
+}
+
+Future<void> _createCalendar(
+  BuildContext context,
+  WidgetRef ref,
+  AccountEntity account,
+) async {
+  final title = await showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.newCalendar,
+    label: context.l10n.title,
+    actionLabel: context.l10n.create,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (!context.mounted || title == null || title.trim().isEmpty) return;
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .createLocalSource(accountId: account.id, summary: title);
+    _requestCalendarMutationSync(ref, account.id);
+  } on Object catch (error) {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.calendarCreateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
+  }
+}
+
+Future<void> _changeCalendarColor(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final choice = await showCalendarColorDialog(
+    context,
+    provider: source.provider,
+    currentBackgroundColor: source.backgroundColor,
+    currentColorId: source.colorId,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (!context.mounted || choice == null) return;
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .setSourceColor(source.id, choice);
+    _requestCalendarMutationSync(ref, source.accountId);
+  } on Object catch (error) {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.calendarUpdateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
+  }
+}
+
 Future<void> _renameCalendar(
   BuildContext context,
   WidgetRef ref,
@@ -820,9 +943,24 @@ Future<void> _renameCalendar(
       title.trim() == source.summary) {
     return;
   }
-  await ref
-      .read(calendarRepositoryProvider)
-      .renameLocalSource(source.id, title.trim());
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .renameLocalSource(source.id, title.trim());
+    _requestCalendarMutationSync(ref, source.accountId);
+  } on Object catch (error) {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.calendarUpdateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
+  }
 }
 
 Future<void> _deleteCalendar(
@@ -841,7 +979,32 @@ Future<void> _deleteCalendar(
   if (!confirmed) {
     return;
   }
-  await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
+  try {
+    await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
+    _requestCalendarMutationSync(ref, source.accountId);
+  } on Object catch (error) {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.calendarDeleteFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
+  }
+}
+
+void _requestCalendarMutationSync(WidgetRef ref, String accountId) {
+  ref
+      .read(pendingCalendarMutationSyncRequesterForAccountProvider(accountId))
+      .request();
+}
+
+void _showCalendarMutationFailure(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
 
 Future<void> _renameTaskList(

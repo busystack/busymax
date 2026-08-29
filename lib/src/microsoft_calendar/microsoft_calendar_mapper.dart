@@ -88,7 +88,7 @@ CalendarEventDto microsoftCalendarEventFromJson(
 Map<String, Object?> microsoftCalendarMutationToJson(
   CalendarMutation mutation,
 ) {
-  return _compact({'name': mutation.summary});
+  return _compact({'name': mutation.summary, 'color': mutation.colorId});
 }
 
 Map<String, Object?> microsoftEventMutationToJson(

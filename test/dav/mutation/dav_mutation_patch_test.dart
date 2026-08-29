@@ -119,6 +119,81 @@ void main() {
     expect(result, contains('X-ALARM-UNKNOWN:keep'));
   });
 
+  test('new DAV event restores a projected alarm without losing fields', () {
+    final object = buildDavEventObject(
+      DavEventMutationInput(
+        title: 'Copied event',
+        allDay: false,
+        start: DateTime.utc(2026, 8, 8, 9),
+        end: DateTime.utc(2026, 8, 8, 10),
+        reminders: const {
+          'minutes': [17],
+          'alarms': [
+            {
+              'properties': [
+                {'name': 'ACTION', 'value': 'DISPLAY'},
+                {'name': 'DESCRIPTION', 'value': 'Imported reminder'},
+                {'name': 'TRIGGER', 'value': '-PT17M'},
+                {'name': 'X-ALARM-KEEP', 'value': 'opaque'},
+              ],
+            },
+          ],
+        },
+      ),
+      idFactory: () => 'copied-event',
+      nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+    );
+
+    expect(object.rawIcs, contains('DESCRIPTION:Imported reminder'));
+    expect(object.rawIcs, contains('TRIGGER:-PT17M'));
+    expect(object.rawIcs, contains('X-ALARM-KEEP:opaque'));
+    expect(
+      IcalSemanticDocument.parse(object.rawIcs).components.single.alarms,
+      hasLength(1),
+    );
+  });
+
+  test('event reminder edit replaces editable alarms and keeps siblings', () {
+    final baseline = _baselineEvent.replaceFirst(
+      'BEGIN:VALARM\r\nACTION:AUDIO',
+      'BEGIN:VALARM\r\n'
+          'ACTION:DISPLAY\r\n'
+          'TRIGGER:-PT30M\r\n'
+          'DESCRIPTION:Second reminder\r\n'
+          'END:VALARM\r\n'
+          'BEGIN:VALARM\r\n'
+          'ACTION:AUDIO',
+    );
+    final patch = buildDavEventUpdatePatch(
+      target: target,
+      baselineRawIcs: baseline,
+      input: DavEventMutationInput(
+        title: 'Baseline',
+        allDay: false,
+        start: DateTime(2026, 8, 3, 9),
+        end: DateTime(2026, 8, 3, 10),
+        startTimeZone: 'America/Vancouver',
+        endTimeZone: 'America/Vancouver',
+        description: 'Baseline details',
+        location: 'Room one',
+        reminders: const {
+          'overrides': [
+            {'minutes': 45},
+          ],
+        },
+        remindersChanged: true,
+      ),
+    );
+    final result = patch!.applyTo(baseline, nowUtc: DateTime.utc(2026, 8, 8));
+
+    expect('ACTION:DISPLAY'.allMatches(result), hasLength(1));
+    expect(result, contains('TRIGGER:-PT45M'));
+    expect(result, isNot(contains('TRIGGER:-PT15M')));
+    expect(result, isNot(contains('TRIGGER:-PT30M')));
+    expect(result, contains('ACTION:AUDIO'));
+    expect(result, contains('X-ALARM-UNKNOWN:keep'));
+  });
+
   test('UTC task dates preserve the entered wall-clock value', () {
     final object = buildDavTaskObject(
       const {
@@ -444,6 +519,66 @@ END:VCALENDAR\r
     expect(candidate, contains('X-UNKNOWN;X-PARAM="a,b":keep-me'));
   });
 
+  test('this-and-following edit writes an RFC 5545 range exception', () {
+    final patch = buildDavEventOccurrenceExceptionPatch(
+      uid: 'event@example.test',
+      occurrenceKey: 'TZID=America/Vancouver:20260817T090000',
+      baselineRawIcs: _baselineEvent,
+      input: DavEventMutationInput(
+        title: 'Following occurrences',
+        allDay: false,
+        start: DateTime(2026, 8, 17, 11),
+        end: DateTime(2026, 8, 17, 12, 30),
+        startTimeZone: 'America/Vancouver',
+        endTimeZone: 'America/Vancouver',
+      ),
+      thisAndFuture: true,
+      nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+    );
+    final candidate = patch.applyTo(
+      _baselineEvent,
+      nowUtc: DateTime.utc(2026, 8, 8, 12),
+    );
+    final range = IcalSemanticDocument.parse(
+      candidate,
+    ).components.singleWhere((component) => component.recurrenceRange != null);
+
+    expect(range.recurrenceRange, 'THISANDFUTURE');
+    expect(range.recurrenceId?.rawValue, '20260817T090000');
+    expect(range.start?.rawValue, '20260817T110000');
+    expect(range.end?.rawValue, '20260817T123000');
+    expect(candidate, contains('RANGE=THISANDFUTURE'));
+  });
+
+  test('this-and-following edit promotes an existing exception to a range', () {
+    final patch = buildDavEventOccurrenceExceptionPatch(
+      uid: 'event@example.test',
+      occurrenceKey: 'TZID=America/Vancouver:20260810T090000',
+      baselineRawIcs: _baselineEvent,
+      input: DavEventMutationInput(
+        title: 'Promoted exception',
+        allDay: false,
+        start: DateTime(2026, 8, 10, 13),
+        end: DateTime(2026, 8, 10, 14),
+        startTimeZone: 'America/Vancouver',
+        endTimeZone: 'America/Vancouver',
+      ),
+      thisAndFuture: true,
+    );
+    final candidate = patch.applyTo(
+      _baselineEvent,
+      nowUtc: DateTime.utc(2026, 8, 8, 12),
+    );
+    final semantic = IcalSemanticDocument.parse(candidate);
+    final exception = semantic.components.singleWhere(
+      (component) => component.recurrenceId != null,
+    );
+
+    expect(semantic.components, hasLength(2));
+    expect(exception.recurrenceRange, 'THISANDFUTURE');
+    expect(exception.summary, 'Promoted exception');
+  });
+
   test('one-occurrence delete creates or updates a cancelled exception', () {
     final generated = buildDavEventOccurrenceCancellationPatch(
       uid: 'event@example.test',
@@ -464,6 +599,23 @@ END:VCALENDAR\r
     ).components.singleWhere((component) => component.recurrenceIdKey != null);
     expect(exception.status, 'CANCELLED');
     expect('BEGIN:VEVENT'.allMatches(existing), hasLength(2));
+  });
+
+  test('this-and-following delete writes a cancelled range exception', () {
+    final candidate = buildDavEventOccurrenceCancellationPatch(
+      uid: 'event@example.test',
+      occurrenceKey: 'TZID=America/Vancouver:20260817T090000',
+      baselineRawIcs: _baselineEvent,
+      thisAndFuture: true,
+      nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+    ).applyTo(_baselineEvent, nowUtc: DateTime.utc(2026, 8, 8, 12));
+    final exception = IcalSemanticDocument.parse(candidate).components
+        .singleWhere(
+          (component) => component.recurrenceRange == 'THISANDFUTURE',
+        );
+
+    expect(exception.status, 'CANCELLED');
+    expect(exception.recurrenceRange, 'THISANDFUTURE');
   });
 
   test(

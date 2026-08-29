@@ -118,6 +118,39 @@ class AppLocalizationsKo extends AppLocalizations {
   String get calendars => '캘린더';
 
   @override
+  String get newCalendar => '새 캘린더';
+
+  @override
+  String get calendarColor => '캘린더 색상';
+
+  @override
+  String calendarColorOption(int number) {
+    return '색상 $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      '이 공급자는 BusyMax에서 캘린더 관리를 지원하지 않습니다.';
+
+  @override
+  String get primaryCalendarCannotDelete => '기본 캘린더는 삭제할 수 없습니다.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return '캘린더를 만들 수 없습니다: $error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return '캘린더를 업데이트할 수 없습니다: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return '캘린더를 삭제할 수 없습니다: $error';
+  }
+
+  @override
   String get newEvent => '새 일정';
 
   @override
@@ -1267,6 +1300,11 @@ class AppLocalizationsKo extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return '이 반복은 $provider에서 사용할 수 없습니다.';
+  }
+
+  @override
   String get importance => '중요도';
 
   @override
@@ -1878,10 +1916,32 @@ class AppLocalizationsKo extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => '이 일정';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => '이 일정 및 향후 일정';
+
+  @override
+  String get thisAndFutureUnavailable => '이 제공업체에서는 지원되지 않습니다.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      '이 일정과 이후 일정을 안전하게 이동할 수 없습니다. 이 일정 또는 전체 반복 일정을 선택하세요.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      '반복 규칙을 로컬에서 사용할 수 없습니다. 이 일정만 이동하세요.';
+
+  @override
+  String get copyEventAndDeleteOriginal => '일정을 복사하고 원본을 삭제할까요?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax는 이 일정을 $source에서 $destination(으)로 직접 이동할 수 없습니다. 먼저 복사본을 만들고 복사가 성공한 뒤에만 원본을 삭제합니다. 일정 ID가 변경되고 참석자 응답 상태가 초기화되며 초대 또는 취소가 전송될 수 있습니다. 회의 링크, 첨부 파일, 미리 알림, 제공업체별 필드 및 반복 예외는 이전되지 않을 수 있습니다.';
+  }
+
+  @override
+  String get copyAndDelete => '복사 후 삭제';
 
   @override
   String get chooseRecurringEventScope =>

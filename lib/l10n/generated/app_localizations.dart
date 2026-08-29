@@ -330,6 +330,54 @@ abstract class AppLocalizations {
   /// **'Calendars'**
   String get calendars;
 
+  /// No description provided for @newCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'New calendar'**
+  String get newCalendar;
+
+  /// No description provided for @calendarColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar color'**
+  String get calendarColor;
+
+  /// No description provided for @calendarColorOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Color {number}'**
+  String calendarColorOption(int number);
+
+  /// No description provided for @calendarManagementUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This provider does not support calendar management in BusyMax.'**
+  String get calendarManagementUnsupported;
+
+  /// No description provided for @primaryCalendarCannotDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'The primary calendar cannot be deleted.'**
+  String get primaryCalendarCannotDelete;
+
+  /// No description provided for @calendarCreateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create the calendar: {error}'**
+  String calendarCreateFailed(String error);
+
+  /// No description provided for @calendarUpdateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update the calendar: {error}'**
+  String calendarUpdateFailed(String error);
+
+  /// No description provided for @calendarDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete the calendar: {error}'**
+  String calendarDeleteFailed(String error);
+
   /// No description provided for @newEvent.
   ///
   /// In en, this message translates to:
@@ -2412,6 +2460,12 @@ abstract class AppLocalizations {
   /// **'This recurrence rule uses options that this editor does not change.'**
   String get unsupportedRecurrencePreserved;
 
+  /// No description provided for @recurrenceUnsupportedByProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'This recurrence cannot be used with {provider}.'**
+  String recurrenceUnsupportedByProvider(String provider);
+
   /// No description provided for @importance.
   ///
   /// In en, this message translates to:
@@ -3513,19 +3567,55 @@ abstract class AppLocalizations {
   /// No description provided for @singleOccurrence.
   ///
   /// In en, this message translates to:
-  /// **'This occurrence'**
+  /// **'This event'**
   String get singleOccurrence;
+
+  /// No description provided for @thisAndFollowingEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'This and following events'**
+  String get thisAndFollowingEvents;
 
   /// No description provided for @thisAndFutureUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'This and future (not available)'**
+  /// **'Not supported by this provider.'**
   String get thisAndFutureUnavailable;
+
+  /// No description provided for @thisAndFutureMoveUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This and following events cannot be moved safely. Choose this event or the entire series.'**
+  String get thisAndFutureMoveUnavailable;
+
+  /// No description provided for @entireSeriesMoveUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The recurrence rule is not available locally. Move this event instead.'**
+  String get entireSeriesMoveUnavailable;
+
+  /// No description provided for @copyEventAndDeleteOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy event and delete original?'**
+  String get copyEventAndDeleteOriginal;
+
+  /// No description provided for @copyEventMoveWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax cannot move this event directly from {source} to {destination}. It will create the copy first and delete the original only after the copy succeeds. Event IDs will change; attendee response statuses may reset and invitations or cancellations may be sent; conference links, attachments, reminders, provider-specific fields, and recurrence exceptions may not carry over.'**
+  String copyEventMoveWarning(String source, String destination);
+
+  /// No description provided for @copyAndDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy and delete'**
+  String get copyAndDelete;
 
   /// No description provided for @chooseRecurringEventScope.
   ///
   /// In en, this message translates to:
-  /// **'Choose whether this change applies to the entire series or only this occurrence.'**
+  /// **'Choose which events this change applies to.'**
   String get chooseRecurringEventScope;
 
   /// No description provided for @taskDueBeforeStart.

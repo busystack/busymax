@@ -1,3 +1,5 @@
+import '../providers/busy_provider.dart';
+
 class CalendarProviderCapabilities {
   const CalendarProviderCapabilities({
     required this.supportsCreateCalendar,
@@ -30,6 +32,20 @@ class CalendarProviderCapabilities {
   final bool supportsFreeBusy;
   final bool supportsCalendarDelta;
   final bool supportsEventDelta;
+}
+
+class CalendarManagementCapabilities {
+  const CalendarManagementCapabilities({
+    required this.supportsCreate,
+    required this.supportsRename,
+    required this.supportsDelete,
+    required this.supportsColor,
+  });
+
+  final bool supportsCreate;
+  final bool supportsRename;
+  final bool supportsDelete;
+  final bool supportsColor;
 }
 
 const googleCalendarProviderCapabilities = CalendarProviderCapabilities(
@@ -65,3 +81,19 @@ const microsoftCalendarProviderCapabilities = CalendarProviderCapabilities(
   supportsCalendarDelta: false,
   supportsEventDelta: true,
 );
+
+CalendarManagementCapabilities calendarManagementCapabilities(
+  BusyProvider provider,
+) {
+  final cloudCapabilities = switch (provider) {
+    BusyProvider.google => googleCalendarProviderCapabilities,
+    BusyProvider.microsoft => microsoftCalendarProviderCapabilities,
+    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+  };
+  return CalendarManagementCapabilities(
+    supportsCreate: cloudCapabilities?.supportsCreateCalendar ?? false,
+    supportsRename: cloudCapabilities != null,
+    supportsDelete: cloudCapabilities?.supportsDeleteCalendar ?? false,
+    supportsColor: cloudCapabilities?.supportsCalendarColor ?? false,
+  );
+}

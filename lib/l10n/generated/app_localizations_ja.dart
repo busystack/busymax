@@ -118,6 +118,39 @@ class AppLocalizationsJa extends AppLocalizations {
   String get calendars => 'カレンダー';
 
   @override
+  String get newCalendar => '新しいカレンダー';
+
+  @override
+  String get calendarColor => 'カレンダーの色';
+
+  @override
+  String calendarColorOption(int number) {
+    return '色 $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'このプロバイダーのカレンダー管理は BusyMax ではサポートされていません。';
+
+  @override
+  String get primaryCalendarCannotDelete => 'メインカレンダーは削除できません。';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'カレンダーを作成できませんでした: $error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'カレンダーを更新できませんでした: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'カレンダーを削除できませんでした: $error';
+  }
+
+  @override
   String get newEvent => '新しい予定';
 
   @override
@@ -1267,6 +1300,11 @@ class AppLocalizationsJa extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'この繰り返しは $provider では使用できません。';
+  }
+
+  @override
   String get importance => '重要度';
 
   @override
@@ -1878,10 +1916,32 @@ class AppLocalizationsJa extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'この予定';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'この予定とこれ以降の予定';
+
+  @override
+  String get thisAndFutureUnavailable => 'このプロバイダーではサポートされていません。';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'この予定とこれ以降の予定を安全に移動することはできません。この予定または予定全体を選択してください。';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      '繰り返しルールがローカルにありません。代わりにこの予定だけを移動してください。';
+
+  @override
+  String get copyEventAndDeleteOriginal => '予定をコピーして元の予定を削除しますか？';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax はこの予定を $source から $destination へ直接移動できません。先にコピーを作成し、コピーが成功した場合にのみ元の予定を削除します。予定 ID は変更されます。出席者の回答状況がリセットされ、招待やキャンセルが送信される場合があります。また、会議リンク、添付ファイル、リマインダー、プロバイダー固有のフィールド、繰り返しの例外は引き継がれない場合があります。';
+  }
+
+  @override
+  String get copyAndDelete => 'コピーして削除';
 
   @override
   String get chooseRecurringEventScope =>

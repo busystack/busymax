@@ -120,6 +120,40 @@ class AppLocalizationsHi extends AppLocalizations {
   String get calendars => 'कैलेंडर';
 
   @override
+  String get newCalendar => 'नया कैलेंडर';
+
+  @override
+  String get calendarColor => 'कैलेंडर का रंग';
+
+  @override
+  String calendarColorOption(int number) {
+    return 'रंग $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'यह प्रदाता BusyMax में कैलेंडर प्रबंधन का समर्थन नहीं करता है।';
+
+  @override
+  String get primaryCalendarCannotDelete =>
+      'प्राथमिक कैलेंडर को हटाया नहीं जा सकता।';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'कैलेंडर नहीं बनाया जा सका: $error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'कैलेंडर अपडेट नहीं किया जा सका: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'कैलेंडर हटाया नहीं जा सका: $error';
+  }
+
+  @override
   String get newEvent => 'नया ईवेंट';
 
   @override
@@ -1287,6 +1321,11 @@ class AppLocalizationsHi extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'इस पुनरावृत्ति का उपयोग $provider के साथ नहीं किया जा सकता।';
+  }
+
+  @override
   String get importance => 'महत्त्व';
 
   @override
@@ -1903,10 +1942,33 @@ class AppLocalizationsHi extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'यह इवेंट';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'यह और इसके बाद के इवेंट';
+
+  @override
+  String get thisAndFutureUnavailable => 'यह प्रदाता इसका समर्थन नहीं करता।';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'इस और इसके बाद के इवेंट सुरक्षित रूप से नहीं ले जाए जा सकते। यह इवेंट या पूरी शृंखला चुनें।';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'दोहराव का नियम स्थानीय रूप से उपलब्ध नहीं है। इसके बजाय केवल यह इवेंट ले जाएँ।';
+
+  @override
+  String get copyEventAndDeleteOriginal =>
+      'इवेंट की कॉपी बनाकर मूल इवेंट मिटाएँ?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax इस इवेंट को $source से $destination में सीधे नहीं ले जा सकता। यह पहले कॉपी बनाएगा और कॉपी सफल होने के बाद ही मूल इवेंट मिटाएगा। इवेंट ID बदलेंगे; सहभागियों की प्रतिक्रिया स्थितियां रीसेट हो सकती हैं और आमंत्रण या रद्दीकरण भेजे जा सकते हैं; और कॉन्फ़्रेंस लिंक, अटैचमेंट, रिमाइंडर, प्रदाता-विशिष्ट फ़ील्ड तथा दोहराव अपवाद शायद स्थानांतरित न हों।';
+  }
+
+  @override
+  String get copyAndDelete => 'कॉपी बनाएँ और मिटाएँ';
 
   @override
   String get chooseRecurringEventScope =>

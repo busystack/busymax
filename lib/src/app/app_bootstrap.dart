@@ -798,6 +798,23 @@ final pendingMutationSyncRequesterForAccountProvider =
       return requester;
     });
 
+final pendingCalendarMutationSyncRequesterForAccountProvider =
+    Provider.family<PendingMutationSyncRequester, String>((ref, accountId) {
+      final requester = PendingMutationSyncRequester(
+        sync: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncCalendar(accountId, full: false),
+        onSyncFailure: ref
+            .watch(desktopNotificationServiceProvider)
+            .notifySyncFailure,
+        onSyncError: (error) =>
+            _markAccountReconnectRequiredForSyncError(ref, accountId, error),
+        canSync: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
+      );
+      ref.onDispose(requester.dispose);
+      return requester;
+    });
+
 final pendingOpResolutionServiceProvider =
     Provider<PendingOpResolutionService?>((ref) {
       final accountId = ref.watch(activeAccountProvider);

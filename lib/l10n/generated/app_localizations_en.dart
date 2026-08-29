@@ -118,6 +118,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendars => 'Calendars';
 
   @override
+  String get newCalendar => 'New calendar';
+
+  @override
+  String get calendarColor => 'Calendar color';
+
+  @override
+  String calendarColorOption(int number) {
+    return 'Color $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'This provider does not support calendar management in BusyMax.';
+
+  @override
+  String get primaryCalendarCannotDelete =>
+      'The primary calendar cannot be deleted.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'Could not create the calendar: $error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'Could not update the calendar: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'Could not delete the calendar: $error';
+  }
+
+  @override
   String get newEvent => 'New event';
 
   @override
@@ -1280,6 +1314,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'This recurrence cannot be used with $provider.';
+  }
+
+  @override
   String get importance => 'Importance';
 
   @override
@@ -1897,14 +1936,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'This event';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'This and following events';
+
+  @override
+  String get thisAndFutureUnavailable => 'Not supported by this provider.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'This and following events cannot be moved safely. Choose this event or the entire series.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'The recurrence rule is not available locally. Move this event instead.';
+
+  @override
+  String get copyEventAndDeleteOriginal => 'Copy event and delete original?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax cannot move this event directly from $source to $destination. It will create the copy first and delete the original only after the copy succeeds. Event IDs will change; attendee response statuses may reset and invitations or cancellations may be sent; conference links, attachments, reminders, provider-specific fields, and recurrence exceptions may not carry over.';
+  }
+
+  @override
+  String get copyAndDelete => 'Copy and delete';
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      'Choose which events this change applies to.';
 
   @override
   String get taskDueBeforeStart => 'Due must not be before start.';

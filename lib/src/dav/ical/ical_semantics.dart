@@ -67,6 +67,7 @@ final class IcalSemanticComponent {
     required this.uid,
     required this.recurrenceIdKey,
     required this.recurrenceId,
+    required this.recurrenceRange,
     required this.summary,
     required this.description,
     required this.location,
@@ -123,6 +124,10 @@ final class IcalSemanticComponent {
         component.firstProperty('RECURRENCE-ID'),
       ),
       recurrenceId: parseIcalTemporal(component.firstProperty('RECURRENCE-ID')),
+      recurrenceRange: component
+          .firstProperty('RECURRENCE-ID')
+          ?.parameterValue('RANGE')
+          ?.toUpperCase(),
       summary: _text(component, 'SUMMARY'),
       description: _text(component, 'DESCRIPTION'),
       location: _text(component, 'LOCATION'),
@@ -160,6 +165,7 @@ final class IcalSemanticComponent {
   final String? uid;
   final String? recurrenceIdKey;
   final IcalTemporalValue? recurrenceId;
+  final String? recurrenceRange;
   final String? summary;
   final String? description;
   final String? location;

@@ -97,6 +97,16 @@ Map<String, Object?> googleCalendarListMutationToJson(
   });
 }
 
+Map<String, Object?> googleCalendarListColorMutationToJson(
+  CalendarMutation mutation,
+) {
+  return _compact({
+    'backgroundColor': mutation.backgroundColor,
+    'foregroundColor': mutation.foregroundColor,
+    'colorId': mutation.colorId,
+  });
+}
+
 Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
   final allDay = mutation.allDay ?? mutation.startDate != null;
   final start = allDay
@@ -112,26 +122,58 @@ Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
           'timeZone': mutation.endTimeZone,
         });
 
-  return _compact({
-    'summary': mutation.title,
-    'description': mutation.description,
-    'location': mutation.location,
-    if (start.isNotEmpty) 'start': start,
-    if (end.isNotEmpty) 'end': end,
-    'recurrence': mutation.clearRecurrence
-        ? const <Object?>[]
-        : mutation.recurrence,
-    'reminders': mutation.reminders,
-    'attendees': mutation.clearAttendees
-        ? const <Object?>[]
-        : mutation.attendees,
-    'colorId': mutation.colorId,
-    'visibility': mutation.visibility,
-    'transparency': mutation.transparencyOrShowAs,
-    if (mutation.hideAttendees != null)
-      'guestsCanSeeOtherGuests': !mutation.hideAttendees!,
-    'conferenceData': mutation.conference,
-  });
+  return {
+    ..._googleWritableEventFields(mutation.providerRaw),
+    ..._compact({
+      'id': mutation.providerEventId,
+      'summary': mutation.title,
+      'description': mutation.description,
+      'location': mutation.location,
+      if (start.isNotEmpty) 'start': start,
+      if (end.isNotEmpty) 'end': end,
+      'recurrence': mutation.clearRecurrence
+          ? const <Object?>[]
+          : mutation.recurrence,
+      'reminders': mutation.reminders,
+      'attendees': mutation.clearAttendees
+          ? const <Object?>[]
+          : mutation.attendees,
+      'colorId': mutation.colorId,
+      'visibility': mutation.visibility,
+      'transparency': mutation.transparencyOrShowAs,
+      if (mutation.hideAttendees != null)
+        'guestsCanSeeOtherGuests': !mutation.hideAttendees!,
+      'conferenceData': mutation.conference,
+    }),
+  };
+}
+
+Map<String, Object?> _googleWritableEventFields(Map<String, Object?>? source) {
+  if (source == null) return const {};
+  const writable = {
+    'summary',
+    'description',
+    'location',
+    'start',
+    'end',
+    'recurrence',
+    'attendees',
+    'reminders',
+    'attachments',
+    'colorId',
+    'visibility',
+    'transparency',
+    'guestsCanInviteOthers',
+    'guestsCanModify',
+    'guestsCanSeeOtherGuests',
+    'extendedProperties',
+    'source',
+    'conferenceData',
+  };
+  return {
+    for (final entry in source.entries)
+      if (writable.contains(entry.key)) entry.key: entry.value,
+  };
 }
 
 String jsonOrNull(Object? value) {

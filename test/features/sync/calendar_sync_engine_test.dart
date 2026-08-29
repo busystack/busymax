@@ -698,6 +698,17 @@ class _FakeCalendarClient implements CloudCalendarClient {
   }
 
   @override
+  Future<CalendarEventDto> moveEvent({
+    required String sourceCalendarId,
+    required String eventId,
+    required String destinationCalendarId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<CalendarEventDto> getEvent({
     required String calendarId,
     required String eventId,

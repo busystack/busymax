@@ -27,6 +27,7 @@ final class IcalOccurrence {
   const IcalOccurrence({
     required this.master,
     required this.override,
+    required this.inheritedOverride,
     required this.recurrenceId,
     required this.start,
     required this.end,
@@ -35,18 +36,29 @@ final class IcalOccurrence {
 
   final IcalSemanticComponent master;
   final IcalSemanticComponent? override;
+  final IcalSemanticComponent? inheritedOverride;
   final IcalTemporalValue recurrenceId;
   final IcalTemporalValue start;
   final IcalTemporalValue? end;
   final String occurrenceKey;
 
-  IcalSemanticComponent get effectiveComponent => override ?? master;
+  IcalSemanticComponent get effectiveComponent =>
+      override ?? inheritedOverride ?? master;
+  IcalSemanticComponent get identityComponent => override ?? master;
   bool get isException => override != null;
-  bool get isCancelled => override?.isCancelled ?? master.isCancelled;
+  bool get isCancelled =>
+      override?.isCancelled ??
+      inheritedOverride?.isCancelled ??
+      master.isCancelled;
 
-  String? get summary => override?.summary ?? master.summary;
-  String? get description => override?.description ?? master.description;
-  String? get location => override?.location ?? master.location;
+  String? get summary =>
+      override?.summary ?? inheritedOverride?.summary ?? master.summary;
+  String? get description =>
+      override?.description ??
+      inheritedOverride?.description ??
+      master.description;
+  String? get location =>
+      override?.location ?? inheritedOverride?.location ?? master.location;
 }
 
 /// Expands an RFC 5545 recurrence set from its authoritative resource.
@@ -168,6 +180,12 @@ final class IcalRecurrenceExpander {
       starts.putIfAbsent(key, () => recurrenceId);
     }
 
+    final rangeOverrides =
+        overrides.values
+            .where((component) => component.recurrenceRange == 'THISANDFUTURE')
+            .toList(growable: false)
+          ..sort((left, right) => _compareRecurrenceIds(left, right));
+
     if (starts.length > limits.maximumOccurrences) {
       throw _occurrenceLimitError();
     }
@@ -176,13 +194,22 @@ final class IcalRecurrenceExpander {
     for (final entry in starts.entries) {
       final originalStart = entry.value;
       final exception = overrides[entry.key];
+      final inheritedOverride = exception == null
+          ? _rangeOverrideFor(originalStart, rangeOverrides)
+          : null;
       final effectiveStart =
-          exception?.start ?? exception?.due ?? originalStart;
-      final effectiveEnd = _occurrenceEnd(
-        exception,
-        effectiveStart,
-        masterDuration,
-      );
+          exception?.start ??
+          exception?.due ??
+          _rangeAdjustedStart(originalStart, inheritedOverride) ??
+          originalStart;
+      final effectiveEnd = exception != null
+          ? _occurrenceEnd(exception, effectiveStart, masterDuration)
+          : _rangeOccurrenceEnd(
+              inheritedOverride,
+              effectiveStart,
+              masterDuration,
+              timeZoneResolver,
+            );
       if (!_overlaps(
         effectiveStart,
         effectiveEnd,
@@ -196,6 +223,7 @@ final class IcalRecurrenceExpander {
         IcalOccurrence(
           master: master,
           override: exception,
+          inheritedOverride: inheritedOverride,
           recurrenceId: originalStart,
           start: effectiveStart,
           end: effectiveEnd,
@@ -785,6 +813,67 @@ IcalTemporalValue? _occurrenceEnd(
   if (duration == Duration.zero) return null;
   return _withWallValue(start, start.localValue.add(duration));
 }
+
+int _compareRecurrenceIds(
+  IcalSemanticComponent left,
+  IcalSemanticComponent right,
+) => left.recurrenceId!.localValue.compareTo(right.recurrenceId!.localValue);
+
+IcalSemanticComponent? _rangeOverrideFor(
+  IcalTemporalValue recurrenceId,
+  List<IcalSemanticComponent> rangeOverrides,
+) {
+  IcalSemanticComponent? active;
+  for (final candidate in rangeOverrides) {
+    if (candidate.recurrenceId!.localValue.isAfter(recurrenceId.localValue)) {
+      break;
+    }
+    active = candidate;
+  }
+  return active;
+}
+
+IcalTemporalValue? _rangeAdjustedStart(
+  IcalTemporalValue originalStart,
+  IcalSemanticComponent? rangeOverride,
+) {
+  final recurrenceId = rangeOverride?.recurrenceId;
+  final rangeStart = rangeOverride?.start ?? rangeOverride?.due;
+  if (recurrenceId == null || rangeStart == null) return null;
+  final delta = _wallDateTime(
+    rangeStart.localValue,
+  ).difference(_wallDateTime(recurrenceId.localValue));
+  return _withWallValue(
+    rangeStart,
+    _wallDateTime(originalStart.localValue).add(delta),
+  );
+}
+
+IcalTemporalValue? _rangeOccurrenceEnd(
+  IcalSemanticComponent? rangeOverride,
+  IcalTemporalValue start,
+  Duration masterDuration,
+  IcalTimeZoneResolver timeZoneResolver,
+) {
+  final hasRangeDuration =
+      rangeOverride?.duration != null || rangeOverride?.end != null;
+  final duration = hasRangeDuration
+      ? _componentDuration(rangeOverride!, timeZoneResolver)
+      : masterDuration;
+  if (duration == Duration.zero) return null;
+  return _withWallValue(start, start.localValue.add(duration));
+}
+
+DateTime _wallDateTime(DateTime value) => DateTime.utc(
+  value.year,
+  value.month,
+  value.day,
+  value.hour,
+  value.minute,
+  value.second,
+  value.millisecond,
+  value.microsecond,
+);
 
 bool _overlaps(
   IcalTemporalValue start,

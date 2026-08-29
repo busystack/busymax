@@ -3848,7 +3848,9 @@ void main() {
         ),
       ),
     );
-    expect(sidebar, isNot(contains('context.l10n.create')));
+    expect(sidebar, isNot(contains('title: context.l10n.create,')));
+    expect(sidebar, contains('title: context.l10n.newCalendar'));
+    expect(sidebar, contains('actionLabel: context.l10n.create'));
     expect(sidebar, isNot(contains('PushButton.filled')));
     expect(toolbar, isNot(contains('BusyMaxShortcutLabels.create')));
     expect(toolbar, contains('tooltip: context.l10n.create'));

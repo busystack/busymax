@@ -120,6 +120,40 @@ class AppLocalizationsFi extends AppLocalizations {
   String get calendars => 'Kalenterit';
 
   @override
+  String get newCalendar => 'Uusi kalenteri';
+
+  @override
+  String get calendarColor => 'Kalenterin väri';
+
+  @override
+  String calendarColorOption(int number) {
+    return 'Väri $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'Tämä palveluntarjoaja ei tue kalenterien hallintaa BusyMaxissa.';
+
+  @override
+  String get primaryCalendarCannotDelete =>
+      'Ensisijaista kalenteria ei voi poistaa.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'Kalenteria ei voitu luoda: $error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'Kalenteria ei voitu päivittää: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'Kalenteria ei voitu poistaa: $error';
+  }
+
+  @override
   String get newEvent => 'Uusi tapahtuma';
 
   @override
@@ -1289,6 +1323,11 @@ class AppLocalizationsFi extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'Tätä toistoa ei voi käyttää palvelussa $provider.';
+  }
+
+  @override
   String get importance => 'Tärkeys';
 
   @override
@@ -1909,10 +1948,33 @@ class AppLocalizationsFi extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'Tämä tapahtuma';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'Tämä ja seuraavat tapahtumat';
+
+  @override
+  String get thisAndFutureUnavailable => 'Tämä palveluntarjoaja ei tue tätä.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'Tätä ja seuraavia tapahtumia ei voi siirtää turvallisesti. Valitse tämä tapahtuma tai koko sarja.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'Toistumissääntö ei ole saatavilla paikallisesti. Siirrä sen sijaan vain tämä tapahtuma.';
+
+  @override
+  String get copyEventAndDeleteOriginal =>
+      'Kopioidaanko tapahtuma ja poistetaanko alkuperäinen?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax ei voi siirtää tätä tapahtumaa suoraan kalenterista $source kalenteriin $destination. Kopio luodaan ensin, ja alkuperäinen poistetaan vasta onnistuneen kopioinnin jälkeen. Tapahtuman tunnisteet muuttuvat; osallistujien vastaustilat voivat nollautua ja kutsuja tai peruutuksia voidaan lähettää; kokouslinkit, liitteet, muistutukset, palveluntarjoajakohtaiset kentät ja toistumisen poikkeukset eivät välttämättä siirry.';
+  }
+
+  @override
+  String get copyAndDelete => 'Kopioi ja poista';
 
   @override
   String get chooseRecurringEventScope =>

@@ -118,6 +118,40 @@ class AppLocalizationsDe extends AppLocalizations {
   String get calendars => 'Kalender';
 
   @override
+  String get newCalendar => 'Neuer Kalender';
+
+  @override
+  String get calendarColor => 'Kalenderfarbe';
+
+  @override
+  String calendarColorOption(int number) {
+    return 'Farbe $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'Dieser Anbieter unterstützt die Kalenderverwaltung in BusyMax nicht.';
+
+  @override
+  String get primaryCalendarCannotDelete =>
+      'Der primäre Kalender kann nicht gelöscht werden.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'Kalender konnte nicht erstellt werden: $error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'Kalender konnte nicht aktualisiert werden: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'Kalender konnte nicht gelöscht werden: $error';
+  }
+
+  @override
   String get newEvent => 'Neuer Termin';
 
   @override
@@ -1288,6 +1322,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'Diese Wiederholung kann nicht mit $provider verwendet werden.';
+  }
+
+  @override
   String get importance => 'Wichtigkeit';
 
   @override
@@ -1913,10 +1952,34 @@ class AppLocalizationsDe extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'Dieses Ereignis';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'Dieses und folgende Ereignisse';
+
+  @override
+  String get thisAndFutureUnavailable =>
+      'Von diesem Anbieter nicht unterstützt.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'Dieses und die folgenden Ereignisse können nicht sicher verschoben werden. Wählen Sie dieses Ereignis oder die gesamte Serie.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'Die Wiederholungsregel ist lokal nicht verfügbar. Verschieben Sie stattdessen dieses Ereignis.';
+
+  @override
+  String get copyEventAndDeleteOriginal =>
+      'Ereignis kopieren und Original löschen?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax kann dieses Ereignis nicht direkt von $source nach $destination verschieben. Zuerst wird die Kopie erstellt; das Original wird erst nach erfolgreichem Kopieren gelöscht. Ereignis-IDs ändern sich; Antwortstatus von Teilnehmern können zurückgesetzt und Einladungen oder Absagen versendet werden; Konferenzlinks, Anhänge, Erinnerungen, anbieterspezifische Felder und Wiederholungsausnahmen werden möglicherweise nicht übernommen.';
+  }
+
+  @override
+  String get copyAndDelete => 'Kopieren und löschen';
 
   @override
   String get chooseRecurringEventScope =>

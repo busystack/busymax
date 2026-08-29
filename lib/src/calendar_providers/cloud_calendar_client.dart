@@ -49,6 +49,14 @@ abstract interface class CloudCalendarClient {
         CalendarGuestUpdatePolicy.send,
   });
 
+  Future<CalendarEventDto> moveEvent({
+    required String sourceCalendarId,
+    required String eventId,
+    required String destinationCalendarId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  });
+
   Future<CalendarEventDto?> respondToEvent({
     required String calendarId,
     required String eventId,

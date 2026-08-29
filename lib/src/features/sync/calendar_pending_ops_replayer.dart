@@ -7,11 +7,15 @@ import '../../calendar_providers/calendar_mutation.dart';
 import '../../calendar_providers/calendar_description.dart';
 import '../../calendar_providers/calendar_sync_dto.dart';
 import '../../calendar_providers/cloud_calendar_client.dart';
+import '../../core/time/provider_date_time.dart';
 import '../../db/app_database.dart';
 import '../../google_calendar/google_calendar_errors.dart';
+import '../../google_calendar/google_calendar_mapper.dart';
 import '../../microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
+import '../recurrence/domain/event_recurrence_codec.dart';
+import '../recurrence/domain/recurrence_rule.dart';
 
 class CalendarPendingOpsReplayer {
   CalendarPendingOpsReplayer({
@@ -54,6 +58,14 @@ class CalendarPendingOpsReplayer {
         continue;
       }
       if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
+        continue;
+      }
+      if (_copyConfirmationMissing(op)) {
+        await _blockOp(
+          op,
+          'event_copy_not_confirmed',
+          'The destination event was not confirmed, so the original was kept.',
+        );
         continue;
       }
 
@@ -105,18 +117,14 @@ class CalendarPendingOpsReplayer {
         await _deleteEvent(op);
       case 'event.respond':
         await _respondToEvent(op);
+      case 'event.move':
+        await _moveEvent(op);
       case 'calendar.patch':
         await _patchCalendar(op);
       case 'calendar.delete':
         await _deleteCalendar(op);
-      case 'event.move':
       case 'calendar.create':
-        await _blockOp(
-          op,
-          'unsupported_calendar_operation',
-          _operationType(op),
-        );
-        throw const _PendingOpBlocked();
+        await _createCalendar(op);
       default:
         await _blockOp(op, 'unknown_calendar_operation', _operationType(op));
         throw const _PendingOpBlocked();
@@ -164,6 +172,17 @@ class CalendarPendingOpsReplayer {
     await _repository.upsertSource(accountId: _accountId, source: source);
   }
 
+  Future<void> _createCalendar(PendingOp op) async {
+    if (!_client.capabilities.supportsCreateCalendar) {
+      await _blockOp(op, 'unsupported_calendar_operation', _operationType(op));
+      throw const _PendingOpBlocked();
+    }
+    final source = await _client.createCalendar(
+      _calendarMutation(_request(op)),
+    );
+    await _replaceLocalCalendar(op, source);
+  }
+
   Future<void> _deleteCalendar(PendingOp op) async {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
     await _client.deleteCalendar(providerCalendarId);
@@ -187,18 +206,54 @@ class CalendarPendingOpsReplayer {
   Future<void> _patchEvent(PendingOp op) async {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
     final local = await _localEvent(op);
-    final providerEventId = await _providerEventId(op, local);
     final request = _request(op);
+    final recurringScope = request[calendarEventRecurringScopeKey]?.toString();
+    if (recurringScope == 'thisAndFuture') {
+      await _patchGoogleFollowingEvents(op, local: local, request: request);
+      return;
+    }
+    final providerEventId = await _providerEventId(op, local);
     await _ensureNoEventConflict(op, local, request);
+    var mutationRequest = request;
+    if (recurringScope == 'entireSeries') {
+      final resolved = request[_seriesResolvedRequestKey];
+      if (resolved is Map) {
+        mutationRequest = resolved.cast<String, Object?>();
+      } else {
+        final master = await _client.getEvent(
+          calendarId: providerCalendarId,
+          eventId: providerEventId,
+        );
+        mutationRequest = _seriesRequestForMaster(
+          request,
+          master,
+          provider: _client.provider,
+        );
+        request[_seriesResolvedRequestKey] = mutationRequest;
+        await (_database.update(
+          _database.pendingOps,
+        )..where((row) => row.id.equals(op.id))).write(
+          PendingOpsCompanion(
+            requestJson: Value(jsonEncode(request)),
+            updatedAtUtc: Value(_nowUtc().toIso8601String()),
+          ),
+        );
+      }
+    }
     final event = await _client.updateEvent(
       calendarId: providerCalendarId,
       eventId: providerEventId,
       mutation: _eventMutation(
-        request,
+        mutationRequest,
         fallbackTimeZone: await _fallbackTimeZone(op, local: local),
       ),
       guestUpdatePolicy: _guestUpdatePolicy(request),
     );
+    if (recurringScope == 'entireSeries') {
+      await _repository.upsertEvent(accountId: _accountId, event: event);
+      await _markRecurringRowsSynced(local);
+      return;
+    }
     await _database.transaction(() async {
       final hasDependent = await _rebaseDependentEventEdits(op, event);
       if (hasDependent) {
@@ -255,14 +310,51 @@ class CalendarPendingOpsReplayer {
   Future<void> _deleteEvent(PendingOp op) async {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
     final local = await _localEvent(op);
+    final request = _request(op);
+    if (request[calendarEventRecurringScopeKey]?.toString() ==
+        'thisAndFuture') {
+      await _deleteGoogleFollowingEvents(op, local: local, request: request);
+      await _applyDeleteSideEffect(op);
+      return;
+    }
     final providerEventId = await _providerEventId(op, local);
     await _ensureEventUnchanged(op, local, 'delete');
     await _client.deleteEvent(
       calendarId: providerCalendarId,
       eventId: providerEventId,
-      guestUpdatePolicy: _guestUpdatePolicy(_request(op)),
+      guestUpdatePolicy: _guestUpdatePolicy(request),
     );
     await _applyDeleteSideEffect(op);
+  }
+
+  Future<void> _moveEvent(PendingOp op) async {
+    if (_client.provider != BusyProvider.google) {
+      await _blockOp(
+        op,
+        'unsupported_calendar_operation',
+        'Native event movement is only available for Google Calendar.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    final sourceCalendarId = _require(
+      op.providerCalendarId,
+      'sourceCalendarId',
+    );
+    final request = _request(op);
+    final destinationCalendarId = _require(
+      request[calendarEventDestinationCalendarIdKey]?.toString(),
+      'destinationCalendarId',
+    );
+    final local = await _localEvent(op);
+    final providerEventId = await _providerEventId(op, local);
+    await _ensureEventUnchanged(op, local, 'move');
+    final event = await _client.moveEvent(
+      sourceCalendarId: sourceCalendarId,
+      eventId: providerEventId,
+      destinationCalendarId: destinationCalendarId,
+      guestUpdatePolicy: _guestUpdatePolicy(request),
+    );
+    await _replaceLocalEvent(op, event);
   }
 
   Future<void> _respondToEvent(PendingOp op) async {
@@ -302,6 +394,295 @@ class CalendarPendingOpsReplayer {
     }
   }
 
+  Future<void> _patchGoogleFollowingEvents(
+    PendingOp op, {
+    required CalendarEvent local,
+    required Map<String, Object?> request,
+  }) async {
+    if (_client.provider != BusyProvider.google) {
+      await _blockOp(
+        op,
+        'unsupported_recurring_scope',
+        'This-and-following edits are not supported by this provider API.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    final calendarId = _require(op.providerCalendarId, 'calendarId');
+    final masterId = _require(
+      request[calendarEventTargetProviderIdKey]?.toString(),
+      'recurringEventId',
+    );
+    final currentMaster = await _client.getEvent(
+      calendarId: calendarId,
+      eventId: masterId,
+    );
+    final snapshotValue = request[_googleSplitMasterRawKey];
+    late final CalendarEventDto originalMaster;
+    if (snapshotValue is Map) {
+      originalMaster = googleCalendarEventFromJson(
+        calendarId,
+        snapshotValue.cast<String, Object?>(),
+      );
+    } else {
+      originalMaster = currentMaster;
+      request[_googleSplitMasterRawKey] = originalMaster.rawJson;
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(op.id))).write(
+        PendingOpsCompanion(
+          requestJson: Value(jsonEncode(request)),
+          updatedAtUtc: Value(_nowUtc().toIso8601String()),
+        ),
+      );
+    }
+    final targetStart = _requiredDateTime(
+      request[calendarEventOriginalStartKey],
+      calendarEventOriginalStartKey,
+    );
+    final masterStart = _dtoStart(originalMaster);
+    if (masterStart == null) {
+      throw StateError('The recurring master start is unavailable.');
+    }
+    if (_sameOccurrenceStart(
+      masterStart,
+      targetStart,
+      allDay: originalMaster.allDay,
+    )) {
+      final mutationRequest = _seriesRequestForMaster(
+        request,
+        originalMaster,
+        provider: _client.provider,
+      );
+      await _client.updateEvent(
+        calendarId: calendarId,
+        eventId: masterId,
+        mutation: _eventMutation(
+          mutationRequest,
+          fallbackTimeZone: await _fallbackTimeZone(op, local: local),
+        ),
+        guestUpdatePolicy: _guestUpdatePolicy(request),
+      );
+      await _markRecurringRowsSynced(local);
+      return;
+    }
+
+    final rule = EventRecurrenceCodec.decode(
+      BusyProvider.google,
+      originalMaster.recurrenceJson,
+      baseDate: masterStart,
+    );
+    if (!rule.isSupported || !rule.repeats) {
+      await _blockOp(
+        op,
+        'unsupported_recurrence_rule',
+        'The Google recurrence rule cannot be split without data loss.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    final trimmedRule = _trimRuleBefore(
+      rule,
+      targetStart,
+      allDay: originalMaster.allDay,
+    );
+    final trimmedRecurrence = EventRecurrenceCodec.encode(
+      BusyProvider.google,
+      trimmedRule,
+      baseDate: masterStart,
+      allDay: originalMaster.allDay,
+      timeZone: originalMaster.startTimeZone,
+      original: originalMaster.recurrenceJson,
+    );
+    final followingRule = await _followingGoogleRule(
+      rule,
+      calendarId: calendarId,
+      masterId: masterId,
+      masterStart: masterStart,
+      targetStart: targetStart,
+    );
+
+    await _client.updateEvent(
+      calendarId: calendarId,
+      eventId: masterId,
+      mutation: CalendarEventMutation(recurrence: trimmedRecurrence),
+      guestUpdatePolicy: _guestUpdatePolicy(request),
+    );
+
+    final splitRequest = {
+      ..._semanticSnapshot(BusyProvider.google, originalMaster.rawJson),
+      for (final entry in request.entries)
+        if (!_eventRequestMetadataFields.contains(entry.key))
+          entry.key: entry.value,
+      'allDay': request.containsKey('allDay')
+          ? request['allDay']
+          : local.allDay,
+      'start': request.containsKey('start')
+          ? request['start']
+          : _localStart(local),
+      'end': request.containsKey('end') ? request['end'] : _localEnd(local),
+      'startTimeZone': request.containsKey('startTimeZone')
+          ? request['startTimeZone']
+          : local.startTimeZone,
+      'endTimeZone': request.containsKey('endTimeZone')
+          ? request['endTimeZone']
+          : local.endTimeZone,
+    };
+    final splitStart = _requiredDateTime(splitRequest['start'], 'start');
+    splitRequest[calendarEventRecurrenceField] = EventRecurrenceCodec.encode(
+      BusyProvider.google,
+      followingRule,
+      baseDate: splitStart,
+      allDay: splitRequest['allDay'] == true,
+      timeZone: splitRequest['startTimeZone']?.toString(),
+      original: originalMaster.recurrenceJson,
+    );
+    if (_newGoogleMeetRequest(originalMaster.rawJson, op.id)
+        case final conference?) {
+      splitRequest['conferenceJson'] = conference;
+    } else {
+      splitRequest.remove('conferenceJson');
+    }
+    final providerRaw = {...originalMaster.rawJson}..remove('conferenceData');
+    final splitEventId = op.id.replaceAll('-', '').toLowerCase();
+    try {
+      await _client.createEvent(
+        calendarId: calendarId,
+        mutation: _eventMutation(
+          splitRequest,
+          fallbackTimeZone: await _fallbackTimeZone(op, local: local),
+          providerEventId: splitEventId,
+          providerRaw: providerRaw,
+        ),
+        guestUpdatePolicy: _guestUpdatePolicy(request),
+      );
+    } on GoogleCalendarApiError catch (error) {
+      if (error.statusCode != 409) rethrow;
+      await _client.getEvent(calendarId: calendarId, eventId: splitEventId);
+    }
+    await _markRecurringRowsSynced(local);
+  }
+
+  Future<void> _deleteGoogleFollowingEvents(
+    PendingOp op, {
+    required CalendarEvent local,
+    required Map<String, Object?> request,
+  }) async {
+    if (_client.provider != BusyProvider.google) {
+      await _blockOp(
+        op,
+        'unsupported_recurring_scope',
+        'This-and-following deletion is not supported by this provider API.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    final calendarId = _require(op.providerCalendarId, 'calendarId');
+    final masterId = _require(
+      request[calendarEventTargetProviderIdKey]?.toString(),
+      'recurringEventId',
+    );
+    final master = await _client.getEvent(
+      calendarId: calendarId,
+      eventId: masterId,
+    );
+    final masterStart = _dtoStart(master);
+    if (masterStart == null) {
+      throw StateError('The recurring master start is unavailable.');
+    }
+    final targetStart = _requiredDateTime(
+      request[calendarEventOriginalStartKey],
+      calendarEventOriginalStartKey,
+    );
+    if (_sameOccurrenceStart(masterStart, targetStart, allDay: master.allDay)) {
+      await _client.deleteEvent(
+        calendarId: calendarId,
+        eventId: masterId,
+        guestUpdatePolicy: _guestUpdatePolicy(request),
+      );
+      await _markRecurringRowsSynced(local);
+      return;
+    }
+    final rule = EventRecurrenceCodec.decode(
+      BusyProvider.google,
+      master.recurrenceJson,
+      baseDate: masterStart,
+    );
+    if (!rule.isSupported || !rule.repeats) {
+      await _blockOp(
+        op,
+        'unsupported_recurrence_rule',
+        'The Google recurrence rule cannot be trimmed without data loss.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    final trimmedRule = _trimRuleBefore(
+      rule,
+      targetStart,
+      allDay: master.allDay,
+    );
+    await _client.updateEvent(
+      calendarId: calendarId,
+      eventId: masterId,
+      mutation: CalendarEventMutation(
+        recurrence: EventRecurrenceCodec.encode(
+          BusyProvider.google,
+          trimmedRule,
+          baseDate: masterStart,
+          allDay: master.allDay,
+          timeZone: master.startTimeZone,
+          original: master.recurrenceJson,
+        ),
+      ),
+      guestUpdatePolicy: _guestUpdatePolicy(request),
+    );
+    await _markRecurringRowsSynced(local);
+  }
+
+  Future<RecurrenceRule> _followingGoogleRule(
+    RecurrenceRule rule, {
+    required String calendarId,
+    required String masterId,
+    required DateTime masterStart,
+    required DateTime targetStart,
+  }) async {
+    final count = rule.count;
+    if (count == null) return rule;
+    final instances = await _client.listEventInstances(
+      calendarId: calendarId,
+      recurringEventId: masterId,
+      rangeStart: masterStart.subtract(const Duration(days: 1)),
+      rangeEnd: targetStart.add(const Duration(days: 1)),
+    );
+    final before = instances.where((instance) {
+      final original = DateTime.tryParse(
+        instance.providerOriginalStartKey ?? '',
+      );
+      return original != null && original.isBefore(targetStart);
+    }).length;
+    final remaining = count - before;
+    if (remaining < 1) {
+      throw StateError('The target occurrence is outside the recurrence.');
+    }
+    return rule.copyWith(count: remaining, untilRaw: null);
+  }
+
+  Future<void> _markRecurringRowsSynced(CalendarEvent local) async {
+    final recurringEventId = local.providerRecurringEventId;
+    if (recurringEventId == null) return;
+    await (_database.update(_database.calendarEvents)..where(
+          (row) =>
+              row.accountId.equals(local.accountId) &
+              row.provider.equals(local.provider) &
+              row.providerCalendarId.equals(local.providerCalendarId) &
+              row.providerRecurringEventId.equals(recurringEventId) &
+              row.syncStatus.equals('pending'),
+        ))
+        .write(
+          CalendarEventsCompanion(
+            syncStatus: const Value('synced'),
+            updatedAtLocal: Value(_nowUtc().millisecondsSinceEpoch),
+          ),
+        );
+  }
+
   Future<void> _replaceLocalEvent(
     PendingOp op,
     CalendarEventDto serverEvent,
@@ -318,6 +699,8 @@ class CalendarPendingOpsReplayer {
 
     await _database.transaction(() async {
       await _repository.upsertEvent(accountId: _accountId, event: serverEvent);
+      await _removeMovedSeriesSourceRows(op);
+      await _confirmDependentCopyDeletes(op, serverEventId);
       if (tempEventId != null && tempEventId != serverEventId) {
         await (_database.delete(
           _database.calendarEvents,
@@ -339,6 +722,184 @@ class CalendarPendingOpsReplayer {
     });
   }
 
+  Future<void> _replaceLocalCalendar(
+    PendingOp op,
+    CalendarSourceDto serverSource,
+  ) async {
+    final temporarySourceId = op.calendarSourceId;
+    final temporaryProviderCalendarId = op.localTempId ?? op.providerCalendarId;
+    final localSource = temporarySourceId == null
+        ? null
+        : await (_database.select(_database.calendarSources)
+                ..where((row) => row.id.equals(temporarySourceId)))
+              .getSingleOrNull();
+    final serverSourceId = CalendarRepository.sourceId(
+      accountId: _accountId,
+      provider: serverSource.provider,
+      providerCalendarId: serverSource.providerCalendarId,
+    );
+
+    await _database.transaction(() async {
+      await _repository.upsertSource(
+        accountId: _accountId,
+        source: serverSource,
+      );
+      if (localSource != null) {
+        await (_database.update(
+          _database.calendarSources,
+        )..where((row) => row.id.equals(serverSourceId))).write(
+          CalendarSourcesCompanion(
+            selected: Value(localSource.selected),
+            remindersEnabled: Value(localSource.remindersEnabled),
+            hidden: Value(localSource.hidden),
+            backgroundColor: Value(localSource.backgroundColor),
+            foregroundColor: Value(localSource.foregroundColor),
+            colorId: Value(localSource.colorId),
+            createdAtLocal: Value(localSource.createdAtLocal),
+            updatedAtLocal: Value(_nowUtc().millisecondsSinceEpoch),
+          ),
+        );
+      }
+      if (temporarySourceId != null && temporarySourceId != serverSourceId) {
+        await _database.customStatement(
+          'UPDATE calendar_events SET calendar_source_id = ?, '
+          'provider_calendar_id = ? WHERE account_id = ? '
+          'AND calendar_source_id = ?',
+          [
+            serverSourceId,
+            serverSource.providerCalendarId,
+            _accountId,
+            temporarySourceId,
+          ],
+        );
+        await _database.customStatement(
+          'UPDATE pending_ops SET calendar_source_id = ?, '
+          'provider_calendar_id = ? WHERE account_id = ? '
+          'AND calendar_source_id = ?',
+          [
+            serverSourceId,
+            serverSource.providerCalendarId,
+            _accountId,
+            temporarySourceId,
+          ],
+        );
+      }
+      if (temporaryProviderCalendarId != null &&
+          temporaryProviderCalendarId != serverSource.providerCalendarId) {
+        await _database.customStatement(
+          'UPDATE pending_ops SET provider_calendar_id = ? '
+          'WHERE account_id = ? AND provider_calendar_id = ?',
+          [
+            serverSource.providerCalendarId,
+            _accountId,
+            temporaryProviderCalendarId,
+          ],
+        );
+        await _database.customStatement(
+          'UPDATE pending_ops SET local_temp_id = ? '
+          'WHERE account_id = ? AND local_temp_id = ?',
+          [
+            serverSource.providerCalendarId,
+            _accountId,
+            temporaryProviderCalendarId,
+          ],
+        );
+      }
+      await _rewriteCalendarPendingReferences(
+        oldSourceId: temporarySourceId,
+        newSourceId: serverSourceId,
+        oldProviderCalendarId: temporaryProviderCalendarId,
+        newProviderCalendarId: serverSource.providerCalendarId,
+      );
+      if (temporarySourceId != null && temporarySourceId != serverSourceId) {
+        await (_database.delete(
+          _database.calendarSources,
+        )..where((row) => row.id.equals(temporarySourceId))).go();
+      }
+    });
+  }
+
+  Future<void> _rewriteCalendarPendingReferences({
+    required String? oldSourceId,
+    required String newSourceId,
+    required String? oldProviderCalendarId,
+    required String newProviderCalendarId,
+  }) async {
+    final ops = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    for (final pending in ops) {
+      Object? rewritten = _request(pending);
+      if (oldSourceId != null && oldSourceId != newSourceId) {
+        rewritten = _replaceCalendarReference(
+          rewritten,
+          oldSourceId,
+          newSourceId,
+        );
+      }
+      if (oldProviderCalendarId != null &&
+          oldProviderCalendarId != newProviderCalendarId) {
+        rewritten = _replaceCalendarReference(
+          rewritten,
+          oldProviderCalendarId,
+          newProviderCalendarId,
+        );
+      }
+      final requestJson = jsonEncode(rewritten);
+      if (requestJson == pending.requestJson) continue;
+      await (_database.update(_database.pendingOps)
+            ..where((row) => row.id.equals(pending.id)))
+          .write(PendingOpsCompanion(requestJson: Value(requestJson)));
+    }
+  }
+
+  Future<void> _removeMovedSeriesSourceRows(PendingOp op) async {
+    if (_operationType(op) != 'event.move') return;
+    final request = _request(op);
+    if (request[calendarEventRecurringScopeKey]?.toString() != 'entireSeries') {
+      return;
+    }
+    final recurringEventId = request[calendarEventTargetProviderIdKey]
+        ?.toString()
+        .trim();
+    final sourceCalendarId = op.providerCalendarId;
+    if (recurringEventId == null ||
+        recurringEventId.isEmpty ||
+        sourceCalendarId == null) {
+      return;
+    }
+    await (_database.delete(_database.calendarEvents)..where(
+          (row) =>
+              row.accountId.equals(_accountId) &
+              row.provider.equals(
+                op.provider ?? _client.provider.storageValue,
+              ) &
+              row.providerCalendarId.equals(sourceCalendarId) &
+              (row.providerEventId.equals(recurringEventId) |
+                  row.providerRecurringEventId.equals(recurringEventId)),
+        ))
+        .go();
+  }
+
+  Future<void> _confirmDependentCopyDeletes(
+    PendingOp completedCreate,
+    String destinationEventId,
+  ) async {
+    if (_operationType(completedCreate) != 'event.create') return;
+    final dependents = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.dependsOnOpId.equals(completedCreate.id))).get();
+    for (final dependent in dependents) {
+      final request = _request(dependent);
+      if (request[calendarEventCopyConfirmationRequiredKey] != true) continue;
+      request[calendarEventCopyConfirmedKey] = true;
+      request[calendarEventCopyDestinationEventIdKey] = destinationEventId;
+      await (_database.update(_database.pendingOps)
+            ..where((row) => row.id.equals(dependent.id)))
+          .write(PendingOpsCompanion(requestJson: Value(jsonEncode(request))));
+    }
+  }
+
   Future<void> _applyDeleteSideEffect(PendingOp op) async {
     final eventId = op.eventId;
     if (eventId == null) {
@@ -355,6 +916,38 @@ class CalendarPendingOpsReplayer {
         );
       }
       return;
+    }
+    final request = _request(op);
+    final scope = request[calendarEventRecurringScopeKey]?.toString();
+    if (scope == 'entireSeries' || scope == 'thisAndFuture') {
+      final local = await (_database.select(
+        _database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingleOrNull();
+      final recurringEventId = local?.providerRecurringEventId;
+      if (local != null && recurringEventId != null) {
+        await (_database.update(_database.calendarEvents)..where((row) {
+              var predicate =
+                  row.accountId.equals(local.accountId) &
+                  row.provider.equals(local.provider) &
+                  row.providerCalendarId.equals(local.providerCalendarId) &
+                  (row.providerRecurringEventId.equals(recurringEventId) |
+                      (scope == 'entireSeries'
+                          ? row.providerEventId.equals(recurringEventId)
+                          : const Constant(false)));
+              if (scope == 'thisAndFuture') {
+                predicate &= row.isDeleted.equals(true);
+              }
+              return predicate;
+            }))
+            .write(
+              CalendarEventsCompanion(
+                isDeleted: const Value(true),
+                syncStatus: const Value('synced'),
+                updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
+              ),
+            );
+        return;
+      }
     }
     await (_database.update(
       _database.calendarEvents,
@@ -377,7 +970,7 @@ class CalendarPendingOpsReplayer {
       return;
     }
     final current = await _client.getEvent(
-      calendarId: local.providerCalendarId,
+      calendarId: op.providerCalendarId ?? local.providerCalendarId,
       eventId: await _providerEventId(op, local),
     );
     final currentUpdatedUtc = _parseUtc(current.updatedAtServer);
@@ -410,7 +1003,7 @@ class CalendarPendingOpsReplayer {
       return;
     }
     final current = await _client.getEvent(
-      calendarId: local.providerCalendarId,
+      calendarId: op.providerCalendarId ?? local.providerCalendarId,
       eventId: await _providerEventId(op, local),
     );
     final currentUpdatedUtc = _parseUtc(current.updatedAtServer);
@@ -439,10 +1032,24 @@ class CalendarPendingOpsReplayer {
 
   Set<String> _eventMutationFields(Map<String, Object?> request) {
     final clearFields = _eventClearFields(request);
+    const metadataFields = {
+      calendarEventClearFieldsKey,
+      calendarEventGuestUpdatePolicyKey,
+      calendarEventRecurringScopeKey,
+      calendarEventTargetProviderIdKey,
+      calendarEventOriginalStartKey,
+      calendarEventOriginalEndKey,
+      calendarEventDestinationCalendarIdKey,
+      calendarEventDestinationSourceIdKey,
+      calendarEventCopyConfirmationRequiredKey,
+      calendarEventCopyConfirmedKey,
+      calendarEventCopyDestinationEventIdKey,
+      _googleSplitMasterRawKey,
+      _seriesResolvedRequestKey,
+    };
     return {
       for (final entry in request.entries)
-        if (entry.key != calendarEventClearFieldsKey &&
-            entry.key != calendarEventGuestUpdatePolicyKey &&
+        if (!metadataFields.contains(entry.key) &&
             (entry.value != null || clearFields.contains(entry.key)))
           entry.key,
     };
@@ -527,17 +1134,21 @@ class CalendarPendingOpsReplayer {
   CalendarEventMutation _eventMutation(
     Map<String, Object?> request, {
     String? fallbackTimeZone,
+    String? providerEventId,
+    Map<String, Object?>? providerRaw,
   }) {
     final clearFields = _eventClearFields(request);
     final allDay = request['allDay'] == true;
     final start = request['start']?.toString();
     final end = request['end']?.toString();
-    final startTimeZone = allDay
+    final hasStartMutation = request.containsKey('start');
+    final hasEndMutation = request.containsKey('end');
+    final startTimeZone = allDay || !hasStartMutation
         ? null
         : _nonBlank(request['startTimeZone']?.toString()) ??
               _nonBlank(fallbackTimeZone) ??
               'UTC';
-    final endTimeZone = allDay
+    final endTimeZone = allDay || !hasEndMutation
         ? null
         : _nonBlank(request['endTimeZone']?.toString()) ??
               startTimeZone ??
@@ -573,6 +1184,8 @@ class CalendarPendingOpsReplayer {
       responseRequested: request['responseRequested'] as bool?,
       hideAttendees: request['hideAttendees'] as bool?,
       allowNewTimeProposals: request['allowNewTimeProposals'] as bool?,
+      providerEventId: providerEventId,
+      providerRaw: providerRaw,
     );
   }
 
@@ -648,6 +1261,10 @@ class CalendarPendingOpsReplayer {
   }
 
   Future<String> _providerEventId(PendingOp op, CalendarEvent local) async {
+    final target = _request(
+      op,
+    )[calendarEventTargetProviderIdKey]?.toString().trim();
+    if (target != null && target.isNotEmpty) return target;
     if (local.providerEventId.startsWith('local:')) {
       await _blockOp(
         op,
@@ -731,6 +1348,12 @@ class CalendarPendingOpsReplayer {
     return _readOp(id).then((op) => op != null);
   }
 
+  bool _copyConfirmationMissing(PendingOp op) {
+    final request = _request(op);
+    return request[calendarEventCopyConfirmationRequiredKey] == true &&
+        request[calendarEventCopyConfirmedKey] != true;
+  }
+
   Future<PendingOp?> _readOp(String id) async {
     return (_database.select(
       _database.pendingOps,
@@ -760,9 +1383,253 @@ class CalendarPendingOpsReplayer {
   }
 }
 
+Object? _replaceCalendarReference(
+  Object? value,
+  String oldValue,
+  String newValue,
+) {
+  if (value is String) {
+    return value == oldValue ? newValue : value;
+  }
+  if (value is List) {
+    return [
+      for (final item in value)
+        _replaceCalendarReference(item, oldValue, newValue),
+    ];
+  }
+  if (value is Map) {
+    return {
+      for (final entry in value.entries)
+        entry.key.toString(): _replaceCalendarReference(
+          entry.value,
+          oldValue,
+          newValue,
+        ),
+    };
+  }
+  return value;
+}
+
 class _PendingOpBlocked {
   const _PendingOpBlocked();
 }
+
+const _googleSplitMasterRawKey = '_googleSplitMasterRaw';
+const _seriesResolvedRequestKey = '_seriesResolvedRequest';
+
+const _eventRequestMetadataFields = {
+  calendarEventClearFieldsKey,
+  calendarEventGuestUpdatePolicyKey,
+  calendarEventRecurringScopeKey,
+  calendarEventTargetProviderIdKey,
+  calendarEventOriginalStartKey,
+  calendarEventOriginalEndKey,
+  _googleSplitMasterRawKey,
+  _seriesResolvedRequestKey,
+};
+
+Map<String, Object?> _seriesRequestForMaster(
+  Map<String, Object?> request,
+  CalendarEventDto master, {
+  required BusyProvider provider,
+}) {
+  final result = {...request};
+  if (request.containsKey('start')) {
+    final timeZone = request['startTimeZone']?.toString();
+    final masterStart = providerDateTimeAsWallTime(
+      master.allDay ? master.startDate : master.startDateTime,
+      master.startTimeZone,
+    );
+    final originalStart = providerDateTimeAsWallTime(
+      request[calendarEventOriginalStartKey]?.toString(),
+      timeZone,
+    );
+    final desiredStart = DateTime.tryParse(request['start']?.toString() ?? '');
+    if (masterStart == null || originalStart == null || desiredStart == null) {
+      throw StateError('The recurring series start could not be adjusted.');
+    }
+    result['start'] = _naiveWallTime(masterStart)
+        .add(
+          _naiveWallTime(
+            desiredStart,
+          ).difference(_naiveWallTime(originalStart)),
+        )
+        .toIso8601String();
+  }
+  if (request.containsKey('end')) {
+    final timeZone = request['endTimeZone']?.toString();
+    final masterEnd = providerDateTimeAsWallTime(
+      master.allDay ? master.endDate : master.endDateTime,
+      master.endTimeZone,
+    );
+    final originalEnd = providerDateTimeAsWallTime(
+      request[calendarEventOriginalEndKey]?.toString(),
+      timeZone,
+    );
+    final desiredEnd = DateTime.tryParse(request['end']?.toString() ?? '');
+    if (masterEnd == null || originalEnd == null || desiredEnd == null) {
+      throw StateError('The recurring series end could not be adjusted.');
+    }
+    result['end'] = _naiveWallTime(masterEnd)
+        .add(_naiveWallTime(desiredEnd).difference(_naiveWallTime(originalEnd)))
+        .toIso8601String();
+  }
+  if (request.containsKey('start') && master.recurrenceJson != null) {
+    final adjustedStart = DateTime.tryParse(result['start']?.toString() ?? '');
+    if (adjustedStart == null) {
+      throw StateError('The recurring series start could not be adjusted.');
+    }
+    result[calendarEventRecurrenceField] = _reanchorSeriesRecurrence(
+      provider,
+      master.recurrenceJson!,
+      originalStart: providerDateTimeAsWallTime(
+        master.allDay ? master.startDate : master.startDateTime,
+        master.startTimeZone,
+      ),
+      adjustedStart: adjustedStart,
+      allDay: request['allDay'] as bool? ?? master.allDay,
+      originalTimeZone: master.startTimeZone,
+      adjustedTimeZone:
+          request['startTimeZone']?.toString() ?? master.startTimeZone,
+    );
+  }
+  return result;
+}
+
+Object _reanchorSeriesRecurrence(
+  BusyProvider provider,
+  Object original, {
+  required DateTime? originalStart,
+  required DateTime adjustedStart,
+  required bool allDay,
+  required String? originalTimeZone,
+  required String? adjustedTimeZone,
+}) {
+  final rule = EventRecurrenceCodec.decode(
+    provider,
+    original,
+    baseDate: originalStart,
+  );
+  if (rule.isSupported && rule.repeats) {
+    final untilDate = rule.untilDateFor(timeZone: originalTimeZone);
+    final adjustedRule = untilDate == null
+        ? rule
+        : rule.withUntilDate(
+            untilDate,
+            allDay: allDay,
+            baseDate: adjustedStart,
+            timeZone: adjustedTimeZone,
+          );
+    return EventRecurrenceCodec.encode(
+      provider,
+      adjustedRule,
+      baseDate: adjustedStart,
+      allDay: allDay,
+      timeZone: adjustedTimeZone,
+      original: original,
+    )!;
+  }
+  if (provider == BusyProvider.microsoft && original is Map) {
+    final recurrence = Map<String, Object?>.from(original);
+    final originalRange = recurrence['range'];
+    if (originalRange is Map) {
+      recurrence['range'] = {
+        ...Map<String, Object?>.from(originalRange),
+        'startDate': _isoDate(adjustedStart),
+      };
+    }
+    return recurrence;
+  }
+  return original;
+}
+
+String _isoDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-'
+    '${value.month.toString().padLeft(2, '0')}-'
+    '${value.day.toString().padLeft(2, '0')}';
+
+DateTime _naiveWallTime(DateTime value) => DateTime(
+  value.year,
+  value.month,
+  value.day,
+  value.hour,
+  value.minute,
+  value.second,
+  value.millisecond,
+  value.microsecond,
+);
+
+DateTime _requiredDateTime(Object? value, String field) {
+  final parsed = DateTime.tryParse(value?.toString() ?? '');
+  if (parsed == null) throw StateError('Missing or invalid $field.');
+  return parsed;
+}
+
+DateTime? _dtoStart(CalendarEventDto event) => DateTime.tryParse(
+  event.allDay ? event.startDate ?? '' : event.startDateTime ?? '',
+);
+
+bool _sameOccurrenceStart(
+  DateTime left,
+  DateTime right, {
+  required bool allDay,
+}) {
+  if (!allDay) return left.toUtc() == right.toUtc();
+  return left.year == right.year &&
+      left.month == right.month &&
+      left.day == right.day;
+}
+
+RecurrenceRule _trimRuleBefore(
+  RecurrenceRule rule,
+  DateTime targetStart, {
+  required bool allDay,
+}) {
+  if (allDay) {
+    final previousDate = DateTime(
+      targetStart.year,
+      targetStart.month,
+      targetStart.day - 1,
+    );
+    return rule.copyWith(count: null, untilRaw: _basicIcalDate(previousDate));
+  }
+  final until = targetStart.toUtc().subtract(const Duration(seconds: 1));
+  return rule.copyWith(count: null, untilRaw: _utcIcalDateTime(until));
+}
+
+String _basicIcalDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}'
+    '${value.month.toString().padLeft(2, '0')}'
+    '${value.day.toString().padLeft(2, '0')}';
+
+String _utcIcalDateTime(DateTime value) {
+  final utc = value.toUtc();
+  return '${_basicIcalDate(utc)}T'
+      '${utc.hour.toString().padLeft(2, '0')}'
+      '${utc.minute.toString().padLeft(2, '0')}'
+      '${utc.second.toString().padLeft(2, '0')}Z';
+}
+
+Object? _newGoogleMeetRequest(Map<String, Object?> raw, String requestId) {
+  final conference = raw['conferenceData'];
+  if (conference is! Map) return null;
+  final solution = conference['conferenceSolution'];
+  final key = solution is Map ? solution['key'] : null;
+  final type = key is Map ? key['type']?.toString() : null;
+  if (type != 'hangoutsMeet') return null;
+  return {
+    'createRequest': {
+      'requestId': requestId,
+      'conferenceSolutionKey': {'type': 'hangoutsMeet'},
+    },
+  };
+}
+
+String? _localStart(CalendarEvent event) =>
+    event.allDay ? event.startDate : event.startDateTime;
+
+String? _localEnd(CalendarEvent event) =>
+    event.allDay ? event.endDate : event.endDateTime;
 
 const _eventSemanticBaselineKey = '__busymaxSemanticBaseline';
 

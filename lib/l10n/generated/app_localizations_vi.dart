@@ -118,6 +118,39 @@ class AppLocalizationsVi extends AppLocalizations {
   String get calendars => 'Lịch';
 
   @override
+  String get newCalendar => 'Lịch mới';
+
+  @override
+  String get calendarColor => 'Màu lịch';
+
+  @override
+  String calendarColorOption(int number) {
+    return 'Màu $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'Nhà cung cấp này không hỗ trợ quản lý lịch trong BusyMax.';
+
+  @override
+  String get primaryCalendarCannotDelete => 'Không thể xóa lịch chính.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'Không thể tạo lịch: $error';
+  }
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'Không thể cập nhật lịch: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'Không thể xóa lịch: $error';
+  }
+
+  @override
   String get newEvent => 'Sự kiện mới';
 
   @override
@@ -1286,6 +1319,11 @@ class AppLocalizationsVi extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'Không thể sử dụng kiểu lặp lại này với $provider.';
+  }
+
+  @override
   String get importance => 'Mức độ quan trọng';
 
   @override
@@ -1904,10 +1942,32 @@ class AppLocalizationsVi extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'Sự kiện này';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'Sự kiện này và các sự kiện tiếp theo';
+
+  @override
+  String get thisAndFutureUnavailable => 'Nhà cung cấp này không hỗ trợ.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'Không thể di chuyển an toàn sự kiện này và các sự kiện tiếp theo. Hãy chọn sự kiện này hoặc toàn bộ chuỗi.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'Quy tắc lặp lại không có sẵn trên thiết bị. Hãy chỉ di chuyển sự kiện này.';
+
+  @override
+  String get copyEventAndDeleteOriginal => 'Sao chép sự kiện và xóa bản gốc?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax không thể di chuyển trực tiếp sự kiện này từ $source sang $destination. Ứng dụng sẽ tạo bản sao trước và chỉ xóa bản gốc sau khi sao chép thành công. ID sự kiện sẽ thay đổi; trạng thái phản hồi của người tham dự có thể bị đặt lại và lời mời hoặc thông báo hủy có thể được gửi; liên kết cuộc họp, tệp đính kèm, lời nhắc, trường riêng của nhà cung cấp và ngoại lệ lặp lại có thể không được chuyển sang.';
+  }
+
+  @override
+  String get copyAndDelete => 'Sao chép và xóa';
 
   @override
   String get chooseRecurringEventScope =>

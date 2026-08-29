@@ -45,6 +45,17 @@ void main() {
     final timed = monthly.withUntilDate('2026-12-31', allDay: false);
     expect(timed.untilRaw, matches(RegExp(r'^\d{8}T\d{6}Z$')));
     expect(timed.untilDate, '2026-12-31');
+    expect(
+      monthly
+          .withUntilDate(
+            '2026-12-31',
+            allDay: false,
+            floating: true,
+            baseDate: DateTime(2026, 6, 15, 9, 30),
+          )
+          .untilRaw,
+      '20261231T093000',
+    );
   });
 
   test('multiple or unknown rules remain opaque and are never rewritten', () {

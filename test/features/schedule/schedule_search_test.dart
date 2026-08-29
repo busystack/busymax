@@ -388,10 +388,85 @@ void main() {
 
     expect(event.organizer?['email'], 'organizer@example.com');
     expect(event.isOrganizer, isFalse);
+    expect(event.guestsCanModify, isFalse);
+    expect(event.locked, isFalse);
+    expect(event.capabilities.canEdit, isFalse);
     expect(event.currentUserResponse, 'tentative');
     expect(event.canRespondToInvitation, isTrue);
     expect(event.joinMeetingUrl, 'https://meet.google.com/abc-defg-hij');
   });
+
+  test(
+    'Google event editability honors organizer, guest, and lock state',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertScheduleAccount(database, provider: BusyProvider.google);
+      final calendarRepository = CalendarRepository(database: database);
+      await calendarRepository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          summary: 'Work',
+        ),
+      );
+      for (final event in const [
+        CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'owned',
+          title: 'Owned event',
+          startDateTime: '2026-06-11T09:00:00-07:00',
+          endDateTime: '2026-06-11T10:00:00-07:00',
+          organizerJson: {'self': true},
+          rawJson: {'id': 'owned'},
+        ),
+        CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'guest-editable',
+          title: 'Guest-editable event',
+          startDateTime: '2026-06-11T11:00:00-07:00',
+          endDateTime: '2026-06-11T12:00:00-07:00',
+          organizerJson: {'self': false},
+          rawJson: {'id': 'guest-editable', 'guestsCanModify': true},
+        ),
+        CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'locked',
+          title: 'Locked event',
+          startDateTime: '2026-06-11T13:00:00-07:00',
+          endDateTime: '2026-06-11T14:00:00-07:00',
+          organizerJson: {'self': true},
+          rawJson: {'id': 'locked', 'locked': true},
+        ),
+      ]) {
+        await calendarRepository.upsertEvent(
+          accountId: 'account',
+          event: event,
+        );
+      }
+
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 11)),
+        filters: const ScheduleFilters(
+          accountIds: {'account'},
+          includeTasks: false,
+        ),
+      );
+      final byTitle = {
+        for (final item in items.whereType<CalendarScheduleItem>())
+          item.title: item,
+      };
+
+      expect(byTitle['Owned event']!.capabilities.canEdit, isTrue);
+      expect(byTitle['Guest-editable event']!.capabilities.canEdit, isTrue);
+      expect(byTitle['Locked event']!.capabilities.canEdit, isFalse);
+      expect(byTitle['Locked event']!.capabilities.canDelete, isTrue);
+    },
+  );
 
   test('Microsoft invitation and Teams data reach the schedule item', () async {
     final database = AppDatabase(NativeDatabase.memory());
