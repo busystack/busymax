@@ -47,4 +47,5 @@ app.*.map.json
 .snap-local/
 
 # Local Snap packages contain compiled build-time configuration.
-/*.snap
+*.snap
+**/*.snap
