@@ -365,6 +365,10 @@ class ScheduleRepository {
       final provider =
           providers[event.accountId] ??
           BusyProviderCodec.requireStorageValue(event.provider);
+      final attendees = _jsonMapListFromString(event.attendeesJson);
+      final organizer = _jsonMapFromString(event.organizerJson);
+      final conference = _jsonValueFromString(event.conferenceJson);
+      final raw = _jsonMapFromString(event.rawJson) ?? const {};
       if (!searching && !_intersects(range, start, end)) {
         continue;
       }
@@ -380,20 +384,19 @@ class ScheduleRepository {
           allDay: event.allDay,
           start: start,
           end: end,
-          editorStart: event.allDay
-              ? null
-              : _parseCalendarEditorDateTime(event.startDateTime),
-          editorEnd: event.allDay
-              ? null
-              : _parseCalendarEditorDateTime(event.endDateTime),
-          startTimeZone: event.startTimeZone,
-          endTimeZone: event.endTimeZone,
           location: event.location,
           description: event.description,
           descriptionContentType: descriptionBody.contentType,
           descriptionHtml: descriptionBody.html,
-          recurrence: _jsonValueFromString(event.recurrenceJson),
-          attendees: _jsonMapListFromString(event.attendeesJson),
+          attendees: attendees,
+          organizer: organizer,
+          joinMeetingUrl: _eventJoinMeetingUrl(provider, conference, raw),
+          isOrganizer: _eventIsOrganizer(provider, organizer, raw),
+          currentUserResponse: _eventCurrentUserResponse(
+            provider,
+            attendees,
+            raw,
+          ),
           categories: _stringListFromJson(event.categoriesJson),
           reminderMinutesBeforeStart: _eventReminderMinutes(
             provider,
@@ -982,13 +985,23 @@ _DavTaskTemporal? _davTaskScheduleTemporal(Task task) {
   try {
     final decoded = jsonDecode(source);
     if (decoded is! Map) return null;
-    for (final key in const ['nativeStart', 'nativeDue']) {
-      final value = decoded[key];
+    for (final entry in const [
+      (nativeKey: 'nativeStart', utcKey: 'startUtc'),
+      (nativeKey: 'nativeDue', utcKey: 'dueUtc'),
+    ]) {
+      final value = decoded[entry.nativeKey];
       if (value is! Map) continue;
       final raw = value['raw'];
       final kind = value['kind'];
       if (raw is String && raw.isNotEmpty && kind is String) {
-        return _DavTaskTemporal(raw: raw, kind: kind);
+        final instantRaw = decoded[entry.utcKey];
+        return _DavTaskTemporal(
+          raw: raw,
+          kind: kind,
+          instantUtc: instantRaw is String
+              ? DateTime.tryParse(instantRaw)?.toUtc()
+              : null,
+        );
       }
     }
   } on FormatException {
@@ -999,6 +1012,7 @@ _DavTaskTemporal? _davTaskScheduleTemporal(Task task) {
 
 DateTime? _parseDavTaskTemporal(_DavTaskTemporal? temporal) {
   if (temporal == null) return null;
+  if (temporal.instantUtc != null) return temporal.instantUtc!.toLocal();
   final match = RegExp(
     r'^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(?:Z)?)?$',
   ).firstMatch(temporal.raw);
@@ -1041,10 +1055,15 @@ ScheduleItemCapabilities _taskScheduleCapabilities(DavCollection? collection) {
 }
 
 final class _DavTaskTemporal {
-  const _DavTaskTemporal({required this.raw, required this.kind});
+  const _DavTaskTemporal({
+    required this.raw,
+    required this.kind,
+    required this.instantUtc,
+  });
 
   final String raw;
   final String kind;
+  final DateTime? instantUtc;
 }
 
 bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
@@ -1057,6 +1076,8 @@ bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
 
 DateTime? _eventStart(CalendarEvent event) {
   if (!event.allDay) {
+    final projected = _projectedEventUtc(event.rawJson, 'startUtc');
+    if (projected != null) return projected.toLocal();
     return providerDateTimeAsLocal(event.startDateTime, event.startTimeZone);
   }
   return _parseDate(event.startDate) ?? _parseDate(event.startDateTime);
@@ -1064,9 +1085,22 @@ DateTime? _eventStart(CalendarEvent event) {
 
 DateTime? _eventEnd(CalendarEvent event) {
   if (!event.allDay) {
+    final projected = _projectedEventUtc(event.rawJson, 'endUtc');
+    if (projected != null) return projected.toLocal();
     return providerDateTimeAsLocal(event.endDateTime, event.endTimeZone);
   }
   return _parseDate(event.endDate) ?? _parseDate(event.endDateTime);
+}
+
+DateTime? _projectedEventUtc(String? rawJson, String key) {
+  if (rawJson == null || rawJson.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(rawJson);
+    if (decoded is! Map || decoded[key] is! String) return null;
+    return DateTime.tryParse(decoded[key] as String)?.toUtc();
+  } on FormatException {
+    return null;
+  }
 }
 
 DateTime? _parseDate(String? value) {
@@ -1081,29 +1115,6 @@ DateTime? _parseDateTime(String? value) {
     return null;
   }
   return DateTime.tryParse(value);
-}
-
-DateTime? _parseCalendarEditorDateTime(String? value) {
-  if (value == null || value.isEmpty) {
-    return null;
-  }
-  final offsetWallTime = _parseOffsetWallDateTime(value);
-  if (offsetWallTime != null) {
-    return offsetWallTime;
-  }
-  final parsed = DateTime.tryParse(value);
-  if (parsed == null) {
-    return null;
-  }
-  return parsed.isUtc ? parsed.toLocal() : parsed;
-}
-
-DateTime? _parseOffsetWallDateTime(String value) {
-  if (!RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value)) {
-    return null;
-  }
-  final wallTime = value.replaceFirst(RegExp(r'[+-]\d{2}:?\d{2}$'), '');
-  return DateTime.tryParse(wallTime);
 }
 
 List<String> _stringListFromJson(String? value) {
@@ -1145,6 +1156,82 @@ List<Map<String, Object?>> _jsonMapListFromString(String? value) {
     for (final item in decoded)
       if (item is Map) Map<String, Object?>.from(item),
   ];
+}
+
+Map<String, Object?>? _jsonMapFromString(String? value) {
+  final decoded = _jsonValueFromString(value);
+  return decoded is Map ? Map<String, Object?>.from(decoded) : null;
+}
+
+bool? _eventIsOrganizer(
+  BusyProvider provider,
+  Map<String, Object?>? organizer,
+  Map<String, Object?> raw,
+) {
+  return switch (provider) {
+    BusyProvider.google => organizer?['self'] as bool?,
+    BusyProvider.microsoft => raw['isOrganizer'] as bool?,
+    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+  };
+}
+
+String? _eventCurrentUserResponse(
+  BusyProvider provider,
+  List<Map<String, Object?>> attendees,
+  Map<String, Object?> raw,
+) {
+  if (provider == BusyProvider.google) {
+    for (final attendee in attendees) {
+      if (attendee['self'] == true) {
+        return attendee['responseStatus']?.toString();
+      }
+    }
+    return null;
+  }
+  if (provider == BusyProvider.microsoft) {
+    final responseStatus = raw['responseStatus'];
+    if (responseStatus is Map) {
+      return responseStatus['response']?.toString();
+    }
+  }
+  return null;
+}
+
+String? _eventJoinMeetingUrl(
+  BusyProvider provider,
+  Object? conference,
+  Map<String, Object?> raw,
+) {
+  if (conference is Map) {
+    if (provider == BusyProvider.microsoft) {
+      final joinUrl = conference['joinUrl']?.toString().trim();
+      if (_isWebUrl(joinUrl)) return joinUrl;
+    }
+    if (provider == BusyProvider.google) {
+      final entryPoints = conference['entryPoints'];
+      if (entryPoints is List) {
+        for (final entry in entryPoints.whereType<Map>()) {
+          if (entry['entryPointType']?.toString() != 'video') continue;
+          final uri = entry['uri']?.toString().trim();
+          if (_isWebUrl(uri)) return uri;
+        }
+      }
+    }
+  }
+  final fallback = switch (provider) {
+    BusyProvider.google => raw['hangoutLink']?.toString().trim(),
+    BusyProvider.microsoft => raw['onlineMeetingUrl']?.toString().trim(),
+    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+  };
+  return _isWebUrl(fallback) ? fallback : null;
+}
+
+bool _isWebUrl(String? value) {
+  if (value == null || value.isEmpty) return false;
+  final uri = Uri.tryParse(value);
+  return uri != null &&
+      (uri.scheme == 'https' || uri.scheme == 'http') &&
+      uri.host.isNotEmpty;
 }
 
 List<int> _eventReminderMinutes(

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
@@ -12,6 +13,61 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('event mutations always send an explicit guest update policy', () async {
+    final requests = <http.Request>[];
+    final client = _client((request) {
+      requests.add(request);
+      if (request.method == 'DELETE') return http.Response('', 204);
+      return _json(_googleEventJson());
+    });
+
+    await client.createEvent(
+      calendarId: 'calendar@example.com',
+      mutation: const CalendarEventMutation(title: 'Planning'),
+    );
+    await client.updateEvent(
+      calendarId: 'calendar@example.com',
+      eventId: 'event-1',
+      mutation: const CalendarEventMutation(title: 'Updated'),
+      guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+    );
+    await client.deleteEvent(
+      calendarId: 'calendar@example.com',
+      eventId: 'event-1',
+      guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+    );
+
+    expect(requests[0].url.queryParameters['sendUpdates'], 'all');
+    expect(requests[1].url.queryParameters['sendUpdates'], 'none');
+    expect(requests[2].url.queryParameters['sendUpdates'], 'none');
+    expect(requests[0].url.queryParameters['conferenceDataVersion'], '1');
+    expect(requests[1].url.queryParameters['conferenceDataVersion'], '1');
+  });
+
+  test('Google RSVP updates only the signed-in attendee response', () async {
+    late http.Request captured;
+    final client = _client((request) {
+      captured = request;
+      return _json(_googleEventJson());
+    });
+
+    await client.respondToEvent(
+      calendarId: 'calendar@example.com',
+      eventId: 'event-1',
+      response: CalendarInvitationResponse.tentative,
+      attendeeEmail: 'me@example.com',
+    );
+
+    expect(captured.method, 'PATCH');
+    expect(captured.url.queryParameters['sendUpdates'], 'all');
+    expect(jsonDecode(captured.body), {
+      'attendeesOmitted': true,
+      'attendees': [
+        {'email': 'me@example.com', 'responseStatus': 'tentative'},
+      ],
+    });
+  });
+
   test(
     'initial and token syncs request expanded recurring instances',
     () async {
@@ -192,5 +248,15 @@ Map<String, Object?> _recurringMaster() {
       'timeZone': 'America/Vancouver',
     },
     'updated': '2026-07-10T00:00:00Z',
+  };
+}
+
+Map<String, Object?> _googleEventJson() {
+  return {
+    'id': 'event-1',
+    'summary': 'Planning',
+    'status': 'confirmed',
+    'start': {'dateTime': '2026-07-14T09:00:00Z'},
+    'end': {'dateTime': '2026-07-14T10:00:00Z'},
   };
 }

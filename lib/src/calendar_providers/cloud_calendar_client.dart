@@ -25,6 +25,8 @@ abstract interface class CloudCalendarClient {
   Future<CalendarEventDto> createEvent({
     required String calendarId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   });
 
   Future<CalendarEventDto> getEvent({
@@ -36,11 +38,23 @@ abstract interface class CloudCalendarClient {
     required String calendarId,
     required String eventId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   });
 
   Future<void> deleteEvent({
     required String calendarId,
     required String eventId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  });
+
+  Future<CalendarEventDto?> respondToEvent({
+    required String calendarId,
+    required String eventId,
+    required CalendarInvitationResponse response,
+    String? attendeeEmail,
+    bool sendResponse = true,
   });
 
   Future<List<CalendarEventDto>> listEventInstances({

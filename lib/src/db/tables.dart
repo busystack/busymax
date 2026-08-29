@@ -394,6 +394,8 @@ class CalendarSources extends Table {
   BoolColumn get primaryCalendar =>
       boolean().withDefault(const Constant(false))();
   BoolColumn get selected => boolean().withDefault(const Constant(true))();
+  BoolColumn get remindersEnabled =>
+      boolean().withDefault(const Constant(true))();
   BoolColumn get hidden => boolean().withDefault(const Constant(false))();
   BoolColumn get readOnly => boolean().withDefault(const Constant(false))();
   TextColumn get backgroundColor => text().nullable()();

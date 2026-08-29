@@ -7,6 +7,7 @@ import 'package:yaru/yaru.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
+import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../schedule/schedule_projection.dart';
@@ -16,6 +17,7 @@ import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../data/calendar_repository.dart';
 import 'event_description_editor.dart';
 import 'event_editor_draft.dart';
+import 'event_guest_delivery_dialog.dart';
 
 Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   BuildContext context, {
@@ -39,12 +41,26 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
         categorySuggestionsByAccount: categorySuggestionsByAccount,
         headerBarService: headerBarService,
         onCancel: () => Navigator.of(context).pop(),
-        onSave: (draft) =>
-            Navigator.of(context).pop(EventEditorDialogResult.save(draft)),
+        onSave: (draft) => unawaited(
+          _completeEventEditorSave(
+            context,
+            draft: draft,
+            initialDraft: initialDraft,
+            sources: sources,
+            headerBarService: headerBarService,
+          ),
+        ),
         onDelete: allowDelete && initialDraft.eventId != null
-            ? (eventId, scope) => Navigator.of(
-                context,
-              ).pop(EventEditorDialogResult.delete(eventId, scope: scope))
+            ? (eventId, scope) => unawaited(
+                _completeEventEditorDelete(
+                  context,
+                  eventId: eventId,
+                  scope: scope,
+                  initialDraft: initialDraft,
+                  sources: sources,
+                  headerBarService: headerBarService,
+                ),
+              )
             : null,
       );
     },
@@ -56,25 +72,116 @@ class EventEditorDialogResult {
     this.draft,
     this.deletedEventId,
     this.deletionScope,
+    this.guestUpdatePolicy = CalendarGuestUpdatePolicy.send,
   });
 
-  factory EventEditorDialogResult.save(EventEditorDraft draft) {
-    return EventEditorDialogResult._(draft: draft);
+  factory EventEditorDialogResult.save(
+    EventEditorDraft draft, {
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  }) {
+    return EventEditorDialogResult._(
+      draft: draft,
+      guestUpdatePolicy: guestUpdatePolicy,
+    );
   }
 
   factory EventEditorDialogResult.delete(
     String eventId, {
     RecurringEventMutationScope? scope,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) {
     return EventEditorDialogResult._(
       deletedEventId: eventId,
       deletionScope: scope,
+      guestUpdatePolicy: guestUpdatePolicy,
     );
   }
 
   final EventEditorDraft? draft;
   final String? deletedEventId;
   final RecurringEventMutationScope? deletionScope;
+  final CalendarGuestUpdatePolicy guestUpdatePolicy;
+}
+
+Future<void> _completeEventEditorSave(
+  BuildContext context, {
+  required EventEditorDraft draft,
+  required EventEditorDraft initialDraft,
+  required List<CalendarSourceEntity> sources,
+  LinuxHeaderBarService? headerBarService,
+}) async {
+  var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
+  final provider = _providerForDraft(draft, sources);
+  if (provider != null &&
+      draft.isOrganizer == true &&
+      _hasExternalGuests(draft.attendees, initialDraft.attendees)) {
+    final choice = await showCalendarGuestDeliveryDialog(
+      context,
+      provider: provider,
+      action: CalendarGuestDeliveryAction.save,
+      headerBarService: headerBarService,
+    );
+    if (choice == null) return;
+    guestUpdatePolicy = choice;
+  }
+  if (!context.mounted) return;
+  Navigator.of(context).pop(
+    EventEditorDialogResult.save(draft, guestUpdatePolicy: guestUpdatePolicy),
+  );
+}
+
+Future<void> _completeEventEditorDelete(
+  BuildContext context, {
+  required String eventId,
+  required RecurringEventMutationScope? scope,
+  required EventEditorDraft initialDraft,
+  required List<CalendarSourceEntity> sources,
+  LinuxHeaderBarService? headerBarService,
+}) async {
+  var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
+  final provider = _providerForDraft(initialDraft, sources);
+  if (provider != null &&
+      initialDraft.isOrganizer == true &&
+      _hasExternalGuests(initialDraft.attendees)) {
+    final choice = await showCalendarGuestDeliveryDialog(
+      context,
+      provider: provider,
+      action: CalendarGuestDeliveryAction.delete,
+      headerBarService: headerBarService,
+    );
+    if (choice == null) return;
+    guestUpdatePolicy = choice;
+  }
+  if (!context.mounted) return;
+  Navigator.of(context).pop(
+    EventEditorDialogResult.delete(
+      eventId,
+      scope: scope,
+      guestUpdatePolicy: guestUpdatePolicy,
+    ),
+  );
+}
+
+BusyProvider? _providerForDraft(
+  EventEditorDraft draft,
+  List<CalendarSourceEntity> sources,
+) {
+  for (final source in sources) {
+    if (source.id == draft.sourceId) return source.provider;
+  }
+  return null;
+}
+
+bool _hasExternalGuests(
+  List<EventAttendeeDraft> attendees, [
+  List<EventAttendeeDraft> previous = const [],
+]) {
+  return [
+    ...attendees,
+    ...previous,
+  ].any((attendee) => !attendee.self && !attendee.organizer);
 }
 
 typedef EventEditorDeleteCallback =
@@ -337,11 +444,22 @@ class _EventEditorState extends State<EventEditor> {
                 filled: true,
                 children: _guestRows(readOnly: schedulingReadOnly),
               ),
+            if ((provider == BusyProvider.google ||
+                    provider == BusyProvider.microsoft) &&
+                _draft.isOrganizer != false)
+              BusyMaxGroupedList(
+                title: l10n.meetingSection,
+                filled: true,
+                children: _meetingRows(provider, currentSource),
+              ),
             if (provider == BusyProvider.microsoft || schedulingReadOnly)
               BusyMaxGroupedList(
                 title: l10n.organizationSection,
                 filled: true,
-                children: [_categoriesRow()],
+                children: [
+                  _categoriesRow(),
+                  if (provider == BusyProvider.microsoft) _importanceRow(),
+                ],
               ),
             BusyMaxGroupedList(
               filled: true,
@@ -745,29 +863,29 @@ class _EventEditorState extends State<EventEditor> {
   List<Widget> _guestRows({required bool readOnly}) {
     final rows = <Widget>[
       for (final attendee in _draft.attendees)
-        BusyMaxActionRow(
-          title: attendee.email,
-          subtitle: attendee.displayName,
-          leading: const Icon(Icons.person_outline),
-          trailing: readOnly
-              ? null
-              : YaruIconButton(
-                  tooltip: MaterialLocalizations.of(
-                    context,
-                  ).deleteButtonTooltip,
-                  icon: const Icon(YaruIcons.window_close),
-                  onPressed: () {
-                    setState(() {
-                      _draft = _draft.copyWith(
-                        attendees: [
-                          for (final item in _draft.attendees)
-                            if (item != attendee) item,
-                        ],
-                      );
-                    });
-                  },
-                ),
-        ),
+        if (readOnly || attendee.self || attendee.organizer)
+          BusyMaxActionRow(
+            title: attendee.email,
+            subtitle: attendee.displayName,
+            leading: const Icon(Icons.person_outline),
+          )
+        else
+          BusyMaxComboRow<bool>(
+            title: attendee.email,
+            subtitle: attendee.displayName,
+            leading: const Icon(Icons.person_outline),
+            values: const [false, true],
+            selected: attendee.optional,
+            labelFor: (optional) => optional
+                ? context.l10n.attendeeOptional
+                : context.l10n.attendeeRequired,
+            onSelected: (optional) => _setAttendeeOptional(attendee, optional),
+            trailingAction: YaruIconButton(
+              tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+              icon: const Icon(YaruIcons.window_close),
+              onPressed: () => _removeAttendee(attendee),
+            ),
+          ),
     ];
     if (readOnly) return rows;
     if (!_addingGuest) {
@@ -818,6 +936,132 @@ class _EventEditorState extends State<EventEditor> {
       );
     }
     return rows;
+  }
+
+  List<Widget> _meetingRows(
+    BusyProvider provider,
+    CalendarSourceEntity source,
+  ) {
+    final rows = <Widget>[];
+    final hasConference = _draft.conference != null;
+    final canCreateConference = switch (provider) {
+      BusyProvider.google => source.allowedConferenceSolutions.contains(
+        'hangoutsMeet',
+      ),
+      BusyProvider.microsoft => source.allowedConferenceSolutions.contains(
+        'teamsForBusiness',
+      ),
+      BusyProvider.appleICloud || BusyProvider.nextcloud => false,
+    };
+    if (hasConference || canCreateConference) {
+      rows.add(
+        BusyMaxSwitchRow(
+          title: provider == BusyProvider.google
+              ? context.l10n.addGoogleMeet
+              : context.l10n.addTeamsMeeting,
+          subtitle: hasConference ? context.l10n.onlineMeetingAdded : null,
+          leading: const Icon(Icons.video_call_outlined),
+          value: hasConference || _draft.createConference,
+          enabled: !hasConference,
+          onChanged: (value) {
+            setState(() {
+              _draft = _draft.copyWith(createConference: value);
+            });
+          },
+        ),
+      );
+    }
+    if (provider == BusyProvider.microsoft) {
+      rows.add(
+        BusyMaxSwitchRow(
+          title: context.l10n.requestResponses,
+          subtitle: context.l10n.requestResponsesDescription,
+          leading: const Icon(Icons.how_to_reg_outlined),
+          value: _draft.responseRequested ?? true,
+          onChanged: (value) => setState(() {
+            _draft = _draft.copyWith(responseRequested: value);
+          }),
+        ),
+      );
+    }
+    rows.add(
+      BusyMaxSwitchRow(
+        title: context.l10n.hideGuestList,
+        subtitle: context.l10n.hideGuestListDescription,
+        leading: const Icon(Icons.visibility_off_outlined),
+        value: _draft.hideAttendees ?? false,
+        onChanged: (value) => setState(() {
+          _draft = _draft.copyWith(hideAttendees: value);
+        }),
+      ),
+    );
+    if (provider == BusyProvider.microsoft) {
+      rows.add(
+        BusyMaxSwitchRow(
+          title: context.l10n.allowNewTimeProposals,
+          subtitle: context.l10n.allowNewTimeProposalsDescription,
+          leading: const Icon(Icons.more_time_outlined),
+          value: _draft.allowNewTimeProposals ?? true,
+          onChanged: (value) => setState(() {
+            _draft = _draft.copyWith(allowNewTimeProposals: value);
+          }),
+        ),
+      );
+    }
+    return rows;
+  }
+
+  Widget _importanceRow() {
+    const values = ['low', 'normal', 'high'];
+    final selected = values.contains(_draft.importance)
+        ? _draft.importance!
+        : 'normal';
+    return BusyMaxComboRow<String>(
+      title: context.l10n.importance,
+      leading: const Icon(Icons.priority_high),
+      values: values,
+      selected: selected,
+      labelFor: (value) => switch (value) {
+        'low' => context.l10n.importanceLow,
+        'high' => context.l10n.importanceHigh,
+        _ => context.l10n.importanceNormal,
+      },
+      onSelected: (value) => setState(() {
+        _draft = _draft.copyWith(importance: value);
+      }),
+    );
+  }
+
+  void _setAttendeeOptional(EventAttendeeDraft attendee, bool optional) {
+    setState(() {
+      _draft = _draft.copyWith(
+        attendees: [
+          for (final item in _draft.attendees)
+            if (item == attendee)
+              EventAttendeeDraft(
+                email: item.email,
+                displayName: item.displayName,
+                optional: optional,
+                self: item.self,
+                organizer: item.organizer,
+                responseStatus: item.responseStatus,
+              )
+            else
+              item,
+        ],
+      );
+    });
+  }
+
+  void _removeAttendee(EventAttendeeDraft attendee) {
+    setState(() {
+      _draft = _draft.copyWith(
+        attendees: [
+          for (final item in _draft.attendees)
+            if (item != attendee) item,
+        ],
+      );
+    });
   }
 
   Widget _categoriesRow() {

@@ -1298,6 +1298,123 @@ void main() {
     expect(await action, ScheduleItemDetailsAction.export);
   });
 
+  testWidgets('invitation details show people, RSVP, and Join meeting', (
+    tester,
+  ) async {
+    const event = CalendarScheduleItem(
+      id: 'event-1',
+      accountId: 'google-account',
+      provider: BusyProvider.google,
+      sourceId: 'calendar-1',
+      providerCalendarId: 'calendar-1',
+      title: 'Design review',
+      allDay: false,
+      organizer: {
+        'displayName': 'Ada Organizer',
+        'email': 'ada@example.com',
+        'self': false,
+      },
+      attendees: [
+        {
+          'email': 'me@example.com',
+          'self': true,
+          'responseStatus': 'needsAction',
+        },
+        {
+          'displayName': 'Grace Guest',
+          'email': 'grace@example.com',
+          'optional': true,
+          'responseStatus': 'accepted',
+        },
+      ],
+      isOrganizer: false,
+      currentUserResponse: 'needsAction',
+      joinMeetingUrl: 'https://meet.google.com/abc-defg-hij',
+    );
+    Future<ScheduleItemDetailsAction?>? action;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                action = showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                );
+              },
+              child: const Text('Open details'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Join meeting'), findsOneWidget);
+    expect(find.text('Accept'), findsOneWidget);
+    expect(find.text('Tentative'), findsOneWidget);
+    expect(find.text('Decline'), findsOneWidget);
+    expect(find.text('Organizer: Ada Organizer'), findsOneWidget);
+    expect(find.text('Your response: Awaiting response'), findsOneWidget);
+    expect(
+      find.textContaining('Grace Guest — Accepted · Optional'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('me@example.com —'), findsNothing);
+
+    await tester.tap(find.text('Join meeting'));
+    await tester.pumpAndSettle();
+    expect(await action, ScheduleItemDetailsAction.joinMeeting);
+  });
+
+  testWidgets('invitation RSVP returns the selected response action', (
+    tester,
+  ) async {
+    const event = CalendarScheduleItem(
+      id: 'event-1',
+      accountId: 'microsoft-account',
+      provider: BusyProvider.microsoft,
+      sourceId: 'calendar-1',
+      providerCalendarId: 'calendar-1',
+      title: 'Planning',
+      allDay: false,
+      isOrganizer: false,
+      currentUserResponse: 'notResponded',
+    );
+    Future<ScheduleItemDetailsAction?>? action;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                action = showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                );
+              },
+              child: const Text('Open details'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tentative'));
+    await tester.pumpAndSettle();
+
+    expect(await action, ScheduleItemDetailsAction.tentativeInvitation);
+  });
+
   for (final baseline in const [
     (
       brightness: Brightness.light,
@@ -2783,12 +2900,16 @@ void main() {
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
 
-    expect(source, contains('calendarRepositoryProvider).updateLocalEvent'));
-    expect(source, contains('_requestCalendarMutationSync(draft.accountId)'));
     expect(
       source,
-      contains('.deleteLocalEvent(eventId, recurringScope: recurringScope)'),
+      contains(
+        '.updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy)',
+      ),
     );
+    expect(source, contains('_requestCalendarMutationSync(draft.accountId)'));
+    expect(source, contains('.deleteLocalEvent('));
+    expect(source, contains('recurringScope: recurringScope'));
+    expect(source, contains('guestUpdatePolicy: guestUpdatePolicy'));
     expect(source, contains('_requestCalendarMutationSync(accountId)'));
     expect(source, contains('accountSyncOperationsProvider'));
     expect(source, isNot(contains('signedInSyncRunnerProvider)(accountId')));
@@ -2806,9 +2927,10 @@ void main() {
     expect(source, contains('exportScheduleItemWithSaveDialog('));
     expect(source, contains('rawICalendar: rawICalendar'));
     expect(source, isNot(contains('exportScheduleItemToDownloads(item)')));
-    expect(source, contains('void _editItem('));
+    expect(source, contains('Future<void> _editItem('));
     expect(source, contains('Future<void> _deleteItem('));
-    expect(source, contains('reminders: _eventRemindersForEdit('));
+    expect(source, contains('.loadEventDetail(item.id)'));
+    expect(source, contains('EventEditorDraft.fromEventDetail(detail)'));
   });
 
   test('month overflow uses the shared anchored popover route', () {
@@ -4018,27 +4140,28 @@ void main() {
     expect(agenda, isNot(contains('YaruIcons.checkbox')));
   });
 
-  test(
-    'event editor receives calendar event time zones from schedule item',
-    () {
-      final workspace = File(
-        'lib/src/features/schedule/presentation/schedule_workspace.dart',
-      ).readAsStringSync();
-      final scheduleItem = File(
-        'lib/src/schedule/schedule_item.dart',
-      ).readAsStringSync();
-      final repository = File(
-        'lib/src/schedule/schedule_repository.dart',
-      ).readAsStringSync();
+  test('event editor loads the authoritative calendar event detail', () {
+    final workspace = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
+    final scheduleItem = File(
+      'lib/src/schedule/schedule_item.dart',
+    ).readAsStringSync();
+    final repository = File(
+      'lib/src/features/calendar/data/calendar_repository.dart',
+    ).readAsStringSync();
+    final detail = File(
+      'lib/src/features/calendar/data/calendar_event_detail.dart',
+    ).readAsStringSync();
 
-      expect(scheduleItem, contains('final String? startTimeZone;'));
-      expect(scheduleItem, contains('final String? endTimeZone;'));
-      expect(repository, contains('startTimeZone: event.startTimeZone'));
-      expect(repository, contains('endTimeZone: event.endTimeZone'));
-      expect(workspace, contains('startTimeZone: item.startTimeZone'));
-      expect(workspace, contains('endTimeZone: item.endTimeZone'));
-    },
-  );
+    expect(detail, contains('final class CalendarEventDetail'));
+    expect(detail, contains('factory CalendarEventDetail.fromRow('));
+    expect(repository, contains('loadEventDetail(String eventId)'));
+    expect(workspace, contains('.loadEventDetail(item.id)'));
+    expect(workspace, contains('EventEditorDraft.fromEventDetail(detail)'));
+    expect(scheduleItem, isNot(contains('final DateTime? editorStart;')));
+    expect(workspace, isNot(contains('startTimeZone: item.startTimeZone')));
+  });
 
   test('year mode uses existing schedule primitives', () {
     final mode = File(

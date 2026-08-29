@@ -137,4 +137,13 @@ void main() {
     expect(body['isReminderOn'], isTrue);
     expect(body['reminderMinutesBeforeStart'], 30);
   });
+
+  test('Microsoft Teams creation sets both required meeting fields', () {
+    final body = microsoftEventMutationToJson(
+      const CalendarEventMutation(conference: 'teamsForBusiness'),
+    );
+
+    expect(body['isOnlineMeeting'], isTrue);
+    expect(body['onlineMeetingProvider'], 'teamsForBusiness');
+  });
 }

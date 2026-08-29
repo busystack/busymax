@@ -152,12 +152,17 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
   Future<CalendarEventDto> createEvent({
     required String calendarId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     final json = await _requestJson(
       'POST',
       _uri(
         '/calendar/v3/calendars/${_enc(calendarId)}/events',
-        query: const {'conferenceDataVersion': '1'},
+        query: {
+          'conferenceDataVersion': '1',
+          'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
+        },
       ),
       body: googleEventMutationToJson(mutation),
     );
@@ -183,12 +188,17 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     required String calendarId,
     required String eventId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     final json = await _requestJson(
       'PATCH',
       _uri(
         '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(eventId)}',
-        query: const {'conferenceDataVersion': '1'},
+        query: {
+          'conferenceDataVersion': '1',
+          'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
+        },
       ),
       body: googleEventMutationToJson(mutation),
     );
@@ -199,12 +209,17 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     required String calendarId,
     required String eventId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     final json = await _requestJson(
       'PUT',
       _uri(
         '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(eventId)}',
-        query: const {'conferenceDataVersion': '1'},
+        query: {
+          'conferenceDataVersion': '1',
+          'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
+        },
       ),
       body: googleEventMutationToJson(mutation),
     );
@@ -215,13 +230,51 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
   Future<void> deleteEvent({
     required String calendarId,
     required String eventId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) {
     return _requestEmpty(
       'DELETE',
       _uri(
         '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(eventId)}',
+        query: {'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy)},
       ),
     );
+  }
+
+  @override
+  Future<CalendarEventDto?> respondToEvent({
+    required String calendarId,
+    required String eventId,
+    required CalendarInvitationResponse response,
+    String? attendeeEmail,
+    bool sendResponse = true,
+  }) async {
+    final email = attendeeEmail?.trim();
+    if (email == null || email.isEmpty) {
+      throw ArgumentError.value(
+        attendeeEmail,
+        'attendeeEmail',
+        'Google invitation responses require the self attendee email.',
+      );
+    }
+    final json = await _requestJson(
+      'PATCH',
+      _uri(
+        '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(eventId)}',
+        query: {'sendUpdates': sendResponse ? 'all' : 'none'},
+      ),
+      body: {
+        'attendeesOmitted': true,
+        'attendees': [
+          {
+            'email': email,
+            'responseStatus': _googleInvitationResponse(response),
+          },
+        ],
+      },
+    );
+    return googleCalendarEventFromJson(calendarId, json);
   }
 
   @override
@@ -493,3 +546,16 @@ Map<String, String> _compactQuery(Map<String, String?> values) {
         entry.key: entry.value!,
   };
 }
+
+String _googleGuestUpdatePolicy(CalendarGuestUpdatePolicy policy) =>
+    switch (policy) {
+      CalendarGuestUpdatePolicy.send => 'all',
+      CalendarGuestUpdatePolicy.doNotSend => 'none',
+    };
+
+String _googleInvitationResponse(CalendarInvitationResponse response) =>
+    switch (response) {
+      CalendarInvitationResponse.accept => 'accepted',
+      CalendarInvitationResponse.tentative => 'tentative',
+      CalendarInvitationResponse.decline => 'declined',
+    };

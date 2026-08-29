@@ -129,6 +129,8 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
   Future<CalendarEventDto> createEvent({
     required String calendarId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     final json = await _requestJson(
       'POST',
@@ -155,6 +157,8 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
     required String calendarId,
     required String eventId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     final json = await _requestJson(
       'PATCH',
@@ -168,11 +172,32 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
   Future<void> deleteEvent({
     required String calendarId,
     required String eventId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) {
     return _requestEmpty(
       'DELETE',
       _uri('/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}'),
     );
+  }
+
+  @override
+  Future<CalendarEventDto?> respondToEvent({
+    required String calendarId,
+    required String eventId,
+    required CalendarInvitationResponse response,
+    String? attendeeEmail,
+    bool sendResponse = true,
+  }) async {
+    await _requestEmpty(
+      'POST',
+      _uri(
+        '/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}/'
+        '${_microsoftInvitationAction(response)}',
+      ),
+      body: {'sendResponse': sendResponse},
+    );
+    return null;
   }
 
   @override
@@ -288,8 +313,12 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
     );
   }
 
-  Future<void> _requestEmpty(String method, Uri uri) async {
-    final response = await _send(method, uri);
+  Future<void> _requestEmpty(
+    String method,
+    Uri uri, {
+    Map<String, Object?>? body,
+  }) async {
+    final response = await _send(method, uri, body: body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw MicrosoftCalendarApiError.fromResponse(response);
     }
@@ -371,3 +400,10 @@ Uri? _fullUriOrNull(String? value) {
 String _enc(String value) => Uri.encodeComponent(value);
 
 String _graphDateTime(DateTime value) => value.toUtc().toIso8601String();
+
+String _microsoftInvitationAction(CalendarInvitationResponse response) =>
+    switch (response) {
+      CalendarInvitationResponse.accept => 'accept',
+      CalendarInvitationResponse.tentative => 'tentativelyAccept',
+      CalendarInvitationResponse.decline => 'decline',
+    };

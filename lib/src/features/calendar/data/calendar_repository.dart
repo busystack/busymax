@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -13,8 +14,8 @@ import '../../../dav/mutation/dav_projection_mutations.dart';
 import '../../../dav/storage/dav_object_repository.dart';
 import '../../../db/app_database.dart';
 import '../../notifications/notification_schedule_service.dart';
-import 'package:busymax/src/providers/busy_provider.dart';
 import '../presentation/event_editor_draft.dart';
+import 'calendar_event_detail.dart';
 
 class CalendarSourceEntity {
   const CalendarSourceEntity({
@@ -24,6 +25,7 @@ class CalendarSourceEntity {
     required this.providerCalendarId,
     required this.summary,
     required this.selected,
+    this.remindersEnabled = true,
     required this.hidden,
     required this.readOnly,
     required this.isDeleted,
@@ -35,6 +37,7 @@ class CalendarSourceEntity {
     this.timeZone,
     this.accessRole,
     this.davCollectionId,
+    this.allowedConferenceSolutions = const [],
   });
 
   factory CalendarSourceEntity.fromRow(CalendarSource row) {
@@ -45,6 +48,7 @@ class CalendarSourceEntity {
       providerCalendarId: row.providerCalendarId,
       summary: row.summary,
       selected: row.selected,
+      remindersEnabled: row.remindersEnabled,
       hidden: row.hidden,
       readOnly: row.readOnly,
       isDeleted: row.isDeleted,
@@ -56,6 +60,7 @@ class CalendarSourceEntity {
       timeZone: row.timeZone,
       accessRole: row.accessRole,
       davCollectionId: row.davCollectionId,
+      allowedConferenceSolutions: _conferenceSolutions(row.rawJson),
     );
   }
 
@@ -65,6 +70,7 @@ class CalendarSourceEntity {
   final String providerCalendarId;
   final String summary;
   final bool selected;
+  final bool remindersEnabled;
   final bool hidden;
   final bool readOnly;
   final bool isDeleted;
@@ -76,6 +82,7 @@ class CalendarSourceEntity {
   final String? timeZone;
   final String? accessRole;
   final String? davCollectionId;
+  final List<String> allowedConferenceSolutions;
 
   CalendarSourceCapabilities get capabilities =>
       CalendarSourceCapabilities.fromSource(this);
@@ -199,7 +206,25 @@ class CalendarRepository {
     return rows.map(CalendarSourceEntity.fromRow).toList();
   }
 
+  Future<CalendarEventDetail?> loadEventDetail(String eventId) async {
+    final row = await (_database.select(
+      _database.calendarEvents,
+    )..where((event) => event.id.equals(eventId))).getSingleOrNull();
+    return row == null ? null : CalendarEventDetail.fromRow(row);
+  }
+
   Future<void> setSourceSelected(String sourceId, bool selected) async {
+    await (_database.update(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).write(
+      CalendarSourcesCompanion(
+        selected: Value(selected),
+        updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+      ),
+    );
+  }
+
+  Future<void> setSourceRemindersEnabled(String sourceId, bool enabled) async {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).getSingle();
@@ -207,7 +232,7 @@ class CalendarRepository {
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).write(
       CalendarSourcesCompanion(
-        selected: Value(selected),
+        remindersEnabled: Value(enabled),
         updatedAtLocal: Value(_now().millisecondsSinceEpoch),
       ),
     );
@@ -325,6 +350,7 @@ class CalendarRepository {
               description: Value(source.description),
               primaryCalendar: Value(source.primaryCalendar),
               selected: Value(existing?.selected ?? source.selected),
+              remindersEnabled: Value(existing?.remindersEnabled ?? true),
               hidden: Value(isDeleted || source.hidden),
               readOnly: Value(source.readOnly),
               backgroundColor: Value(source.backgroundColor),
@@ -502,7 +528,11 @@ class CalendarRepository {
     });
   }
 
-  Future<void> createLocalEvent(EventEditorDraft draft) async {
+  Future<void> createLocalEvent(
+    EventEditorDraft draft, {
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  }) async {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(draft.sourceId))).getSingle();
@@ -522,6 +552,7 @@ class CalendarRepository {
     }
     final now = _now().millisecondsSinceEpoch;
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    final conferenceRequest = _conferenceRequest(draft, provider);
     final localEventId = 'local:${const Uuid().v4()}';
     final startTimeZone = _effectiveStartTimeZone(
       draft,
@@ -547,6 +578,8 @@ class CalendarRepository {
         isCreate: true,
         startTimeZone: startTimeZone,
         endTimeZone: endTimeZone,
+        conference: conferenceRequest,
+        guestUpdatePolicy: guestUpdatePolicy,
       ),
     );
     await _database.transaction(() async {
@@ -576,16 +609,21 @@ class CalendarRepository {
               endTimeZone: Value(endTimeZone),
               recurrenceJson: Value(_json(draft.recurrence)),
               remindersJson: Value(_json(draft.reminders)),
-              attendeesJson: Value(_json(_attendeesJson(draft, provider))),
+              attendeesJson: Value(_json(_localAttendeesJson(draft, provider))),
               categoriesJson: Value(_json(_categoriesJson(draft, provider))),
+              organizerJson: Value(
+                _json(_optimisticOrganizer(draft, provider)),
+              ),
               colorId: Value(draft.colorId),
               visibility: Value(draft.visibilityOrSensitivity),
               transparencyOrShowAs: Value(draft.showAs),
-              conferenceJson: Value(_json(draft.conference)),
+              conferenceJson: Value(
+                _json(conferenceRequest ?? draft.conference),
+              ),
               createdAtLocal: now,
               updatedAtLocal: now,
               syncStatus: const Value('pending'),
-              rawJson: const Value('{}'),
+              rawJson: Value(jsonEncode(_optimisticEventRaw(draft, provider))),
               baselineRawJson: const Value('{}'),
             ),
           );
@@ -615,10 +653,14 @@ class CalendarRepository {
     await _onNotificationScheduleChanged?.call();
   }
 
-  Future<void> updateLocalEvent(EventEditorDraft draft) async {
+  Future<void> updateLocalEvent(
+    EventEditorDraft draft, {
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  }) async {
     final eventId = draft.eventId;
     if (eventId == null) {
-      return createLocalEvent(draft);
+      return createLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
     }
     final source = await (_database.select(
       _database.calendarSources,
@@ -654,6 +696,7 @@ class CalendarRepository {
     }
     final now = _now().millisecondsSinceEpoch;
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    final conferenceRequest = _conferenceRequest(draft, provider);
     final startTimeZone = _effectiveStartTimeZone(
       draft,
       source.timeZone,
@@ -672,6 +715,8 @@ class CalendarRepository {
         isCreate: false,
         startTimeZone: startTimeZone,
         endTimeZone: endTimeZone,
+        conference: conferenceRequest,
+        guestUpdatePolicy: guestUpdatePolicy,
       ),
     );
     await _database.transaction(() async {
@@ -706,7 +751,7 @@ class CalendarRepository {
               : const Value.absent(),
           remindersJson: Value(_json(draft.reminders)),
           attendeesJson: draft.attendeesChanged
-              ? Value(_json(_attendeesJson(draft, provider)))
+              ? Value(_json(_localAttendeesJson(draft, provider)))
               : const Value.absent(),
           categoriesJson: draft.categoriesChanged
               ? Value(_json(_categoriesJson(draft, provider)))
@@ -714,7 +759,25 @@ class CalendarRepository {
           colorId: Value(draft.colorId),
           visibility: Value(draft.visibilityOrSensitivity),
           transparencyOrShowAs: Value(draft.showAs),
-          conferenceJson: Value(_json(draft.conference)),
+          conferenceJson: Value(_json(conferenceRequest ?? draft.conference)),
+          organizerJson: Value(
+            _json(
+              _optimisticOrganizer(
+                draft,
+                provider,
+                existingJson: existing.organizerJson,
+              ),
+            ),
+          ),
+          rawJson: Value(
+            jsonEncode(
+              _optimisticEventRaw(
+                draft,
+                provider,
+                existingJson: existing.rawJson,
+              ),
+            ),
+          ),
           updatedAtLocal: Value(now),
           syncStatus: const Value('pending'),
         ),
@@ -780,6 +843,8 @@ class CalendarRepository {
   Future<String> deleteLocalEvent(
     String eventId, {
     RecurringEventMutationScope? recurringScope,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     final existing = await (_database.select(
       _database.calendarEvents,
@@ -822,7 +887,9 @@ class CalendarRepository {
               calendarSourceId: Value(existing.calendarSourceId),
               providerCalendarId: Value(existing.providerCalendarId),
               eventId: Value(existing.id),
-              requestJson: '{}',
+              requestJson: jsonEncode({
+                calendarEventGuestUpdatePolicyKey: guestUpdatePolicy.name,
+              }),
               baselineUpdatedUtc: Value(existing.updatedAtServer),
               baselineRawJson: Value(existing.baselineRawJson),
               createdAtUtc: DateTime.now().toUtc().toIso8601String(),
@@ -834,6 +901,95 @@ class CalendarRepository {
       existing.accountId,
     );
     await _onNotificationScheduleChanged?.call();
+    return existing.accountId;
+  }
+
+  Future<String> respondToLocalEvent(
+    String eventId,
+    CalendarInvitationResponse response, {
+    bool sendResponse = true,
+  }) async {
+    final existing = await (_database.select(
+      _database.calendarEvents,
+    )..where((row) => row.id.equals(eventId))).getSingle();
+    final provider = BusyProviderCodec.requireStorageValue(existing.provider);
+    if (provider != BusyProvider.google && provider != BusyProvider.microsoft) {
+      throw UnsupportedError(
+        '${provider.displayName} invitation responses are not supported.',
+      );
+    }
+    if (existing.isDeleted || existing.isCancelled) {
+      throw StateError('A deleted or cancelled event cannot be answered.');
+    }
+
+    final attendees = _jsonMapList(existing.attendeesJson);
+    final attendeeEmail = provider == BusyProvider.google
+        ? _googleSelfAttendeeEmail(attendees)
+        : null;
+    if (provider == BusyProvider.google && attendeeEmail == null) {
+      throw StateError(
+        'The Google event does not identify the signed-in attendee.',
+      );
+    }
+
+    final now = _now().millisecondsSinceEpoch;
+    final raw = _jsonMap(existing.rawJson);
+    final updatedAttendees = provider == BusyProvider.google
+        ? _withGoogleSelfResponse(attendees, response)
+        : attendees;
+    final updatedRaw = provider == BusyProvider.microsoft
+        ? _withMicrosoftResponse(raw, response)
+        : raw;
+    final predecessor = await _latestPendingEventEdit(
+      accountId: existing.accountId,
+      eventId: eventId,
+    );
+    await _database.transaction(() async {
+      await (_database.delete(_database.pendingOps)..where(
+            (row) =>
+                row.accountId.equals(existing.accountId) &
+                row.eventId.equals(eventId) &
+                row.operationType.equals('event.respond'),
+          ))
+          .go();
+      await (_database.update(
+        _database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).write(
+        CalendarEventsCompanion(
+          attendeesJson: provider == BusyProvider.google
+              ? Value(jsonEncode(updatedAttendees))
+              : const Value.absent(),
+          rawJson: provider == BusyProvider.microsoft
+              ? Value(jsonEncode(updatedRaw))
+              : const Value.absent(),
+          updatedAtLocal: Value(now),
+          syncStatus: const Value('pending'),
+        ),
+      );
+      await _database
+          .into(_database.pendingOps)
+          .insert(
+            PendingOpsCompanion.insert(
+              id: const Uuid().v4(),
+              accountId: existing.accountId,
+              provider: Value(existing.provider),
+              entityType: 'event',
+              operation: 'respond',
+              operationType: const Value('event.respond'),
+              calendarSourceId: Value(existing.calendarSourceId),
+              providerCalendarId: Value(existing.providerCalendarId),
+              eventId: Value(existing.id),
+              dependsOnOpId: Value(predecessor?.id),
+              requestJson: jsonEncode({
+                'response': response.name,
+                if (attendeeEmail != null) 'attendeeEmail': attendeeEmail,
+                'sendResponse': sendResponse,
+              }),
+              createdAtUtc: DateTime.now().toUtc().toIso8601String(),
+              updatedAtUtc: DateTime.now().toUtc().toIso8601String(),
+            ),
+          );
+    });
     return existing.accountId;
   }
 
@@ -1648,6 +1804,8 @@ Map<String, Object?> _eventRequest(
   required bool isCreate,
   String? startTimeZone,
   String? endTimeZone,
+  Object? conference,
+  required CalendarGuestUpdatePolicy guestUpdatePolicy,
 }) {
   final attendees = _attendeesJson(draft, provider);
   final clearFields = <String>[
@@ -1683,11 +1841,26 @@ Map<String, Object?> _eventRequest(
         : null,
     'transparencyOrShowAs': draft.showAs,
     'importance': draft.importance,
-    'conferenceJson': draft.conference,
+    if (conference != null) 'conferenceJson': conference,
     'responseRequested': draft.responseRequested,
     'hideAttendees': draft.hideAttendees,
     'allowNewTimeProposals': draft.allowNewTimeProposals,
+    calendarEventGuestUpdatePolicyKey: guestUpdatePolicy.name,
     if (clearFields.isNotEmpty) calendarEventClearFieldsKey: clearFields,
+  };
+}
+
+Object? _conferenceRequest(EventEditorDraft draft, BusyProvider provider) {
+  if (!draft.createConference) return null;
+  return switch (provider) {
+    BusyProvider.google => {
+      'createRequest': {
+        'requestId': const Uuid().v4(),
+        'conferenceSolutionKey': {'type': 'hangoutsMeet'},
+      },
+    },
+    BusyProvider.microsoft => 'teamsForBusiness',
+    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
   };
 }
 
@@ -1764,6 +1937,161 @@ Object? _attendeesJson(EventEditorDraft draft, BusyProvider provider) {
           ? attendee.toMicrosoftJson()
           : attendee.toGoogleJson(),
   ];
+}
+
+Object? _localAttendeesJson(EventEditorDraft draft, BusyProvider provider) {
+  if (draft.attendees.isEmpty) return null;
+  return [
+    for (final attendee in draft.attendees)
+      if (provider == BusyProvider.microsoft)
+        {
+          ...attendee.toMicrosoftJson(),
+          if (attendee.responseStatus case final response?
+              when response.isNotEmpty)
+            'status': {'response': response},
+        }
+      else
+        {
+          ...attendee.toGoogleJson(),
+          if (attendee.self) 'self': true,
+          if (attendee.organizer) 'organizer': true,
+        },
+  ];
+}
+
+Map<String, Object?>? _optimisticOrganizer(
+  EventEditorDraft draft,
+  BusyProvider provider, {
+  String? existingJson,
+}) {
+  final existing = _jsonMap(existingJson);
+  if (provider != BusyProvider.google || draft.isOrganizer == null) {
+    return existing.isEmpty ? null : existing;
+  }
+  return {...existing, 'self': draft.isOrganizer};
+}
+
+Map<String, Object?> _optimisticEventRaw(
+  EventEditorDraft draft,
+  BusyProvider provider, {
+  String? existingJson,
+}) {
+  final raw = {..._jsonMap(existingJson)};
+  switch (provider) {
+    case BusyProvider.google:
+      if (draft.hideAttendees case final hidden?) {
+        raw['guestsCanSeeOtherGuests'] = !hidden;
+      }
+    case BusyProvider.microsoft:
+      if (draft.importance case final importance?) {
+        raw['importance'] = importance;
+      }
+      if (draft.responseRequested case final requested?) {
+        raw['responseRequested'] = requested;
+      }
+      if (draft.hideAttendees case final hidden?) {
+        raw['hideAttendees'] = hidden;
+      }
+      if (draft.allowNewTimeProposals case final allowed?) {
+        raw['allowNewTimeProposals'] = allowed;
+      }
+      if (draft.isOrganizer case final organizer?) {
+        raw['isOrganizer'] = organizer;
+      }
+    case BusyProvider.appleICloud:
+    case BusyProvider.nextcloud:
+      break;
+  }
+  return raw;
+}
+
+List<Map<String, Object?>> _jsonMapList(String? value) {
+  if (value == null || value.isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is! List) return const [];
+    return [
+      for (final item in decoded)
+        if (item is Map) Map<String, Object?>.from(item),
+    ];
+  } on FormatException {
+    return const [];
+  }
+}
+
+Map<String, Object?> _jsonMap(String? value) {
+  if (value == null || value.isEmpty) return const {};
+  try {
+    final decoded = jsonDecode(value);
+    return decoded is Map ? Map<String, Object?>.from(decoded) : const {};
+  } on FormatException {
+    return const {};
+  }
+}
+
+List<String> _conferenceSolutions(String? rawJson) {
+  final raw = _jsonMap(rawJson);
+  final allowed = raw['allowedOnlineMeetingProviders'];
+  final conferenceProperties = raw['conferenceProperties'];
+  final googleAllowed = conferenceProperties is Map
+      ? conferenceProperties['allowedConferenceSolutionTypes']
+      : null;
+  final providers = <String>{
+    if (allowed is List)
+      for (final value in allowed)
+        if (value != null && value.toString().trim().isNotEmpty)
+          value.toString().trim(),
+    if (googleAllowed is List)
+      for (final value in googleAllowed)
+        if (value != null && value.toString().trim().isNotEmpty)
+          value.toString().trim(),
+    if (raw['defaultOnlineMeetingProvider'] case final value?
+        when value.toString().trim().isNotEmpty)
+      value.toString().trim(),
+  };
+  return providers.toList(growable: false);
+}
+
+String? _googleSelfAttendeeEmail(List<Map<String, Object?>> attendees) {
+  for (final attendee in attendees) {
+    if (attendee['self'] != true) continue;
+    final email = attendee['email']?.toString().trim();
+    if (email != null && email.isNotEmpty) return email;
+  }
+  return null;
+}
+
+List<Map<String, Object?>> _withGoogleSelfResponse(
+  List<Map<String, Object?>> attendees,
+  CalendarInvitationResponse response,
+) {
+  final status = switch (response) {
+    CalendarInvitationResponse.accept => 'accepted',
+    CalendarInvitationResponse.tentative => 'tentative',
+    CalendarInvitationResponse.decline => 'declined',
+  };
+  return [
+    for (final attendee in attendees)
+      attendee['self'] == true
+          ? {...attendee, 'responseStatus': status}
+          : attendee,
+  ];
+}
+
+Map<String, Object?> _withMicrosoftResponse(
+  Map<String, Object?> raw,
+  CalendarInvitationResponse response,
+) {
+  final current = raw['responseStatus'];
+  final responseStatus = current is Map
+      ? Map<String, Object?>.from(current)
+      : <String, Object?>{};
+  responseStatus['response'] = switch (response) {
+    CalendarInvitationResponse.accept => 'accepted',
+    CalendarInvitationResponse.tentative => 'tentativelyAccepted',
+    CalendarInvitationResponse.decline => 'declined',
+  };
+  return {...raw, 'responseStatus': responseStatus};
 }
 
 Object? _categoriesJson(EventEditorDraft draft, BusyProvider provider) {

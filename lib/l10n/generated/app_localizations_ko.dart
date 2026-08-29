@@ -259,6 +259,129 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noGuests => '참석자 없음';
 
   @override
+  String get attendeeRequired => 'Required';
+
+  @override
+  String get attendeeOptional => 'Optional';
+
+  @override
+  String get meetingSection => 'Meeting';
+
+  @override
+  String get addGoogleMeet => 'Add Google Meet';
+
+  @override
+  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+
+  @override
+  String get onlineMeetingAdded => 'Online meeting added';
+
+  @override
+  String get requestResponses => 'Request responses';
+
+  @override
+  String get requestResponsesDescription =>
+      'Ask guests to respond to the invitation.';
+
+  @override
+  String get hideGuestList => 'Hide guest list';
+
+  @override
+  String get hideGuestListDescription =>
+      'Guests cannot see who else was invited.';
+
+  @override
+  String get allowNewTimeProposals => 'Allow new time proposals';
+
+  @override
+  String get allowNewTimeProposalsDescription =>
+      'Guests can suggest a different meeting time.';
+
+  @override
+  String get notifyGuestsTitle => 'Notify guests?';
+
+  @override
+  String get notifyGuestsSaveMessage =>
+      'This meeting has guests. Send invitations or event updates when it is saved?';
+
+  @override
+  String get notifyGuestsDeleteMessage =>
+      'This meeting has guests. Send a cancellation when it is deleted?';
+
+  @override
+  String get sendUpdates => 'Send updates';
+
+  @override
+  String get sendCancellation => 'Send cancellation';
+
+  @override
+  String get doNotSend => 'Don’t send';
+
+  @override
+  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+
+  @override
+  String get microsoftNotifyGuestsSaveMessage =>
+      'Microsoft will send invitations or event updates to guests.';
+
+  @override
+  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+
+  @override
+  String get microsoftNotifyGuestsDeleteMessage =>
+      'Microsoft will send a cancellation to guests.';
+
+  @override
+  String get organizer => 'Organizer';
+
+  @override
+  String get yourResponse => 'Your response';
+
+  @override
+  String get guestResponses => 'Guest responses';
+
+  @override
+  String get respond => 'Respond';
+
+  @override
+  String get acceptInvitation => 'Accept';
+
+  @override
+  String get tentativeInvitation => 'Tentative';
+
+  @override
+  String get declineInvitation => 'Decline';
+
+  @override
+  String get joinMeeting => 'Join meeting';
+
+  @override
+  String get responseAccepted => 'Accepted';
+
+  @override
+  String get responseTentative => 'Tentative';
+
+  @override
+  String get responseDeclined => 'Declined';
+
+  @override
+  String get responseNeedsAction => 'Awaiting response';
+
+  @override
+  String get responseNotResponded => 'Not responded';
+
+  @override
+  String get responseOrganizer => 'Organizer';
+
+  @override
+  String invitationResponseFailed(String error) {
+    return 'Could not send your response: $error';
+  }
+
+  @override
+  String get joinMeetingFailed => 'Could not open the meeting link.';
+
+  @override
   String get description => '설명';
 
   @override
@@ -1278,6 +1401,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get startMinimizedToTray => '트레이에 최소화하여 시작';
 
   @override
+  String get launchAtLogin => '로그인할 때 실행';
+
+  @override
+  String get launchAtLoginDescription =>
+      '로그인 후에도 미리 알림이 작동하도록 BusyMax를 백그라운드에서 실행합니다.';
+
+  @override
+  String get launchAtLoginFailed => '로그인 시 실행 설정을 업데이트할 수 없습니다.';
+
+  @override
   String get requiresTrayIcon => '트레이 아이콘이 필요합니다.';
 
   @override
@@ -1485,6 +1618,12 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get notificationOpenAction => '열기';
+
+  @override
+  String get notificationSnoozeAction => '10분 후 다시 알림';
+
+  @override
+  String get notificationDismissAction => '해제';
 
   @override
   String get notificationDetailsHidden => '개인정보 보호 설정에 따라 세부 정보가 숨겨졌습니다.';
@@ -1759,4 +1898,13 @@ class AppLocalizationsKo extends AppLocalizations {
   String deleteCalendarConfirmation(String title) {
     return '“$title” 캘린더를 삭제할까요?';
   }
+
+  @override
+  String get networkOffline => '오프라인';
+
+  @override
+  String get networkOfflineDescription => '연결이 복구되면 변경 사항이 동기화됩니다.';
+
+  @override
+  String get networkOfflineTryAgain => '오프라인 상태입니다. 인터넷에 연결한 후 다시 시도하세요.';
 }

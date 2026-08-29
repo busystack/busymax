@@ -264,6 +264,129 @@ class AppLocalizationsVi extends AppLocalizations {
   String get noGuests => 'Không có khách mời';
 
   @override
+  String get attendeeRequired => 'Required';
+
+  @override
+  String get attendeeOptional => 'Optional';
+
+  @override
+  String get meetingSection => 'Meeting';
+
+  @override
+  String get addGoogleMeet => 'Add Google Meet';
+
+  @override
+  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+
+  @override
+  String get onlineMeetingAdded => 'Online meeting added';
+
+  @override
+  String get requestResponses => 'Request responses';
+
+  @override
+  String get requestResponsesDescription =>
+      'Ask guests to respond to the invitation.';
+
+  @override
+  String get hideGuestList => 'Hide guest list';
+
+  @override
+  String get hideGuestListDescription =>
+      'Guests cannot see who else was invited.';
+
+  @override
+  String get allowNewTimeProposals => 'Allow new time proposals';
+
+  @override
+  String get allowNewTimeProposalsDescription =>
+      'Guests can suggest a different meeting time.';
+
+  @override
+  String get notifyGuestsTitle => 'Notify guests?';
+
+  @override
+  String get notifyGuestsSaveMessage =>
+      'This meeting has guests. Send invitations or event updates when it is saved?';
+
+  @override
+  String get notifyGuestsDeleteMessage =>
+      'This meeting has guests. Send a cancellation when it is deleted?';
+
+  @override
+  String get sendUpdates => 'Send updates';
+
+  @override
+  String get sendCancellation => 'Send cancellation';
+
+  @override
+  String get doNotSend => 'Don’t send';
+
+  @override
+  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+
+  @override
+  String get microsoftNotifyGuestsSaveMessage =>
+      'Microsoft will send invitations or event updates to guests.';
+
+  @override
+  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+
+  @override
+  String get microsoftNotifyGuestsDeleteMessage =>
+      'Microsoft will send a cancellation to guests.';
+
+  @override
+  String get organizer => 'Organizer';
+
+  @override
+  String get yourResponse => 'Your response';
+
+  @override
+  String get guestResponses => 'Guest responses';
+
+  @override
+  String get respond => 'Respond';
+
+  @override
+  String get acceptInvitation => 'Accept';
+
+  @override
+  String get tentativeInvitation => 'Tentative';
+
+  @override
+  String get declineInvitation => 'Decline';
+
+  @override
+  String get joinMeeting => 'Join meeting';
+
+  @override
+  String get responseAccepted => 'Accepted';
+
+  @override
+  String get responseTentative => 'Tentative';
+
+  @override
+  String get responseDeclined => 'Declined';
+
+  @override
+  String get responseNeedsAction => 'Awaiting response';
+
+  @override
+  String get responseNotResponded => 'Not responded';
+
+  @override
+  String get responseOrganizer => 'Organizer';
+
+  @override
+  String invitationResponseFailed(String error) {
+    return 'Could not send your response: $error';
+  }
+
+  @override
+  String get joinMeetingFailed => 'Could not open the meeting link.';
+
+  @override
   String get description => 'Mô tả';
 
   @override
@@ -1297,6 +1420,17 @@ class AppLocalizationsVi extends AppLocalizations {
   String get startMinimizedToTray => 'Khởi động thu nhỏ vào khay hệ thống';
 
   @override
+  String get launchAtLogin => 'Khởi chạy khi đăng nhập';
+
+  @override
+  String get launchAtLoginDescription =>
+      'Khởi chạy BusyMax trong nền để lời nhắc hoạt động sau khi bạn đăng nhập.';
+
+  @override
+  String get launchAtLoginFailed =>
+      'Không thể cập nhật cài đặt khởi chạy khi đăng nhập.';
+
+  @override
   String get requiresTrayIcon => 'Yêu cầu biểu tượng khay hệ thống.';
 
   @override
@@ -1509,6 +1643,12 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get notificationOpenAction => 'Mở';
+
+  @override
+  String get notificationSnoozeAction => 'Báo lại sau 10 phút';
+
+  @override
+  String get notificationDismissAction => 'Bỏ qua';
 
   @override
   String get notificationDetailsHidden =>
@@ -1785,4 +1925,15 @@ class AppLocalizationsVi extends AppLocalizations {
   String deleteCalendarConfirmation(String title) {
     return 'Xóa “$title”?';
   }
+
+  @override
+  String get networkOffline => 'Ngoại tuyến';
+
+  @override
+  String get networkOfflineDescription =>
+      'Các thay đổi sẽ được đồng bộ khi kết nối được khôi phục.';
+
+  @override
+  String get networkOfflineTryAgain =>
+      'Bạn đang ngoại tuyến. Hãy kết nối Internet rồi thử lại.';
 }

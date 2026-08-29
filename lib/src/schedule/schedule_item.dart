@@ -51,16 +51,15 @@ class CalendarScheduleItem implements ScheduleItem {
     this.start,
     this.providerRecurringEventId,
     this.end,
-    this.editorStart,
-    this.editorEnd,
-    this.startTimeZone,
-    this.endTimeZone,
     this.location,
     this.description,
     this.descriptionContentType,
     this.descriptionHtml,
-    this.recurrence,
     this.attendees = const [],
+    this.organizer,
+    this.joinMeetingUrl,
+    this.isOrganizer,
+    this.currentUserResponse,
     this.colorHex,
     this.categories = const [],
     this.reminderMinutesBeforeStart = const [],
@@ -86,22 +85,17 @@ class CalendarScheduleItem implements ScheduleItem {
   final DateTime? start;
   @override
   final DateTime? end;
-
-  /// Wall time used by the editor while [start] is localized for display.
-  final DateTime? editorStart;
-
-  /// Wall time used by the editor while [end] is localized for display.
-  final DateTime? editorEnd;
-  final String? startTimeZone;
-  final String? endTimeZone;
   @override
   final bool allDay;
   final String? location;
   final String? description;
   final String? descriptionContentType;
   final String? descriptionHtml;
-  final Object? recurrence;
   final List<Map<String, Object?>> attendees;
+  final Map<String, Object?>? organizer;
+  final String? joinMeetingUrl;
+  final bool? isOrganizer;
+  final String? currentUserResponse;
   final String? colorHex;
   @override
   final List<String> categories;
@@ -114,6 +108,12 @@ class CalendarScheduleItem implements ScheduleItem {
   final String? accountEmail;
   @override
   final ScheduleItemCapabilities capabilities;
+
+  bool get canRespondToInvitation {
+    return isOrganizer == false &&
+        currentUserResponse != null &&
+        (provider == BusyProvider.google || provider == BusyProvider.microsoft);
+  }
 
   @override
   ScheduleItemKind get kind => ScheduleItemKind.calendarEvent;

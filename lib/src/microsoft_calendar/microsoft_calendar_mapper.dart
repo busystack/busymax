@@ -121,8 +121,10 @@ Map<String, Object?> microsoftEventMutationToJson(
     'hideAttendees': mutation.hideAttendees,
     'allowNewTimeProposals': mutation.allowNewTimeProposals,
     if (mutation.reminders is Map) ..._reminderPatch(mutation.reminders!),
-    if (_onlineMeetingProvider(mutation.conference) != null)
+    if (_onlineMeetingProvider(mutation.conference) != null) ...{
+      'isOnlineMeeting': true,
       'onlineMeetingProvider': _onlineMeetingProvider(mutation.conference),
+    },
   });
   if (mutation.clearRecurrence) {
     result['recurrence'] = null;

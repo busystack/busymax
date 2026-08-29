@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
@@ -16,6 +17,7 @@ import '../../../app/busymax_layout.dart';
 import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../core/logging/redacting_logger.dart';
+import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../features/calendar/data/calendar_repository.dart';
 import '../../../features/feedback/presentation/feedback_dialog.dart';
@@ -35,6 +37,7 @@ import '../../../schedule/schedule_view_mode.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../../calendar/presentation/event_editor.dart';
 import '../../calendar/presentation/event_editor_draft.dart';
+import '../../calendar/presentation/event_guest_delivery_dialog.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/data/tasks_repository.dart';
 import '../../tasks/domain/task_checklist_item.dart';
@@ -67,6 +70,12 @@ enum _ScheduleShortcut {
   month,
   year,
   agenda,
+}
+
+bool _calendarItemHasExternalGuests(CalendarScheduleItem item) {
+  return item.attendees.any(
+    (attendee) => attendee['self'] != true && attendee['organizer'] != true,
+  );
 }
 
 class _ScheduleShortcutIntent extends Intent {
@@ -1520,52 +1529,49 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         await _exportItem(item);
       case ScheduleItemDetailsAction.edit:
         if (item.capabilities.canEdit) {
-          _editItem(item, sources);
+          await _editItem(item, sources);
         }
       case ScheduleItemDetailsAction.delete:
         if (item.capabilities.canDelete) {
           await _deleteItem(item);
         }
+      case ScheduleItemDetailsAction.joinMeeting:
+        if (item is CalendarScheduleItem) {
+          await _joinMeeting(item);
+        }
+      case ScheduleItemDetailsAction.acceptInvitation:
+        if (item is CalendarScheduleItem) {
+          await _respondToInvitation(item, CalendarInvitationResponse.accept);
+        }
+      case ScheduleItemDetailsAction.tentativeInvitation:
+        if (item is CalendarScheduleItem) {
+          await _respondToInvitation(
+            item,
+            CalendarInvitationResponse.tentative,
+          );
+        }
+      case ScheduleItemDetailsAction.declineInvitation:
+        if (item is CalendarScheduleItem) {
+          await _respondToInvitation(item, CalendarInvitationResponse.decline);
+        }
     }
   }
 
-  void _editItem(ScheduleItem item, List<CalendarSourceEntity> sources) {
+  Future<void> _editItem(
+    ScheduleItem item,
+    List<CalendarSourceEntity> sources,
+  ) async {
     if (!item.capabilities.canEdit) {
       return;
     }
     if (item is CalendarScheduleItem) {
-      unawaited(
-        _openEventEditor(
-          EventEditorDraft.existing(
-            eventId: item.id,
-            accountId: item.accountId,
-            sourceId: item.sourceId,
-            providerCalendarId: item.providerCalendarId,
-            providerRecurringEventId: item.providerRecurringEventId,
-            title: item.title,
-            allDay: item.allDay,
-            start: item.editorStart ?? item.start,
-            end: item.editorEnd ?? item.end,
-            startTimeZone: item.startTimeZone,
-            endTimeZone: item.endTimeZone,
-            location: item.location,
-            description: item.description,
-            descriptionContentType: item.descriptionContentType,
-            descriptionHtml: item.descriptionHtml,
-            recurrence: item.recurrence,
-            attendees: [
-              for (final attendee in item.attendees)
-                EventAttendeeDraft.fromJson(attendee),
-            ],
-            reminders: _eventRemindersForEdit(
-              item.provider,
-              item.reminderMinutesBeforeStart,
-            ),
-            categories: item.categories,
-          ),
-          sources,
-        ),
-      );
+      final detail = await ref
+          .read(calendarRepositoryProvider)
+          .loadEventDetail(item.id);
+      if (!mounted || detail == null) {
+        return;
+      }
+      await _openEventEditor(EventEditorDraft.fromEventDetail(detail), sources);
       return;
     }
     if (item is TaskScheduleItem) {
@@ -1885,8 +1891,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
   }
 
-  Future<void> _saveEvent(EventEditorDraft draft) async {
-    await ref.read(calendarRepositoryProvider).updateLocalEvent(draft);
+  Future<void> _saveEvent(
+    EventEditorDraft draft, {
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  }) async {
+    await ref
+        .read(calendarRepositoryProvider)
+        .updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
     _requestCalendarMutationSync(draft.accountId);
     if (mounted) {
       setState(() {});
@@ -1935,22 +1947,32 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     final deletedEventId = result.deletedEventId;
     if (deletedEventId != null) {
-      await _deleteEvent(deletedEventId, recurringScope: result.deletionScope);
+      await _deleteEvent(
+        deletedEventId,
+        recurringScope: result.deletionScope,
+        guestUpdatePolicy: result.guestUpdatePolicy,
+      );
       return;
     }
     final savedDraft = result.draft;
     if (savedDraft != null) {
-      await _saveEvent(savedDraft);
+      await _saveEvent(savedDraft, guestUpdatePolicy: result.guestUpdatePolicy);
     }
   }
 
   Future<void> _deleteEvent(
     String eventId, {
     RecurringEventMutationScope? recurringScope,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     final accountId = await ref
         .read(calendarRepositoryProvider)
-        .deleteLocalEvent(eventId, recurringScope: recurringScope);
+        .deleteLocalEvent(
+          eventId,
+          recurringScope: recurringScope,
+          guestUpdatePolicy: guestUpdatePolicy,
+        );
     _requestCalendarMutationSync(accountId);
     if (mounted) {
       setState(() {});
@@ -1969,23 +1991,39 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       recurringScope = await _chooseRecurringEventMutationScope();
       if (recurringScope == null || !mounted) return;
     }
-    final confirmed = await showBusyMaxConfirm(
-      context,
-      title: item is CalendarScheduleItem
-          ? context.l10n.deleteEvent
-          : context.l10n.deleteTask,
-      message: item is TaskScheduleItem
-          ? context.l10n.deleteTaskConfirmation(item.title)
-          : context.l10n.deleteCalendarConfirmation(item.title),
-      confirmLabel: context.l10n.delete,
-      destructive: true,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
-    );
-    if (!confirmed) {
-      return;
+    var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
+    if (item is CalendarScheduleItem &&
+        item.isOrganizer == true &&
+        _calendarItemHasExternalGuests(item)) {
+      final choice = await showCalendarGuestDeliveryDialog(
+        context,
+        provider: item.provider,
+        action: CalendarGuestDeliveryAction.delete,
+        headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      );
+      if (choice == null) return;
+      guestUpdatePolicy = choice;
+    } else {
+      final confirmed = await showBusyMaxConfirm(
+        context,
+        title: item is CalendarScheduleItem
+            ? context.l10n.deleteEvent
+            : context.l10n.deleteTask,
+        message: item is TaskScheduleItem
+            ? context.l10n.deleteTaskConfirmation(item.title)
+            : context.l10n.deleteCalendarConfirmation(item.title),
+        confirmLabel: context.l10n.delete,
+        destructive: true,
+        headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      );
+      if (!confirmed) return;
     }
     if (item is CalendarScheduleItem) {
-      await _deleteEvent(item.id, recurringScope: recurringScope);
+      await _deleteEvent(
+        item.id,
+        recurringScope: recurringScope,
+        guestUpdatePolicy: guestUpdatePolicy,
+      );
       return;
     }
     if (item is TaskScheduleItem) {
@@ -1995,6 +2033,47 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       if (mounted) {
         setState(() {});
       }
+    }
+  }
+
+  Future<void> _respondToInvitation(
+    CalendarScheduleItem item,
+    CalendarInvitationResponse response,
+  ) async {
+    if (!item.canRespondToInvitation) return;
+    try {
+      final accountId = await ref
+          .read(calendarRepositoryProvider)
+          .respondToLocalEvent(item.id, response);
+      _requestCalendarMutationSync(accountId);
+      if (mounted) setState(() {});
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.invitationResponseFailed(redactForLog(error)),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _joinMeeting(CalendarScheduleItem item) async {
+    final value = item.joinMeetingUrl;
+    final uri = value == null ? null : Uri.tryParse(value);
+    var opened = false;
+    if (uri != null) {
+      try {
+        opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } on Object {
+        opened = false;
+      }
+    }
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.joinMeetingFailed)));
     }
   }
 
@@ -2288,26 +2367,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
 String _itemAnchorKey(ScheduleItem item) {
   return '${item.kind.name}:${item.accountId}:${item.sourceId}:${item.id}';
-}
-
-Object? _eventRemindersForEdit(BusyProvider provider, List<int> minutes) {
-  final normalized = [
-    for (final value in minutes)
-      if (value > 0) value,
-  ];
-  if (normalized.isEmpty) {
-    return null;
-  }
-  if (provider != BusyProvider.microsoft) {
-    return {
-      'useDefault': false,
-      'overrides': [
-        for (final minutes in normalized)
-          {'method': 'popup', 'minutes': minutes},
-      ],
-    };
-  }
-  return {'isReminderOn': true, 'reminderMinutesBeforeStart': normalized.first};
 }
 
 T? _findCommandItem<T extends ScheduleItem>(

@@ -266,6 +266,129 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noGuests => 'कोई अतिथि नहीं';
 
   @override
+  String get attendeeRequired => 'Required';
+
+  @override
+  String get attendeeOptional => 'Optional';
+
+  @override
+  String get meetingSection => 'Meeting';
+
+  @override
+  String get addGoogleMeet => 'Add Google Meet';
+
+  @override
+  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+
+  @override
+  String get onlineMeetingAdded => 'Online meeting added';
+
+  @override
+  String get requestResponses => 'Request responses';
+
+  @override
+  String get requestResponsesDescription =>
+      'Ask guests to respond to the invitation.';
+
+  @override
+  String get hideGuestList => 'Hide guest list';
+
+  @override
+  String get hideGuestListDescription =>
+      'Guests cannot see who else was invited.';
+
+  @override
+  String get allowNewTimeProposals => 'Allow new time proposals';
+
+  @override
+  String get allowNewTimeProposalsDescription =>
+      'Guests can suggest a different meeting time.';
+
+  @override
+  String get notifyGuestsTitle => 'Notify guests?';
+
+  @override
+  String get notifyGuestsSaveMessage =>
+      'This meeting has guests. Send invitations or event updates when it is saved?';
+
+  @override
+  String get notifyGuestsDeleteMessage =>
+      'This meeting has guests. Send a cancellation when it is deleted?';
+
+  @override
+  String get sendUpdates => 'Send updates';
+
+  @override
+  String get sendCancellation => 'Send cancellation';
+
+  @override
+  String get doNotSend => 'Don’t send';
+
+  @override
+  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+
+  @override
+  String get microsoftNotifyGuestsSaveMessage =>
+      'Microsoft will send invitations or event updates to guests.';
+
+  @override
+  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+
+  @override
+  String get microsoftNotifyGuestsDeleteMessage =>
+      'Microsoft will send a cancellation to guests.';
+
+  @override
+  String get organizer => 'Organizer';
+
+  @override
+  String get yourResponse => 'Your response';
+
+  @override
+  String get guestResponses => 'Guest responses';
+
+  @override
+  String get respond => 'Respond';
+
+  @override
+  String get acceptInvitation => 'Accept';
+
+  @override
+  String get tentativeInvitation => 'Tentative';
+
+  @override
+  String get declineInvitation => 'Decline';
+
+  @override
+  String get joinMeeting => 'Join meeting';
+
+  @override
+  String get responseAccepted => 'Accepted';
+
+  @override
+  String get responseTentative => 'Tentative';
+
+  @override
+  String get responseDeclined => 'Declined';
+
+  @override
+  String get responseNeedsAction => 'Awaiting response';
+
+  @override
+  String get responseNotResponded => 'Not responded';
+
+  @override
+  String get responseOrganizer => 'Organizer';
+
+  @override
+  String invitationResponseFailed(String error) {
+    return 'Could not send your response: $error';
+  }
+
+  @override
+  String get joinMeetingFailed => 'Could not open the meeting link.';
+
+  @override
   String get description => 'विवरण';
 
   @override
@@ -1298,6 +1421,17 @@ class AppLocalizationsHi extends AppLocalizations {
   String get startMinimizedToTray => 'ट्रे में मिनिमाइज़ होकर शुरू करें';
 
   @override
+  String get launchAtLogin => 'लॉगिन पर शुरू करें';
+
+  @override
+  String get launchAtLoginDescription =>
+      'BusyMax को बैकग्राउंड में शुरू करें ताकि लॉगिन के बाद रिमाइंडर काम करें।';
+
+  @override
+  String get launchAtLoginFailed =>
+      'लॉगिन पर शुरू करने की सेटिंग अपडेट नहीं की जा सकी।';
+
+  @override
   String get requiresTrayIcon => 'ट्रे आइकन आवश्यक है।';
 
   @override
@@ -1508,6 +1642,12 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get notificationOpenAction => 'खोलें';
+
+  @override
+  String get notificationSnoozeAction => '10 मिनट के लिए स्नूज़ करें';
+
+  @override
+  String get notificationDismissAction => 'खारिज करें';
 
   @override
   String get notificationDetailsHidden =>
@@ -1783,4 +1923,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String deleteCalendarConfirmation(String title) {
     return '“$title” मिटाएँ?';
   }
+
+  @override
+  String get networkOffline => 'ऑफ़लाइन';
+
+  @override
+  String get networkOfflineDescription =>
+      'कनेक्शन वापस आने पर बदलाव सिंक हो जाएंगे।';
+
+  @override
+  String get networkOfflineTryAgain =>
+      'आप ऑफ़लाइन हैं। इंटरनेट से कनेक्ट करें और फिर से कोशिश करें।';
 }
