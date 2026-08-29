@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:dbus/dbus.dart';
 
 import 'dbus_menu_object.dart';
@@ -44,6 +45,8 @@ class _StatusNotifierItemObject extends DBusObject {
   final StatusNotifierItemCategory category;
   final String id;
   String title;
+  String toolTipTitle;
+  String toolTipDescription;
   StatusNotifierItemStatus status;
   final int windowId;
   String iconName;
@@ -62,6 +65,8 @@ class _StatusNotifierItemObject extends DBusObject {
     this.category = StatusNotifierItemCategory.applicationStatus,
     required this.id,
     this.title = '',
+    this.toolTipTitle = '',
+    this.toolTipDescription = '',
     this.status = StatusNotifierItemStatus.active,
     this.windowId = 0,
     this.iconName = '',
@@ -162,7 +167,11 @@ class _StatusNotifierItemObject extends DBusObject {
           ],
         ),
       ],
-      signals: [],
+      signals: [
+        DBusIntrospectSignal('NewTitle'),
+        DBusIntrospectSignal('NewIcon'),
+        DBusIntrospectSignal('NewToolTip'),
+      ],
       properties: [
         DBusIntrospectProperty(
           'Category',
@@ -226,7 +235,7 @@ class _StatusNotifierItemObject extends DBusObject {
         ),
         DBusIntrospectProperty(
           'ToolTip',
-          DBusSignature('(sa(iiay))'),
+          DBusSignature('(sa(iiay)ss)'),
           access: DBusPropertyAccess.read,
         ),
         DBusIntrospectProperty(
@@ -332,14 +341,7 @@ class _StatusNotifierItemObject extends DBusObject {
       case 'AttentionMovieName':
         return DBusGetPropertyResponse(DBusString(attentionMovieName));
       case 'ToolTip':
-        return DBusGetPropertyResponse(
-          DBusStruct([
-            DBusString(''),
-            DBusArray(DBusSignature('(iiay)'), []),
-            DBusString(''),
-            DBusString(''),
-          ]),
-        );
+        return DBusGetPropertyResponse(_toolTipValue());
       case 'ItemIsMenu':
         return DBusGetPropertyResponse(DBusBoolean(itemIsMenu));
       case 'Menu':
@@ -367,15 +369,64 @@ class _StatusNotifierItemObject extends DBusObject {
       'AttentionIconName': DBusString(attentionIconName),
       'AttentionIconPixmap': DBusArray(DBusSignature('(iiay)'), []),
       'AttentionMovieName': DBusString(attentionMovieName),
-      'ToolTip': DBusStruct([
-        DBusString(''),
-        DBusArray(DBusSignature('(iiay)'), []),
-        DBusString(''),
-        DBusString(''),
-      ]),
+      'ToolTip': _toolTipValue(),
       'ItemIsMenu': DBusBoolean(itemIsMenu),
       'Menu': menu,
     });
+  }
+
+  DBusStruct _toolTipValue() {
+    return DBusStruct([
+      DBusString(iconName),
+      DBusArray(DBusSignature('(iiay)'), []),
+      DBusString(toolTipTitle),
+      DBusString(toolTipDescription),
+    ]);
+  }
+
+  Future<void> updatePresentation({
+    required String title,
+    required String iconName,
+    required String toolTipTitle,
+    required String toolTipDescription,
+  }) async {
+    final titleChanged = this.title != title;
+    final iconChanged = this.iconName != iconName;
+    final toolTipChanged = iconChanged ||
+        this.toolTipTitle != toolTipTitle ||
+        this.toolTipDescription != toolTipDescription;
+    if (!titleChanged && !iconChanged && !toolTipChanged) {
+      return;
+    }
+
+    this.title = title;
+    this.iconName = iconName;
+    this.toolTipTitle = toolTipTitle;
+    this.toolTipDescription = toolTipDescription;
+
+    final changedProperties = <String, DBusValue>{
+      if (titleChanged) 'Title': DBusString(title),
+      if (iconChanged) 'IconName': DBusString(iconName),
+      if (toolTipChanged) 'ToolTip': _toolTipValue(),
+    };
+    for (final interface in [
+      _kdeStatusNotifierItemInterface,
+      _freedesktopStatusNotifierItemInterface,
+    ]) {
+      await emitPropertiesChanged(
+        interface,
+        changedProperties: changedProperties,
+      );
+      if (titleChanged) {
+        await emitSignal(interface, 'NewTitle');
+      }
+      if (iconChanged) {
+        await emitSignal(interface, 'NewIcon');
+      }
+      if (toolTipChanged) {
+        await emitSignal(interface, 'NewToolTip');
+      }
+    }
   }
 
   bool _isStatusNotifierInterface(String? interface) {
@@ -410,6 +461,8 @@ class StatusNotifierItemClient {
     StatusNotifierItemCategory category =
         StatusNotifierItemCategory.applicationStatus,
     String title = '',
+    String toolTipTitle = '',
+    String toolTipDescription = '',
     StatusNotifierItemStatus status = StatusNotifierItemStatus.active,
     int windowId = 0,
     String iconName = '',
@@ -438,6 +491,8 @@ class StatusNotifierItemClient {
       id: id,
       category: category,
       title: title,
+      toolTipTitle: toolTipTitle,
+      toolTipDescription: toolTipDescription,
       status: status,
       windowId: windowId,
       iconName: iconName,
@@ -459,6 +514,18 @@ class StatusNotifierItemClient {
   DBusObjectPath get menuPath => _menuObject.path;
 
   DBusObjectPath get itemPath => _notifierItemObject.path;
+
+  /// The current title exposed to StatusNotifierItem hosts.
+  String get title => _notifierItemObject.title;
+
+  /// The current icon name or icon path exposed to StatusNotifierItem hosts.
+  String get iconName => _notifierItemObject.iconName;
+
+  /// The current tooltip title exposed to StatusNotifierItem hosts.
+  String get toolTipTitle => _notifierItemObject.toolTipTitle;
+
+  /// The current tooltip description exposed to StatusNotifierItem hosts.
+  String get toolTipDescription => _notifierItemObject.toolTipDescription;
 
   // Connect to D-Bus and register this notifier item.
   Future<void> connect() async {
@@ -534,6 +601,21 @@ class StatusNotifierItemClient {
   /// Updates the menu shown.
   Future<void> updateMenu(DBusMenuItem menu) async {
     await _menuObject.update(menu);
+  }
+
+  /// Updates the visible and accessible presentation of this notifier item.
+  Future<void> updatePresentation({
+    required String title,
+    required String iconName,
+    required String toolTipTitle,
+    required String toolTipDescription,
+  }) {
+    return _notifierItemObject.updatePresentation(
+      title: title,
+      iconName: iconName,
+      toolTipTitle: toolTipTitle,
+      toolTipDescription: toolTipDescription,
+    );
   }
 
   /// Terminates all active connections. If a client remains unclosed, the Dart process may not terminate.

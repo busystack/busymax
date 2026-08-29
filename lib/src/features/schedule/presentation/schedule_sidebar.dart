@@ -116,6 +116,15 @@ class _SourceRow extends ConsumerWidget {
                 if (providerWebUri != null) {
                   unawaited(_openProviderWeb(providerWebUri));
                 }
+              case 'toggle-reminders':
+                unawaited(
+                  ref
+                      .read(calendarRepositoryProvider)
+                      .setSourceRemindersEnabled(
+                        source.id,
+                        !source.remindersEnabled,
+                      ),
+                );
               case 'rename':
                 unawaited(_renameCalendar(context, ref, source));
               case 'delete':
@@ -134,6 +143,12 @@ class _SourceRow extends ConsumerWidget {
                 label: context.l10n.openInProvider,
                 icon: Icons.open_in_browser_outlined,
               ),
+            BusyMaxMenuEntry(
+              value: 'toggle-reminders',
+              label: context.l10n.eventReminders,
+              icon: Icons.notifications_outlined,
+              selected: source.remindersEnabled,
+            ),
             BusyMaxMenuEntry(
               value: 'rename',
               label: context.l10n.rename,
@@ -718,7 +733,14 @@ Future<void> _handleRefreshFailure(
   }
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
+      content: Text(
+        context.l10n.refreshFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        ),
+      ),
     ),
   );
 }
@@ -850,7 +872,12 @@ Future<void> _renameTaskList(
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.taskListRenameFailed(syncFailureMessage(error)),
+            context.l10n.taskListRenameFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
           ),
         ),
       );
@@ -889,7 +916,12 @@ Future<void> _deleteTaskList(
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.taskListDeleteFailed(syncFailureMessage(error)),
+            context.l10n.taskListDeleteFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
           ),
         ),
       );

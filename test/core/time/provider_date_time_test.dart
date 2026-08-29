@@ -13,12 +13,27 @@ void main() {
     );
   });
 
-  test('non-UTC provider dateTime without offset keeps wall time', () {
-    expect(
-      providerDateTimeAsLocal('2026-06-08T06:02:00', 'America/Vancouver'),
-      DateTime(2026, 6, 8, 6, 2),
-    );
-  });
+  test(
+    'IANA provider dateTime resolves for scheduling without changing wall-time display',
+    () {
+      final expected = DateTime.utc(2026, 6, 8, 13, 2);
+      expect(
+        providerDateTimeAsUtcInstant(
+          '2026-06-08T06:02:00',
+          'America/Vancouver',
+        ),
+        expected,
+      );
+      expect(
+        providerDateTimeAsLocal('2026-06-08T06:02:00', 'America/Vancouver'),
+        DateTime(2026, 6, 8, 6, 2),
+      );
+      expect(
+        providerDateTimeIsInstant('2026-06-08T06:02:00', 'America/Vancouver'),
+        isFalse,
+      );
+    },
+  );
 
   test('date-only provider values are not shifted across time zones', () {
     expect(providerDateTimeAsLocal('2026-06-04', 'UTC'), DateTime(2026, 6, 4));

@@ -91,6 +91,7 @@ constexpr size_t kNativeTimeZoneResultLimit = 250;
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  gboolean start_minimized;
   FlMethodChannel* native_date_time_picker_channel;
   FlMethodChannel* native_dialog_channel;
   FlMethodChannel* native_menu_channel;
@@ -4844,7 +4845,9 @@ static void register_window_channel(MyApplication* self, FlView* view) {
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
-  gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+  if (!self->start_minimized) {
+    gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+  }
 }
 
 // Implements GApplication::activate.
@@ -4924,6 +4927,13 @@ static gboolean my_application_local_command_line(GApplication* application,
   MyApplication* self = MY_APPLICATION(application);
   // Strip out the first argument as it is the binary name.
   self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
+  self->start_minimized = FALSE;
+  for (gchar** argument = *arguments + 1; *argument != nullptr; argument++) {
+    if (g_strcmp0(*argument, "--start-minimized") == 0) {
+      self->start_minimized = TRUE;
+      break;
+    }
+  }
 
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {
@@ -5071,6 +5081,7 @@ static void my_application_class_init(MyApplicationClass* klass) {
 }
 
 static void my_application_init(MyApplication* self) {
+  self->start_minimized = FALSE;
   self->native_date_time_picker_channel = nullptr;
   self->native_dialog_channel = nullptr;
   self->native_menu_channel = nullptr;

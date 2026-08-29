@@ -20,6 +20,7 @@ import '../../../core/logging/redacting_logger.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../features/calendar/data/calendar_repository.dart';
+import '../../../features/connectivity/network_connectivity_service.dart';
 import '../../../features/feedback/presentation/feedback_dialog.dart';
 import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
@@ -1603,6 +1604,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         SnackBar(content: Text(context.l10n.exportedFile(file.path))),
       );
     } on Object catch (error) {
+      if (error is NetworkUnavailableException) {
+        return;
+      }
       if (!mounted) {
         return;
       }
@@ -1920,7 +1924,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
+          content: Text(
+            context.l10n.refreshFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -2225,7 +2236,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     } on Object catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.syncFailed(error.toString()))),
+        SnackBar(
+          content: Text(
+            context.l10n.syncFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
+          ),
+        ),
       );
     }
   }
@@ -2251,7 +2271,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
+          content: Text(
+            context.l10n.refreshFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
+          ),
         ),
       );
     }

@@ -122,6 +122,25 @@ void main() {
     expect(decoded.canEditTrigger, isFalse);
   });
 
+  test('reads an RFC alarm repetition pair', () {
+    final alarm = IcalTaskAlarm.fromComponent(
+      IcalComponent(
+        name: 'VALARM',
+        children: [
+          _property('ACTION', 'AUDIO'),
+          _property('TRIGGER', '-PT15M'),
+          _property('REPEAT', '2'),
+          _property('DURATION', 'PT5M'),
+        ],
+        originalBeginLine: 'BEGIN:VALARM',
+        originalEndLine: 'END:VALARM',
+      ),
+    );
+
+    expect(alarm.repeatCount, 2);
+    expect(alarm.repeatInterval, const Duration(minutes: 5));
+  });
+
   test('all-day reminder offsets round-trip through day and time fields', () {
     const samples = [
       Duration(hours: 9),

@@ -29,6 +29,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_connection_state.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../connectivity/network_connectivity_service.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../feedback/presentation/feedback_dialog.dart';
 import '../../sync/sync_auth_error.dart';
@@ -94,6 +95,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ref.watch(davConflictsStreamProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
     final settings = ref.watch(appSettingsControllerProvider);
+    final launchAtLogin = ref.watch(launchAtLoginEnabledProvider);
     final settingsController = ref.read(appSettingsControllerProvider.notifier);
     final themeController = ref.read(busyMaxThemeControllerProvider);
     final l10n = context.l10n;
@@ -192,6 +194,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             enabled: settings.showTrayIcon,
             onChanged: settingsController.setStartMinimizedToTray,
             leading: const Icon(YaruIcons.window_minimize),
+          ),
+          BusyMaxSwitchRow(
+            title: l10n.launchAtLogin,
+            subtitle: l10n.launchAtLoginDescription,
+            value: launchAtLogin.valueOrNull ?? false,
+            enabled: !launchAtLogin.isLoading,
+            onChanged: (enabled) =>
+                unawaited(_setLaunchAtLogin(context, enabled)),
+            leading: const Icon(Icons.power_settings_new_outlined),
           ),
           BusyMaxComboRow<BusyMaxThemeModePreference>(
             title: l10n.theme,
@@ -365,6 +376,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _setLaunchAtLogin(BuildContext context, bool enabled) async {
+    try {
+      await ref.read(linuxAutostartServiceProvider).setEnabled(enabled);
+      ref.invalidate(launchAtLoginEnabledProvider);
+    } on Object catch (error) {
+      _settingsLogger.warning(
+        'Could not update launch-at-login setting: ${redactForLog(error)}',
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.launchAtLoginFailed)),
+        );
+      }
+    }
   }
 
   bool get _showFallbackHeader {
@@ -607,7 +634,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         _showMessage(
           context,
-          context.l10n.syncFailed(syncFailureMessage(error)),
+          context.l10n.syncFailed(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
         );
       }
     }
@@ -697,7 +729,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (context.mounted) {
         _showMessage(
           context,
-          context.l10n.taskListCreateFailed(syncFailureMessage(error)),
+          context.l10n.taskListCreateFailed(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
         );
       }
     }
@@ -724,7 +761,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (context.mounted) {
         _showMessage(
           context,
-          context.l10n.syncFailed(syncFailureMessage(error)),
+          context.l10n.syncFailed(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
         );
       }
     }
@@ -738,7 +780,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         _showMessage(
           context,
-          context.l10n.syncFailed(syncFailureMessage(error)),
+          context.l10n.syncFailed(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
         );
       }
     }
@@ -1471,6 +1518,9 @@ List<AccountEntity> _selectedAccountFirst(
 }
 
 String _accountConnectionErrorMessage(BuildContext context, Object error) {
+  if (error is NetworkUnavailableException) {
+    return context.l10n.networkOfflineTryAgain;
+  }
   if (error is OAuthException && error.code == 'OAuthMissingRequiredScope') {
     return context.l10n.googlePermissionsRequiredRetry;
   }

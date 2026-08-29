@@ -64,6 +64,10 @@ BusyMax-specific patches currently include:
   and scroll orientation values.
 - Adding `ItemIsMenu`, custom menu path, object path accessors, and diagnostic
   logging hooks used by BusyMax tray tests and runtime diagnostics.
+- Supporting runtime title, icon, and tooltip updates with the standard
+  StatusNotifierItem change signals.
+- Correcting the StatusNotifierItem tooltip signature and exposing its title
+  and description to desktop hosts and assistive technologies.
 
 ### Maintenance
 

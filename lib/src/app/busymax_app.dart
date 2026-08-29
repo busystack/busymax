@@ -6,6 +6,7 @@ import 'package:system_theme/system_theme.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
 import '../platform/busymax_tray_service.dart';
+import '../features/connectivity/network_connectivity_service.dart';
 import '../platform/gtk_font_service.dart';
 import '../platform/linux_header_bar_configuration_synchronizer.dart';
 import '../platform/linux_header_bar_service.dart';
@@ -61,10 +62,15 @@ BusyMaxHeaderBarTheme busyMaxHeaderBarThemeFor(
 }
 
 class BusyMaxApp extends ConsumerStatefulWidget {
-  const BusyMaxApp({super.key, this.trayServiceFactory});
+  const BusyMaxApp({
+    super.key,
+    this.trayServiceFactory,
+    this.startMinimizedAtLaunch = false,
+  });
 
   @visibleForTesting
   final BusyMaxTrayServiceFactory? trayServiceFactory;
+  final bool startMinimizedAtLaunch;
 
   @override
   ConsumerState<BusyMaxApp> createState() => _BusyMaxAppState();
@@ -117,7 +123,11 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
         .valueOrNull;
     final gtkFont = ref.watch(gtkFontSettingsProvider).valueOrNull;
     final gtkThemeColors = ref.watch(gtkThemeColorsProvider).valueOrNull;
+    final networkAvailability =
+        ref.watch(networkAvailabilityProvider).valueOrNull ??
+        ref.read(networkConnectivityMonitorProvider).availability;
     ref.watch(syncSchedulerProvider);
+    ref.watch(networkReconnectSyncCoordinatorProvider);
     ref.watch(notificationSchedulerProvider);
     ref.watch(dueTodayNotificationProvider);
 
@@ -180,7 +190,10 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
                 openBusyMax: l10n.trayOpenBusyMax,
                 agenda: l10n.viewAgenda,
                 quitBusyMax: l10n.exit,
+                offline: l10n.networkOffline,
+                offlineDescription: l10n.networkOfflineDescription,
               ),
+              offline: networkAvailability == NetworkAvailability.offline,
             );
             return Shortcuts(
               shortcuts: const {
@@ -287,8 +300,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   void _configureBackgroundServices(
     WidgetRef ref,
     AppSettings settings,
-    BusyMaxTrayLabels labels,
-  ) {
+    BusyMaxTrayLabels labels, {
+    required bool offline,
+  }) {
     if (!_settingsReady) {
       return;
     }
@@ -297,7 +311,8 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     final trayEnabled =
         settings.showTrayIcon ||
         settings.runInBackgroundWhenClosed ||
-        settings.startMinimizedToTray;
+        settings.startMinimizedToTray ||
+        widget.startMinimizedAtLaunch;
     _setHideOnClose(
       windowService,
       settings.runInBackgroundWhenClosed &&
@@ -305,7 +320,13 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           (_trayService?.available ?? false),
     );
     if (_trayService != null) {
-      unawaited(_trayService!.updateLabels(labels));
+      unawaited(
+        _updateTrayPresentation(
+          _trayService!,
+          labels: labels,
+          offline: offline,
+        ),
+      );
     }
     if (_lastTrayEnabled == trayEnabled) {
       return;
@@ -316,18 +337,29 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       labels: labels,
       onOpenAgenda: () => _openMainAgenda(ref, windowService),
     );
+    unawaited(_updateTrayPresentation(tray, labels: labels, offline: offline));
     if (trayEnabled) {
       unawaited(
         _startTray(
           tray,
           windowService,
-          startMinimizedToTray: settings.startMinimizedToTray,
+          startMinimizedToTray:
+              settings.startMinimizedToTray || widget.startMinimizedAtLaunch,
         ),
       );
     } else {
       _setHideOnClose(windowService, false);
       unawaited(tray.stop());
     }
+  }
+
+  Future<void> _updateTrayPresentation(
+    BusyMaxTrayService tray, {
+    required BusyMaxTrayLabels labels,
+    required bool offline,
+  }) async {
+    await tray.updateOfflineState(offline);
+    await tray.updateLabels(labels);
   }
 
   BusyMaxTrayService _createTrayService({
@@ -387,7 +419,8 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     final trayStillEnabled =
         latestSettings.showTrayIcon ||
         latestSettings.runInBackgroundWhenClosed ||
-        latestSettings.startMinimizedToTray;
+        latestSettings.startMinimizedToTray ||
+        widget.startMinimizedAtLaunch;
     if (!trayStillEnabled) {
       _setHideOnClose(windowService, false);
       await tray.stop();
@@ -397,11 +430,15 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       windowService,
       latestSettings.runInBackgroundWhenClosed && tray.available,
     );
-    if (!startMinimizedToTray || _startMinimizedHandled || !tray.available) {
+    if (!startMinimizedToTray || _startMinimizedHandled) {
       return;
     }
     _startMinimizedHandled = true;
-    await windowService.hideWindow();
+    if (tray.available) {
+      await windowService.hideWindow();
+    } else {
+      await windowService.showWindow();
+    }
   }
 }
 

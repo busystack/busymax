@@ -7,8 +7,35 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_settings.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../l10n/locale_resolution.dart';
+import '../sync/sync_failure_notification_policy.dart';
 
 typedef DesktopNotificationActionHandler = Future<void> Function(String action);
+
+enum ReminderNotificationAction { open, snooze, dismiss }
+
+enum ReminderDeliveryStatus { delivered, deferred, disabled, failed }
+
+final class ReminderDeliveryResult {
+  const ReminderDeliveryResult._(this.status, {this.retryAtUtc});
+
+  const ReminderDeliveryResult.delivered()
+    : this._(ReminderDeliveryStatus.delivered);
+
+  const ReminderDeliveryResult.disabled()
+    : this._(ReminderDeliveryStatus.disabled);
+
+  const ReminderDeliveryResult.deferred(DateTime retryAtUtc)
+    : this._(ReminderDeliveryStatus.deferred, retryAtUtc: retryAtUtc);
+
+  const ReminderDeliveryResult.failed(DateTime retryAtUtc)
+    : this._(ReminderDeliveryStatus.failed, retryAtUtc: retryAtUtc);
+
+  final ReminderDeliveryStatus status;
+  final DateTime? retryAtUtc;
+}
+
+typedef ReminderNotificationActionHandler =
+    Future<void> Function(ReminderNotificationAction action);
 
 abstract class DesktopNotificationBackend {
   Future<void> notify(
@@ -63,6 +90,7 @@ class DesktopNotificationService {
     required AppSettings settings,
     Locale? locale,
     Duration syncFailureDebounce = const Duration(minutes: 5),
+    Duration reminderFailureRetryDelay = const Duration(minutes: 1),
     DateTime Function()? now,
   }) : _backend = backend,
        _settings = settings,
@@ -70,24 +98,37 @@ class DesktopNotificationService {
            ? NotificationStrings.forLocales(PlatformDispatcher.instance.locales)
            : NotificationStrings.forLocale(locale),
        _syncFailureDebounce = syncFailureDebounce,
+       _reminderFailureRetryDelay = reminderFailureRetryDelay,
        _now = now ?? DateTime.now;
 
   final DesktopNotificationBackend _backend;
   final AppSettings _settings;
   final NotificationStrings _strings;
   final Duration _syncFailureDebounce;
+  final Duration _reminderFailureRetryDelay;
   final DateTime Function() _now;
 
   DateTime? _lastSyncFailureAt;
   String? _lastSyncFailureBody;
 
-  Future<void> notifySyncFailure(String message) async {
-    if (!_settings.notifySyncFailures || _isQuietHours()) {
+  Future<void> notifySyncFailure(Object error) async {
+    final disposition = syncFailureNotificationDisposition(error);
+    final message = switch (disposition) {
+      SyncFailureNotificationDisposition.suppressed => null,
+      SyncFailureNotificationDisposition.reconnectRequired =>
+        _strings.reconnectRequired,
+      SyncFailureNotificationDisposition.permissionChanged =>
+        _strings.permissionChanged,
+      SyncFailureNotificationDisposition.unsupportedProvider =>
+        _strings.unsupportedProvider,
+      SyncFailureNotificationDisposition.temporarilyUnavailable =>
+        _strings.temporarilyUnavailable,
+    };
+    if (message == null || !_settings.notifySyncFailures || _isQuietHours()) {
       return;
     }
-
     final body = _showsNotificationDetails
-        ? _strings.syncFailureBody(redactForLog(message))
+        ? _strings.syncFailureBody(message)
         : _strings.syncFailureBody(_strings.detailsHidden);
     final now = _now();
     if (_lastSyncFailureBody == body &&
@@ -129,44 +170,66 @@ class DesktopNotificationService {
     );
   }
 
-  Future<void> notifyEventReminder(
+  Future<ReminderDeliveryResult> notifyEventReminder(
     String title,
     String? body, {
     Future<void> Function()? onActivated,
+    ReminderNotificationActionHandler? onAction,
   }) async {
-    if (!_settings.notifyEventReminders || _isQuietHours()) {
-      return;
+    if (!_settings.notifyEventReminders) {
+      return const ReminderDeliveryResult.disabled();
+    }
+    final quietHoursEnd = _quietHoursEndUtc();
+    if (quietHoursEnd != null) {
+      return ReminderDeliveryResult.deferred(quietHoursEnd);
     }
     final private = _usesPrivateReminderText;
-    await _safeNotify(
+    final delivered = await _safeNotify(
       private ? _strings.eventReminderTitle : redactForLog(title),
       private
           ? _strings.detailsHidden
           : _nonEmpty(redactForLog(body ?? ''), _strings.eventReminderBody),
       NotificationCategory.device(),
       onActivated: onActivated,
+      onReminderAction: onAction,
       transient: false,
     );
+    return delivered
+        ? const ReminderDeliveryResult.delivered()
+        : ReminderDeliveryResult.failed(
+            _now().add(_reminderFailureRetryDelay).toUtc(),
+          );
   }
 
-  Future<void> notifyTaskReminder(
+  Future<ReminderDeliveryResult> notifyTaskReminder(
     String title,
     String? body, {
     Future<void> Function()? onActivated,
+    ReminderNotificationActionHandler? onAction,
   }) async {
-    if (!_settings.notifyTaskReminders || _isQuietHours()) {
-      return;
+    if (!_settings.notifyTaskReminders) {
+      return const ReminderDeliveryResult.disabled();
+    }
+    final quietHoursEnd = _quietHoursEndUtc();
+    if (quietHoursEnd != null) {
+      return ReminderDeliveryResult.deferred(quietHoursEnd);
     }
     final private = _usesPrivateReminderText;
-    await _safeNotify(
+    final delivered = await _safeNotify(
       private ? _strings.taskReminderTitle : redactForLog(title),
       private
           ? _strings.detailsHidden
           : _nonEmpty(redactForLog(body ?? ''), _strings.taskReminderBody),
       NotificationCategory.device(),
       onActivated: onActivated,
+      onReminderAction: onAction,
       transient: false,
     );
+    return delivered
+        ? const ReminderDeliveryResult.delivered()
+        : ReminderDeliveryResult.failed(
+            _now().add(_reminderFailureRetryDelay).toUtc(),
+          );
   }
 
   bool get _showsNotificationDetails =>
@@ -174,25 +237,46 @@ class DesktopNotificationService {
 
   bool get _usesPrivateReminderText => !_showsNotificationDetails;
 
-  Future<void> _safeNotify(
+  Future<bool> _safeNotify(
     String summary,
     String body,
     NotificationCategory category, {
     Future<void> Function()? onActivated,
+    ReminderNotificationActionHandler? onReminderAction,
     bool transient = true,
   }) async {
     try {
+      final hasActions = onActivated != null || onReminderAction != null;
       await _backend.notify(
         summary,
         body: body,
-        actions: onActivated == null
+        actions: !hasActions
             ? const []
-            : [NotificationAction('default', _strings.openAction)],
-        onAction: onActivated == null
+            : [
+                NotificationAction('default', _strings.openAction),
+                if (onReminderAction != null)
+                  NotificationAction('snooze', _strings.snoozeAction),
+                if (onReminderAction != null)
+                  NotificationAction('dismiss', _strings.dismissAction),
+              ],
+        onAction: !hasActions
             ? null
             : (action) async {
-                if (action == 'default') {
-                  await onActivated();
+                switch (action) {
+                  case 'default':
+                    if (onReminderAction != null) {
+                      await onReminderAction(ReminderNotificationAction.open);
+                    } else {
+                      await onActivated?.call();
+                    }
+                  case 'snooze':
+                    await onReminderAction?.call(
+                      ReminderNotificationAction.snooze,
+                    );
+                  case 'dismiss':
+                    await onReminderAction?.call(
+                      ReminderNotificationAction.dismiss,
+                    );
                 }
               },
         hints: [
@@ -200,26 +284,45 @@ class DesktopNotificationService {
           if (transient) NotificationHint.transient(),
         ],
       );
+      return true;
     } on Object {
       // DBus notifications may be unavailable in tests or headless sessions.
+      return false;
     }
   }
 
   bool _isQuietHours() {
+    return _quietHoursEndUtc() != null;
+  }
+
+  DateTime? _quietHoursEndUtc() {
     if (!_settings.quietHoursEnabled) {
-      return false;
+      return null;
     }
     final start = _minutesOfDay(_settings.quietHoursStart);
     final end = _minutesOfDay(_settings.quietHoursEnd);
     if (start == null || end == null || start == end) {
-      return false;
+      return null;
     }
     final now = _now();
     final current = now.hour * 60 + now.minute;
-    if (start < end) {
-      return current >= start && current < end;
+    final quiet = start < end
+        ? current >= start && current < end
+        : current >= start || current < end;
+    if (!quiet) {
+      return null;
     }
-    return current >= start || current < end;
+    var endDate = DateTime(now.year, now.month, now.day, end ~/ 60, end % 60);
+    if (start > end && current >= start) {
+      endDate = DateTime(
+        now.year,
+        now.month,
+        now.day + 1,
+        end ~/ 60,
+        end % 60,
+      );
+    }
+    return endDate.toUtc();
   }
 
   int? _minutesOfDay(String text) {
@@ -254,9 +357,15 @@ class NotificationStrings {
     required this.eventReminderTitle,
     required this.taskReminderTitle,
     required this.detailsHidden,
+    required this.reconnectRequired,
+    required this.permissionChanged,
+    required this.unsupportedProvider,
+    required this.temporarilyUnavailable,
     required this.eventReminderBody,
     required this.taskReminderBody,
     required this.openAction,
+    required this.snoozeAction,
+    required this.dismissAction,
     required this.syncFailureBody,
     required this.conflictBody,
     required this.dueTodayBody,
@@ -284,9 +393,15 @@ class NotificationStrings {
       eventReminderTitle: l10n.eventReminderNotificationTitle,
       taskReminderTitle: l10n.taskReminderNotificationTitle,
       detailsHidden: l10n.notificationDetailsHidden,
+      reconnectRequired: l10n.davReauthenticationRequired,
+      permissionChanged: l10n.davPermissionChanged,
+      unsupportedProvider: l10n.davUnsupportedServer,
+      temporarilyUnavailable: l10n.davTemporarilyUnavailable,
       eventReminderBody: l10n.eventReminderNotificationBody,
       taskReminderBody: l10n.taskReminderNotificationBody,
       openAction: l10n.notificationOpenAction,
+      snoozeAction: l10n.notificationSnoozeAction,
+      dismissAction: l10n.notificationDismissAction,
       syncFailureBody: l10n.syncFailureNotificationBody,
       conflictBody: l10n.conflictNotificationBody,
       dueTodayBody: l10n.dueTodayNotificationBody,
@@ -299,9 +414,15 @@ class NotificationStrings {
   final String eventReminderTitle;
   final String taskReminderTitle;
   final String detailsHidden;
+  final String reconnectRequired;
+  final String permissionChanged;
+  final String unsupportedProvider;
+  final String temporarilyUnavailable;
   final String eventReminderBody;
   final String taskReminderBody;
   final String openAction;
+  final String snoozeAction;
+  final String dismissAction;
   final String Function(String message) syncFailureBody;
   final String Function(String summary) conflictBody;
   final String Function(int count) dueTodayBody;

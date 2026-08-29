@@ -1,18 +1,20 @@
 import 'dart:async';
 
-import 'sync_auth_error.dart';
 import 'sync_engine.dart';
 
 class SyncScheduler {
   SyncScheduler({
     required SyncEngine syncEngine,
-    Future<void> Function(String message)? onSyncFailure,
+    Future<void> Function(Object error)? onSyncFailure,
+    Future<bool> Function()? canSync,
     this.interval = const Duration(minutes: 15),
   }) : _syncEngine = syncEngine,
-       _onSyncFailure = onSyncFailure;
+       _onSyncFailure = onSyncFailure,
+       _canSync = canSync ?? _allowSync;
 
   final SyncEngine _syncEngine;
-  final Future<void> Function(String message)? _onSyncFailure;
+  final Future<void> Function(Object error)? _onSyncFailure;
+  final Future<bool> Function() _canSync;
   final Duration interval;
   Timer? _timer;
 
@@ -33,9 +35,14 @@ class SyncScheduler {
 
   Future<void> _runSync() async {
     try {
+      if (!await _canSync()) {
+        return;
+      }
       await _syncEngine.incrementalSync();
     } on Object catch (error) {
-      await _onSyncFailure?.call(syncFailureMessage(error));
+      await _onSyncFailure?.call(error);
     }
   }
 }
+
+Future<bool> _allowSync() async => true;

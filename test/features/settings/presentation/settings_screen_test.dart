@@ -506,6 +506,7 @@ void main() {
     expect(find.text('Theme'), findsOneWidget);
     expect(find.text('Current locale'), findsOneWidget);
     expect(find.text('Manual full sync'), findsOneWidget);
+    expect(find.text('Launch at login'), findsOneWidget);
     expect(find.text('Theme family'), findsNothing);
     expect(find.text('Add Google account'), findsNothing);
   });

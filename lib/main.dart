@@ -11,7 +11,7 @@ import 'src/demo/demo_profile.dart';
 import 'src/platform/gtk_font_service.dart';
 import 'src/platform/linux_header_bar_service.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> arguments) async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   binding.deferFirstFrame();
   final buildConfig = BuildConfig.fromEnvironment();
@@ -63,7 +63,12 @@ Future<void> main() async {
   final applicationOverrides = [...overrides, ...?demoProfile?.overrides];
 
   runApp(
-    ProviderScope(overrides: applicationOverrides, child: const BusyMaxApp()),
+    ProviderScope(
+      overrides: applicationOverrides,
+      child: BusyMaxApp(
+        startMinimizedAtLaunch: arguments.contains('--start-minimized'),
+      ),
+    ),
   );
   binding.allowFirstFrame();
 }

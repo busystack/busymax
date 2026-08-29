@@ -10,9 +10,10 @@ import '../dav_errors.dart';
 import '../ical/ical_document.dart';
 import '../ical/ical_recurrence.dart';
 import '../ical/ical_semantics.dart';
+import '../ical/ical_timezone.dart';
 
 const davRawObjectParserVersion = 1;
-const davProjectionVersion = 1;
+const davProjectionVersion = 2;
 const davSyncStateSchemaVersion = 1;
 
 final class DavPreparedObject {
@@ -896,6 +897,7 @@ final class DavObjectRepository {
       rangeStartUtc: commit.projectionRangeStartUtc,
       rangeEndUtc: commit.projectionRangeEndUtc,
     );
+    final timeZoneResolver = IcalTimeZoneResolver.fromDocument(semantic);
     final recurringUids = {
       for (final component in semantic.components)
         if (component.componentType == 'VEVENT' &&
@@ -936,12 +938,18 @@ final class DavObjectRepository {
       final alarms = component.alarms.isEmpty
           ? occurrence.master.alarms
           : component.alarms;
+      final startUtc = _resolvedTemporalUtc(occurrence.start, timeZoneResolver);
+      final endUtc = occurrence.end == null
+          ? null
+          : _resolvedTemporalUtc(occurrence.end!, timeZoneResolver);
       final projectionJson = jsonEncode({
         'transport': 'caldav',
         'uid': component.uid,
         'occurrenceKey': occurrence.occurrenceKey,
         'nativeStart': _temporalJson(occurrence.start),
         if (occurrence.end != null) 'nativeEnd': _temporalJson(occurrence.end!),
+        if (startUtc != null) 'startUtc': startUtc.toIso8601String(),
+        if (endUtc != null) 'endUtc': endUtc.toIso8601String(),
         'extensionProperties': {
           ...occurrence.master.extensionProperties,
           ...component.extensionProperties,
@@ -1078,6 +1086,7 @@ final class DavObjectRepository {
     final master = semantic.components.firstWhere(
       (component) => component.recurrenceId == null,
     );
+    final timeZoneResolver = IcalTimeZoneResolver.fromDocument(semantic);
     final now = commit.completedAtUtc.toUtc().toIso8601String();
     for (final component in semantic.components) {
       final componentId =
@@ -1105,12 +1114,25 @@ final class DavObjectRepository {
       final alarms = component.alarms.isEmpty
           ? master.alarms
           : component.alarms;
-      final reminder = _taskReminderProjection(alarms, start: start, due: due);
+      final reminder = _taskReminderProjection(
+        alarms,
+        start: start,
+        due: due,
+        timeZoneResolver: timeZoneResolver,
+      );
+      final startUtc = start == null
+          ? null
+          : _resolvedTemporalUtc(start, timeZoneResolver);
+      final dueUtc = due == null
+          ? null
+          : _resolvedTemporalUtc(due, timeZoneResolver);
       final metadata = {
         'transport': 'caldav',
         'uid': component.uid,
         if (start != null) 'nativeStart': _temporalJson(start),
         if (due != null) 'nativeDue': _temporalJson(due),
+        if (startUtc != null) 'startUtc': startUtc.toIso8601String(),
+        if (dueUtc != null) 'dueUtc': dueUtc.toIso8601String(),
         if (component.recurrenceId != null)
           'recurrenceId': _temporalJson(component.recurrenceId!),
         'alarms': _alarmProjection(alarms),
@@ -1378,7 +1400,8 @@ List<Map<String, Object?>> _alarmProjection(List<IcalComponent> alarms) => [
 List<int> _eventReminderMinutes(List<IcalComponent> alarms) {
   final result = <int>[];
   for (final alarm in alarms) {
-    if (alarm.firstProperty('ACTION')?.rawValue.toUpperCase() != 'DISPLAY') {
+    final action = alarm.firstProperty('ACTION')?.rawValue.toUpperCase();
+    if (action != 'DISPLAY' && action != 'AUDIO') {
       continue;
     }
     final trigger = alarm.firstProperty('TRIGGER');
@@ -1404,9 +1427,11 @@ List<int> _eventReminderMinutes(List<IcalComponent> alarms) {
   List<IcalComponent> alarms, {
   required IcalTemporalValue? start,
   required IcalTemporalValue? due,
+  required IcalTimeZoneResolver timeZoneResolver,
 }) {
   for (final alarm in alarms) {
-    if (alarm.firstProperty('ACTION')?.rawValue.toUpperCase() != 'DISPLAY') {
+    final action = alarm.firstProperty('ACTION')?.rawValue.toUpperCase();
+    if (action != 'DISPLAY' && action != 'AUDIO') {
       continue;
     }
     final trigger = alarm.firstProperty('TRIGGER');
@@ -1418,6 +1443,16 @@ List<int> _eventReminderMinutes(List<IcalComponent> alarms) {
             trigger.parameterValue('RELATED')?.toUpperCase() == 'END';
         final reference = relatedToEnd ? due : start;
         if (reference == null) continue;
+        final referenceUtc = _resolvedTemporalUtc(reference, timeZoneResolver);
+        if (referenceUtc != null) {
+          return (
+            dateTime: referenceUtc
+                .add(duration.duration)
+                .toUtc()
+                .toIso8601String(),
+            timeZone: 'UTC',
+          );
+        }
         final wall = reference.localValue.add(duration.duration);
         final temporal = IcalTemporalValue(
           rawValue: trigger.rawValue,
@@ -1444,6 +1479,17 @@ List<int> _eventReminderMinutes(List<IcalComponent> alarms) {
     }
   }
   return null;
+}
+
+DateTime? _resolvedTemporalUtc(
+  IcalTemporalValue value,
+  IcalTimeZoneResolver resolver,
+) {
+  return switch (value.kind) {
+    IcalTemporalKind.utcDateTime || IcalTemporalKind.tzidDateTime =>
+      icalTemporalToUtc(value, resolver: resolver),
+    IcalTemporalKind.date || IcalTemporalKind.floatingDateTime => null,
+  };
 }
 
 String? _propertyRaw(IcalSemanticComponent component, String name) =>

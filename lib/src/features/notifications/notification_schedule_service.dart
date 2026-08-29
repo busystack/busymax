@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../core/time/provider_date_time.dart';
+import '../../dav/ical/ical_task_alarm.dart';
 import '../../db/app_database.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../accounts/data/accounts_repository.dart';
@@ -20,13 +21,13 @@ class NotificationScheduleService {
   Future<void> rebuildUpcomingEventNotifications(String accountId) async {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
+    final pendingIds = await _pendingNotificationIds(accountId, 'event');
     final sourcesById = {
       for (final source
           in await (_database.select(_database.calendarSources)..where(
                 (row) =>
                     row.accountId.equals(accountId) &
-                    row.selected.equals(true) &
-                    row.hidden.equals(false) &
+                    row.remindersEnabled.equals(true) &
                     row.isDeleted.equals(false),
               ))
               .get())
@@ -45,18 +46,24 @@ class NotificationScheduleService {
       if (source == null) {
         continue;
       }
-      final start = _eventStart(event);
-      if (start == null) {
+      final startUtc = _eventStartUtc(event);
+      if (startUtc == null) {
         continue;
       }
-      final reminders = _eventReminderMinutes(event, source: source);
-      for (final minutes in reminders) {
-        final startUtc = start.toUtc();
-        final reminderAt = startUtc.subtract(Duration(minutes: minutes));
-        if (startUtc.isBefore(now) || startUtc.isAtSameMomentAs(now)) {
+      final endUtc = _eventEndUtc(event);
+      final reminders = _eventReminders(
+        event,
+        source: source,
+        startUtc: startUtc,
+        endUtc: endUtc,
+      );
+      for (final reminder in reminders) {
+        final reminderAt = reminder.scheduledAtUtc;
+        final id = 'event|${event.id}|${reminder.key}';
+        if (!reminder.relevantUntilUtc.isAfter(now) &&
+            !pendingIds.contains(id)) {
           continue;
         }
-        final id = 'event|${event.id}|$minutes';
         notifications[id] = _PendingNotification(
           id: id,
           accountId: accountId,
@@ -78,6 +85,16 @@ class NotificationScheduleService {
   Future<void> rebuildUpcomingTaskNotifications(String accountId) async {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
+    final pendingIds = await _pendingNotificationIds(accountId, 'task');
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(accountId))).getSingleOrNull();
+    final provider = account == null
+        ? null
+        : BusyProviderCodec.requireStorageValue(account.provider);
+    final isDav =
+        provider == BusyProvider.appleICloud ||
+        provider == BusyProvider.nextcloud;
     final rows =
         await (_database.select(_database.tasks)..where(
               (row) =>
@@ -89,26 +106,28 @@ class NotificationScheduleService {
             ))
             .get();
     for (final task in rows) {
-      if (task.status == 'completed' || task.microsoftIsReminderOn != true) {
+      if (task.status == 'completed') {
         continue;
       }
-      final reminderAt = providerDateTimeAsUtcInstant(
-        task.microsoftReminderDateTime,
-        task.microsoftReminderTimeZone,
-      );
-      if (reminderAt == null || reminderAt.isBefore(now)) {
-        continue;
+      final reminders = isDav
+          ? _davTaskReminders(task)
+          : _providerTaskReminders(task);
+      final baseId = 'task|${task.accountId}|${task.taskListId}|${task.id}';
+      for (final reminder in reminders) {
+        final id = reminder.key == null ? baseId : '$baseId|${reminder.key}';
+        if (reminder.scheduledAtUtc.isBefore(now) && !pendingIds.contains(id)) {
+          continue;
+        }
+        notifications[id] = _PendingNotification(
+          id: id,
+          accountId: accountId,
+          sourceType: 'task',
+          sourceId: task.id,
+          scheduledAtUtc: reminder.scheduledAtUtc,
+          title: task.title,
+          body: task.notes ?? task.bodyContent,
+        );
       }
-      final id = 'task|${task.accountId}|${task.taskListId}|${task.id}';
-      notifications[id] = _PendingNotification(
-        id: id,
-        accountId: accountId,
-        sourceType: 'task',
-        sourceId: task.id,
-        scheduledAtUtc: reminderAt,
-        title: task.title,
-        body: task.notes ?? task.bodyContent,
-      );
     }
     await _reconcileNotifications(
       accountId: accountId,
@@ -120,6 +139,22 @@ class NotificationScheduleService {
   Future<void> rebuildUpcomingNotifications(String accountId) async {
     await rebuildUpcomingEventNotifications(accountId);
     await rebuildUpcomingTaskNotifications(accountId);
+  }
+
+  Future<Set<String>> _pendingNotificationIds(
+    String accountId,
+    String sourceType,
+  ) async {
+    final rows =
+        await (_database.select(_database.notificationSchedule)..where(
+              (row) =>
+                  row.accountId.equals(accountId) &
+                  row.sourceType.equals(sourceType) &
+                  row.sentAtUtc.isNull() &
+                  row.dismissedAtUtc.isNull(),
+            ))
+            .get();
+    return {for (final row in rows) row.id};
   }
 
   Future<void> _reconcileNotifications({
@@ -219,6 +254,109 @@ class NotificationScheduleService {
   }
 }
 
+List<_TaskReminder> _providerTaskReminders(Task task) {
+  if (task.microsoftIsReminderOn != true) return const [];
+  final reminderAt = providerDateTimeAsUtcInstant(
+    task.microsoftReminderDateTime,
+    task.microsoftReminderTimeZone,
+  );
+  return reminderAt == null
+      ? const []
+      : [_TaskReminder(key: null, scheduledAtUtc: reminderAt)];
+}
+
+List<_TaskReminder> _davTaskReminders(Task task) {
+  final startUtc = _davTaskTemporalUtc(task.providerMetadataJson, 'start');
+  final dueUtc = _davTaskTemporalUtc(task.providerMetadataJson, 'due');
+  List<IcalTaskAlarm> alarms;
+  try {
+    alarms = decodeIcalTaskAlarms(task.taskAlarmsJson);
+  } on Object {
+    alarms = const [];
+  }
+  final result = <_TaskReminder>[];
+  var usesLegacyId = true;
+  for (var index = 0; index < alarms.length; index += 1) {
+    final alarm = alarms[index];
+    if (alarm.action != 'DISPLAY' && alarm.action != 'AUDIO') continue;
+    final reference = alarm.isRelatedToDue ? dueUtc : startUtc;
+    final scheduledAt =
+        alarm.absoluteUtc ??
+        (alarm.relativeOffset == null || reference == null
+            ? null
+            : reference.add(alarm.relativeOffset!));
+    if (scheduledAt == null) continue;
+    final repeatInterval = alarm.repeatInterval;
+    final repeatCount = repeatInterval == null ? 0 : alarm.repeatCount ?? 0;
+    for (var repetition = 0; repetition <= repeatCount; repetition += 1) {
+      result.add(
+        _TaskReminder(
+          key: usesLegacyId
+              ? null
+              : repetition == 0
+              ? 'dav-$index'
+              : 'dav-$index-repeat-$repetition',
+          scheduledAtUtc: scheduledAt.add(
+            (repeatInterval ?? Duration.zero) * repetition,
+          ),
+        ),
+      );
+      usesLegacyId = false;
+    }
+  }
+  if (result.isNotEmpty) return result;
+  return _providerTaskReminders(task);
+}
+
+DateTime? _davTaskTemporalUtc(String? metadataJson, String prefix) {
+  if (metadataJson == null || metadataJson.isEmpty) return null;
+  final decoded = _decodeJson(metadataJson);
+  if (decoded is! Map) return null;
+  final exact = decoded['${prefix}Utc'];
+  if (exact is String) return DateTime.tryParse(exact)?.toUtc();
+  final native =
+      decoded['native${prefix[0].toUpperCase()}${prefix.substring(1)}'];
+  if (native is! Map) return null;
+  final raw = native['raw'];
+  final kind = native['kind'];
+  if (raw is! String || kind is! String) return null;
+  final match = RegExp(
+    r'^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(?:Z)?)?$',
+  ).firstMatch(raw);
+  if (match == null) return null;
+  int part(int index) => int.tryParse(match.group(index) ?? '') ?? 0;
+  final wall = DateTime(part(1), part(2), part(3), part(4), part(5), part(6));
+  if (kind == 'utcDateTime') {
+    return DateTime.utc(
+      wall.year,
+      wall.month,
+      wall.day,
+      wall.hour,
+      wall.minute,
+      wall.second,
+    );
+  }
+  if (kind == 'tzidDateTime') {
+    final timeZoneId = native['timeZoneId'];
+    final isoWall =
+        '${wall.year.toString().padLeft(4, '0')}-'
+        '${wall.month.toString().padLeft(2, '0')}-'
+        '${wall.day.toString().padLeft(2, '0')}T'
+        '${wall.hour.toString().padLeft(2, '0')}:'
+        '${wall.minute.toString().padLeft(2, '0')}:'
+        '${wall.second.toString().padLeft(2, '0')}';
+    return providerDateTimeAsUtcInstant(isoWall, timeZoneId?.toString());
+  }
+  return wall.toUtc();
+}
+
+final class _TaskReminder {
+  const _TaskReminder({required this.key, required this.scheduledAtUtc});
+
+  final String? key;
+  final DateTime scheduledAtUtc;
+}
+
 bool _shouldResetLifecycle(
   NotificationScheduleData existing, {
   required int scheduledAtUtc,
@@ -257,14 +395,28 @@ class _PendingNotification {
   final String? body;
 }
 
-DateTime? _eventStart(CalendarEvent event) {
+DateTime? _eventStartUtc(CalendarEvent event) {
   if (event.allDay) {
-    return _parseDate(event.startDate);
+    return _parseDate(event.startDate)?.toUtc();
   }
-  return _parseDateTime(event.startDateTime, event.startTimeZone);
+  return _projectedUtc(event.rawJson, 'startUtc') ??
+      providerDateTimeAsUtcInstant(event.startDateTime, event.startTimeZone);
 }
 
-List<int> _eventReminderMinutes(CalendarEvent event, {CalendarSource? source}) {
+DateTime? _eventEndUtc(CalendarEvent event) {
+  if (event.allDay) {
+    return _parseDate(event.endDate)?.toUtc();
+  }
+  return _projectedUtc(event.rawJson, 'endUtc') ??
+      providerDateTimeAsUtcInstant(event.endDateTime, event.endTimeZone);
+}
+
+List<_EventReminder> _eventReminders(
+  CalendarEvent event, {
+  required DateTime startUtc,
+  required DateTime? endUtc,
+  CalendarSource? source,
+}) {
   final raw = event.remindersJson;
   if (raw == null || raw.isEmpty) {
     return const [];
@@ -275,24 +427,125 @@ List<int> _eventReminderMinutes(CalendarEvent event, {CalendarSource? source}) {
     final map = decoded.cast<String, Object?>();
     final enabled = map['isReminderOn'] == true;
     final minutes = map['reminderMinutesBeforeStart'];
-    return enabled && minutes is int ? [minutes] : const [];
+    return enabled && minutes is int
+        ? [
+            _EventReminder(
+              key: '$minutes',
+              scheduledAtUtc: startUtc.subtract(Duration(minutes: minutes)),
+              relevantUntilUtc: startUtc,
+            ),
+          ]
+        : const [];
   }
   if (provider == BusyProvider.google && decoded is Map) {
     final map = decoded.cast<String, Object?>();
     if (map['useDefault'] == true) {
-      return _googleDefaultReminderMinutes(source);
+      return _minuteReminders(
+        _googleDefaultReminderMinutes(source),
+        startUtc: startUtc,
+      );
     }
     final overrides = map['overrides'];
     if (overrides is! List) {
       return const [];
     }
-    return [
+    return _minuteReminders([
       for (final item in overrides)
         if (item is Map && item['method'] == 'popup' && item['minutes'] is int)
           item['minutes'] as int,
-    ];
+    ], startUtc: startUtc);
+  }
+  if ((provider == BusyProvider.appleICloud ||
+          provider == BusyProvider.nextcloud) &&
+      decoded is Map) {
+    return _davEventReminders(
+      decoded.cast<String, Object?>(),
+      startUtc: startUtc,
+      endUtc: endUtc,
+    );
   }
   return const [];
+}
+
+List<_EventReminder> _minuteReminders(
+  Iterable<int> minutes, {
+  required DateTime startUtc,
+}) {
+  return [
+    for (final value in minutes.toSet())
+      _EventReminder(
+        key: '$value',
+        scheduledAtUtc: startUtc.subtract(Duration(minutes: value)),
+        relevantUntilUtc: startUtc,
+      ),
+  ];
+}
+
+List<_EventReminder> _davEventReminders(
+  Map<String, Object?> reminderData, {
+  required DateTime startUtc,
+  required DateTime? endUtc,
+}) {
+  final rawAlarms = reminderData['alarms'];
+  if (rawAlarms is List) {
+    final result = <_EventReminder>[];
+    for (var index = 0; index < rawAlarms.length; index += 1) {
+      final rawAlarm = rawAlarms[index];
+      if (rawAlarm is! Map) continue;
+      try {
+        final alarm = IcalTaskAlarm.fromJson(rawAlarm.cast<String, Object?>());
+        if (alarm.action != 'DISPLAY' && alarm.action != 'AUDIO') continue;
+        final absolute = alarm.absoluteUtc;
+        final relative = alarm.relativeOffset;
+        final reference = alarm.isRelatedToDue ? endUtc : startUtc;
+        final scheduledAt =
+            absolute ??
+            (relative == null || reference == null
+                ? null
+                : reference.add(relative));
+        if (scheduledAt != null) {
+          final repeatInterval = alarm.repeatInterval;
+          final repeatCount = repeatInterval == null
+              ? 0
+              : alarm.repeatCount ?? 0;
+          for (var repetition = 0; repetition <= repeatCount; repetition += 1) {
+            final repeatedAt = scheduledAt.add(
+              (repeatInterval ?? Duration.zero) * repetition,
+            );
+            final referenceUntil = alarm.isRelatedToDue ? endUtc : startUtc;
+            final relevantUntil =
+                referenceUntil != null && referenceUntil.isAfter(repeatedAt)
+                ? referenceUntil
+                : repeatedAt;
+            result.add(
+              _EventReminder(
+                key: repetition == 0
+                    ? 'dav-$index'
+                    : 'dav-$index-repeat-$repetition',
+                scheduledAtUtc: repeatedAt.toUtc(),
+                relevantUntilUtc: relevantUntil,
+              ),
+            );
+          }
+        }
+      } on Object {
+        // Unsupported alarms remain losslessly stored with the event.
+      }
+    }
+    return result;
+  }
+
+  final legacyMinutes = reminderData['minutes'];
+  if (legacyMinutes is! List) return const [];
+  return [
+    for (final value in legacyMinutes)
+      if (value is int)
+        _EventReminder(
+          key: 'dav-minutes-$value',
+          scheduledAtUtc: startUtc.subtract(Duration(minutes: value)),
+          relevantUntilUtc: startUtc,
+        ),
+  ];
 }
 
 Object? _decodeJson(String raw) {
@@ -333,28 +586,23 @@ DateTime? _parseDate(String? value) {
   return DateTime.tryParse('${value.substring(0, 10)}T00:00:00');
 }
 
-DateTime? _parseDateTime(String? value, String? timeZone) {
-  final parsed = DateTime.tryParse(value ?? '');
-  if (parsed == null || parsed.isUtc) {
-    return parsed;
-  }
+DateTime? _projectedUtc(String? rawJson, String key) {
+  if (rawJson == null || rawJson.isEmpty) return null;
+  final decoded = _decodeJson(rawJson);
+  if (decoded is! Map) return null;
+  final value = decoded[key];
+  if (value is! String) return null;
+  return DateTime.tryParse(value)?.toUtc();
+}
 
-  final normalizedZone = timeZone?.trim().toLowerCase();
-  if (normalizedZone == 'utc' ||
-      normalizedZone == 'etc/utc' ||
-      normalizedZone == 'gmt' ||
-      normalizedZone == 'etc/gmt') {
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
-    );
-  }
+final class _EventReminder {
+  const _EventReminder({
+    required this.key,
+    required this.scheduledAtUtc,
+    required this.relevantUntilUtc,
+  });
 
-  return parsed;
+  final String key;
+  final DateTime scheduledAtUtc;
+  final DateTime relevantUntilUtc;
 }

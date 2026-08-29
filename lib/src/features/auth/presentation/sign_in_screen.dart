@@ -19,6 +19,7 @@ import '../../../dav/dav_errors.dart';
 import '../../../dav/http/dav_http_transport.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_connection_state.dart';
+import '../../connectivity/network_connectivity_service.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
@@ -400,7 +401,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         }
       }
       if (mounted) {
-        setState(() => _errorMessage = syncFailureMessage(error));
+        setState(
+          () => _errorMessage = syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        );
       }
     }
   }
@@ -920,6 +926,9 @@ ButtonStyle _onboardingTextButtonStyle(BuildContext context) {
 }
 
 String _onboardingErrorMessage(BuildContext context, Object error) {
+  if (error is NetworkUnavailableException) {
+    return context.l10n.networkOfflineTryAgain;
+  }
   if (error is DavException) return error.safeMessage;
   if (error is FormatException) return error.message;
   if (error is SecretStoreException) return error.message;
