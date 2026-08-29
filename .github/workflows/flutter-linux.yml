@@ -92,6 +92,7 @@ jobs:
           "${{ steps.snapcraft.outputs.snap }}"
 
       - name: Verify installed strict Snap
-        run: >-
-          snap run --shell busymax -c
-          'test "$SNAP_CONFINEMENT" = strict && test -x "$SNAP/busymax"'
+        run: |
+          LC_ALL=C snap info --verbose busymax |
+            grep -Eq '^[[:space:]]*confinement:[[:space:]]+strict$'
+          snap run --shell busymax -c 'test -x "$SNAP/busymax"'

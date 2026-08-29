@@ -15,7 +15,10 @@ void main() {
     expect(workflow, contains('name: busymax-snap'));
     expect(workflow, contains(r'path: ${{ steps.snapcraft.outputs.snap }}'));
     expect(workflow, contains('sudo snap install --dangerous'));
-    expect(workflow, contains(r'test "$SNAP_CONFINEMENT" = strict'));
+    expect(workflow, contains('snap info --verbose busymax'));
+    expect(workflow, contains(r'confinement:[[:space:]]+strict'));
+    expect(workflow, contains(r'test -x "$SNAP/busymax"'));
+    expect(workflow, isNot(contains('SNAP_CONFINEMENT')));
     expect(workflow, isNot(contains('busymax-linux-x64-release-bundle')));
     expect(workflow, isNot(contains('Build Linux debug')));
     expect(workflow, isNot(contains('zip -r')));
