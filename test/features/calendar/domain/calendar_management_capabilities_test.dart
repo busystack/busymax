@@ -146,4 +146,26 @@ void main() {
     );
     expect(editableNotRemovable.capabilities.canRemoveCalendar, isFalse);
   });
+
+  test('pending cloud calendar creation can be renamed and cancelled', () {
+    for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+      final source = CalendarSourceEntity(
+        id: '${provider.storageValue}-pending',
+        accountId: '${provider.storageValue}-account',
+        provider: provider,
+        providerCalendarId: 'local:pending',
+        summary: 'New calendar',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+        pendingCreate: true,
+      );
+
+      expect(source.capabilities.renameMode, CalendarRenameMode.global);
+      expect(source.capabilities.removalMode, CalendarRemovalMode.delete);
+      expect(source.capabilities.canRenameCalendar, isTrue);
+      expect(source.capabilities.canRemoveCalendar, isTrue);
+    }
+  });
 }

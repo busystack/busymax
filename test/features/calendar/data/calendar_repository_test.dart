@@ -161,6 +161,12 @@ void main() {
       expect(operation.calendarSourceId, sourceId);
       expect(operation.providerCalendarId, source.providerCalendarId);
       expect(jsonDecode(operation.requestJson), {'summary': 'Project'});
+      final entity = (await repository.watchSourcesForAccounts(const [
+        'google:g',
+      ]).first).single;
+      expect(entity.pendingCreate, isTrue);
+      expect(entity.capabilities.renameMode, CalendarRenameMode.global);
+      expect(entity.capabilities.canRemoveCalendar, isTrue);
     },
   );
 
@@ -189,6 +195,21 @@ void main() {
       (operation) => operation.operationType == 'event.create',
     );
     expect(eventCreate.dependsOnOpId, calendarCreate.id);
+  });
+
+  test('renaming an unsynced calendar updates its create operation', () async {
+    final sourceId = await repository.createLocalSource(
+      accountId: 'google:g',
+      summary: 'Initial name',
+    );
+
+    await repository.renameLocalSource(sourceId, 'Final name');
+
+    final source = await database.select(database.calendarSources).getSingle();
+    final operation = await database.select(database.pendingOps).getSingle();
+    expect(source.summary, 'Final name');
+    expect(operation.operationType, 'calendar.create');
+    expect(jsonDecode(operation.requestJson), {'summary': 'Final name'});
   });
 
   test('calendar color is projected locally and queued by provider', () async {
@@ -1019,6 +1040,36 @@ void main() {
     expect(source.hidden, isTrue);
     expect(source.isDeleted, isTrue);
   });
+
+  test(
+    'provider upsert restores a source after removal work is gone',
+    () async {
+      await _upsertSource(repository);
+      await repository.deleteLocalSource(_sourceId);
+      final operation = await database.select(database.pendingOps).getSingle();
+      expect(jsonDecode(operation.requestJson), {
+        calendarRemovalPreviousHiddenKey: false,
+      });
+      await database.pendingOpsDao.deleteOp(operation.id);
+
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          summary: 'Still returned by provider',
+          hidden: false,
+          isDeleted: false,
+        ),
+      );
+
+      final source = await database
+          .select(database.calendarSources)
+          .getSingle();
+      expect(source.hidden, isFalse);
+      expect(source.isDeleted, isFalse);
+    },
+  );
 
   test('source stream removes locally tombstoned calendars', () async {
     await _upsertSource(repository);

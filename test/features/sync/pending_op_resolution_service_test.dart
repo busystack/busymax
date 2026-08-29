@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -339,6 +340,40 @@ void main() {
     expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
     expect(syncEngine.incrementalSyncCalls, 1);
   });
+
+  test('discard blocked calendar removal restores the source', () async {
+    await database
+        .into(database.calendarSources)
+        .insert(
+          CalendarSourcesCompanion.insert(
+            id: 'calendar-source',
+            accountId: 'account',
+            provider: 'google',
+            providerCalendarId: 'calendar@example.com',
+            summary: 'Calendar',
+            hidden: const Value(true),
+            isDeleted: const Value(true),
+            createdAtLocal: 1,
+            updatedAtLocal: 1,
+          ),
+        );
+    await _enqueueBlockedOp(
+      database,
+      entityType: 'calendar',
+      operation: 'delete',
+      operationType: 'calendar.delete',
+      calendarSourceId: 'calendar-source',
+      request: const {calendarRemovalPreviousHiddenKey: false},
+    );
+
+    await service.discard('op-1');
+
+    final source = await database.select(database.calendarSources).getSingle();
+    expect(source.isDeleted, isFalse);
+    expect(source.hidden, isFalse);
+    expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
+    expect(syncEngine.incrementalSyncCalls, 1);
+  });
 }
 
 class _FakeTaskRemoteClient implements TaskRemoteClient {
@@ -443,8 +478,10 @@ Future<void> _enqueueBlockedOp(
   AppDatabase database, {
   String entityType = 'task',
   required String operation,
+  String? operationType,
   String? taskListId,
   String? taskId,
+  String? calendarSourceId,
   Map<String, Object?> request = const {},
 }) {
   return database.pendingOpsDao.enqueue(
@@ -453,8 +490,10 @@ Future<void> _enqueueBlockedOp(
       accountId: 'account',
       entityType: entityType,
       operation: operation,
+      operationType: Value(operationType),
       taskListId: Value(taskListId),
       taskId: Value(taskId),
+      calendarSourceId: Value(calendarSourceId),
       requestJson: jsonEncode(request),
       nextAttemptAtUtc: const Value('9999-12-31T00:00:00.000Z'),
       lastErrorCode: const Value('conflict'),

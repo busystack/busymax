@@ -10,6 +10,7 @@ import 'package:busymax/src/features/calendar/presentation/event_editor_draft.da
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -1353,6 +1354,112 @@ void main() {
     );
   });
 
+  test(
+    'Google calendar delete rejected with 403 restores the source',
+    () async {
+      await (database.update(database.calendarSources)
+            ..where((row) => row.id.equals('account|google|cal-1')))
+          .write(const CalendarSourcesCompanion(hidden: Value(true)));
+      await CalendarRepository(
+        database: database,
+      ).deleteLocalSource('account|google|cal-1');
+      client.calendarDeleteError = const GoogleCalendarApiError(
+        statusCode: 403,
+        code: 'forbidden',
+        message: 'Permission denied',
+      );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps();
+
+      final source = await database
+          .select(database.calendarSources)
+          .getSingle();
+      final operation = await database.select(database.pendingOps).getSingle();
+      expect(applied, 0);
+      expect(source.isDeleted, isFalse);
+      expect(source.hidden, isTrue);
+      expect(operation.nextAttemptAtUtc, startsWith('9999-12-31'));
+    },
+  );
+
+  test(
+    'Google CalendarList removal rejected with 403 restores the source',
+    () async {
+      await (database.update(
+        database.calendarSources,
+      )..where((row) => row.id.equals('account|google|cal-1'))).write(
+        const CalendarSourcesCompanion(dataOwner: Value('other@example.com')),
+      );
+      await CalendarRepository(
+        database: database,
+      ).deleteLocalSource('account|google|cal-1');
+      client.calendarListDeleteError = const GoogleCalendarApiError(
+        statusCode: 403,
+        code: 'forbidden',
+        message: 'Permission denied',
+      );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps();
+
+      final source = await database
+          .select(database.calendarSources)
+          .getSingle();
+      final operation = await database.select(database.pendingOps).getSingle();
+      expect(applied, 0);
+      expect(source.isDeleted, isFalse);
+      expect(source.hidden, isFalse);
+      expect(operation.nextAttemptAtUtc, startsWith('9999-12-31'));
+    },
+  );
+
+  for (final statusCode in [400, 403]) {
+    test(
+      'Microsoft calendar delete rejected with $statusCode restores the source',
+      () async {
+        await _insertMicrosoftAccountAndSource(database, isRemovable: true);
+        const sourceId = 'microsoft-account|microsoft|ms-cal-1';
+        await CalendarRepository(
+          database: database,
+        ).deleteLocalSource(sourceId);
+        final microsoftClient = _FakeMicrosoftCalendarClient()
+          ..calendarDeleteError = MicrosoftCalendarApiError(
+            statusCode: statusCode,
+            code: 'ErrorAccessDenied',
+            message: 'Permission denied',
+          );
+
+        final applied = await CalendarPendingOpsReplayer(
+          database: database,
+          client: microsoftClient,
+          accountId: 'microsoft-account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps();
+
+        final source = await (database.select(
+          database.calendarSources,
+        )..where((row) => row.id.equals(sourceId))).getSingle();
+        final operation =
+            await (database.select(database.pendingOps)
+                  ..where((row) => row.accountId.equals('microsoft-account')))
+                .getSingle();
+        expect(applied, 0);
+        expect(source.isDeleted, isFalse);
+        expect(source.hidden, isFalse);
+        expect(operation.nextAttemptAtUtc, startsWith('9999-12-31'));
+      },
+    );
+  }
+
   test('sync engine replays pending event ops before pull sync', () async {
     await CalendarRepository(database: database).createLocalEvent(
       EventEditorDraft.newEvent(
@@ -1554,7 +1661,10 @@ Future<void> _insertAccount(AppDatabase database) {
       );
 }
 
-Future<void> _insertMicrosoftAccountAndSource(AppDatabase database) async {
+Future<void> _insertMicrosoftAccountAndSource(
+  AppDatabase database, {
+  bool? isRemovable,
+}) async {
   await database
       .into(database.accounts)
       .insert(
@@ -1572,11 +1682,12 @@ Future<void> _insertMicrosoftAccountAndSource(AppDatabase database) async {
       );
   await CalendarRepository(database: database).upsertSource(
     accountId: 'microsoft-account',
-    source: const CalendarSourceDto(
+    source: CalendarSourceDto(
       provider: BusyProvider.microsoft,
       providerCalendarId: 'ms-cal-1',
       summary: 'Outlook',
       timeZone: 'America/Vancouver',
+      isRemovable: isRemovable,
     ),
   );
 }
@@ -1764,6 +1875,8 @@ class _FakeCalendarClient
   bool persistEventUpdates = false;
   int _eventUpdateRevision = 0;
   GoogleCalendarApiError? deleteError;
+  Object? calendarDeleteError;
+  GoogleCalendarApiError? calendarListDeleteError;
 
   @override
   BusyProvider get provider => BusyProvider.google;
@@ -1968,11 +2081,15 @@ class _FakeCalendarClient
   @override
   Future<void> deleteCalendar(String calendarId) async {
     calls.add('deleteCalendar:$calendarId');
+    final error = calendarDeleteError;
+    if (error != null) throw error;
   }
 
   @override
   Future<void> deleteCalendarListEntry(String calendarId) async {
     calls.add('deleteCalendarListEntry:$calendarId');
+    final error = calendarListDeleteError;
+    if (error != null) throw error;
   }
 
   @override
@@ -2032,4 +2149,13 @@ class _FakeCalendarClient
       dataOwner: 'me@example.com',
     );
   }
+}
+
+class _FakeMicrosoftCalendarClient extends _FakeCalendarClient {
+  @override
+  BusyProvider get provider => BusyProvider.microsoft;
+
+  @override
+  CalendarProviderCapabilities get capabilities =>
+      microsoftCalendarProviderCapabilities;
 }

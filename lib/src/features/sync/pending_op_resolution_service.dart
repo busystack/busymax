@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../db/app_database.dart';
+import '../calendar/data/calendar_repository.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
 import '../tasks/domain/task_remote_client.dart';
@@ -43,6 +44,14 @@ class PendingOpResolutionService {
   }
 
   Future<void> _refreshOrRemoveLocalState(PendingOp op) async {
+    if (op.entityType == 'calendar') {
+      await CalendarRepository(
+        database: _database,
+        now: _nowUtc,
+      ).restoreSourceAfterRemovalFailure(op);
+      return;
+    }
+
     if (op.entityType == 'task' && op.taskListId != null && op.taskId != null) {
       if (op.operation == 'move_task') {
         await _refreshOrRemoveMovedTask(op);

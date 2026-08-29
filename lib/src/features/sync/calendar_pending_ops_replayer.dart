@@ -1465,14 +1465,19 @@ class CalendarPendingOpsReplayer {
     );
   }
 
-  Future<void> _blockOp(PendingOp op, String errorCode, String errorMessage) {
-    return _database.pendingOpsDao.updateAttempt(
+  Future<void> _blockOp(
+    PendingOp op,
+    String errorCode,
+    String errorMessage,
+  ) async {
+    await _database.pendingOpsDao.updateAttempt(
       id: op.id,
       attemptCount: op.attemptCount + 1,
       nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
     );
+    await _repository.restoreSourceAfterRemovalFailure(op);
   }
 
   Future<void> _blockConflict(PendingOp op, String message) async {

@@ -44,6 +44,7 @@ class CalendarSourceEntity {
     this.dataOwner,
     this.isRemovable,
     this.authenticatedAccountEmail,
+    this.pendingCreate = false,
     this.davCollectionId,
     this.allowedConferenceSolutions = const [],
   });
@@ -51,6 +52,7 @@ class CalendarSourceEntity {
   factory CalendarSourceEntity.fromRow(
     CalendarSource row, {
     String? authenticatedAccountEmail,
+    bool pendingCreate = false,
   }) {
     return CalendarSourceEntity(
       id: row.id,
@@ -73,6 +75,7 @@ class CalendarSourceEntity {
       dataOwner: row.dataOwner,
       isRemovable: row.isRemovable,
       authenticatedAccountEmail: authenticatedAccountEmail,
+      pendingCreate: pendingCreate,
       davCollectionId: row.davCollectionId,
       allowedConferenceSolutions: _conferenceSolutions(row.rawJson),
     );
@@ -98,6 +101,7 @@ class CalendarSourceEntity {
   final String? dataOwner;
   final bool? isRemovable;
   final String? authenticatedAccountEmail;
+  final bool pendingCreate;
   final String? davCollectionId;
   final List<String> allowedConferenceSolutions;
 
@@ -147,6 +151,9 @@ class CalendarSourceCapabilities {
     final writable = !source.readOnly && available;
     final management = calendarManagementCapabilities(source.provider);
     final renameMode = switch (source.provider) {
+      BusyProvider.google || BusyProvider.microsoft
+          when available && source.pendingCreate =>
+        CalendarRenameMode.global,
       BusyProvider.google when available =>
         source.primaryCalendar || source.isCurrentGoogleDataOwner
             ? CalendarRenameMode.global
@@ -155,6 +162,9 @@ class CalendarSourceCapabilities {
       _ => CalendarRenameMode.unavailable,
     };
     final removalMode = switch (source.provider) {
+      BusyProvider.google || BusyProvider.microsoft
+          when available && source.pendingCreate =>
+        CalendarRemovalMode.delete,
       BusyProvider.google
           when available &&
               !source.primaryCalendar &&
@@ -276,6 +286,14 @@ class CalendarRepository {
         _database.accounts,
         _database.accounts.id.equalsExp(_database.calendarSources.accountId),
       ),
+      leftOuterJoin(
+        _database.pendingOps,
+        _database.pendingOps.calendarSourceId.equalsExp(
+              _database.calendarSources.id,
+            ) &
+            _database.pendingOps.operationType.equals('calendar.create') &
+            _database.pendingOps.state.equals('pending'),
+      ),
     ]);
     query.where(
       _database.calendarSources.accountId.isIn(accountIds) &
@@ -293,6 +311,7 @@ class CalendarRepository {
             authenticatedAccountEmail: result
                 .readTable(_database.accounts)
                 .email,
+            pendingCreate: result.readTableOrNull(_database.pendingOps) != null,
           ),
       ],
     );
@@ -309,6 +328,14 @@ class CalendarRepository {
         _database.accounts,
         _database.accounts.id.equalsExp(_database.calendarSources.accountId),
       ),
+      leftOuterJoin(
+        _database.pendingOps,
+        _database.pendingOps.calendarSourceId.equalsExp(
+              _database.calendarSources.id,
+            ) &
+            _database.pendingOps.operationType.equals('calendar.create') &
+            _database.pendingOps.state.equals('pending'),
+      ),
     ]);
     query.where(
       _database.calendarSources.accountId.isIn(accountIds) &
@@ -322,6 +349,7 @@ class CalendarRepository {
         CalendarSourceEntity.fromRow(
           result.readTable(_database.calendarSources),
           authenticatedAccountEmail: result.readTable(_database.accounts).email,
+          pendingCreate: result.readTableOrNull(_database.pendingOps) != null,
         ),
     ];
   }
@@ -340,6 +368,7 @@ class CalendarRepository {
     return CalendarSourceEntity.fromRow(
       source,
       authenticatedAccountEmail: account.email,
+      pendingCreate: await _pendingCalendarCreate(source.id) != null,
     );
   }
 
@@ -618,7 +647,9 @@ class CalendarRepository {
           ),
           calendarSourceId: Value(source.id),
           providerCalendarId: Value(source.providerCalendarId),
-          requestJson: '{}',
+          requestJson: jsonEncode({
+            calendarRemovalPreviousHiddenKey: source.hidden,
+          }),
           baselineRawJson: Value(source.rawJson),
           createdAtUtc: nowUtc,
           updatedAtUtc: nowUtc,
@@ -645,7 +676,9 @@ class CalendarRepository {
       final existing = await (_database.select(
         _database.calendarSources,
       )..where((row) => row.id.equals(id))).getSingleOrNull();
-      final isDeleted = (existing?.isDeleted ?? false) || source.isDeleted;
+      final preservePendingRemoval =
+          existing != null && await _hasActiveCalendarRemoval(existing.id);
+      final isDeleted = preservePendingRemoval || source.isDeleted;
       await _database
           .into(_database.calendarSources)
           .insertOnConflictUpdate(
@@ -675,6 +708,30 @@ class CalendarRepository {
             ),
           );
     });
+  }
+
+  Future<void> restoreSourceAfterRemovalFailure(PendingOp op) async {
+    final operationType =
+        op.operationType ?? '${op.entityType}.${op.operation}';
+    if (operationType != 'calendar.delete' &&
+        operationType != 'calendar.remove') {
+      return;
+    }
+    final sourceId = op.calendarSourceId;
+    if (sourceId == null) return;
+    final source = await (_database.select(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).getSingleOrNull();
+    if (source == null || !source.isDeleted) return;
+    await (_database.update(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).write(
+      CalendarSourcesCompanion(
+        isDeleted: const Value(false),
+        hidden: Value(_calendarRemovalPreviousHidden(op)),
+        updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+      ),
+    );
   }
 
   /// Stores a provider event.
@@ -2760,6 +2817,22 @@ class CalendarRepository {
         .getSingleOrNull();
   }
 
+  Future<bool> _hasActiveCalendarRemoval(String sourceId) async {
+    final operations =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.calendarSourceId.equals(sourceId) &
+                  (row.operationType.equals('calendar.delete') |
+                      row.operationType.equals('calendar.remove')) &
+                  row.state.equals('pending'),
+            ))
+            .get();
+    return operations.any(
+      (operation) =>
+          operation.nextAttemptAtUtc?.startsWith('9999-12-31') != true,
+    );
+  }
+
   Future<void> _enqueueOrMergeCalendarPatch(
     CalendarSource source, {
     required Map<String, Object?> request,
@@ -3028,6 +3101,15 @@ Map<String, Object?> _calendarPendingRequest(PendingOp op) {
     return <String, Object?>{};
   }
   return decoded.cast<String, Object?>();
+}
+
+bool _calendarRemovalPreviousHidden(PendingOp op) {
+  final requestValue = _jsonMap(
+    op.requestJson,
+  )[calendarRemovalPreviousHiddenKey];
+  if (requestValue is bool) return requestValue;
+  final baselineValue = _jsonMap(op.baselineRawJson)['hidden'];
+  return baselineValue is bool ? baselineValue : false;
 }
 
 void _requireDavSchedulingUnchanged(
