@@ -137,6 +137,7 @@ class EventEditorDraft {
     this.hideAttendees,
     this.allowNewTimeProposals,
     this.isOrganizer,
+    this.canManageAttendees = true,
   });
 
   factory EventEditorDraft.newEvent({
@@ -226,6 +227,10 @@ class EventEditorDraft {
       hideAttendees: hideAttendees,
       allowNewTimeProposals: _jsonBool(raw['allowNewTimeProposals']),
       isOrganizer: isOrganizer,
+      canManageAttendees:
+          detail.provider != BusyProvider.google ||
+          isOrganizer == true ||
+          detail.guestsCanInviteOthers,
     );
   }
 
@@ -262,6 +267,7 @@ class EventEditorDraft {
     bool? hideAttendees,
     bool? allowNewTimeProposals,
     bool? isOrganizer,
+    bool canManageAttendees = true,
   }) {
     return EventEditorDraft(
       eventId: eventId,
@@ -296,6 +302,7 @@ class EventEditorDraft {
       hideAttendees: hideAttendees,
       allowNewTimeProposals: allowNewTimeProposals,
       isOrganizer: isOrganizer,
+      canManageAttendees: canManageAttendees,
     );
   }
 
@@ -343,6 +350,7 @@ class EventEditorDraft {
   final bool? hideAttendees;
   final bool? allowNewTimeProposals;
   final bool? isOrganizer;
+  final bool canManageAttendees;
 
   bool get canSave {
     final start = this.start;
@@ -390,6 +398,7 @@ class EventEditorDraft {
     bool? hideAttendees,
     bool? allowNewTimeProposals,
     bool? isOrganizer,
+    bool? canManageAttendees,
     RecurringEventMutationScope? recurringMutationScope,
     bool clearLocation = false,
     bool clearDescription = false,
@@ -454,6 +463,7 @@ class EventEditorDraft {
       allowNewTimeProposals:
           allowNewTimeProposals ?? this.allowNewTimeProposals,
       isOrganizer: isOrganizer ?? this.isOrganizer,
+      canManageAttendees: canManageAttendees ?? this.canManageAttendees,
     );
   }
 
@@ -495,7 +505,8 @@ class EventEditorDraft {
         other.responseRequested == responseRequested &&
         other.hideAttendees == hideAttendees &&
         other.allowNewTimeProposals == allowNewTimeProposals &&
-        other.isOrganizer == isOrganizer;
+        other.isOrganizer == isOrganizer &&
+        other.canManageAttendees == canManageAttendees;
   }
 
   @override
@@ -536,6 +547,7 @@ class EventEditorDraft {
     hideAttendees,
     allowNewTimeProposals,
     isOrganizer,
+    canManageAttendees,
   ]);
 }
 

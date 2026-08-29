@@ -44,6 +44,7 @@ final class CalendarEventDetail {
     required this.organizer,
     required this.creator,
     required this.guestsCanModify,
+    required this.guestsCanInviteOthers,
     required this.locked,
     required this.colorId,
     required this.colorHex,
@@ -102,6 +103,7 @@ final class CalendarEventDetail {
       organizer: _decodeJson(row.organizerJson),
       creator: _decodeJson(row.creatorJson),
       guestsCanModify: rawMap['guestsCanModify'] == true,
+      guestsCanInviteOthers: rawMap['guestsCanInviteOthers'] != false,
       locked: rawMap['locked'] == true,
       colorId: row.colorId,
       colorHex: row.colorHex,
@@ -157,6 +159,7 @@ final class CalendarEventDetail {
   final Object? organizer;
   final Object? creator;
   final bool guestsCanModify;
+  final bool guestsCanInviteOthers;
   final bool locked;
   final String? colorId;
   final String? colorHex;

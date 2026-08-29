@@ -86,3 +86,14 @@ abstract interface class CloudCalendarClient {
     required DateTime rangeEnd,
   });
 }
+
+/// User-specific calendar-list operations supported by providers that expose
+/// calendar metadata separately from the signed-in user's personalization.
+abstract interface class CalendarListManagementClient {
+  Future<CalendarSourceDto> updateCalendarListEntry(
+    String calendarId,
+    CalendarMutation mutation,
+  );
+
+  Future<void> deleteCalendarListEntry(String calendarId);
+}

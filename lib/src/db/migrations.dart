@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 
 import 'app_database.dart';
 
-const latestSchemaVersion = 9;
+const latestSchemaVersion = 10;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -51,6 +51,9 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       if (from < 9) {
         await _migrateToV9(migrator, database);
       }
+      if (from < 10) {
+        await _migrateToV10(migrator, database);
+      }
       await _createIndexes(database);
       await _verifyForeignKeys(database);
     },
@@ -58,6 +61,20 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       await database.customStatement('PRAGMA foreign_keys = ON');
     },
   );
+}
+
+Future<void> _migrateToV10(Migrator migrator, AppDatabase database) async {
+  for (final column in [
+    database.calendarSources.dataOwner,
+    database.calendarSources.isRemovable,
+  ]) {
+    await _addColumnIfMissing(
+      migrator,
+      database,
+      database.calendarSources,
+      column,
+    );
+  }
 }
 
 Future<void> _migrateToV9(Migrator migrator, AppDatabase database) async {

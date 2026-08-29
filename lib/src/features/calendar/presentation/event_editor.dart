@@ -542,7 +542,10 @@ class _EventEditorState extends State<EventEditor> {
               BusyMaxGroupedList(
                 title: l10n.guests,
                 filled: true,
-                children: _guestRows(readOnly: schedulingReadOnly),
+                children: _guestRows(
+                  readOnly:
+                      schedulingReadOnly || !_draft.canManageAttendees,
+                ),
               ),
             if ((provider == BusyProvider.google ||
                     provider == BusyProvider.microsoft) &&

@@ -11,7 +11,8 @@ import 'google_calendar_errors.dart';
 import 'google_calendar_mapper.dart';
 import 'google_calendar_models.dart';
 
-class GoogleCalendarApiClient implements CloudCalendarClient {
+class GoogleCalendarApiClient
+    implements CloudCalendarClient, CalendarListManagementClient {
   GoogleCalendarApiClient({
     required http.Client httpClient,
     required Uri baseUri,
@@ -85,22 +86,31 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     String calendarId,
     CalendarMutation mutation,
   ) async {
-    Map<String, Object?>? calendarJson;
+    var updatedGlobalMetadata = false;
     final calendarBody = googleCalendarMutationToJson(mutation);
     if (calendarBody.isNotEmpty) {
-      calendarJson = await _requestJson(
+      await _requestJson(
         'PATCH',
         _uri('/calendar/v3/calendars/${_enc(calendarId)}'),
         body: calendarBody,
       );
+      updatedGlobalMetadata = true;
     }
     if (_hasCalendarListColor(mutation)) {
       return _updateCalendarListColor(calendarId, mutation);
     }
-    if (calendarJson == null) {
+    if (!updatedGlobalMetadata) {
       throw ArgumentError('Calendar update has no writable fields.');
     }
-    return googleCalendarSourceFromJson(calendarJson);
+    return _getCalendarListEntry(calendarId);
+  }
+
+  Future<CalendarSourceDto> _getCalendarListEntry(String calendarId) async {
+    final json = await _requestJson(
+      'GET',
+      _uri('/calendar/v3/users/me/calendarList/${_enc(calendarId)}'),
+    );
+    return googleCalendarSourceFromJson(json);
   }
 
   Future<CalendarSourceDto> _updateCalendarListColor(
@@ -120,13 +130,19 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     return googleCalendarSourceFromJson(json);
   }
 
+  @override
   Future<CalendarSourceDto> updateCalendarListEntry(
     String calendarId,
     CalendarMutation mutation,
   ) async {
+    final usesRgb =
+        mutation.backgroundColor != null || mutation.foregroundColor != null;
     final json = await _requestJson(
       'PATCH',
-      _uri('/calendar/v3/users/me/calendarList/${_enc(calendarId)}'),
+      _uri(
+        '/calendar/v3/users/me/calendarList/${_enc(calendarId)}',
+        query: usesRgb ? const {'colorRgbFormat': 'true'} : null,
+      ),
       body: googleCalendarListMutationToJson(mutation),
     );
     return googleCalendarSourceFromJson(json);
@@ -141,6 +157,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     return googleCalendarSourceFromJson(json);
   }
 
+  @override
   Future<void> deleteCalendarListEntry(String calendarId) {
     return _requestEmpty(
       'DELETE',

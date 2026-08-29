@@ -403,6 +403,8 @@ class CalendarSources extends Table {
   TextColumn get colorId => text().nullable()();
   TextColumn get timeZone => text().nullable()();
   TextColumn get accessRole => text().nullable()();
+  TextColumn get dataOwner => text().nullable()();
+  BoolColumn get isRemovable => boolean().nullable()();
   BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
   TextColumn get rawJson => text().nullable()();
   IntColumn get createdAtLocal => integer()();

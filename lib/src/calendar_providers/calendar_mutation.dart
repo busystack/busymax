@@ -16,6 +16,10 @@ class CalendarMutation {
   final String? colorId;
 }
 
+const calendarMutationScopeKey = '_calendarMutationScope';
+const calendarMutationScopeGlobal = 'global';
+const calendarMutationScopePersonal = 'personal';
+
 const calendarEventClearFieldsKey = '_clearFields';
 const calendarEventRecurrenceField = 'recurrenceJson';
 const calendarEventAttendeesField = 'attendeesJson';

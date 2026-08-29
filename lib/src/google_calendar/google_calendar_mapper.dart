@@ -6,11 +6,15 @@ import 'package:busymax/src/providers/busy_provider.dart';
 
 CalendarSourceDto googleCalendarSourceFromJson(Map<String, Object?> json) {
   final accessRole = json['accessRole']?.toString();
+  final summaryOverride = json['summaryOverride']?.toString().trim();
+  final providerSummary = json['summary']?.toString().trim();
   return CalendarSourceDto(
     provider: BusyProvider.google,
     providerCalendarId: json['id']?.toString() ?? '',
-    summary: json['summary']?.toString().trim().isNotEmpty == true
-        ? json['summary']!.toString()
+    summary: summaryOverride?.isNotEmpty == true
+        ? summaryOverride!
+        : providerSummary?.isNotEmpty == true
+        ? providerSummary!
         : 'Calendar',
     description: json['description']?.toString(),
     primaryCalendar: json['primary'] == true,
@@ -22,6 +26,7 @@ CalendarSourceDto googleCalendarSourceFromJson(Map<String, Object?> json) {
     colorId: json['colorId']?.toString(),
     timeZone: json['timeZone']?.toString(),
     accessRole: accessRole,
+    dataOwner: json['dataOwner']?.toString(),
     isDeleted: json['deleted'] == true,
     rawJson: json,
   );

@@ -41,11 +41,17 @@ class CalendarSourceEntity {
     this.colorId,
     this.timeZone,
     this.accessRole,
+    this.dataOwner,
+    this.isRemovable,
+    this.authenticatedAccountEmail,
     this.davCollectionId,
     this.allowedConferenceSolutions = const [],
   });
 
-  factory CalendarSourceEntity.fromRow(CalendarSource row) {
+  factory CalendarSourceEntity.fromRow(
+    CalendarSource row, {
+    String? authenticatedAccountEmail,
+  }) {
     return CalendarSourceEntity(
       id: row.id,
       accountId: row.accountId,
@@ -64,6 +70,9 @@ class CalendarSourceEntity {
       colorId: row.colorId,
       timeZone: row.timeZone,
       accessRole: row.accessRole,
+      dataOwner: row.dataOwner,
+      isRemovable: row.isRemovable,
+      authenticatedAccountEmail: authenticatedAccountEmail,
       davCollectionId: row.davCollectionId,
       allowedConferenceSolutions: _conferenceSolutions(row.rawJson),
     );
@@ -86,12 +95,30 @@ class CalendarSourceEntity {
   final String? colorId;
   final String? timeZone;
   final String? accessRole;
+  final String? dataOwner;
+  final bool? isRemovable;
+  final String? authenticatedAccountEmail;
   final String? davCollectionId;
   final List<String> allowedConferenceSolutions;
 
   CalendarSourceCapabilities get capabilities =>
       CalendarSourceCapabilities.fromSource(this);
+
+  bool get isCurrentGoogleDataOwner {
+    if (provider != BusyProvider.google) return false;
+    final owner = dataOwner?.trim().toLowerCase();
+    final identity = authenticatedAccountEmail?.trim().toLowerCase();
+    return owner != null &&
+        owner.isNotEmpty &&
+        identity != null &&
+        identity.isNotEmpty &&
+        owner == identity;
+  }
 }
+
+enum CalendarRenameMode { unavailable, global, personal }
+
+enum CalendarRemovalMode { unavailable, delete, removeFromList }
 
 /// The event operations currently permitted by a calendar source.
 ///
@@ -107,19 +134,55 @@ class CalendarSourceCapabilities {
     required this.canRenameCalendar,
     required this.canDeleteCalendar,
     required this.canChangeCalendarColor,
+    required this.renameMode,
+    required this.removalMode,
   });
 
   factory CalendarSourceCapabilities.fromSource(CalendarSourceEntity source) {
-    final writable = !source.readOnly && !source.isDeleted;
+    final available = !source.isDeleted;
+    final writable = !source.readOnly && available;
     final management = calendarManagementCapabilities(source.provider);
+    final renameMode = switch (source.provider) {
+      BusyProvider.google when available =>
+        source.primaryCalendar || source.isCurrentGoogleDataOwner
+            ? CalendarRenameMode.global
+            : CalendarRenameMode.personal,
+      BusyProvider.microsoft when writable => CalendarRenameMode.global,
+      _ => CalendarRenameMode.unavailable,
+    };
+    final removalMode = switch (source.provider) {
+      BusyProvider.google
+          when available &&
+              !source.primaryCalendar &&
+              source.isCurrentGoogleDataOwner =>
+        CalendarRemovalMode.delete,
+      BusyProvider.google
+          when available &&
+              !source.primaryCalendar &&
+              source.dataOwner?.trim().isNotEmpty == true =>
+        CalendarRemovalMode.removeFromList,
+      BusyProvider.microsoft
+          when available &&
+              !source.primaryCalendar &&
+              source.isRemovable == true =>
+        CalendarRemovalMode.delete,
+      _ => CalendarRemovalMode.unavailable,
+    };
     return CalendarSourceCapabilities(
       canCreateEvents: writable,
       canEditEvents: writable,
       canDeleteEvents: writable,
-      canRenameCalendar: writable && management.supportsRename,
+      canRenameCalendar:
+          management.supportsRename &&
+          renameMode != CalendarRenameMode.unavailable,
       canDeleteCalendar:
-          writable && management.supportsDelete && !source.primaryCalendar,
-      canChangeCalendarColor: writable && management.supportsColor,
+          management.supportsDelete &&
+          removalMode == CalendarRemovalMode.delete,
+      canChangeCalendarColor:
+          management.supportsColor &&
+          (source.provider == BusyProvider.google ? available : writable),
+      renameMode: renameMode,
+      removalMode: removalMode,
     );
   }
 
@@ -130,6 +193,8 @@ class CalendarSourceCapabilities {
     canRenameCalendar: false,
     canDeleteCalendar: false,
     canChangeCalendarColor: false,
+    renameMode: CalendarRenameMode.unavailable,
+    removalMode: CalendarRemovalMode.unavailable,
   );
 
   final bool canCreateEvents;
@@ -138,6 +203,11 @@ class CalendarSourceCapabilities {
   final bool canRenameCalendar;
   final bool canDeleteCalendar;
   final bool canChangeCalendarColor;
+  final CalendarRenameMode renameMode;
+  final CalendarRemovalMode removalMode;
+
+  bool get canRemoveCalendar =>
+      removalMode != CalendarRemovalMode.unavailable;
 }
 
 enum CalendarMutationOperation {
@@ -148,6 +218,7 @@ enum CalendarMutationOperation {
   renameCalendar,
   changeCalendarColor,
   deleteCalendar,
+  removeCalendar,
 }
 
 class CalendarMutationNotAllowed implements Exception {
@@ -196,16 +267,30 @@ class CalendarRepository {
     if (accountIds.isEmpty) {
       return Stream.value(const []);
     }
-    final query = _database.select(_database.calendarSources)
-      ..where(
-        (row) => row.accountId.isIn(accountIds) & row.isDeleted.equals(false),
-      )
-      ..orderBy([
-        (row) => OrderingTerm.asc(row.accountId),
-        (row) => OrderingTerm.asc(row.summary),
-      ]);
+    final query = _database.select(_database.calendarSources).join([
+      innerJoin(
+        _database.accounts,
+        _database.accounts.id.equalsExp(_database.calendarSources.accountId),
+      ),
+    ]);
+    query.where(
+      _database.calendarSources.accountId.isIn(accountIds) &
+          _database.calendarSources.isDeleted.equals(false),
+    );
+    query.orderBy([
+      OrderingTerm.asc(_database.calendarSources.accountId),
+      OrderingTerm.asc(_database.calendarSources.summary),
+    ]);
     return query.watch().map(
-      (rows) => rows.map(CalendarSourceEntity.fromRow).toList(),
+      (rows) => [
+        for (final result in rows)
+          CalendarSourceEntity.fromRow(
+            result.readTable(_database.calendarSources),
+            authenticatedAccountEmail: result
+                .readTable(_database.accounts)
+                .email,
+          ),
+      ],
     );
   }
 
@@ -215,16 +300,26 @@ class CalendarRepository {
     if (accountIds.isEmpty) {
       return const [];
     }
-    final query = _database.select(_database.calendarSources)
-      ..where(
-        (row) =>
-            row.accountId.isIn(accountIds) &
-            row.selected.equals(true) &
-            row.hidden.equals(false) &
-            row.isDeleted.equals(false),
-      );
+    final query = _database.select(_database.calendarSources).join([
+      innerJoin(
+        _database.accounts,
+        _database.accounts.id.equalsExp(_database.calendarSources.accountId),
+      ),
+    ]);
+    query.where(
+      _database.calendarSources.accountId.isIn(accountIds) &
+          _database.calendarSources.selected.equals(true) &
+          _database.calendarSources.hidden.equals(false) &
+          _database.calendarSources.isDeleted.equals(false),
+    );
     final rows = await query.get();
-    return rows.map(CalendarSourceEntity.fromRow).toList();
+    return [
+      for (final result in rows)
+        CalendarSourceEntity.fromRow(
+          result.readTable(_database.calendarSources),
+          authenticatedAccountEmail: result.readTable(_database.accounts).email,
+        ),
+    ];
   }
 
   Future<CalendarEventDetail?> loadEventDetail(String eventId) async {
@@ -232,6 +327,16 @@ class CalendarRepository {
       _database.calendarEvents,
     )..where((event) => event.id.equals(eventId))).getSingleOrNull();
     return row == null ? null : CalendarEventDetail.fromRow(row);
+  }
+
+  Future<CalendarSourceEntity> _sourceEntity(CalendarSource source) async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(source.accountId))).getSingle();
+    return CalendarSourceEntity.fromRow(
+      source,
+      authenticatedAccountEmail: account.email,
+    );
   }
 
   Future<void> setSourceSelected(String sourceId, bool selected) async {
@@ -337,12 +442,11 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).getSingle();
+    final entity = await _sourceEntity(source);
     _requireCalendarSourceCapability(
       source,
       operation: CalendarMutationOperation.renameCalendar,
-      allowed: CalendarSourceEntity.fromRow(
-        source,
-      ).capabilities.canRenameCalendar,
+      allowed: entity.capabilities.canRenameCalendar,
     );
     final title = summary.trim();
     if (title.isEmpty) {
@@ -373,7 +477,13 @@ class CalendarRepository {
       } else {
         await _enqueueOrMergeCalendarPatch(
           source,
-          request: {'summary': title},
+          request: {
+            'summary': title,
+            calendarMutationScopeKey:
+                entity.capabilities.renameMode == CalendarRenameMode.personal
+                ? calendarMutationScopePersonal
+                : calendarMutationScopeGlobal,
+          },
           nowUtc: nowUtc,
         );
       }
@@ -387,7 +497,7 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).getSingle();
-    final entity = CalendarSourceEntity.fromRow(source);
+    final entity = await _sourceEntity(source);
     _requireCalendarSourceCapability(
       source,
       operation: CalendarMutationOperation.changeCalendarColor,
@@ -415,6 +525,7 @@ class CalendarRepository {
       BusyProvider.google => <String, Object?>{
         'backgroundColor': choice.backgroundColor,
         'foregroundColor': foregroundColor,
+        calendarMutationScopeKey: calendarMutationScopePersonal,
       },
       BusyProvider.microsoft => <String, Object?>{
         'colorId': choice.providerValue,
@@ -453,12 +564,14 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).getSingle();
+    final entity = await _sourceEntity(source);
+    final removalMode = entity.capabilities.removalMode;
     _requireCalendarSourceCapability(
       source,
-      operation: CalendarMutationOperation.deleteCalendar,
-      allowed: CalendarSourceEntity.fromRow(
-        source,
-      ).capabilities.canDeleteCalendar,
+      operation: removalMode == CalendarRemovalMode.removeFromList
+          ? CalendarMutationOperation.removeCalendar
+          : CalendarMutationOperation.deleteCalendar,
+      allowed: entity.capabilities.canRemoveCalendar,
     );
     final now = _now();
     final nowUtc = now.toUtc().toIso8601String();
@@ -491,8 +604,14 @@ class CalendarRepository {
           accountId: source.accountId,
           provider: Value(source.provider),
           entityType: 'calendar',
-          operation: 'delete',
-          operationType: const Value('calendar.delete'),
+          operation: removalMode == CalendarRemovalMode.removeFromList
+              ? 'remove'
+              : 'delete',
+          operationType: Value(
+            removalMode == CalendarRemovalMode.removeFromList
+                ? 'calendar.remove'
+                : 'calendar.delete',
+          ),
           calendarSourceId: Value(source.id),
           providerCalendarId: Value(source.providerCalendarId),
           requestJson: '{}',
@@ -543,6 +662,8 @@ class CalendarRepository {
               colorId: Value(source.colorId),
               timeZone: Value(source.timeZone),
               accessRole: Value(source.accessRole),
+              dataOwner: Value(source.dataOwner),
+              isRemovable: Value(source.isRemovable),
               isDeleted: Value(isDeleted),
               rawJson: Value(jsonEncode(source.rawJson)),
               createdAtLocal: existing?.createdAtLocal ?? now,
@@ -862,6 +983,7 @@ class CalendarRepository {
       _database.calendarSources,
     )..where((row) => row.id.equals(existing.calendarSourceId))).getSingle();
     _requireFullEventEditingAllowed(existing);
+    _requireAttendeeManagementAllowed(existing, draft);
     final editBaseline = _eventEditBaseline(draft, existing);
     _requireWritableSource(
       source,
@@ -2640,7 +2762,10 @@ class CalendarRepository {
     required String nowUtc,
     String? dependsOnOpId,
   }) async {
-    final existing =
+    final requestedScope =
+        request[calendarMutationScopeKey]?.toString() ??
+        calendarMutationScopeGlobal;
+    final candidates =
         await (_database.select(_database.pendingOps)
               ..where(
                 (row) =>
@@ -2649,9 +2774,20 @@ class CalendarRepository {
                     row.state.equals('pending') &
                     row.attemptCount.equals(0),
               )
-              ..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)])
-              ..limit(1))
-            .getSingleOrNull();
+              ..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)]))
+            .get();
+    PendingOp? existing;
+    for (final candidate in candidates) {
+      final candidateScope =
+          _calendarPendingRequest(
+            candidate,
+          )[calendarMutationScopeKey]?.toString() ??
+          calendarMutationScopeGlobal;
+      if (candidateScope == requestedScope) {
+        existing = candidate;
+        break;
+      }
+    }
     if (existing != null) {
       final merged = _calendarPendingRequest(existing)..addAll(request);
       await (_database.update(
@@ -2845,6 +2981,24 @@ void _requireFullEventEditingAllowed(CalendarEvent event) {
   final allowed =
       raw['locked'] != true &&
       (organizer['self'] == true || raw['guestsCanModify'] == true);
+  if (allowed) return;
+  throw CalendarMutationNotAllowed(
+    operation: CalendarMutationOperation.editEvent,
+    sourceId: event.calendarSourceId,
+  );
+}
+
+void _requireAttendeeManagementAllowed(
+  CalendarEvent event,
+  EventEditorDraft draft,
+) {
+  if (!draft.attendeesChanged) return;
+  final provider = BusyProviderCodec.requireStorageValue(event.provider);
+  if (provider != BusyProvider.google) return;
+  final raw = _jsonMap(event.rawJson);
+  final organizer = _jsonMap(event.organizerJson);
+  final allowed =
+      organizer['self'] == true || raw['guestsCanInviteOthers'] != false;
   if (allowed) return;
   throw CalendarMutationNotAllowed(
     operation: CalendarMutationOperation.editEvent,

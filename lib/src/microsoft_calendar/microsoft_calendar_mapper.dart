@@ -23,6 +23,7 @@ CalendarSourceDto microsoftCalendarSourceFromJson(Map<String, Object?> json) {
     ),
     colorId: json['color']?.toString(),
     accessRole: canEdit is bool && canEdit ? 'writer' : 'reader',
+    isRemovable: json['isRemovable'] as bool?,
     isDeleted: json['@removed'] != null,
     rawJson: json,
   );
