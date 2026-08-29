@@ -325,6 +325,17 @@ class _EventEditorState extends State<EventEditor> {
   var _startTimeValid = true;
   var _endTimeValid = true;
 
+  List<CalendarSourceEntity> get _selectableSources {
+    if (widget.initialDraft.eventId == null) {
+      return widget.sources;
+    }
+    return [
+      for (final source in widget.sources)
+        if (!source.pendingCreate || source.id == widget.initialDraft.sourceId)
+          source,
+    ];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -346,7 +357,7 @@ class _EventEditorState extends State<EventEditor> {
         ? l10n.newEvent
         : l10n.editEvent;
     CalendarSourceEntity? currentSource;
-    for (final source in widget.sources) {
+    for (final source in _selectableSources) {
       if (source.id == _draft.sourceId) {
         currentSource = source;
         break;
@@ -844,13 +855,14 @@ class _EventEditorState extends State<EventEditor> {
 
   Widget _accountRow() {
     final accountIds =
-        <String>{for (final source in widget.sources) source.accountId}.toList()
-          ..sort((first, second) {
-            final labelOrder = _accountLabel(
-              first,
-            ).toLowerCase().compareTo(_accountLabel(second).toLowerCase());
-            return labelOrder != 0 ? labelOrder : first.compareTo(second);
-          });
+        <String>{
+          for (final source in _selectableSources) source.accountId,
+        }.toList()..sort((first, second) {
+          final labelOrder = _accountLabel(
+            first,
+          ).toLowerCase().compareTo(_accountLabel(second).toLowerCase());
+          return labelOrder != 0 ? labelOrder : first.compareTo(second);
+        });
     final selected = accountIds.contains(_draft.accountId)
         ? _draft.accountId
         : accountIds.first;
@@ -867,7 +879,7 @@ class _EventEditorState extends State<EventEditor> {
 
   Widget _calendarRow() {
     final sources = [
-      for (final source in widget.sources)
+      for (final source in _selectableSources)
         if (source.accountId == _draft.accountId) source,
     ]..sort(_compareCalendarSources);
     if (sources.isEmpty) {
@@ -913,7 +925,7 @@ class _EventEditorState extends State<EventEditor> {
         return candidate.selectorLabel;
       }
     }
-    for (final source in widget.sources) {
+    for (final source in _selectableSources) {
       if (source.accountId == accountId) return source.provider.displayName;
     }
     return context.l10n.account;
@@ -922,7 +934,7 @@ class _EventEditorState extends State<EventEditor> {
   void _selectAccount(String accountId) {
     if (accountId == _draft.accountId) return;
     final sources = [
-      for (final source in widget.sources)
+      for (final source in _selectableSources)
         if (source.accountId == accountId) source,
     ]..sort(_compareCalendarSources);
     if (sources.isEmpty) return;
@@ -939,7 +951,7 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   void _selectCalendarSource(CalendarSourceEntity source) {
-    final currentProvider = _providerForDraft(_draft, widget.sources);
+    final currentProvider = _providerForDraft(_draft, _selectableSources);
     Object? adjustedRecurrence;
     var clearRecurrence = false;
     if (_draft.recurrence != null &&
@@ -1023,7 +1035,7 @@ class _EventEditorState extends State<EventEditor> {
   }
 
   CalendarSourceEntity? _sourceForId(String sourceId) {
-    for (final source in widget.sources) {
+    for (final source in _selectableSources) {
       if (source.id == sourceId) return source;
     }
     return null;
@@ -1058,7 +1070,7 @@ class _EventEditorState extends State<EventEditor> {
     final move = _eventMoveContext(
       initialDraft: widget.initialDraft,
       draft: draft.copyWith(recurringMutationScope: scope),
-      sources: widget.sources,
+      sources: _selectableSources,
     );
     if (move == null ||
         move.strategy != CalendarEventMoveStrategy.copyThenDelete) {

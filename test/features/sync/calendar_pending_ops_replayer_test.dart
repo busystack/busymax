@@ -337,6 +337,188 @@ void main() {
     ]);
   });
 
+  test('native Google move rejects a pending-created destination', () async {
+    final repository = CalendarRepository(database: database);
+    final destinationId = await repository.createLocalSource(
+      accountId: 'account',
+      summary: 'Pending destination',
+    );
+    final destination = await (database.select(
+      database.calendarSources,
+    )..where((row) => row.id.equals(destinationId))).getSingle();
+    final eventId = await _insertEvent(
+      database,
+      providerEventId: 'provider-event',
+    );
+
+    await expectLater(
+      repository.updateLocalEvent(
+        EventEditorDraft.existing(
+          eventId: eventId,
+          accountId: 'account',
+          sourceId: destination.id,
+          providerCalendarId: destination.providerCalendarId,
+          title: 'Moved',
+          allDay: false,
+          start: DateTime.utc(2026, 6, 8, 9),
+          end: DateTime.utc(2026, 6, 8, 10),
+        ),
+      ),
+      throwsA(
+        isA<CalendarMutationNotAllowed>()
+            .having(
+              (error) => error.operation,
+              'operation',
+              CalendarMutationOperation.moveEvent,
+            )
+            .having(
+              (error) => error.reason,
+              'reason',
+              CalendarMutationDenialReason.destinationPendingCreate,
+            ),
+      ),
+    );
+
+    final operations = await database.select(database.pendingOps).get();
+    expect(operations, hasLength(1));
+    expect(operations.single.operationType, 'calendar.create');
+    expect(
+      (await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingle()).syncStatus,
+      'synced',
+    );
+
+    await repository.deleteLocalSource(destinationId);
+
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      await (database.select(
+        database.calendarSources,
+      )..where((row) => row.id.equals(destinationId))).getSingleOrNull(),
+      equals(null),
+    );
+    expect(
+      (await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingle()).syncStatus,
+      'synced',
+    );
+  });
+
+  test(
+    'same-account copy move rejects a pending-created destination',
+    () async {
+      final repository = CalendarRepository(database: database);
+      final destinationId = await repository.createLocalSource(
+        accountId: 'account',
+        summary: 'Pending destination',
+      );
+      final destination = await (database.select(
+        database.calendarSources,
+      )..where((row) => row.id.equals(destinationId))).getSingle();
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-occurrence',
+        providerRecurringEventId: 'provider-series',
+      );
+
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.existing(
+            eventId: eventId,
+            providerRecurringEventId: 'provider-series',
+            recurringMutationScope:
+                RecurringEventMutationScope.singleOccurrence,
+            accountId: 'account',
+            sourceId: destination.id,
+            providerCalendarId: destination.providerCalendarId,
+            title: 'Copied occurrence',
+            allDay: false,
+            start: DateTime.utc(2026, 6, 8, 9),
+            end: DateTime.utc(2026, 6, 8, 10),
+          ),
+        ),
+        throwsA(
+          isA<CalendarMutationNotAllowed>().having(
+            (error) => error.reason,
+            'reason',
+            CalendarMutationDenialReason.destinationPendingCreate,
+          ),
+        ),
+      );
+
+      final createOperation = await database
+          .select(database.pendingOps)
+          .getSingle();
+      await repository.discardPendingCalendarCreation(createOperation);
+
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        await (database.select(
+          database.calendarSources,
+        )..where((row) => row.id.equals(destinationId))).getSingleOrNull(),
+        equals(null),
+      );
+      final original = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingle();
+      expect(original.syncStatus, 'synced');
+      expect(original.isDeleted, isFalse);
+    },
+  );
+
+  test(
+    'cross-account copy move rejects a pending-created destination',
+    () async {
+      await _insertDestinationGoogleAccount(database);
+      final repository = CalendarRepository(database: database);
+      final destinationId = await repository.createLocalSource(
+        accountId: 'destination-account',
+        summary: 'Pending destination',
+      );
+      final destination = await (database.select(
+        database.calendarSources,
+      )..where((row) => row.id.equals(destinationId))).getSingle();
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-event',
+      );
+
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.existing(
+            eventId: eventId,
+            accountId: 'destination-account',
+            sourceId: destination.id,
+            providerCalendarId: destination.providerCalendarId,
+            title: 'Cross-account copy',
+            allDay: false,
+            start: DateTime.utc(2026, 6, 8, 9),
+            end: DateTime.utc(2026, 6, 8, 10),
+          ),
+        ),
+        throwsA(
+          isA<CalendarMutationNotAllowed>().having(
+            (error) => error.reason,
+            'reason',
+            CalendarMutationDenialReason.destinationPendingCreate,
+          ),
+        ),
+      );
+
+      final operations = await database.select(database.pendingOps).get();
+      expect(operations, hasLength(1));
+      expect(operations.single.operationType, 'calendar.create');
+      expect(operations.single.accountId, 'destination-account');
+      final original = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingle();
+      expect(original.syncStatus, 'synced');
+      expect(original.isDeleted, isFalse);
+    },
+  );
+
   test('native Google series move removes stale source occurrences', () async {
     final repository = CalendarRepository(database: database);
     await repository.upsertSource(
@@ -1653,6 +1835,24 @@ Future<void> _insertAccount(AppDatabase database) {
           providerAccountId: 'google-account',
           credentialKind: 'oauth',
           email: const Value('me@example.com'),
+          authState: const Value('signed_in'),
+          grantedScopes: const Value(''),
+          createdAtUtc: '2026-06-08T00:00:00.000Z',
+          updatedAtUtc: '2026-06-08T00:00:00.000Z',
+        ),
+      );
+}
+
+Future<void> _insertDestinationGoogleAccount(AppDatabase database) {
+  return database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'destination-account',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'destination-google-account',
+          credentialKind: 'oauth',
           authState: const Value('signed_in'),
           grantedScopes: const Value(''),
           createdAtUtc: '2026-06-08T00:00:00.000Z',

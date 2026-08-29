@@ -228,6 +228,7 @@ enum CalendarMutationOperation {
   createCalendar,
   createEvent,
   editEvent,
+  moveEvent,
   deleteEvent,
   renameCalendar,
   changeCalendarColor,
@@ -253,7 +254,11 @@ class CalendarMutationNotAllowed implements Exception {
   }
 }
 
-enum CalendarMutationDenialReason { capability, pendingChanges }
+enum CalendarMutationDenialReason {
+  capability,
+  pendingChanges,
+  destinationPendingCreate,
+}
 
 List<CalendarSourceEntity> writableCalendarSources(
   Iterable<CalendarSourceEntity> sources,
@@ -1346,6 +1351,13 @@ class CalendarRepository {
     required EventEditorDraft draft,
     required CalendarGuestUpdatePolicy guestUpdatePolicy,
   }) async {
+    if (await _pendingCalendarCreate(destinationSource.id) != null) {
+      throw CalendarMutationNotAllowed(
+        operation: CalendarMutationOperation.moveEvent,
+        sourceId: destinationSource.id,
+        reason: CalendarMutationDenialReason.destinationPendingCreate,
+      );
+    }
     final sourceProvider = BusyProviderCodec.requireStorageValue(
       originalSource.provider,
     );

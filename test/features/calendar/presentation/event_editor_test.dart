@@ -1517,6 +1517,38 @@ void main() {
     expect(accountRow.enabled, isFalse);
   });
 
+  testWidgets(
+    'existing event excludes calendars whose creation is still pending',
+    (tester) async {
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ),
+              sources: _sourcesWithPendingCalendar,
+              onCancel: () {},
+              onSave: (_) {},
+              onDelete: (_, _) {},
+            ),
+          ),
+        ),
+      );
+
+      final calendarRow = _comboRow(tester, 'Calendar');
+      expect(calendarRow.values, ['destination-source', 'source']);
+      expect(calendarRow.values, isNot(contains('pending-source')));
+    },
+  );
+
   testWidgets('new event can still select any visible calendar', (
     tester,
   ) async {
@@ -1548,6 +1580,32 @@ void main() {
 
     expect(calendarRow.values, ['destination-source', 'source']);
     expect(calendarRow.enabled, isTrue);
+  });
+
+  testWidgets('new event can select a calendar whose creation is pending', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _sourcesWithPendingCalendar,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final calendarRow = _comboRow(tester, 'Calendar');
+    expect(calendarRow.values, contains('pending-source'));
   });
 
   testWidgets(
@@ -2682,6 +2740,23 @@ const _multipleSources = [
     readOnly: false,
     isDeleted: false,
     backgroundColor: '#33d17a',
+  ),
+];
+
+const _sourcesWithPendingCalendar = [
+  ..._multipleSources,
+  CalendarSourceEntity(
+    id: 'pending-source',
+    accountId: 'account',
+    provider: BusyProvider.google,
+    providerCalendarId: 'local:pending-calendar',
+    summary: 'Project',
+    selected: true,
+    hidden: false,
+    readOnly: false,
+    isDeleted: false,
+    pendingCreate: true,
+    backgroundColor: '#f6d32d',
   ),
 ];
 
