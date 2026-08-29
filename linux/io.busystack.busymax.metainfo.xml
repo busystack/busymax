@@ -91,6 +91,11 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.6" date="2026-08-28" type="development">
+      <description>
+        <p>Beta maintenance release.</p>
+      </description>
+    </release>
     <release version="0.1.5" date="2026-08-08" type="development">
       <description>
         <p>Adds Apple iCloud Calendar and Nextcloud Calendar and Tasks connections.</p>
