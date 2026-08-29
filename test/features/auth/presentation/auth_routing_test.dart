@@ -245,7 +245,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
-    expect(find.text('Today'), findsOneWidget);
+    expect(find.byTooltip('Today (Shift+T)'), findsOneWidget);
     await _disposeApp(tester);
   });
 

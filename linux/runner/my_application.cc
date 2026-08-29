@@ -3196,6 +3196,15 @@ static void style_header_control(GtkWidget* button) {
   gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
 }
 
+static const gchar* resolve_today_icon_name() {
+  GtkIconTheme* icon_theme = gtk_icon_theme_get_default();
+  if (icon_theme != nullptr &&
+      gtk_icon_theme_has_icon(icon_theme, "today-symbolic")) {
+    return "today-symbolic";
+  }
+  return "x-office-calendar-symbolic";
+}
+
 static GtkWidget* create_header_icon_button(const gchar* icon_name,
                                             const gchar* tooltip) {
   GtkWidget* button = gtk_button_new();
@@ -3243,6 +3252,16 @@ static void set_button_label_and_tooltip(GtkWidget* button,
 static void set_widget_tooltip(GtkWidget* widget, const gchar* tooltip) {
   if (widget != nullptr && GTK_IS_WIDGET(widget) && tooltip != nullptr) {
     gtk_widget_set_tooltip_text(widget, tooltip);
+  }
+}
+
+static void set_widget_accessible_name(GtkWidget* widget, const gchar* name) {
+  if (widget == nullptr || !GTK_IS_WIDGET(widget) || name == nullptr) {
+    return;
+  }
+  AtkObject* accessible = gtk_widget_get_accessible(widget);
+  if (accessible != nullptr) {
+    atk_object_set_name(accessible, name);
   }
 }
 
@@ -3817,7 +3836,7 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   replace_header_label(&self->header_keyboard_shortcuts_shortcut,
                        keyboard_shortcuts_shortcut);
 
-  set_button_label_and_tooltip(self->today_button, today, nullptr);
+  set_widget_accessible_name(self->today_button, today);
   set_widget_tooltip_with_shortcut(self->today_button, today, today_shortcut);
   set_header_view_mode_labels(self, day, week, month, year, agenda);
   set_widget_tooltip(self->back_button, back);
@@ -3913,7 +3932,8 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
       &self->sidebar_collapsed_toggle_button,
       create_header_toggle_icon_button("sidebar-show-symbolic", ""));
   track_widget_pointer(&self->today_button,
-                       create_header_text_button("", ""));
+                       create_header_icon_button(resolve_today_icon_name(),
+                                                 ""));
   track_widget_pointer(&self->previous_button,
                        create_header_icon_button("go-previous-symbolic",
                                                  ""));

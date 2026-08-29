@@ -812,6 +812,39 @@ void main() {
     expect(source, isNot(contains('gtk_widget_set_can_focus(row, FALSE)')));
   });
 
+  test('native Today control is icon-only and accessible', () {
+    final source = File('linux/runner/my_application.cc').readAsStringSync();
+
+    expect(source, contains('resolve_today_icon_name()'));
+    expect(source, contains('"today-symbolic"'));
+    expect(source, contains('return "x-office-calendar-symbolic";'));
+    expect(
+      source,
+      contains(
+        'create_header_icon_button(resolve_today_icon_name(),\n'
+        '                                                 "")',
+      ),
+    );
+    expect(
+      source,
+      isNot(
+        contains(
+          'set_button_label_and_tooltip(self->today_button, today, nullptr)',
+        ),
+      ),
+    );
+    expect(
+      source,
+      contains('set_widget_accessible_name(self->today_button, today);'),
+    );
+    expect(
+      source,
+      contains(
+        'set_widget_tooltip_with_shortcut(self->today_button, today, today_shortcut);',
+      ),
+    );
+  });
+
   test('native sidebar availability is separate from expanded state', () {
     final source = File('linux/runner/my_application.cc').readAsStringSync();
 
