@@ -2021,6 +2021,27 @@ class AppLocalizationsFa extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'تنظیم نام سفارشی';
+
+  @override
+  String get setAction => 'تنظیم';
+
+  @override
+  String get removeFromMyCalendars => 'حذف از تقویم‌های من';
+
+  @override
+  String get removeAction => 'حذف';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return '«$title» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'این تقویم را نمی‌توان از این حساب حذف کرد.';
+
+  @override
   String get networkOffline => 'آفلاین';
 
   @override

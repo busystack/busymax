@@ -1993,6 +1993,27 @@ class AppLocalizationsFi extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Aseta mukautettu nimi';
+
+  @override
+  String get setAction => 'Aseta';
+
+  @override
+  String get removeFromMyCalendars => 'Poista omista kalentereistani';
+
+  @override
+  String get removeAction => 'Poista';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Poistetaanko ”$title” Google Kalenterin luettelostasi? Jaettua kalenteria tai sen tapahtumia ei poisteta.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'Tätä kalenteria ei voi poistaa tältä tililtä.';
+
+  @override
   String get networkOffline => 'Ei verkkoyhteyttä';
 
   @override

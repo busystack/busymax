@@ -1959,6 +1959,26 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'カスタム名を設定';
+
+  @override
+  String get setAction => '設定';
+
+  @override
+  String get removeFromMyCalendars => 'マイカレンダーから削除';
+
+  @override
+  String get removeAction => '削除';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return '「$title」を Google カレンダーのリストから削除しますか？共有カレンダーとその予定は削除されません。';
+  }
+
+  @override
+  String get calendarCannotRemove => 'このカレンダーは、このアカウントから削除できません。';
+
+  @override
   String get networkOffline => 'オフライン';
 
   @override

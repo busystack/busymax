@@ -123,6 +123,8 @@ class CalendarPendingOpsReplayer {
         await _patchCalendar(op);
       case 'calendar.delete':
         await _deleteCalendar(op);
+      case 'calendar.remove':
+        await _removeCalendar(op);
       case 'calendar.create':
         await _createCalendar(op);
       default:
@@ -165,11 +167,41 @@ class CalendarPendingOpsReplayer {
 
   Future<void> _patchCalendar(PendingOp op) async {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
-    final source = await _client.updateCalendar(
-      providerCalendarId,
-      _calendarMutation(_request(op)),
-    );
+    final request = _request(op);
+    final personal =
+        request[calendarMutationScopeKey] == calendarMutationScopePersonal ||
+        (_client.provider == BusyProvider.google &&
+            request[calendarMutationScopeKey] == null &&
+            request['summary'] == null &&
+            (request['backgroundColor'] != null ||
+                request['foregroundColor'] != null ||
+                request['colorId'] != null));
+    await _requireCalendarPatchAllowed(op, personal: personal);
+    final mutation = _calendarMutation(request);
+    final source = personal
+        ? await _updateCalendarListEntry(op, providerCalendarId, mutation)
+        : await _client.updateCalendar(providerCalendarId, mutation);
     await _repository.upsertSource(accountId: _accountId, source: source);
+  }
+
+  Future<CalendarSourceDto> _updateCalendarListEntry(
+    PendingOp op,
+    String providerCalendarId,
+    CalendarMutation mutation,
+  ) async {
+    final client = _client;
+    if (client is CalendarListManagementClient) {
+      return (client as CalendarListManagementClient).updateCalendarListEntry(
+        providerCalendarId,
+        mutation,
+      );
+    }
+    await _blockOp(
+      op,
+      'unsupported_calendar_operation',
+      'The provider does not support personal calendar-list updates.',
+    );
+    throw const _PendingOpBlocked();
   }
 
   Future<void> _createCalendar(PendingOp op) async {
@@ -185,8 +217,118 @@ class CalendarPendingOpsReplayer {
 
   Future<void> _deleteCalendar(PendingOp op) async {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
+    await _requireCalendarRemovalAllowed(op, removeFromList: false);
     await _client.deleteCalendar(providerCalendarId);
     await _applyDeleteSideEffect(op);
+  }
+
+  Future<void> _removeCalendar(PendingOp op) async {
+    final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
+    await _requireCalendarRemovalAllowed(op, removeFromList: true);
+    final client = _client;
+    if (client is! CalendarListManagementClient) {
+      await _blockOp(
+        op,
+        'unsupported_calendar_operation',
+        'The provider does not support removing calendar-list entries.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    await (client as CalendarListManagementClient).deleteCalendarListEntry(
+      providerCalendarId,
+    );
+    await _applyDeleteSideEffect(op);
+  }
+
+  Future<void> _requireCalendarPatchAllowed(
+    PendingOp op, {
+    required bool personal,
+  }) async {
+    final source = await _calendarSourceForOperation(op);
+    final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    var allowed = false;
+    if (personal) {
+      allowed = provider == BusyProvider.google && !source.isDeleted;
+    } else if (provider == BusyProvider.google) {
+      allowed =
+          !source.isDeleted &&
+          (source.primaryCalendar ||
+              await _googleDataOwnerMatchesAccount(source));
+    } else if (provider == BusyProvider.microsoft) {
+      allowed = !source.readOnly && !source.isDeleted;
+    }
+    if (allowed) return;
+    await _blockOp(
+      op,
+      'calendar_permission_changed',
+      'Calendar update permission is no longer available.',
+    );
+    throw const _PendingOpBlocked();
+  }
+
+  Future<void> _requireCalendarRemovalAllowed(
+    PendingOp op, {
+    required bool removeFromList,
+  }) async {
+    final source = await _calendarSourceForOperation(op);
+    final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    final googleIdentity = provider == BusyProvider.google
+        ? await _googleAccountIdentity(source)
+        : null;
+    final googleOwner = source.dataOwner?.trim().toLowerCase();
+    final ownsGoogleCalendar =
+        googleIdentity != null &&
+        googleOwner != null &&
+        googleOwner.isNotEmpty &&
+        googleIdentity == googleOwner;
+    final allowed = removeFromList
+        ? provider == BusyProvider.google &&
+              !source.primaryCalendar &&
+              googleIdentity != null &&
+              source.dataOwner?.trim().isNotEmpty == true &&
+              !ownsGoogleCalendar
+        : !source.primaryCalendar &&
+              ((provider == BusyProvider.google && ownsGoogleCalendar) ||
+                  (provider == BusyProvider.microsoft &&
+                      source.isRemovable == true));
+    if (allowed) return;
+    await _blockOp(
+      op,
+      'calendar_permission_changed',
+      removeFromList
+          ? 'This calendar can no longer be removed from the account.'
+          : 'This calendar can no longer be deleted.',
+    );
+    throw const _PendingOpBlocked();
+  }
+
+  Future<CalendarSource> _calendarSourceForOperation(PendingOp op) async {
+    final sourceId = _require(op.calendarSourceId, 'calendarSourceId');
+    final source = await (_database.select(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).getSingleOrNull();
+    if (source != null) return source;
+    await _blockOp(
+      op,
+      'calendar_not_found',
+      'The local calendar record is unavailable.',
+    );
+    throw const _PendingOpBlocked();
+  }
+
+  Future<bool> _googleDataOwnerMatchesAccount(CalendarSource source) async {
+    final owner = source.dataOwner?.trim().toLowerCase();
+    if (owner == null || owner.isEmpty) return false;
+    final identity = await _googleAccountIdentity(source);
+    return identity != null && identity == owner;
+  }
+
+  Future<String?> _googleAccountIdentity(CalendarSource source) async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(source.accountId))).getSingleOrNull();
+    final identity = account?.email?.trim().toLowerCase();
+    return identity == null || identity.isEmpty ? null : identity;
   }
 
   Future<void> _createEvent(PendingOp op) async {
@@ -904,7 +1046,9 @@ class CalendarPendingOpsReplayer {
     final eventId = op.eventId;
     if (eventId == null) {
       final sourceId = op.calendarSourceId;
-      if (_operationType(op) == 'calendar.delete' && sourceId != null) {
+      if ((_operationType(op) == 'calendar.delete' ||
+              _operationType(op) == 'calendar.remove') &&
+          sourceId != null) {
         await (_database.update(
           _database.calendarSources,
         )..where((row) => row.id.equals(sourceId))).write(
@@ -1298,7 +1442,8 @@ class CalendarPendingOpsReplayer {
   bool _isSuccessfulMissingDelete(PendingOp op, int statusCode) {
     return statusCode == 404 &&
         (_operationType(op) == 'event.delete' ||
-            _operationType(op) == 'calendar.delete');
+            _operationType(op) == 'calendar.delete' ||
+            _operationType(op) == 'calendar.remove');
   }
 
   bool _isRetryableStatus(int statusCode) {

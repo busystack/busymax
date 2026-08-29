@@ -1960,6 +1960,26 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => '맞춤 이름 설정';
+
+  @override
+  String get setAction => '설정';
+
+  @override
+  String get removeFromMyCalendars => '내 캘린더에서 삭제';
+
+  @override
+  String get removeAction => '삭제';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Google Calendar 목록에서 \"$title\"을(를) 삭제할까요? 공유 캘린더와 일정은 삭제되지 않습니다.';
+  }
+
+  @override
+  String get calendarCannotRemove => '이 캘린더는 이 계정에서 삭제하거나 제거할 수 없습니다.';
+
+  @override
   String get networkOffline => '오프라인';
 
   @override

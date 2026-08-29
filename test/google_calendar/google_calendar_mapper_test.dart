@@ -3,6 +3,20 @@ import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Google calendar source maps data owner and personal name', () {
+    final source = googleCalendarSourceFromJson({
+      'id': 'shared@example.com',
+      'summary': 'Team calendar',
+      'summaryOverride': 'My team',
+      'dataOwner': 'owner@example.com',
+      'accessRole': 'reader',
+    });
+
+    expect(source.summary, 'My team');
+    expect(source.dataOwner, 'owner@example.com');
+    expect(source.readOnly, isTrue);
+  });
+
   test('Google guest visibility maps from the shared hide-attendees field', () {
     expect(
       googleEventMutationToJson(

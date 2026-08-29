@@ -2000,6 +2000,27 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Задать своё название';
+
+  @override
+  String get setAction => 'Задать';
+
+  @override
+  String get removeFromMyCalendars => 'Удалить из моих календарей';
+
+  @override
+  String get removeAction => 'Удалить';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Удалить «$title» из вашего списка Google Календаря? Общий календарь и его события удалены не будут.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'Этот календарь нельзя удалить из этой учётной записи.';
+
+  @override
   String get networkOffline => 'Нет подключения';
 
   @override

@@ -1980,6 +1980,27 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Set custom name';
+
+  @override
+  String get setAction => 'Set';
+
+  @override
+  String get removeFromMyCalendars => 'Remove from my calendars';
+
+  @override
+  String get removeAction => 'Remove';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Remove \"$title\" from your Google Calendar list? The shared calendar and its events will not be deleted.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'This calendar cannot be deleted or removed from this account.';
+
+  @override
   String get networkOffline => 'Offline';
 
   @override

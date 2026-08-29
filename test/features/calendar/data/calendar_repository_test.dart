@@ -33,6 +33,7 @@ void main() {
             authority: 'https://accounts.google.com',
             providerAccountId: 'g',
             credentialKind: 'oauth',
+            email: const Value('me@example.com'),
             authState: const Value('signed_in'),
             grantedScopes: const Value(''),
             createdAtUtc: '2026-06-08T00:00:00.000Z',
@@ -208,6 +209,7 @@ void main() {
     expect(jsonDecode(operation.requestJson), {
       'backgroundColor': '#3584e4',
       'foregroundColor': '#000000',
+      calendarMutationScopeKey: calendarMutationScopePersonal,
     });
   });
 
@@ -563,6 +565,64 @@ void main() {
       );
       final responseOp = await database.select(database.pendingOps).getSingle();
       expect(responseOp.operationType, 'event.respond');
+    },
+  );
+
+  test(
+    'Google guest event editing does not grant attendee management',
+    () async {
+      await _upsertSource(repository);
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'guest-editable',
+          title: 'Shared planning',
+          startDateTime: '2026-06-08T09:00:00-07:00',
+          endDateTime: '2026-06-08T10:00:00-07:00',
+          organizerJson: {'email': 'owner@example.com', 'self': false},
+          attendeesJson: [
+            {'email': 'me@example.com', 'self': true},
+          ],
+          rawJson: {
+            'id': 'guest-editable',
+            'guestsCanModify': true,
+            'guestsCanInviteOthers': false,
+          },
+        ),
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        providerEventId: 'guest-editable',
+      );
+      final detail = await repository.loadEventDetail(eventId);
+      final draft = EventEditorDraft.fromEventDetail(detail!);
+
+      expect(detail.guestsCanInviteOthers, isFalse);
+      expect(draft.canManageAttendees, isFalse);
+      await expectLater(
+        repository.updateLocalEvent(
+          draft.copyWith(
+            attendees: const [
+              EventAttendeeDraft(email: 'me@example.com', self: true),
+              EventAttendeeDraft(email: 'new@example.com'),
+            ],
+          ),
+        ),
+        throwsA(isA<CalendarMutationNotAllowed>()),
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+
+      await repository.updateLocalEvent(
+        draft.copyWith(title: 'Allowed title edit'),
+      );
+      expect(
+        (await repository.loadEventDetail(eventId))!.title,
+        'Allowed title edit',
+      );
     },
   );
 
@@ -975,6 +1035,79 @@ void main() {
     );
   });
 
+  test('shared Google calendar removal queues CalendarList deletion', () async {
+    await repository.upsertSource(
+      accountId: 'google:g',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'shared@example.com',
+        summary: 'Shared',
+        readOnly: true,
+        dataOwner: 'owner@example.com',
+      ),
+    );
+    const sourceId = 'google:g|google|shared@example.com';
+
+    await repository.deleteLocalSource(sourceId);
+
+    final operation = await database.select(database.pendingOps).getSingle();
+    expect(operation.operation, 'remove');
+    expect(operation.operationType, 'calendar.remove');
+    expect(operation.providerCalendarId, 'shared@example.com');
+  });
+
+  test(
+    'shared read-only Google calendar uses personal name and color updates',
+    () async {
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'shared@example.com',
+          summary: 'Shared',
+          readOnly: true,
+          dataOwner: 'owner@example.com',
+        ),
+      );
+      const sourceId = 'google:g|google|shared@example.com';
+
+      await repository.renameLocalSource(sourceId, 'My shared calendar');
+      await repository.setSourceColor(
+        sourceId,
+        calendarColorChoices(BusyProvider.google).first,
+      );
+
+      final operation = await database.select(database.pendingOps).getSingle();
+      final request = jsonDecode(operation.requestJson) as Map<String, Object?>;
+      expect(request['summary'], 'My shared calendar');
+      expect(request[calendarMutationScopeKey], calendarMutationScopePersonal);
+      expect(request['backgroundColor'], isA<String>());
+    },
+  );
+
+  test('Microsoft calendar deletion requires isRemovable', () async {
+    await repository.upsertSource(
+      accountId: 'google:g',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'not-removable',
+        summary: 'Editable shared calendar',
+        readOnly: false,
+        isRemovable: false,
+      ),
+    );
+
+    await expectLater(
+      repository.deleteLocalSource('google:g|microsoft|not-removable'),
+      throwsA(isA<CalendarMutationNotAllowed>()),
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      (await database.select(database.calendarSources).getSingle()).isDeleted,
+      isFalse,
+    );
+  });
+
   test('provider hidden state can return to visible', () async {
     await repository.upsertSource(
       accountId: 'google:g',
@@ -1124,6 +1257,7 @@ Future<void> _upsertSource(CalendarRepository repository) {
       provider: BusyProvider.google,
       providerCalendarId: 'calendar-1',
       summary: 'Calendar',
+      dataOwner: 'me@example.com',
     ),
   );
 }

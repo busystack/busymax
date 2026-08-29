@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "Definir nome personalizado",
+  "setAction": "Definir",
+  "removeFromMyCalendars": "Remover dos meus calendários",
+  "removeAction": "Remover",
+  "removeCalendarConfirmation": "Remover \"{title}\" da sua lista do Google Agenda? A agenda compartilhada e os eventos dela não serão excluídos.",
+  "calendarCannotRemove": "Não é possível excluir nem remover esta agenda desta conta.",
   "networkOffline": "Offline",
   "networkOfflineDescription": "As alterações serão sincronizadas quando a ligação for restabelecida.",
   "networkOfflineTryAgain": "Está offline. Ligue-se à Internet e tente novamente."

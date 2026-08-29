@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "Задать своё название",
+  "setAction": "Задать",
+  "removeFromMyCalendars": "Удалить из моих календарей",
+  "removeAction": "Удалить",
+  "removeCalendarConfirmation": "Удалить «{title}» из вашего списка Google Календаря? Общий календарь и его события удалены не будут.",
+  "calendarCannotRemove": "Этот календарь нельзя удалить из этой учётной записи.",
   "networkOffline": "Нет подключения",
   "networkOfflineDescription": "Изменения будут синхронизированы после восстановления подключения.",
   "networkOfflineTryAgain": "Нет подключения к сети. Подключитесь к Интернету и повторите попытку."

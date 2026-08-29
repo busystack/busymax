@@ -695,6 +695,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "تنظیم نام سفارشی",
+  "setAction": "تنظیم",
+  "removeFromMyCalendars": "حذف از تقویم‌های من",
+  "removeAction": "حذف",
+  "removeCalendarConfirmation": "«{title}» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.",
+  "calendarCannotRemove": "این تقویم را نمی‌توان از این حساب حذف کرد.",
   "networkOffline": "آفلاین",
   "networkOfflineDescription": "تغییرات پس از برقراری دوبارهٔ اتصال همگام‌سازی می‌شوند.",
   "networkOfflineTryAgain": "آفلاین هستید. به اینترنت متصل شوید و دوباره تلاش کنید."

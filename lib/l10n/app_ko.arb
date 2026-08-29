@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "맞춤 이름 설정",
+  "setAction": "설정",
+  "removeFromMyCalendars": "내 캘린더에서 삭제",
+  "removeAction": "삭제",
+  "removeCalendarConfirmation": "Google Calendar 목록에서 \"{title}\"을(를) 삭제할까요? 공유 캘린더와 일정은 삭제되지 않습니다.",
+  "calendarCannotRemove": "이 캘린더는 이 계정에서 삭제하거나 제거할 수 없습니다.",
   "networkOffline": "오프라인",
   "networkOfflineDescription": "연결이 복구되면 변경 사항이 동기화됩니다.",
   "networkOfflineTryAgain": "오프라인 상태입니다. 인터넷에 연결한 후 다시 시도하세요."

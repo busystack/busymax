@@ -1987,6 +1987,27 @@ class AppLocalizationsEt extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Määra kohandatud nimi';
+
+  @override
+  String get setAction => 'Määra';
+
+  @override
+  String get removeFromMyCalendars => 'Eemalda minu kalendritest';
+
+  @override
+  String get removeAction => 'Eemalda';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Kas eemaldada „$title” sinu Google\'i kalendrite loendist? Jagatud kalendrit ega selle sündmusi ei kustutata.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'Seda kalendrit ei saa sellelt kontolt kustutada ega eemaldada.';
+
+  @override
   String get networkOffline => 'Võrguühenduseta';
 
   @override

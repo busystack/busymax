@@ -1999,6 +1999,27 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Benutzerdefinierten Namen festlegen';
+
+  @override
+  String get setAction => 'Festlegen';
+
+  @override
+  String get removeFromMyCalendars => 'Aus meinen Kalendern entfernen';
+
+  @override
+  String get removeAction => 'Entfernen';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return '„$title“ aus Ihrer Google-Kalenderliste entfernen? Der freigegebene Kalender und seine Termine werden nicht gelöscht.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'Dieser Kalender kann in diesem Konto weder gelöscht noch entfernt werden.';
+
+  @override
   String get networkOffline => 'Offline';
 
   @override

@@ -809,6 +809,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "Määra kohandatud nimi",
+  "setAction": "Määra",
+  "removeFromMyCalendars": "Eemalda minu kalendritest",
+  "removeAction": "Eemalda",
+  "removeCalendarConfirmation": "Kas eemaldada „{title}” sinu Google'i kalendrite loendist? Jagatud kalendrit ega selle sündmusi ei kustutata.",
+  "calendarCannotRemove": "Seda kalendrit ei saa sellelt kontolt kustutada ega eemaldada.",
   "networkOffline": "Võrguühenduseta",
   "networkOfflineDescription": "Muudatused sünkroonitakse ühenduse taastumisel.",
   "networkOfflineTryAgain": "Võrguühendus puudub. Looge internetiühendus ja proovige uuesti."

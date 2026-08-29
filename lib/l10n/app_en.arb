@@ -651,6 +651,13 @@
   "taskStartDueTimeModeMismatch": "Set times for both start and due, or make the task all day.",
   "deleteCalendarConfirmation": "Delete \"{title}\"?",
   "@deleteCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "setCustomCalendarName": "Set custom name",
+  "setAction": "Set",
+  "removeFromMyCalendars": "Remove from my calendars",
+  "removeAction": "Remove",
+  "removeCalendarConfirmation": "Remove \"{title}\" from your Google Calendar list? The shared calendar and its events will not be deleted.",
+  "@removeCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "calendarCannotRemove": "This calendar cannot be deleted or removed from this account.",
   "networkOffline": "Offline",
   "networkOfflineDescription": "Changes will sync when the connection is restored.",
   "networkOfflineTryAgain": "You’re offline. Connect to the internet and try again."

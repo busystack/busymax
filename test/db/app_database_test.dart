@@ -21,7 +21,7 @@ void main() {
     await database.close();
   });
 
-  test('opens schema version 9 and creates required indexes', () async {
+  test('opens schema version 10 and creates required indexes', () async {
     final version = await database
         .customSelect('PRAGMA user_version')
         .getSingle();
@@ -39,7 +39,7 @@ void main() {
         .customSelect('PRAGMA table_info(calendar_sources)')
         .get();
 
-    expect(version.data['user_version'], 9);
+    expect(version.data['user_version'], 10);
     expect(
       taskColumns.map((row) => row.read<String>('name')),
       contains('microsoft_checklist_items_json'),
@@ -77,6 +77,70 @@ void main() {
       'idx_notification_schedule_due',
     });
   });
+
+  test(
+    'schema 9 migration adds calendar ownership columns without data loss',
+    () async {
+      await database.close();
+      final tempDir = await Directory.systemTemp.createTemp(
+        'busymax-db-v9-test-',
+      );
+      final file = File('${tempDir.path}/busymax.sqlite');
+      final schemaNineDatabase = AppDatabase(NativeDatabase(file));
+      await _insertAccount(schemaNineDatabase);
+      await schemaNineDatabase
+          .into(schemaNineDatabase.calendarSources)
+          .insert(
+            CalendarSourcesCompanion.insert(
+              id: 'calendar',
+              accountId: 'account',
+              provider: 'google',
+              providerCalendarId: 'shared@example.com',
+              summary: 'Shared calendar',
+              createdAtLocal: 1,
+              updatedAtLocal: 1,
+            ),
+          );
+      await schemaNineDatabase.close();
+
+      final raw = sqlite3.sqlite3.open(file.path);
+      try {
+        raw.execute('ALTER TABLE calendar_sources DROP COLUMN data_owner');
+        raw.execute('ALTER TABLE calendar_sources DROP COLUMN is_removable');
+        raw.execute('PRAGMA user_version = 9');
+      } finally {
+        raw.close();
+      }
+
+      database = AppDatabase(NativeDatabase(file));
+      final version = await database
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+      final columns = await database
+          .customSelect('PRAGMA table_info(calendar_sources)')
+          .get();
+      final source = await (database.select(
+        database.calendarSources,
+      )..where((row) => row.id.equals('calendar'))).getSingle();
+
+      expect(version.read<int>('user_version'), 10);
+      expect(
+        columns.map((row) => row.read<String>('name')),
+        containsAll(['data_owner', 'is_removable']),
+      );
+      expect(source.summary, 'Shared calendar');
+      expect(source.dataOwner, equals(null));
+      expect(source.isRemovable, equals(null));
+      expect(
+        await database.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
+
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await tempDir.delete(recursive: true);
+    },
+  );
 
   test('upserts task lists and preserves raw JSON', () async {
     await _insertAccount(database);
@@ -259,7 +323,7 @@ void main() {
       final version = await database
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(version.read<int>('user_version'), 9);
+      expect(version.read<int>('user_version'), 10);
 
       final accounts = await database.select(database.accounts).get();
       expect(accounts, hasLength(2));
@@ -460,7 +524,7 @@ void main() {
           .getSingle();
       final op = await database.pendingOpsDao.getOp('op-1');
 
-      expect(version.data['user_version'], 9);
+      expect(version.data['user_version'], 10);
       expect(op, isNot(equals(null)));
       expect(op!.baselineRawJson, equals(null));
 

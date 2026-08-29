@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "Imposta nome personalizzato",
+  "setAction": "Imposta",
+  "removeFromMyCalendars": "Rimuovi dai miei calendari",
+  "removeAction": "Rimuovi",
+  "removeCalendarConfirmation": "Rimuovere \"{title}\" dall'elenco di Google Calendar? Il calendario condiviso e i relativi eventi non verranno eliminati.",
+  "calendarCannotRemove": "Questo calendario non può essere eliminato o rimosso da questo account.",
   "networkOffline": "Offline",
   "networkOfflineDescription": "Le modifiche verranno sincronizzate al ripristino della connessione.",
   "networkOfflineTryAgain": "Sei offline. Connettiti a Internet e riprova."

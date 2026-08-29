@@ -163,16 +163,21 @@ class _SourceRow extends ConsumerWidget {
             ),
             BusyMaxMenuEntry(
               value: 'rename',
-              label: context.l10n.rename,
+              label: capabilities.renameMode == CalendarRenameMode.personal
+                  ? context.l10n.setCustomCalendarName
+                  : context.l10n.rename,
               icon: Icons.edit_outlined,
               enabled: capabilities.canRenameCalendar,
               tooltip: _calendarRenameRestriction(context, source),
             ),
             BusyMaxMenuEntry(
               value: 'delete',
-              label: context.l10n.delete,
+              label:
+                  capabilities.removalMode == CalendarRemovalMode.removeFromList
+                  ? context.l10n.removeFromMyCalendars
+                  : context.l10n.delete,
               icon: YaruIcons.trash,
-              enabled: capabilities.canDeleteCalendar,
+              enabled: capabilities.canRemoveCalendar,
               tooltip: _calendarDeleteRestriction(context, source),
               destructive: true,
             ),
@@ -848,14 +853,14 @@ String? _calendarDeleteRestriction(
   BuildContext context,
   CalendarSourceEntity source,
 ) {
-  if (source.capabilities.canDeleteCalendar) return null;
+  if (source.capabilities.canRemoveCalendar) return null;
   if (!calendarManagementCapabilities(source.provider).supportsDelete) {
     return context.l10n.calendarManagementUnsupported;
   }
   if (source.primaryCalendar) {
     return context.l10n.primaryCalendarCannotDelete;
   }
-  return context.l10n.readOnlyCalendar;
+  return context.l10n.calendarCannotRemove;
 }
 
 Future<void> _createCalendar(
@@ -931,9 +936,13 @@ Future<void> _renameCalendar(
 ) async {
   final title = await showBusyMaxTextPrompt(
     context,
-    title: context.l10n.rename,
+    title: source.capabilities.renameMode == CalendarRenameMode.personal
+        ? context.l10n.setCustomCalendarName
+        : context.l10n.rename,
     label: context.l10n.title,
-    actionLabel: context.l10n.rename,
+    actionLabel: source.capabilities.renameMode == CalendarRenameMode.personal
+        ? context.l10n.setAction
+        : context.l10n.rename,
     initialValue: source.summary,
     headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
@@ -968,11 +977,19 @@ Future<void> _deleteCalendar(
   WidgetRef ref,
   CalendarSourceEntity source,
 ) async {
+  final removeFromList =
+      source.capabilities.removalMode == CalendarRemovalMode.removeFromList;
   final confirmed = await showBusyMaxConfirm(
     context,
-    title: context.l10n.delete,
-    message: context.l10n.deleteCalendarConfirmation(source.summary),
-    confirmLabel: context.l10n.delete,
+    title: removeFromList
+        ? context.l10n.removeFromMyCalendars
+        : context.l10n.delete,
+    message: removeFromList
+        ? context.l10n.removeCalendarConfirmation(source.summary)
+        : context.l10n.deleteCalendarConfirmation(source.summary),
+    confirmLabel: removeFromList
+        ? context.l10n.removeAction
+        : context.l10n.delete,
     destructive: true,
     headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );

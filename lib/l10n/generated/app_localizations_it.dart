@@ -1999,6 +1999,27 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Imposta nome personalizzato';
+
+  @override
+  String get setAction => 'Imposta';
+
+  @override
+  String get removeFromMyCalendars => 'Rimuovi dai miei calendari';
+
+  @override
+  String get removeAction => 'Rimuovi';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Rimuovere \"$title\" dall\'elenco di Google Calendar? Il calendario condiviso e i relativi eventi non verranno eliminati.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'Questo calendario non può essere eliminato o rimosso da questo account.';
+
+  @override
   String get networkOffline => 'Offline';
 
   @override

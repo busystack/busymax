@@ -1947,6 +1947,26 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => '设置自定义名称';
+
+  @override
+  String get setAction => '设置';
+
+  @override
+  String get removeFromMyCalendars => '从“我的日历”中移除';
+
+  @override
+  String get removeAction => '移除';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return '要从您的 Google 日历列表中移除“$title”吗？共享日历及其活动不会被删除。';
+  }
+
+  @override
+  String get calendarCannotRemove => '无法从此账号中删除或移除此日历。';
+
+  @override
   String get networkOffline => '离线';
 
   @override
@@ -3893,6 +3913,26 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String deleteCalendarConfirmation(String title) {
     return '删除“$title”？';
   }
+
+  @override
+  String get setCustomCalendarName => '设置自定义名称';
+
+  @override
+  String get setAction => '设置';
+
+  @override
+  String get removeFromMyCalendars => '从“我的日历”中移除';
+
+  @override
+  String get removeAction => '移除';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return '要从您的 Google 日历列表中移除“$title”吗？共享日历及其活动不会被删除。';
+  }
+
+  @override
+  String get calendarCannotRemove => '无法从此账号中删除或移除此日历。';
 
   @override
   String get networkOffline => '离线';
@@ -5842,6 +5882,26 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String deleteCalendarConfirmation(String title) {
     return '要刪除「$title」嗎？';
   }
+
+  @override
+  String get setCustomCalendarName => '設定自訂名稱';
+
+  @override
+  String get setAction => '設定';
+
+  @override
+  String get removeFromMyCalendars => '從「我的日曆」移除';
+
+  @override
+  String get removeAction => '移除';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return '要從您的 Google 日曆清單移除「$title」嗎？共用日曆及其活動不會被刪除。';
+  }
+
+  @override
+  String get calendarCannotRemove => '無法從此帳戶刪除或移除此日曆。';
 
   @override
   String get networkOffline => '離線';

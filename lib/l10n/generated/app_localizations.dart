@@ -3636,6 +3636,42 @@ abstract class AppLocalizations {
   /// **'Delete \"{title}\"?'**
   String deleteCalendarConfirmation(String title);
 
+  /// No description provided for @setCustomCalendarName.
+  ///
+  /// In en, this message translates to:
+  /// **'Set custom name'**
+  String get setCustomCalendarName;
+
+  /// No description provided for @setAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Set'**
+  String get setAction;
+
+  /// No description provided for @removeFromMyCalendars.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from my calendars'**
+  String get removeFromMyCalendars;
+
+  /// No description provided for @removeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get removeAction;
+
+  /// No description provided for @removeCalendarConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove \"{title}\" from your Google Calendar list? The shared calendar and its events will not be deleted.'**
+  String removeCalendarConfirmation(String title);
+
+  /// No description provided for @calendarCannotRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'This calendar cannot be deleted or removed from this account.'**
+  String get calendarCannotRemove;
+
   /// No description provided for @networkOffline.
   ///
   /// In en, this message translates to:

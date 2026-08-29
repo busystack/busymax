@@ -30,6 +30,7 @@ void main() {
         providerCalendarId: 'cal-1',
         summary: 'Work',
         timeZone: 'America/Vancouver',
+        dataOwner: 'me@example.com',
       ),
     );
   });
@@ -1200,6 +1201,38 @@ void main() {
   });
 
   test(
+    'personal Google calendar patch updates the CalendarList entry',
+    () async {
+      await database.pendingOpsDao.enqueue(
+        PendingOpsCompanion.insert(
+          id: 'op-calendar-personal-patch',
+          accountId: 'account',
+          provider: const Value('google'),
+          entityType: 'calendar',
+          operation: 'patch',
+          operationType: const Value('calendar.patch'),
+          calendarSourceId: const Value('account|google|cal-1'),
+          providerCalendarId: const Value('cal-1'),
+          requestJson:
+              '{"summary":"My work","_calendarMutationScope":"personal"}',
+          createdAtUtc: '2026-06-08T00:00:00.000Z',
+          updatedAtUtc: '2026-06-08T00:00:00.000Z',
+        ),
+      );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      expect(client.calls, ['updateCalendarListEntry:cal-1:My work']);
+    },
+  );
+
+  test(
     'calendar create remaps dependent event work to the server id',
     () async {
       final repository = CalendarRepository(
@@ -1281,6 +1314,43 @@ void main() {
     expect(applied, 1);
     expect(client.calls, ['deleteCalendar:cal-1']);
     expect(source.isDeleted, isTrue);
+  });
+
+  test('calendar remove pending op deletes the CalendarList entry', () async {
+    await (database.update(
+      database.calendarSources,
+    )..where((row) => row.id.equals('account|google|cal-1'))).write(
+      const CalendarSourcesCompanion(dataOwner: Value('other@example.com')),
+    );
+    await database.pendingOpsDao.enqueue(
+      PendingOpsCompanion.insert(
+        id: 'op-calendar-remove',
+        accountId: 'account',
+        provider: const Value('google'),
+        entityType: 'calendar',
+        operation: 'remove',
+        operationType: const Value('calendar.remove'),
+        calendarSourceId: const Value('account|google|cal-1'),
+        providerCalendarId: const Value('cal-1'),
+        requestJson: '{}',
+        createdAtUtc: '2026-06-08T00:00:00.000Z',
+        updatedAtUtc: '2026-06-08T00:00:00.000Z',
+      ),
+    );
+
+    final applied = await CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 8),
+    ).replayDueOps();
+
+    expect(applied, 1);
+    expect(client.calls, ['deleteCalendarListEntry:cal-1']);
+    expect(
+      (await database.select(database.calendarSources).getSingle()).isDeleted,
+      isTrue,
+    );
   });
 
   test('sync engine replays pending event ops before pull sync', () async {
@@ -1475,6 +1545,7 @@ Future<void> _insertAccount(AppDatabase database) {
           authority: 'https://accounts.google.com',
           providerAccountId: 'google-account',
           credentialKind: 'oauth',
+          email: const Value('me@example.com'),
           authState: const Value('signed_in'),
           grantedScopes: const Value(''),
           createdAtUtc: '2026-06-08T00:00:00.000Z',
@@ -1678,7 +1749,8 @@ Future<void> _enqueueEventOp(
 
 final _later = DateTime.utc(2026, 6, 9);
 
-class _FakeCalendarClient implements CloudCalendarClient {
+class _FakeCalendarClient
+    implements CloudCalendarClient, CalendarListManagementClient {
   final calls = <String>[];
   final createdMutations = <CalendarEventMutation>[];
   final updatedMutations = <CalendarEventMutation>[];
@@ -1899,6 +1971,11 @@ class _FakeCalendarClient implements CloudCalendarClient {
   }
 
   @override
+  Future<void> deleteCalendarListEntry(String calendarId) async {
+    calls.add('deleteCalendarListEntry:$calendarId');
+  }
+
+  @override
   Future<List<BusySlotDto>> freeBusy({
     required List<String> calendarIds,
     required DateTime rangeStart,
@@ -1938,6 +2015,21 @@ class _FakeCalendarClient implements CloudCalendarClient {
       provider: BusyProvider.google,
       providerCalendarId: calendarId,
       summary: mutation.summary ?? 'Calendar',
+      dataOwner: 'me@example.com',
+    );
+  }
+
+  @override
+  Future<CalendarSourceDto> updateCalendarListEntry(
+    String calendarId,
+    CalendarMutation mutation,
+  ) async {
+    calls.add('updateCalendarListEntry:$calendarId:${mutation.summary}');
+    return CalendarSourceDto(
+      provider: BusyProvider.google,
+      providerCalendarId: calendarId,
+      summary: mutation.summary ?? 'Calendar',
+      dataOwner: 'me@example.com',
     );
   }
 }

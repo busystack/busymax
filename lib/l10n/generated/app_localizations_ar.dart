@@ -1998,6 +1998,27 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'تعيين اسم مخصص';
+
+  @override
+  String get setAction => 'تعيين';
+
+  @override
+  String get removeFromMyCalendars => 'إزالة من تقاويمي';
+
+  @override
+  String get removeAction => 'إزالة';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'هل تريد إزالة \"$title\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'لا يمكن حذف هذا التقويم أو إزالته من هذا الحساب.';
+
+  @override
   String get networkOffline => 'غير متصل';
 
   @override

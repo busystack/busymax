@@ -694,6 +694,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "Benutzerdefinierten Namen festlegen",
+  "setAction": "Festlegen",
+  "removeFromMyCalendars": "Aus meinen Kalendern entfernen",
+  "removeAction": "Entfernen",
+  "removeCalendarConfirmation": "„{title}“ aus Ihrer Google-Kalenderliste entfernen? Der freigegebene Kalender und seine Termine werden nicht gelöscht.",
+  "calendarCannotRemove": "Dieser Kalender kann in diesem Konto weder gelöscht noch entfernt werden.",
   "networkOffline": "Offline",
   "networkOfflineDescription": "Änderungen werden synchronisiert, sobald die Verbindung wiederhergestellt ist.",
   "networkOfflineTryAgain": "Sie sind offline. Stellen Sie eine Internetverbindung her und versuchen Sie es erneut."

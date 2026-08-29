@@ -543,8 +543,7 @@ class _EventEditorState extends State<EventEditor> {
                 title: l10n.guests,
                 filled: true,
                 children: _guestRows(
-                  readOnly:
-                      schedulingReadOnly || !_draft.canManageAttendees,
+                  readOnly: schedulingReadOnly || !_draft.canManageAttendees,
                 ),
               ),
             if ((provider == BusyProvider.google ||

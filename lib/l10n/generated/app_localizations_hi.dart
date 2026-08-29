@@ -1987,6 +1987,27 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'कस्टम नाम सेट करें';
+
+  @override
+  String get setAction => 'सेट करें';
+
+  @override
+  String get removeFromMyCalendars => 'मेरे कैलेंडर से हटाएँ';
+
+  @override
+  String get removeAction => 'हटाएँ';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'क्या \"$title\" को आपकी Google Calendar सूची से हटाएँ? साझा कैलेंडर और उसके इवेंट नहीं मिटाए जाएँगे।';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'इस कैलेंडर को इस खाते से मिटाया या हटाया नहीं जा सकता।';
+
+  @override
   String get networkOffline => 'ऑफ़लाइन';
 
   @override

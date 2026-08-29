@@ -64,4 +64,86 @@ void main() {
     expect(source.capabilities.canDeleteCalendar, isFalse);
     expect(source.capabilities.canChangeCalendarColor, isTrue);
   });
+
+  test('owned Google secondary calendar permits global rename and delete', () {
+    const source = CalendarSourceEntity(
+      id: 'owned-calendar',
+      accountId: 'google-account',
+      provider: BusyProvider.google,
+      providerCalendarId: 'owned@example.com',
+      summary: 'Owned',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+      dataOwner: 'owner@example.com',
+      authenticatedAccountEmail: 'OWNER@example.com',
+    );
+
+    expect(source.capabilities.renameMode, CalendarRenameMode.global);
+    expect(source.capabilities.removalMode, CalendarRemovalMode.delete);
+    expect(source.capabilities.canDeleteCalendar, isTrue);
+  });
+
+  test(
+    'shared read-only Google calendar permits personal name, color, and removal',
+    () {
+      const source = CalendarSourceEntity(
+        id: 'shared-calendar',
+        accountId: 'google-account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'shared@example.com',
+        summary: 'Shared',
+        selected: true,
+        hidden: false,
+        readOnly: true,
+        isDeleted: false,
+        dataOwner: 'other@example.com',
+        authenticatedAccountEmail: 'me@example.com',
+      );
+
+      expect(source.capabilities.canCreateEvents, isFalse);
+      expect(source.capabilities.renameMode, CalendarRenameMode.personal);
+      expect(
+        source.capabilities.removalMode,
+        CalendarRemovalMode.removeFromList,
+      );
+      expect(source.capabilities.canDeleteCalendar, isFalse);
+      expect(source.capabilities.canRemoveCalendar, isTrue);
+      expect(source.capabilities.canChangeCalendarColor, isTrue);
+    },
+  );
+
+  test('Microsoft deletion follows isRemovable rather than canEdit', () {
+    const removableReadOnly = CalendarSourceEntity(
+      id: 'shared-outlook',
+      accountId: 'microsoft-account',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'shared',
+      summary: 'Shared',
+      selected: true,
+      hidden: false,
+      readOnly: true,
+      isDeleted: false,
+      isRemovable: true,
+    );
+    const editableNotRemovable = CalendarSourceEntity(
+      id: 'owned-outlook',
+      accountId: 'microsoft-account',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'owned',
+      summary: 'Owned',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+      isRemovable: false,
+    );
+
+    expect(
+      removableReadOnly.capabilities.removalMode,
+      CalendarRemovalMode.delete,
+    );
+    expect(editableNotRemovable.capabilities.canRemoveCalendar, isFalse);
+  });
 }

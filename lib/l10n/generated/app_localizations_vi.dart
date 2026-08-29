@@ -1987,6 +1987,26 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Đặt tên tùy chỉnh';
+
+  @override
+  String get setAction => 'Đặt';
+
+  @override
+  String get removeFromMyCalendars => 'Xóa khỏi lịch của tôi';
+
+  @override
+  String get removeAction => 'Xóa';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Xóa “$title” khỏi danh sách Google Calendar của bạn? Lịch dùng chung và các sự kiện trong đó sẽ không bị xóa.';
+  }
+
+  @override
+  String get calendarCannotRemove => 'Không thể xóa lịch này khỏi tài khoản.';
+
+  @override
   String get networkOffline => 'Ngoại tuyến';
 
   @override

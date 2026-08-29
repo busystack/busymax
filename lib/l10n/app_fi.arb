@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "Aseta mukautettu nimi",
+  "setAction": "Aseta",
+  "removeFromMyCalendars": "Poista omista kalentereistani",
+  "removeAction": "Poista",
+  "removeCalendarConfirmation": "Poistetaanko ”{title}” Google Kalenterin luettelostasi? Jaettua kalenteria tai sen tapahtumia ei poisteta.",
+  "calendarCannotRemove": "Tätä kalenteria ei voi poistaa tältä tililtä.",
   "networkOffline": "Ei verkkoyhteyttä",
   "networkOfflineDescription": "Muutokset synkronoidaan, kun yhteys palautuu.",
   "networkOfflineTryAgain": "Verkkoyhteyttä ei ole. Yhdistä internetiin ja yritä uudelleen."

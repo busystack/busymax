@@ -11,10 +11,12 @@ void main() {
       'canEdit': true,
       'hexColor': '#123456',
       'color': 'lightBlue',
+      'isRemovable': false,
     });
 
     expect(source.backgroundColor, '#123456');
     expect(source.colorId, 'lightBlue');
+    expect(source.isRemovable, isFalse);
   });
 
   test(

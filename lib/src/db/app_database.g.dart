@@ -14984,6 +14984,31 @@ class $CalendarSourcesTable extends CalendarSources
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _dataOwnerMeta = const VerificationMeta(
+    'dataOwner',
+  );
+  @override
+  late final GeneratedColumn<String> dataOwner = GeneratedColumn<String>(
+    'data_owner',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isRemovableMeta = const VerificationMeta(
+    'isRemovable',
+  );
+  @override
+  late final GeneratedColumn<bool> isRemovable = GeneratedColumn<bool>(
+    'is_removable',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_removable" IN (0, 1))',
+    ),
+  );
   static const VerificationMeta _isDeletedMeta = const VerificationMeta(
     'isDeleted',
   );
@@ -15051,6 +15076,8 @@ class $CalendarSourcesTable extends CalendarSources
     colorId,
     timeZone,
     accessRole,
+    dataOwner,
+    isRemovable,
     isDeleted,
     rawJson,
     createdAtLocal,
@@ -15198,6 +15225,21 @@ class $CalendarSourcesTable extends CalendarSources
         accessRole.isAcceptableOrUnknown(data['access_role']!, _accessRoleMeta),
       );
     }
+    if (data.containsKey('data_owner')) {
+      context.handle(
+        _dataOwnerMeta,
+        dataOwner.isAcceptableOrUnknown(data['data_owner']!, _dataOwnerMeta),
+      );
+    }
+    if (data.containsKey('is_removable')) {
+      context.handle(
+        _isRemovableMeta,
+        isRemovable.isAcceptableOrUnknown(
+          data['is_removable']!,
+          _isRemovableMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_deleted')) {
       context.handle(
         _isDeletedMeta,
@@ -15309,6 +15351,14 @@ class $CalendarSourcesTable extends CalendarSources
         DriftSqlType.string,
         data['${effectivePrefix}access_role'],
       ),
+      dataOwner: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data_owner'],
+      ),
+      isRemovable: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_removable'],
+      ),
       isDeleted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_deleted'],
@@ -15352,6 +15402,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
   final String? colorId;
   final String? timeZone;
   final String? accessRole;
+  final String? dataOwner;
+  final bool? isRemovable;
   final bool isDeleted;
   final String? rawJson;
   final int createdAtLocal;
@@ -15374,6 +15426,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     this.colorId,
     this.timeZone,
     this.accessRole,
+    this.dataOwner,
+    this.isRemovable,
     required this.isDeleted,
     this.rawJson,
     required this.createdAtLocal,
@@ -15412,6 +15466,12 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     }
     if (!nullToAbsent || accessRole != null) {
       map['access_role'] = Variable<String>(accessRole);
+    }
+    if (!nullToAbsent || dataOwner != null) {
+      map['data_owner'] = Variable<String>(dataOwner);
+    }
+    if (!nullToAbsent || isRemovable != null) {
+      map['is_removable'] = Variable<bool>(isRemovable);
     }
     map['is_deleted'] = Variable<bool>(isDeleted);
     if (!nullToAbsent || rawJson != null) {
@@ -15455,6 +15515,12 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       accessRole: accessRole == null && nullToAbsent
           ? const Value.absent()
           : Value(accessRole),
+      dataOwner: dataOwner == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dataOwner),
+      isRemovable: isRemovable == null && nullToAbsent
+          ? const Value.absent()
+          : Value(isRemovable),
       isDeleted: Value(isDeleted),
       rawJson: rawJson == null && nullToAbsent
           ? const Value.absent()
@@ -15489,6 +15555,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       colorId: serializer.fromJson<String?>(json['colorId']),
       timeZone: serializer.fromJson<String?>(json['timeZone']),
       accessRole: serializer.fromJson<String?>(json['accessRole']),
+      dataOwner: serializer.fromJson<String?>(json['dataOwner']),
+      isRemovable: serializer.fromJson<bool?>(json['isRemovable']),
       isDeleted: serializer.fromJson<bool>(json['isDeleted']),
       rawJson: serializer.fromJson<String?>(json['rawJson']),
       createdAtLocal: serializer.fromJson<int>(json['createdAtLocal']),
@@ -15516,6 +15584,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       'colorId': serializer.toJson<String?>(colorId),
       'timeZone': serializer.toJson<String?>(timeZone),
       'accessRole': serializer.toJson<String?>(accessRole),
+      'dataOwner': serializer.toJson<String?>(dataOwner),
+      'isRemovable': serializer.toJson<bool?>(isRemovable),
       'isDeleted': serializer.toJson<bool>(isDeleted),
       'rawJson': serializer.toJson<String?>(rawJson),
       'createdAtLocal': serializer.toJson<int>(createdAtLocal),
@@ -15541,6 +15611,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     Value<String?> colorId = const Value.absent(),
     Value<String?> timeZone = const Value.absent(),
     Value<String?> accessRole = const Value.absent(),
+    Value<String?> dataOwner = const Value.absent(),
+    Value<bool?> isRemovable = const Value.absent(),
     bool? isDeleted,
     Value<String?> rawJson = const Value.absent(),
     int? createdAtLocal,
@@ -15569,6 +15641,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     colorId: colorId.present ? colorId.value : this.colorId,
     timeZone: timeZone.present ? timeZone.value : this.timeZone,
     accessRole: accessRole.present ? accessRole.value : this.accessRole,
+    dataOwner: dataOwner.present ? dataOwner.value : this.dataOwner,
+    isRemovable: isRemovable.present ? isRemovable.value : this.isRemovable,
     isDeleted: isDeleted ?? this.isDeleted,
     rawJson: rawJson.present ? rawJson.value : this.rawJson,
     createdAtLocal: createdAtLocal ?? this.createdAtLocal,
@@ -15609,6 +15683,10 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       accessRole: data.accessRole.present
           ? data.accessRole.value
           : this.accessRole,
+      dataOwner: data.dataOwner.present ? data.dataOwner.value : this.dataOwner,
+      isRemovable: data.isRemovable.present
+          ? data.isRemovable.value
+          : this.isRemovable,
       isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
       rawJson: data.rawJson.present ? data.rawJson.value : this.rawJson,
       createdAtLocal: data.createdAtLocal.present
@@ -15640,6 +15718,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           ..write('colorId: $colorId, ')
           ..write('timeZone: $timeZone, ')
           ..write('accessRole: $accessRole, ')
+          ..write('dataOwner: $dataOwner, ')
+          ..write('isRemovable: $isRemovable, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('rawJson: $rawJson, ')
           ..write('createdAtLocal: $createdAtLocal, ')
@@ -15667,6 +15747,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     colorId,
     timeZone,
     accessRole,
+    dataOwner,
+    isRemovable,
     isDeleted,
     rawJson,
     createdAtLocal,
@@ -15693,6 +15775,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           other.colorId == this.colorId &&
           other.timeZone == this.timeZone &&
           other.accessRole == this.accessRole &&
+          other.dataOwner == this.dataOwner &&
+          other.isRemovable == this.isRemovable &&
           other.isDeleted == this.isDeleted &&
           other.rawJson == this.rawJson &&
           other.createdAtLocal == this.createdAtLocal &&
@@ -15717,6 +15801,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
   final Value<String?> colorId;
   final Value<String?> timeZone;
   final Value<String?> accessRole;
+  final Value<String?> dataOwner;
+  final Value<bool?> isRemovable;
   final Value<bool> isDeleted;
   final Value<String?> rawJson;
   final Value<int> createdAtLocal;
@@ -15740,6 +15826,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     this.colorId = const Value.absent(),
     this.timeZone = const Value.absent(),
     this.accessRole = const Value.absent(),
+    this.dataOwner = const Value.absent(),
+    this.isRemovable = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.rawJson = const Value.absent(),
     this.createdAtLocal = const Value.absent(),
@@ -15764,6 +15852,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     this.colorId = const Value.absent(),
     this.timeZone = const Value.absent(),
     this.accessRole = const Value.absent(),
+    this.dataOwner = const Value.absent(),
+    this.isRemovable = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.rawJson = const Value.absent(),
     required int createdAtLocal,
@@ -15794,6 +15884,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     Expression<String>? colorId,
     Expression<String>? timeZone,
     Expression<String>? accessRole,
+    Expression<String>? dataOwner,
+    Expression<bool>? isRemovable,
     Expression<bool>? isDeleted,
     Expression<String>? rawJson,
     Expression<int>? createdAtLocal,
@@ -15819,6 +15911,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
       if (colorId != null) 'color_id': colorId,
       if (timeZone != null) 'time_zone': timeZone,
       if (accessRole != null) 'access_role': accessRole,
+      if (dataOwner != null) 'data_owner': dataOwner,
+      if (isRemovable != null) 'is_removable': isRemovable,
       if (isDeleted != null) 'is_deleted': isDeleted,
       if (rawJson != null) 'raw_json': rawJson,
       if (createdAtLocal != null) 'created_at_local': createdAtLocal,
@@ -15845,6 +15939,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     Value<String?>? colorId,
     Value<String?>? timeZone,
     Value<String?>? accessRole,
+    Value<String?>? dataOwner,
+    Value<bool?>? isRemovable,
     Value<bool>? isDeleted,
     Value<String?>? rawJson,
     Value<int>? createdAtLocal,
@@ -15869,6 +15965,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
       colorId: colorId ?? this.colorId,
       timeZone: timeZone ?? this.timeZone,
       accessRole: accessRole ?? this.accessRole,
+      dataOwner: dataOwner ?? this.dataOwner,
+      isRemovable: isRemovable ?? this.isRemovable,
       isDeleted: isDeleted ?? this.isDeleted,
       rawJson: rawJson ?? this.rawJson,
       createdAtLocal: createdAtLocal ?? this.createdAtLocal,
@@ -15931,6 +16029,12 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     if (accessRole.present) {
       map['access_role'] = Variable<String>(accessRole.value);
     }
+    if (dataOwner.present) {
+      map['data_owner'] = Variable<String>(dataOwner.value);
+    }
+    if (isRemovable.present) {
+      map['is_removable'] = Variable<bool>(isRemovable.value);
+    }
     if (isDeleted.present) {
       map['is_deleted'] = Variable<bool>(isDeleted.value);
     }
@@ -15969,6 +16073,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
           ..write('colorId: $colorId, ')
           ..write('timeZone: $timeZone, ')
           ..write('accessRole: $accessRole, ')
+          ..write('dataOwner: $dataOwner, ')
+          ..write('isRemovable: $isRemovable, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('rawJson: $rawJson, ')
           ..write('createdAtLocal: $createdAtLocal, ')
@@ -34055,6 +34161,8 @@ typedef $$CalendarSourcesTableCreateCompanionBuilder =
       Value<String?> colorId,
       Value<String?> timeZone,
       Value<String?> accessRole,
+      Value<String?> dataOwner,
+      Value<bool?> isRemovable,
       Value<bool> isDeleted,
       Value<String?> rawJson,
       required int createdAtLocal,
@@ -34080,6 +34188,8 @@ typedef $$CalendarSourcesTableUpdateCompanionBuilder =
       Value<String?> colorId,
       Value<String?> timeZone,
       Value<String?> accessRole,
+      Value<String?> dataOwner,
+      Value<bool?> isRemovable,
       Value<bool> isDeleted,
       Value<String?> rawJson,
       Value<int> createdAtLocal,
@@ -34261,6 +34371,16 @@ class $$CalendarSourcesTableFilterComposer
 
   ColumnFilters<String> get accessRole => $composableBuilder(
     column: $table.accessRole,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dataOwner => $composableBuilder(
+    column: $table.dataOwner,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isRemovable => $composableBuilder(
+    column: $table.isRemovable,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -34465,6 +34585,16 @@ class $$CalendarSourcesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get dataOwner => $composableBuilder(
+    column: $table.dataOwner,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isRemovable => $composableBuilder(
+    column: $table.isRemovable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isDeleted => $composableBuilder(
     column: $table.isDeleted,
     builder: (column) => ColumnOrderings(column),
@@ -34597,6 +34727,14 @@ class $$CalendarSourcesTableAnnotationComposer
 
   GeneratedColumn<String> get accessRole => $composableBuilder(
     column: $table.accessRole,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get dataOwner =>
+      $composableBuilder(column: $table.dataOwner, builder: (column) => column);
+
+  GeneratedColumn<bool> get isRemovable => $composableBuilder(
+    column: $table.isRemovable,
     builder: (column) => column,
   );
 
@@ -34765,6 +34903,8 @@ class $$CalendarSourcesTableTableManager
                 Value<String?> colorId = const Value.absent(),
                 Value<String?> timeZone = const Value.absent(),
                 Value<String?> accessRole = const Value.absent(),
+                Value<String?> dataOwner = const Value.absent(),
+                Value<bool?> isRemovable = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<String?> rawJson = const Value.absent(),
                 Value<int> createdAtLocal = const Value.absent(),
@@ -34788,6 +34928,8 @@ class $$CalendarSourcesTableTableManager
                 colorId: colorId,
                 timeZone: timeZone,
                 accessRole: accessRole,
+                dataOwner: dataOwner,
+                isRemovable: isRemovable,
                 isDeleted: isDeleted,
                 rawJson: rawJson,
                 createdAtLocal: createdAtLocal,
@@ -34813,6 +34955,8 @@ class $$CalendarSourcesTableTableManager
                 Value<String?> colorId = const Value.absent(),
                 Value<String?> timeZone = const Value.absent(),
                 Value<String?> accessRole = const Value.absent(),
+                Value<String?> dataOwner = const Value.absent(),
+                Value<bool?> isRemovable = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<String?> rawJson = const Value.absent(),
                 required int createdAtLocal,
@@ -34836,6 +34980,8 @@ class $$CalendarSourcesTableTableManager
                 colorId: colorId,
                 timeZone: timeZone,
                 accessRole: accessRole,
+                dataOwner: dataOwner,
+                isRemovable: isRemovable,
                 isDeleted: isDeleted,
                 rawJson: rawJson,
                 createdAtLocal: createdAtLocal,

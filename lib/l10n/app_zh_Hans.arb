@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "设置自定义名称",
+  "setAction": "设置",
+  "removeFromMyCalendars": "从“我的日历”中移除",
+  "removeAction": "移除",
+  "removeCalendarConfirmation": "要从您的 Google 日历列表中移除“{title}”吗？共享日历及其活动不会被删除。",
+  "calendarCannotRemove": "无法从此账号中删除或移除此日历。",
   "networkOffline": "离线",
   "networkOfflineDescription": "恢复连接后将同步更改。",
   "networkOfflineTryAgain": "您当前处于离线状态。请连接互联网后重试。"

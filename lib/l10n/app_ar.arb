@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "تعيين اسم مخصص",
+  "setAction": "تعيين",
+  "removeFromMyCalendars": "إزالة من تقاويمي",
+  "removeAction": "إزالة",
+  "removeCalendarConfirmation": "هل تريد إزالة \"{title}\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.",
+  "calendarCannotRemove": "لا يمكن حذف هذا التقويم أو إزالته من هذا الحساب.",
   "networkOffline": "غير متصل",
   "networkOfflineDescription": "ستتم مزامنة التغييرات عند استعادة الاتصال.",
   "networkOfflineTryAgain": "أنت غير متصل. اتصل بالإنترنت وحاول مرة أخرى."

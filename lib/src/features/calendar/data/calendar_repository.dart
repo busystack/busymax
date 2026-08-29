@@ -114,6 +114,10 @@ class CalendarSourceEntity {
         identity.isNotEmpty &&
         owner == identity;
   }
+
+  bool get hasAuthenticatedGoogleIdentity =>
+      provider == BusyProvider.google &&
+      authenticatedAccountEmail?.trim().isNotEmpty == true;
 }
 
 enum CalendarRenameMode { unavailable, global, personal }
@@ -159,6 +163,7 @@ class CalendarSourceCapabilities {
       BusyProvider.google
           when available &&
               !source.primaryCalendar &&
+              source.hasAuthenticatedGoogleIdentity &&
               source.dataOwner?.trim().isNotEmpty == true =>
         CalendarRemovalMode.removeFromList,
       BusyProvider.microsoft
@@ -206,8 +211,7 @@ class CalendarSourceCapabilities {
   final CalendarRenameMode renameMode;
   final CalendarRemovalMode removalMode;
 
-  bool get canRemoveCalendar =>
-      removalMode != CalendarRemovalMode.unavailable;
+  bool get canRemoveCalendar => removalMode != CalendarRemovalMode.unavailable;
 }
 
 enum CalendarMutationOperation {
@@ -566,16 +570,16 @@ class CalendarRepository {
     )..where((row) => row.id.equals(sourceId))).getSingle();
     final entity = await _sourceEntity(source);
     final removalMode = entity.capabilities.removalMode;
+    final createOp = await _pendingCalendarCreate(source.id);
     _requireCalendarSourceCapability(
       source,
       operation: removalMode == CalendarRemovalMode.removeFromList
           ? CalendarMutationOperation.removeCalendar
           : CalendarMutationOperation.deleteCalendar,
-      allowed: entity.capabilities.canRemoveCalendar,
+      allowed: createOp != null || entity.capabilities.canRemoveCalendar,
     );
     final now = _now();
     final nowUtc = now.toUtc().toIso8601String();
-    final createOp = await _pendingCalendarCreate(source.id);
     await _database.transaction(() async {
       await (_database.delete(_database.pendingOps)..where(
             (row) =>
@@ -2789,13 +2793,14 @@ class CalendarRepository {
       }
     }
     if (existing != null) {
-      final merged = _calendarPendingRequest(existing)..addAll(request);
+      final existingOp = existing;
+      final merged = _calendarPendingRequest(existingOp)..addAll(request);
       await (_database.update(
         _database.pendingOps,
-      )..where((row) => row.id.equals(existing.id))).write(
+      )..where((row) => row.id.equals(existingOp.id))).write(
         PendingOpsCompanion(
           requestJson: Value(jsonEncode(merged)),
-          dependsOnOpId: Value(existing.dependsOnOpId ?? dependsOnOpId),
+          dependsOnOpId: Value(existingOp.dependsOnOpId ?? dependsOnOpId),
           updatedAtUtc: Value(nowUtc),
         ),
       );

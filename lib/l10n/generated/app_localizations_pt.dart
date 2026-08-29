@@ -1997,6 +1997,27 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Definir nome personalizado';
+
+  @override
+  String get setAction => 'Definir';
+
+  @override
+  String get removeFromMyCalendars => 'Remover dos meus calendários';
+
+  @override
+  String get removeAction => 'Remover';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Remover \"$title\" da sua lista do Google Agenda? A agenda compartilhada e os eventos dela não serão excluídos.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'Não é possível excluir nem remover esta agenda desta conta.';
+
+  @override
   String get networkOffline => 'Offline';
 
   @override

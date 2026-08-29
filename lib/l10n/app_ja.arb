@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "カスタム名を設定",
+  "setAction": "設定",
+  "removeFromMyCalendars": "マイカレンダーから削除",
+  "removeAction": "削除",
+  "removeCalendarConfirmation": "「{title}」を Google カレンダーのリストから削除しますか？共有カレンダーとその予定は削除されません。",
+  "calendarCannotRemove": "このカレンダーは、このアカウントから削除できません。",
   "networkOffline": "オフライン",
   "networkOfflineDescription": "接続が復旧すると変更が同期されます。",
   "networkOfflineTryAgain": "オフラインです。インターネットに接続して、もう一度お試しください。"

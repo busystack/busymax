@@ -631,6 +631,12 @@
   "invitationResponseFailed": "Could not send your response: {error}",
   "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
   "joinMeetingFailed": "Could not open the meeting link.",
+  "setCustomCalendarName": "कस्टम नाम सेट करें",
+  "setAction": "सेट करें",
+  "removeFromMyCalendars": "मेरे कैलेंडर से हटाएँ",
+  "removeAction": "हटाएँ",
+  "removeCalendarConfirmation": "क्या \"{title}\" को आपकी Google Calendar सूची से हटाएँ? साझा कैलेंडर और उसके इवेंट नहीं मिटाए जाएँगे।",
+  "calendarCannotRemove": "इस कैलेंडर को इस खाते से मिटाया या हटाया नहीं जा सकता।",
   "networkOffline": "ऑफ़लाइन",
   "networkOfflineDescription": "कनेक्शन वापस आने पर बदलाव सिंक हो जाएंगे।",
   "networkOfflineTryAgain": "आप ऑफ़लाइन हैं। इंटरनेट से कनेक्ट करें और फिर से कोशिश करें।"

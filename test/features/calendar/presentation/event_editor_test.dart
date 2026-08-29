@@ -1314,6 +1314,50 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Google event guest cannot manage attendees when invitations are disabled',
+    (tester) async {
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'google-event',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Shared planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+                attendees: const [
+                  EventAttendeeDraft(email: 'guest@example.com'),
+                ],
+                isOrganizer: false,
+                canManageAttendees: false,
+              ),
+              sources: _sources,
+              onCancel: () {},
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('guest@example.com'), findsOneWidget);
+      expect(find.text('Add Guest'), findsNothing);
+      expect(find.text('Add guest email'), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is BusyMaxComboRow<bool> &&
+              widget.title == 'guest@example.com',
+        ),
+        findsNothing,
+      );
+    },
+  );
+
   testWidgets('Nextcloud recurrence editor preserves a rich RFC rule', (
     tester,
   ) async {
