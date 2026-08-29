@@ -251,10 +251,15 @@ void main() {
                   value: 'refresh',
                   label: 'Refresh calendar',
                   icon: YaruIcons.refresh,
+                  role: BusyMaxMenuEntryRole.radio,
                   selected: true,
                   shortcut: 'Ctrl+R',
                 ),
-                BusyMaxMenuEntry(value: 'open', label: 'Open in provider'),
+                BusyMaxMenuEntry(
+                  value: 'open',
+                  label: 'Open in provider',
+                  role: BusyMaxMenuEntryRole.radio,
+                ),
               ],
               onSelected: (value) => selected = value,
             ),
@@ -286,11 +291,122 @@ void main() {
         'label': 'Refresh calendar',
         'icon': 'view-refresh-symbolic',
         'enabled': true,
+        'role': 'radio',
         'selected': true,
         'shortcut': 'Ctrl+R',
       },
-      {'label': 'Open in provider', 'enabled': true, 'selected': false},
+      {
+        'label': 'Open in provider',
+        'enabled': true,
+        'role': 'radio',
+        'selected': false,
+      },
     ]);
+  });
+
+  testWidgets('toggle entries remain valid beside disabled calendar commands', (
+    tester,
+  ) async {
+    MethodCall? nativeCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          nativeCall = call;
+          return null;
+        });
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: BusyMaxMenuButton<String>(
+            tooltip: 'Options',
+            nativeMenuService: const NativeMenuService(channel: channel),
+            entries: const [
+              BusyMaxMenuEntry(value: 'refresh', label: 'Refresh calendar'),
+              BusyMaxMenuEntry(
+                value: 'reminders',
+                label: 'Event reminders',
+                role: BusyMaxMenuEntryRole.toggle,
+                selected: true,
+              ),
+              BusyMaxMenuEntry(
+                value: 'delete',
+                label: 'Delete',
+                enabled: false,
+              ),
+            ],
+            onSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Options'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    final entries =
+        (nativeCall!.arguments as Map<Object?, Object?>)['entries']!
+            as List<Object?>;
+    expect(entries[1], {
+      'label': 'Event reminders',
+      'enabled': true,
+      'role': 'toggle',
+      'selected': true,
+    });
+    expect(entries[2], {
+      'label': 'Delete',
+      'enabled': false,
+      'role': 'command',
+      'selected': false,
+    });
+  });
+
+  testWidgets('fallback renders toggle state independently of commands', (
+    tester,
+  ) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          channel,
+          (_) async => throw MissingPluginException(),
+        );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: BusyMaxMenuButton<String>(
+            tooltip: 'Options',
+            nativeMenuService: const NativeMenuService(channel: channel),
+            entries: const [
+              BusyMaxMenuEntry(value: 'refresh', label: 'Refresh calendar'),
+              BusyMaxMenuEntry(
+                value: 'reminders',
+                label: 'Event reminders',
+                role: BusyMaxMenuEntryRole.toggle,
+                selected: true,
+              ),
+              BusyMaxMenuEntry(
+                value: 'delete',
+                label: 'Delete',
+                enabled: false,
+              ),
+            ],
+            onSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Options'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(YaruRadio<int>), findsNothing);
+    expect(find.byType(YaruCheckbox), findsOneWidget);
+    expect(
+      tester.widget<YaruCheckbox>(find.byType(YaruCheckbox)).value,
+      isTrue,
+    );
+    expect(find.text('Delete'), findsOneWidget);
   });
 
   testWidgets('controller dismissal carries the owned native session', (

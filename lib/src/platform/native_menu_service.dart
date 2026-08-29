@@ -17,7 +17,9 @@ final class NativeMenuSession {
   final int id;
 }
 
-/// One command exposed by a host-toolkit menu.
+enum NativeMenuEntryRole { command, radio, toggle }
+
+/// One entry exposed by a host-toolkit menu.
 ///
 /// Entries intentionally contain presentation state only. The selected index
 /// is mapped back to the caller's domain value after the native menu closes.
@@ -27,6 +29,7 @@ final class NativeMenuEntry {
     required this.label,
     this.iconName,
     this.enabled = true,
+    this.role = NativeMenuEntryRole.command,
     this.selected = false,
     this.shortcut,
   });
@@ -34,6 +37,7 @@ final class NativeMenuEntry {
   final String label;
   final String? iconName;
   final bool enabled;
+  final NativeMenuEntryRole role;
   final bool selected;
   final String? shortcut;
 
@@ -42,6 +46,7 @@ final class NativeMenuEntry {
       'label': label,
       if (iconName != null && iconName!.isNotEmpty) 'icon': iconName!,
       'enabled': enabled,
+      'role': role.name,
       'selected': selected,
       if (shortcut != null && shortcut!.isNotEmpty) 'shortcut': shortcut!,
     };

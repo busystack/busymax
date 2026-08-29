@@ -1380,7 +1380,28 @@ struct NativeMenuSession {
 struct NativeMenuHandlerData {
   GtkWidget* view;
   NativeMenuSession* active;
+  GdkEvent* trigger_event;
+  gulong trigger_event_signal_id;
 };
+
+static void native_menu_event_after_cb(GtkWidget*,
+                                       GdkEvent* event,
+                                       gpointer user_data) {
+  switch (event->type) {
+    case GDK_BUTTON_PRESS:
+    case GDK_BUTTON_RELEASE:
+    case GDK_KEY_PRESS:
+    case GDK_KEY_RELEASE:
+    case GDK_TOUCH_BEGIN:
+    case GDK_TOUCH_END:
+      break;
+    default:
+      return;
+  }
+  auto* data = static_cast<NativeMenuHandlerData*>(user_data);
+  g_clear_pointer(&data->trigger_event, gdk_event_free);
+  data->trigger_event = gdk_event_copy(event);
+}
 
 static void native_menu_session_respond(NativeMenuSession* session,
                                         gint selected_index) {
@@ -1461,6 +1482,12 @@ static void native_menu_action_activated_cb(GSimpleAction* action,
                                             GVariant*,
                                             gpointer user_data) {
   auto* session = static_cast<NativeMenuSession*>(user_data);
+  g_autoptr(GVariant) state = g_action_get_state(G_ACTION(action));
+  if (state != nullptr &&
+      g_variant_is_of_type(state, G_VARIANT_TYPE_BOOLEAN)) {
+    g_simple_action_set_state(
+        action, g_variant_new_boolean(!g_variant_get_boolean(state)));
+  }
   session->pending_selected_index =
       GPOINTER_TO_INT(
           g_object_get_data(G_OBJECT(action), kNativeMenuActionIndexKey)) -
@@ -1675,38 +1702,51 @@ static void show_native_menu(NativeMenuHandlerData* data,
     return;
   }
 
-  size_t selected_entry_count = 0;
-  gboolean has_disabled_entry = FALSE;
+  size_t radio_entry_count = 0;
+  size_t selected_radio_entry_count = 0;
+  gboolean has_disabled_radio_entry = FALSE;
   for (size_t index = 0; index < fl_value_get_length(entries); index++) {
     FlValue* entry = fl_value_get_list_value(entries, index);
     const gchar* label = fl_lookup_string_arg(entry, "label");
     FlValue* icon = fl_value_lookup_string(entry, "icon");
     FlValue* shortcut = fl_value_lookup_string(entry, "shortcut");
+    const gchar* role = fl_lookup_string_arg(entry, "role");
     gboolean enabled = TRUE;
     gboolean selected = FALSE;
     if (label == nullptr ||
         (icon != nullptr && fl_value_get_type(icon) != FL_VALUE_TYPE_STRING) ||
         (shortcut != nullptr &&
          fl_value_get_type(shortcut) != FL_VALUE_TYPE_STRING) ||
+        (role != nullptr && g_strcmp0(role, "command") != 0 &&
+         g_strcmp0(role, "radio") != 0 && g_strcmp0(role, "toggle") != 0) ||
         !fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled) ||
         !fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected)) {
       respond_native_menu_argument_error(
           method_call,
           "each entry must contain a label, optional string icon and shortcut, "
-          "and optional boolean enabled and selected values.");
+          "a command, radio, or toggle role, and optional boolean enabled and "
+          "selected values.");
       return;
     }
-    if (selected) {
-      selected_entry_count++;
+    const gboolean is_radio = g_strcmp0(role, "radio") == 0;
+    const gboolean is_toggle = g_strcmp0(role, "toggle") == 0;
+    if (selected && !is_radio && !is_toggle) {
+      respond_native_menu_argument_error(
+          method_call, "command entries cannot be selected.");
+      return;
     }
-    has_disabled_entry = has_disabled_entry || !enabled;
+    if (is_radio) {
+      radio_entry_count++;
+      selected_radio_entry_count += selected ? 1 : 0;
+      has_disabled_radio_entry = has_disabled_radio_entry || !enabled;
+    }
   }
-  if (selected_entry_count > 1 ||
-      (selected_entry_count == 1 && has_disabled_entry)) {
+  if ((radio_entry_count > 0 && selected_radio_entry_count != 1) ||
+      has_disabled_radio_entry) {
     respond_native_menu_argument_error(
         method_call,
-        "single-choice menus require exactly one selected entry and all "
-        "entries enabled.");
+        "single-choice menus require exactly one selected radio entry and all "
+        "radio entries enabled.");
     return;
   }
 
@@ -1727,13 +1767,14 @@ static void show_native_menu(NativeMenuHandlerData* data,
 
   GSimpleAction* selection_action = nullptr;
   g_autofree gchar* detailed_selection_action = nullptr;
-  if (selected_entry_count == 1) {
+  if (radio_entry_count > 0) {
     g_autofree gchar* selected_target = nullptr;
     for (size_t index = 0; index < fl_value_get_length(entries); index++) {
       FlValue* entry = fl_value_get_list_value(entries, index);
       gboolean selected = FALSE;
       fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected);
-      if (selected) {
+      if (selected &&
+          g_strcmp0(fl_lookup_string_arg(entry, "role"), "radio") == 0) {
         selected_target = g_strdup_printf("%zu", index);
         break;
       }
@@ -1755,17 +1796,24 @@ static void show_native_menu(NativeMenuHandlerData* data,
     const gchar* label = fl_lookup_string_arg(entry, "label");
     const gchar* icon_name = fl_lookup_string_arg(entry, "icon");
     const gchar* shortcut = fl_lookup_string_arg(entry, "shortcut");
+    const gchar* role = fl_lookup_string_arg(entry, "role");
     gboolean enabled = TRUE;
+    gboolean selected = FALSE;
     fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled);
+    fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected);
 
     g_autoptr(GMenuItem) item = g_menu_item_new(label, nullptr);
-    if (selection_action != nullptr) {
+    if (g_strcmp0(role, "radio") == 0) {
       g_autofree gchar* target = g_strdup_printf("%zu", index);
       g_menu_item_set_action_and_target_value(
           item, detailed_selection_action, g_variant_new_string(target));
     } else {
       g_autofree gchar* action_name = g_strdup_printf("select-%zu", index);
-      GSimpleAction* action = g_simple_action_new(action_name, nullptr);
+      GSimpleAction* action = g_strcmp0(role, "toggle") == 0
+                                  ? g_simple_action_new_stateful(
+                                        action_name, nullptr,
+                                        g_variant_new_boolean(selected))
+                                  : g_simple_action_new(action_name, nullptr);
       g_simple_action_set_enabled(action, enabled);
       g_object_set_data(G_OBJECT(action), kNativeMenuActionIndexKey,
                         GINT_TO_POINTER(static_cast<gint>(index) + 1));
@@ -1826,10 +1874,16 @@ static void show_native_menu(NativeMenuHandlerData* data,
   // widget whose GdkWindow belongs to the toplevel. Anchor to the translated
   // rectangle directly: moving a hidden proxy widget would only queue a later
   // size allocation, so an immediate popup would still see its old position.
+  g_autoptr(GdkEvent) current_event = gtk_get_current_event();
+  const GdkEvent* trigger_event = current_event != nullptr
+                                      ? current_event
+                                      : data->trigger_event;
   gtk_menu_popup_at_rect(
       GTK_MENU(session->menu), rect_window, &window_anchor,
       open_above ? GDK_GRAVITY_NORTH_WEST : GDK_GRAVITY_SOUTH_WEST,
-      open_above ? GDK_GRAVITY_SOUTH_WEST : GDK_GRAVITY_NORTH_WEST, nullptr);
+      open_above ? GDK_GRAVITY_SOUTH_WEST : GDK_GRAVITY_NORTH_WEST,
+      trigger_event);
+  g_clear_pointer(&data->trigger_event, gdk_event_free);
   if (focus_first) {
     gtk_menu_shell_select_first(GTK_MENU_SHELL(session->menu), TRUE);
   } else {
@@ -1844,10 +1898,15 @@ static void native_menu_handler_data_free(gpointer user_data) {
     native_menu_session_dispose(data->active);
   }
   if (data->view != nullptr) {
+    if (data->trigger_event_signal_id != 0) {
+      g_signal_handler_disconnect(data->view,
+                                  data->trigger_event_signal_id);
+    }
     g_object_remove_weak_pointer(
         G_OBJECT(data->view),
         reinterpret_cast<gpointer*>(&data->view));
   }
+  g_clear_pointer(&data->trigger_event, gdk_event_free);
   g_free(data);
 }
 
@@ -1882,6 +1941,8 @@ static FlMethodChannel* create_native_menu_channel(FlView* view) {
   data->view = GTK_WIDGET(view);
   g_object_add_weak_pointer(G_OBJECT(data->view),
                             reinterpret_cast<gpointer*>(&data->view));
+  data->trigger_event_signal_id = g_signal_connect(
+      data->view, "event-after", G_CALLBACK(native_menu_event_after_cb), data);
   fl_method_channel_set_method_call_handler(
       channel, native_menu_method_call_cb, data,
       native_menu_handler_data_free);

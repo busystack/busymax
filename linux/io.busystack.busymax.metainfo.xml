@@ -91,6 +91,11 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.7" date="2026-08-29" type="development">
+      <description>
+        <p>Beta maintenance release.</p>
+      </description>
+    </release>
     <release version="0.1.6" date="2026-08-28" type="development">
       <description>
         <p>Beta maintenance release.</p>

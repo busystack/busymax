@@ -864,6 +864,7 @@ class _SettingsPageSelector extends StatelessWidget {
               value: page,
               label: _settingsPageLabel(context, page),
               icon: _settingsPageIcon(page),
+              role: BusyMaxMenuEntryRole.radio,
               selected: page == selected,
             ),
         ],

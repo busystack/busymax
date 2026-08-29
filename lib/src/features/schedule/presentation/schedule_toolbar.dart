@@ -145,6 +145,7 @@ class ScheduleToolbar extends StatelessWidget {
                       value: value,
                       label: _modeLabel(context, value),
                       icon: _modeIcon(value),
+                      role: BusyMaxMenuEntryRole.radio,
                       selected: mode == value,
                       shortcut: BusyMaxShortcutLabels.forViewMode(value),
                     ),

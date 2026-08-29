@@ -43,15 +43,26 @@ void main() {
       'sessionId': session.id,
       'anchor': {'x': 24.0, 'y': 36.0, 'width': 140.0, 'height': 34.0},
       'entries': [
-        {'label': 'Personal', 'enabled': true, 'selected': false},
+        {
+          'label': 'Personal',
+          'enabled': true,
+          'role': 'command',
+          'selected': false,
+        },
         {
           'label': 'Work',
           'icon': 'folder-symbolic',
           'enabled': true,
+          'role': 'command',
           'selected': false,
           'shortcut': 'Ctrl+W',
         },
-        {'label': 'Archived', 'enabled': false, 'selected': false},
+        {
+          'label': 'Archived',
+          'enabled': false,
+          'role': 'command',
+          'selected': false,
+        },
       ],
       'focusFirst': false,
       'preferredPosition': 'bottom',

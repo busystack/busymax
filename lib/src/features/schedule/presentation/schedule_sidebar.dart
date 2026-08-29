@@ -152,6 +152,7 @@ class _SourceRow extends ConsumerWidget {
               value: 'toggle-reminders',
               label: context.l10n.eventReminders,
               icon: Icons.notifications_outlined,
+              role: BusyMaxMenuEntryRole.toggle,
               selected: source.remindersEnabled,
             ),
             BusyMaxMenuEntry(
