@@ -314,13 +314,7 @@ class DesktopNotificationService {
     }
     var endDate = DateTime(now.year, now.month, now.day, end ~/ 60, end % 60);
     if (start > end && current >= start) {
-      endDate = DateTime(
-        now.year,
-        now.month,
-        now.day + 1,
-        end ~/ 60,
-        end % 60,
-      );
+      endDate = DateTime(now.year, now.month, now.day + 1, end ~/ 60, end % 60);
     }
     return endDate.toUtc();
   }
