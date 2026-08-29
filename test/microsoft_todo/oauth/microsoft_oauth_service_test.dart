@@ -91,6 +91,39 @@ void main() {
     expect(body.containsKey('client_secret'), isFalse);
   });
 
+  test('refresh failure preserves the token endpoint status', () async {
+    final service = _service((request) async {
+      return http.Response(
+        jsonEncode({
+          'error': 'temporarily_unavailable',
+          'error_description': 'Try again later.',
+        }),
+        503,
+      );
+    });
+
+    await expectLater(
+      service.refreshToken(
+        OAuthTokenSet(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresAtUtc: DateTime.utc(2026, 6, 6),
+          tokenType: 'Bearer',
+          scopes: const {},
+        ),
+      ),
+      throwsA(
+        isA<OAuthRefreshException>()
+            .having((error) => error.statusCode, 'statusCode', 503)
+            .having(
+              (error) => error.code,
+              'code',
+              'MicrosoftOAuthRefreshFailed',
+            ),
+      ),
+    );
+  });
+
   test(
     'token endpoint 400 surfaces sanitized Microsoft OAuth exception',
     () async {

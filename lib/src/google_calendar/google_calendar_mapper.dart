@@ -128,6 +128,8 @@ Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
     'colorId': mutation.colorId,
     'visibility': mutation.visibility,
     'transparency': mutation.transparencyOrShowAs,
+    if (mutation.hideAttendees != null)
+      'guestsCanSeeOtherGuests': !mutation.hideAttendees!,
     'conferenceData': mutation.conference,
   });
 }

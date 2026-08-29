@@ -14886,6 +14886,21 @@ class $CalendarSourcesTable extends CalendarSources
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _remindersEnabledMeta = const VerificationMeta(
+    'remindersEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> remindersEnabled = GeneratedColumn<bool>(
+    'reminders_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("reminders_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _hiddenMeta = const VerificationMeta('hidden');
   @override
   late final GeneratedColumn<bool> hidden = GeneratedColumn<bool>(
@@ -15028,6 +15043,7 @@ class $CalendarSourcesTable extends CalendarSources
     description,
     primaryCalendar,
     selected,
+    remindersEnabled,
     hidden,
     readOnly,
     backgroundColor,
@@ -15123,6 +15139,15 @@ class $CalendarSourcesTable extends CalendarSources
       context.handle(
         _selectedMeta,
         selected.isAcceptableOrUnknown(data['selected']!, _selectedMeta),
+      );
+    }
+    if (data.containsKey('reminders_enabled')) {
+      context.handle(
+        _remindersEnabledMeta,
+        remindersEnabled.isAcceptableOrUnknown(
+          data['reminders_enabled']!,
+          _remindersEnabledMeta,
+        ),
       );
     }
     if (data.containsKey('hidden')) {
@@ -15252,6 +15277,10 @@ class $CalendarSourcesTable extends CalendarSources
         DriftSqlType.bool,
         data['${effectivePrefix}selected'],
       )!,
+      remindersEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}reminders_enabled'],
+      )!,
       hidden: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}hidden'],
@@ -15315,6 +15344,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
   final String? description;
   final bool primaryCalendar;
   final bool selected;
+  final bool remindersEnabled;
   final bool hidden;
   final bool readOnly;
   final String? backgroundColor;
@@ -15336,6 +15366,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     this.description,
     required this.primaryCalendar,
     required this.selected,
+    required this.remindersEnabled,
     required this.hidden,
     required this.readOnly,
     this.backgroundColor,
@@ -15364,6 +15395,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     }
     map['primary_calendar'] = Variable<bool>(primaryCalendar);
     map['selected'] = Variable<bool>(selected);
+    map['reminders_enabled'] = Variable<bool>(remindersEnabled);
     map['hidden'] = Variable<bool>(hidden);
     map['read_only'] = Variable<bool>(readOnly);
     if (!nullToAbsent || backgroundColor != null) {
@@ -15405,6 +15437,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           : Value(description),
       primaryCalendar: Value(primaryCalendar),
       selected: Value(selected),
+      remindersEnabled: Value(remindersEnabled),
       hidden: Value(hidden),
       readOnly: Value(readOnly),
       backgroundColor: backgroundColor == null && nullToAbsent
@@ -15448,6 +15481,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       description: serializer.fromJson<String?>(json['description']),
       primaryCalendar: serializer.fromJson<bool>(json['primaryCalendar']),
       selected: serializer.fromJson<bool>(json['selected']),
+      remindersEnabled: serializer.fromJson<bool>(json['remindersEnabled']),
       hidden: serializer.fromJson<bool>(json['hidden']),
       readOnly: serializer.fromJson<bool>(json['readOnly']),
       backgroundColor: serializer.fromJson<String?>(json['backgroundColor']),
@@ -15474,6 +15508,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       'description': serializer.toJson<String?>(description),
       'primaryCalendar': serializer.toJson<bool>(primaryCalendar),
       'selected': serializer.toJson<bool>(selected),
+      'remindersEnabled': serializer.toJson<bool>(remindersEnabled),
       'hidden': serializer.toJson<bool>(hidden),
       'readOnly': serializer.toJson<bool>(readOnly),
       'backgroundColor': serializer.toJson<String?>(backgroundColor),
@@ -15498,6 +15533,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     Value<String?> description = const Value.absent(),
     bool? primaryCalendar,
     bool? selected,
+    bool? remindersEnabled,
     bool? hidden,
     bool? readOnly,
     Value<String?> backgroundColor = const Value.absent(),
@@ -15521,6 +15557,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     description: description.present ? description.value : this.description,
     primaryCalendar: primaryCalendar ?? this.primaryCalendar,
     selected: selected ?? this.selected,
+    remindersEnabled: remindersEnabled ?? this.remindersEnabled,
     hidden: hidden ?? this.hidden,
     readOnly: readOnly ?? this.readOnly,
     backgroundColor: backgroundColor.present
@@ -15556,6 +15593,9 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           ? data.primaryCalendar.value
           : this.primaryCalendar,
       selected: data.selected.present ? data.selected.value : this.selected,
+      remindersEnabled: data.remindersEnabled.present
+          ? data.remindersEnabled.value
+          : this.remindersEnabled,
       hidden: data.hidden.present ? data.hidden.value : this.hidden,
       readOnly: data.readOnly.present ? data.readOnly.value : this.readOnly,
       backgroundColor: data.backgroundColor.present
@@ -15592,6 +15632,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           ..write('description: $description, ')
           ..write('primaryCalendar: $primaryCalendar, ')
           ..write('selected: $selected, ')
+          ..write('remindersEnabled: $remindersEnabled, ')
           ..write('hidden: $hidden, ')
           ..write('readOnly: $readOnly, ')
           ..write('backgroundColor: $backgroundColor, ')
@@ -15608,7 +15649,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     accountId,
     provider,
@@ -15618,6 +15659,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     description,
     primaryCalendar,
     selected,
+    remindersEnabled,
     hidden,
     readOnly,
     backgroundColor,
@@ -15629,7 +15671,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     rawJson,
     createdAtLocal,
     updatedAtLocal,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -15643,6 +15685,7 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           other.description == this.description &&
           other.primaryCalendar == this.primaryCalendar &&
           other.selected == this.selected &&
+          other.remindersEnabled == this.remindersEnabled &&
           other.hidden == this.hidden &&
           other.readOnly == this.readOnly &&
           other.backgroundColor == this.backgroundColor &&
@@ -15666,6 +15709,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
   final Value<String?> description;
   final Value<bool> primaryCalendar;
   final Value<bool> selected;
+  final Value<bool> remindersEnabled;
   final Value<bool> hidden;
   final Value<bool> readOnly;
   final Value<String?> backgroundColor;
@@ -15688,6 +15732,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     this.description = const Value.absent(),
     this.primaryCalendar = const Value.absent(),
     this.selected = const Value.absent(),
+    this.remindersEnabled = const Value.absent(),
     this.hidden = const Value.absent(),
     this.readOnly = const Value.absent(),
     this.backgroundColor = const Value.absent(),
@@ -15711,6 +15756,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     this.description = const Value.absent(),
     this.primaryCalendar = const Value.absent(),
     this.selected = const Value.absent(),
+    this.remindersEnabled = const Value.absent(),
     this.hidden = const Value.absent(),
     this.readOnly = const Value.absent(),
     this.backgroundColor = const Value.absent(),
@@ -15740,6 +15786,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     Expression<String>? description,
     Expression<bool>? primaryCalendar,
     Expression<bool>? selected,
+    Expression<bool>? remindersEnabled,
     Expression<bool>? hidden,
     Expression<bool>? readOnly,
     Expression<String>? backgroundColor,
@@ -15764,6 +15811,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
       if (description != null) 'description': description,
       if (primaryCalendar != null) 'primary_calendar': primaryCalendar,
       if (selected != null) 'selected': selected,
+      if (remindersEnabled != null) 'reminders_enabled': remindersEnabled,
       if (hidden != null) 'hidden': hidden,
       if (readOnly != null) 'read_only': readOnly,
       if (backgroundColor != null) 'background_color': backgroundColor,
@@ -15789,6 +15837,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     Value<String?>? description,
     Value<bool>? primaryCalendar,
     Value<bool>? selected,
+    Value<bool>? remindersEnabled,
     Value<bool>? hidden,
     Value<bool>? readOnly,
     Value<String?>? backgroundColor,
@@ -15812,6 +15861,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
       description: description ?? this.description,
       primaryCalendar: primaryCalendar ?? this.primaryCalendar,
       selected: selected ?? this.selected,
+      remindersEnabled: remindersEnabled ?? this.remindersEnabled,
       hidden: hidden ?? this.hidden,
       readOnly: readOnly ?? this.readOnly,
       backgroundColor: backgroundColor ?? this.backgroundColor,
@@ -15856,6 +15906,9 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     }
     if (selected.present) {
       map['selected'] = Variable<bool>(selected.value);
+    }
+    if (remindersEnabled.present) {
+      map['reminders_enabled'] = Variable<bool>(remindersEnabled.value);
     }
     if (hidden.present) {
       map['hidden'] = Variable<bool>(hidden.value);
@@ -15908,6 +15961,7 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
           ..write('description: $description, ')
           ..write('primaryCalendar: $primaryCalendar, ')
           ..write('selected: $selected, ')
+          ..write('remindersEnabled: $remindersEnabled, ')
           ..write('hidden: $hidden, ')
           ..write('readOnly: $readOnly, ')
           ..write('backgroundColor: $backgroundColor, ')
@@ -33993,6 +34047,7 @@ typedef $$CalendarSourcesTableCreateCompanionBuilder =
       Value<String?> description,
       Value<bool> primaryCalendar,
       Value<bool> selected,
+      Value<bool> remindersEnabled,
       Value<bool> hidden,
       Value<bool> readOnly,
       Value<String?> backgroundColor,
@@ -34017,6 +34072,7 @@ typedef $$CalendarSourcesTableUpdateCompanionBuilder =
       Value<String?> description,
       Value<bool> primaryCalendar,
       Value<bool> selected,
+      Value<bool> remindersEnabled,
       Value<bool> hidden,
       Value<bool> readOnly,
       Value<String?> backgroundColor,
@@ -34165,6 +34221,11 @@ class $$CalendarSourcesTableFilterComposer
 
   ColumnFilters<bool> get selected => $composableBuilder(
     column: $table.selected,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -34364,6 +34425,11 @@ class $$CalendarSourcesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get hidden => $composableBuilder(
     column: $table.hidden,
     builder: (column) => ColumnOrderings(column),
@@ -34501,6 +34567,11 @@ class $$CalendarSourcesTableAnnotationComposer
 
   GeneratedColumn<bool> get selected =>
       $composableBuilder(column: $table.selected, builder: (column) => column);
+
+  GeneratedColumn<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get hidden =>
       $composableBuilder(column: $table.hidden, builder: (column) => column);
@@ -34686,6 +34757,7 @@ class $$CalendarSourcesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<bool> primaryCalendar = const Value.absent(),
                 Value<bool> selected = const Value.absent(),
+                Value<bool> remindersEnabled = const Value.absent(),
                 Value<bool> hidden = const Value.absent(),
                 Value<bool> readOnly = const Value.absent(),
                 Value<String?> backgroundColor = const Value.absent(),
@@ -34708,6 +34780,7 @@ class $$CalendarSourcesTableTableManager
                 description: description,
                 primaryCalendar: primaryCalendar,
                 selected: selected,
+                remindersEnabled: remindersEnabled,
                 hidden: hidden,
                 readOnly: readOnly,
                 backgroundColor: backgroundColor,
@@ -34732,6 +34805,7 @@ class $$CalendarSourcesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<bool> primaryCalendar = const Value.absent(),
                 Value<bool> selected = const Value.absent(),
+                Value<bool> remindersEnabled = const Value.absent(),
                 Value<bool> hidden = const Value.absent(),
                 Value<bool> readOnly = const Value.absent(),
                 Value<String?> backgroundColor = const Value.absent(),
@@ -34754,6 +34828,7 @@ class $$CalendarSourcesTableTableManager
                 description: description,
                 primaryCalendar: primaryCalendar,
                 selected: selected,
+                remindersEnabled: remindersEnabled,
                 hidden: hidden,
                 readOnly: readOnly,
                 backgroundColor: backgroundColor,

@@ -4,7 +4,10 @@ import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,16 +70,62 @@ void main() {
       expect(
         events.every(
           (event) =>
-              event.remindersJson?.contains('"minutes":[10,30]') ?? false,
+              event.remindersJson?.contains('"minutes":[10,5,30]') ?? false,
         ),
         isTrue,
       );
       expect(events.first.remindersJson, contains('AUDIO'));
+      expect(events.every((event) => event.projectionVersion == 2), isTrue);
+      final movedProjection =
+          jsonDecode(
+                events.singleWhere((event) => event.title == 'Moved').rawJson!,
+              )
+              as Map<String, Object?>;
+      expect(movedProjection['startUtc'], '2026-08-10T18:00:00.000Z');
       final cursor = await database.select(database.syncCursors).getSingle();
       expect(cursor.cursorValue, 'https://cloud.example.test/sync/1');
       expect(cursor.baselineGeneration, 1);
     },
   );
+
+  test('projects embedded DAV TZID values to exact UTC instants', () async {
+    final prepared = DavPreparedObject.parse(
+      hrefKey: _eventHref,
+      requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
+      etag: '"custom-zone"',
+      contentType: 'text/calendar',
+      rawIcsBody: _customTimeZoneEvent,
+    );
+
+    await repository.commit(
+      _commit(objects: [prepared], membership: {_eventHref}, cursor: 'token-1'),
+    );
+
+    final event = await database.select(database.calendarEvents).getSingle();
+    final projection = jsonDecode(event.rawJson!) as Map<String, Object?>;
+    expect(event.startTimeZone, 'Custom/Pacific');
+    expect(projection['startUtc'], '2026-08-08T16:00:00.000Z');
+    expect(projection['endUtc'], '2026-08-08T17:00:00.000Z');
+    final expectedStart = DateTime.utc(2026, 8, 8, 16).toLocal();
+    final item = (await ScheduleRepository(database).listItems(
+      range: ScheduleRange(
+        start: expectedStart.subtract(const Duration(hours: 1)),
+        end: expectedStart.add(const Duration(hours: 2)),
+      ),
+    )).single;
+    expect(item.start, expectedStart);
+    await NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+    ).rebuildUpcomingEventNotifications('account');
+    final notification = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(
+      notification.scheduledAtUtc,
+      DateTime.utc(2026, 8, 8, 15, 50).millisecondsSinceEpoch,
+    );
+  });
 
   test(
     'server-only folding changes replace raw baseline without data loss',
@@ -257,6 +306,66 @@ void main() {
     expect(entity.microsoftDueTimeZone, 'America/Vancouver');
   });
 
+  test('resolves a relative DAV task alarm in its authored TZID', () async {
+    final task = DavPreparedObject.parse(
+      hrefKey: '/remote.php/dav/calendars/alex/work/relative-task.ics',
+      requestUri: Uri.parse(
+        'https://cloud.example.test/remote.php/dav/calendars/alex/work/relative-task.ics',
+      ),
+      etag: '"relative-task"',
+      contentType: 'text/calendar',
+      rawIcsBody: _relativeTask,
+    );
+
+    await repository.commit(
+      _commit(objects: [task], membership: {task.hrefKey}, cursor: 'token-1'),
+    );
+
+    final projected = await database.select(database.tasks).getSingle();
+    expect(projected.microsoftReminderTimeZone, 'UTC');
+    expect(projected.microsoftReminderDateTime, '2026-08-09T23:30:00.000Z');
+    await NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+    ).rebuildUpcomingTaskNotifications('account');
+    final notification = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(
+      notification.scheduledAtUtc,
+      DateTime.utc(2026, 8, 9, 23, 30).millisecondsSinceEpoch,
+    );
+  });
+
+  test('schedules every supported DAV task alarm', () async {
+    final task = DavPreparedObject.parse(
+      hrefKey: '/remote.php/dav/calendars/alex/work/multiple-alarms.ics',
+      requestUri: Uri.parse(
+        'https://cloud.example.test/remote.php/dav/calendars/alex/work/multiple-alarms.ics',
+      ),
+      etag: '"multiple-alarms"',
+      contentType: 'text/calendar',
+      rawIcsBody: _multipleAlarmTask,
+    );
+
+    await repository.commit(
+      _commit(objects: [task], membership: {task.hrefKey}, cursor: 'token-1'),
+    );
+    await NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+    ).rebuildUpcomingTaskNotifications('account');
+
+    final notifications = await database
+        .select(database.notificationSchedule)
+        .get();
+    expect(notifications, hasLength(2));
+    expect(notifications.map((row) => row.scheduledAtUtc).toSet(), {
+      DateTime.utc(2026, 8, 9, 15, 50).millisecondsSinceEpoch,
+      DateTime.utc(2026, 8, 9, 16, 30).millisecondsSinceEpoch,
+    });
+  });
+
   test('uses the Nextcloud CREATED fallback for task sort order', () async {
     final task = DavPreparedObject.parse(
       hrefKey: '/remote.php/dav/calendars/alex/work/created-order.ics',
@@ -424,6 +533,30 @@ END:VEVENT\r
 END:VCALENDAR\r
 ''';
 
+const _customTimeZoneEvent = '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VTIMEZONE\r
+TZID:Custom/Pacific\r
+BEGIN:STANDARD\r
+DTSTART:19700101T000000\r
+TZOFFSETFROM:-0700\r
+TZOFFSETTO:-0700\r
+END:STANDARD\r
+END:VTIMEZONE\r
+BEGIN:VEVENT\r
+UID:custom-zone@example.test\r
+DTSTART;TZID=Custom/Pacific:20260808T090000\r
+DTEND;TZID=Custom/Pacific:20260808T100000\r
+SUMMARY:Custom zone\r
+BEGIN:VALARM\r
+ACTION:DISPLAY\r
+TRIGGER:-PT10M\r
+END:VALARM\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+
 String _recurringEvent({required String summary, required String unknown}) =>
     '''BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -501,6 +634,43 @@ BEGIN:VTODO\r
 UID:created-order@example.test\r
 CREATED:20260809T120000Z\r
 SUMMARY:Created order\r
+END:VTODO\r
+END:VCALENDAR\r
+''';
+
+const _relativeTask = '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Nextcloud Tasks//EN\r
+BEGIN:VTODO\r
+UID:relative-task@example.test\r
+SUMMARY:Relative reminder\r
+DTSTART;TZID=America/Vancouver:20260809T160000\r
+DUE;TZID=America/Vancouver:20260809T170000\r
+BEGIN:VALARM\r
+ACTION:DISPLAY\r
+TRIGGER;RELATED=END:-PT30M\r
+END:VALARM\r
+END:VTODO\r
+END:VCALENDAR\r
+''';
+
+const _multipleAlarmTask = '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//Nextcloud Tasks//EN\r
+BEGIN:VTODO\r
+UID:multiple-alarms@example.test\r
+SUMMARY:Multiple reminders\r
+DTSTART:20260809T160000Z\r
+DUE:20260809T170000Z\r
+BEGIN:VALARM\r
+ACTION:AUDIO\r
+TRIGGER:-PT10M\r
+END:VALARM\r
+BEGIN:VALARM\r
+ACTION:DISPLAY\r
+TRIGGER;VALUE=DATE-TIME:20260809T163000Z\r
+DESCRIPTION:Second reminder\r
+END:VALARM\r
 END:VTODO\r
 END:VCALENDAR\r
 ''';

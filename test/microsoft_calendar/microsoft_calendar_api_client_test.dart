@@ -54,6 +54,39 @@ void main() {
     },
   );
 
+  test('Microsoft RSVP uses the dedicated Graph actions', () async {
+    final requests = <http.Request>[];
+    final client = _client((request) {
+      requests.add(request);
+      return http.Response('', 202);
+    });
+
+    await client.respondToEvent(
+      calendarId: 'cal-1',
+      eventId: 'event-1',
+      response: CalendarInvitationResponse.accept,
+    );
+    await client.respondToEvent(
+      calendarId: 'cal-1',
+      eventId: 'event-1',
+      response: CalendarInvitationResponse.tentative,
+      sendResponse: false,
+    );
+    await client.respondToEvent(
+      calendarId: 'cal-1',
+      eventId: 'event-1',
+      response: CalendarInvitationResponse.decline,
+    );
+
+    expect(requests.map((request) => request.url.path), [
+      '/v1.0/me/calendars/cal-1/events/event-1/accept',
+      '/v1.0/me/calendars/cal-1/events/event-1/tentativelyAccept',
+      '/v1.0/me/calendars/cal-1/events/event-1/decline',
+    ]);
+    expect(jsonDecode(requests[0].body), {'sendResponse': true});
+    expect(jsonDecode(requests[1].body), {'sendResponse': false});
+  });
+
   test('event update does not send raw onlineMeeting as provider', () async {
     late http.Request captured;
     final client = _client((request) {

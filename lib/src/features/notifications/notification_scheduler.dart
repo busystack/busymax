@@ -6,24 +6,29 @@ import '../../db/app_database.dart';
 import '../accounts/data/accounts_repository.dart';
 import 'desktop_notification_service.dart';
 
+const defaultReminderSnoozeDuration = Duration(minutes: 10);
+
 class NotificationScheduler {
   NotificationScheduler({
     required AppDatabase database,
     required DesktopNotificationService notifications,
     Duration interval = const Duration(minutes: 1),
     DateTime Function()? nowUtc,
+    Duration snoozeDuration = defaultReminderSnoozeDuration,
     Future<void> Function(NotificationScheduleData row)?
     onNotificationActivated,
   }) : _database = database,
        _notifications = notifications,
        _interval = interval,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc()),
+       _snoozeDuration = snoozeDuration,
        _onNotificationActivated = onNotificationActivated;
 
   final AppDatabase _database;
   final DesktopNotificationService _notifications;
   final Duration _interval;
   final DateTime Function() _nowUtc;
+  final Duration _snoozeDuration;
   final Future<void> Function(NotificationScheduleData row)?
   _onNotificationActivated;
   Timer? _timer;
@@ -32,6 +37,8 @@ class NotificationScheduler {
   StreamSubscription<List<Account>>? _accountSubscription;
   var _checking = false;
   var _checkAgain = false;
+  final Map<String, int> _deferredUntilUtc = {};
+  final Set<String> _disabledNotificationIds = {};
 
   void start() {
     _timer ??= Timer.periodic(_interval, (_) => unawaited(checkNow()));
@@ -55,6 +62,8 @@ class NotificationScheduler {
     _scheduleSubscription = null;
     unawaited(_accountSubscription?.cancel());
     _accountSubscription = null;
+    _deferredUntilUtc.clear();
+    _disabledNotificationIds.clear();
   }
 
   Future<void> _handleScheduleChanged() async {
@@ -72,8 +81,8 @@ class NotificationScheduler {
       do {
         _checkAgain = false;
         await _checkDueNotifications();
+        await _scheduleNextDueCheck();
       } while (_checkAgain);
-      await _scheduleNextDueCheck();
     } finally {
       _checking = false;
     }
@@ -89,40 +98,56 @@ class NotificationScheduler {
         await (_database.select(_database.notificationSchedule)..where(
               (row) =>
                   row.accountId.isIn(signedInAccountIds) &
-                  row.scheduledAtUtc.isSmallerOrEqualValue(now) &
                   row.sentAtUtc.isNull() &
-                  row.dismissedAtUtc.isNull(),
+                  row.dismissedAtUtc.isNull() &
+                  ((row.snoozedUntilUtc.isNull() &
+                          row.scheduledAtUtc.isSmallerOrEqualValue(now)) |
+                      (row.snoozedUntilUtc.isNotNull() &
+                          row.snoozedUntilUtc.isSmallerOrEqualValue(now))),
             ))
             .get();
+    rows.sort(
+      (left, right) =>
+          _effectiveDueAtUtc(left).compareTo(_effectiveDueAtUtc(right)),
+    );
     for (final row in rows) {
+      if (_disabledNotificationIds.contains(row.id) ||
+          _effectiveDueAtUtc(row) > now) {
+        continue;
+      }
       if (!await _isAccountSignedIn(row.accountId)) {
         continue;
       }
+      final ReminderDeliveryResult result;
       if (row.sourceType == 'event') {
-        await _notifications.notifyEventReminder(
+        result = await _notifications.notifyEventReminder(
           row.title,
           row.body,
-          onActivated: _onNotificationActivated == null
-              ? null
-              : () => _onNotificationActivated(row),
+          onAction: (action) => _handleReminderAction(row, action),
         );
       } else if (row.sourceType == 'task') {
-        await _notifications.notifyTaskReminder(
+        result = await _notifications.notifyTaskReminder(
           row.title,
           row.body,
-          onActivated: _onNotificationActivated == null
-              ? null
-              : () => _onNotificationActivated(row),
+          onAction: (action) => _handleReminderAction(row, action),
         );
+      } else {
+        continue;
       }
-      await (_database.update(
-        _database.notificationSchedule,
-      )..where((table) => table.id.equals(row.id))).write(
-        NotificationScheduleCompanion(
-          sentAtUtc: Value(_nowUtc().millisecondsSinceEpoch),
-          updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
-        ),
-      );
+      switch (result.status) {
+        case ReminderDeliveryStatus.delivered:
+          _deferredUntilUtc.remove(row.id);
+          _disabledNotificationIds.remove(row.id);
+          await _markDeliveredUnlessActionAlreadyHandled(row);
+        case ReminderDeliveryStatus.deferred:
+        case ReminderDeliveryStatus.failed:
+          final retryAt = result.retryAtUtc;
+          if (retryAt != null) {
+            _deferredUntilUtc[row.id] = retryAt.millisecondsSinceEpoch;
+          }
+        case ReminderDeliveryStatus.disabled:
+          _disabledNotificationIds.add(row.id);
+      }
     }
   }
 
@@ -134,26 +159,103 @@ class NotificationScheduler {
     if (signedInAccountIds.isEmpty) {
       return;
     }
-    final next =
-        await (_database.select(_database.notificationSchedule)
-              ..where(
-                (row) =>
-                    row.accountId.isIn(signedInAccountIds) &
-                    row.sentAtUtc.isNull() &
-                    row.dismissedAtUtc.isNull(),
-              )
-              ..orderBy([(row) => OrderingTerm.asc(row.scheduledAtUtc)])
-              ..limit(1))
-            .getSingleOrNull();
-    if (next == null) {
+    final pending =
+        await (_database.select(_database.notificationSchedule)..where(
+              (row) =>
+                  row.accountId.isIn(signedInAccountIds) &
+                  row.sentAtUtc.isNull() &
+                  row.dismissedAtUtc.isNull(),
+            ))
+            .get();
+    final nextDueAt = pending
+        .where((row) => !_disabledNotificationIds.contains(row.id))
+        .map(_effectiveDueAtUtc)
+        .fold<int?>(null, (earliest, value) {
+          return earliest == null || value < earliest ? value : earliest;
+        });
+    if (nextDueAt == null) {
       return;
     }
 
     final now = _nowUtc().millisecondsSinceEpoch;
     final delay = Duration(
-      milliseconds: (next.scheduledAtUtc - now).clamp(0, 2147483647),
+      milliseconds: (nextDueAt - now).clamp(0, 2147483647),
     );
     _dueTimer = Timer(delay, () => unawaited(checkNow()));
+  }
+
+  int _effectiveDueAtUtc(NotificationScheduleData row) {
+    var dueAt = row.scheduledAtUtc;
+    final snoozedUntil = row.snoozedUntilUtc;
+    if (snoozedUntil != null && snoozedUntil > dueAt) {
+      dueAt = snoozedUntil;
+    }
+    final deferredUntil = _deferredUntilUtc[row.id];
+    if (deferredUntil != null && deferredUntil > dueAt) {
+      dueAt = deferredUntil;
+    }
+    return dueAt;
+  }
+
+  Future<void> _markDeliveredUnlessActionAlreadyHandled(
+    NotificationScheduleData deliveredRow,
+  ) async {
+    final current = await (_database.select(
+      _database.notificationSchedule,
+    )..where((table) => table.id.equals(deliveredRow.id))).getSingleOrNull();
+    if (current == null || current.dismissedAtUtc != null) return;
+
+    final now = _nowUtc().millisecondsSinceEpoch;
+    final snoozedUntil = current.snoozedUntilUtc;
+    if (snoozedUntil != null && snoozedUntil > now) return;
+
+    await (_database.update(
+      _database.notificationSchedule,
+    )..where((table) => table.id.equals(deliveredRow.id))).write(
+      NotificationScheduleCompanion(
+        sentAtUtc: Value(now),
+        snoozedUntilUtc: const Value(null),
+        updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
+  }
+
+  Future<void> _handleReminderAction(
+    NotificationScheduleData row,
+    ReminderNotificationAction action,
+  ) async {
+    switch (action) {
+      case ReminderNotificationAction.open:
+        await _onNotificationActivated?.call(row);
+        return;
+      case ReminderNotificationAction.snooze:
+        final now = _nowUtc();
+        await (_database.update(
+          _database.notificationSchedule,
+        )..where((table) => table.id.equals(row.id))).write(
+          NotificationScheduleCompanion(
+            sentAtUtc: const Value(null),
+            dismissedAtUtc: const Value(null),
+            snoozedUntilUtc: Value(
+              now.add(_snoozeDuration).millisecondsSinceEpoch,
+            ),
+            updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+      case ReminderNotificationAction.dismiss:
+        await (_database.update(
+          _database.notificationSchedule,
+        )..where((table) => table.id.equals(row.id))).write(
+          NotificationScheduleCompanion(
+            dismissedAtUtc: Value(_nowUtc().millisecondsSinceEpoch),
+            snoozedUntilUtc: const Value(null),
+            updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+    }
+    _deferredUntilUtc.remove(row.id);
+    _disabledNotificationIds.remove(row.id);
+    await checkNow();
   }
 
   Future<List<String>> _signedInAccountIds() async {

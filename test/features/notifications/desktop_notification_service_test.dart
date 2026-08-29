@@ -1,29 +1,44 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
 import 'package:desktop_notifications/desktop_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:busymax/src/app/app_settings.dart';
-import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
-  test('notification service does not throw with fake backend', () async {
+  test('unknown sync failure uses a controlled generic message', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
       backend: backend,
       settings: AppSettings.defaults(),
+      locale: const Locale('en'),
     );
 
-    await service.notifySyncFailure('network error');
+    await service.notifySyncFailure(
+      StateError('database_path=/private exception details'),
+    );
 
     expect(backend.notifications, hasLength(1));
+    expect(
+      backend.notifications.single.body,
+      'Background sync failed. This account is temporarily unavailable.',
+    );
+    expect(backend.notifications.single.body, isNot(contains('database_path')));
   });
 
-  test('sync failure notification redacts OAuth secrets', () async {
+  test('sync failure notification never includes raw exception text', () async {
     final backend = _FakeNotificationBackend();
     final service = DesktopNotificationService(
       backend: backend,
       settings: AppSettings.defaults().copyWith(
         notificationDetailLevel: NotificationDetailLevel.normal,
       ),
+      locale: const Locale('en'),
     );
 
     await service.notifySyncFailure(
@@ -34,7 +49,76 @@ void main() {
     expect(body, isNot(contains('abc')));
     expect(body, isNot(contains('def')));
     expect(body, isNot(contains('secret')));
-    expect(body, contains('[REDACTED]'));
+    expect(body, contains('This account is temporarily unavailable.'));
+  });
+
+  test('offline transport failures do not create notifications', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults(),
+    );
+
+    await service.notifySyncFailure(
+      http.ClientException(
+        'Connection failed',
+        Uri.parse('https://example.invalid'),
+      ),
+    );
+    await service.notifySyncFailure(
+      const SocketException('Network is unreachable'),
+    );
+    await service.notifySyncFailure(TimeoutException('Request timed out'));
+
+    expect(backend.notifications, isEmpty);
+  });
+
+  test('account authentication failures request reconnection', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults(),
+      locale: const Locale('en'),
+    );
+
+    await service.notifySyncFailure(
+      const OAuthException(
+        'OAuthMissingToken',
+        'No OAuth token is available for this account.',
+      ),
+    );
+
+    expect(
+      backend.notifications.single.body,
+      'Background sync failed. '
+      'Reconnect this account to resume synchronization.',
+    );
+  });
+
+  test('permission failures use a controlled permission message', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults(),
+      locale: const Locale('en'),
+    );
+
+    await service.notifySyncFailure(
+      const TaskRemoteError(
+        statusCode: 403,
+        message: 'provider payload with private details',
+      ),
+    );
+
+    expect(
+      backend.notifications.single.body,
+      'Background sync failed. '
+      'Server permissions changed. Pending edits are paused.',
+    );
+    expect(
+      backend.notifications.single.body,
+      isNot(contains('provider payload')),
+    );
   });
 
   test('conflict notification respects disabled setting', () async {
@@ -307,7 +391,9 @@ void main() {
         ),
       );
 
-      await service.notifySyncFailure('Private server response');
+      await service.notifySyncFailure(
+        const OAuthException('OAuthMissingToken', 'Private server response'),
+      );
 
       expect(backend.notifications.single.body, isNot(contains('Private')));
       expect(
@@ -336,8 +422,12 @@ void main() {
       now: () => DateTime(2026, 1, 2, 7),
     );
 
-    await quietService.notifySyncFailure('Offline');
-    await awakeService.notifySyncFailure('Offline');
+    const actionableFailure = OAuthException(
+      'OAuthMissingToken',
+      'No token is available.',
+    );
+    await quietService.notifySyncFailure(actionableFailure);
+    await awakeService.notifySyncFailure(actionableFailure);
 
     expect(quietBackend.notifications, isEmpty);
     expect(awakeBackend.notifications, hasLength(1));

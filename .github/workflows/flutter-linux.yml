@@ -8,11 +8,11 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Linux build dependencies
         run: |
@@ -27,13 +27,13 @@ jobs:
             libstdc++-12-dev \
             libsecret-1-dev \
             libjsoncpp-dev \
-            liblzma-dev \
-            zip
+            liblzma-dev
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.44.4'
           cache: true
 
       - name: Enable Linux desktop
@@ -57,9 +57,6 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build Linux debug
-        run: flutter build linux --debug
-
       - name: Build Linux release
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
@@ -78,17 +75,24 @@ jobs:
           fi
           flutter build linux "${args[@]}"
 
-      - name: Package Linux release bundle
-        run: |
-          cd build/linux/x64/release
-          zip -r busymax-linux-x64-release-bundle.zip bundle
-          sha256sum busymax-linux-x64-release-bundle.zip > busymax-linux-x64-release-bundle.zip.sha256
+      - name: Build strict Snap from the release bundle
+        id: snapcraft
+        uses: snapcore/action-build@v1
 
-      - name: Upload Linux release bundle
-        uses: actions/upload-artifact@v4
+      - name: Upload Snap artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: busymax-linux-x64-release-bundle
-          path: |
-            build/linux/x64/release/busymax-linux-x64-release-bundle.zip
-            build/linux/x64/release/busymax-linux-x64-release-bundle.zip.sha256
+          name: busymax-snap
+          path: ${{ steps.snapcraft.outputs.snap }}
           if-no-files-found: error
+
+      - name: Install strict Snap
+        run: >-
+          sudo snap install --dangerous
+          "${{ steps.snapcraft.outputs.snap }}"
+
+      - name: Verify installed strict Snap
+        run: |
+          LC_ALL=C snap info --verbose busymax |
+            grep -Eq '^[[:space:]]*confinement:[[:space:]]+strict$'
+          snap run --shell busymax -c 'test -x "$SNAP/busymax"'

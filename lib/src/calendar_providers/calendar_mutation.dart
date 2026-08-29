@@ -19,6 +19,11 @@ class CalendarMutation {
 const calendarEventClearFieldsKey = '_clearFields';
 const calendarEventRecurrenceField = 'recurrenceJson';
 const calendarEventAttendeesField = 'attendeesJson';
+const calendarEventGuestUpdatePolicyKey = '_guestUpdatePolicy';
+
+enum CalendarGuestUpdatePolicy { send, doNotSend }
+
+enum CalendarInvitationResponse { accept, tentative, decline }
 
 class CalendarEventMutation {
   const CalendarEventMutation({

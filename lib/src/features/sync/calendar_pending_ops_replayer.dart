@@ -103,6 +103,8 @@ class CalendarPendingOpsReplayer {
         await _patchEvent(op);
       case 'event.delete':
         await _deleteEvent(op);
+      case 'event.respond':
+        await _respondToEvent(op);
       case 'calendar.patch':
         await _patchCalendar(op);
       case 'calendar.delete':
@@ -177,6 +179,7 @@ class CalendarPendingOpsReplayer {
         request,
         fallbackTimeZone: await _fallbackTimeZone(op),
       ),
+      guestUpdatePolicy: _guestUpdatePolicy(request),
     );
     await _replaceLocalEvent(op, event);
   }
@@ -194,6 +197,7 @@ class CalendarPendingOpsReplayer {
         request,
         fallbackTimeZone: await _fallbackTimeZone(op, local: local),
       ),
+      guestUpdatePolicy: _guestUpdatePolicy(request),
     );
     await _database.transaction(() async {
       final hasDependent = await _rebaseDependentEventEdits(op, event);
@@ -256,8 +260,46 @@ class CalendarPendingOpsReplayer {
     await _client.deleteEvent(
       calendarId: providerCalendarId,
       eventId: providerEventId,
+      guestUpdatePolicy: _guestUpdatePolicy(_request(op)),
     );
     await _applyDeleteSideEffect(op);
+  }
+
+  Future<void> _respondToEvent(PendingOp op) async {
+    final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
+    final local = await _localEvent(op);
+    final providerEventId = await _providerEventId(op, local);
+    final request = _request(op);
+    final response = _invitationResponse(request['response']);
+    final event = await _client.respondToEvent(
+      calendarId: providerCalendarId,
+      eventId: providerEventId,
+      response: response,
+      attendeeEmail: request['attendeeEmail']?.toString(),
+      sendResponse: request['sendResponse'] != false,
+    );
+    if (event != null) {
+      await _repository.upsertEvent(accountId: _accountId, event: event);
+      return;
+    }
+    final otherPending =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.eventId.equals(local.id) &
+                  row.id.equals(op.id).not(),
+            ))
+            .get();
+    if (otherPending.isEmpty) {
+      await (_database.update(
+        _database.calendarEvents,
+      )..where((row) => row.id.equals(local.id))).write(
+        CalendarEventsCompanion(
+          syncStatus: const Value('synced'),
+          updatedAtLocal: Value(_nowUtc().millisecondsSinceEpoch),
+        ),
+      );
+    }
   }
 
   Future<void> _replaceLocalEvent(
@@ -400,6 +442,7 @@ class CalendarPendingOpsReplayer {
     return {
       for (final entry in request.entries)
         if (entry.key != calendarEventClearFieldsKey &&
+            entry.key != calendarEventGuestUpdatePolicyKey &&
             (entry.value != null || clearFields.contains(entry.key)))
           entry.key,
     };
@@ -440,6 +483,7 @@ class CalendarPendingOpsReplayer {
         'visibility': raw['visibility'],
         'transparencyOrShowAs': raw['transparency'],
         'conferenceJson': raw['conferenceData'],
+        'hideAttendees': raw['guestsCanSeeOtherGuests'] == false,
       };
     }
 
@@ -473,6 +517,10 @@ class CalendarPendingOpsReplayer {
       'importance': raw['importance'],
       'sensitivity': raw['sensitivity'],
       'transparencyOrShowAs': raw['showAs'],
+      'conferenceJson': raw['onlineMeeting'],
+      'responseRequested': raw['responseRequested'],
+      'hideAttendees': raw['hideAttendees'],
+      'allowNewTimeProposals': raw['allowNewTimeProposals'],
     };
   }
 
@@ -534,6 +582,22 @@ class CalendarPendingOpsReplayer {
       return const {};
     }
     return {for (final field in value) field.toString()};
+  }
+
+  CalendarGuestUpdatePolicy _guestUpdatePolicy(Map<String, Object?> request) {
+    return switch (request[calendarEventGuestUpdatePolicyKey]?.toString()) {
+      'doNotSend' => CalendarGuestUpdatePolicy.doNotSend,
+      _ => CalendarGuestUpdatePolicy.send,
+    };
+  }
+
+  CalendarInvitationResponse _invitationResponse(Object? value) {
+    return switch (value?.toString()) {
+      'accept' => CalendarInvitationResponse.accept,
+      'tentative' => CalendarInvitationResponse.tentative,
+      'decline' => CalendarInvitationResponse.decline,
+      _ => throw StateError('Invalid pending invitation response.'),
+    };
   }
 
   Future<String?> _fallbackTimeZone(

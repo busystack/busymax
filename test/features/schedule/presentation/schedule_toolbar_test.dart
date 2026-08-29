@@ -76,6 +76,44 @@ void main() {
     expect(title.style?.fontWeight, FontWeight.bold);
   });
 
+  testWidgets('Today is an accessible icon-only action', (tester) async {
+    final semantics = tester.ensureSemantics();
+    var activations = 0;
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: SizedBox(
+            width: 1000,
+            child: ScheduleToolbar(
+              mode: ScheduleViewMode.week,
+              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              selectedDate: DateTime(2026, 7, 22),
+              onToday: () => activations++,
+              onPrevious: () {},
+              onNext: () {},
+              onModeChanged: (_) {},
+              canCreateEvent: true,
+              canCreateTask: true,
+              onCreateEvent: () {},
+              onCreateTask: () {},
+              onRefresh: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Today'), findsNothing);
+    expect(find.byIcon(Icons.today_outlined), findsOneWidget);
+    expect(find.byTooltip('Today (Shift+T)'), findsOneWidget);
+    expect(find.bySemanticsLabel('Today'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Today (Shift+T)'));
+    expect(activations, 1);
+    semantics.dispose();
+  });
+
   testWidgets('toolbar delegates create selection to the native menu host', (
     tester,
   ) async {

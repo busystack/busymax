@@ -211,7 +211,7 @@ void main() {
     expect(rows.single.title, 'task-1');
     expect(
       rows.single.scheduledAtUtc,
-      DateTime(2026, 6, 5, 8, 30).toUtc().millisecondsSinceEpoch,
+      DateTime.utc(2026, 6, 5, 15, 30).millisecondsSinceEpoch,
     );
   });
 

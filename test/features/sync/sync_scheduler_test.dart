@@ -1,22 +1,22 @@
 import 'dart:async';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
-import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/sync/sync_scheduler.dart';
-import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('scheduler reports background sync failure', () async {
-    final failures = <String>[];
+  test('scheduler preserves the background sync failure', () async {
+    final failure = StateError('background failed');
+    final failures = <Object>[];
     final scheduler = SyncScheduler(
-      syncEngine: _FailingSyncEngine(),
+      syncEngine: _FailingSyncEngine(failure),
       interval: const Duration(milliseconds: 1),
-      onSyncFailure: (message) async {
-        failures.add(message);
+      onSyncFailure: (error) async {
+        failures.add(error);
       },
     );
 
@@ -24,7 +24,7 @@ void main() {
     addTearDown(scheduler.stop);
 
     await _waitFor(() => failures.isNotEmpty);
-    expect(failures.first, contains('background failed'));
+    expect(failures.first, same(failure));
   });
 
   test('periodic all-account scheduler syncs all signed-in accounts', () async {
@@ -45,58 +45,90 @@ void main() {
     expect(synced.take(2), ['a', 'b']);
   });
 
+  test('periodic sync does not call providers while offline', () async {
+    final engine = _RecordingSyncEngine();
+    final scheduler = SyncScheduler(
+      syncEngine: engine,
+      canSync: () async => false,
+      interval: const Duration(milliseconds: 1),
+    );
+    scheduler.start();
+    addTearDown(scheduler.stop);
+
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(engine.incrementalSyncCalls, 0);
+  });
+
+  test('all-account sync does not enumerate accounts while offline', () async {
+    var listCalls = 0;
+    final scheduler = AllAccountsSyncScheduler(
+      listSignedInAccounts: () async {
+        listCalls += 1;
+        return [_account('a')];
+      },
+      syncAccount: (_) async {},
+      onSyncFailure: (_) async {},
+      canSync: () async => false,
+      interval: Duration.zero,
+    );
+
+    await scheduler.runNow();
+
+    expect(listCalls, 0);
+  });
+
   test('all-account sync failure does not stop other accounts', () async {
     final synced = <String>[];
-    final failures = <String>[];
+    final failure = StateError('a failed');
+    final failures = <Object>[];
 
     await runAllSignedInAccountSync(
       listSignedInAccounts: () async => [_account('a'), _account('b')],
       syncAccount: (accountId) async {
         synced.add(accountId);
         if (accountId == 'a') {
-          throw StateError('a failed');
+          throw failure;
         }
       },
-      onSyncFailure: (message) async {
-        failures.add(message);
+      onSyncFailure: (error) async {
+        failures.add(error);
       },
     );
 
     expect(synced, ['a', 'b']);
-    expect(failures.single, contains('a failed'));
+    expect(failures.single, same(failure));
   });
 
-  test(
-    'missing OAuth token reports reconnect message and account callback',
-    () async {
-      final synced = <String>[];
-      final authFailures = <String>[];
-      final failures = <String>[];
+  test('missing OAuth token is preserved for both failure callbacks', () async {
+    final synced = <String>[];
+    final authFailures = <String>[];
+    const failure = OAuthException(
+      'OAuthMissingToken',
+      'No OAuth token is available for this account.',
+    );
+    final failures = <Object>[];
 
-      await runAllSignedInAccountSync(
-        listSignedInAccounts: () async => [_account('a'), _account('b')],
-        syncAccount: (accountId) async {
-          synced.add(accountId);
-          if (accountId == 'a') {
-            throw const OAuthException(
-              'OAuthMissingToken',
-              'No OAuth token is available for this account.',
-            );
-          }
-        },
-        onAccountSyncFailure: (accountId, error) async {
-          authFailures.add('$accountId:$error');
-        },
-        onSyncFailure: (message) async {
-          failures.add(message);
-        },
-      );
+    await runAllSignedInAccountSync(
+      listSignedInAccounts: () async => [_account('a'), _account('b')],
+      syncAccount: (accountId) async {
+        synced.add(accountId);
+        if (accountId == 'a') {
+          throw failure;
+        }
+      },
+      onAccountSyncFailure: (accountId, error) async {
+        authFailures.add('$accountId:$error');
+      },
+      onSyncFailure: (error) async {
+        failures.add(error);
+      },
+    );
 
-      expect(synced, ['a', 'b']);
-      expect(authFailures.single, contains('a:OAuthMissingToken'));
-      expect(failures.single, accountReconnectRequiredSyncMessage);
-    },
-  );
+    expect(synced, ['a', 'b']);
+    expect(authFailures.single, contains('a:OAuthMissingToken'));
+    expect(failures.single, same(failure));
+  });
 
   test('all-account scheduler does not run overlapping syncs', () async {
     var active = 0;
@@ -128,9 +160,28 @@ void main() {
 }
 
 class _FailingSyncEngine implements SyncEngine {
+  _FailingSyncEngine(this.failure);
+
+  final Object failure;
+
   @override
   Future<void> incrementalSync() async {
-    throw StateError('background failed');
+    throw failure;
+  }
+
+  @override
+  Future<void> fullSync() async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _RecordingSyncEngine implements SyncEngine {
+  var incrementalSyncCalls = 0;
+
+  @override
+  Future<void> incrementalSync() async {
+    incrementalSyncCalls += 1;
   }
 
   @override

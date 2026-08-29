@@ -258,6 +258,129 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noGuests => '没有参与者';
 
   @override
+  String get attendeeRequired => 'Required';
+
+  @override
+  String get attendeeOptional => 'Optional';
+
+  @override
+  String get meetingSection => 'Meeting';
+
+  @override
+  String get addGoogleMeet => 'Add Google Meet';
+
+  @override
+  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+
+  @override
+  String get onlineMeetingAdded => 'Online meeting added';
+
+  @override
+  String get requestResponses => 'Request responses';
+
+  @override
+  String get requestResponsesDescription =>
+      'Ask guests to respond to the invitation.';
+
+  @override
+  String get hideGuestList => 'Hide guest list';
+
+  @override
+  String get hideGuestListDescription =>
+      'Guests cannot see who else was invited.';
+
+  @override
+  String get allowNewTimeProposals => 'Allow new time proposals';
+
+  @override
+  String get allowNewTimeProposalsDescription =>
+      'Guests can suggest a different meeting time.';
+
+  @override
+  String get notifyGuestsTitle => 'Notify guests?';
+
+  @override
+  String get notifyGuestsSaveMessage =>
+      'This meeting has guests. Send invitations or event updates when it is saved?';
+
+  @override
+  String get notifyGuestsDeleteMessage =>
+      'This meeting has guests. Send a cancellation when it is deleted?';
+
+  @override
+  String get sendUpdates => 'Send updates';
+
+  @override
+  String get sendCancellation => 'Send cancellation';
+
+  @override
+  String get doNotSend => 'Don’t send';
+
+  @override
+  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+
+  @override
+  String get microsoftNotifyGuestsSaveMessage =>
+      'Microsoft will send invitations or event updates to guests.';
+
+  @override
+  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+
+  @override
+  String get microsoftNotifyGuestsDeleteMessage =>
+      'Microsoft will send a cancellation to guests.';
+
+  @override
+  String get organizer => 'Organizer';
+
+  @override
+  String get yourResponse => 'Your response';
+
+  @override
+  String get guestResponses => 'Guest responses';
+
+  @override
+  String get respond => 'Respond';
+
+  @override
+  String get acceptInvitation => 'Accept';
+
+  @override
+  String get tentativeInvitation => 'Tentative';
+
+  @override
+  String get declineInvitation => 'Decline';
+
+  @override
+  String get joinMeeting => 'Join meeting';
+
+  @override
+  String get responseAccepted => 'Accepted';
+
+  @override
+  String get responseTentative => 'Tentative';
+
+  @override
+  String get responseDeclined => 'Declined';
+
+  @override
+  String get responseNeedsAction => 'Awaiting response';
+
+  @override
+  String get responseNotResponded => 'Not responded';
+
+  @override
+  String get responseOrganizer => 'Organizer';
+
+  @override
+  String invitationResponseFailed(String error) {
+    return 'Could not send your response: $error';
+  }
+
+  @override
+  String get joinMeetingFailed => 'Could not open the meeting link.';
+
+  @override
   String get description => '说明';
 
   @override
@@ -1270,6 +1393,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get startMinimizedToTray => '启动时最小化到托盘';
 
   @override
+  String get launchAtLogin => '登录时启动';
+
+  @override
+  String get launchAtLoginDescription => '在后台启动 BusyMax，以便登录后提醒能够正常工作。';
+
+  @override
+  String get launchAtLoginFailed => '无法更新登录时启动设置。';
+
+  @override
   String get requiresTrayIcon => '需要托盘图标。';
 
   @override
@@ -1477,6 +1609,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationOpenAction => '打开';
+
+  @override
+  String get notificationSnoozeAction => '10 分钟后提醒';
+
+  @override
+  String get notificationDismissAction => '忽略';
 
   @override
   String get notificationDetailsHidden => '根据隐私设置，详细信息已隐藏。';
@@ -1750,6 +1888,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String deleteCalendarConfirmation(String title) {
     return '删除“$title”？';
   }
+
+  @override
+  String get networkOffline => '离线';
+
+  @override
+  String get networkOfflineDescription => '恢复连接后将同步更改。';
+
+  @override
+  String get networkOfflineTryAgain => '您当前处于离线状态。请连接互联网后重试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -2002,6 +2149,129 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get noGuests => '没有参与者';
 
   @override
+  String get attendeeRequired => 'Required';
+
+  @override
+  String get attendeeOptional => 'Optional';
+
+  @override
+  String get meetingSection => 'Meeting';
+
+  @override
+  String get addGoogleMeet => 'Add Google Meet';
+
+  @override
+  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+
+  @override
+  String get onlineMeetingAdded => 'Online meeting added';
+
+  @override
+  String get requestResponses => 'Request responses';
+
+  @override
+  String get requestResponsesDescription =>
+      'Ask guests to respond to the invitation.';
+
+  @override
+  String get hideGuestList => 'Hide guest list';
+
+  @override
+  String get hideGuestListDescription =>
+      'Guests cannot see who else was invited.';
+
+  @override
+  String get allowNewTimeProposals => 'Allow new time proposals';
+
+  @override
+  String get allowNewTimeProposalsDescription =>
+      'Guests can suggest a different meeting time.';
+
+  @override
+  String get notifyGuestsTitle => 'Notify guests?';
+
+  @override
+  String get notifyGuestsSaveMessage =>
+      'This meeting has guests. Send invitations or event updates when it is saved?';
+
+  @override
+  String get notifyGuestsDeleteMessage =>
+      'This meeting has guests. Send a cancellation when it is deleted?';
+
+  @override
+  String get sendUpdates => 'Send updates';
+
+  @override
+  String get sendCancellation => 'Send cancellation';
+
+  @override
+  String get doNotSend => 'Don’t send';
+
+  @override
+  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+
+  @override
+  String get microsoftNotifyGuestsSaveMessage =>
+      'Microsoft will send invitations or event updates to guests.';
+
+  @override
+  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+
+  @override
+  String get microsoftNotifyGuestsDeleteMessage =>
+      'Microsoft will send a cancellation to guests.';
+
+  @override
+  String get organizer => 'Organizer';
+
+  @override
+  String get yourResponse => 'Your response';
+
+  @override
+  String get guestResponses => 'Guest responses';
+
+  @override
+  String get respond => 'Respond';
+
+  @override
+  String get acceptInvitation => 'Accept';
+
+  @override
+  String get tentativeInvitation => 'Tentative';
+
+  @override
+  String get declineInvitation => 'Decline';
+
+  @override
+  String get joinMeeting => 'Join meeting';
+
+  @override
+  String get responseAccepted => 'Accepted';
+
+  @override
+  String get responseTentative => 'Tentative';
+
+  @override
+  String get responseDeclined => 'Declined';
+
+  @override
+  String get responseNeedsAction => 'Awaiting response';
+
+  @override
+  String get responseNotResponded => 'Not responded';
+
+  @override
+  String get responseOrganizer => 'Organizer';
+
+  @override
+  String invitationResponseFailed(String error) {
+    return 'Could not send your response: $error';
+  }
+
+  @override
+  String get joinMeetingFailed => 'Could not open the meeting link.';
+
+  @override
   String get description => '说明';
 
   @override
@@ -3014,6 +3284,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get startMinimizedToTray => '启动时最小化到托盘';
 
   @override
+  String get launchAtLogin => '登录时启动';
+
+  @override
+  String get launchAtLoginDescription => '在后台启动 BusyMax，以便登录后提醒能够正常工作。';
+
+  @override
+  String get launchAtLoginFailed => '无法更新登录时启动设置。';
+
+  @override
   String get requiresTrayIcon => '需要托盘图标。';
 
   @override
@@ -3221,6 +3500,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get notificationOpenAction => '打开';
+
+  @override
+  String get notificationSnoozeAction => '10 分钟后提醒';
+
+  @override
+  String get notificationDismissAction => '忽略';
 
   @override
   String get notificationDetailsHidden => '根据隐私设置，详细信息已隐藏。';
@@ -3494,6 +3779,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String deleteCalendarConfirmation(String title) {
     return '删除“$title”？';
   }
+
+  @override
+  String get networkOffline => '离线';
+
+  @override
+  String get networkOfflineDescription => '恢复连接后将同步更改。';
+
+  @override
+  String get networkOfflineTryAgain => '您当前处于离线状态。请连接互联网后重试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -3744,6 +4038,129 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get noGuests => '沒有參與者';
+
+  @override
+  String get attendeeRequired => 'Required';
+
+  @override
+  String get attendeeOptional => 'Optional';
+
+  @override
+  String get meetingSection => 'Meeting';
+
+  @override
+  String get addGoogleMeet => 'Add Google Meet';
+
+  @override
+  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+
+  @override
+  String get onlineMeetingAdded => 'Online meeting added';
+
+  @override
+  String get requestResponses => 'Request responses';
+
+  @override
+  String get requestResponsesDescription =>
+      'Ask guests to respond to the invitation.';
+
+  @override
+  String get hideGuestList => 'Hide guest list';
+
+  @override
+  String get hideGuestListDescription =>
+      'Guests cannot see who else was invited.';
+
+  @override
+  String get allowNewTimeProposals => 'Allow new time proposals';
+
+  @override
+  String get allowNewTimeProposalsDescription =>
+      'Guests can suggest a different meeting time.';
+
+  @override
+  String get notifyGuestsTitle => 'Notify guests?';
+
+  @override
+  String get notifyGuestsSaveMessage =>
+      'This meeting has guests. Send invitations or event updates when it is saved?';
+
+  @override
+  String get notifyGuestsDeleteMessage =>
+      'This meeting has guests. Send a cancellation when it is deleted?';
+
+  @override
+  String get sendUpdates => 'Send updates';
+
+  @override
+  String get sendCancellation => 'Send cancellation';
+
+  @override
+  String get doNotSend => 'Don’t send';
+
+  @override
+  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+
+  @override
+  String get microsoftNotifyGuestsSaveMessage =>
+      'Microsoft will send invitations or event updates to guests.';
+
+  @override
+  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+
+  @override
+  String get microsoftNotifyGuestsDeleteMessage =>
+      'Microsoft will send a cancellation to guests.';
+
+  @override
+  String get organizer => 'Organizer';
+
+  @override
+  String get yourResponse => 'Your response';
+
+  @override
+  String get guestResponses => 'Guest responses';
+
+  @override
+  String get respond => 'Respond';
+
+  @override
+  String get acceptInvitation => 'Accept';
+
+  @override
+  String get tentativeInvitation => 'Tentative';
+
+  @override
+  String get declineInvitation => 'Decline';
+
+  @override
+  String get joinMeeting => 'Join meeting';
+
+  @override
+  String get responseAccepted => 'Accepted';
+
+  @override
+  String get responseTentative => 'Tentative';
+
+  @override
+  String get responseDeclined => 'Declined';
+
+  @override
+  String get responseNeedsAction => 'Awaiting response';
+
+  @override
+  String get responseNotResponded => 'Not responded';
+
+  @override
+  String get responseOrganizer => 'Organizer';
+
+  @override
+  String invitationResponseFailed(String error) {
+    return 'Could not send your response: $error';
+  }
+
+  @override
+  String get joinMeetingFailed => 'Could not open the meeting link.';
 
   @override
   String get description => '說明';
@@ -4759,6 +5176,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get startMinimizedToTray => '啟動時最小化至系統匣';
 
   @override
+  String get launchAtLogin => '登入時啟動';
+
+  @override
+  String get launchAtLoginDescription => '在背景啟動 BusyMax，讓提醒在登入後正常運作。';
+
+  @override
+  String get launchAtLoginFailed => '無法更新登入時啟動設定。';
+
+  @override
   String get requiresTrayIcon => '需要系統匣圖示。';
 
   @override
@@ -4966,6 +5392,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get notificationOpenAction => '開啟';
+
+  @override
+  String get notificationSnoozeAction => '10 分鐘後提醒';
+
+  @override
+  String get notificationDismissAction => '忽略';
 
   @override
   String get notificationDetailsHidden => '根據隱私權設定，詳細資料已隱藏。';
@@ -5239,4 +5671,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String deleteCalendarConfirmation(String title) {
     return '要刪除「$title」嗎？';
   }
+
+  @override
+  String get networkOffline => '離線';
+
+  @override
+  String get networkOfflineDescription => '連線恢復後將同步變更。';
+
+  @override
+  String get networkOfflineTryAgain => '您目前處於離線狀態。請連接網際網路後再試一次。';
 }

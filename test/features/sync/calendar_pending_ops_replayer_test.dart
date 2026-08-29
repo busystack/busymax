@@ -70,6 +70,68 @@ void main() {
       expect(rows.single.endTimeZone, 'America/Vancouver');
       expect(client.createdMutations.single.startTimeZone, 'America/Vancouver');
       expect(client.createdMutations.single.endTimeZone, 'America/Vancouver');
+      expect(client.guestUpdatePolicies.single, CalendarGuestUpdatePolicy.send);
+    },
+  );
+
+  test('event replay preserves a do-not-send guest update choice', () async {
+    await CalendarRepository(database: database).createLocalEvent(
+      EventEditorDraft.newEvent(
+        accountId: 'account',
+        sourceId: 'account|google|cal-1',
+        providerCalendarId: 'cal-1',
+        start: DateTime.utc(2026, 6, 8, 9),
+        end: DateTime.utc(2026, 6, 8, 10),
+      ).copyWith(title: 'Private draft'),
+      guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+    );
+
+    await CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 8),
+    ).replayDueOps();
+
+    expect(client.guestUpdatePolicies, [CalendarGuestUpdatePolicy.doNotSend]);
+  });
+
+  test(
+    'invitation response pending op calls the dedicated provider action',
+    () async {
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-event',
+      );
+      await _enqueueEventOp(
+        database,
+        id: 'respond-op',
+        operation: 'respond',
+        operationType: 'event.respond',
+        eventId: eventId,
+        request: const {
+          'response': 'tentative',
+          'attendeeEmail': 'me@example.com',
+          'sendResponse': true,
+        },
+        baselineUpdatedUtc: null,
+      );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      expect(client.invitationResponses, [
+        CalendarInvitationResponse.tentative,
+      ]);
+      expect(
+        client.calls,
+        contains('respondToEvent:cal-1:provider-event:me@example.com'),
+      );
     },
   );
 
@@ -961,6 +1023,8 @@ class _FakeCalendarClient implements CloudCalendarClient {
   final calls = <String>[];
   final createdMutations = <CalendarEventMutation>[];
   final updatedMutations = <CalendarEventMutation>[];
+  final guestUpdatePolicies = <CalendarGuestUpdatePolicy>[];
+  final invitationResponses = <CalendarInvitationResponse>[];
   int _createdCount = 0;
   int transientUpdateFailures = 0;
   CalendarEventDto? syncEvent;
@@ -992,9 +1056,12 @@ class _FakeCalendarClient implements CloudCalendarClient {
   Future<CalendarEventDto> createEvent({
     required String calendarId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     calls.add('createEvent:$calendarId:${mutation.title}');
     createdMutations.add(mutation);
+    guestUpdatePolicies.add(guestUpdatePolicy);
     _createdCount += 1;
     return _event(
       'server-event-$_createdCount',
@@ -1009,9 +1076,12 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required String calendarId,
     required String eventId,
     required CalendarEventMutation mutation,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     calls.add('updateEvent:$calendarId:$eventId:${mutation.title}');
     updatedMutations.add(mutation);
+    guestUpdatePolicies.add(guestUpdatePolicy);
     if (transientUpdateFailures > 0) {
       transientUpdateFailures -= 1;
       throw const GoogleCalendarApiError(
@@ -1060,12 +1130,28 @@ class _FakeCalendarClient implements CloudCalendarClient {
   Future<void> deleteEvent({
     required String calendarId,
     required String eventId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     calls.add('deleteEvent:$calendarId:$eventId');
+    guestUpdatePolicies.add(guestUpdatePolicy);
     final error = deleteError;
     if (error != null) {
       throw error;
     }
+  }
+
+  @override
+  Future<CalendarEventDto?> respondToEvent({
+    required String calendarId,
+    required String eventId,
+    required CalendarInvitationResponse response,
+    String? attendeeEmail,
+    bool sendResponse = true,
+  }) async {
+    calls.add('respondToEvent:$calendarId:$eventId:$attendeeEmail');
+    invitationResponses.add(response);
+    return _event(eventId, title: 'Base');
   }
 
   @override

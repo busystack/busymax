@@ -95,9 +95,14 @@ class ScheduleToolbar extends StatelessWidget {
                   context.l10n.today,
                   BusyMaxShortcutLabels.today,
                 ),
-                child: BusyMaxPushButton.standard(
+                excludeFromSemantics: true,
+                child: YaruIconButton(
+                  tooltip: null,
+                  icon: Icon(
+                    Icons.today_outlined,
+                    semanticLabel: context.l10n.today,
+                  ),
                   onPressed: onToday,
-                  child: Text(context.l10n.today),
                 ),
               ),
               const SizedBox(width: BusyMaxSpacing.sm),

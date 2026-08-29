@@ -24,6 +24,7 @@ import '../dav/storage/dav_settings_repository.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/auth/data/auth_repository.dart';
+import '../features/connectivity/network_connectivity_service.dart';
 import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
 import '../features/notifications/notification_scheduler.dart';
@@ -32,8 +33,8 @@ import '../features/sync/all_accounts_sync_scheduler.dart';
 import '../features/sync/calendar_sync_engine.dart';
 import '../features/sync/pending_mutation_sync_requester.dart';
 import '../features/sync/pending_op_resolution_service.dart';
-import '../features/sync/sync_auth_error.dart';
 import '../features/sync/sync_engine.dart';
+import '../features/sync/sync_failure_notification_policy.dart';
 import '../features/task_lists/data/task_lists_repository.dart';
 import '../features/tasks/data/tasks_repository.dart';
 import '../features/tasks/domain/task_remote_client.dart';
@@ -50,6 +51,7 @@ import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/linux_window_service.dart';
+import '../platform/linux_autostart_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
@@ -74,8 +76,36 @@ final secureStorageProvider = Provider<FlutterSecureStorage>(
   (ref) => const FlutterSecureStorage(),
 );
 
+final networkConnectivityMonitorProvider = Provider<NetworkConnectivityMonitor>(
+  (ref) {
+    final monitor = NetworkConnectivityMonitor();
+    ref.onDispose(() => unawaited(monitor.dispose()));
+    return monitor;
+  },
+);
+
+final networkAvailabilityProvider = StreamProvider<NetworkAvailability>((ref) {
+  return ref.watch(networkConnectivityMonitorProvider).watch();
+});
+
+final networkReconnectSyncCoordinatorProvider =
+    Provider<NetworkReconnectSyncCoordinator>((ref) {
+      final coordinator = NetworkReconnectSyncCoordinator(
+        monitor: ref.watch(networkConnectivityMonitorProvider),
+        synchronize: () => ref.read(syncSchedulerProvider).runNow(),
+      );
+      coordinator.start();
+      ref.onDispose(() => unawaited(coordinator.dispose()));
+      return coordinator;
+    });
+
 final baseHttpClientProvider = Provider<http.Client>((ref) {
-  final client = http.Client();
+  final client = ConnectivityAwareHttpClient(
+    inner: http.Client(),
+    requireNetwork: ref
+        .watch(networkConnectivityMonitorProvider)
+        .requireNetwork,
+  );
   ref.onDispose(client.close);
   return client;
 });
@@ -225,6 +255,14 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
 
 final linuxWindowServiceProvider = Provider<LinuxWindowService>(
   (ref) => const LinuxWindowService(),
+);
+
+final linuxAutostartServiceProvider = Provider<LinuxAutostartService>(
+  (ref) => LinuxAutostartService(),
+);
+
+final launchAtLoginEnabledProvider = FutureProvider<bool>(
+  (ref) => ref.watch(linuxAutostartServiceProvider).isEnabled(),
 );
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -490,12 +528,13 @@ final davAccountSyncEngineFactoryProvider =
             ref.read(notificationSchedulerProvider).checkNow(),
         reportPendingMutationFailure: (accountId, error) => ref
             .read(desktopNotificationServiceProvider)
-            .notifySyncFailure(error.safeMessage),
+            .notifySyncFailure(error),
       );
     });
 
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
+  final connectivity = ref.watch(networkConnectivityMonitorProvider);
 
   Future<BusyProvider> providerForAccount(String accountId) async {
     final account = await accountsRepository.accountById(accountId);
@@ -505,7 +544,7 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
     return account.provider;
   }
 
-  return RoutingAccountSyncOperations(
+  final routing = RoutingAccountSyncOperations(
     usesDav: (accountId) async {
       final provider = await providerForAccount(accountId);
       return provider == BusyProvider.appleICloud ||
@@ -541,6 +580,10 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
       }
     },
   );
+  return ConnectivityAwareAccountSyncOperations(
+    inner: routing,
+    requireNetwork: connectivity.requireNetwork,
+  );
 });
 
 typedef SignedInSyncRunner =
@@ -553,11 +596,7 @@ final signedInSyncRunnerProvider = Provider<SignedInSyncRunner>((ref) {
           .read(accountSyncOperationsProvider)
           .syncAccount(accountId, full: initial);
     } on Object catch (error) {
-      await _markAccountReconnectRequiredIfMissingSyncToken(
-        ref,
-        accountId,
-        error,
-      );
+      await _markAccountReconnectRequiredForSyncError(ref, accountId, error);
       rethrow;
     }
   };
@@ -572,8 +611,9 @@ final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
         .syncAccount(accountId, full: false);
   }
 
-  return () {
-    return runAllSignedInAccountSync(
+  return () async {
+    await ref.read(networkConnectivityMonitorProvider).requireNetwork();
+    await runAllSignedInAccountSync(
       listSignedInAccounts: ref
           .read(accountsRepositoryProvider)
           .listSyncEligibleAccounts,
@@ -582,11 +622,7 @@ final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
           .read(desktopNotificationServiceProvider)
           .notifySyncFailure,
       onAccountSyncFailure: (accountId, error) =>
-          _markAccountReconnectRequiredIfMissingSyncToken(
-            ref,
-            accountId,
-            error,
-          ),
+          _markAccountReconnectRequiredForSyncError(ref, accountId, error),
     );
   };
 });
@@ -737,11 +773,9 @@ final pendingMutationSyncRequesterProvider =
         onSyncFailure: ref
             .watch(desktopNotificationServiceProvider)
             .notifySyncFailure,
-        onSyncError: (error) => _markAccountReconnectRequiredIfMissingSyncToken(
-          ref,
-          accountId,
-          error,
-        ),
+        onSyncError: (error) =>
+            _markAccountReconnectRequiredForSyncError(ref, accountId, error),
+        canSync: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
       );
       ref.onDispose(requester.dispose);
       return requester;
@@ -756,11 +790,9 @@ final pendingMutationSyncRequesterForAccountProvider =
         onSyncFailure: ref
             .watch(desktopNotificationServiceProvider)
             .notifySyncFailure,
-        onSyncError: (error) => _markAccountReconnectRequiredIfMissingSyncToken(
-          ref,
-          accountId,
-          error,
-        ),
+        onSyncError: (error) =>
+            _markAccountReconnectRequiredForSyncError(ref, accountId, error),
+        canSync: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
       );
       ref.onDispose(requester.dispose);
       return requester;
@@ -798,19 +830,21 @@ final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
         .watch(desktopNotificationServiceProvider)
         .notifySyncFailure,
     onAccountSyncFailure: (accountId, error) =>
-        _markAccountReconnectRequiredIfMissingSyncToken(ref, accountId, error),
+        _markAccountReconnectRequiredForSyncError(ref, accountId, error),
+    canSync: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
   );
   scheduler.start();
   ref.onDispose(scheduler.stop);
   return scheduler;
 });
 
-Future<void> _markAccountReconnectRequiredIfMissingSyncToken(
+Future<void> _markAccountReconnectRequiredForSyncError(
   Ref ref,
   String accountId,
   Object error,
 ) async {
-  if (!isMissingOAuthTokenError(error)) {
+  if (syncFailureNotificationDisposition(error) !=
+      SyncFailureNotificationDisposition.reconnectRequired) {
     return;
   }
   try {

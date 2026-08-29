@@ -14,28 +14,41 @@ const int _busyMaxTrayRootMenuId = 0;
 const int _busyMaxTrayOpenMenuId = 1;
 const int _busyMaxTrayAgendaMenuId = 2;
 const int _busyMaxTrayQuitMenuId = 3;
+const int _busyMaxTrayOfflineMenuId = 4;
 
 class BusyMaxTrayLabels {
   const BusyMaxTrayLabels({
     required this.openBusyMax,
     required this.agenda,
     required this.quitBusyMax,
+    required this.offline,
+    required this.offlineDescription,
   });
 
   final String openBusyMax;
   final String agenda;
   final String quitBusyMax;
+  final String offline;
+  final String offlineDescription;
 
   @override
   bool operator ==(Object other) {
     return other is BusyMaxTrayLabels &&
         other.openBusyMax == openBusyMax &&
         other.agenda == agenda &&
-        other.quitBusyMax == quitBusyMax;
+        other.quitBusyMax == quitBusyMax &&
+        other.offline == offline &&
+        other.offlineDescription == offlineDescription;
   }
 
   @override
-  int get hashCode => Object.hash(openBusyMax, agenda, quitBusyMax);
+  int get hashCode => Object.hash(
+    openBusyMax,
+    agenda,
+    quitBusyMax,
+    offline,
+    offlineDescription,
+  );
 }
 
 class BusyMaxTrayService {
@@ -54,6 +67,7 @@ class BusyMaxTrayService {
 
   StatusNotifierItemClient? _client;
   bool _available = false;
+  bool _offline = false;
 
   bool get available => _available;
 
@@ -63,7 +77,9 @@ class BusyMaxTrayService {
       _logger.fine('Tray initialization skipped: existing_client=true');
       return;
     }
-    final iconName = _trayIconName();
+    final iconName = _trayIconName(offline: _offline);
+    final initialLabels = _labels;
+    final initialOffline = _offline;
     _logger.fine(
       'DBus menu creation starting: path=$busyMaxTrayMenuPath '
       'root_id=$_busyMaxTrayRootMenuId '
@@ -72,6 +88,7 @@ class BusyMaxTrayService {
     );
     final menu = buildBusyMaxTrayMenu(
       labels: _labels,
+      offline: _offline,
       onOpenBusyMax: _show,
       onOpenAgenda: _showAgenda,
       onQuit: _quit,
@@ -79,7 +96,7 @@ class BusyMaxTrayService {
     _logger.fine(
       'DBus menu creation completed: path=$busyMaxTrayMenuPath '
       'items=${menu.children.length} '
-      'ids=${[_busyMaxTrayOpenMenuId, _busyMaxTrayAgendaMenuId, _busyMaxTrayQuitMenuId].join(',')}',
+      'ids=${menu.children.map((item) => item.id).join(',')}',
     );
     _logger.fine(
       'Tray initialization starting: snap=${_isRunningInSnap()} '
@@ -87,8 +104,10 @@ class BusyMaxTrayService {
     );
     final client = StatusNotifierItemClient(
       id: busyMaxApplicationId,
-      title: 'BusyMax',
+      title: _trayTitle,
       iconName: iconName,
+      toolTipTitle: _trayTitle,
+      toolTipDescription: _trayToolTipDescription,
       itemIsMenu: true,
       menuPath: DBusObjectPath(busyMaxTrayMenuPath),
       menu: menu,
@@ -126,6 +145,10 @@ class BusyMaxTrayService {
       await client.connect();
       _client = client;
       _available = true;
+      if (_labels != initialLabels || _offline != initialOffline) {
+        await _updateClientPresentation();
+        await _updateMenu();
+      }
       final menuVerified = await _verifyMenuExported();
       _logger.fine(
         'StatusNotifier registration succeeded: snap=${_isRunningInSnap()} '
@@ -134,6 +157,7 @@ class BusyMaxTrayService {
         'menu_items=${menu.children.length}',
       );
     } on Object catch (error) {
+      _client = null;
       _available = false;
       _logger.warning(
         'StatusNotifier registration failed: snap=${_isRunningInSnap()} '
@@ -155,8 +179,38 @@ class BusyMaxTrayService {
       return;
     }
     _labels = labels;
-    _logger.fine('Tray menu labels updating: menu_items=3');
+    _logger.fine('Tray labels updating');
+    await _updateClientPresentation();
     await _updateMenu();
+  }
+
+  Future<void> updateOfflineState(bool offline) async {
+    if (_offline == offline) {
+      return;
+    }
+    _offline = offline;
+    _logger.fine('Tray connectivity presentation updating: offline=$offline');
+    await _updateClientPresentation();
+    await _updateMenu();
+  }
+
+  String get _trayTitle =>
+      _offline ? 'BusyMax — ${_labels.offline}' : 'BusyMax';
+
+  String get _trayToolTipDescription =>
+      _offline ? _labels.offlineDescription : '';
+
+  Future<void> _updateClientPresentation() async {
+    final client = _client;
+    if (client == null) {
+      return;
+    }
+    await client.updatePresentation(
+      title: _trayTitle,
+      iconName: _trayIconName(offline: _offline),
+      toolTipTitle: _trayTitle,
+      toolTipDescription: _trayToolTipDescription,
+    );
   }
 
   Future<void> _updateMenu() async {
@@ -166,6 +220,7 @@ class BusyMaxTrayService {
     }
     final menu = buildBusyMaxTrayMenu(
       labels: _labels,
+      offline: _offline,
       onOpenBusyMax: _show,
       onOpenAgenda: _showAgenda,
       onQuit: _quit,
@@ -261,6 +316,7 @@ List<DBusValue> _asMenuLayoutStruct(DBusValue value) {
 
 DBusMenuItem buildBusyMaxTrayMenu({
   required BusyMaxTrayLabels labels,
+  bool offline = false,
   required Future<void> Function() onOpenBusyMax,
   required Future<void> Function() onOpenAgenda,
   required Future<void> Function() onQuit,
@@ -270,6 +326,13 @@ DBusMenuItem buildBusyMaxTrayMenu({
     enabled: true,
     visible: true,
     children: [
+      if (offline)
+        DBusMenuItem(
+          id: _busyMaxTrayOfflineMenuId,
+          enabled: false,
+          visible: true,
+          label: '${labels.offline} — ${labels.offlineDescription}',
+        ),
       DBusMenuItem(
         id: _busyMaxTrayOpenMenuId,
         enabled: true,
@@ -326,8 +389,17 @@ Future<void> _runLoggedTrayAction({
   }
 }
 
-String _trayIconName() {
+String _trayIconName({required bool offline}) {
   final executableDir = File(Platform.resolvedExecutable).parent;
+  if (offline) {
+    final bundledOfflineLogo = File(
+      '${executableDir.path}/data/flutter_assets/assets/branding/'
+      'busymax-logo-offline.svg',
+    );
+    if (bundledOfflineLogo.existsSync()) {
+      return bundledOfflineLogo.path;
+    }
+  }
   final bundledLogo = File(
     '${executableDir.path}/data/flutter_assets/assets/branding/busymax-logo.svg',
   );

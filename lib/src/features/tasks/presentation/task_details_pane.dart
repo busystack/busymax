@@ -296,7 +296,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.refreshFailed(syncFailureMessage(error))),
+          content: Text(
+            context.l10n.refreshFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -480,7 +487,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(context.l10n.syncFailed(syncFailureMessage(error))),
+        content: Text(
+          context.l10n.syncFailed(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -508,7 +522,12 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.taskDuplicateFailed(syncFailureMessage(error)),
+            context.l10n.taskDuplicateFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
           ),
         ),
       );
@@ -536,7 +555,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.exportFailed(syncFailureMessage(error))),
+          content: Text(
+            context.l10n.exportFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
+          ),
         ),
       );
     }

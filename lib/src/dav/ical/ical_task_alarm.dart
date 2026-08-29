@@ -6,6 +6,8 @@ import '../dav_errors.dart';
 import 'ical_document.dart';
 import 'ical_semantics.dart';
 
+const maximumIcalAlarmRepetitions = 10000;
+
 /// A lossless projection of one RFC 5545 VALARM attached to a VTODO.
 ///
 /// Unknown properties are retained when a supported trigger is edited. This
@@ -149,6 +151,24 @@ final class IcalTaskAlarm {
   Duration? get relativeOffset {
     if (!isRelative) return null;
     return parseIcalDuration(triggerRaw)?.duration;
+  }
+
+  int? get repeatCount {
+    final source = _first('REPEAT')?.value.trim();
+    if (source == null || !RegExp(r'^\d+$').hasMatch(source)) return null;
+    final value = int.tryParse(source);
+    return value != null && value <= maximumIcalAlarmRepetitions ? value : null;
+  }
+
+  Duration? get repeatInterval {
+    final source = _first('DURATION')?.value.trim();
+    if (source == null) return null;
+    try {
+      final value = parseIcalDuration(source)?.duration;
+      return value != null && value > Duration.zero ? value : null;
+    } on DavException {
+      return null;
+    }
   }
 
   DateTime? get absoluteUtc {

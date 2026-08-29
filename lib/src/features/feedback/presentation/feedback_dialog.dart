@@ -13,6 +13,7 @@ import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../data/feedback_api_client.dart';
 import '../data/feedback_submission.dart';
+import '../../connectivity/network_connectivity_service.dart';
 
 typedef FeedbackAppMetadataLoader = Future<FeedbackAppMetadata> Function();
 typedef FeedbackSubmissionIdGenerator = String Function();
@@ -366,6 +367,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
   String _failureMessage(BuildContext context, Object error) {
     final l10n = context.l10n;
     return switch (error) {
+      NetworkUnavailableException() => l10n.feedbackConnectionError,
       FeedbackConnectionFailure() => l10n.feedbackConnectionError,
       FeedbackTimeoutFailure() => l10n.feedbackTimeoutError,
       FeedbackRateLimitedFailure() => l10n.feedbackRateLimitedError,

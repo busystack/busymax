@@ -4,7 +4,6 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
-import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
@@ -30,6 +29,26 @@ void main() {
 
     expect(syncCalls, 1);
   });
+
+  test(
+    'queued mutation does not start a provider call while offline',
+    () async {
+      var syncCalls = 0;
+      final requester = PendingMutationSyncRequester(
+        sync: () async {
+          syncCalls += 1;
+        },
+        canSync: () async => false,
+        debounce: Duration.zero,
+      );
+      addTearDown(requester.dispose);
+
+      requester.request();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(syncCalls, 0);
+    },
+  );
 
   test(
     'request during running sync schedules one non-overlapping follow-up',
@@ -102,15 +121,16 @@ void main() {
   });
 
   test('sync exception calls notification callback', () async {
-    final failures = <String>[];
+    final failure = StateError('sync failed');
+    final failures = <Object>[];
     var syncCalls = 0;
     final requester = PendingMutationSyncRequester(
       sync: () async {
         syncCalls += 1;
-        throw StateError('sync failed');
+        throw failure;
       },
-      onSyncFailure: (message) async {
-        failures.add(message);
+      onSyncFailure: (error) async {
+        failures.add(error);
       },
       debounce: Duration.zero,
     );
@@ -120,38 +140,36 @@ void main() {
     await _waitFor(() => failures.isNotEmpty);
 
     expect(syncCalls, 1);
-    expect(failures.single, contains('sync failed'));
+    expect(failures.single, same(failure));
   });
 
-  test(
-    'missing OAuth token calls error hook and reports reconnect message',
-    () async {
-      final errors = <Object>[];
-      final failures = <String>[];
-      final requester = PendingMutationSyncRequester(
-        sync: () async {
-          throw const OAuthException(
-            'OAuthMissingToken',
-            'No OAuth token is available for this account.',
-          );
-        },
-        onSyncError: (error) async {
-          errors.add(error);
-        },
-        onSyncFailure: (message) async {
-          failures.add(message);
-        },
-        debounce: Duration.zero,
-      );
-      addTearDown(requester.dispose);
+  test('missing OAuth token is preserved for both failure callbacks', () async {
+    final errors = <Object>[];
+    const failure = OAuthException(
+      'OAuthMissingToken',
+      'No OAuth token is available for this account.',
+    );
+    final failures = <Object>[];
+    final requester = PendingMutationSyncRequester(
+      sync: () async {
+        throw failure;
+      },
+      onSyncError: (error) async {
+        errors.add(error);
+      },
+      onSyncFailure: (error) async {
+        failures.add(error);
+      },
+      debounce: Duration.zero,
+    );
+    addTearDown(requester.dispose);
 
-      requester.request();
-      await _waitFor(() => failures.isNotEmpty);
+    requester.request();
+    await _waitFor(() => failures.isNotEmpty);
 
-      expect(errors.single, isA<OAuthException>());
-      expect(failures.single, accountReconnectRequiredSyncMessage);
-    },
-  );
+    expect(errors.single, isA<OAuthException>());
+    expect(failures.single, same(failure));
+  });
 
   test('created task is replayed through requester-triggered sync', () async {
     final database = AppDatabase(NativeDatabase.memory());

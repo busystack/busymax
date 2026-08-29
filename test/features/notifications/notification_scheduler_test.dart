@@ -150,6 +150,180 @@ void main() {
     expect(activatedRow?.sourceId, 'event-1');
   });
 
+  test('quiet hours defer a reminder without marking it sent', () async {
+    var localNow = DateTime(2026, 6, 8, 9);
+    now = localNow.toUtc();
+    scheduler.stop();
+    scheduler = NotificationScheduler(
+      database: database,
+      notifications: DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults().copyWith(
+          quietHoursEnabled: true,
+          quietHoursStart: '08:00',
+          quietHoursEnd: '10:00',
+        ),
+        now: () => localNow,
+      ),
+      interval: const Duration(days: 1),
+      nowUtc: () => now,
+    );
+    await _insertDueTaskNotification(database, now);
+
+    await scheduler.checkNow();
+
+    var row = await database.select(database.notificationSchedule).getSingle();
+    expect(backend.notifications, isEmpty);
+    expect(row.sentAtUtc, null);
+
+    localNow = DateTime(2026, 6, 8, 10);
+    now = localNow.toUtc();
+    await scheduler.checkNow();
+
+    row = await database.select(database.notificationSchedule).getSingle();
+    expect(backend.notifications, hasLength(1));
+    expect(row.sentAtUtc, isNotNull);
+  });
+
+  test('disabled reminder setting keeps the reminder pending', () async {
+    scheduler.stop();
+    scheduler = NotificationScheduler(
+      database: database,
+      notifications: DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults().copyWith(notifyTaskReminders: false),
+      ),
+      interval: const Duration(days: 1),
+      nowUtc: () => now,
+    );
+    await _insertDueTaskNotification(database, now);
+
+    await scheduler.checkNow();
+
+    var row = await database.select(database.notificationSchedule).getSingle();
+    expect(backend.notifications, isEmpty);
+    expect(row.sentAtUtc, null);
+
+    scheduler.stop();
+    scheduler = NotificationScheduler(
+      database: database,
+      notifications: DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults(),
+      ),
+      interval: const Duration(days: 1),
+      nowUtc: () => now,
+    );
+    await scheduler.checkNow();
+
+    row = await database.select(database.notificationSchedule).getSingle();
+    expect(backend.notifications, hasLength(1));
+    expect(row.sentAtUtc, isNotNull);
+  });
+
+  test(
+    'notification backend failure retries without losing reminder',
+    () async {
+      backend.error = StateError('notification daemon unavailable');
+      scheduler.stop();
+      scheduler = NotificationScheduler(
+        database: database,
+        notifications: DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults(),
+          reminderFailureRetryDelay: const Duration(minutes: 5),
+          now: () => now,
+        ),
+        interval: const Duration(days: 1),
+        nowUtc: () => now,
+      );
+      await _insertDueTaskNotification(database, now);
+
+      await scheduler.checkNow();
+
+      var row = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(row.sentAtUtc, null);
+
+      backend.error = null;
+      now = now.add(const Duration(minutes: 4));
+      await scheduler.checkNow();
+      expect(backend.notifications, isEmpty);
+
+      now = now.add(const Duration(minutes: 1));
+      await scheduler.checkNow();
+      row = await database.select(database.notificationSchedule).getSingle();
+      expect(backend.notifications, hasLength(1));
+      expect(row.sentAtUtc, isNotNull);
+    },
+  );
+
+  test('snooze redelivers the reminder after ten minutes', () async {
+    await _insertDueTaskNotification(database, now);
+
+    await scheduler.checkNow();
+    await backend.notifications.single.onAction?.call('snooze');
+
+    var row = await database.select(database.notificationSchedule).getSingle();
+    expect(row.sentAtUtc, null);
+    expect(
+      row.snoozedUntilUtc,
+      now.add(const Duration(minutes: 10)).millisecondsSinceEpoch,
+    );
+
+    now = now.add(const Duration(minutes: 9));
+    await scheduler.checkNow();
+    expect(backend.notifications, hasLength(1));
+
+    now = now.add(const Duration(minutes: 1));
+    await scheduler.checkNow();
+    row = await database.select(database.notificationSchedule).getSingle();
+    expect(backend.notifications, hasLength(2));
+    expect(row.sentAtUtc, isNotNull);
+    expect(row.snoozedUntilUtc, null);
+  });
+
+  test(
+    'an immediate snooze action cannot be overwritten by delivery',
+    () async {
+      backend.actionBeforeReturn = 'snooze';
+      await _insertDueTaskNotification(database, now);
+
+      await scheduler.checkNow();
+
+      final row = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(row.sentAtUtc, null);
+      expect(
+        row.snoozedUntilUtc,
+        now.add(const Duration(minutes: 10)).millisecondsSinceEpoch,
+      );
+    },
+  );
+
+  test('dismiss prevents a delivered reminder from firing again', () async {
+    await _insertDueTaskNotification(database, now);
+
+    await scheduler.checkNow();
+    final notification = backend.notifications.single;
+    expect(notification.actions.map((action) => action.key), [
+      'default',
+      'snooze',
+      'dismiss',
+    ]);
+    await notification.onAction?.call('dismiss');
+
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(row.dismissedAtUtc, isNotNull);
+    now = now.add(const Duration(hours: 1));
+    await scheduler.checkNow();
+    expect(backend.notifications, hasLength(1));
+  });
+
   test('does not notify for a signed-out account', () async {
     await database
         .into(database.accounts)
@@ -202,8 +376,30 @@ Future<void> _waitUntil(
   }
 }
 
+Future<void> _insertDueTaskNotification(
+  AppDatabase database,
+  DateTime scheduledAt,
+) {
+  return database
+      .into(database.notificationSchedule)
+      .insert(
+        NotificationScheduleCompanion.insert(
+          id: 'task|microsoft:m|list-1|task-1',
+          accountId: 'microsoft:m',
+          sourceType: 'task',
+          sourceId: 'task-1',
+          scheduledAtUtc: scheduledAt.millisecondsSinceEpoch,
+          title: 'File report',
+          createdAtLocal: 0,
+          updatedAtLocal: 0,
+        ),
+      );
+}
+
 class _FakeNotificationBackend implements DesktopNotificationBackend {
   final notifications = <_NotificationRecord>[];
+  Object? error;
+  String? actionBeforeReturn;
 
   @override
   Future<void> notify(
@@ -213,7 +409,14 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
     List<NotificationAction> actions = const [],
     DesktopNotificationActionHandler? onAction,
   }) async {
+    final failure = error;
+    if (failure != null) throw failure;
     notifications.add(_NotificationRecord(summary, body, actions, onAction));
+    final immediateAction = actionBeforeReturn;
+    if (immediateAction != null) {
+      actionBeforeReturn = null;
+      await onAction?.call(immediateAction);
+    }
   }
 
   @override

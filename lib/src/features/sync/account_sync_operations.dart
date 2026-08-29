@@ -10,6 +10,36 @@ abstract interface class AccountSyncOperations {
   Future<void> syncCalendar(String accountId, {required bool full});
 }
 
+final class ConnectivityAwareAccountSyncOperations
+    implements AccountSyncOperations {
+  const ConnectivityAwareAccountSyncOperations({
+    required AccountSyncOperations inner,
+    required Future<void> Function() requireNetwork,
+  }) : _inner = inner,
+       _requireNetwork = requireNetwork;
+
+  final AccountSyncOperations _inner;
+  final Future<void> Function() _requireNetwork;
+
+  @override
+  Future<void> syncAccount(String accountId, {required bool full}) async {
+    await _requireNetwork();
+    await _inner.syncAccount(accountId, full: full);
+  }
+
+  @override
+  Future<void> syncCalendar(String accountId, {required bool full}) async {
+    await _requireNetwork();
+    await _inner.syncCalendar(accountId, full: full);
+  }
+
+  @override
+  Future<void> syncTasks(String accountId, {required bool full}) async {
+    await _requireNetwork();
+    await _inner.syncTasks(accountId, full: full);
+  }
+}
+
 final class DelegatingAccountSyncOperations implements AccountSyncOperations {
   const DelegatingAccountSyncOperations({
     required AccountSyncAction syncTasks,

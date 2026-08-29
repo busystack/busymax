@@ -190,6 +190,9 @@ final class DavDiscoveryRepository {
     final nowEpoch = now.toUtc().millisecondsSinceEpoch;
     final calendarSourceId = 'dav-calendar-$collectionId';
     if (collection.eventProjectionEnabled) {
+      final existingSource = await (_database.select(
+        _database.calendarSources,
+      )..where((row) => row.id.equals(calendarSourceId))).getSingleOrNull();
       await _database
           .into(_database.calendarSources)
           .insertOnConflictUpdate(
@@ -201,7 +204,10 @@ final class DavDiscoveryRepository {
               davCollectionId: Value(collectionId),
               summary: collection.displayName,
               description: Value(collection.description),
-              selected: Value(existing?.eventsSelected ?? true),
+              selected: Value(
+                existingSource?.selected ?? existing?.eventsSelected ?? true,
+              ),
+              remindersEnabled: Value(existingSource?.remindersEnabled ?? true),
               hidden: const Value(false),
               readOnly: Value(collection.capabilities.isReadOnly),
               backgroundColor: Value(collection.color),
@@ -211,7 +217,7 @@ final class DavDiscoveryRepository {
               ),
               isDeleted: const Value(false),
               rawJson: Value(_projectionMetadata(collection)),
-              createdAtLocal: nowEpoch,
+              createdAtLocal: existingSource?.createdAtLocal ?? nowEpoch,
               updatedAtLocal: nowEpoch,
             ),
           );

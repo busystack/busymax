@@ -10,7 +10,15 @@ import '../../../schedule/schedule_projection.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_event_block.dart';
 
-enum ScheduleItemDetailsAction { export, edit, delete }
+enum ScheduleItemDetailsAction {
+  export,
+  edit,
+  delete,
+  joinMeeting,
+  acceptInvitation,
+  tentativeInvitation,
+  declineInvitation,
+}
 
 Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
   required BuildContext context,
@@ -99,6 +107,32 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                   _PopoverActions(item: item),
                 ],
               ),
+              if (item case final CalendarScheduleItem event
+                  when event.joinMeetingUrl != null) ...[
+                const SizedBox(height: BusyMaxSpacing.md),
+                SizedBox(
+                  width: double.infinity,
+                  child: BusyMaxPushButton.suggested(
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).pop(ScheduleItemDetailsAction.joinMeeting),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.video_call_outlined),
+                        const SizedBox(width: BusyMaxSpacing.xs),
+                        Text(context.l10n.joinMeeting),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              if (item case final CalendarScheduleItem event
+                  when event.canRespondToInvitation) ...[
+                const SizedBox(height: BusyMaxSpacing.md),
+                _InvitationResponseActions(item: event),
+              ],
               const SizedBox(height: BusyMaxSpacing.lg),
               _ScheduleItemDetails(item: item),
             ],
@@ -107,6 +141,74 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _InvitationResponseActions extends StatelessWidget {
+  const _InvitationResponseActions({required this.item});
+
+  final CalendarScheduleItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _selectedResponse(item.currentUserResponse);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.l10n.respond,
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+        const SizedBox(height: BusyMaxSpacing.xs),
+        Wrap(
+          spacing: BusyMaxSpacing.xs,
+          runSpacing: BusyMaxSpacing.xs,
+          children: [
+            _responseButton(
+              context,
+              selected: selected == ScheduleItemDetailsAction.acceptInvitation,
+              action: ScheduleItemDetailsAction.acceptInvitation,
+              label: context.l10n.acceptInvitation,
+            ),
+            _responseButton(
+              context,
+              selected:
+                  selected == ScheduleItemDetailsAction.tentativeInvitation,
+              action: ScheduleItemDetailsAction.tentativeInvitation,
+              label: context.l10n.tentativeInvitation,
+            ),
+            _responseButton(
+              context,
+              selected: selected == ScheduleItemDetailsAction.declineInvitation,
+              action: ScheduleItemDetailsAction.declineInvitation,
+              label: context.l10n.declineInvitation,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _responseButton(
+    BuildContext context, {
+    required bool selected,
+    required ScheduleItemDetailsAction action,
+    required String label,
+  }) {
+    void onPressed() => Navigator.of(context).pop(action);
+    return selected
+        ? BusyMaxPushButton.suggested(onPressed: onPressed, child: Text(label))
+        : BusyMaxPushButton.standard(onPressed: onPressed, child: Text(label));
+  }
+}
+
+ScheduleItemDetailsAction? _selectedResponse(String? response) {
+  return switch (response?.toLowerCase()) {
+    'accepted' => ScheduleItemDetailsAction.acceptInvitation,
+    'tentative' ||
+    'tentativelyaccepted' => ScheduleItemDetailsAction.tentativeInvitation,
+    'declined' => ScheduleItemDetailsAction.declineInvitation,
+    _ => null,
+  };
 }
 
 class _PopoverActions extends StatelessWidget {
@@ -196,10 +298,15 @@ class _ScheduleItemDetails extends StatelessWidget {
 }
 
 class _ScheduleDetailRow extends StatelessWidget {
-  const _ScheduleDetailRow({required this.icon, required this.text});
+  const _ScheduleDetailRow({
+    required this.icon,
+    required this.text,
+    this.maxLines = 3,
+  });
 
   final IconData icon;
   final String text;
+  final int? maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +326,7 @@ class _ScheduleDetailRow extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            maxLines: 3,
+            maxLines: maxLines,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
@@ -277,9 +384,35 @@ class _ScheduleDetailRichRow extends StatelessWidget {
 List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
   final location = item.location?.trim();
   final description = item.description?.trim();
+  final organizer = _organizerName(item.organizer);
+  final attendeeResponses = [
+    for (final attendee in item.attendees)
+      if (attendee['organizer'] != true && attendee['self'] != true)
+        _attendeeResponseLabel(context, attendee),
+  ];
   return [
     if (location != null && location.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.place_outlined, text: location),
+    if (organizer != null)
+      _ScheduleDetailRow(
+        icon: Icons.person_outline,
+        text: '${context.l10n.organizer}: $organizer',
+      ),
+    if (item.currentUserResponse case final response?)
+      _ScheduleDetailRow(
+        icon: Icons.how_to_reg_outlined,
+        text:
+            '${context.l10n.yourResponse}: '
+            '${_responseStatusLabel(context, response)}',
+      ),
+    if (attendeeResponses.isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.groups_outlined,
+        text:
+            '${context.l10n.guestResponses}:\n'
+            '${attendeeResponses.join('\n')}',
+        maxLines: null,
+      ),
     if (item.reminderMinutesBeforeStart.isNotEmpty)
       _ScheduleDetailRow(
         icon: Icons.notifications_outlined,
@@ -302,6 +435,61 @@ List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
     else if (description != null && description.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.notes, text: description),
   ];
+}
+
+String? _organizerName(Map<String, Object?>? organizer) {
+  if (organizer == null) return null;
+  final emailAddress = organizer['emailAddress'];
+  final nested = emailAddress is Map ? emailAddress : const {};
+  for (final value in [
+    organizer['displayName'],
+    nested['name'],
+    organizer['email'],
+    nested['address'],
+  ]) {
+    final text = value?.toString().trim();
+    if (text != null && text.isNotEmpty) return text;
+  }
+  return null;
+}
+
+String _attendeeResponseLabel(
+  BuildContext context,
+  Map<String, Object?> attendee,
+) {
+  final emailAddress = attendee['emailAddress'];
+  final nested = emailAddress is Map ? emailAddress : const {};
+  final name =
+      [
+            attendee['displayName'],
+            nested['name'],
+            attendee['email'],
+            nested['address'],
+          ]
+          .map((value) => value?.toString().trim())
+          .whereType<String>()
+          .firstWhere((value) => value.isNotEmpty, orElse: () => '—');
+  final statusObject = attendee['status'];
+  final status =
+      attendee['responseStatus']?.toString() ??
+      (statusObject is Map ? statusObject['response']?.toString() : null);
+  final optional =
+      attendee['optional'] == true ||
+      attendee['type']?.toString().toLowerCase() == 'optional';
+  return '$name — ${_responseStatusLabel(context, status)}'
+      '${optional ? ' · ${context.l10n.attendeeOptional}' : ''}';
+}
+
+String _responseStatusLabel(BuildContext context, String? response) {
+  return switch (response?.toLowerCase()) {
+    'accepted' => context.l10n.responseAccepted,
+    'tentative' || 'tentativelyaccepted' => context.l10n.responseTentative,
+    'declined' => context.l10n.responseDeclined,
+    'needsaction' => context.l10n.responseNeedsAction,
+    'organizer' => context.l10n.responseOrganizer,
+    'none' || 'notresponded' || null => context.l10n.responseNotResponded,
+    final value => value,
+  };
 }
 
 List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {

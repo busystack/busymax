@@ -17,12 +17,14 @@ import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/platform/linux_window_service.dart';
 import 'package:busymax/src/schedule/schedule_commands.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../test_localized_app.dart';
 
@@ -1976,6 +1978,55 @@ void main() {
     expect(windowService.hideWindowCalls, 0);
   });
 
+  testWidgets('tray presentation follows offline and restored connectivity', (
+    tester,
+  ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final changes = StreamController<List<ConnectivityResult>>.broadcast(
+      sync: true,
+    );
+    final monitor = NetworkConnectivityMonitor(
+      checkConnectivity: () async => [ConnectivityResult.none],
+      connectivityChanges: changes.stream,
+    );
+    addTearDown(() async {
+      await monitor.dispose();
+      await changes.close();
+    });
+    final windowService = _RecordingWindowService();
+    final trayService = _RecordingTrayService(windowService);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+          linuxWindowServiceProvider.overrideWithValue(windowService),
+          networkConnectivityMonitorProvider.overrideWithValue(monitor),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory:
+              ({
+                required windowService,
+                required labels,
+                required onOpenAgenda,
+              }) => trayService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(trayService.offlineStates, contains(true));
+
+    changes.add([ConnectivityResult.wifi]);
+    await tester.pump();
+    await tester.pump();
+
+    expect(trayService.offlineStates.last, isFalse);
+  });
+
   test('production sources avoid forbidden hardcoded accent colors', () {
     final disallowedHue = String.fromCharCodes([111, 114, 97, 110, 103, 101]);
     final forbidden = [
@@ -2299,6 +2350,8 @@ class _RecordingTrayService extends BusyMaxTrayService {
            openBusyMax: 'Open BusyMax',
            agenda: 'Agenda',
            quitBusyMax: 'Exit',
+           offline: 'Offline',
+           offlineDescription: 'Changes will sync when connected.',
          ),
          onOpenAgenda: openAgendaCallback,
        );
@@ -2307,6 +2360,7 @@ class _RecordingTrayService extends BusyMaxTrayService {
 
   var startCalls = 0;
   var _available = false;
+  final offlineStates = <bool>[];
 
   @override
   bool get available => _available;
@@ -2324,6 +2378,11 @@ class _RecordingTrayService extends BusyMaxTrayService {
 
   @override
   Future<void> updateLabels(BusyMaxTrayLabels labels) async {}
+
+  @override
+  Future<void> updateOfflineState(bool offline) async {
+    offlineStates.add(offline);
+  }
 
   Future<void> openAgenda() => _onOpenAgenda();
 }

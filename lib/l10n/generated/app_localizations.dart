@@ -606,6 +606,234 @@ abstract class AppLocalizations {
   /// **'No guests'**
   String get noGuests;
 
+  /// No description provided for @attendeeRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get attendeeRequired;
+
+  /// No description provided for @attendeeOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional'**
+  String get attendeeOptional;
+
+  /// No description provided for @meetingSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Meeting'**
+  String get meetingSection;
+
+  /// No description provided for @addGoogleMeet.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Google Meet'**
+  String get addGoogleMeet;
+
+  /// No description provided for @addTeamsMeeting.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Microsoft Teams meeting'**
+  String get addTeamsMeeting;
+
+  /// No description provided for @onlineMeetingAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Online meeting added'**
+  String get onlineMeetingAdded;
+
+  /// No description provided for @requestResponses.
+  ///
+  /// In en, this message translates to:
+  /// **'Request responses'**
+  String get requestResponses;
+
+  /// No description provided for @requestResponsesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask guests to respond to the invitation.'**
+  String get requestResponsesDescription;
+
+  /// No description provided for @hideGuestList.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide guest list'**
+  String get hideGuestList;
+
+  /// No description provided for @hideGuestListDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Guests cannot see who else was invited.'**
+  String get hideGuestListDescription;
+
+  /// No description provided for @allowNewTimeProposals.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow new time proposals'**
+  String get allowNewTimeProposals;
+
+  /// No description provided for @allowNewTimeProposalsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Guests can suggest a different meeting time.'**
+  String get allowNewTimeProposalsDescription;
+
+  /// No description provided for @notifyGuestsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notify guests?'**
+  String get notifyGuestsTitle;
+
+  /// No description provided for @notifyGuestsSaveMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This meeting has guests. Send invitations or event updates when it is saved?'**
+  String get notifyGuestsSaveMessage;
+
+  /// No description provided for @notifyGuestsDeleteMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This meeting has guests. Send a cancellation when it is deleted?'**
+  String get notifyGuestsDeleteMessage;
+
+  /// No description provided for @sendUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Send updates'**
+  String get sendUpdates;
+
+  /// No description provided for @sendCancellation.
+  ///
+  /// In en, this message translates to:
+  /// **'Send cancellation'**
+  String get sendCancellation;
+
+  /// No description provided for @doNotSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Don’t send'**
+  String get doNotSend;
+
+  /// No description provided for @microsoftNotifyGuestsSaveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save meeting?'**
+  String get microsoftNotifyGuestsSaveTitle;
+
+  /// No description provided for @microsoftNotifyGuestsSaveMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Microsoft will send invitations or event updates to guests.'**
+  String get microsoftNotifyGuestsSaveMessage;
+
+  /// No description provided for @microsoftNotifyGuestsDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete meeting?'**
+  String get microsoftNotifyGuestsDeleteTitle;
+
+  /// No description provided for @microsoftNotifyGuestsDeleteMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Microsoft will send a cancellation to guests.'**
+  String get microsoftNotifyGuestsDeleteMessage;
+
+  /// No description provided for @organizer.
+  ///
+  /// In en, this message translates to:
+  /// **'Organizer'**
+  String get organizer;
+
+  /// No description provided for @yourResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Your response'**
+  String get yourResponse;
+
+  /// No description provided for @guestResponses.
+  ///
+  /// In en, this message translates to:
+  /// **'Guest responses'**
+  String get guestResponses;
+
+  /// No description provided for @respond.
+  ///
+  /// In en, this message translates to:
+  /// **'Respond'**
+  String get respond;
+
+  /// No description provided for @acceptInvitation.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept'**
+  String get acceptInvitation;
+
+  /// No description provided for @tentativeInvitation.
+  ///
+  /// In en, this message translates to:
+  /// **'Tentative'**
+  String get tentativeInvitation;
+
+  /// No description provided for @declineInvitation.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline'**
+  String get declineInvitation;
+
+  /// No description provided for @joinMeeting.
+  ///
+  /// In en, this message translates to:
+  /// **'Join meeting'**
+  String get joinMeeting;
+
+  /// No description provided for @responseAccepted.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepted'**
+  String get responseAccepted;
+
+  /// No description provided for @responseTentative.
+  ///
+  /// In en, this message translates to:
+  /// **'Tentative'**
+  String get responseTentative;
+
+  /// No description provided for @responseDeclined.
+  ///
+  /// In en, this message translates to:
+  /// **'Declined'**
+  String get responseDeclined;
+
+  /// No description provided for @responseNeedsAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting response'**
+  String get responseNeedsAction;
+
+  /// No description provided for @responseNotResponded.
+  ///
+  /// In en, this message translates to:
+  /// **'Not responded'**
+  String get responseNotResponded;
+
+  /// No description provided for @responseOrganizer.
+  ///
+  /// In en, this message translates to:
+  /// **'Organizer'**
+  String get responseOrganizer;
+
+  /// No description provided for @invitationResponseFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not send your response: {error}'**
+  String invitationResponseFailed(String error);
+
+  /// No description provided for @joinMeetingFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the meeting link.'**
+  String get joinMeetingFailed;
+
   /// No description provided for @description.
   ///
   /// In en, this message translates to:
@@ -2442,6 +2670,24 @@ abstract class AppLocalizations {
   /// **'Start minimized to the tray'**
   String get startMinimizedToTray;
 
+  /// No description provided for @launchAtLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Launch at login'**
+  String get launchAtLogin;
+
+  /// No description provided for @launchAtLoginDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Start BusyMax in the background so reminders work after you sign in.'**
+  String get launchAtLoginDescription;
+
+  /// No description provided for @launchAtLoginFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update the launch-at-login setting.'**
+  String get launchAtLoginFailed;
+
   /// No description provided for @requiresTrayIcon.
   ///
   /// In en, this message translates to:
@@ -2813,6 +3059,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open'**
   String get notificationOpenAction;
+
+  /// No description provided for @notificationSnoozeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Snooze 10 minutes'**
+  String get notificationSnoozeAction;
+
+  /// No description provided for @notificationDismissAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get notificationDismissAction;
 
   /// No description provided for @notificationDetailsHidden.
   ///
@@ -3287,6 +3545,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete \"{title}\"?'**
   String deleteCalendarConfirmation(String title);
+
+  /// No description provided for @networkOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get networkOffline;
+
+  /// No description provided for @networkOfflineDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes will sync when the connection is restored.'**
+  String get networkOfflineDescription;
+
+  /// No description provided for @networkOfflineTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'You’re offline. Connect to the internet and try again.'**
+  String get networkOfflineTryAgain;
 }
 
 class _AppLocalizationsDelegate

@@ -30,6 +30,16 @@ void main() {
       id: 'microsoft:m',
       provider: BusyProvider.microsoft,
     );
+    await _insertAccount(
+      database,
+      id: 'nextcloud:n',
+      provider: BusyProvider.nextcloud,
+    );
+    await _insertAccount(
+      database,
+      id: 'apple:a',
+      provider: BusyProvider.appleICloud,
+    );
   });
 
   tearDown(() async {
@@ -128,6 +138,115 @@ void main() {
     );
   });
 
+  test('Nextcloud DISPLAY alarm schedules a desktop notification', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'nextcloud:n',
+      provider: BusyProvider.nextcloud,
+      startDateTime: '2026-06-08T09:00:00',
+      startTimeZone: 'America/Vancouver',
+      remindersJson: {
+        'alarms': [_displayAlarm('-PT15M')],
+      },
+    );
+
+    await service.rebuildUpcomingEventNotifications('nextcloud:n');
+
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(row.id, endsWith('|dav-0'));
+    expect(
+      row.scheduledAtUtc,
+      DateTime.utc(2026, 6, 8, 15, 45).millisecondsSinceEpoch,
+    );
+  });
+
+  test('Apple absolute DISPLAY alarm schedules a notification', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'apple:a',
+      provider: BusyProvider.appleICloud,
+      startDateTime: '2026-06-08T17:00:00.000Z',
+      remindersJson: {
+        'alarms': [
+          _displayAlarm(
+            '20260608T163000Z',
+            action: 'AUDIO',
+            triggerParameters: [
+              {
+                'name': 'VALUE',
+                'values': ['DATE-TIME'],
+              },
+            ],
+          ),
+        ],
+      },
+    );
+
+    await service.rebuildUpcomingEventNotifications('apple:a');
+
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(
+      row.scheduledAtUtc,
+      DateTime.utc(2026, 6, 8, 16, 30).millisecondsSinceEpoch,
+    );
+  });
+
+  test('DAV alarm related to event end uses the end instant', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'nextcloud:n',
+      provider: BusyProvider.nextcloud,
+      remindersJson: {
+        'alarms': [
+          _displayAlarm(
+            '-PT5M',
+            triggerParameters: [
+              {
+                'name': 'RELATED',
+                'values': ['END'],
+              },
+            ],
+          ),
+        ],
+      },
+    );
+
+    await service.rebuildUpcomingEventNotifications('nextcloud:n');
+
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(
+      row.scheduledAtUtc,
+      DateTime.utc(2026, 6, 8, 9, 55).millisecondsSinceEpoch,
+    );
+  });
+
+  test('DAV repeating alarm schedules every RFC repetition', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'nextcloud:n',
+      provider: BusyProvider.nextcloud,
+      remindersJson: {
+        'alarms': [_displayAlarm('-PT15M', repeat: 2, repeatInterval: 'PT5M')],
+      },
+    );
+
+    await service.rebuildUpcomingEventNotifications('nextcloud:n');
+
+    final rows = await database.select(database.notificationSchedule).get();
+    expect(rows, hasLength(3));
+    expect(rows.map((row) => row.scheduledAtUtc).toSet(), {
+      DateTime.utc(2026, 6, 8, 8, 45).millisecondsSinceEpoch,
+      DateTime.utc(2026, 6, 8, 8, 50).millisecondsSinceEpoch,
+      DateTime.utc(2026, 6, 8, 8, 55).millisecondsSinceEpoch,
+    });
+  });
+
   test('Microsoft UTC event reminder uses event timezone', () async {
     await _upsertEvent(
       database,
@@ -147,7 +266,7 @@ void main() {
     );
   });
 
-  test('Microsoft local event reminder keeps local wall time', () async {
+  test('Microsoft IANA event reminder resolves the event instant', () async {
     await _upsertEvent(
       database,
       accountId: 'microsoft:m',
@@ -162,7 +281,7 @@ void main() {
     final rows = await database.select(database.notificationSchedule).get();
     expect(
       rows.single.scheduledAtUtc,
-      DateTime(2026, 6, 8, 8, 30).toUtc().millisecondsSinceEpoch,
+      DateTime.utc(2026, 6, 8, 15, 30).millisecondsSinceEpoch,
     );
   });
 
@@ -239,6 +358,34 @@ void main() {
         .getSingle();
     expect(row.dismissedAtUtc, dismissedAt);
     expect(row.snoozedUntilUtc, snoozedUntil);
+  });
+
+  test('rebuild keeps a snoozed reminder after the event starts', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'microsoft:m',
+      provider: BusyProvider.microsoft,
+      remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+    );
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+    final snoozedUntil = DateTime.utc(2026, 6, 8, 9, 10).millisecondsSinceEpoch;
+    await database
+        .update(database.notificationSchedule)
+        .write(
+          NotificationScheduleCompanion(snoozedUntilUtc: Value(snoozedUntil)),
+        );
+    service = NotificationScheduleService(
+      database: database,
+      nowUtc: () => DateTime.utc(2026, 6, 8, 9, 5),
+    );
+
+    await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(row.snoozedUntilUtc, snoozedUntil);
+    expect(row.sentAtUtc, null);
   });
 
   test('moving an event resets delivery state for the new reminder', () async {
@@ -375,19 +522,27 @@ void main() {
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
 
-  test('deselected calendar removes scheduled event reminder', () async {
-    await _expectSourceUpdateRemovesEventReminder(
+  test('deselected calendar keeps its scheduled event reminder', () async {
+    await _expectSourceVisibilityUpdateKeepsEventReminder(
       database: database,
       service: service,
       update: const CalendarSourcesCompanion(selected: Value(false)),
     );
   });
 
-  test('hidden calendar removes scheduled event reminder', () async {
-    await _expectSourceUpdateRemovesEventReminder(
+  test('hidden calendar keeps its scheduled event reminder', () async {
+    await _expectSourceVisibilityUpdateKeepsEventReminder(
       database: database,
       service: service,
       update: const CalendarSourcesCompanion(hidden: Value(true)),
+    );
+  });
+
+  test('calendar reminder policy removes scheduled event reminder', () async {
+    await _expectSourceUpdateRemovesEventReminder(
+      database: database,
+      service: service,
+      update: const CalendarSourcesCompanion(remindersEnabled: Value(false)),
     );
   });
 
@@ -464,17 +619,46 @@ Future<void> _insertAccount(
         AccountsCompanion.insert(
           id: id,
           provider: provider.storageValue,
-          authority: provider == BusyProvider.microsoft
-              ? 'https://login.microsoftonline.com/common'
-              : 'https://accounts.google.com',
+          authority: switch (provider) {
+            BusyProvider.microsoft =>
+              'https://login.microsoftonline.com/common',
+            BusyProvider.google => 'https://accounts.google.com',
+            BusyProvider.appleICloud => 'https://caldav.icloud.com',
+            BusyProvider.nextcloud => 'https://cloud.example.com',
+          },
           providerAccountId: id,
-          credentialKind: 'oauth',
+          credentialKind: switch (provider) {
+            BusyProvider.google || BusyProvider.microsoft => 'oauth',
+            BusyProvider.appleICloud => 'apple_app_specific_password',
+            BusyProvider.nextcloud => 'nextcloud_app_password',
+          },
           authState: const Value('signed_in'),
           grantedScopes: const Value(''),
           createdAtUtc: '2026-06-08T00:00:00.000Z',
           updatedAtUtc: '2026-06-08T00:00:00.000Z',
         ),
       );
+}
+
+Map<String, Object?> _displayAlarm(
+  String trigger, {
+  String action = 'DISPLAY',
+  List<Map<String, Object?>> triggerParameters = const [],
+  int? repeat,
+  String? repeatInterval,
+}) {
+  return {
+    'properties': [
+      {'name': 'ACTION', 'value': action},
+      {
+        'name': 'TRIGGER',
+        'value': trigger,
+        if (triggerParameters.isNotEmpty) 'parameters': triggerParameters,
+      },
+      if (repeat != null) {'name': 'REPEAT', 'value': '$repeat'},
+      if (repeatInterval != null) {'name': 'DURATION', 'value': repeatInterval},
+    ],
+  };
 }
 
 Future<void> _upsertEvent(
@@ -537,6 +721,32 @@ Future<void> _expectSourceUpdateRemovesEventReminder({
   await service.rebuildUpcomingEventNotifications('google:g');
 
   expect(await database.select(database.notificationSchedule).get(), isEmpty);
+}
+
+Future<void> _expectSourceVisibilityUpdateKeepsEventReminder({
+  required AppDatabase database,
+  required NotificationScheduleService service,
+  required CalendarSourcesCompanion update,
+}) async {
+  await _upsertEvent(
+    database,
+    accountId: 'google:g',
+    provider: BusyProvider.google,
+    remindersJson: {
+      'overrides': [
+        {'method': 'popup', 'minutes': 10},
+      ],
+    },
+  );
+  await service.rebuildUpcomingEventNotifications('google:g');
+
+  await database.update(database.calendarSources).write(update);
+  await service.rebuildUpcomingEventNotifications('google:g');
+
+  expect(
+    await database.select(database.notificationSchedule).get(),
+    hasLength(1),
+  );
 }
 
 Future<void> _insertTaskReminder(

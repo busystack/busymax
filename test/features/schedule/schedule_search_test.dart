@@ -138,7 +138,7 @@ void main() {
     },
   );
 
-  test('Microsoft timed calendar event keeps time zones for editing', () async {
+  test('Microsoft timed calendar event projects its display times', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
@@ -182,8 +182,6 @@ void main() {
     expect(event.providerRecurringEventId, 'series-master');
     expect(event.start, DateTime(2026, 6, 11, 4, 20));
     expect(event.end, DateTime(2026, 6, 11, 4, 50));
-    expect(event.startTimeZone, 'Pacific Standard Time');
-    expect(event.endTimeZone, 'Pacific Standard Time');
   });
 
   test('Google RFC3339 offsets convert to local display time', () async {
@@ -230,10 +228,6 @@ void main() {
     final event = items.single as CalendarScheduleItem;
     expect(event.start, expectedStart);
     expect(event.end, expectedEnd);
-    expect(event.editorStart, DateTime(2026, 6, 11, 9));
-    expect(event.editorEnd, DateTime(2026, 6, 11, 10));
-    expect(event.startTimeZone, 'America/New_York');
-    expect(event.endTimeZone, 'America/New_York');
   });
 
   test('UTC calendar instants convert to local display time', () async {
@@ -280,7 +274,7 @@ void main() {
     expect(event.end, expectedEnd);
   });
 
-  test('calendar event keeps recurrence and attendees for editing', () async {
+  test('calendar event projects attendees for event details', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     await _insertScheduleAccount(database, provider: BusyProvider.google);
@@ -327,10 +321,142 @@ void main() {
     );
 
     final event = items.single as CalendarScheduleItem;
-    expect(event.recurrence, ['RRULE:FREQ=WEEKLY']);
     expect(event.attendees, [
       {'email': 'guest@example.com', 'displayName': 'Guest', 'optional': true},
     ]);
+  });
+
+  test('Google invitation and Meet data reach the schedule item', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
+    final calendarRepository = CalendarRepository(database: database);
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'invitation',
+        title: 'Design review',
+        startDateTime: '2026-06-11T09:00:00-07:00',
+        endDateTime: '2026-06-11T10:00:00-07:00',
+        organizerJson: {
+          'email': 'organizer@example.com',
+          'displayName': 'Organizer',
+          'self': false,
+        },
+        attendeesJson: [
+          {
+            'email': 'me@example.com',
+            'self': true,
+            'responseStatus': 'tentative',
+          },
+          {
+            'email': 'guest@example.com',
+            'optional': true,
+            'responseStatus': 'accepted',
+          },
+        ],
+        conferenceJson: {
+          'entryPoints': [
+            {
+              'entryPointType': 'video',
+              'uri': 'https://meet.google.com/abc-defg-hij',
+            },
+          ],
+        },
+        rawJson: {'guestsCanSeeOtherGuests': false},
+      ),
+    );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+    final event = items.single as CalendarScheduleItem;
+
+    expect(event.organizer?['email'], 'organizer@example.com');
+    expect(event.isOrganizer, isFalse);
+    expect(event.currentUserResponse, 'tentative');
+    expect(event.canRespondToInvitation, isTrue);
+    expect(event.joinMeetingUrl, 'https://meet.google.com/abc-defg-hij');
+  });
+
+  test('Microsoft invitation and Teams data reach the schedule item', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
+    final calendarRepository = CalendarRepository(database: database);
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'calendar',
+        summary: 'Work',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'calendar',
+        providerEventId: 'invitation',
+        title: 'Design review',
+        startDateTime: '2026-06-11T09:00:00',
+        endDateTime: '2026-06-11T10:00:00',
+        organizerJson: {
+          'emailAddress': {
+            'address': 'organizer@example.com',
+            'name': 'Organizer',
+          },
+        },
+        attendeesJson: [
+          {
+            'emailAddress': {'address': 'guest@example.com'},
+            'type': 'required',
+            'status': {'response': 'accepted'},
+          },
+        ],
+        conferenceJson: {
+          'joinUrl': 'https://teams.microsoft.com/l/meetup-join/example',
+        },
+        rawJson: {
+          'isOrganizer': false,
+          'responseStatus': {'response': 'notResponded'},
+          'importance': 'high',
+          'responseRequested': true,
+          'hideAttendees': true,
+          'allowNewTimeProposals': false,
+        },
+      ),
+    );
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+    final event = items.single as CalendarScheduleItem;
+
+    expect(event.currentUserResponse, 'notResponded');
+    expect(event.canRespondToInvitation, isTrue);
+    expect(
+      event.joinMeetingUrl,
+      'https://teams.microsoft.com/l/meetup-join/example',
+    );
   });
 
   test(

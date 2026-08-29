@@ -66,6 +66,68 @@ void main() {
     expect(openedAgenda, isTrue);
   });
 
+  test('offline tray menu exposes a disabled connectivity status', () {
+    final menu = buildBusyMaxTrayMenu(
+      labels: _labels,
+      offline: true,
+      onOpenBusyMax: () async {},
+      onOpenAgenda: () async {},
+      onQuit: () async {},
+    );
+
+    expect(menu.children.map((item) => item.id), [4, 1, 2, 3]);
+    expect(
+      menu.children.first.label,
+      'Offline — Changes will sync when connected.',
+    );
+    expect(menu.children.first.enabled, isFalse);
+    expect(menu.children.first.visible, isTrue);
+  });
+
+  test('offline tray icon is a bundled grayscale status asset', () {
+    final asset = File('assets/branding/busymax-logo-offline.svg');
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+
+    expect(asset.existsSync(), isTrue);
+    final source = asset.readAsStringSync();
+    expect(source, contains('BusyMax offline'));
+    expect(source, isNot(contains('#950BfF')));
+    expect(pubspec, contains('assets/branding/busymax-logo-offline.svg'));
+  });
+
+  test('status notifier presentation updates before registration', () async {
+    final bus = DBusClient(
+      DBusAddress.unix(path: '/tmp/busymax-status-notifier-test-bus'),
+    );
+    final client = StatusNotifierItemClient(
+      id: busyMaxApplicationId,
+      title: 'BusyMax',
+      iconName: 'busymax-color',
+      toolTipTitle: 'BusyMax',
+      toolTipDescription: '',
+      menu: buildBusyMaxTrayMenu(
+        labels: _labels,
+        onOpenBusyMax: () async {},
+        onOpenAgenda: () async {},
+        onQuit: () async {},
+      ),
+      bus: bus,
+    );
+    addTearDown(bus.close);
+
+    await client.updatePresentation(
+      title: 'BusyMax — Offline',
+      iconName: 'busymax-offline',
+      toolTipTitle: 'BusyMax — Offline',
+      toolTipDescription: 'Changes will sync when connected.',
+    );
+
+    expect(client.title, 'BusyMax — Offline');
+    expect(client.iconName, 'busymax-offline');
+    expect(client.toolTipTitle, 'BusyMax — Offline');
+    expect(client.toolTipDescription, 'Changes will sync when connected.');
+  });
+
   test('application id uses Busystack reverse DNS id', () {
     expect(busyMaxApplicationId, 'io.busystack.busymax');
     expect(busyMaxTrayMenuPath, '/StatusNotifierItem/menu');
@@ -392,6 +454,10 @@ void main() {
     expect(statusNotifier, contains("'/StatusNotifierItem/menu'"));
     expect(statusNotifier, contains('org.kde.StatusNotifierItem'));
     expect(statusNotifier, contains('org.freedesktop.StatusNotifierItem'));
+    expect(statusNotifier, contains("DBusIntrospectSignal('NewIcon')"));
+    expect(statusNotifier, contains("DBusIntrospectSignal('NewToolTip')"));
+    expect(statusNotifier, contains("DBusSignature('(sa(iiay)ss)')"));
+    expect(statusNotifier, contains('Future<void> updatePresentation'));
     expect(
       statusNotifier,
       contains(r'StatusNotifierItem.${methodCall.name} received'),
@@ -403,4 +469,6 @@ const _labels = BusyMaxTrayLabels(
   openBusyMax: 'Open BusyMax',
   agenda: 'Agenda',
   quitBusyMax: 'Exit',
+  offline: 'Offline',
+  offlineDescription: 'Changes will sync when connected.',
 );

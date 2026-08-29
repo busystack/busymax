@@ -1,3 +1,6 @@
+import '../../../providers/busy_provider.dart';
+import '../data/calendar_event_detail.dart';
+
 enum RecurringEventMutationScope {
   entireSeries,
   singleOccurrence,
@@ -9,6 +12,9 @@ class EventAttendeeDraft {
     required this.email,
     this.displayName,
     this.optional = false,
+    this.self = false,
+    this.organizer = false,
+    this.responseStatus,
   });
 
   factory EventAttendeeDraft.fromJson(Map<String, Object?> json) {
@@ -28,12 +34,23 @@ class EventAttendeeDraft {
       optional:
           json['optional'] == true ||
           json['type']?.toString().toLowerCase() == 'optional',
+      self: json['self'] == true,
+      organizer: json['organizer'] == true,
+      responseStatus:
+          json['responseStatus']?.toString() ??
+          switch (json['status']) {
+            final Map value => value['response']?.toString(),
+            _ => null,
+          },
     );
   }
 
   final String email;
   final String? displayName;
   final bool optional;
+  final bool self;
+  final bool organizer;
+  final String? responseStatus;
 
   Map<String, Object?> toGoogleJson() {
     return {
@@ -41,6 +58,8 @@ class EventAttendeeDraft {
       if (displayName != null && displayName!.isNotEmpty)
         'displayName': displayName,
       if (optional) 'optional': true,
+      if (responseStatus != null && responseStatus!.isNotEmpty)
+        'responseStatus': responseStatus,
     };
   }
 
@@ -59,11 +78,21 @@ class EventAttendeeDraft {
     return other is EventAttendeeDraft &&
         other.email == email &&
         other.displayName == displayName &&
-        other.optional == optional;
+        other.optional == optional &&
+        other.self == self &&
+        other.organizer == organizer &&
+        other.responseStatus == responseStatus;
   }
 
   @override
-  int get hashCode => Object.hash(email, displayName, optional);
+  int get hashCode => Object.hash(
+    email,
+    displayName,
+    optional,
+    self,
+    organizer,
+    responseStatus,
+  );
 }
 
 class EventEditorDraft {
@@ -100,6 +129,7 @@ class EventEditorDraft {
     this.responseRequested,
     this.hideAttendees,
     this.allowNewTimeProposals,
+    this.isOrganizer,
   });
 
   factory EventEditorDraft.newEvent({
@@ -117,6 +147,74 @@ class EventEditorDraft {
       allDay: false,
       start: start,
       end: end,
+      isOrganizer: true,
+    );
+  }
+
+  factory EventEditorDraft.fromEventDetail(CalendarEventDetail detail) {
+    final raw = _jsonMap(detail.raw);
+    final organizer = _jsonMapOrNull(detail.organizer);
+    final body = detail.provider == BusyProvider.microsoft
+        ? _jsonMapOrNull(raw['body'])
+        : null;
+    final descriptionContentType = body?['contentType']?.toString();
+    final descriptionHtml = descriptionContentType?.toLowerCase() == 'html'
+        ? (body?['content']?.toString())
+        : null;
+    final isOrganizer = switch (detail.provider) {
+      BusyProvider.google => _jsonBool(organizer?['self']),
+      BusyProvider.microsoft => _jsonBool(raw['isOrganizer']),
+      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    };
+    final hideAttendees = switch (detail.provider) {
+      BusyProvider.google =>
+        raw['guestsCanSeeOtherGuests'] is bool
+            ? !(raw['guestsCanSeeOtherGuests'] as bool)
+            : null,
+      BusyProvider.microsoft => _jsonBool(raw['hideAttendees']),
+      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    };
+
+    return EventEditorDraft.existing(
+      eventId: detail.id,
+      accountId: detail.accountId,
+      sourceId: detail.sourceId,
+      providerCalendarId: detail.providerCalendarId,
+      providerRecurringEventId: detail.providerRecurringEventId,
+      title: detail.title,
+      allDay: detail.allDay,
+      start: _eventEditorDateTime(
+        allDay: detail.allDay,
+        date: detail.startDate,
+        dateTime: detail.startDateTime,
+      ),
+      end: _eventEditorDateTime(
+        allDay: detail.allDay,
+        date: detail.endDate,
+        dateTime: detail.endDateTime,
+      ),
+      startTimeZone: detail.startTimeZone,
+      endTimeZone: detail.endTimeZone,
+      location: detail.location,
+      description: detail.description,
+      descriptionContentType: descriptionContentType,
+      descriptionHtml: descriptionHtml,
+      recurrence: detail.recurrence,
+      reminders: detail.reminders,
+      attendees: [
+        for (final attendee in _jsonMapList(detail.attendees))
+          EventAttendeeDraft.fromJson(attendee),
+      ],
+      importance: raw['importance']?.toString(),
+      showAs: detail.transparencyOrShowAs,
+      visibilityOrSensitivity: detail.visibility,
+      colorId: detail.colorId,
+      categories: _jsonStringList(detail.categories),
+      conference: detail.conference,
+      responseRequested: _jsonBool(raw['responseRequested']),
+      hideAttendees: hideAttendees,
+      allowNewTimeProposals: _jsonBool(raw['allowNewTimeProposals']),
+      isOrganizer: isOrganizer,
     );
   }
 
@@ -150,6 +248,7 @@ class EventEditorDraft {
     bool? responseRequested,
     bool? hideAttendees,
     bool? allowNewTimeProposals,
+    bool? isOrganizer,
   }) {
     return EventEditorDraft(
       eventId: eventId,
@@ -181,6 +280,7 @@ class EventEditorDraft {
       responseRequested: responseRequested,
       hideAttendees: hideAttendees,
       allowNewTimeProposals: allowNewTimeProposals,
+      isOrganizer: isOrganizer,
     );
   }
 
@@ -222,6 +322,7 @@ class EventEditorDraft {
   final bool? responseRequested;
   final bool? hideAttendees;
   final bool? allowNewTimeProposals;
+  final bool? isOrganizer;
 
   bool get canSave {
     final start = this.start;
@@ -267,6 +368,7 @@ class EventEditorDraft {
     bool? responseRequested,
     bool? hideAttendees,
     bool? allowNewTimeProposals,
+    bool? isOrganizer,
     RecurringEventMutationScope? recurringMutationScope,
     bool clearLocation = false,
     bool clearDescription = false,
@@ -325,6 +427,7 @@ class EventEditorDraft {
       hideAttendees: hideAttendees ?? this.hideAttendees,
       allowNewTimeProposals:
           allowNewTimeProposals ?? this.allowNewTimeProposals,
+      isOrganizer: isOrganizer ?? this.isOrganizer,
     );
   }
 
@@ -362,7 +465,8 @@ class EventEditorDraft {
         other.conference == conference &&
         other.responseRequested == responseRequested &&
         other.hideAttendees == hideAttendees &&
-        other.allowNewTimeProposals == allowNewTimeProposals;
+        other.allowNewTimeProposals == allowNewTimeProposals &&
+        other.isOrganizer == isOrganizer;
   }
 
   @override
@@ -399,6 +503,7 @@ class EventEditorDraft {
     responseRequested,
     hideAttendees,
     allowNewTimeProposals,
+    isOrganizer,
   ]);
 }
 
@@ -416,3 +521,55 @@ bool _listEquals<T>(List<T> first, List<T> second) {
   }
   return true;
 }
+
+DateTime? _eventEditorDateTime({
+  required bool allDay,
+  required String? date,
+  required String? dateTime,
+}) {
+  final value = allDay ? date ?? dateTime : dateTime;
+  if (value == null || value.isEmpty) return null;
+  if (allDay) {
+    return DateTime.tryParse(
+      value.length >= 10 ? value.substring(0, 10) : value,
+    );
+  }
+  final offsetWallTime = _parseOffsetWallDateTime(value);
+  if (offsetWallTime != null) return offsetWallTime;
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) return null;
+  return parsed.isUtc ? parsed.toLocal() : parsed;
+}
+
+DateTime? _parseOffsetWallDateTime(String value) {
+  if (!RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value)) return null;
+  final wallTime = value.replaceFirst(RegExp(r'[+-]\d{2}:?\d{2}$'), '');
+  return DateTime.tryParse(wallTime);
+}
+
+Map<String, Object?> _jsonMap(Object? value) {
+  return _jsonMapOrNull(value) ?? const {};
+}
+
+Map<String, Object?>? _jsonMapOrNull(Object? value) {
+  return value is Map ? Map<String, Object?>.from(value) : null;
+}
+
+List<Map<String, Object?>> _jsonMapList(Object? value) {
+  if (value is! List) return const [];
+  return [
+    for (final item in value)
+      if (item is Map) Map<String, Object?>.from(item),
+  ];
+}
+
+List<String> _jsonStringList(Object? value) {
+  if (value is! List) return const [];
+  return [
+    for (final item in value)
+      if (item != null && item.toString().trim().isNotEmpty)
+        item.toString().trim(),
+  ];
+}
+
+bool? _jsonBool(Object? value) => value is bool ? value : null;

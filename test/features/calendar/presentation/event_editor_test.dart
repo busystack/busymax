@@ -1410,6 +1410,144 @@ void main() {
     );
   });
 
+  testWidgets('guest requirement can be changed to optional', (tester) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft:
+                EventEditorDraft.newEvent(
+                  accountId: 'account',
+                  sourceId: 'source',
+                  providerCalendarId: 'cal-1',
+                  start: DateTime.utc(2026, 6, 8, 9),
+                  end: DateTime.utc(2026, 6, 8, 10),
+                ).copyWith(
+                  title: 'Planning',
+                  attendees: const [
+                    EventAttendeeDraft(email: 'guest@example.com'),
+                  ],
+                ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    final guestRow = tester.widget<BusyMaxComboRow<bool>>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxComboRow<bool> &&
+            widget.title == 'guest@example.com',
+      ),
+    );
+    expect(guestRow.selected, isFalse);
+    guestRow.onSelected(true);
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.attendees.single.optional, isTrue);
+  });
+
+  testWidgets('Google editor exposes Meet and guest visibility controls', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    _switchRow(tester, 'Add Google Meet').onChanged(true);
+    _switchRow(tester, 'Hide guest list').onChanged(true);
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.createConference, isTrue);
+    expect(saved?.hideAttendees, isTrue);
+  });
+
+  testWidgets('Google editor only offers Meet on supported calendars', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'google-account',
+              sourceId: 'google-work',
+              providerCalendarId: 'google-work-calendar',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _sameNamedCrossAccountSources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Add Google Meet'), findsNothing);
+    expect(find.text('Hide guest list'), findsOneWidget);
+  });
+
+  testWidgets('Microsoft editor exposes supported meeting options', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'microsoft-account',
+              sourceId: 'microsoft-source',
+              providerCalendarId: 'ms-cal-1',
+              start: DateTime.utc(2026, 6, 8, 9),
+              end: DateTime.utc(2026, 6, 8, 10),
+            ).copyWith(title: 'Planning'),
+            sources: _microsoftSources,
+            onCancel: () {},
+            onSave: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+
+    _switchRow(tester, 'Add Microsoft Teams meeting').onChanged(true);
+    _switchRow(tester, 'Request responses').onChanged(false);
+    _switchRow(tester, 'Hide guest list').onChanged(true);
+    _switchRow(tester, 'Allow new time proposals').onChanged(false);
+    _comboRow(tester, 'Importance').onSelected('high');
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+
+    expect(saved?.createConference, isTrue);
+    expect(saved?.responseRequested, isFalse);
+    expect(saved?.hideAttendees, isTrue);
+    expect(saved?.allowNewTimeProposals, isFalse);
+    expect(saved?.importance, 'high');
+  });
+
   testWidgets('removing the only Google event reminder disables reminders', (
     tester,
   ) async {
@@ -1884,7 +2022,7 @@ void main() {
     expect(startTimeIndex, greaterThan(startDateIndex));
     expect(endDateIndex, greaterThan(startTimeIndex));
     expect(endTimeIndex, greaterThan(endDateIndex));
-    expect(editor, isNot(contains('BusyMaxSwitchRow(')));
+    expect(editor, contains('BusyMaxTimeModeRow('));
     expect(editor, isNot(contains('label: l10n.endDateTime')));
   });
 
@@ -2015,6 +2153,14 @@ BusyMaxComboRow<String> _comboRow(WidgetTester tester, String title) {
   return tester.widget<BusyMaxComboRow<String>>(
     find.byWidgetPredicate(
       (widget) => widget is BusyMaxComboRow<String> && widget.title == title,
+    ),
+  );
+}
+
+BusyMaxSwitchRow _switchRow(WidgetTester tester, String title) {
+  return tester.widget<BusyMaxSwitchRow>(
+    find.byWidgetPredicate(
+      (widget) => widget is BusyMaxSwitchRow && widget.title == title,
     ),
   );
 }
@@ -2162,6 +2308,7 @@ const _sources = [
     readOnly: false,
     isDeleted: false,
     backgroundColor: '#3584e4',
+    allowedConferenceSolutions: ['hangoutsMeet'],
   ),
 ];
 
@@ -2209,6 +2356,7 @@ const _microsoftSources = [
     readOnly: false,
     isDeleted: false,
     backgroundColor: '#9141ac',
+    allowedConferenceSolutions: ['teamsForBusiness'],
   ),
 ];
 

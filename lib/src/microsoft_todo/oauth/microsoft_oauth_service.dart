@@ -218,9 +218,10 @@ class MicrosoftOAuthService {
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw OAuthException(
+      throw OAuthRefreshException(
         'MicrosoftOAuthRefreshFailed',
         _tokenEndpointFailureMessage('refresh', response),
+        statusCode: response.statusCode,
       );
     }
 
