@@ -239,16 +239,21 @@ class CalendarMutationNotAllowed implements Exception {
   const CalendarMutationNotAllowed({
     required this.operation,
     required this.sourceId,
+    this.reason = CalendarMutationDenialReason.capability,
   });
 
   final CalendarMutationOperation operation;
   final String sourceId;
+  final CalendarMutationDenialReason reason;
 
   @override
   String toString() {
-    return 'CalendarMutationNotAllowed(${operation.name}, source: $sourceId)';
+    return 'CalendarMutationNotAllowed('
+        '${operation.name}, source: $sourceId, reason: ${reason.name})';
   }
 }
+
+enum CalendarMutationDenialReason { capability, pendingChanges }
 
 List<CalendarSourceEntity> writableCalendarSources(
   Iterable<CalendarSourceEntity> sources,
@@ -610,17 +615,26 @@ class CalendarRepository {
     final now = _now();
     final nowUtc = now.toUtc().toIso8601String();
     await _database.transaction(() async {
-      await (_database.delete(_database.pendingOps)..where(
-            (row) =>
-                row.accountId.equals(source.accountId) &
-                row.calendarSourceId.equals(source.id),
-          ))
-          .go();
       if (createOp != null) {
+        await (_database.delete(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(source.accountId) &
+                  row.calendarSourceId.equals(source.id),
+            ))
+            .go();
         await (_database.delete(
           _database.calendarSources,
         )..where((row) => row.id.equals(sourceId))).go();
         return;
+      }
+      if ((await _pendingCalendarWork(source.id)).isNotEmpty) {
+        throw CalendarMutationNotAllowed(
+          operation: removalMode == CalendarRemovalMode.removeFromList
+              ? CalendarMutationOperation.removeCalendar
+              : CalendarMutationOperation.deleteCalendar,
+          sourceId: source.id,
+          reason: CalendarMutationDenialReason.pendingChanges,
+        );
       }
       await (_database.update(
         _database.calendarSources,
@@ -729,6 +743,118 @@ class CalendarRepository {
       CalendarSourcesCompanion(
         isDeleted: const Value(false),
         hidden: Value(_calendarRemovalPreviousHidden(op)),
+        updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+      ),
+    );
+  }
+
+  Future<void> discardPendingCalendarCreation(PendingOp op) async {
+    if (_calendarOperationType(op) != 'calendar.create') return;
+    final sourceId = op.calendarSourceId;
+    if (sourceId == null) return;
+    await _database.transaction(() async {
+      final accountOperations = await (_database.select(
+        _database.pendingOps,
+      )..where((row) => row.accountId.equals(op.accountId))).get();
+      final discardedIds = <String>{op.id};
+      var changed = true;
+      while (changed) {
+        changed = false;
+        for (final operation in accountOperations) {
+          if (discardedIds.contains(operation.id) ||
+              (operation.calendarSourceId != sourceId &&
+                  !discardedIds.contains(operation.dependsOnOpId))) {
+            continue;
+          }
+          discardedIds.add(operation.id);
+          changed = true;
+        }
+      }
+      for (final operationId in discardedIds) {
+        await _database.pendingOpsDao.deleteOp(operationId);
+      }
+      await (_database.delete(
+        _database.calendarSources,
+      )..where((row) => row.id.equals(sourceId))).go();
+    });
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      op.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> restoreSourceAfterPatchDiscard(PendingOp op) async {
+    if (_calendarOperationType(op) != 'calendar.patch') return;
+    final sourceId = op.calendarSourceId;
+    if (sourceId == null) return;
+    final source = await (_database.select(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).getSingleOrNull();
+    if (source == null) return;
+    final request = _jsonMap(op.requestJson);
+    final previous = _jsonObjectMap(request[calendarPatchPreviousValuesKey]);
+    final baseline = _jsonMap(op.baselineRawJson);
+    final changesSummary = request.containsKey('summary');
+    final changesColor =
+        request.containsKey('backgroundColor') ||
+        request.containsKey('foregroundColor') ||
+        request.containsKey('colorId');
+    if (!changesSummary && !changesColor) return;
+    final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    final baselineSummary = switch (provider) {
+      BusyProvider.google =>
+        baseline['summaryOverride']?.toString().trim().isNotEmpty == true
+            ? baseline['summaryOverride']!.toString()
+            : baseline['summary']?.toString(),
+      BusyProvider.microsoft => baseline['name']?.toString(),
+      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    };
+    final baselineColorId = switch (provider) {
+      BusyProvider.google => baseline['colorId']?.toString(),
+      BusyProvider.microsoft => baseline['color']?.toString(),
+      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    };
+    final baselineBackground = switch (provider) {
+      BusyProvider.google => baseline['backgroundColor']?.toString(),
+      BusyProvider.microsoft => calendarSourceBackgroundColorHex(
+        provider: provider,
+        backgroundColor: baseline['hexColor']?.toString(),
+        colorId: baselineColorId,
+      ),
+      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    };
+    await (_database.update(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).write(
+      CalendarSourcesCompanion(
+        summary: changesSummary
+            ? Value(
+                previous['summary']?.toString() ??
+                    baselineSummary ??
+                    source.summary,
+              )
+            : const Value.absent(),
+        backgroundColor: changesColor
+            ? Value(
+                previous.containsKey('backgroundColor')
+                    ? previous['backgroundColor']?.toString()
+                    : baselineBackground,
+              )
+            : const Value.absent(),
+        foregroundColor: changesColor
+            ? Value(
+                previous.containsKey('foregroundColor')
+                    ? previous['foregroundColor']?.toString()
+                    : baseline['foregroundColor']?.toString(),
+              )
+            : const Value.absent(),
+        colorId: changesColor
+            ? Value(
+                previous.containsKey('colorId')
+                    ? previous['colorId']?.toString()
+                    : baselineColorId,
+              )
+            : const Value.absent(),
         updatedAtLocal: Value(_now().millisecondsSinceEpoch),
       ),
     );
@@ -2817,6 +2943,15 @@ class CalendarRepository {
         .getSingleOrNull();
   }
 
+  Future<List<PendingOp>> _pendingCalendarWork(String sourceId) {
+    return (_database.select(_database.pendingOps)..where(
+          (row) =>
+              row.calendarSourceId.equals(sourceId) &
+              row.state.equals('pending'),
+        ))
+        .get();
+  }
+
   Future<bool> _hasActiveCalendarRemoval(String sourceId) async {
     final operations =
         await (_database.select(_database.pendingOps)..where(
@@ -2839,8 +2974,12 @@ class CalendarRepository {
     required String nowUtc,
     String? dependsOnOpId,
   }) async {
+    final queuedRequest = _calendarPatchRequestWithPreviousValues(
+      source,
+      request,
+    );
     final requestedScope =
-        request[calendarMutationScopeKey]?.toString() ??
+        queuedRequest[calendarMutationScopeKey]?.toString() ??
         calendarMutationScopeGlobal;
     final candidates =
         await (_database.select(_database.pendingOps)
@@ -2867,7 +3006,18 @@ class CalendarRepository {
     }
     if (existing != null) {
       final existingOp = existing;
-      final merged = _calendarPendingRequest(existingOp)..addAll(request);
+      final existingRequest = _calendarPendingRequest(existingOp);
+      final existingPrevious = _jsonObjectMap(
+        existingRequest[calendarPatchPreviousValuesKey],
+      );
+      final queuedPrevious = _jsonObjectMap(
+        queuedRequest[calendarPatchPreviousValuesKey],
+      );
+      final merged = existingRequest..addAll(queuedRequest);
+      merged[calendarPatchPreviousValuesKey] = {
+        ...queuedPrevious,
+        ...existingPrevious,
+      };
       await (_database.update(
         _database.pendingOps,
       )..where((row) => row.id.equals(existingOp.id))).write(
@@ -2890,7 +3040,7 @@ class CalendarRepository {
         calendarSourceId: Value(source.id),
         providerCalendarId: Value(source.providerCalendarId),
         dependsOnOpId: Value(dependsOnOpId),
-        requestJson: jsonEncode(request),
+        requestJson: jsonEncode(queuedRequest),
         baselineRawJson: Value(source.rawJson),
         createdAtUtc: nowUtc,
         updatedAtUtc: nowUtc,
@@ -3101,6 +3251,32 @@ Map<String, Object?> _calendarPendingRequest(PendingOp op) {
     return <String, Object?>{};
   }
   return decoded.cast<String, Object?>();
+}
+
+String _calendarOperationType(PendingOp op) {
+  return op.operationType ?? '${op.entityType}.${op.operation}';
+}
+
+Map<String, Object?> _calendarPatchRequestWithPreviousValues(
+  CalendarSource source,
+  Map<String, Object?> request,
+) {
+  final queued = <String, Object?>{...request};
+  final previous = <String, Object?>{};
+  if (request.containsKey('summary')) {
+    previous['summary'] = source.summary;
+  }
+  if (request.containsKey('backgroundColor') ||
+      request.containsKey('foregroundColor') ||
+      request.containsKey('colorId')) {
+    previous['backgroundColor'] = source.backgroundColor;
+    previous['foregroundColor'] = source.foregroundColor;
+    previous['colorId'] = source.colorId;
+  }
+  if (previous.isNotEmpty) {
+    queued[calendarPatchPreviousValuesKey] = previous;
+  }
+  return queued;
 }
 
 bool _calendarRemovalPreviousHidden(PendingOp op) {

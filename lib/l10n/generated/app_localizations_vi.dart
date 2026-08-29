@@ -2007,6 +2007,10 @@ class AppLocalizationsVi extends AppLocalizations {
   String get calendarCannotRemove => 'Không thể xóa lịch này khỏi tài khoản.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Hãy đợi các thay đổi đang chờ của lịch này đồng bộ xong trước khi xóa hoặc gỡ lịch.';
+
+  @override
   String get networkOffline => 'Ngoại tuyến';
 
   @override

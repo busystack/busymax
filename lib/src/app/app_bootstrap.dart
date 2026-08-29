@@ -818,16 +818,17 @@ final pendingCalendarMutationSyncRequesterForAccountProvider =
 final pendingOpResolutionServiceProvider =
     Provider<PendingOpResolutionService?>((ref) {
       final accountId = ref.watch(activeAccountProvider);
-      final apiClient = ref.watch(googleTasksApiClientProvider);
-      final syncEngine = ref.watch(syncEngineProvider);
-      if (accountId == null || apiClient == null || syncEngine == null) {
+      if (accountId == null) {
         return null;
       }
       return PendingOpResolutionService(
         database: ref.watch(databaseProvider),
-        apiClient: apiClient,
+        apiClient: ref.watch(googleTasksApiClientProvider),
         accountId: accountId,
-        syncEngine: syncEngine,
+        syncEngine: ref.watch(syncEngineProvider),
+        syncCalendar: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncCalendar(accountId, full: false),
       );
     });
 

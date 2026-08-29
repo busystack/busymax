@@ -637,6 +637,7 @@
   "removeAction": "Remover",
   "removeCalendarConfirmation": "Remover \"{title}\" da sua lista do Google Agenda? A agenda compartilhada e os eventos dela não serão excluídos.",
   "calendarCannotRemove": "Não é possível excluir nem remover esta agenda desta conta.",
+  "calendarPendingChangesPreventRemoval": "Aguarde a sincronização das alterações pendentes desta agenda antes de excluí-la ou removê-la.",
   "networkOffline": "Offline",
   "networkOfflineDescription": "As alterações serão sincronizadas quando a ligação for restabelecida.",
   "networkOfflineTryAgain": "Está offline. Ligue-se à Internet e tente novamente."

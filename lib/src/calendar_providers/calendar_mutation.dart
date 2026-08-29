@@ -20,6 +20,7 @@ const calendarMutationScopeKey = '_calendarMutationScope';
 const calendarMutationScopeGlobal = 'global';
 const calendarMutationScopePersonal = 'personal';
 const calendarRemovalPreviousHiddenKey = '_previousHidden';
+const calendarPatchPreviousValuesKey = '_previousValues';
 
 const calendarEventClearFieldsKey = '_clearFields';
 const calendarEventRecurrenceField = 'recurrenceJson';

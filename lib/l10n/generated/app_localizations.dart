@@ -3672,6 +3672,12 @@ abstract class AppLocalizations {
   /// **'This calendar cannot be deleted or removed from this account.'**
   String get calendarCannotRemove;
 
+  /// No description provided for @calendarPendingChangesPreventRemoval.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for this calendar’s pending changes to finish syncing before deleting or removing it.'**
+  String get calendarPendingChangesPreventRemoval;
+
   /// No description provided for @networkOffline.
   ///
   /// In en, this message translates to:

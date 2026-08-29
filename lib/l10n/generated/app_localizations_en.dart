@@ -2001,6 +2001,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'This calendar cannot be deleted or removed from this account.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Wait for this calendar’s pending changes to finish syncing before deleting or removing it.';
+
+  @override
   String get networkOffline => 'Offline';
 
   @override

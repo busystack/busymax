@@ -815,6 +815,7 @@
   "removeAction": "Eemalda",
   "removeCalendarConfirmation": "Kas eemaldada „{title}” sinu Google'i kalendrite loendist? Jagatud kalendrit ega selle sündmusi ei kustutata.",
   "calendarCannotRemove": "Seda kalendrit ei saa sellelt kontolt kustutada ega eemaldada.",
+  "calendarPendingChangesPreventRemoval": "Enne kalendri kustutamist või eemaldamist oota, kuni selle ootel muudatused on sünkroonitud.",
   "networkOffline": "Võrguühenduseta",
   "networkOfflineDescription": "Muudatused sünkroonitakse ühenduse taastumisel.",
   "networkOfflineTryAgain": "Võrguühendus puudub. Looge internetiühendus ja proovige uuesti."

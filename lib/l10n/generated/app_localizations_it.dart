@@ -2020,6 +2020,10 @@ class AppLocalizationsIt extends AppLocalizations {
       'Questo calendario non può essere eliminato o rimosso da questo account.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Attendi che le modifiche in sospeso di questo calendario siano sincronizzate prima di eliminarlo o rimuoverlo.';
+
+  @override
   String get networkOffline => 'Offline';
 
   @override

@@ -2008,6 +2008,10 @@ class AppLocalizationsEt extends AppLocalizations {
       'Seda kalendrit ei saa sellelt kontolt kustutada ega eemaldada.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Enne kalendri kustutamist või eemaldamist oota, kuni selle ootel muudatused on sünkroonitud.';
+
+  @override
   String get networkOffline => 'Võrguühenduseta';
 
   @override

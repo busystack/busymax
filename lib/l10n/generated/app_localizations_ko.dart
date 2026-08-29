@@ -1980,6 +1980,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get calendarCannotRemove => '이 캘린더는 이 계정에서 삭제하거나 제거할 수 없습니다.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      '이 캘린더를 삭제하거나 제거하기 전에 보류 중인 변경 사항의 동기화가 완료될 때까지 기다리세요.';
+
+  @override
   String get networkOffline => '오프라인';
 
   @override

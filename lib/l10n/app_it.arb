@@ -637,6 +637,7 @@
   "removeAction": "Rimuovi",
   "removeCalendarConfirmation": "Rimuovere \"{title}\" dall'elenco di Google Calendar? Il calendario condiviso e i relativi eventi non verranno eliminati.",
   "calendarCannotRemove": "Questo calendario non può essere eliminato o rimosso da questo account.",
+  "calendarPendingChangesPreventRemoval": "Attendi che le modifiche in sospeso di questo calendario siano sincronizzate prima di eliminarlo o rimuoverlo.",
   "networkOffline": "Offline",
   "networkOfflineDescription": "Le modifiche verranno sincronizzate al ripristino della connessione.",
   "networkOfflineTryAgain": "Sei offline. Connettiti a Internet e riprova."

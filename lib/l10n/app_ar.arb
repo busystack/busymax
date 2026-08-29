@@ -637,6 +637,7 @@
   "removeAction": "إزالة",
   "removeCalendarConfirmation": "هل تريد إزالة \"{title}\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.",
   "calendarCannotRemove": "لا يمكن حذف هذا التقويم أو إزالته من هذا الحساب.",
+  "calendarPendingChangesPreventRemoval": "انتظر حتى تنتهي مزامنة التغييرات المعلّقة لهذا التقويم قبل حذفه أو إزالته.",
   "networkOffline": "غير متصل",
   "networkOfflineDescription": "ستتم مزامنة التغييرات عند استعادة الاتصال.",
   "networkOfflineTryAgain": "أنت غير متصل. اتصل بالإنترنت وحاول مرة أخرى."

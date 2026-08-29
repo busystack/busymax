@@ -231,6 +231,11 @@ void main() {
       'backgroundColor': '#3584e4',
       'foregroundColor': '#000000',
       calendarMutationScopeKey: calendarMutationScopePersonal,
+      calendarPatchPreviousValuesKey: {
+        'backgroundColor': null,
+        'foregroundColor': null,
+        'colorId': null,
+      },
     });
   });
 
@@ -245,6 +250,48 @@ void main() {
     expect(await database.select(database.calendarSources).get(), isEmpty);
     expect(await database.select(database.pendingOps).get(), isEmpty);
   });
+
+  test(
+    'calendar removal waits for pending event mutations without losing them',
+    () async {
+      await _upsertSource(repository);
+      await repository.createLocalEvent(
+        _newEventDraft().copyWith(title: 'Pending event'),
+      );
+      final pendingBefore = await database.select(database.pendingOps).get();
+
+      await expectLater(
+        repository.deleteLocalSource(_sourceId),
+        throwsA(
+          isA<CalendarMutationNotAllowed>()
+              .having(
+                (error) => error.operation,
+                'operation',
+                CalendarMutationOperation.deleteCalendar,
+              )
+              .having(
+                (error) => error.reason,
+                'reason',
+                CalendarMutationDenialReason.pendingChanges,
+              ),
+        ),
+      );
+
+      final source = await database
+          .select(database.calendarSources)
+          .getSingle();
+      final event = await database.select(database.calendarEvents).getSingle();
+      final pendingAfter = await database.select(database.pendingOps).get();
+      expect(source.isDeleted, isFalse);
+      expect(source.hidden, isFalse);
+      expect(event.syncStatus, 'pending');
+      expect(
+        pendingAfter.map((operation) => operation.id),
+        pendingBefore.map((operation) => operation.id),
+      );
+      expect(pendingAfter.single.operationType, 'event.create');
+    },
+  );
 
   test('DAV calendar management is rejected before local mutation', () async {
     await database
@@ -1440,6 +1487,10 @@ Future<void> _seedScheduledEvent(
       },
     ),
   );
+  await database.delete(database.pendingOps).go();
+  await database
+      .update(database.calendarEvents)
+      .write(const CalendarEventsCompanion(syncStatus: Value('synced')));
   expect(
     await database.select(database.notificationSchedule).get(),
     hasLength(1),

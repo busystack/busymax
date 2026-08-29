@@ -2018,6 +2018,10 @@ class AppLocalizationsPt extends AppLocalizations {
       'Não é possível excluir nem remover esta agenda desta conta.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Aguarde a sincronização das alterações pendentes desta agenda antes de excluí-la ou removê-la.';
+
+  @override
   String get networkOffline => 'Offline';
 
   @override

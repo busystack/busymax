@@ -1001,15 +1001,17 @@ Future<void> _deleteCalendar(
     _requestCalendarMutationSync(ref, source.accountId);
   } on Object catch (error) {
     if (context.mounted) {
-      _showCalendarMutationFailure(
-        context,
-        context.l10n.calendarDeleteFailed(
-          syncFailureMessage(
-            error,
-            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-          ),
-        ),
-      );
+      final message =
+          error is CalendarMutationNotAllowed &&
+              error.reason == CalendarMutationDenialReason.pendingChanges
+          ? context.l10n.calendarPendingChangesPreventRemoval
+          : context.l10n.calendarDeleteFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            );
+      _showCalendarMutationFailure(context, message);
     }
   }
 }

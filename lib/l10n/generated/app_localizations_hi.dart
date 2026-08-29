@@ -2008,6 +2008,10 @@ class AppLocalizationsHi extends AppLocalizations {
       'इस कैलेंडर को इस खाते से मिटाया या हटाया नहीं जा सकता।';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'इस कैलेंडर को मिटाने या हटाने से पहले इसके लंबित बदलावों का सिंक पूरा होने दें।';
+
+  @override
   String get networkOffline => 'ऑफ़लाइन';
 
   @override

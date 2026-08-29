@@ -2020,6 +2020,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieser Kalender kann in diesem Konto weder gelöscht noch entfernt werden.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Warten Sie, bis die ausstehenden Änderungen dieses Kalenders synchronisiert wurden, bevor Sie ihn löschen oder entfernen.';
+
+  @override
   String get networkOffline => 'Offline';
 
   @override

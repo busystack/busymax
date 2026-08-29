@@ -637,6 +637,7 @@
   "removeAction": "Xóa",
   "removeCalendarConfirmation": "Xóa “{title}” khỏi danh sách Google Calendar của bạn? Lịch dùng chung và các sự kiện trong đó sẽ không bị xóa.",
   "calendarCannotRemove": "Không thể xóa lịch này khỏi tài khoản.",
+  "calendarPendingChangesPreventRemoval": "Hãy đợi các thay đổi đang chờ của lịch này đồng bộ xong trước khi xóa hoặc gỡ lịch.",
   "networkOffline": "Ngoại tuyến",
   "networkOfflineDescription": "Các thay đổi sẽ được đồng bộ khi kết nối được khôi phục.",
   "networkOfflineTryAgain": "Bạn đang ngoại tuyến. Hãy kết nối Internet rồi thử lại."

@@ -1967,6 +1967,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get calendarCannotRemove => '无法从此账号中删除或移除此日历。';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      '请等待此日历的待处理更改同步完成，然后再删除或移除它。';
+
+  @override
   String get networkOffline => '离线';
 
   @override
@@ -3933,6 +3937,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get calendarCannotRemove => '无法从此账号中删除或移除此日历。';
+
+  @override
+  String get calendarPendingChangesPreventRemoval =>
+      '请等待此日历的待处理更改同步完成，然后再删除或移除它。';
 
   @override
   String get networkOffline => '离线';
@@ -5902,6 +5910,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get calendarCannotRemove => '無法從此帳戶刪除或移除此日曆。';
+
+  @override
+  String get calendarPendingChangesPreventRemoval =>
+      '請等待此行事曆的待處理變更同步完成，再刪除或移除它。';
 
   @override
   String get networkOffline => '離線';

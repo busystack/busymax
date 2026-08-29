@@ -658,6 +658,7 @@
   "removeCalendarConfirmation": "Remove \"{title}\" from your Google Calendar list? The shared calendar and its events will not be deleted.",
   "@removeCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}},
   "calendarCannotRemove": "This calendar cannot be deleted or removed from this account.",
+  "calendarPendingChangesPreventRemoval": "Wait for this calendar’s pending changes to finish syncing before deleting or removing it.",
   "networkOffline": "Offline",
   "networkOfflineDescription": "Changes will sync when the connection is restored.",
   "networkOfflineTryAgain": "You’re offline. Connect to the internet and try again."

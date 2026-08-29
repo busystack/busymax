@@ -637,6 +637,7 @@
   "removeAction": "Poista",
   "removeCalendarConfirmation": "Poistetaanko ”{title}” Google Kalenterin luettelostasi? Jaettua kalenteria tai sen tapahtumia ei poisteta.",
   "calendarCannotRemove": "Tätä kalenteria ei voi poistaa tältä tililtä.",
+  "calendarPendingChangesPreventRemoval": "Odota, että tämän kalenterin odottavat muutokset on synkronoitu, ennen kuin poistat kalenterin.",
   "networkOffline": "Ei verkkoyhteyttä",
   "networkOfflineDescription": "Muutokset synkronoidaan, kun yhteys palautuu.",
   "networkOfflineTryAgain": "Verkkoyhteyttä ei ole. Yhdistä internetiin ja yritä uudelleen."

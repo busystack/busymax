@@ -700,6 +700,7 @@
   "removeAction": "Quitar",
   "removeCalendarConfirmation": "¿Quitar \"{title}\" de tu lista de Google Calendar? No se eliminarán el calendario compartido ni sus eventos.",
   "calendarCannotRemove": "Este calendario no se puede eliminar ni quitar de esta cuenta.",
+  "calendarPendingChangesPreventRemoval": "Espera a que terminen de sincronizarse los cambios pendientes de este calendario antes de eliminarlo o quitarlo.",
   "networkOffline": "Sin conexión",
   "networkOfflineDescription": "Los cambios se sincronizarán cuando se restablezca la conexión.",
   "networkOfflineTryAgain": "No tienes conexión. Conéctate a Internet e inténtalo de nuevo."

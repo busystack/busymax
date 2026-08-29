@@ -2042,6 +2042,10 @@ class AppLocalizationsFa extends AppLocalizations {
       'این تقویم را نمی‌توان از این حساب حذف کرد.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'پیش از حذف یا برداشتن این تقویم، صبر کنید تا تغییرات در انتظار آن همگام‌سازی شوند.';
+
+  @override
   String get networkOffline => 'آفلاین';
 
   @override

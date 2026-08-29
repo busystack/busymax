@@ -2021,6 +2021,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Этот календарь нельзя удалить из этой учётной записи.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Дождитесь синхронизации ожидающих изменений этого календаря, прежде чем удалять его.';
+
+  @override
   String get networkOffline => 'Нет подключения';
 
   @override

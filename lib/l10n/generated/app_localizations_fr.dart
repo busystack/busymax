@@ -2018,6 +2018,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Cet agenda ne peut pas être supprimé ni retiré de ce compte.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Attendez la fin de la synchronisation des modifications en attente de cet agenda avant de le supprimer ou de le retirer.';
+
+  @override
   String get networkOffline => 'Hors ligne';
 
   @override

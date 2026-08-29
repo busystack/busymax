@@ -2014,6 +2014,10 @@ class AppLocalizationsFi extends AppLocalizations {
       'Tätä kalenteria ei voi poistaa tältä tililtä.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Odota, että tämän kalenterin odottavat muutokset on synkronoitu, ennen kuin poistat kalenterin.';
+
+  @override
   String get networkOffline => 'Ei verkkoyhteyttä';
 
   @override

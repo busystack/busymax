@@ -1979,6 +1979,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get calendarCannotRemove => 'このカレンダーは、このアカウントから削除できません。';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'このカレンダーを削除する前に、保留中の変更の同期が完了するまでお待ちください。';
+
+  @override
   String get networkOffline => 'オフライン';
 
   @override

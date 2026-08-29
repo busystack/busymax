@@ -2019,6 +2019,10 @@ class AppLocalizationsAr extends AppLocalizations {
       'لا يمكن حذف هذا التقويم أو إزالته من هذا الحساب.';
 
   @override
+  String get calendarPendingChangesPreventRemoval =>
+      'انتظر حتى تنتهي مزامنة التغييرات المعلّقة لهذا التقويم قبل حذفه أو إزالته.';
+
+  @override
   String get networkOffline => 'غير متصل';
 
   @override
