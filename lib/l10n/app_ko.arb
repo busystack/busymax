@@ -655,7 +655,7 @@
   "repeatEveryYears": "{count}년마다",
   "repeatOnDaysSummary": "{days}에",
   "repeatOnMonthDaysSummary": "매월 {days}일",
-  "repeatOnOrdinalSummary": "{days} {ordinal}",
+  "repeatOnOrdinalSummary": "{position, select, first{첫 번째 {days}} second{두 번째 {days}} third{세 번째 {days}} fourth{네 번째 {days}} fifth{다섯 번째 {days}} secondToLast{끝에서 두 번째 {days}} last{마지막 {days}} other{{days}}}",
   "repeatInMonthsSummary": "{months}에",
   "repeatTimesSummary": "{count}회",
   "repeatUntilSummary": "{date}까지",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "오프라인",
   "networkOfflineDescription": "연결이 복구되면 변경 사항이 동기화됩니다.",
-  "networkOfflineTryAgain": "오프라인 상태입니다. 인터넷에 연결한 후 다시 시도하세요."
+  "networkOfflineTryAgain": "오프라인 상태입니다. 인터넷에 연결한 후 다시 시도하세요.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "매월 {days}일",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

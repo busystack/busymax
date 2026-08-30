@@ -1358,7 +1358,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String repeatOnDaysSummary(String days) {
-    return '$days 曜日';
+    return '$days';
   }
 
   @override
@@ -1367,8 +1367,18 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return '$days の第 $ordinal';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第1$days',
+      'second': '第2$days',
+      'third': '第3$days',
+      'fourth': '第4$days',
+      'fifth': '第5$days',
+      'secondToLast': '最後から2番目の$days',
+      'last': '最後の$days',
+      'other': '$days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2246,4 +2256,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get networkOfflineTryAgain => 'オフラインです。インターネットに接続して、もう一度お試しください。';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return '毎月 $days 日';
+  }
 }

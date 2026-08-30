@@ -653,9 +653,9 @@
   "repeatEveryWeeks": "{count} 週間ごと",
   "repeatEveryMonths": "{count} か月ごと",
   "repeatEveryYears": "{count} 年ごと",
-  "repeatOnDaysSummary": "{days} 曜日",
+  "repeatOnDaysSummary": "{days}",
   "repeatOnMonthDaysSummary": "毎月 {days} 日",
-  "repeatOnOrdinalSummary": "{days} の第 {ordinal}",
+  "repeatOnOrdinalSummary": "{position, select, first{第1{days}} second{第2{days}} third{第3{days}} fourth{第4{days}} fifth{第5{days}} secondToLast{最後から2番目の{days}} last{最後の{days}} other{{days}}}",
   "repeatInMonthsSummary": "{months} に",
   "repeatTimesSummary": "{count} 回",
   "repeatUntilSummary": "{date} まで",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "オフライン",
   "networkOfflineDescription": "接続が復旧すると変更が同期されます。",
-  "networkOfflineTryAgain": "オフラインです。インターネットに接続して、もう一度お試しください。"
+  "networkOfflineTryAgain": "オフラインです。インターネットに接続して、もう一度お試しください。",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "毎月 {days} 日",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

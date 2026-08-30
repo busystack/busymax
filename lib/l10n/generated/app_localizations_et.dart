@@ -1392,8 +1392,18 @@ class AppLocalizationsEt extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return '$ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'esimesel $days',
+      'second': 'teisel $days',
+      'third': 'kolmandal $days',
+      'fourth': 'neljandal $days',
+      'fifth': 'viiendal $days',
+      'secondToLast': 'eelviimasel $days',
+      'last': 'viimasel $days',
+      'other': 'päevadel $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2290,4 +2300,9 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'Võrguühendus puudub. Looge internetiühendus ja proovige uuesti.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'kuu päevadel $days';
+  }
 }

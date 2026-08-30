@@ -880,7 +880,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return '$account از BusyMax حذف شود؟';
+    return '⁨$account⁩ از BusyMax حذف شود؟';
   }
 
   @override
@@ -964,7 +964,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return '‏«$title» از Google Tasks حذف شود؟';
+    return '‏«⁨$title⁩» از Google Tasks حذف شود؟';
   }
 
   @override
@@ -1411,8 +1411,18 @@ class AppLocalizationsFa extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'در $ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'در اولین $days',
+      'second': 'در دومین $days',
+      'third': 'در سومین $days',
+      'fourth': 'در چهارمین $days',
+      'fifth': 'در پنجمین $days',
+      'secondToLast': 'در یکی‌مانده‌به‌آخرین $days',
+      'last': 'در آخرین $days',
+      'other': 'در $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -1773,7 +1783,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return 'یک تغییر محلی در انتظار مسدود شد. $summary';
+    return 'یک تغییر محلی در انتظار مسدود شد. ⁨$summary⁩';
   }
 
   @override
@@ -2324,4 +2334,9 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'آفلاین هستید. به اینترنت متصل شوید و دوباره تلاش کنید.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'در روزهای $days ماه';
+  }
 }

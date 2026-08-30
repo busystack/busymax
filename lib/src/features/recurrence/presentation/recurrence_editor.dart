@@ -80,11 +80,18 @@ String recurrenceRuleSummary(
   } else if ((recurrence.frequency == RecurrenceFrequency.monthly ||
           recurrence.frequency == RecurrenceFrequency.yearly) &&
       recurrence.byMonthDay.isNotEmpty) {
-    summary =
-        '$summary ${l10n.repeatOnMonthDaysSummary(recurrence.byMonthDay.join(', '))}';
+    final monthDaysSummary = recurrence.byMonthDay.length == 1
+        ? l10n.repeatOnMonthDaysSummary(recurrence.byMonthDay.join(', '))
+        : l10n.repeatOnMonthDaysSummaryMultiple(
+            recurrence.byMonthDay.join(', '),
+          );
+    summary = '$summary $monthDaysSummary';
   } else if (recurrence.bySetPosition case final position?) {
-    summary =
-        '$summary ${l10n.repeatOnOrdinalSummary(_localizedOrdinal(context, position), _localizedOrdinalDay(context, recurrence.byDay))}';
+    final ordinalSummary = l10n.repeatOnOrdinalSummary(
+      _ordinalPositionKey(position),
+      _localizedOrdinalDay(context, recurrence.byDay),
+    );
+    summary = '$summary $ordinalSummary';
   }
   if (recurrence.frequency == RecurrenceFrequency.yearly &&
       recurrence.byMonth.isNotEmpty) {
@@ -614,6 +621,17 @@ String _localizedOrdinal(BuildContext context, int value) => switch (value) {
   5 => context.l10n.repeatFifth,
   -2 => context.l10n.repeatSecondToLast,
   -1 => context.l10n.repeatLast,
+  _ => '$value',
+};
+
+String _ordinalPositionKey(int value) => switch (value) {
+  1 => 'first',
+  2 => 'second',
+  3 => 'third',
+  4 => 'fourth',
+  5 => 'fifth',
+  -2 => 'secondToLast',
+  -1 => 'last',
   _ => '$value',
 };
 

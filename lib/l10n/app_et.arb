@@ -833,7 +833,7 @@
   "repeatEveryYears": "Iga {count} aasta järel",
   "repeatOnDaysSummary": "päevadel {days}",
   "repeatOnMonthDaysSummary": "kuu {days}. päeval",
-  "repeatOnOrdinalSummary": "{ordinal} {days}",
+  "repeatOnOrdinalSummary": "{position, select, first{esimesel {days}} second{teisel {days}} third{kolmandal {days}} fourth{neljandal {days}} fifth{viiendal {days}} secondToLast{eelviimasel {days}} last{viimasel {days}} other{päevadel {days}}}",
   "repeatInMonthsSummary": "kuudel {months}",
   "repeatTimesSummary": "{count} korda",
   "repeatUntilSummary": "kuni kuupäevani {date}",
@@ -1035,5 +1035,25 @@
   },
   "networkOffline": "Võrguühenduseta",
   "networkOfflineDescription": "Muudatused sünkroonitakse ühenduse taastumisel.",
-  "networkOfflineTryAgain": "Võrguühendus puudub. Looge internetiühendus ja proovige uuesti."
+  "networkOfflineTryAgain": "Võrguühendus puudub. Looge internetiühendus ja proovige uuesti.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "kuu päevadel {days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

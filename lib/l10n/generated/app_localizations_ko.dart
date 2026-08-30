@@ -1369,8 +1369,18 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return '$days $ordinal';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '첫 번째 $days',
+      'second': '두 번째 $days',
+      'third': '세 번째 $days',
+      'fourth': '네 번째 $days',
+      'fifth': '다섯 번째 $days',
+      'secondToLast': '끝에서 두 번째 $days',
+      'last': '마지막 $days',
+      'other': '$days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2248,4 +2258,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get networkOfflineTryAgain => '오프라인 상태입니다. 인터넷에 연결한 후 다시 시도하세요.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return '매월 $days일';
+  }
 }

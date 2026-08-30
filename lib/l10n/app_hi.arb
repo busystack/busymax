@@ -655,7 +655,7 @@
   "repeatEveryYears": "हर {count} साल",
   "repeatOnDaysSummary": "{days} को",
   "repeatOnMonthDaysSummary": "महीने के {days}वें दिन",
-  "repeatOnOrdinalSummary": "{days} के {ordinal} दिन",
+  "repeatOnOrdinalSummary": "{position, select, first{पहले {days}} second{दूसरे {days}} third{तीसरे {days}} fourth{चौथे {days}} fifth{पाँचवें {days}} secondToLast{अंतिम से दूसरे {days}} last{अंतिम {days}} other{{days}}}",
   "repeatInMonthsSummary": "{months} में",
   "repeatTimesSummary": "{count} बार",
   "repeatUntilSummary": "{date} तक",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "ऑफ़लाइन",
   "networkOfflineDescription": "कनेक्शन वापस आने पर बदलाव सिंक हो जाएंगे।",
-  "networkOfflineTryAgain": "आप ऑफ़लाइन हैं। इंटरनेट से कनेक्ट करें और फिर से कोशिश करें।"
+  "networkOfflineTryAgain": "आप ऑफ़लाइन हैं। इंटरनेट से कनेक्ट करें और फिर से कोशिश करें।",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "महीने के दिन {days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

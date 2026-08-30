@@ -876,7 +876,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return 'إزالة $account من BusyMax؟';
+    return 'إزالة ⁨$account⁩ من BusyMax؟';
   }
 
   @override
@@ -960,7 +960,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return 'حذف \"$title\" من Google Tasks؟';
+    return 'حذف \"⁨$title⁩\" من Google Tasks؟';
   }
 
   @override
@@ -1403,8 +1403,18 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'في $ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'في $days الأول',
+      'second': 'في $days الثاني',
+      'third': 'في $days الثالث',
+      'fourth': 'في $days الرابع',
+      'fifth': 'في $days الخامس',
+      'secondToLast': 'في $days ما قبل الأخير',
+      'last': 'في $days الأخير',
+      'other': 'في $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -1759,7 +1769,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return 'تم حظر تغيير محلي معلق. $summary';
+    return 'تم حظر تغيير محلي معلق. ⁨$summary⁩';
   }
 
   @override
@@ -2040,7 +2050,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String remoteChangedAt(String time) {
-    return 'غيّر الخادم في: $time';
+    return 'تم التغيير على الخادم في: ⁨$time⁩';
   }
 
   @override
@@ -2304,4 +2314,9 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'أنت غير متصل. اتصل بالإنترنت وحاول مرة أخرى.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'في أيام الشهر $days';
+  }
 }

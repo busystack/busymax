@@ -1410,8 +1410,18 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return '$ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'в первый $days',
+      'second': 'во второй $days',
+      'third': 'в третий $days',
+      'fourth': 'в четвёртый $days',
+      'fifth': 'в пятый $days',
+      'secondToLast': 'в предпоследний $days',
+      'last': 'в последний $days',
+      'other': 'в $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2315,4 +2325,9 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'Нет подключения к сети. Подключитесь к Интернету и повторите попытку.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'в дни месяца $days';
+  }
 }

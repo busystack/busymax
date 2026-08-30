@@ -655,7 +655,7 @@
   "repeatEveryYears": "每 {count} 年",
   "repeatOnDaysSummary": "在 {days}",
   "repeatOnMonthDaysSummary": "每月 {days} 日",
-  "repeatOnOrdinalSummary": "{days} 的第 {ordinal} 个",
+  "repeatOnOrdinalSummary": "{position, select, first{第一个{days}} second{第二个{days}} third{第三个{days}} fourth{第四个{days}} fifth{第五个{days}} secondToLast{倒数第二个{days}} last{最后一个{days}} other{{days}}}",
   "repeatInMonthsSummary": "在 {months}",
   "repeatTimesSummary": "重复 {count} 次",
   "repeatUntilSummary": "直到 {date}",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "离线",
   "networkOfflineDescription": "恢复连接后将同步更改。",
-  "networkOfflineTryAgain": "您当前处于离线状态。请连接互联网后重试。"
+  "networkOfflineTryAgain": "您当前处于离线状态。请连接互联网后重试。",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "每月 {days} 日",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -655,7 +655,7 @@
   "repeatEveryYears": "Mỗi {count} năm",
   "repeatOnDaysSummary": "vào {days}",
   "repeatOnMonthDaysSummary": "vào ngày {days} trong tháng",
-  "repeatOnOrdinalSummary": "vào {days} thứ {ordinal}",
+  "repeatOnOrdinalSummary": "{position, select, first{vào {days} đầu tiên} second{vào {days} thứ hai} third{vào {days} thứ ba} fourth{vào {days} thứ tư} fifth{vào {days} thứ năm} secondToLast{vào {days} áp chót} last{vào {days} cuối cùng} other{vào {days}}}",
   "repeatInMonthsSummary": "vào {months}",
   "repeatTimesSummary": "{count} lần",
   "repeatUntilSummary": "đến {date}",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "Ngoại tuyến",
   "networkOfflineDescription": "Các thay đổi sẽ được đồng bộ khi kết nối được khôi phục.",
-  "networkOfflineTryAgain": "Bạn đang ngoại tuyến. Hãy kết nối Internet rồi thử lại."
+  "networkOfflineTryAgain": "Bạn đang ngoại tuyến. Hãy kết nối Internet rồi thử lại.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "vào các ngày {days} trong tháng",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

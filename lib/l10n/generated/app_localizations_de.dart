@@ -1401,8 +1401,18 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'am $ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'am ersten $days',
+      'second': 'am zweiten $days',
+      'third': 'am dritten $days',
+      'fourth': 'am vierten $days',
+      'fifth': 'am fünften $days',
+      'secondToLast': 'am vorletzten $days',
+      'last': 'am letzten $days',
+      'other': 'an $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2311,4 +2321,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'Sie sind offline. Stellen Sie eine Internetverbindung her und versuchen Sie es erneut.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'an den Tagen $days des Monats';
+  }
 }

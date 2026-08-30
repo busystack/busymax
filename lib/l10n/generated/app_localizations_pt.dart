@@ -136,7 +136,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get primaryCalendarCannotDelete =>
-      'O calendário principal não pode ser excluído.';
+      'O calendário principal não pode ser eliminado.';
 
   @override
   String calendarCreateFailed(String error) {
@@ -145,7 +145,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get calendarCreatedRefreshPending =>
-      'O calendário foi criado, mas o BusyMax não conseguiu atualizar a conta. Ele aparecerá após a próxima sincronização.';
+      'O calendário foi criado, mas o BusyMax não conseguiu atualizar a conta. Será apresentado após a próxima sincronização.';
 
   @override
   String calendarUpdateFailed(String error) {
@@ -154,7 +154,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String calendarDeleteFailed(String error) {
-    return 'Não foi possível excluir o calendário: $error';
+    return 'Não foi possível eliminar o calendário: $error';
   }
 
   @override
@@ -1403,8 +1403,18 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'na $ordinalª ocorrência de $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'na primeira ocorrência de $days',
+      'second': 'na segunda ocorrência de $days',
+      'third': 'na terceira ocorrência de $days',
+      'fourth': 'na quarta ocorrência de $days',
+      'fifth': 'na quinta ocorrência de $days',
+      'secondToLast': 'na penúltima ocorrência de $days',
+      'last': 'na última ocorrência de $days',
+      'other': 'em $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2310,4 +2320,9 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'Está offline. Ligue-se à Internet e tente novamente.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'nos dias $days';
+  }
 }

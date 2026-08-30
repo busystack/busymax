@@ -5,6 +5,8 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/l10n/generated/app_localizations_ar.dart';
 import 'package:busymax/l10n/generated/app_localizations_fa.dart';
 import 'package:busymax/src/l10n/app_locale.dart';
+import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
+import 'package:busymax/src/features/recurrence/presentation/recurrence_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -55,8 +57,10 @@ void main() {
         if (translation.trim().isEmpty) {
           failures.add('$path: $key has an empty translation');
         }
-        final declaredPlaceholders =
-            _declaredPlaceholders(templateArb, key).toSet();
+        final declaredPlaceholders = _declaredPlaceholders(
+          templateArb,
+          key,
+        ).toSet();
         for (final placeholder in declaredPlaceholders) {
           if (!translation.contains('{$placeholder')) {
             failures.add('$path: $key does not use {$placeholder}');
@@ -357,6 +361,94 @@ void main() {
         allOf(contains('${fsi}2026-07-29$pdi'), contains('${fsi}14:30$pdi')),
       );
     }
+  });
+
+  test(
+    'RTL translations isolate dynamic values in confirmations and conflicts',
+    () {
+      const fsi = '\u2068';
+      const pdi = '\u2069';
+      final localizedValues = <AppLocalizations>[
+        AppLocalizationsAr(),
+        AppLocalizationsFa(),
+      ];
+
+      for (final l10n in localizedValues) {
+        expect(
+          l10n.removeAccountTitle('Acme (EU)'),
+          contains('${fsi}Acme (EU)$pdi'),
+        );
+        expect(
+          l10n.deleteListConfirmation('Inbox / 2026'),
+          contains('${fsi}Inbox / 2026$pdi'),
+        );
+        expect(
+          l10n.conflictNotificationBody('Meeting — 東京'),
+          contains('${fsi}Meeting — 東京$pdi'),
+        );
+      }
+    },
+  );
+
+  testWidgets('recurrence summaries use sentence-form localized grammar', (
+    tester,
+  ) async {
+    const ordinalRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.monthly,
+      interval: 1,
+      byDay: ['MO'],
+      byMonth: [],
+      byMonthDay: [],
+      bySetPosition: 1,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+    const monthDaysRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.monthly,
+      interval: 1,
+      byDay: [],
+      byMonth: [],
+      byMonthDay: [1, 15],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+
+    Future<String> summary(Locale locale, RecurrenceRule rule) async {
+      var value = '';
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              value = recurrenceRuleSummary(context, rule);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      return value;
+    }
+
+    expect(
+      await summary(const Locale('de'), ordinalRule),
+      'Monatlich am ersten Montag',
+    );
+    expect(await summary(const Locale('ja'), ordinalRule), '毎月 第1月曜日');
+    expect(
+      await summary(const Locale('ru'), monthDaysRule),
+      'Ежемесячно в дни месяца 1, 15',
+    );
   });
 
   test('Persian dynamic numbers use Persian digits', () {

@@ -1357,8 +1357,18 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return '$days 的第 $ordinal 个';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一个$days',
+      'second': '第二个$days',
+      'third': '第三个$days',
+      'fourth': '第四个$days',
+      'fifth': '第五个$days',
+      'secondToLast': '倒数第二个$days',
+      'last': '最后一个$days',
+      'other': '$days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2223,6 +2233,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get networkOfflineTryAgain => '您当前处于离线状态。请连接互联网后重试。';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return '每月 $days 日';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3574,8 +3589,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return '$days 的第 $ordinal 个';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一个$days',
+      'second': '第二个$days',
+      'third': '第三个$days',
+      'fourth': '第四个$days',
+      'fifth': '第五个$days',
+      'secondToLast': '倒数第二个$days',
+      'last': '最后一个$days',
+      'other': '$days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -4440,6 +4465,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get networkOfflineTryAgain => '您当前处于离线状态。请连接互联网后重试。';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return '每月 $days 日';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5791,8 +5821,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return '$days 的第 $ordinal 個';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一個$days',
+      'second': '第二個$days',
+      'third': '第三個$days',
+      'fourth': '第四個$days',
+      'fifth': '第五個$days',
+      'secondToLast': '倒數第二個$days',
+      'last': '最後一個$days',
+      'other': '$days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -6658,4 +6698,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get networkOfflineTryAgain => '您目前處於離線狀態。請連接網際網路後再試一次。';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return '每月 $days 日';
+  }
 }

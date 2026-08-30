@@ -265,7 +265,7 @@
   "removeAccount": "إزالة الحساب…",
   "removingAccount": "جارٍ إزالة الحساب…",
   "removeAccountDescription": "إيقاف المزامنة وإزالة بيانات هذا الحساب من هذا الجهاز.",
-  "removeAccountTitle": "إزالة {account} من BusyMax؟",
+  "removeAccountTitle": "إزالة ⁨{account}⁩ من BusyMax؟",
   "removeAccountConfirmation": "سيؤدي هذا إلى حذف المهام والتقويمات والأحداث والتذكيرات والتغييرات غير المتصلة المخزنة مؤقتًا من هذا الجهاز. ستُفقد التغييرات التي لم تتم مزامنتها، ولن تُحذف نسخ التقويمات والأحداث وقوائم المهام والمهام لدى موفّر الخدمة.",
   "revokeGoogleAccess": "إلغاء وصول BusyMax إلى حساب Google هذا أيضًا",
   "revokeGoogleAccessDescription": "ستحتاج إلى منح الوصول مرة أخرى قبل إعادة الاتصال.",
@@ -282,7 +282,7 @@
   "deleteList": "حذف القائمة",
   "builtInMicrosoftList": "مدمجة",
   "builtInMicrosoftListCannotRenameDelete": "لا يمكن إعادة تسمية قوائم Microsoft To Do المدمجة أو حذفها.",
-  "deleteListConfirmation": "حذف \"{title}\" من Google Tasks؟",
+  "deleteListConfirmation": "حذف \"⁨{title}⁩\" من Google Tasks؟",
   "deleteEvent": "حذف الحدث",
   "title": "العنوان",
   "create": "إنشاء",
@@ -439,7 +439,7 @@
   "syncFailureNotificationTitle": "فشلت مزامنة BusyMax",
   "syncFailureNotificationBody": "فشلت المزامنة في الخلفية. ⁨{message}⁩",
   "conflictNotificationTitle": "تعارض في مزامنة BusyMax",
-  "conflictNotificationBody": "تم حظر تغيير محلي معلق. {summary}",
+  "conflictNotificationBody": "تم حظر تغيير محلي معلق. ⁨{summary}⁩",
   "dueTodayNotificationTitle": "المهام المستحقة اليوم",
   "dueTodayNotificationBody": "{count, plural, =0{لا توجد مهام مستحقة اليوم.} =1{هناك مهمة واحدة مستحقة اليوم.} =2{هناك مهمتان مستحقتان اليوم.} few{هناك ⁨{count}⁩ مهام مستحقة اليوم.} many{هناك ⁨{count}⁩ مهمة مستحقة اليوم.} other{هناك ⁨{count}⁩ مهمة مستحقة اليوم.}}",
   "eventReminderNotificationTitle": "تذكير بحدث",
@@ -546,7 +546,7 @@
     }
   },
   "syncConflicts": "تعارضات المزامنة",
-  "remoteChangedAt": "غيّر الخادم في: {time}",
+  "remoteChangedAt": "تم التغيير على الخادم في: ⁨{time}⁩",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -655,7 +655,7 @@
   "repeatEveryYears": "كل {count} سنوات",
   "repeatOnDaysSummary": "في {days}",
   "repeatOnMonthDaysSummary": "في اليوم {days} من الشهر",
-  "repeatOnOrdinalSummary": "في {ordinal} {days}",
+  "repeatOnOrdinalSummary": "{position, select, first{في {days} الأول} second{في {days} الثاني} third{في {days} الثالث} fourth{في {days} الرابع} fifth{في {days} الخامس} secondToLast{في {days} ما قبل الأخير} last{في {days} الأخير} other{في {days}}}",
   "repeatInMonthsSummary": "في {months}",
   "repeatTimesSummary": "{count} مرات",
   "repeatUntilSummary": "حتى {date}",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "غير متصل",
   "networkOfflineDescription": "ستتم مزامنة التغييرات عند استعادة الاتصال.",
-  "networkOfflineTryAgain": "أنت غير متصل. اتصل بالإنترنت وحاول مرة أخرى."
+  "networkOfflineTryAgain": "أنت غير متصل. اتصل بالإنترنت وحاول مرة أخرى.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "في أيام الشهر {days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

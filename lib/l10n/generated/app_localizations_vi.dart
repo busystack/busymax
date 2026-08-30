@@ -1394,8 +1394,18 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'vào $days thứ $ordinal';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'vào $days đầu tiên',
+      'second': 'vào $days thứ hai',
+      'third': 'vào $days thứ ba',
+      'fourth': 'vào $days thứ tư',
+      'fifth': 'vào $days thứ năm',
+      'secondToLast': 'vào $days áp chót',
+      'last': 'vào $days cuối cùng',
+      'other': 'vào $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2290,4 +2300,9 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'Bạn đang ngoại tuyến. Hãy kết nối Internet rồi thử lại.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'vào các ngày $days trong tháng';
+  }
 }

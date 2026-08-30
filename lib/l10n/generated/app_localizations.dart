@@ -2562,11 +2562,11 @@ abstract class AppLocalizations {
   /// **'on day {days}'**
   String repeatOnMonthDaysSummary(String days);
 
-  /// Sentence fragment for ordinal recurrence, such as the first Monday; {ordinal} and {days} are localized.
+  /// Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.
   ///
   /// In en, this message translates to:
-  /// **'on the {ordinal} {days}'**
-  String repeatOnOrdinalSummary(String ordinal, String days);
+  /// **'{position, select, first{on the first {days}} second{on the second {days}} third{on the third {days}} fourth{on the fourth {days}} fifth{on the fifth {days}} secondToLast{on the second to last {days}} last{on the last {days}} other{on {days}}}'**
+  String repeatOnOrdinalSummary(String position, String days);
 
   /// Sentence fragment for selected recurrence months; {months} is a localized list of month names.
   ///
@@ -4103,6 +4103,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You’re offline. Connect to the internet and try again.'**
   String get networkOfflineTryAgain;
+
+  /// Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.
+  ///
+  /// In en, this message translates to:
+  /// **'on days {days}'**
+  String repeatOnMonthDaysSummaryMultiple(String days);
 }
 
 class _AppLocalizationsDelegate

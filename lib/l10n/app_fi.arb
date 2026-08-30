@@ -655,7 +655,7 @@
   "repeatEveryYears": "Joka {count}. vuosi",
   "repeatOnDaysSummary": "päivinä {days}",
   "repeatOnMonthDaysSummary": "kuukauden päivinä {days}",
-  "repeatOnOrdinalSummary": "{ordinal} {days}",
+  "repeatOnOrdinalSummary": "{position, select, first{ensimmäisenä {days}} second{toisena {days}} third{kolmantena {days}} fourth{neljäntenä {days}} fifth{viidentenä {days}} secondToLast{toiseksi viimeisenä {days}} last{viimeisenä {days}} other{päivinä {days}}}",
   "repeatInMonthsSummary": "kuukausina {months}",
   "repeatTimesSummary": "{count} kertaa",
   "repeatUntilSummary": "{date} asti",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "Ei verkkoyhteyttä",
   "networkOfflineDescription": "Muutokset synkronoidaan, kun yhteys palautuu.",
-  "networkOfflineTryAgain": "Verkkoyhteyttä ei ole. Yhdistä internetiin ja yritä uudelleen."
+  "networkOfflineTryAgain": "Verkkoyhteyttä ei ole. Yhdistä internetiin ja yritä uudelleen.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "kuukauden päivinä {days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

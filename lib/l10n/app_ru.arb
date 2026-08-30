@@ -655,7 +655,7 @@
   "repeatEveryYears": "Каждые {count} г.",
   "repeatOnDaysSummary": "в дни {days}",
   "repeatOnMonthDaysSummary": "{days}-го числа месяца",
-  "repeatOnOrdinalSummary": "{ordinal} {days}",
+  "repeatOnOrdinalSummary": "{position, select, first{в первый {days}} second{во второй {days}} third{в третий {days}} fourth{в четвёртый {days}} fifth{в пятый {days}} secondToLast{в предпоследний {days}} last{в последний {days}} other{в {days}}}",
   "repeatInMonthsSummary": "в месяцы {months}",
   "repeatTimesSummary": "{count} раз",
   "repeatUntilSummary": "до {date}",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "Нет подключения",
   "networkOfflineDescription": "Изменения будут синхронизированы после восстановления подключения.",
-  "networkOfflineTryAgain": "Нет подключения к сети. Подключитесь к Интернету и повторите попытку."
+  "networkOfflineTryAgain": "Нет подключения к сети. Подключитесь к Интернету и повторите попытку.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "в дни месяца {days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

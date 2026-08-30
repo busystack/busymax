@@ -1398,8 +1398,18 @@ class AppLocalizationsFi extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return '$ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'ensimmäisenä $days',
+      'second': 'toisena $days',
+      'third': 'kolmantena $days',
+      'fourth': 'neljäntenä $days',
+      'fifth': 'viidentenä $days',
+      'secondToLast': 'toiseksi viimeisenä $days',
+      'last': 'viimeisenä $days',
+      'other': 'päivinä $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -2301,4 +2311,9 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'Verkkoyhteyttä ei ole. Yhdistä internetiin ja yritä uudelleen.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'kuukauden päivinä $days';
+  }
 }

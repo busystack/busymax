@@ -44,9 +44,9 @@
     }
   },
   "calendarManagementUnsupported": "Este fornecedor não suporta a gestão de calendários no BusyMax.",
-  "primaryCalendarCannotDelete": "O calendário principal não pode ser excluído.",
+  "primaryCalendarCannotDelete": "O calendário principal não pode ser eliminado.",
   "calendarCreateFailed": "Não foi possível criar o calendário: {error}",
-  "calendarCreatedRefreshPending": "O calendário foi criado, mas o BusyMax não conseguiu atualizar a conta. Ele aparecerá após a próxima sincronização.",
+  "calendarCreatedRefreshPending": "O calendário foi criado, mas o BusyMax não conseguiu atualizar a conta. Será apresentado após a próxima sincronização.",
   "@calendarCreateFailed": {
     "placeholders": {
       "error": {
@@ -62,7 +62,7 @@
       }
     }
   },
-  "calendarDeleteFailed": "Não foi possível excluir o calendário: {error}",
+  "calendarDeleteFailed": "Não foi possível eliminar o calendário: {error}",
   "@calendarDeleteFailed": {
     "placeholders": {
       "error": {
@@ -655,7 +655,7 @@
   "repeatEveryYears": "A cada {count} anos",
   "repeatOnDaysSummary": "em {days}",
   "repeatOnMonthDaysSummary": "no dia {days}",
-  "repeatOnOrdinalSummary": "na {ordinal}ª ocorrência de {days}",
+  "repeatOnOrdinalSummary": "{position, select, first{na primeira ocorrência de {days}} second{na segunda ocorrência de {days}} third{na terceira ocorrência de {days}} fourth{na quarta ocorrência de {days}} fifth{na quinta ocorrência de {days}} secondToLast{na penúltima ocorrência de {days}} last{na última ocorrência de {days}} other{em {days}}}",
   "repeatInMonthsSummary": "em {months}",
   "repeatTimesSummary": "{count} vezes",
   "repeatUntilSummary": "até {date}",
@@ -857,5 +857,25 @@
   },
   "networkOffline": "Sem ligação",
   "networkOfflineDescription": "As alterações serão sincronizadas quando a ligação for restabelecida.",
-  "networkOfflineTryAgain": "Está offline. Ligue-se à Internet e tente novamente."
+  "networkOfflineTryAgain": "Está offline. Ligue-se à Internet e tente novamente.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "nos dias {days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

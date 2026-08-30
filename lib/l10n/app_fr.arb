@@ -718,7 +718,7 @@
   "repeatEveryYears": "Toutes les {count} années",
   "repeatOnDaysSummary": "les {days}",
   "repeatOnMonthDaysSummary": "le {days} du mois",
-  "repeatOnOrdinalSummary": "le {ordinal} {days}",
+  "repeatOnOrdinalSummary": "{position, select, first{le premier {days}} second{le deuxième {days}} third{le troisième {days}} fourth{le quatrième {days}} fifth{le cinquième {days}} secondToLast{l’avant-dernier {days}} last{le dernier {days}} other{les {days}}}",
   "repeatInMonthsSummary": "en {months}",
   "repeatTimesSummary": "{count} fois",
   "repeatUntilSummary": "jusqu’au {date}",
@@ -920,5 +920,25 @@
   },
   "networkOffline": "Hors ligne",
   "networkOfflineDescription": "Les modifications seront synchronisées au rétablissement de la connexion.",
-  "networkOfflineTryAgain": "Vous êtes hors ligne. Connectez-vous à Internet et réessayez."
+  "networkOfflineTryAgain": "Vous êtes hors ligne. Connectez-vous à Internet et réessayez.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "les {days} du mois",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -265,7 +265,7 @@
   "removeAccount": "حذف حساب…",
   "removingAccount": "در حال حذف حساب…",
   "removeAccountDescription": "همگام‌سازی را متوقف و داده‌های این حساب را از این دستگاه حذف کنید.",
-  "removeAccountTitle": "{account} از BusyMax حذف شود؟",
+  "removeAccountTitle": "⁨{account}⁩ از BusyMax حذف شود؟",
   "removeAccountConfirmation": "این کار، کارها، تقویم‌ها، رویدادها، یادآورها و تغییرات آفلاین در انتظار را که در این دستگاه ذخیره شده‌اند حذف می‌کند. تغییرات همگام‌نشده از بین می‌روند. نسخه‌های تقویم‌ها، رویدادها، فهرست‌های کار و کارها نزد ارائه‌دهنده حذف نمی‌شوند.",
   "revokeGoogleAccess": "دسترسی BusyMax به این حساب Google نیز لغو شود",
   "revokeGoogleAccessDescription": "پیش از اتصال دوباره باید دسترسی را دوباره اعطا کنید.",
@@ -282,7 +282,7 @@
   "deleteList": "حذف فهرست",
   "builtInMicrosoftList": "داخلی",
   "builtInMicrosoftListCannotRenameDelete": "فهرست‌های داخلی Microsoft To Do را نمی‌توان تغییر نام داد یا حذف کرد.",
-  "deleteListConfirmation": "‏«{title}» از Google Tasks حذف شود؟",
+  "deleteListConfirmation": "‏«⁨{title}⁩» از Google Tasks حذف شود؟",
   "deleteEvent": "حذف رویداد",
   "title": "عنوان",
   "create": "ایجاد",
@@ -439,7 +439,7 @@
   "syncFailureNotificationTitle": "همگام‌سازی BusyMax ناموفق بود",
   "syncFailureNotificationBody": "همگام‌سازی پس‌زمینه ناموفق بود. ⁨{message}⁩",
   "conflictNotificationTitle": "تداخل همگام‌سازی BusyMax",
-  "conflictNotificationBody": "یک تغییر محلی در انتظار مسدود شد. {summary}",
+  "conflictNotificationBody": "یک تغییر محلی در انتظار مسدود شد. ⁨{summary}⁩",
   "dueTodayNotificationTitle": "کارهای دارای سررسید امروز",
   "dueTodayNotificationBody": "{count, plural, =0{امروز هیچ کاری سررسید ندارد.} =1{امروز یک کار سررسید دارد.} other{امروز ⁨{count}⁩ کار سررسید دارند.}}",
   "eventReminderNotificationTitle": "یادآور رویداد",
@@ -719,7 +719,7 @@
   "repeatEveryYears": "هر {count} سال",
   "repeatOnDaysSummary": "در {days}",
   "repeatOnMonthDaysSummary": "در روز {days} ماه",
-  "repeatOnOrdinalSummary": "در {ordinal} {days}",
+  "repeatOnOrdinalSummary": "{position, select, first{در اولین {days}} second{در دومین {days}} third{در سومین {days}} fourth{در چهارمین {days}} fifth{در پنجمین {days}} secondToLast{در یکی‌مانده‌به‌آخرین {days}} last{در آخرین {days}} other{در {days}}}",
   "repeatInMonthsSummary": "در {months}",
   "repeatTimesSummary": "{count} بار",
   "repeatUntilSummary": "تا {date}",
@@ -921,5 +921,25 @@
   },
   "networkOffline": "آفلاین",
   "networkOfflineDescription": "تغییرات پس از برقراری دوبارهٔ اتصال همگام‌سازی می‌شوند.",
-  "networkOfflineTryAgain": "آفلاین هستید. به اینترنت متصل شوید و دوباره تلاش کنید."
+  "networkOfflineTryAgain": "آفلاین هستید. به اینترنت متصل شوید و دوباره تلاش کنید.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "در روزهای {days} ماه",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  }
 }
