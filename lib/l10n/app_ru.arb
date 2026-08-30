@@ -1,14 +1,14 @@
 {
   "@@locale": "ru",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "connectGoogleAccount": "Подключите аккаунты Google, Microsoft, Apple iCloud Calendar или Nextcloud.",
   "googlePermissionsConsentNotice": "На экране запроса доступа Google установите флажки «Google Календарь» и «Google Задачи».",
   "googlePermissionsRequiredRetry": "BusyMax требуется доступ к Google Календарю и Google Задачам. Повторите попытку и установите оба флажка.",
   "finishSetup": "Завершить настройку",
   "continueSetup": "Продолжить",
   "onboardingSetupTitle": "Настройка BusyMax",
   "onboardingAccountsStepTitle": "Подключите аккаунты",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "onboardingAccountsStepDescription": "Добавьте все нужные аккаунты. BusyMax синхронизирует поддерживаемые календари, события, списки задач и задачи из каждого аккаунта.",
   "onboardingPreferencesStepTitle": "Выберите системные параметры",
   "onboardingPreferencesStepDescription": "Настройте поведение приложения на рабочем столе, напоминания, уровень детализации уведомлений и внешний вид, прежде чем открыть расписание.",
   "signInWithGoogle": "Войти через Google",
@@ -36,16 +36,40 @@
   "newCalendar": "Новый календарь",
   "calendarColor": "Цвет календаря",
   "calendarColorOption": "Цвет {number}",
-  "@calendarColorOption": {"placeholders": {"number": {"type": "int"}}},
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "calendarManagementUnsupported": "Этот провайдер не поддерживает управление календарями в BusyMax.",
   "primaryCalendarCannotDelete": "Основной календарь нельзя удалить.",
   "calendarCreateFailed": "Не удалось создать календарь: {error}",
   "calendarCreatedRefreshPending": "Календарь создан, но BusyMax не смог обновить учётную запись. Он появится после следующей синхронизации.",
-  "@calendarCreateFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "calendarUpdateFailed": "Не удалось обновить календарь: {error}",
-  "@calendarUpdateFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "calendarDeleteFailed": "Не удалось удалить календарь: {error}",
-  "@calendarDeleteFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "newEvent": "Новое событие",
   "refreshCalendar": "Обновить календарь",
   "openInProvider": "Открыть в сервисе",
@@ -65,31 +89,55 @@
   "scheduleNoSearchResultsDescription": "Попробуйте изменить запрос или сбросить текущие фильтры.",
   "refresh": "Обновить",
   "trayOpenBusyMax": "Открыть BusyMax",
-  "trayShowBusyMax": "Show BusyMax",
-  "trayNewEvent": "New event…",
-  "trayNewTask": "New task…",
-  "trayToday": "Today",
-  "trayAllDay": "All day",
-  "trayNow": "Now",
-  "trayCalendarEvent": "Calendar event",
-  "trayUntitledEvent": "Untitled event",
-  "trayNothingElseToday": "Nothing else today",
-  "trayTasksDueToday": "{count, plural, =1{1 task due today} other{{count} tasks due today}}",
-  "@trayTasksDueToday": {"placeholders": {"count": {"type": "int"}}},
-  "trayOpenTodayAgenda": "Open today’s agenda",
-  "traySyncNow": "Sync now",
-  "traySyncing": "Syncing…",
-  "trayNotConnected": "Not connected",
-  "trayNotYetSynced": "Not yet synced",
-  "trayLastSyncedJustNow": "Last synced just now",
-  "trayLastSyncedMinutesAgo": "{count, plural, =1{Last synced 1 minute ago} other{Last synced {count} minutes ago}}",
-  "@trayLastSyncedMinutesAgo": {"placeholders": {"count": {"type": "int"}}},
-  "trayLastSyncedHoursAgo": "{count, plural, =1{Last synced 1 hour ago} other{Last synced {count} hours ago}}",
-  "@trayLastSyncedHoursAgo": {"placeholders": {"count": {"type": "int"}}},
-  "trayLastSyncedDaysAgo": "{count, plural, =1{Last synced 1 day ago} other{Last synced {count} days ago}}",
-  "@trayLastSyncedDaysAgo": {"placeholders": {"count": {"type": "int"}}},
-  "traySettings": "Settings",
-  "trayQuitBusyMax": "Quit BusyMax",
+  "trayShowBusyMax": "Показать BusyMax",
+  "trayNewEvent": "Новое событие…",
+  "trayNewTask": "Новая задача…",
+  "trayToday": "Сегодня",
+  "trayAllDay": "Весь день",
+  "trayNow": "Сейчас",
+  "trayCalendarEvent": "Событие календаря",
+  "trayUntitledEvent": "Событие без названия",
+  "trayNothingElseToday": "На сегодня больше ничего",
+  "trayTasksDueToday": "{count, plural, one{Сегодня истекает срок 1 задачи} few{Сегодня истекает срок {count} задач} many{Сегодня истекает срок {count} задач} other{Сегодня истекает срок {count} задачи}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "Открыть расписание на сегодня",
+  "traySyncNow": "Синхронизировать сейчас",
+  "traySyncing": "Синхронизация…",
+  "trayNotConnected": "Не подключено",
+  "trayNotYetSynced": "Ещё не синхронизировано",
+  "trayLastSyncedJustNow": "Синхронизировано только что",
+  "trayLastSyncedMinutesAgo": "{count, plural, one{Синхронизировано минуту назад} few{Синхронизировано {count} минуты назад} many{Синхронизировано {count} минут назад} other{Синхронизировано {count} минуты назад}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, one{Синхронизировано час назад} few{Синхронизировано {count} часа назад} many{Синхронизировано {count} часов назад} other{Синхронизировано {count} часа назад}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, one{Синхронизировано день назад} few{Синхронизировано {count} дня назад} many{Синхронизировано {count} дней назад} other{Синхронизировано {count} дня назад}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traySettings": "Настройки",
+  "trayQuitBusyMax": "Выйти из BusyMax",
   "agendaLoadMoreOverdue": "Загрузить ещё просроченные задачи",
   "agendaLoadMoreNoDate": "Загрузить ещё задачи без даты",
   "viewDay": "День",
@@ -218,7 +266,7 @@
   "removingAccount": "Удаление аккаунта…",
   "removeAccountDescription": "Остановить синхронизацию и удалить данные этого аккаунта с устройства.",
   "removeAccountTitle": "Удалить {account} из BusyMax?",
-  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
+  "removeAccountConfirmation": "С устройства будут удалены кэшированные задачи, календари, события, напоминания и ожидающие автономные изменения. Несинхронизированные изменения будут потеряны. Копии календарей, событий, списков задач и задач у поставщика не удаляются.",
   "revokeGoogleAccess": "Также отозвать у BusyMax доступ к этому аккаунту Google",
   "revokeGoogleAccessDescription": "Перед повторным подключением аккаунта потребуется снова предоставить доступ.",
   "removeAccountAction": "Удалить аккаунт",
@@ -271,7 +319,7 @@
   "primarySection": "Основные сведения",
   "statusSection": "Состояние",
   "openStatus": "Открыта",
-  "doneStatus": "Выполнена",
+  "doneStatus": "Выполнено",
   "notes": "Заметки",
   "dueDate": "Срок",
   "clearDueDate": "Удалить срок выполнения",
@@ -391,7 +439,7 @@
   "syncFailureNotificationTitle": "Сбой синхронизации BusyMax",
   "syncFailureNotificationBody": "Сбой фоновой синхронизации. {message}",
   "conflictNotificationTitle": "Конфликт синхронизации BusyMax",
-  "conflictNotificationBody": "Локальное изменение не удалось синхронизировать. {summary}",
+  "conflictNotificationBody": "Ожидающее локальное изменение заблокировано. {summary}",
   "dueTodayNotificationTitle": "Задачи на сегодня",
   "dueTodayNotificationBody": "{count, plural, one{Сегодня нужно выполнить {count} задачу.} few{Сегодня нужно выполнить {count} задачи.} many{Сегодня нужно выполнить {count} задач.} other{Сегодня нужно выполнить {count} задачи.}}",
   "eventReminderNotificationTitle": "Напоминание о событии",
@@ -400,7 +448,7 @@
   "taskReminderNotificationBody": "Срок выполнения задачи скоро наступит.",
   "notificationOpenAction": "Открыть",
   "notificationSnoozeAction": "Отложить на 10 минут",
-  "notificationDismissAction": "Отклонить",
+  "notificationDismissAction": "Закрыть",
   "notificationDetailsHidden": "Сведения скрыты настройками конфиденциальности.",
   "previousMonth": "Предыдущий месяц",
   "nextMonth": "Следующий месяц",
@@ -413,52 +461,52 @@
   "scheduleItemCount": "{count, plural, one{{count} запись} few{{count} записи} many{{count} записей} other{{count} записи}}",
   "readOnlyCalendar": "Этот календарь доступен только для чтения.",
   "selectTimeZone": "Выберите часовой пояс",
-  "searchLocations": "Поиск города",
-  "noLocationsFound": "Ничего не найдено",
-  "requiredField": "This field is required.",
-  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
-  "appleICloudProvider": "Apple iCloud Calendar",
+  "searchLocations": "Поиск мест",
+  "noLocationsFound": "Места не найдены",
+  "requiredField": "Это поле обязательно.",
+  "providerConnectionDescription": "Подключите календари и задачи одного из следующих поставщиков.",
+  "appleICloudProvider": "Календарь Apple iCloud",
   "nextcloudProvider": "Nextcloud",
   "appleICloudTasksProvider": "Apple iCloud",
-  "nextcloudTasksProvider": "Nextcloud Tasks",
-  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
-  "addNextcloudAccount": "Add Nextcloud account",
-  "waitingForAppleICloud": "Connecting to Apple iCloud…",
-  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
-  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
-  "appleAccountEmail": "Apple Account email",
-  "appleAppSpecificPassword": "App-specific password",
-  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
-  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
-  "connectNextcloudTitle": "Connect Nextcloud",
-  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
-  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
-  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
-  "connectAccountAction": "Connect",
-  "cancelAccountConnection": "Cancel connection",
-  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
-  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
-  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
-  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
-  "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Calendars and task lists",
-  "calendarContent": "Calendar events",
-  "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only",
-  "pendingLocally": "Pending locally",
-  "conflictBlocked": "Blocked by conflict",
-  "authenticationBlocked": "Blocked until reconnect",
-  "operationFailed": "Operation failed",
-  "keepServerVersion": "Keep server version",
-  "reapplyLocalChange": "Review and reapply local change",
-  "duplicateLocalItem": "Duplicate as new item",
+  "nextcloudTasksProvider": "Задачи Nextcloud",
+  "addAppleICloudAccount": "Добавить аккаунт Календаря Apple iCloud",
+  "addNextcloudAccount": "Добавить аккаунт Nextcloud",
+  "waitingForAppleICloud": "Подключение к Apple iCloud…",
+  "waitingForNextcloud": "Ожидание авторизации Nextcloud…",
+  "connectAppleICloudTitle": "Подключить Календарь Apple iCloud",
+  "appleAccountEmail": "Электронная почта аккаунта Apple",
+  "appleAppSpecificPassword": "Пароль для приложения",
+  "appleAppSpecificPasswordHelp": "Создайте пароль для приложения после включения двухфакторной аутентификации аккаунта Apple.",
+  "appleAppSpecificPasswordResetWarning": "Сброс пароля аккаунта Apple отзывает пароли для приложений.",
+  "connectNextcloudTitle": "Подключить Nextcloud",
+  "nextcloudServerUrl": "Сервер Nextcloud или адрес CalDAV",
+  "nextcloudServerUrlHelp": "Введите URL сервера Nextcloud или вставьте основной адрес CalDAV, скопированный из Nextcloud.",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax откроет браузер. Разрешите доступ и вернитесь в BusyMax.",
+  "connectAccountAction": "Подключить",
+  "cancelAccountConnection": "Отменить подключение",
+  "nextcloudAccountRemovedRevokeFailed": "Аккаунт удалён локально, но пароль приложения Nextcloud не удалось отозвать.",
+  "davCachedOfflineNotice": "Данные календаря и задач кэшируются локально для работы без подключения.",
+  "davReauthenticationRequired": "Подключите аккаунт заново, чтобы возобновить синхронизацию.",
+  "davTemporarilyUnavailable": "Этот аккаунт временно недоступен.",
+  "davPermissionChanged": "Разрешения сервера изменились. Ожидающие изменения приостановлены.",
+  "davUnsupportedServer": "Этот сервер или профиль поставщика не поддерживается.",
+  "collectionSettings": "Календари и списки задач",
+  "calendarContent": "События календаря",
+  "taskContent": "Задачи",
+  "readOnlySharedCollection": "Только чтение",
+  "pendingLocally": "Ожидает локально",
+  "conflictBlocked": "Заблокировано из-за конфликта",
+  "authenticationBlocked": "Заблокировано до повторного подключения",
+  "operationFailed": "Операция не выполнена",
+  "keepServerVersion": "Сохранить версию сервера",
+  "reapplyLocalChange": "Проверить и повторно применить локальное изменение",
+  "duplicateLocalItem": "Дублировать как новый элемент",
   "deleteCalendarConfirmation": "Удалить «{title}»?",
-  "davConnectionState": "Connection state",
-  "davConnected": "Connected",
-  "davConnecting": "Connecting…",
-  "davSignedOut": "Signed out",
-  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "davConnectionState": "Состояние подключения",
+  "davConnected": "Подключено",
+  "davConnecting": "Подключение…",
+  "davSignedOut": "Выполнен выход",
+  "davLastSuccessfulSync": "Последняя успешная синхронизация: {time}",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -466,9 +514,9 @@
       }
     }
   },
-  "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh calendars and task lists",
-  "nextcloudServerHost": "Server: {host}",
+  "davNeverSynced": "Ещё не синхронизировано",
+  "refreshCollections": "Обновить календари и списки задач",
+  "nextcloudServerHost": "Сервер: {host}",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -476,12 +524,12 @@
       }
     }
   },
-  "collectionSupportsEvents": "Event calendar",
-  "collectionSupportsTasks": "Task list",
-  "collectionSupportsEventsAndTasks": "Events and tasks",
-  "writableCollection": "Writable",
-  "sharedCollection": "Shared",
-  "collectionLastSynced": "Last synchronized: {time}",
+  "collectionSupportsEvents": "Календарь событий",
+  "collectionSupportsTasks": "Список задач",
+  "collectionSupportsEventsAndTasks": "События и задачи",
+  "writableCollection": "Доступно для записи",
+  "sharedCollection": "Общий доступ",
+  "collectionLastSynced": "Последняя синхронизация: {time}",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -489,7 +537,7 @@
       }
     }
   },
-  "collectionSyncError": "Sync issue: {code}",
+  "collectionSyncError": "Проблема синхронизации: {code}",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -497,8 +545,8 @@
       }
     }
   },
-  "syncConflicts": "Synchronization conflicts",
-  "remoteChangedAt": "Server changed: {time}",
+  "syncConflicts": "Конфликты синхронизации",
+  "remoteChangedAt": "Изменено на сервере: {time}",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -506,7 +554,7 @@
       }
     }
   },
-  "localPendingEdit": "Local edit: {summary}",
+  "localPendingEdit": "Локальное изменение: {summary}",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -514,9 +562,9 @@
       }
     }
   },
-  "conflictResolutionFailed": "The conflict could not be resolved.",
-  "recurringEventScope": "Recurring event scope",
-  "entireSeries": "Entire series",
+  "conflictResolutionFailed": "Не удалось разрешить конфликт.",
+  "recurringEventScope": "Область повторяющегося события",
+  "entireSeries": "Вся серия",
   "singleOccurrence": "Это событие",
   "thisAndFollowingEvents": "Это и последующие события",
   "thisAndFutureUnavailable": "Не поддерживается этим поставщиком.",
@@ -525,204 +573,288 @@
   "copyEventAndDeleteOriginal": "Скопировать событие и удалить оригинал?",
   "copyEventMoveWarning": "BusyMax не может напрямую переместить это событие из {source} в {destination}. Сначала будет создана копия, а оригинал будет удалён только после успешного копирования. Идентификаторы события изменятся; статусы ответов участников могут быть сброшены, а приглашения или отмены — отправлены; ссылки на конференции, вложения, напоминания, поля поставщика и исключения повтора могут не сохраниться.",
   "copyAndDelete": "Скопировать и удалить",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "chooseRecurringEventScope": "Выберите, применять ли это изменение ко всей серии, только к этому событию или к этому и последующим событиям.",
   "taskDueBeforeStart": "Срок не может быть раньше начала.",
   "taskStartDueTimeModeMismatch": "Укажите время начала и срока или сделайте задачу на весь день.",
-  "taskListCreateFailed": "Could not create the task list: {error}",
-  "taskListRenameFailed": "Could not rename the task list: {error}",
-  "taskListDeleteFailed": "Could not delete the task list: {error}",
-  "unshare": "Закрыть доступ",
-  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
-  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
-  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "taskStatus": "Status",
-  "taskStatusNone": "No status",
+  "taskListCreateFailed": "Не удалось создать список задач: {error}",
+  "taskListRenameFailed": "Не удалось переименовать список задач: {error}",
+  "taskListDeleteFailed": "Не удалось удалить список задач: {error}",
+  "unshare": "Отменить общий доступ",
+  "readOnlyTaskListCannotRename": "Этот список задач доступен только для чтения и не может быть переименован.",
+  "taskListCannotDelete": "Этот список задач нельзя удалить с текущими разрешениями.",
+  "deleteTaskListConfirmation": "Удалить «{title}» и все его задачи?",
+  "unshareTaskListConfirmation": "Отменить общий доступ к «{title}» для этого аккаунта?",
+  "taskStatus": "Статус",
+  "taskStatusNone": "Нет статуса",
   "taskStatusNeedsAction": "Требуется действие",
-  "taskStatusInProcess": "Выполянется",
-  "taskStatusCompleted": "Завершённые",
-  "taskStatusCancelled": "Cancelled",
-  "completionPercent": "{percent}% completed",
-  "completionDate": "Completion date",
+  "taskStatusInProcess": "Выполняется",
+  "taskStatusCompleted": "Завершена",
+  "taskStatusCancelled": "Отменена",
+  "completionPercent": "Выполнено на {percent}%",
+  "completionDate": "Дата выполнения",
   "priority": "Приоритет",
-  "priorityNone": "No priority",
-  "priorityHighValue": "Priority {priority} · High",
-  "priorityMediumValue": "Priority {priority} · Medium",
-  "priorityLowValue": "Priority {priority} · Low",
-  "taskUrl": "URL",
-  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
-  "classification": "Classification",
-  "classificationPublic": "When shared, show the full task",
-  "classificationConfidential": "When shared, show only busy",
-  "classificationPrivate": "When shared, hide this task",
-  "pinTask": "Pin task",
-  "reminders": "Reminders",
-  "noReminders": "Напоминаний нет",
-  "editReminder": "Edit reminder",
+  "priorityNone": "Без приоритета",
+  "priorityHighValue": "Приоритет {priority} · высокий",
+  "priorityMediumValue": "Приоритет {priority} · средний",
+  "priorityLowValue": "Приоритет {priority} · низкий",
+  "taskUrl": "URL задачи",
+  "invalidTaskUrl": "Введите абсолютный URL вместе со схемой.",
+  "classification": "Классификация",
+  "classificationPublic": "При общем доступе показывать задачу полностью",
+  "classificationConfidential": "При общем доступе показывать только занятость",
+  "classificationPrivate": "При общем доступе скрывать эту задачу",
+  "pinTask": "Закрепить задачу",
+  "reminders": "Напоминания",
+  "noReminders": "Нет напоминаний",
+  "editReminder": "Изменить напоминание",
   "beforeTaskStarts": "До начала задачи",
   "beforeTaskDue": "До срока выполнения задачи",
-  "afterTaskStarts": "After the task starts",
-  "afterTaskDue": "After the task is due",
-  "relativeToTaskStart": "Relative to the task start date",
-  "relativeToTaskDue": "Relative to the task due date",
-  "reminderTimeOfDay": "Time of day",
-  "absoluteReminder": "At a date and time",
-  "reminderAmount": "Amount",
-  "reminderUnitSeconds": "Seconds",
-  "reminderUnitMinutes": "Minutes",
-  "reminderUnitHours": "Hours",
-  "reminderUnitDays": "Days",
-  "reminderUnitWeeks": "Weeks",
-  "reminderAtTaskStart": "At the task start",
-  "reminderAtTaskDue": "At the task due time",
-  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
-  "relatedRemindersTitle": "Keep related reminders?",
-  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
-  "discardRelatedReminders": "Отменить напоминания",
+  "afterTaskStarts": "После начала задачи",
+  "afterTaskDue": "После срока выполнения задачи",
+  "relativeToTaskStart": "Относительно даты начала задачи",
+  "relativeToTaskDue": "Относительно срока выполнения задачи",
+  "reminderTimeOfDay": "Время суток",
+  "absoluteReminder": "В указанную дату и время",
+  "reminderAmount": "Количество",
+  "reminderUnitSeconds": "Секунды",
+  "reminderUnitMinutes": "Минуты",
+  "reminderUnitHours": "Часы",
+  "reminderUnitDays": "Дни",
+  "reminderUnitWeeks": "Недели",
+  "reminderAtTaskStart": "В момент начала задачи",
+  "reminderAtTaskDue": "В момент наступления срока задачи",
+  "unsupportedReminder": "Тип этого напоминания сохраняется, но его время нельзя изменить.",
+  "relatedRemindersTitle": "Сохранить связанные напоминания?",
+  "relatedRemindersDescription": "На эту дату приходится {count} связанных напоминаний. Сохранить их текущие дату и время?",
+  "discardRelatedReminders": "Удалить напоминания",
   "keepRelatedReminders": "Сохранить напоминания",
-  "repeatEvery": "Повторять каждые",
-  "repeatOn": "Repeat on",
-  "repeatEnd": "Прекратить повтор",
-  "repeatNever": "Never",
-  "repeatUntil": "On date",
-  "repeatAfter": "After a number of occurrences",
-  "repeatCount": "Occurrences",
-  "repeatDayOfMonth": "Days of month",
-  "repeatMonths": "Months",
-  "repeatOrdinal": "Weekday position",
-  "repeatSpecificDays": "Specific days",
-  "repeatFirst": "First",
-  "repeatSecond": "Second",
-  "repeatThird": "Third",
-  "repeatFourth": "Fourth",
-  "repeatFifth": "Fifth",
-  "repeatSecondToLast": "Second to last",
-  "repeatLast": "Last",
-  "repeatAnyDay": "Day",
-  "repeatWeekday": "Weekday",
-  "repeatWeekendDay": "Weekend day",
-  "repeatEveryDays": "Every {count} days",
-  "repeatEveryWeeks": "Every {count} weeks",
-  "repeatEveryMonths": "Every {count} months",
-  "repeatEveryYears": "Every {count} years",
-  "repeatOnDaysSummary": "в {days}",
-  "repeatOnMonthDaysSummary": " {days}",
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "repeatInMonthsSummary": "в {months}",
+  "repeatEvery": "Интервал",
+  "repeatOn": "Повторять в",
+  "repeatEnd": "Завершить повтор",
+  "repeatNever": "Никогда",
+  "repeatUntil": "В указанную дату",
+  "repeatAfter": "После указанного числа повторений",
+  "repeatCount": "Число повторений",
+  "repeatDayOfMonth": "Дни месяца",
+  "repeatMonths": "Месяцы",
+  "repeatOrdinal": "Порядок дня недели",
+  "repeatSpecificDays": "Определённые дни",
+  "repeatFirst": "Первый",
+  "repeatSecond": "Второй",
+  "repeatThird": "Третий",
+  "repeatFourth": "Четвёртый",
+  "repeatFifth": "Пятый",
+  "repeatSecondToLast": "Предпоследний",
+  "repeatLast": "Последний",
+  "repeatAnyDay": "День",
+  "repeatWeekday": "Будний день",
+  "repeatWeekendDay": "Выходной день",
+  "repeatEveryDays": "Каждые {count} дн.",
+  "repeatEveryWeeks": "Каждые {count} нед.",
+  "repeatEveryMonths": "Каждые {count} мес.",
+  "repeatEveryYears": "Каждые {count} г.",
+  "repeatOnDaysSummary": "в дни {days}",
+  "repeatOnMonthDaysSummary": "{days}-го числа месяца",
+  "repeatOnOrdinalSummary": "{ordinal} {days}",
+  "repeatInMonthsSummary": "в месяцы {months}",
   "repeatTimesSummary": "{count} раз",
   "repeatUntilSummary": "до {date}",
-  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
+  "unsupportedRecurrencePreserved": "Это правило повторения использует параметры, которые этот редактор не изменяет.",
   "recurrenceUnsupportedByProvider": "Это повторение нельзя использовать с {provider}.",
   "duplicateTask": "Дублировать задачу",
-  "taskDuplicated": "Task duplicated.",
-  "taskDuplicateFailed": "Could not duplicate the task: {error}",
-  "hideSubtasks": "Скрыть вложенные задачи",
+  "taskDuplicated": "Задача продублирована.",
+  "taskDuplicateFailed": "Не удалось продублировать задачу: {error}",
+  "hideSubtasks": "Скрыть подзадачи",
   "hideClosedSubtasks": "Скрыть закрытые подзадачи",
-  "reminderUnit": "Unit",
-  "attendeeRequired": "Required",
-  "attendeeOptional": "Optional",
-  "meetingSection": "Meeting",
-  "addGoogleMeet": "Add Google Meet",
-  "addTeamsMeeting": "Add Microsoft Teams meeting",
-  "onlineMeetingAdded": "Online meeting added",
-  "requestResponses": "Request responses",
-  "requestResponsesDescription": "Ask guests to respond to the invitation.",
-  "hideGuestList": "Hide guest list",
-  "hideGuestListDescription": "Guests cannot see who else was invited.",
-  "allowNewTimeProposals": "Allow new time proposals",
-  "allowNewTimeProposalsDescription": "Guests can suggest a different meeting time.",
-  "notifyGuestsTitle": "Notify guests?",
-  "notifyGuestsSaveMessage": "This meeting has guests. Send invitations or event updates when it is saved?",
-  "notifyGuestsDeleteMessage": "This meeting has guests. Send a cancellation when it is deleted?",
-  "sendUpdates": "Send updates",
-  "sendCancellation": "Send cancellation",
-  "doNotSend": "Don’t send",
-  "microsoftNotifyGuestsSaveTitle": "Save meeting?",
-  "microsoftNotifyGuestsSaveMessage": "Microsoft will send invitations or event updates to guests.",
-  "microsoftNotifyGuestsDeleteTitle": "Delete meeting?",
-  "microsoftNotifyGuestsDeleteMessage": "Microsoft will send a cancellation to guests.",
-  "organizer": "Organizer",
-  "yourResponse": "Your response",
-  "guestResponses": "Guest responses",
-  "respond": "Respond",
-  "acceptInvitation": "Accept",
-  "tentativeInvitation": "Tentative",
-  "declineInvitation": "Decline",
-  "joinMeeting": "Join meeting",
-  "responseAccepted": "Accepted",
-  "responseTentative": "Tentative",
-  "responseDeclined": "Declined",
-  "responseNeedsAction": "Awaiting response",
-  "responseNotResponded": "Not responded",
-  "responseOrganizer": "Organizer",
-  "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
-  "joinMeetingFailed": "Could not open the meeting link.",
+  "reminderUnit": "Единица",
+  "attendeeRequired": "Обязательно",
+  "attendeeOptional": "Необязательно",
+  "meetingSection": "Встреча",
+  "addGoogleMeet": "Добавить Google Meet",
+  "addTeamsMeeting": "Добавить встречу Microsoft Teams",
+  "onlineMeetingAdded": "Онлайн-встреча добавлена",
+  "requestResponses": "Запрашивать ответы",
+  "requestResponsesDescription": "Попросите гостей ответить на приглашение.",
+  "hideGuestList": "Скрыть список гостей",
+  "hideGuestListDescription": "Гости не видят других приглашённых.",
+  "allowNewTimeProposals": "Разрешить новые предложения времени",
+  "allowNewTimeProposalsDescription": "Гости могут предложить другое время встречи.",
+  "notifyGuestsTitle": "Уведомить гостей?",
+  "notifyGuestsSaveMessage": "На встрече есть гости. Отправить приглашения или обновления события при сохранении?",
+  "notifyGuestsDeleteMessage": "На встрече есть гости. Отправить отмену при удалении?",
+  "sendUpdates": "Отправить обновления",
+  "sendCancellation": "Отправить отмену",
+  "doNotSend": "Не отправлять",
+  "microsoftNotifyGuestsSaveTitle": "Сохранить встречу?",
+  "microsoftNotifyGuestsSaveMessage": "Microsoft отправит гостям приглашения или обновления события.",
+  "microsoftNotifyGuestsDeleteTitle": "Удалить встречу?",
+  "microsoftNotifyGuestsDeleteMessage": "Microsoft отправит гостям отмену.",
+  "organizer": "Организатор",
+  "yourResponse": "Ваш ответ",
+  "guestResponses": "Ответы гостей",
+  "respond": "Ответить",
+  "acceptInvitation": "Принять",
+  "tentativeInvitation": "Под вопросом",
+  "declineInvitation": "Отклонить",
+  "joinMeeting": "Присоединиться к встрече",
+  "responseAccepted": "Принято",
+  "responseTentative": "Под вопросом",
+  "responseDeclined": "Отклонено",
+  "responseNeedsAction": "Ожидается ответ",
+  "responseNotResponded": "Нет ответа",
+  "responseOrganizer": "Организатор",
+  "invitationResponseFailed": "Не удалось отправить ответ: {error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "Не удалось открыть ссылку на встречу.",
   "setCustomCalendarName": "Задать своё название",
   "setAction": "Задать",
   "removeFromMyCalendars": "Удалить из моих календарей",
   "removeAction": "Удалить",
   "removeCalendarConfirmation": "Удалить «{title}» из вашего списка Google Календаря? Общий календарь и его события удалены не будут.",
-  "calendarCannotRemove": "Этот календарь нельзя удалить из этой учётной записи.",
-  "calendarPendingChangesPreventRemoval": "Дождитесь синхронизации ожидающих изменений этого календаря, прежде чем удалять его.",
-  "calendarSubscriptions": "Calendar subscriptions",
-  "calendarSubscriptionsDescription": "Add read-only calendars that refresh from a secure WebCal URL.",
-  "addCalendarSubscription": "Add calendar subscription",
-  "subscriptionName": "Local name",
-  "subscriptionUrl": "Subscription URL",
-  "subscriptionUrlHelp": "Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.",
-  "subscriptionUrlInvalid": "Enter a valid HTTPS or webcal URL without user information or a fragment.",
-  "subscriptionColor": "Local color",
-  "subscriptionColorHelp": "Use a six-digit color such as #3584E4.",
-  "subscriptionColorInvalid": "Enter a six-digit hexadecimal color.",
-  "subscriptionRefreshMode": "Refresh frequency",
-  "subscriptionAutomatic": "Automatic",
-  "subscriptionHourly": "Hourly",
-  "subscriptionSixHours": "Every six hours",
-  "subscriptionDaily": "Daily",
-  "subscriptionSafeOrigin": "Source: {origin}",
-  "@subscriptionSafeOrigin": {"placeholders": {"origin": {"type": "String"}}},
-  "subscriptionSafeOriginUnavailable": "Enter a valid URL to preview its safe origin.",
-  "subscriptionReadOnly": "Read-only subscription",
-  "subscriptionNeverRefreshed": "Not refreshed yet",
-  "subscriptionLastRefresh": "Last successful refresh: {time}",
-  "@subscriptionLastRefresh": {"placeholders": {"time": {"type": "String"}}},
-  "subscriptionNextRefresh": "Next refresh: {time}",
-  "@subscriptionNextRefresh": {"placeholders": {"time": {"type": "String"}}},
-  "subscriptionStatusHealthy": "Up to date",
-  "subscriptionStatusIssue": "Refresh issue: {code}",
-  "@subscriptionStatusIssue": {"placeholders": {"code": {"type": "String"}}},
-  "refreshNow": "Refresh now",
-  "unsubscribe": "Unsubscribe",
-  "unsubscribeCalendarTitle": "Unsubscribe from “{name}”?",
-  "@unsubscribeCalendarTitle": {"placeholders": {"name": {"type": "String"}}},
-  "unsubscribeCalendarConfirmation": "This removes the local subscription and its cached events. The published calendar is not changed.",
-  "addSubscriptionAction": "Add subscription",
-  "subscriptionOperationFailed": "Calendar subscription failed: {error}",
-  "@subscriptionOperationFailed": {"placeholders": {"error": {"type": "String"}}},
-  "subscriptions": "Subscriptions",
+  "calendarCannotRemove": "Этот календарь нельзя удалить или убрать из аккаунта.",
+  "calendarPendingChangesPreventRemoval": "Дождитесь синхронизации ожидающих изменений этого календаря перед удалением или отключением.",
+  "calendarSubscriptions": "Подписки на календари",
+  "calendarSubscriptionsDescription": "Добавляйте календари только для чтения, обновляемые по защищённому URL WebCal.",
+  "addCalendarSubscription": "Добавить подписку на календарь",
+  "subscriptionName": "Локальное имя",
+  "subscriptionUrl": "URL подписки",
+  "subscriptionUrlHelp": "Введите HTTPS- или webcal-URL. BusyMax хранит полный URL в защищённом хранилище.",
+  "subscriptionUrlInvalid": "Введите действительный HTTPS- или webcal-URL без данных пользователя или фрагмента.",
+  "subscriptionColor": "Локальный цвет",
+  "subscriptionColorHelp": "Используйте шестизначный цвет, например #3584E4.",
+  "subscriptionColorInvalid": "Введите шестизначный шестнадцатеричный цвет.",
+  "subscriptionRefreshMode": "Частота обновления",
+  "subscriptionAutomatic": "Автоматически",
+  "subscriptionHourly": "Ежечасно",
+  "subscriptionSixHours": "Каждые шесть часов",
+  "subscriptionDaily": "Ежедневно",
+  "subscriptionSafeOrigin": "Источник: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "Введите действительный URL для просмотра безопасного источника.",
+  "subscriptionReadOnly": "Подписка только для чтения",
+  "subscriptionNeverRefreshed": "Ещё не обновлялось",
+  "subscriptionLastRefresh": "Последнее успешное обновление: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "Следующее обновление: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "Актуально",
+  "subscriptionStatusIssue": "Проблема обновления: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "Обновить сейчас",
+  "unsubscribe": "Отменить подписку",
+  "unsubscribeCalendarTitle": "Отменить подписку на «{name}»?",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "Локальная подписка и кэшированные события будут удалены. Опубликованный календарь не изменится.",
+  "addSubscriptionAction": "Добавить подписку",
+  "subscriptionOperationFailed": "Ошибка подписки на календарь: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "Подписки",
   "calendarImport": "Импорт календаря",
-  "calendarImportDescription": "Выберите файл, проверьте события, затем выберите доступный для записи календарь назначения.",
-  "importIcsFile": "Import .ics file",
-  "importIcsPreview": "Import calendar events",
-  "importEventsFound": "Importable event sets: {count}",
-  "@importEventsFound": {"placeholders": {"count": {"type": "int"}}},
-  "importInvalidEvents": "Invalid events: {count}",
-  "@importInvalidEvents": {"placeholders": {"count": {"type": "int"}}},
-  "importFieldsOmitted": "Intentionally omitted: {fields}",
-  "@importFieldsOmitted": {"placeholders": {"fields": {"type": "String"}}},
-  "noWritableCalendars": "No writable destination calendar is available.",
-  "importDestinationCalendar": "Destination calendar",
-  "importIcsConfirm": "Import events",
-  "importIcsComplete": "Import complete",
-  "importQueued": "Imported or queued: {count}",
-  "@importQueued": {"placeholders": {"count": {"type": "int"}}},
-  "importDuplicatesSkipped": "Duplicates skipped: {count}",
-  "@importDuplicatesSkipped": {"placeholders": {"count": {"type": "int"}}},
-  "importUnsupportedSets": "Unsupported recurrence sets: {count}",
-  "@importUnsupportedSets": {"placeholders": {"count": {"type": "int"}}},
-  "importIcsFailed": "Could not import the calendar file: {error}",
-  "@importIcsFailed": {"placeholders": {"error": {"type": "String"}}},
+  "calendarImportDescription": "Выберите файл, просмотрите его события, а затем выберите доступный для записи календарь, который должен их принять.",
+  "importIcsFile": "Импортировать файл .ics",
+  "importIcsPreview": "Импортировать события календаря",
+  "importEventsFound": "Наборы импортируемых событий: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importInvalidEvents": "Недопустимые события: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importFieldsOmitted": "Намеренно пропущено: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "Нет доступного календаря назначения с правом записи.",
+  "importDestinationCalendar": "Календарь назначения",
+  "importIcsConfirm": "Импортировать события",
+  "importIcsComplete": "Импорт завершён",
+  "importQueued": "Импортировано или поставлено в очередь: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "Пропущено дубликатов: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importUnsupportedSets": "Неподдерживаемые наборы повторений: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importIcsFailed": "Не удалось импортировать файл календаря: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "networkOffline": "Нет подключения",
   "networkOfflineDescription": "Изменения будут синхронизированы после восстановления подключения.",
   "networkOfflineTryAgain": "Нет подключения к сети. Подключитесь к Интернету и повторите попытку."

@@ -1090,7 +1090,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get taskStatusNeedsAction => 'Needs action';
 
   @override
-  String get taskStatusInProcess => 'In process';
+  String get taskStatusInProcess => 'In progress';
 
   @override
   String get taskStatusCompleted => 'Completed';
@@ -1296,7 +1296,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get repeatYearly => 'Yearly';
 
   @override
-  String get repeatEvery => 'Repeat every';
+  String get repeatEvery => 'Interval';
 
   @override
   String get repeatOn => 'Repeat on';
@@ -2067,7 +2067,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose which events this change applies to.';
+      'Choose whether this change applies to the entire series, only this occurrence, or this and following events.';
 
   @override
   String get taskDueBeforeStart => 'Due must not be before start.';

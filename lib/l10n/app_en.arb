@@ -2,6 +2,9 @@
   "@@locale": "en",
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "@connectGoogleAccount": {
+    "description": "Shown in account onboarding and settings; names the supported account providers."
+  },
   "googlePermissionsConsentNotice": "On the Google permission screen, select both Calendar and Tasks permissions.",
   "googlePermissionsRequiredRetry": "Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.",
   "finishSetup": "Finish setup",
@@ -9,6 +12,9 @@
   "onboardingSetupTitle": "Set Up BusyMax",
   "onboardingAccountsStepTitle": "Connect accounts",
   "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "@onboardingAccountsStepDescription": {
+    "description": "Onboarding explanation of the account data BusyMax synchronizes."
+  },
   "onboardingPreferencesStepTitle": "Choose system settings",
   "onboardingPreferencesStepDescription": "Set desktop behavior, reminders, notification detail, and appearance before opening your schedule.",
   "signInWithGoogle": "Sign in with Google",
@@ -345,7 +351,7 @@
   "taskStatus": "Status",
   "taskStatusNone": "No status",
   "taskStatusNeedsAction": "Needs action",
-  "taskStatusInProcess": "In process",
+  "taskStatusInProcess": "In progress",
   "taskStatusCompleted": "Completed",
   "taskStatusCancelled": "Cancelled",
   "completionPercent": "{percent}% completed",
@@ -383,6 +389,9 @@
   "editReminder": "Edit reminder",
   "beforeTaskStarts": "Before the task starts",
   "beforeTaskDue": "Before the task is due",
+  "@beforeTaskDue": {
+    "description": "Reminder timing relative to the task's due time/deadline, not task completion."
+  },
   "afterTaskStarts": "After the task starts",
   "afterTaskDue": "After the task is due",
   "relativeToTaskStart": "Relative to the task start date",
@@ -415,8 +424,14 @@
   "repeatWeekly": "Weekly",
   "repeatMonthly": "Monthly",
   "repeatYearly": "Yearly",
-  "repeatEvery": "Repeat every",
+  "repeatEvery": "Interval",
+  "@repeatEvery": {
+    "description": "Standalone label for the numeric interval used by daily, weekly, monthly, and yearly recurrence."
+  },
   "repeatOn": "Repeat on",
+  "@repeatOn": {
+    "description": "Recurrence editor label introducing the selected weekdays, month days, or ordinal weekday."
+  },
   "repeatEnd": "End repeat",
   "repeatNever": "Never",
   "repeatUntil": "On date",
@@ -445,17 +460,35 @@
   "repeatEveryYears": "Every {count} years",
   "@repeatEveryYears": {"placeholders": {"count": {"type": "int"}}},
   "repeatOnDaysSummary": "on {days}",
-  "@repeatOnDaysSummary": {"placeholders": {"days": {"type": "String"}}},
+  "@repeatOnDaysSummary": {
+    "description": "Sentence fragment appended to a recurrence summary; {days} is a localized list of weekdays.",
+    "placeholders": {"days": {"type": "String"}}
+  },
   "repeatOnMonthDaysSummary": "on day {days}",
-  "@repeatOnMonthDaysSummary": {"placeholders": {"days": {"type": "String"}}},
+  "@repeatOnMonthDaysSummary": {
+    "description": "Sentence fragment appended to a recurrence summary; {days} is a localized list of day-of-month numbers.",
+    "placeholders": {"days": {"type": "String"}}
+  },
   "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "@repeatOnOrdinalSummary": {"placeholders": {"ordinal": {"type": "String"}, "days": {"type": "String"}}},
+  "@repeatOnOrdinalSummary": {
+    "description": "Sentence fragment for ordinal recurrence, such as the first Monday; {ordinal} and {days} are localized.",
+    "placeholders": {"ordinal": {"type": "String"}, "days": {"type": "String"}}
+  },
   "repeatInMonthsSummary": "in {months}",
-  "@repeatInMonthsSummary": {"placeholders": {"months": {"type": "String"}}},
+  "@repeatInMonthsSummary": {
+    "description": "Sentence fragment for selected recurrence months; {months} is a localized list of month names.",
+    "placeholders": {"months": {"type": "String"}}
+  },
   "repeatTimesSummary": "{count} times",
-  "@repeatTimesSummary": {"placeholders": {"count": {"type": "int"}}},
+  "@repeatTimesSummary": {
+    "description": "Sentence fragment summarizing a finite recurrence count.",
+    "placeholders": {"count": {"type": "int"}}
+  },
   "repeatUntilSummary": "until {date}",
-  "@repeatUntilSummary": {"placeholders": {"date": {"type": "String"}}},
+  "@repeatUntilSummary": {
+    "description": "Sentence fragment for the recurrence end date.",
+    "placeholders": {"date": {"type": "String"}}
+  },
   "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
   "recurrenceUnsupportedByProvider": "This recurrence cannot be used with {provider}.",
   "@recurrenceUnsupportedByProvider": {"placeholders": {"provider": {"type": "String"}}},
@@ -492,6 +525,9 @@
   "etag": "ETag",
   "updated": "Updated",
   "parent": "Parent",
+  "@parent": {
+    "description": "Metadata label for the immediate parent task of a subtask."
+  },
   "position": "Position",
   "webLink": "Web link",
   "assignment": "Assignment",
@@ -583,6 +619,9 @@
   "notificationOpenAction": "Open",
   "notificationSnoozeAction": "Snooze 10 minutes",
   "notificationDismissAction": "Dismiss",
+  "@notificationDismissAction": {
+    "description": "Non-destructive action that closes or dismisses a desktop notification. Translate distinctly from reject, discard, or cancel."
+  },
   "notificationDetailsHidden": "Details are hidden by privacy settings.",
   "previousMonth": "Previous month",
   "nextMonth": "Next month",
@@ -673,7 +712,10 @@
   "copyEventMoveWarning": "BusyMax cannot move this event directly from {source} to {destination}. It will create the copy first and delete the original only after the copy succeeds. Event IDs will change; attendee response statuses may reset and invitations or cancellations may be sent; conference links, attachments, reminders, provider-specific fields, and recurrence exceptions may not carry over.",
   "@copyEventMoveWarning": {"placeholders": {"source": {"type": "String"}, "destination": {"type": "String"}}},
   "copyAndDelete": "Copy and delete",
-  "chooseRecurringEventScope": "Choose which events this change applies to.",
+  "chooseRecurringEventScope": "Choose whether this change applies to the entire series, only this occurrence, or this and following events.",
+  "@chooseRecurringEventScope": {
+    "description": "Explains the three recurring-event scope choices: entire series, one occurrence, or this and following events."
+  },
   "taskDueBeforeStart": "Due must not be before start.",
   "taskStartDueTimeModeMismatch": "Set times for both start and due, or make the task all day.",
   "deleteCalendarConfirmation": "Delete \"{title}\"?",

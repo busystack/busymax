@@ -17,7 +17,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      '连接 Google、Microsoft、Apple iCloud Calendar 或 Nextcloud 账户。';
 
   @override
   String get googlePermissionsConsentNotice => '在 Google 权限页面上，同时选择日历和任务权限。';
@@ -40,7 +40,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      '添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、活动、任务列表和任务。';
 
   @override
   String get onboardingPreferencesStepTitle => '选择系统设置';
@@ -212,68 +212,68 @@ class AppLocalizationsZh extends AppLocalizations {
   String get trayOpenBusyMax => '打开 BusyMax';
 
   @override
-  String get trayShowBusyMax => 'Show BusyMax';
+  String get trayShowBusyMax => '显示 BusyMax';
 
   @override
-  String get trayNewEvent => 'New event…';
+  String get trayNewEvent => '新活动…';
 
   @override
-  String get trayNewTask => 'New task…';
+  String get trayNewTask => '新任务…';
 
   @override
-  String get trayToday => 'Today';
+  String get trayToday => '今天';
 
   @override
-  String get trayAllDay => 'All day';
+  String get trayAllDay => '全天';
 
   @override
-  String get trayNow => 'Now';
+  String get trayNow => '现在';
 
   @override
-  String get trayCalendarEvent => 'Calendar event';
+  String get trayCalendarEvent => '日历活动';
 
   @override
-  String get trayUntitledEvent => 'Untitled event';
+  String get trayUntitledEvent => '无标题活动';
 
   @override
-  String get trayNothingElseToday => 'Nothing else today';
+  String get trayNothingElseToday => '今天没有其他内容';
 
   @override
   String trayTasksDueToday(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count tasks due today',
-      one: '1 task due today',
+      other: '今天有 $count 个任务到期',
+      one: '今天有 1 个任务到期',
     );
     return '$_temp0';
   }
 
   @override
-  String get trayOpenTodayAgenda => 'Open today’s agenda';
+  String get trayOpenTodayAgenda => '打开今天的日程';
 
   @override
-  String get traySyncNow => 'Sync now';
+  String get traySyncNow => '立即同步';
 
   @override
-  String get traySyncing => 'Syncing…';
+  String get traySyncing => '正在同步…';
 
   @override
-  String get trayNotConnected => 'Not connected';
+  String get trayNotConnected => '未连接';
 
   @override
-  String get trayNotYetSynced => 'Not yet synced';
+  String get trayNotYetSynced => '尚未同步';
 
   @override
-  String get trayLastSyncedJustNow => 'Last synced just now';
+  String get trayLastSyncedJustNow => '刚刚同步';
 
   @override
   String trayLastSyncedMinutesAgo(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count minutes ago',
-      one: 'Last synced 1 minute ago',
+      other: '$count 分钟前同步',
+      one: '1 分钟前同步',
     );
     return '$_temp0';
   }
@@ -283,8 +283,8 @@ class AppLocalizationsZh extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count hours ago',
-      one: 'Last synced 1 hour ago',
+      other: '$count 小时前同步',
+      one: '1 小时前同步',
     );
     return '$_temp0';
   }
@@ -294,17 +294,17 @@ class AppLocalizationsZh extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count days ago',
-      one: 'Last synced 1 day ago',
+      other: '$count 天前同步',
+      one: '1 天前同步',
     );
     return '$_temp0';
   }
 
   @override
-  String get traySettings => 'Settings';
+  String get traySettings => '设置';
 
   @override
-  String get trayQuitBusyMax => 'Quit BusyMax';
+  String get trayQuitBusyMax => '退出 BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => '加载更多逾期任务';
@@ -386,130 +386,123 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guests => '参与者';
 
   @override
-  String get noGuests => '没有参与者';
+  String get noGuests => '无参与者';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => '必需';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => '可选';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => '会议';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => '添加 Google Meet';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => '添加 Microsoft Teams 会议';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => '已添加在线会议';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => '请求回复';
 
   @override
-  String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+  String get requestResponsesDescription => '要求参与者回复邀请。';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => '隐藏参与者列表';
 
   @override
-  String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+  String get hideGuestListDescription => '参与者无法查看其他受邀者。';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => '允许提出新时间';
 
   @override
-  String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+  String get allowNewTimeProposalsDescription => '参与者可以建议其他会议时间。';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => '通知参与者？';
 
   @override
-  String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+  String get notifyGuestsSaveMessage => '此会议有参与者。保存时发送邀请或活动更新吗？';
 
   @override
-  String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+  String get notifyGuestsDeleteMessage => '此会议有参与者。删除时发送取消通知吗？';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => '发送更新';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => '发送取消通知';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => '不发送';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => '保存会议？';
 
   @override
-  String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+  String get microsoftNotifyGuestsSaveMessage => 'Microsoft 将向参与者发送邀请或活动更新。';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => '删除会议？';
 
   @override
-  String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+  String get microsoftNotifyGuestsDeleteMessage => 'Microsoft 将向参与者发送取消通知。';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => '组织者';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => '你的回复';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => '参与者回复';
 
   @override
-  String get respond => 'Respond';
+  String get respond => '回复';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => '接受';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => '暂定';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => '拒绝';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => '加入会议';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => '已接受';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => '暂定';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => '已拒绝';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => '等待回复';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => '未回复';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => '组织者';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return '无法发送回复：$error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => '无法打开会议链接。';
 
   @override
   String get description => '说明';
@@ -847,7 +840,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      '这会从此设备删除缓存的任务、日历、活动、提醒和待处理的离线更改。未同步的更改将会丢失。提供商中的日历、活动、任务列表和任务副本不会被删除。';
 
   @override
   String get revokeGoogleAccess => '同时撤销 BusyMax 对此 Google 帐户的访问权限';
@@ -866,21 +859,21 @@ class AppLocalizationsZh extends AppLocalizations {
       '该帐户已从此设备移除，但无法撤销 BusyMax 对您的 Google 帐户的访问权限。您可以在 Google 帐户中手动撤销该权限。';
 
   @override
-  String get newTaskList => '新建任务列表';
+  String get newTaskList => '新任务列表';
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return '无法创建任务列表：$error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return '无法重命名任务列表：$error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return '无法删除任务列表：$error';
   }
 
   @override
@@ -908,12 +901,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get unshare => '取消共享';
 
   @override
-  String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+  String get readOnlyTaskListCannotRename => '此任务列表为只读，无法重命名。';
 
   @override
-  String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+  String get taskListCannotDelete => '使用当前权限无法删除此任务列表。';
 
   @override
   String get builtInMicrosoftList => '内置';
@@ -924,17 +915,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return '从 Google Tasks 中删除“$title”？';
+    return '要从 Google Tasks 中删除“$title”吗？';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return '要删除“$title”及其所有任务吗？';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return '要取消此账户对“$title”的共享吗？';
   }
 
   @override
@@ -1059,72 +1050,72 @@ class AppLocalizationsZh extends AppLocalizations {
   String get doneStatus => '已完成';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => '状态';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => '无状态';
 
   @override
   String get taskStatusNeedsAction => '需要操作';
 
   @override
-  String get taskStatusInProcess => '处理中';
+  String get taskStatusInProcess => '进行中';
 
   @override
-  String get taskStatusCompleted => '完成';
+  String get taskStatusCompleted => '已完成';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => '已取消';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    return '已完成 $percent%';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => '完成日期';
 
   @override
   String get priority => '优先级';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => '无优先级';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    return '优先级 $priority · 高';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    return '优先级 $priority · 中';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    return '优先级 $priority · 低';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => '任务 URL';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => '请输入包含方案的绝对 URL。';
 
   @override
-  String get classification => 'Classification';
+  String get classification => '分类';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => '共享时显示完整任务';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential => '共享时仅显示忙碌状态';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => '共享时隐藏此任务';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => '固定任务';
 
   @override
   String get notes => '备注';
@@ -1163,75 +1154,74 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addReminder => '添加提醒';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => '提醒';
 
   @override
   String get noReminders => '无提醒';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => '编辑提醒';
 
   @override
   String get beforeTaskStarts => '任务开始前';
 
   @override
-  String get beforeTaskDue => '任务截止前';
+  String get beforeTaskDue => '任务到期前';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => '任务开始后';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => '任务到期后';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => '相对于任务开始日期';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => '相对于任务到期日期';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => '时间';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => '在指定日期和时间';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => '数量';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => '单位';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => '秒';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => '分钟';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => '小时';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => '天';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => '周';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => '任务开始时';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => '任务到期时';
 
   @override
-  String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+  String get unsupportedReminder => '此提醒类型会保留，但无法编辑其时间。';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => '保留相关提醒？';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    return '此日期有 $count 个相关提醒。要保留它们当前的日期和时间吗？';
   }
 
   @override
@@ -1274,86 +1264,86 @@ class AppLocalizationsZh extends AppLocalizations {
   String get repeatYearly => '每年';
 
   @override
-  String get repeatEvery => '重复每';
+  String get repeatEvery => '重复间隔';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => '重复日期';
 
   @override
   String get repeatEnd => '结束重复';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => '从不';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => '指定日期';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => '指定次数后';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => '重复次数';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => '每月日期';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => '月份';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => '星期位置';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => '特定日期';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => '第一';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => '第二';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => '第三';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => '第四';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => '第五';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => '倒数第二';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => '最后';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => '日期';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => '工作日';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => '周末';
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    return '每 $count 天';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    return '每 $count 周';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    return '每 $count 个月';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    return '每 $count 年';
   }
 
   @override
@@ -1363,12 +1353,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return '在第 $days 天';
+    return '每月 $days 日';
   }
 
   @override
   String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+    return '$days 的第 $ordinal 个';
   }
 
   @override
@@ -1378,17 +1368,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count次';
+    return '重复 $count 次';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return '至 $date';
+    return '直到 $date';
   }
 
   @override
-  String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+  String get unsupportedRecurrencePreserved => '此重复规则使用了编辑器不会更改的选项。';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
@@ -1450,18 +1439,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get duplicateTask => '复制任务';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => '任务已复制。';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return '无法复制任务：$error';
   }
 
   @override
   String get hideSubtasks => '隐藏子任务';
 
   @override
-  String get hideClosedSubtasks => '隐藏关闭的子任务';
+  String get hideClosedSubtasks => '隐藏已关闭的子任务';
 
   @override
   String get moveToTop => '移到顶部';
@@ -1753,7 +1742,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationSnoozeAction => '10 分钟后提醒';
 
   @override
-  String get notificationDismissAction => '忽略';
+  String get notificationDismissAction => '关闭';
 
   @override
   String get notificationDetailsHidden => '根据隐私设置，详细信息已隐藏。';
@@ -1808,14 +1797,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noLocationsFound => '未找到地点';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => '此字段为必填项。';
 
   @override
-  String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+  String get providerConnectionDescription => '连接以下任一提供商中的日历和任务。';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'Apple iCloud 日历';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -1824,188 +1812,182 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'Nextcloud 任务';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => '添加 Apple iCloud 日历账户';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => '添加 Nextcloud 账户';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => '正在连接 Apple iCloud…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => '正在等待 Nextcloud 授权…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => '连接 Apple iCloud 日历';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'Apple 账户电子邮件';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'App 专用密码';
 
   @override
-  String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+  String get appleAppSpecificPasswordHelp => '为 Apple 账户启用双重认证后，创建 App 专用密码。';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      '重置 Apple 账户密码会撤销 App 专用密码。';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => '连接 Nextcloud';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'Nextcloud 服务器或 CalDAV 地址';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      '输入 Nextcloud 服务器 URL，或粘贴从 Nextcloud 复制的主要 CalDAV 地址。';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax 将打开浏览器。请在那里批准访问，然后返回 BusyMax。';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => '连接';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => '取消连接';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      '账户已在本地移除，但无法撤销 Nextcloud App 密码。';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+  String get davCachedOfflineNotice => '日历和任务数据会缓存在本地，以供离线使用。';
 
   @override
-  String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+  String get davReauthenticationRequired => '重新连接此账户以恢复同步。';
 
   @override
-  String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+  String get davTemporarilyUnavailable => '此账户暂时不可用。';
 
   @override
-  String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+  String get davPermissionChanged => '服务器权限已更改。待处理的编辑已暂停。';
 
   @override
-  String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+  String get davUnsupportedServer => '不支持此服务器或提供商配置。';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => '日历和任务列表';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => '日历活动';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => '任务';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => '只读';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => '本地待处理';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => '因冲突而阻止';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => '重新连接前阻止';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => '操作失败';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => '保留服务器版本';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => '查看并重新应用本地更改';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => '复制为新项目';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => '连接状态';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => '已连接';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => '正在连接…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => '已退出登录';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return '上次成功同步：$time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => '尚未同步';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => '刷新日历和任务列表';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return '服务器：$host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => '活动日历';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => '任务列表';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => '活动和任务';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => '可写';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => '已共享';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return '上次同步：$time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return '同步问题：$code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => '同步冲突';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return '服务器更改：$time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return '本地编辑：$summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => '无法解决冲突。';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => '重复活动范围';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => '整个系列';
 
   @override
   String get singleOccurrence => '此事件';
@@ -2034,8 +2016,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copyAndDelete => '复制并删除';
 
   @override
-  String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+  String get chooseRecurringEventScope => '选择此更改适用于整个系列、仅此活动，还是此活动及后续活动。';
 
   @override
   String get taskDueBeforeStart => '截止时间不能早于开始时间。';
@@ -2066,177 +2047,172 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get calendarCannotRemove => '无法从此账号中删除或移除此日历。';
+  String get calendarCannotRemove => '无法从此账户删除或移除此日历。';
 
   @override
   String get calendarPendingChangesPreventRemoval =>
-      '请等待此日历的待处理更改同步完成，然后再删除或移除它。';
+      '请等待此日历的待处理更改完成同步，然后再删除或移除它。';
 
   @override
-  String get calendarSubscriptions => 'Calendar subscriptions';
+  String get calendarSubscriptions => '日历订阅';
 
   @override
-  String get calendarSubscriptionsDescription =>
-      'Add read-only calendars that refresh from a secure WebCal URL.';
+  String get calendarSubscriptionsDescription => '添加从安全 WebCal URL 刷新的只读日历。';
 
   @override
-  String get addCalendarSubscription => 'Add calendar subscription';
+  String get addCalendarSubscription => '添加日历订阅';
 
   @override
-  String get subscriptionName => 'Local name';
+  String get subscriptionName => '本地名称';
 
   @override
-  String get subscriptionUrl => 'Subscription URL';
+  String get subscriptionUrl => '订阅 URL';
 
   @override
   String get subscriptionUrlHelp =>
-      'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.';
+      '输入 HTTPS 或 webcal URL。BusyMax 会将完整 URL 保存在安全存储中。';
 
   @override
-  String get subscriptionUrlInvalid =>
-      'Enter a valid HTTPS or webcal URL without user information or a fragment.';
+  String get subscriptionUrlInvalid => '请输入不含用户信息或片段的有效 HTTPS 或 webcal URL。';
 
   @override
-  String get subscriptionColor => 'Local color';
+  String get subscriptionColor => '本地颜色';
 
   @override
-  String get subscriptionColorHelp => 'Use a six-digit color such as #3584E4.';
+  String get subscriptionColorHelp => '使用六位颜色，例如 #3584E4。';
 
   @override
-  String get subscriptionColorInvalid => 'Enter a six-digit hexadecimal color.';
+  String get subscriptionColorInvalid => '请输入六位十六进制颜色。';
 
   @override
-  String get subscriptionRefreshMode => 'Refresh frequency';
+  String get subscriptionRefreshMode => '刷新频率';
 
   @override
-  String get subscriptionAutomatic => 'Automatic';
+  String get subscriptionAutomatic => '自动';
 
   @override
-  String get subscriptionHourly => 'Hourly';
+  String get subscriptionHourly => '每小时';
 
   @override
-  String get subscriptionSixHours => 'Every six hours';
+  String get subscriptionSixHours => '每六小时';
 
   @override
-  String get subscriptionDaily => 'Daily';
+  String get subscriptionDaily => '每天';
 
   @override
   String subscriptionSafeOrigin(String origin) {
-    return 'Source: $origin';
+    return '来源：$origin';
   }
 
   @override
-  String get subscriptionSafeOriginUnavailable =>
-      'Enter a valid URL to preview its safe origin.';
+  String get subscriptionSafeOriginUnavailable => '请输入有效 URL 以预览其安全来源。';
 
   @override
-  String get subscriptionReadOnly => 'Read-only subscription';
+  String get subscriptionReadOnly => '只读订阅';
 
   @override
-  String get subscriptionNeverRefreshed => 'Not refreshed yet';
+  String get subscriptionNeverRefreshed => '尚未刷新';
 
   @override
   String subscriptionLastRefresh(String time) {
-    return 'Last successful refresh: $time';
+    return '上次成功刷新：$time';
   }
 
   @override
   String subscriptionNextRefresh(String time) {
-    return 'Next refresh: $time';
+    return '下次刷新：$time';
   }
 
   @override
-  String get subscriptionStatusHealthy => 'Up to date';
+  String get subscriptionStatusHealthy => '已是最新';
 
   @override
   String subscriptionStatusIssue(String code) {
-    return 'Refresh issue: $code';
+    return '刷新问题：$code';
   }
 
   @override
-  String get refreshNow => 'Refresh now';
+  String get refreshNow => '立即刷新';
 
   @override
-  String get unsubscribe => 'Unsubscribe';
+  String get unsubscribe => '取消订阅';
 
   @override
   String unsubscribeCalendarTitle(String name) {
-    return 'Unsubscribe from “$name”?';
+    return '要取消订阅“$name”吗？';
   }
 
   @override
-  String get unsubscribeCalendarConfirmation =>
-      'This removes the local subscription and its cached events. The published calendar is not changed.';
+  String get unsubscribeCalendarConfirmation => '这会移除本地订阅及其缓存的活动。已发布的日历不会更改。';
 
   @override
-  String get addSubscriptionAction => 'Add subscription';
+  String get addSubscriptionAction => '添加订阅';
 
   @override
   String subscriptionOperationFailed(String error) {
-    return 'Calendar subscription failed: $error';
+    return '日历订阅失败：$error';
   }
 
   @override
-  String get subscriptions => 'Subscriptions';
+  String get subscriptions => '订阅';
 
   @override
-  String get calendarImport => '导入日历';
+  String get calendarImport => '日历导入';
 
   @override
-  String get calendarImportDescription => '选择文件并检查其中的日程，然后选择要接收这些日程的可写日历。';
+  String get calendarImportDescription => '选择文件，查看其中的活动，然后选择接收这些活动的可写日历。';
 
   @override
-  String get importIcsFile => 'Import .ics file';
+  String get importIcsFile => '导入 .ics 文件';
 
   @override
-  String get importIcsPreview => 'Import calendar events';
+  String get importIcsPreview => '导入日历活动';
 
   @override
   String importEventsFound(int count) {
-    return 'Importable event sets: $count';
+    return '可导入活动集：$count';
   }
 
   @override
   String importInvalidEvents(int count) {
-    return 'Invalid events: $count';
+    return '无效活动：$count';
   }
 
   @override
   String importFieldsOmitted(String fields) {
-    return 'Intentionally omitted: $fields';
+    return '有意省略：$fields';
   }
 
   @override
-  String get noWritableCalendars =>
-      'No writable destination calendar is available.';
+  String get noWritableCalendars => '没有可用的可写目标日历。';
 
   @override
-  String get importDestinationCalendar => 'Destination calendar';
+  String get importDestinationCalendar => '目标日历';
 
   @override
-  String get importIcsConfirm => 'Import events';
+  String get importIcsConfirm => '导入活动';
 
   @override
-  String get importIcsComplete => 'Import complete';
+  String get importIcsComplete => '导入完成';
 
   @override
   String importQueued(int count) {
-    return 'Imported or queued: $count';
+    return '已导入或已排队：$count';
   }
 
   @override
   String importDuplicatesSkipped(int count) {
-    return 'Duplicates skipped: $count';
+    return '已跳过重复项：$count';
   }
 
   @override
   String importUnsupportedSets(int count) {
-    return 'Unsupported recurrence sets: $count';
+    return '不支持的重复集：$count';
   }
 
   @override
   String importIcsFailed(String error) {
-    return 'Could not import the calendar file: $error';
+    return '无法导入日历文件：$error';
   }
 
   @override
@@ -2258,7 +2234,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      '连接 Google、Microsoft、Apple iCloud Calendar 或 Nextcloud 账户。';
 
   @override
   String get googlePermissionsConsentNotice => '在 Google 权限页面上，同时选择日历和任务权限。';
@@ -2281,7 +2257,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      '添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、活动、任务列表和任务。';
 
   @override
   String get onboardingPreferencesStepTitle => '选择系统设置';
@@ -2453,68 +2429,68 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get trayOpenBusyMax => '打开 BusyMax';
 
   @override
-  String get trayShowBusyMax => 'Show BusyMax';
+  String get trayShowBusyMax => '显示 BusyMax';
 
   @override
-  String get trayNewEvent => 'New event…';
+  String get trayNewEvent => '新活动…';
 
   @override
-  String get trayNewTask => 'New task…';
+  String get trayNewTask => '新任务…';
 
   @override
-  String get trayToday => 'Today';
+  String get trayToday => '今天';
 
   @override
-  String get trayAllDay => 'All day';
+  String get trayAllDay => '全天';
 
   @override
-  String get trayNow => 'Now';
+  String get trayNow => '现在';
 
   @override
-  String get trayCalendarEvent => 'Calendar event';
+  String get trayCalendarEvent => '日历活动';
 
   @override
-  String get trayUntitledEvent => 'Untitled event';
+  String get trayUntitledEvent => '无标题活动';
 
   @override
-  String get trayNothingElseToday => 'Nothing else today';
+  String get trayNothingElseToday => '今天没有其他内容';
 
   @override
   String trayTasksDueToday(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count tasks due today',
-      one: '1 task due today',
+      other: '今天有 $count 个任务到期',
+      one: '今天有 1 个任务到期',
     );
     return '$_temp0';
   }
 
   @override
-  String get trayOpenTodayAgenda => 'Open today’s agenda';
+  String get trayOpenTodayAgenda => '打开今天的日程';
 
   @override
-  String get traySyncNow => 'Sync now';
+  String get traySyncNow => '立即同步';
 
   @override
-  String get traySyncing => 'Syncing…';
+  String get traySyncing => '正在同步…';
 
   @override
-  String get trayNotConnected => 'Not connected';
+  String get trayNotConnected => '未连接';
 
   @override
-  String get trayNotYetSynced => 'Not yet synced';
+  String get trayNotYetSynced => '尚未同步';
 
   @override
-  String get trayLastSyncedJustNow => 'Last synced just now';
+  String get trayLastSyncedJustNow => '刚刚同步';
 
   @override
   String trayLastSyncedMinutesAgo(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count minutes ago',
-      one: 'Last synced 1 minute ago',
+      other: '$count 分钟前同步',
+      one: '1 分钟前同步',
     );
     return '$_temp0';
   }
@@ -2524,8 +2500,8 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count hours ago',
-      one: 'Last synced 1 hour ago',
+      other: '$count 小时前同步',
+      one: '1 小时前同步',
     );
     return '$_temp0';
   }
@@ -2535,17 +2511,17 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count days ago',
-      one: 'Last synced 1 day ago',
+      other: '$count 天前同步',
+      one: '1 天前同步',
     );
     return '$_temp0';
   }
 
   @override
-  String get traySettings => 'Settings';
+  String get traySettings => '设置';
 
   @override
-  String get trayQuitBusyMax => 'Quit BusyMax';
+  String get trayQuitBusyMax => '退出 BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => '加载更多逾期任务';
@@ -2627,130 +2603,123 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get guests => '参与者';
 
   @override
-  String get noGuests => '没有参与者';
+  String get noGuests => '无参与者';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => '必需';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => '可选';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => '会议';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => '添加 Google Meet';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => '添加 Microsoft Teams 会议';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => '已添加在线会议';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => '请求回复';
 
   @override
-  String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+  String get requestResponsesDescription => '要求参与者回复邀请。';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => '隐藏参与者列表';
 
   @override
-  String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+  String get hideGuestListDescription => '参与者无法查看其他受邀者。';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => '允许提出新时间';
 
   @override
-  String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+  String get allowNewTimeProposalsDescription => '参与者可以建议其他会议时间。';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => '通知参与者？';
 
   @override
-  String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+  String get notifyGuestsSaveMessage => '此会议有参与者。保存时发送邀请或活动更新吗？';
 
   @override
-  String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+  String get notifyGuestsDeleteMessage => '此会议有参与者。删除时发送取消通知吗？';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => '发送更新';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => '发送取消通知';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => '不发送';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => '保存会议？';
 
   @override
-  String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+  String get microsoftNotifyGuestsSaveMessage => 'Microsoft 将向参与者发送邀请或活动更新。';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => '删除会议？';
 
   @override
-  String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+  String get microsoftNotifyGuestsDeleteMessage => 'Microsoft 将向参与者发送取消通知。';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => '组织者';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => '你的回复';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => '参与者回复';
 
   @override
-  String get respond => 'Respond';
+  String get respond => '回复';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => '接受';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => '暂定';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => '拒绝';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => '加入会议';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => '已接受';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => '暂定';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => '已拒绝';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => '等待回复';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => '未回复';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => '组织者';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return '无法发送回复：$error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => '无法打开会议链接。';
 
   @override
   String get description => '说明';
@@ -3088,7 +3057,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      '这会从此设备删除缓存的任务、日历、活动、提醒和待处理的离线更改。未同步的更改将会丢失。提供商中的日历、活动、任务列表和任务副本不会被删除。';
 
   @override
   String get revokeGoogleAccess => '同时撤销 BusyMax 对此 Google 帐户的访问权限';
@@ -3107,21 +3076,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '该帐户已从此设备移除，但无法撤销 BusyMax 对您的 Google 帐户的访问权限。您可以在 Google 帐户中手动撤销该权限。';
 
   @override
-  String get newTaskList => '新建任务列表';
+  String get newTaskList => '新任务列表';
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return '无法创建任务列表：$error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return '无法重命名任务列表：$error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return '无法删除任务列表：$error';
   }
 
   @override
@@ -3149,12 +3118,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get unshare => '取消共享';
 
   @override
-  String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+  String get readOnlyTaskListCannotRename => '此任务列表为只读，无法重命名。';
 
   @override
-  String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+  String get taskListCannotDelete => '使用当前权限无法删除此任务列表。';
 
   @override
   String get builtInMicrosoftList => '内置';
@@ -3165,17 +3132,17 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String deleteListConfirmation(String title) {
-    return '从 Google Tasks 中删除“$title”？';
+    return '要从 Google Tasks 中删除“$title”吗？';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return '要删除“$title”及其所有任务吗？';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return '要取消此账户对“$title”的共享吗？';
   }
 
   @override
@@ -3300,72 +3267,72 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get doneStatus => '已完成';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => '状态';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => '无状态';
 
   @override
   String get taskStatusNeedsAction => '需要操作';
 
   @override
-  String get taskStatusInProcess => '处理中';
+  String get taskStatusInProcess => '进行中';
 
   @override
-  String get taskStatusCompleted => '完成';
+  String get taskStatusCompleted => '已完成';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => '已取消';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    return '已完成 $percent%';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => '完成日期';
 
   @override
   String get priority => '优先级';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => '无优先级';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    return '优先级 $priority · 高';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    return '优先级 $priority · 中';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    return '优先级 $priority · 低';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => '任务 URL';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => '请输入包含方案的绝对 URL。';
 
   @override
-  String get classification => 'Classification';
+  String get classification => '分类';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => '共享时显示完整任务';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential => '共享时仅显示忙碌状态';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => '共享时隐藏此任务';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => '固定任务';
 
   @override
   String get notes => '备注';
@@ -3404,75 +3371,74 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get addReminder => '添加提醒';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => '提醒';
 
   @override
   String get noReminders => '无提醒';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => '编辑提醒';
 
   @override
   String get beforeTaskStarts => '任务开始前';
 
   @override
-  String get beforeTaskDue => '任务截止前';
+  String get beforeTaskDue => '任务到期前';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => '任务开始后';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => '任务到期后';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => '相对于任务开始日期';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => '相对于任务到期日期';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => '时间';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => '在指定日期和时间';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => '数量';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => '单位';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => '秒';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => '分钟';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => '小时';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => '天';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => '周';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => '任务开始时';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => '任务到期时';
 
   @override
-  String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+  String get unsupportedReminder => '此提醒类型会保留，但无法编辑其时间。';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => '保留相关提醒？';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    return '此日期有 $count 个相关提醒。要保留它们当前的日期和时间吗？';
   }
 
   @override
@@ -3515,86 +3481,86 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get repeatYearly => '每年';
 
   @override
-  String get repeatEvery => '重复每';
+  String get repeatEvery => '重复间隔';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => '重复日期';
 
   @override
   String get repeatEnd => '结束重复';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => '从不';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => '指定日期';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => '指定次数后';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => '重复次数';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => '每月日期';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => '月份';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => '星期位置';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => '特定日期';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => '第一';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => '第二';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => '第三';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => '第四';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => '第五';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => '倒数第二';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => '最后';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => '日期';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => '工作日';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => '周末';
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    return '每 $count 天';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    return '每 $count 周';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    return '每 $count 个月';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    return '每 $count 年';
   }
 
   @override
@@ -3604,12 +3570,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return '在第 $days 天';
+    return '每月 $days 日';
   }
 
   @override
   String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+    return '$days 的第 $ordinal 个';
   }
 
   @override
@@ -3619,17 +3585,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count次';
+    return '重复 $count 次';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return '至 $date';
+    return '直到 $date';
   }
 
   @override
-  String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+  String get unsupportedRecurrencePreserved => '此重复规则使用了编辑器不会更改的选项。';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
@@ -3691,18 +3656,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get duplicateTask => '复制任务';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => '任务已复制。';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return '无法复制任务：$error';
   }
 
   @override
   String get hideSubtasks => '隐藏子任务';
 
   @override
-  String get hideClosedSubtasks => '隐藏关闭的子任务';
+  String get hideClosedSubtasks => '隐藏已关闭的子任务';
 
   @override
   String get moveToTop => '移到顶部';
@@ -3994,7 +3959,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get notificationSnoozeAction => '10 分钟后提醒';
 
   @override
-  String get notificationDismissAction => '忽略';
+  String get notificationDismissAction => '关闭';
 
   @override
   String get notificationDetailsHidden => '根据隐私设置，详细信息已隐藏。';
@@ -4049,14 +4014,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get noLocationsFound => '未找到地点';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => '此字段为必填项。';
 
   @override
-  String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+  String get providerConnectionDescription => '连接以下任一提供商中的日历和任务。';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'Apple iCloud 日历';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -4065,188 +4029,182 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'Nextcloud 任务';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => '添加 Apple iCloud 日历账户';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => '添加 Nextcloud 账户';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => '正在连接 Apple iCloud…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => '正在等待 Nextcloud 授权…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => '连接 Apple iCloud 日历';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'Apple 账户电子邮件';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'App 专用密码';
 
   @override
-  String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+  String get appleAppSpecificPasswordHelp => '为 Apple 账户启用双重认证后，创建 App 专用密码。';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      '重置 Apple 账户密码会撤销 App 专用密码。';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => '连接 Nextcloud';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'Nextcloud 服务器或 CalDAV 地址';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      '输入 Nextcloud 服务器 URL，或粘贴从 Nextcloud 复制的主要 CalDAV 地址。';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax 将打开浏览器。请在那里批准访问，然后返回 BusyMax。';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => '连接';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => '取消连接';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      '账户已在本地移除，但无法撤销 Nextcloud App 密码。';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+  String get davCachedOfflineNotice => '日历和任务数据会缓存在本地，以供离线使用。';
 
   @override
-  String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+  String get davReauthenticationRequired => '重新连接此账户以恢复同步。';
 
   @override
-  String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+  String get davTemporarilyUnavailable => '此账户暂时不可用。';
 
   @override
-  String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+  String get davPermissionChanged => '服务器权限已更改。待处理的编辑已暂停。';
 
   @override
-  String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+  String get davUnsupportedServer => '不支持此服务器或提供商配置。';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => '日历和任务列表';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => '日历活动';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => '任务';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => '只读';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => '本地待处理';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => '因冲突而阻止';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => '重新连接前阻止';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => '操作失败';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => '保留服务器版本';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => '查看并重新应用本地更改';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => '复制为新项目';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => '连接状态';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => '已连接';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => '正在连接…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => '已退出登录';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return '上次成功同步：$time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => '尚未同步';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => '刷新日历和任务列表';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return '服务器：$host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => '活动日历';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => '任务列表';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => '活动和任务';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => '可写';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => '已共享';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return '上次同步：$time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return '同步问题：$code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => '同步冲突';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return '服务器更改：$time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return '本地编辑：$summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => '无法解决冲突。';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => '重复活动范围';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => '整个系列';
 
   @override
   String get singleOccurrence => '此事件';
@@ -4275,8 +4233,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get copyAndDelete => '复制并删除';
 
   @override
-  String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+  String get chooseRecurringEventScope => '选择此更改适用于整个系列、仅此活动，还是此活动及后续活动。';
 
   @override
   String get taskDueBeforeStart => '截止时间不能早于开始时间。';
@@ -4307,177 +4264,172 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get calendarCannotRemove => '无法从此账号中删除或移除此日历。';
+  String get calendarCannotRemove => '无法从此账户删除或移除此日历。';
 
   @override
   String get calendarPendingChangesPreventRemoval =>
-      '请等待此日历的待处理更改同步完成，然后再删除或移除它。';
+      '请等待此日历的待处理更改完成同步，然后再删除或移除它。';
 
   @override
-  String get calendarSubscriptions => 'Calendar subscriptions';
+  String get calendarSubscriptions => '日历订阅';
 
   @override
-  String get calendarSubscriptionsDescription =>
-      'Add read-only calendars that refresh from a secure WebCal URL.';
+  String get calendarSubscriptionsDescription => '添加从安全 WebCal URL 刷新的只读日历。';
 
   @override
-  String get addCalendarSubscription => 'Add calendar subscription';
+  String get addCalendarSubscription => '添加日历订阅';
 
   @override
-  String get subscriptionName => 'Local name';
+  String get subscriptionName => '本地名称';
 
   @override
-  String get subscriptionUrl => 'Subscription URL';
+  String get subscriptionUrl => '订阅 URL';
 
   @override
   String get subscriptionUrlHelp =>
-      'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.';
+      '输入 HTTPS 或 webcal URL。BusyMax 会将完整 URL 保存在安全存储中。';
 
   @override
-  String get subscriptionUrlInvalid =>
-      'Enter a valid HTTPS or webcal URL without user information or a fragment.';
+  String get subscriptionUrlInvalid => '请输入不含用户信息或片段的有效 HTTPS 或 webcal URL。';
 
   @override
-  String get subscriptionColor => 'Local color';
+  String get subscriptionColor => '本地颜色';
 
   @override
-  String get subscriptionColorHelp => 'Use a six-digit color such as #3584E4.';
+  String get subscriptionColorHelp => '使用六位颜色，例如 #3584E4。';
 
   @override
-  String get subscriptionColorInvalid => 'Enter a six-digit hexadecimal color.';
+  String get subscriptionColorInvalid => '请输入六位十六进制颜色。';
 
   @override
-  String get subscriptionRefreshMode => 'Refresh frequency';
+  String get subscriptionRefreshMode => '刷新频率';
 
   @override
-  String get subscriptionAutomatic => 'Automatic';
+  String get subscriptionAutomatic => '自动';
 
   @override
-  String get subscriptionHourly => 'Hourly';
+  String get subscriptionHourly => '每小时';
 
   @override
-  String get subscriptionSixHours => 'Every six hours';
+  String get subscriptionSixHours => '每六小时';
 
   @override
-  String get subscriptionDaily => 'Daily';
+  String get subscriptionDaily => '每天';
 
   @override
   String subscriptionSafeOrigin(String origin) {
-    return 'Source: $origin';
+    return '来源：$origin';
   }
 
   @override
-  String get subscriptionSafeOriginUnavailable =>
-      'Enter a valid URL to preview its safe origin.';
+  String get subscriptionSafeOriginUnavailable => '请输入有效 URL 以预览其安全来源。';
 
   @override
-  String get subscriptionReadOnly => 'Read-only subscription';
+  String get subscriptionReadOnly => '只读订阅';
 
   @override
-  String get subscriptionNeverRefreshed => 'Not refreshed yet';
+  String get subscriptionNeverRefreshed => '尚未刷新';
 
   @override
   String subscriptionLastRefresh(String time) {
-    return 'Last successful refresh: $time';
+    return '上次成功刷新：$time';
   }
 
   @override
   String subscriptionNextRefresh(String time) {
-    return 'Next refresh: $time';
+    return '下次刷新：$time';
   }
 
   @override
-  String get subscriptionStatusHealthy => 'Up to date';
+  String get subscriptionStatusHealthy => '已是最新';
 
   @override
   String subscriptionStatusIssue(String code) {
-    return 'Refresh issue: $code';
+    return '刷新问题：$code';
   }
 
   @override
-  String get refreshNow => 'Refresh now';
+  String get refreshNow => '立即刷新';
 
   @override
-  String get unsubscribe => 'Unsubscribe';
+  String get unsubscribe => '取消订阅';
 
   @override
   String unsubscribeCalendarTitle(String name) {
-    return 'Unsubscribe from “$name”?';
+    return '要取消订阅“$name”吗？';
   }
 
   @override
-  String get unsubscribeCalendarConfirmation =>
-      'This removes the local subscription and its cached events. The published calendar is not changed.';
+  String get unsubscribeCalendarConfirmation => '这会移除本地订阅及其缓存的活动。已发布的日历不会更改。';
 
   @override
-  String get addSubscriptionAction => 'Add subscription';
+  String get addSubscriptionAction => '添加订阅';
 
   @override
   String subscriptionOperationFailed(String error) {
-    return 'Calendar subscription failed: $error';
+    return '日历订阅失败：$error';
   }
 
   @override
-  String get subscriptions => 'Subscriptions';
+  String get subscriptions => '订阅';
 
   @override
-  String get calendarImport => '导入日历';
+  String get calendarImport => '日历导入';
 
   @override
-  String get calendarImportDescription => '选择文件并检查其中的日程，然后选择要接收这些日程的可写日历。';
+  String get calendarImportDescription => '选择文件，查看其中的活动，然后选择接收这些活动的可写日历。';
 
   @override
-  String get importIcsFile => 'Import .ics file';
+  String get importIcsFile => '导入 .ics 文件';
 
   @override
-  String get importIcsPreview => 'Import calendar events';
+  String get importIcsPreview => '导入日历活动';
 
   @override
   String importEventsFound(int count) {
-    return 'Importable event sets: $count';
+    return '可导入活动集：$count';
   }
 
   @override
   String importInvalidEvents(int count) {
-    return 'Invalid events: $count';
+    return '无效活动：$count';
   }
 
   @override
   String importFieldsOmitted(String fields) {
-    return 'Intentionally omitted: $fields';
+    return '有意省略：$fields';
   }
 
   @override
-  String get noWritableCalendars =>
-      'No writable destination calendar is available.';
+  String get noWritableCalendars => '没有可用的可写目标日历。';
 
   @override
-  String get importDestinationCalendar => 'Destination calendar';
+  String get importDestinationCalendar => '目标日历';
 
   @override
-  String get importIcsConfirm => 'Import events';
+  String get importIcsConfirm => '导入活动';
 
   @override
-  String get importIcsComplete => 'Import complete';
+  String get importIcsComplete => '导入完成';
 
   @override
   String importQueued(int count) {
-    return 'Imported or queued: $count';
+    return '已导入或已排队：$count';
   }
 
   @override
   String importDuplicatesSkipped(int count) {
-    return 'Duplicates skipped: $count';
+    return '已跳过重复项：$count';
   }
 
   @override
   String importUnsupportedSets(int count) {
-    return 'Unsupported recurrence sets: $count';
+    return '不支持的重复集：$count';
   }
 
   @override
   String importIcsFailed(String error) {
-    return 'Could not import the calendar file: $error';
+    return '无法导入日历文件：$error';
   }
 
   @override
@@ -4499,7 +4451,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      '連接 Google、Microsoft、Apple iCloud Calendar 或 Nextcloud 帳戶。';
 
   @override
   String get googlePermissionsConsentNotice => '在 Google 權限畫面中，同時選取行事曆和待辦事項權限。';
@@ -4522,7 +4474,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      '新增所有要使用的帳戶。BusyMax 會同步每個帳戶中支援的行事曆、活動、待辦清單和待辦事項。';
 
   @override
   String get onboardingPreferencesStepTitle => '選擇系統設定';
@@ -4691,71 +4643,71 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get refresh => '重新整理';
 
   @override
-  String get trayOpenBusyMax => '開啟 BusyMax';
+  String get trayOpenBusyMax => '打開 BusyMax';
 
   @override
-  String get trayShowBusyMax => 'Show BusyMax';
+  String get trayShowBusyMax => '顯示 BusyMax';
 
   @override
-  String get trayNewEvent => 'New event…';
+  String get trayNewEvent => '新增活動…';
 
   @override
-  String get trayNewTask => 'New task…';
+  String get trayNewTask => '新增待辦事項…';
 
   @override
-  String get trayToday => 'Today';
+  String get trayToday => '今天';
 
   @override
-  String get trayAllDay => 'All day';
+  String get trayAllDay => '全天';
 
   @override
-  String get trayNow => 'Now';
+  String get trayNow => '現在';
 
   @override
-  String get trayCalendarEvent => 'Calendar event';
+  String get trayCalendarEvent => '行事曆活動';
 
   @override
-  String get trayUntitledEvent => 'Untitled event';
+  String get trayUntitledEvent => '未命名活動';
 
   @override
-  String get trayNothingElseToday => 'Nothing else today';
+  String get trayNothingElseToday => '今天沒有其他內容';
 
   @override
   String trayTasksDueToday(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count tasks due today',
-      one: '1 task due today',
+      other: '今天有 $count 個任務到期',
+      one: '今天有 1 個任務到期',
     );
     return '$_temp0';
   }
 
   @override
-  String get trayOpenTodayAgenda => 'Open today’s agenda';
+  String get trayOpenTodayAgenda => '打開今天的日程';
 
   @override
-  String get traySyncNow => 'Sync now';
+  String get traySyncNow => '立即同步';
 
   @override
-  String get traySyncing => 'Syncing…';
+  String get traySyncing => '正在同步…';
 
   @override
-  String get trayNotConnected => 'Not connected';
+  String get trayNotConnected => '未連接';
 
   @override
-  String get trayNotYetSynced => 'Not yet synced';
+  String get trayNotYetSynced => '尚未同步';
 
   @override
-  String get trayLastSyncedJustNow => 'Last synced just now';
+  String get trayLastSyncedJustNow => '剛剛同步';
 
   @override
   String trayLastSyncedMinutesAgo(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count minutes ago',
-      one: 'Last synced 1 minute ago',
+      other: '$count 分鐘前同步',
+      one: '1 分鐘前同步',
     );
     return '$_temp0';
   }
@@ -4765,8 +4717,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count hours ago',
-      one: 'Last synced 1 hour ago',
+      other: '$count 小時前同步',
+      one: '1 小時前同步',
     );
     return '$_temp0';
   }
@@ -4776,17 +4728,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count days ago',
-      one: 'Last synced 1 day ago',
+      other: '$count 天前同步',
+      one: '1 天前同步',
     );
     return '$_temp0';
   }
 
   @override
-  String get traySettings => 'Settings';
+  String get traySettings => '設定';
 
   @override
-  String get trayQuitBusyMax => 'Quit BusyMax';
+  String get trayQuitBusyMax => '結束 BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => '載入更多逾期待辦事項';
@@ -4868,130 +4820,123 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get guests => '參與者';
 
   @override
-  String get noGuests => '沒有參與者';
+  String get noGuests => '無參與者';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => '必要';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => '選用';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => '會議';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => '添加 Google Meet';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => '添加 Microsoft Teams 會議';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => '已添加在線會議';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => '要求回覆';
 
   @override
-  String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+  String get requestResponsesDescription => '要求參與者回復邀請。';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => '隱藏參與者清單';
 
   @override
-  String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+  String get hideGuestListDescription => '參與者無法查看其他受邀者。';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => '允許提出新時間';
 
   @override
-  String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+  String get allowNewTimeProposalsDescription => '參與者可以建議其他會議時間。';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => '通知參與者？';
 
   @override
-  String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+  String get notifyGuestsSaveMessage => '此會議有參與者。保存時發送邀請或活動更新嗎？';
 
   @override
-  String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+  String get notifyGuestsDeleteMessage => '此會議有參與者。刪除時發送取消通知嗎？';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => '傳送更新';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => '傳送取消通知';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => '不要傳送';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => '保存會議？';
 
   @override
-  String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+  String get microsoftNotifyGuestsSaveMessage => 'Microsoft 將向參與者發送邀請或活動更新。';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => '刪除會議？';
 
   @override
-  String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+  String get microsoftNotifyGuestsDeleteMessage => 'Microsoft 將向參與者發送取消通知。';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => '主辦人';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => '你的回覆';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => '參與者回覆';
 
   @override
-  String get respond => 'Respond';
+  String get respond => '回復';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => '接受';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => '暫定';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => '拒絕';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => '加入會議';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => '已接受';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => '暫定';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => '已拒絕';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => '等待回復';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => '未回復';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => '組織者';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return '無法發送回復：$error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => '無法打開會議鏈接。';
 
   @override
   String get description => '說明';
@@ -5324,12 +5269,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String removeAccountTitle(String account) {
-    return '要從 BusyMax 移除 $account 嗎？';
+    return '從 BusyMax 中移除 $account？';
   }
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      '這會從此設備刪除緩存的任務、日曆、活動、提醒和待處理的離線更改。未同步的更改將會丟失。提供商中的日曆、活動、任務列表和任務副本不會被刪除。';
 
   @override
   String get revokeGoogleAccess => '同時撤銷 BusyMax 對此 Google 帳戶的存取權';
@@ -5348,21 +5293,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '該帳戶已從此裝置移除，但無法撤銷 BusyMax 對您的 Google 帳戶的存取權。您可以在 Google 帳戶中手動撤銷該權限。';
 
   @override
-  String get newTaskList => '新增待辦清單';
+  String get newTaskList => '新任務列表';
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return '無法創建任務列表：$error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return '無法重命名任務列表：$error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return '無法刪除任務列表：$error';
   }
 
   @override
@@ -5387,15 +5332,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get deleteList => '刪除清單';
 
   @override
-  String get unshare => '撤回分享';
+  String get unshare => '取消共享';
 
   @override
-  String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+  String get readOnlyTaskListCannotRename => '此任務列表為只讀，無法重命名。';
 
   @override
-  String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+  String get taskListCannotDelete => '使用當前權限無法刪除此任務列表。';
 
   @override
   String get builtInMicrosoftList => '內建';
@@ -5406,17 +5349,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String deleteListConfirmation(String title) {
-    return '要從 Google Tasks 刪除「$title」嗎？';
+    return '要從 Google Tasks 中刪除“$title”嗎？';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return '要刪除“$title”及其所有任務嗎？';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return '要取消此賬戶對“$title”的共享嗎？';
   }
 
   @override
@@ -5541,10 +5484,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get doneStatus => '已完成';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => '狀態';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => '無狀態';
 
   @override
   String get taskStatusNeedsAction => '需要動作';
@@ -5553,60 +5496,60 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get taskStatusInProcess => '進行中';
 
   @override
-  String get taskStatusCompleted => '完成';
+  String get taskStatusCompleted => '已完成';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => '已取消';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    return '已完成 $percent%';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => '完成日期';
 
   @override
-  String get priority => '優先';
+  String get priority => '優先順序';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => '無優先順序';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    return '優先級 $priority · 高';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    return '優先級 $priority · 中';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    return '優先級 $priority · 低';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => '任務 URL';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => '請輸入包含方案的絕對 URL。';
 
   @override
-  String get classification => 'Classification';
+  String get classification => '分類';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => '共享時顯示完整任務';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential => '共享時僅顯示忙碌狀態';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => '共享時隱藏此任務';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => '固定任務';
 
   @override
   String get notes => '備註';
@@ -5642,78 +5585,77 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get reminder => '提醒';
 
   @override
-  String get addReminder => '新增提醒';
+  String get addReminder => '添加提醒';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => '提醒';
 
   @override
   String get noReminders => '無提醒';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => '編輯提醒';
 
   @override
-  String get beforeTaskStarts => '在任務開始前';
+  String get beforeTaskStarts => '待辦事項開始前';
 
   @override
-  String get beforeTaskDue => '任務截止前';
+  String get beforeTaskDue => '待辦事項到期前';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => '任務開始後';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => '任務到期後';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => '相對於任務開始日期';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => '相對於任務到期日期';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => '時間';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => '在指定日期和時間';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => '數量';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => '單位';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => '秒';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => '分鐘';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => '小時';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => '天';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => '週';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => '任務開始時';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => '任務到期時';
 
   @override
-  String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+  String get unsupportedReminder => '此提醒類型會保留，但無法編輯其時間。';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => '保留相關提醒？';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    return '此日期有 $count 個相關提醒。要保留它們當前的日期和時間嗎？';
   }
 
   @override
@@ -5756,101 +5698,101 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get repeatYearly => '每年';
 
   @override
-  String get repeatEvery => '重複循環';
+  String get repeatEvery => '重複間隔';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => '重複日期';
 
   @override
-  String get repeatEnd => '停止重複';
+  String get repeatEnd => '結束重複';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => '永不';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => '指定日期';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => '指定次數後';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => '重複次數';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => '每月日期';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => '月份';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => '星期位置';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => '特定日期';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => '第一';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => '第二';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => '第三';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => '第四';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => '第五';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => '倒數第二';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => '最後';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => '日期';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => '工作日';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => '週末';
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    return '每 $count 天';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    return '每 $count 週';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    return '每 $count 個月';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    return '每 $count 年';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return '於 $days';
+    return '在 $days';
   }
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return '於 $days 天';
+    return '每月 $days 日';
   }
 
   @override
   String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+    return '$days 的第 $ordinal 個';
   }
 
   @override
@@ -5860,17 +5802,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count 次';
+    return '重複 $count 次';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return '到 $date';
+    return '直到 $date';
   }
 
   @override
-  String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+  String get unsupportedRecurrencePreserved => '此重複規則使用了編輯器不會更改的選項。';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
@@ -5930,14 +5871,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get subtasks => '子待辦事項';
 
   @override
-  String get duplicateTask => '再製任務';
+  String get duplicateTask => '複製待辦事項';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => '任務已複製。';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return '無法複製任務：$error';
   }
 
   @override
@@ -6200,7 +6141,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String conflictNotificationBody(String summary) {
-    return '一項待處理的本機變更遭到封鎖。$summary';
+    return '一項擱置中的本機變更已被封鎖。$summary';
   }
 
   @override
@@ -6236,7 +6177,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get notificationSnoozeAction => '10 分鐘後提醒';
 
   @override
-  String get notificationDismissAction => '忽略';
+  String get notificationDismissAction => '關閉';
 
   @override
   String get notificationDetailsHidden => '根據隱私權設定，詳細資料已隱藏。';
@@ -6285,20 +6226,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get selectTimeZone => '選擇時區';
 
   @override
-  String get searchLocations => '搜尋地點';
+  String get searchLocations => '搜索地點';
 
   @override
-  String get noLocationsFound => '找不到地點';
+  String get noLocationsFound => '未找到地點';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => '此字段為必填項。';
 
   @override
-  String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+  String get providerConnectionDescription => '連接以下任一提供商中的日曆和任務。';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'Apple iCloud 行事曆';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -6307,188 +6247,182 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'Nextcloud 待辦事項';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => '新增 Apple iCloud 行事曆帳戶';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => '新增 Nextcloud 帳戶';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => '正在連接 Apple iCloud…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => '正在等待 Nextcloud 授權…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => '連接 Apple iCloud 行事曆';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'Apple 賬戶電子郵件';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'App 專用密碼';
 
   @override
-  String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+  String get appleAppSpecificPasswordHelp => '為 Apple 賬戶啓用雙重認證後，創建 App 專用密碼。';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      '重置 Apple 賬戶密碼會撤銷 App 專用密碼。';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => '連接 Nextcloud';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'Nextcloud 伺服器或 CalDAV 位址';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      '輸入 Nextcloud 服務器 URL，或粘貼從 Nextcloud 複製的主要 CalDAV 地址。';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax 將打開瀏覽器。請在那裡批准訪問，然後返回 BusyMax。';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => '連接';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => '取消連接';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      '賬戶已在本地移除，但無法撤銷 Nextcloud App 密碼。';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+  String get davCachedOfflineNotice => '日曆和任務數據會緩存在本地，以供離線使用。';
 
   @override
-  String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+  String get davReauthenticationRequired => '重新連接此賬戶以恢復同步。';
 
   @override
-  String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+  String get davTemporarilyUnavailable => '此賬戶暫時不可用。';
 
   @override
-  String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+  String get davPermissionChanged => '服務器權限已更改。待處理的編輯已暫停。';
 
   @override
-  String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+  String get davUnsupportedServer => '不支持此服務器或提供商配置。';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => '行事曆和待辦清單';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => '行事曆活動';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => '待辦事項';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => '唯讀';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => '本機擱置中';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => '因衝突而封鎖';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => '重新連接前阻止';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => '操作失敗';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => '保留伺服器版本';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => '查看並重新應用本地更改';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => '複製為新項目';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => '連線狀態';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => '已連線';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => '正在連線…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => '已登出';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return '上次成功同步：$time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => '尚未同步';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => '刷新日曆和任務列表';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return '服務器：$host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => '活動日曆';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => '任務列表';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => '活動和任務';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => '可寫';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => '已共享';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return '上次同步：$time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return '同步問題：$code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => '同步衝突';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return '服務器更改：$time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return '本地編輯：$summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => '無法解決衝突。';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => '重複活動範圍';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => '整個系列';
 
   @override
   String get singleOccurrence => '此事件';
@@ -6517,14 +6451,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get copyAndDelete => '複製並刪除';
 
   @override
-  String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+  String get chooseRecurringEventScope => '選擇此變更適用於整個系列、僅此活動，還是此活動及後續活動。';
 
   @override
   String get taskDueBeforeStart => '到期時間不得早於開始時間。';
 
   @override
-  String get taskStartDueTimeModeMismatch => '請同時設定開始與到期時間，或將工作設為全天。';
+  String get taskStartDueTimeModeMismatch => '請同時設定開始與到期時間，或將待辦事項設為全天。';
 
   @override
   String deleteCalendarConfirmation(String title) {
@@ -6549,177 +6482,172 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get calendarCannotRemove => '無法從此帳戶刪除或移除此日曆。';
+  String get calendarCannotRemove => '無法從此賬戶刪除或移除此日曆。';
 
   @override
   String get calendarPendingChangesPreventRemoval =>
-      '請等待此行事曆的待處理變更同步完成，再刪除或移除它。';
+      '請等待此日曆的待處理更改完成同步，然後再刪除或移除它。';
 
   @override
-  String get calendarSubscriptions => 'Calendar subscriptions';
+  String get calendarSubscriptions => '行事曆訂閱';
 
   @override
-  String get calendarSubscriptionsDescription =>
-      'Add read-only calendars that refresh from a secure WebCal URL.';
+  String get calendarSubscriptionsDescription => '添加從安全 WebCal URL 刷新的只讀日曆。';
 
   @override
-  String get addCalendarSubscription => 'Add calendar subscription';
+  String get addCalendarSubscription => '新增行事曆訂閱';
 
   @override
-  String get subscriptionName => 'Local name';
+  String get subscriptionName => '本機名稱';
 
   @override
-  String get subscriptionUrl => 'Subscription URL';
+  String get subscriptionUrl => '訂閱 URL';
 
   @override
   String get subscriptionUrlHelp =>
-      'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.';
+      '輸入 HTTPS 或 webcal URL。BusyMax 會將完整 URL 保存在安全存儲中。';
 
   @override
-  String get subscriptionUrlInvalid =>
-      'Enter a valid HTTPS or webcal URL without user information or a fragment.';
+  String get subscriptionUrlInvalid => '請輸入不含用戶信息或片段的有效 HTTPS 或 webcal URL。';
 
   @override
-  String get subscriptionColor => 'Local color';
+  String get subscriptionColor => '本地顏色';
 
   @override
-  String get subscriptionColorHelp => 'Use a six-digit color such as #3584E4.';
+  String get subscriptionColorHelp => '使用六位顏色，例如 #3584E4。';
 
   @override
-  String get subscriptionColorInvalid => 'Enter a six-digit hexadecimal color.';
+  String get subscriptionColorInvalid => '請輸入六位十六進制顏色。';
 
   @override
-  String get subscriptionRefreshMode => 'Refresh frequency';
+  String get subscriptionRefreshMode => '刷新頻率';
 
   @override
-  String get subscriptionAutomatic => 'Automatic';
+  String get subscriptionAutomatic => '自動';
 
   @override
-  String get subscriptionHourly => 'Hourly';
+  String get subscriptionHourly => '每小時';
 
   @override
-  String get subscriptionSixHours => 'Every six hours';
+  String get subscriptionSixHours => '每六小時';
 
   @override
-  String get subscriptionDaily => 'Daily';
+  String get subscriptionDaily => '每天';
 
   @override
   String subscriptionSafeOrigin(String origin) {
-    return 'Source: $origin';
+    return '來源：$origin';
   }
 
   @override
-  String get subscriptionSafeOriginUnavailable =>
-      'Enter a valid URL to preview its safe origin.';
+  String get subscriptionSafeOriginUnavailable => '請輸入有效 URL 以預覽其安全來源。';
 
   @override
-  String get subscriptionReadOnly => 'Read-only subscription';
+  String get subscriptionReadOnly => '只讀訂閱';
 
   @override
-  String get subscriptionNeverRefreshed => 'Not refreshed yet';
+  String get subscriptionNeverRefreshed => '尚未刷新';
 
   @override
   String subscriptionLastRefresh(String time) {
-    return 'Last successful refresh: $time';
+    return '上次成功刷新：$time';
   }
 
   @override
   String subscriptionNextRefresh(String time) {
-    return 'Next refresh: $time';
+    return '下次刷新：$time';
   }
 
   @override
-  String get subscriptionStatusHealthy => 'Up to date';
+  String get subscriptionStatusHealthy => '已是最新';
 
   @override
   String subscriptionStatusIssue(String code) {
-    return 'Refresh issue: $code';
+    return '刷新問題：$code';
   }
 
   @override
-  String get refreshNow => 'Refresh now';
+  String get refreshNow => '立即重新整理';
 
   @override
-  String get unsubscribe => 'Unsubscribe';
+  String get unsubscribe => '取消訂閱';
 
   @override
   String unsubscribeCalendarTitle(String name) {
-    return 'Unsubscribe from “$name”?';
+    return '要取消訂閱“$name”嗎？';
   }
 
   @override
-  String get unsubscribeCalendarConfirmation =>
-      'This removes the local subscription and its cached events. The published calendar is not changed.';
+  String get unsubscribeCalendarConfirmation => '這會移除本地訂閱及其緩存的活動。已發佈的日曆不會更改。';
 
   @override
-  String get addSubscriptionAction => 'Add subscription';
+  String get addSubscriptionAction => '添加訂閱';
 
   @override
   String subscriptionOperationFailed(String error) {
-    return 'Calendar subscription failed: $error';
+    return '日曆訂閱失敗：$error';
   }
 
   @override
-  String get subscriptions => 'Subscriptions';
+  String get subscriptions => '訂閱';
 
   @override
   String get calendarImport => '匯入行事曆';
 
   @override
-  String get calendarImportDescription => '選擇檔案並檢查其中的行程，然後選擇要接收這些行程的可寫入行事曆。';
+  String get calendarImportDescription => '選擇文件，查看其中的活動，然後選擇接收這些活動的可寫日曆。';
 
   @override
-  String get importIcsFile => 'Import .ics file';
+  String get importIcsFile => '匯入 .ics 檔案';
 
   @override
-  String get importIcsPreview => 'Import calendar events';
+  String get importIcsPreview => '匯入行事曆活動';
 
   @override
   String importEventsFound(int count) {
-    return 'Importable event sets: $count';
+    return '可導入活動集：$count';
   }
 
   @override
   String importInvalidEvents(int count) {
-    return 'Invalid events: $count';
+    return '無效活動：$count';
   }
 
   @override
   String importFieldsOmitted(String fields) {
-    return 'Intentionally omitted: $fields';
+    return '有意省略：$fields';
   }
 
   @override
-  String get noWritableCalendars =>
-      'No writable destination calendar is available.';
+  String get noWritableCalendars => '沒有可用的可寫目標日曆。';
 
   @override
-  String get importDestinationCalendar => 'Destination calendar';
+  String get importDestinationCalendar => '目標日曆';
 
   @override
-  String get importIcsConfirm => 'Import events';
+  String get importIcsConfirm => '導入活動';
 
   @override
-  String get importIcsComplete => 'Import complete';
+  String get importIcsComplete => '匯入完成';
 
   @override
   String importQueued(int count) {
-    return 'Imported or queued: $count';
+    return '已導入或已排隊：$count';
   }
 
   @override
   String importDuplicatesSkipped(int count) {
-    return 'Duplicates skipped: $count';
+    return '已跳過重複項：$count';
   }
 
   @override
   String importUnsupportedSets(int count) {
-    return 'Unsupported recurrence sets: $count';
+    return '不支持的重複集：$count';
   }
 
   @override
   String importIcsFailed(String error) {
-    return 'Could not import the calendar file: $error';
+    return '無法導入日曆文件：$error';
   }
 
   @override

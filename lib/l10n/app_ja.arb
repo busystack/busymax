@@ -1,14 +1,14 @@
 {
   "@@locale": "ja",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "connectGoogleAccount": "Google、Microsoft、Apple iCloud Calendar、または Nextcloud のアカウントを接続します。",
   "googlePermissionsConsentNotice": "Google の権限画面で、カレンダーとタスクの両方の権限を選択してください。",
   "googlePermissionsRequiredRetry": "Google カレンダーと Google Tasks の権限が必要です。もう一度試して、両方のチェックボックスを選択してください。",
   "finishSetup": "セットアップを完了",
   "continueSetup": "続行",
   "onboardingSetupTitle": "BusyMax をセットアップ",
   "onboardingAccountsStepTitle": "アカウントを接続",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "onboardingAccountsStepDescription": "使用するすべてのアカウントを追加します。BusyMax は各アカウントの対応するカレンダー、予定、タスクリスト、タスクを同期します。",
   "onboardingPreferencesStepTitle": "システム設定を選択",
   "onboardingPreferencesStepDescription": "スケジュールを開く前に、デスクトップでの動作、リマインダー、通知の詳細度、外観を設定します。",
   "signInWithGoogle": "Google でサインイン",
@@ -36,16 +36,40 @@
   "newCalendar": "新しいカレンダー",
   "calendarColor": "カレンダーの色",
   "calendarColorOption": "色 {number}",
-  "@calendarColorOption": {"placeholders": {"number": {"type": "int"}}},
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "calendarManagementUnsupported": "このプロバイダーのカレンダー管理は BusyMax ではサポートされていません。",
   "primaryCalendarCannotDelete": "メインカレンダーは削除できません。",
   "calendarCreateFailed": "カレンダーを作成できませんでした: {error}",
   "calendarCreatedRefreshPending": "カレンダーは作成されましたが、BusyMax はアカウントを更新できませんでした。次回の同期後に表示されます。",
-  "@calendarCreateFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "calendarUpdateFailed": "カレンダーを更新できませんでした: {error}",
-  "@calendarUpdateFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "calendarDeleteFailed": "カレンダーを削除できませんでした: {error}",
-  "@calendarDeleteFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "newEvent": "新しい予定",
   "refreshCalendar": "カレンダーを更新",
   "openInProvider": "サービスで開く",
@@ -65,31 +89,55 @@
   "scheduleNoSearchResultsDescription": "別の条件で検索するか、現在のフィルターを解除してください。",
   "refresh": "更新",
   "trayOpenBusyMax": "BusyMax を開く",
-  "trayShowBusyMax": "Show BusyMax",
-  "trayNewEvent": "New event…",
-  "trayNewTask": "New task…",
-  "trayToday": "Today",
-  "trayAllDay": "All day",
-  "trayNow": "Now",
-  "trayCalendarEvent": "Calendar event",
-  "trayUntitledEvent": "Untitled event",
-  "trayNothingElseToday": "Nothing else today",
-  "trayTasksDueToday": "{count, plural, =1{1 task due today} other{{count} tasks due today}}",
-  "@trayTasksDueToday": {"placeholders": {"count": {"type": "int"}}},
-  "trayOpenTodayAgenda": "Open today’s agenda",
-  "traySyncNow": "Sync now",
-  "traySyncing": "Syncing…",
-  "trayNotConnected": "Not connected",
-  "trayNotYetSynced": "Not yet synced",
-  "trayLastSyncedJustNow": "Last synced just now",
-  "trayLastSyncedMinutesAgo": "{count, plural, =1{Last synced 1 minute ago} other{Last synced {count} minutes ago}}",
-  "@trayLastSyncedMinutesAgo": {"placeholders": {"count": {"type": "int"}}},
-  "trayLastSyncedHoursAgo": "{count, plural, =1{Last synced 1 hour ago} other{Last synced {count} hours ago}}",
-  "@trayLastSyncedHoursAgo": {"placeholders": {"count": {"type": "int"}}},
-  "trayLastSyncedDaysAgo": "{count, plural, =1{Last synced 1 day ago} other{Last synced {count} days ago}}",
-  "@trayLastSyncedDaysAgo": {"placeholders": {"count": {"type": "int"}}},
-  "traySettings": "Settings",
-  "trayQuitBusyMax": "Quit BusyMax",
+  "trayShowBusyMax": "BusyMax を表示",
+  "trayNewEvent": "新しい予定…",
+  "trayNewTask": "新しいタスク…",
+  "trayToday": "今日",
+  "trayAllDay": "終日",
+  "trayNow": "今",
+  "trayCalendarEvent": "カレンダーの予定",
+  "trayUntitledEvent": "無題の予定",
+  "trayNothingElseToday": "今日はこれ以上ありません",
+  "trayTasksDueToday": "{count, plural, =1{今日が期限のタスクは 1 件} other{今日が期限のタスクは {count} 件}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "今日の予定表を開く",
+  "traySyncNow": "今すぐ同期",
+  "traySyncing": "同期中…",
+  "trayNotConnected": "未接続",
+  "trayNotYetSynced": "まだ同期されていません",
+  "trayLastSyncedJustNow": "たった今同期",
+  "trayLastSyncedMinutesAgo": "{count, plural, =1{1 分前に同期} other{{count} 分前に同期}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, =1{1 時間前に同期} other{{count} 時間前に同期}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, =1{1 日前に同期} other{{count} 日前に同期}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traySettings": "設定",
+  "trayQuitBusyMax": "BusyMax を終了",
   "agendaLoadMoreOverdue": "期限切れのタスクをさらに読み込む",
   "agendaLoadMoreNoDate": "日付のないタスクをさらに読み込む",
   "viewDay": "日",
@@ -217,8 +265,8 @@
   "removeAccount": "アカウントを削除…",
   "removingAccount": "アカウントを削除しています…",
   "removeAccountDescription": "同期を停止し、このアカウントのデータをこのデバイスから削除します。",
-  "removeAccountTitle": "BusyMax から {account} を削除しますか？",
-  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
+  "removeAccountTitle": "{account} を BusyMax から削除しますか？",
+  "removeAccountConfirmation": "このデバイスから、キャッシュされたタスク、カレンダー、予定、リマインダー、保留中のオフライン変更を削除します。同期されていない変更は失われます。プロバイダー側のカレンダー、予定、タスクリスト、タスクのコピーは削除されません。",
   "revokeGoogleAccess": "この Google アカウントへの BusyMax のアクセス権も取り消す",
   "revokeGoogleAccessDescription": "再接続する前に、もう一度アクセスを許可する必要があります。",
   "removeAccountAction": "アカウントを削除",
@@ -415,50 +463,50 @@
   "selectTimeZone": "タイムゾーンを選択",
   "searchLocations": "場所を検索",
   "noLocationsFound": "場所が見つかりません",
-  "requiredField": "This field is required.",
-  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
-  "appleICloudProvider": "Apple iCloud Calendar",
+  "requiredField": "このフィールドは必須です。",
+  "providerConnectionDescription": "次のいずれかのプロバイダーからカレンダーとタスクを接続します。",
+  "appleICloudProvider": "Apple iCloud カレンダー",
   "nextcloudProvider": "Nextcloud",
   "appleICloudTasksProvider": "Apple iCloud",
-  "nextcloudTasksProvider": "Nextcloud Tasks",
-  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
-  "addNextcloudAccount": "Add Nextcloud account",
-  "waitingForAppleICloud": "Connecting to Apple iCloud…",
-  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
-  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
-  "appleAccountEmail": "Apple Account email",
-  "appleAppSpecificPassword": "App-specific password",
-  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
-  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
-  "connectNextcloudTitle": "Connect Nextcloud",
-  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
-  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
-  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
-  "connectAccountAction": "Connect",
-  "cancelAccountConnection": "Cancel connection",
-  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
-  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
-  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
-  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
-  "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Calendars and task lists",
-  "calendarContent": "Calendar events",
-  "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only",
-  "pendingLocally": "Pending locally",
-  "conflictBlocked": "Blocked by conflict",
-  "authenticationBlocked": "Blocked until reconnect",
-  "operationFailed": "Operation failed",
-  "keepServerVersion": "Keep server version",
-  "reapplyLocalChange": "Review and reapply local change",
-  "duplicateLocalItem": "Duplicate as new item",
+  "nextcloudTasksProvider": "Nextcloud タスク",
+  "addAppleICloudAccount": "Apple iCloud カレンダーアカウントを追加",
+  "addNextcloudAccount": "Nextcloud アカウントを追加",
+  "waitingForAppleICloud": "Apple iCloud に接続中…",
+  "waitingForNextcloud": "Nextcloud の認証を待機中…",
+  "connectAppleICloudTitle": "Apple iCloud カレンダーを接続",
+  "appleAccountEmail": "Apple アカウントのメールアドレス",
+  "appleAppSpecificPassword": "App 用パスワード",
+  "appleAppSpecificPasswordHelp": "Apple アカウントで 2 要素認証を有効にした後、App 用パスワードを作成してください。",
+  "appleAppSpecificPasswordResetWarning": "Apple アカウントのパスワードをリセットすると、App 用パスワードが無効になります。",
+  "connectNextcloudTitle": "Nextcloud を接続",
+  "nextcloudServerUrl": "Nextcloud サーバーまたは CalDAV アドレス",
+  "nextcloudServerUrlHelp": "Nextcloud サーバーの URL を入力するか、Nextcloud からコピーしたプライマリ CalDAV アドレスを貼り付けてください。",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax がブラウザーを開きます。そこでアクセスを許可してから BusyMax に戻ってください。",
+  "connectAccountAction": "接続",
+  "cancelAccountConnection": "接続をキャンセル",
+  "nextcloudAccountRemovedRevokeFailed": "アカウントはローカルから削除されましたが、Nextcloud の App パスワードを無効にできませんでした。",
+  "davCachedOfflineNotice": "オフラインで使用できるよう、カレンダーとタスクのデータはローカルにキャッシュされます。",
+  "davReauthenticationRequired": "同期を再開するには、このアカウントを再接続してください。",
+  "davTemporarilyUnavailable": "このアカウントは一時的に利用できません。",
+  "davPermissionChanged": "サーバーの権限が変更されました。保留中の編集は一時停止されています。",
+  "davUnsupportedServer": "このサーバーまたはプロバイダー プロファイルはサポートされていません。",
+  "collectionSettings": "カレンダーとタスクリスト",
+  "calendarContent": "カレンダーの予定",
+  "taskContent": "タスク",
+  "readOnlySharedCollection": "読み取り専用",
+  "pendingLocally": "ローカルで保留中",
+  "conflictBlocked": "競合によりブロック",
+  "authenticationBlocked": "再接続するまでブロック",
+  "operationFailed": "操作に失敗",
+  "keepServerVersion": "サーバーのバージョンを保持",
+  "reapplyLocalChange": "ローカル変更を確認して再適用",
+  "duplicateLocalItem": "新しいアイテムとして複製",
   "deleteCalendarConfirmation": "「{title}」を削除しますか？",
-  "davConnectionState": "Connection state",
-  "davConnected": "Connected",
-  "davConnecting": "Connecting…",
-  "davSignedOut": "Signed out",
-  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "davConnectionState": "接続状態",
+  "davConnected": "接続済み",
+  "davConnecting": "接続中…",
+  "davSignedOut": "サインアウト済み",
+  "davLastSuccessfulSync": "最後に成功した同期: {time}",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -466,9 +514,9 @@
       }
     }
   },
-  "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh calendars and task lists",
-  "nextcloudServerHost": "Server: {host}",
+  "davNeverSynced": "まだ同期されていません",
+  "refreshCollections": "カレンダーとタスクリストを更新",
+  "nextcloudServerHost": "サーバー: {host}",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -476,12 +524,12 @@
       }
     }
   },
-  "collectionSupportsEvents": "Event calendar",
-  "collectionSupportsTasks": "Task list",
-  "collectionSupportsEventsAndTasks": "Events and tasks",
-  "writableCollection": "Writable",
-  "sharedCollection": "Shared",
-  "collectionLastSynced": "Last synchronized: {time}",
+  "collectionSupportsEvents": "予定カレンダー",
+  "collectionSupportsTasks": "タスクリスト",
+  "collectionSupportsEventsAndTasks": "予定とタスク",
+  "writableCollection": "書き込み可能",
+  "sharedCollection": "共有",
+  "collectionLastSynced": "最後の同期: {time}",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -489,7 +537,7 @@
       }
     }
   },
-  "collectionSyncError": "Sync issue: {code}",
+  "collectionSyncError": "同期の問題: {code}",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -497,8 +545,8 @@
       }
     }
   },
-  "syncConflicts": "Synchronization conflicts",
-  "remoteChangedAt": "Server changed: {time}",
+  "syncConflicts": "同期の競合",
+  "remoteChangedAt": "サーバーでの変更: {time}",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -506,7 +554,7 @@
       }
     }
   },
-  "localPendingEdit": "Local edit: {summary}",
+  "localPendingEdit": "ローカル編集: {summary}",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -514,9 +562,9 @@
       }
     }
   },
-  "conflictResolutionFailed": "The conflict could not be resolved.",
-  "recurringEventScope": "Recurring event scope",
-  "entireSeries": "Entire series",
+  "conflictResolutionFailed": "競合を解決できませんでした。",
+  "recurringEventScope": "繰り返し予定の範囲",
+  "entireSeries": "予定全体",
   "singleOccurrence": "この予定",
   "thisAndFollowingEvents": "この予定とこれ以降の予定",
   "thisAndFutureUnavailable": "このプロバイダーではサポートされていません。",
@@ -525,204 +573,288 @@
   "copyEventAndDeleteOriginal": "予定をコピーして元の予定を削除しますか？",
   "copyEventMoveWarning": "BusyMax はこの予定を {source} から {destination} へ直接移動できません。先にコピーを作成し、コピーが成功した場合にのみ元の予定を削除します。予定 ID は変更されます。出席者の回答状況がリセットされ、招待やキャンセルが送信される場合があります。また、会議リンク、添付ファイル、リマインダー、プロバイダー固有のフィールド、繰り返しの例外は引き継がれない場合があります。",
   "copyAndDelete": "コピーして削除",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "chooseRecurringEventScope": "この変更を予定全体、この予定のみ、この予定とこれ以降の予定のどれに適用するか選択してください。",
   "taskDueBeforeStart": "期限を開始より前に設定することはできません。",
   "taskStartDueTimeModeMismatch": "開始と期限の両方に時刻を設定するか、タスクを終日にしてください。",
-  "taskListCreateFailed": "Could not create the task list: {error}",
-  "taskListRenameFailed": "Could not rename the task list: {error}",
-  "taskListDeleteFailed": "Could not delete the task list: {error}",
+  "taskListCreateFailed": "タスクリストを作成できませんでした: {error}",
+  "taskListRenameFailed": "タスクリストの名前を変更できませんでした: {error}",
+  "taskListDeleteFailed": "タスクリストを削除できませんでした: {error}",
   "unshare": "共有を解除",
-  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
-  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
-  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "taskStatus": "Status",
-  "taskStatusNone": "No status",
-  "taskStatusNeedsAction": "アクションが必要",
+  "readOnlyTaskListCannotRename": "このタスクリストは読み取り専用のため、名前を変更できません。",
+  "taskListCannotDelete": "現在の権限ではこのタスクリストを削除できません。",
+  "deleteTaskListConfirmation": "「{title}」とそのすべてのタスクを削除しますか？",
+  "unshareTaskListConfirmation": "このアカウントとの「{title}」の共有を解除しますか？",
+  "taskStatus": "ステータス",
+  "taskStatusNone": "ステータスなし",
+  "taskStatusNeedsAction": "要対応",
   "taskStatusInProcess": "進行中",
   "taskStatusCompleted": "完了",
-  "taskStatusCancelled": "Cancelled",
-  "completionPercent": "{percent}% completed",
-  "completionDate": "Completion date",
+  "taskStatusCancelled": "キャンセル済み",
+  "completionPercent": "{percent}% 完了",
+  "completionDate": "完了日",
   "priority": "優先度",
-  "priorityNone": "No priority",
-  "priorityHighValue": "Priority {priority} · High",
-  "priorityMediumValue": "Priority {priority} · Medium",
-  "priorityLowValue": "Priority {priority} · Low",
-  "taskUrl": "URL",
-  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
-  "classification": "Classification",
-  "classificationPublic": "When shared, show the full task",
-  "classificationConfidential": "When shared, show only busy",
-  "classificationPrivate": "When shared, hide this task",
-  "pinTask": "Pin task",
-  "reminders": "Reminders",
-  "noReminders": "No reminders",
-  "editReminder": "Edit reminder",
-  "beforeTaskStarts": "Before the task starts",
-  "beforeTaskDue": "Before the task is due",
-  "afterTaskStarts": "After the task starts",
-  "afterTaskDue": "After the task is due",
-  "relativeToTaskStart": "Relative to the task start date",
-  "relativeToTaskDue": "Relative to the task due date",
-  "reminderTimeOfDay": "Time of day",
-  "absoluteReminder": "At a date and time",
-  "reminderAmount": "Amount",
-  "reminderUnitSeconds": "Seconds",
-  "reminderUnitMinutes": "Minutes",
-  "reminderUnitHours": "Hours",
-  "reminderUnitDays": "Days",
-  "reminderUnitWeeks": "Weeks",
-  "reminderAtTaskStart": "At the task start",
-  "reminderAtTaskDue": "At the task due time",
-  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
-  "relatedRemindersTitle": "Keep related reminders?",
-  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
-  "discardRelatedReminders": "Discard reminders",
-  "keepRelatedReminders": "Keep reminders",
-  "repeatEvery": "毎日繰り返す",
-  "repeatOn": "Repeat on",
-  "repeatEnd": "繰り返し終了",
-  "repeatNever": "Never",
-  "repeatUntil": "On date",
-  "repeatAfter": "After a number of occurrences",
-  "repeatCount": "Occurrences",
-  "repeatDayOfMonth": "Days of month",
-  "repeatMonths": "Months",
-  "repeatOrdinal": "Weekday position",
-  "repeatSpecificDays": "Specific days",
-  "repeatFirst": "First",
-  "repeatSecond": "Second",
-  "repeatThird": "Third",
-  "repeatFourth": "Fourth",
-  "repeatFifth": "Fifth",
-  "repeatSecondToLast": "Second to last",
-  "repeatLast": "Last",
-  "repeatAnyDay": "Day",
-  "repeatWeekday": "Weekday",
-  "repeatWeekendDay": "Weekend day",
-  "repeatEveryDays": "Every {count} days",
-  "repeatEveryWeeks": "Every {count} weeks",
-  "repeatEveryMonths": "Every {count} months",
-  "repeatEveryYears": "Every {count} years",
-  "repeatOnDaysSummary": "on {days}",
-  "repeatOnMonthDaysSummary": "on day {days}",
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "repeatInMonthsSummary": "in {months}",
-  "repeatTimesSummary": "{count}回",
-  "repeatUntilSummary": "{date}まで",
-  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
+  "priorityNone": "優先度なし",
+  "priorityHighValue": "優先度 {priority} · 高",
+  "priorityMediumValue": "優先度 {priority} · 中",
+  "priorityLowValue": "優先度 {priority} · 低",
+  "taskUrl": "タスク URL",
+  "invalidTaskUrl": "スキームを含む絶対 URL を入力してください。",
+  "classification": "分類",
+  "classificationPublic": "共有時にタスク全体を表示",
+  "classificationConfidential": "共有時に空き状況のみ表示",
+  "classificationPrivate": "共有時にこのタスクを非表示",
+  "pinTask": "タスクをピン留め",
+  "reminders": "リマインダー",
+  "noReminders": "リマインダーなし",
+  "editReminder": "リマインダーを編集",
+  "beforeTaskStarts": "タスクの開始前",
+  "beforeTaskDue": "タスクの期限前",
+  "afterTaskStarts": "タスクの開始後",
+  "afterTaskDue": "タスクの期限後",
+  "relativeToTaskStart": "タスクの開始日に対して",
+  "relativeToTaskDue": "タスクの期限日に対して",
+  "reminderTimeOfDay": "時刻",
+  "absoluteReminder": "日時を指定",
+  "reminderAmount": "数値",
+  "reminderUnitSeconds": "秒",
+  "reminderUnitMinutes": "分",
+  "reminderUnitHours": "時間",
+  "reminderUnitDays": "日",
+  "reminderUnitWeeks": "週",
+  "reminderAtTaskStart": "タスクの開始時",
+  "reminderAtTaskDue": "タスクの期限時刻",
+  "unsupportedReminder": "このリマインダーの種類は保持されますが、時刻は編集できません。",
+  "relatedRemindersTitle": "関連するリマインダーを保持しますか？",
+  "relatedRemindersDescription": "この日付には関連するリマインダーが {count} 件あります。現在の日付と時刻を保持しますか？",
+  "discardRelatedReminders": "リマインダーを破棄",
+  "keepRelatedReminders": "リマインダーを保持",
+  "repeatEvery": "繰り返し間隔",
+  "repeatOn": "繰り返す曜日",
+  "repeatEnd": "繰り返しを終了",
+  "repeatNever": "なし",
+  "repeatUntil": "指定日まで",
+  "repeatAfter": "指定回数後",
+  "repeatCount": "繰り返し回数",
+  "repeatDayOfMonth": "月の日",
+  "repeatMonths": "月",
+  "repeatOrdinal": "曜日の順番",
+  "repeatSpecificDays": "特定の曜日",
+  "repeatFirst": "第 1",
+  "repeatSecond": "第 2",
+  "repeatThird": "第 3",
+  "repeatFourth": "第 4",
+  "repeatFifth": "第 5",
+  "repeatSecondToLast": "最後から 2 番目",
+  "repeatLast": "最後",
+  "repeatAnyDay": "日",
+  "repeatWeekday": "平日",
+  "repeatWeekendDay": "週末",
+  "repeatEveryDays": "{count} 日ごと",
+  "repeatEveryWeeks": "{count} 週間ごと",
+  "repeatEveryMonths": "{count} か月ごと",
+  "repeatEveryYears": "{count} 年ごと",
+  "repeatOnDaysSummary": "{days} 曜日",
+  "repeatOnMonthDaysSummary": "毎月 {days} 日",
+  "repeatOnOrdinalSummary": "{days} の第 {ordinal}",
+  "repeatInMonthsSummary": "{months} に",
+  "repeatTimesSummary": "{count} 回",
+  "repeatUntilSummary": "{date} まで",
+  "unsupportedRecurrencePreserved": "この繰り返しルールには、このエディターで変更されないオプションが含まれています。",
   "recurrenceUnsupportedByProvider": "この繰り返しは {provider} では使用できません。",
-  "duplicateTask": "Duplicate task",
-  "taskDuplicated": "Task duplicated.",
-  "taskDuplicateFailed": "Could not duplicate the task: {error}",
+  "duplicateTask": "タスクを複製",
+  "taskDuplicated": "タスクを複製しました。",
+  "taskDuplicateFailed": "タスクを複製できませんでした: {error}",
   "hideSubtasks": "サブタスクを非表示",
-  "hideClosedSubtasks": "Hide closed subtasks",
-  "reminderUnit": "Unit",
-  "attendeeRequired": "Required",
-  "attendeeOptional": "Optional",
-  "meetingSection": "Meeting",
-  "addGoogleMeet": "Add Google Meet",
-  "addTeamsMeeting": "Add Microsoft Teams meeting",
-  "onlineMeetingAdded": "Online meeting added",
-  "requestResponses": "Request responses",
-  "requestResponsesDescription": "Ask guests to respond to the invitation.",
-  "hideGuestList": "Hide guest list",
-  "hideGuestListDescription": "Guests cannot see who else was invited.",
-  "allowNewTimeProposals": "Allow new time proposals",
-  "allowNewTimeProposalsDescription": "Guests can suggest a different meeting time.",
-  "notifyGuestsTitle": "Notify guests?",
-  "notifyGuestsSaveMessage": "This meeting has guests. Send invitations or event updates when it is saved?",
-  "notifyGuestsDeleteMessage": "This meeting has guests. Send a cancellation when it is deleted?",
-  "sendUpdates": "Send updates",
-  "sendCancellation": "Send cancellation",
-  "doNotSend": "Don’t send",
-  "microsoftNotifyGuestsSaveTitle": "Save meeting?",
-  "microsoftNotifyGuestsSaveMessage": "Microsoft will send invitations or event updates to guests.",
-  "microsoftNotifyGuestsDeleteTitle": "Delete meeting?",
-  "microsoftNotifyGuestsDeleteMessage": "Microsoft will send a cancellation to guests.",
-  "organizer": "Organizer",
-  "yourResponse": "Your response",
-  "guestResponses": "Guest responses",
-  "respond": "Respond",
-  "acceptInvitation": "Accept",
-  "tentativeInvitation": "Tentative",
-  "declineInvitation": "Decline",
-  "joinMeeting": "Join meeting",
-  "responseAccepted": "Accepted",
-  "responseTentative": "Tentative",
-  "responseDeclined": "Declined",
-  "responseNeedsAction": "Awaiting response",
-  "responseNotResponded": "Not responded",
-  "responseOrganizer": "Organizer",
-  "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
-  "joinMeetingFailed": "Could not open the meeting link.",
+  "hideClosedSubtasks": "完了したサブタスクを非表示",
+  "reminderUnit": "単位",
+  "attendeeRequired": "必須",
+  "attendeeOptional": "任意",
+  "meetingSection": "会議",
+  "addGoogleMeet": "Google Meet を追加",
+  "addTeamsMeeting": "Microsoft Teams 会議を追加",
+  "onlineMeetingAdded": "オンライン会議を追加しました",
+  "requestResponses": "返信をリクエスト",
+  "requestResponsesDescription": "ゲストに招待への返信を依頼します。",
+  "hideGuestList": "ゲストリストを非表示",
+  "hideGuestListDescription": "ゲストには他の招待者が表示されません。",
+  "allowNewTimeProposals": "新しい日時の提案を許可",
+  "allowNewTimeProposalsDescription": "ゲストは別の会議時間を提案できます。",
+  "notifyGuestsTitle": "ゲストに通知しますか？",
+  "notifyGuestsSaveMessage": "この会議にはゲストがいます。保存時に招待または予定の更新を送信しますか？",
+  "notifyGuestsDeleteMessage": "この会議にはゲストがいます。削除時にキャンセルを送信しますか？",
+  "sendUpdates": "更新を送信",
+  "sendCancellation": "キャンセルを送信",
+  "doNotSend": "送信しない",
+  "microsoftNotifyGuestsSaveTitle": "会議を保存しますか？",
+  "microsoftNotifyGuestsSaveMessage": "Microsoft からゲストに招待または予定の更新が送信されます。",
+  "microsoftNotifyGuestsDeleteTitle": "会議を削除しますか？",
+  "microsoftNotifyGuestsDeleteMessage": "Microsoft からゲストにキャンセルが送信されます。",
+  "organizer": "主催者",
+  "yourResponse": "自分の返信",
+  "guestResponses": "ゲストの返信",
+  "respond": "返信",
+  "acceptInvitation": "承諾",
+  "tentativeInvitation": "仮承諾",
+  "declineInvitation": "辞退",
+  "joinMeeting": "会議に参加",
+  "responseAccepted": "承諾済み",
+  "responseTentative": "仮承諾",
+  "responseDeclined": "辞退済み",
+  "responseNeedsAction": "返信待ち",
+  "responseNotResponded": "未返信",
+  "responseOrganizer": "主催者",
+  "invitationResponseFailed": "返信を送信できませんでした: {error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "会議リンクを開けませんでした。",
   "setCustomCalendarName": "カスタム名を設定",
   "setAction": "設定",
   "removeFromMyCalendars": "マイカレンダーから削除",
   "removeAction": "削除",
   "removeCalendarConfirmation": "「{title}」を Google カレンダーのリストから削除しますか？共有カレンダーとその予定は削除されません。",
-  "calendarCannotRemove": "このカレンダーは、このアカウントから削除できません。",
-  "calendarPendingChangesPreventRemoval": "このカレンダーを削除する前に、保留中の変更の同期が完了するまでお待ちください。",
-  "calendarSubscriptions": "Calendar subscriptions",
-  "calendarSubscriptionsDescription": "Add read-only calendars that refresh from a secure WebCal URL.",
-  "addCalendarSubscription": "Add calendar subscription",
-  "subscriptionName": "Local name",
-  "subscriptionUrl": "Subscription URL",
-  "subscriptionUrlHelp": "Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.",
-  "subscriptionUrlInvalid": "Enter a valid HTTPS or webcal URL without user information or a fragment.",
-  "subscriptionColor": "Local color",
-  "subscriptionColorHelp": "Use a six-digit color such as #3584E4.",
-  "subscriptionColorInvalid": "Enter a six-digit hexadecimal color.",
-  "subscriptionRefreshMode": "Refresh frequency",
-  "subscriptionAutomatic": "Automatic",
-  "subscriptionHourly": "Hourly",
-  "subscriptionSixHours": "Every six hours",
-  "subscriptionDaily": "Daily",
-  "subscriptionSafeOrigin": "Source: {origin}",
-  "@subscriptionSafeOrigin": {"placeholders": {"origin": {"type": "String"}}},
-  "subscriptionSafeOriginUnavailable": "Enter a valid URL to preview its safe origin.",
-  "subscriptionReadOnly": "Read-only subscription",
-  "subscriptionNeverRefreshed": "Not refreshed yet",
-  "subscriptionLastRefresh": "Last successful refresh: {time}",
-  "@subscriptionLastRefresh": {"placeholders": {"time": {"type": "String"}}},
-  "subscriptionNextRefresh": "Next refresh: {time}",
-  "@subscriptionNextRefresh": {"placeholders": {"time": {"type": "String"}}},
-  "subscriptionStatusHealthy": "Up to date",
-  "subscriptionStatusIssue": "Refresh issue: {code}",
-  "@subscriptionStatusIssue": {"placeholders": {"code": {"type": "String"}}},
-  "refreshNow": "Refresh now",
-  "unsubscribe": "Unsubscribe",
-  "unsubscribeCalendarTitle": "Unsubscribe from “{name}”?",
-  "@unsubscribeCalendarTitle": {"placeholders": {"name": {"type": "String"}}},
-  "unsubscribeCalendarConfirmation": "This removes the local subscription and its cached events. The published calendar is not changed.",
-  "addSubscriptionAction": "Add subscription",
-  "subscriptionOperationFailed": "Calendar subscription failed: {error}",
-  "@subscriptionOperationFailed": {"placeholders": {"error": {"type": "String"}}},
-  "subscriptions": "Subscriptions",
-  "calendarImport": "カレンダーのインポート",
-  "calendarImportDescription": "ファイルを選択して予定を確認し、インポート先の書き込み可能なカレンダーを選択します。",
-  "importIcsFile": "Import .ics file",
-  "importIcsPreview": "Import calendar events",
-  "importEventsFound": "Importable event sets: {count}",
-  "@importEventsFound": {"placeholders": {"count": {"type": "int"}}},
-  "importInvalidEvents": "Invalid events: {count}",
-  "@importInvalidEvents": {"placeholders": {"count": {"type": "int"}}},
-  "importFieldsOmitted": "Intentionally omitted: {fields}",
-  "@importFieldsOmitted": {"placeholders": {"fields": {"type": "String"}}},
-  "noWritableCalendars": "No writable destination calendar is available.",
-  "importDestinationCalendar": "Destination calendar",
-  "importIcsConfirm": "Import events",
-  "importIcsComplete": "Import complete",
-  "importQueued": "Imported or queued: {count}",
-  "@importQueued": {"placeholders": {"count": {"type": "int"}}},
-  "importDuplicatesSkipped": "Duplicates skipped: {count}",
-  "@importDuplicatesSkipped": {"placeholders": {"count": {"type": "int"}}},
-  "importUnsupportedSets": "Unsupported recurrence sets: {count}",
-  "@importUnsupportedSets": {"placeholders": {"count": {"type": "int"}}},
-  "importIcsFailed": "Could not import the calendar file: {error}",
-  "@importIcsFailed": {"placeholders": {"error": {"type": "String"}}},
+  "calendarCannotRemove": "このカレンダーはこのアカウントから削除または解除できません。",
+  "calendarPendingChangesPreventRemoval": "削除または解除する前に、このカレンダーの保留中の変更が同期されるまで待ってください。",
+  "calendarSubscriptions": "カレンダーの登録",
+  "calendarSubscriptionsDescription": "安全な WebCal URL から更新される読み取り専用カレンダーを追加します。",
+  "addCalendarSubscription": "カレンダー登録を追加",
+  "subscriptionName": "ローカル名",
+  "subscriptionUrl": "登録 URL",
+  "subscriptionUrlHelp": "HTTPS または webcal URL を入力してください。BusyMax は完全な URL を安全なストレージに保存します。",
+  "subscriptionUrlInvalid": "ユーザー情報やフラグメントを含まない有効な HTTPS または webcal URL を入力してください。",
+  "subscriptionColor": "ローカルの色",
+  "subscriptionColorHelp": "#3584E4 のような 6 桁の色を使用してください。",
+  "subscriptionColorInvalid": "6 桁の 16 進数カラーを入力してください。",
+  "subscriptionRefreshMode": "更新頻度",
+  "subscriptionAutomatic": "自動",
+  "subscriptionHourly": "毎時",
+  "subscriptionSixHours": "6 時間ごと",
+  "subscriptionDaily": "毎日",
+  "subscriptionSafeOrigin": "ソース: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "安全なオリジンをプレビューするには有効な URL を入力してください。",
+  "subscriptionReadOnly": "読み取り専用の登録",
+  "subscriptionNeverRefreshed": "まだ更新されていません",
+  "subscriptionLastRefresh": "最後に成功した更新: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "次回の更新: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "最新",
+  "subscriptionStatusIssue": "更新の問題: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "今すぐ更新",
+  "unsubscribe": "登録を解除",
+  "unsubscribeCalendarTitle": "「{name}」の登録を解除しますか？",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "ローカル登録とキャッシュされた予定を削除します。公開されているカレンダーは変更されません。",
+  "addSubscriptionAction": "登録を追加",
+  "subscriptionOperationFailed": "カレンダー登録に失敗: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "登録",
+  "calendarImport": "カレンダーをインポート",
+  "calendarImportDescription": "ファイルを選択して予定を確認し、受け入れ先の書き込み可能なカレンダーを選択します。",
+  "importIcsFile": ".ics ファイルをインポート",
+  "importIcsPreview": "カレンダーの予定をインポート",
+  "importEventsFound": "インポート可能な予定セット: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importInvalidEvents": "無効な予定: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importFieldsOmitted": "意図的に省略: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "書き込み可能な移行先カレンダーがありません。",
+  "importDestinationCalendar": "移行先カレンダー",
+  "importIcsConfirm": "予定をインポート",
+  "importIcsComplete": "インポート完了",
+  "importQueued": "インポート済みまたはキュー済み: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "重複をスキップ: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importUnsupportedSets": "サポートされない繰り返しセット: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importIcsFailed": "カレンダーファイルをインポートできませんでした: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "networkOffline": "オフライン",
   "networkOfflineDescription": "接続が復旧すると変更が同期されます。",
   "networkOfflineTryAgain": "オフラインです。インターネットに接続して、もう一度お試しください。"

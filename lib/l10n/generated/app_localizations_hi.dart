@@ -17,7 +17,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      'Google, Microsoft, Apple iCloud Calendar या Nextcloud खाते कनेक्ट करें।';
 
   @override
   String get googlePermissionsConsentNotice =>
@@ -41,7 +41,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      'वे सभी खाते जोड़ें जिनका आप उपयोग करना चाहते हैं। BusyMax हर खाते से समर्थित कैलेंडर, इवेंट, कार्य सूचियाँ और कार्य सिंक करता है।';
 
   @override
   String get onboardingPreferencesStepTitle => 'सिस्टम सेटिंग्स चुनें';
@@ -221,68 +221,68 @@ class AppLocalizationsHi extends AppLocalizations {
   String get trayOpenBusyMax => 'BusyMax खोलें';
 
   @override
-  String get trayShowBusyMax => 'Show BusyMax';
+  String get trayShowBusyMax => 'BusyMax दिखाएँ';
 
   @override
-  String get trayNewEvent => 'New event…';
+  String get trayNewEvent => 'नया इवेंट…';
 
   @override
-  String get trayNewTask => 'New task…';
+  String get trayNewTask => 'नया कार्य…';
 
   @override
-  String get trayToday => 'Today';
+  String get trayToday => 'आज';
 
   @override
-  String get trayAllDay => 'All day';
+  String get trayAllDay => 'पूरा दिन';
 
   @override
-  String get trayNow => 'Now';
+  String get trayNow => 'अभी';
 
   @override
-  String get trayCalendarEvent => 'Calendar event';
+  String get trayCalendarEvent => 'कैलेंडर इवेंट';
 
   @override
-  String get trayUntitledEvent => 'Untitled event';
+  String get trayUntitledEvent => 'बिना शीर्षक का इवेंट';
 
   @override
-  String get trayNothingElseToday => 'Nothing else today';
+  String get trayNothingElseToday => 'आज और कुछ नहीं';
 
   @override
   String trayTasksDueToday(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count tasks due today',
-      one: '1 task due today',
+      other: 'आज $count कार्यों की नियत तारीख है',
+      one: 'आज 1 कार्य की नियत तारीख है',
     );
     return '$_temp0';
   }
 
   @override
-  String get trayOpenTodayAgenda => 'Open today’s agenda';
+  String get trayOpenTodayAgenda => 'आज का एजेंडा खोलें';
 
   @override
-  String get traySyncNow => 'Sync now';
+  String get traySyncNow => 'अभी सिंक करें';
 
   @override
-  String get traySyncing => 'Syncing…';
+  String get traySyncing => 'सिंक हो रहा है…';
 
   @override
-  String get trayNotConnected => 'Not connected';
+  String get trayNotConnected => 'कनेक्ट नहीं है';
 
   @override
-  String get trayNotYetSynced => 'Not yet synced';
+  String get trayNotYetSynced => 'अभी तक सिंक नहीं हुआ';
 
   @override
-  String get trayLastSyncedJustNow => 'Last synced just now';
+  String get trayLastSyncedJustNow => 'अभी-अभी सिंक हुआ';
 
   @override
   String trayLastSyncedMinutesAgo(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count minutes ago',
-      one: 'Last synced 1 minute ago',
+      other: '$count मिनट पहले सिंक हुआ',
+      one: '1 मिनट पहले सिंक हुआ',
     );
     return '$_temp0';
   }
@@ -292,8 +292,8 @@ class AppLocalizationsHi extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count hours ago',
-      one: 'Last synced 1 hour ago',
+      other: '$count घंटे पहले सिंक हुआ',
+      one: '1 घंटे पहले सिंक हुआ',
     );
     return '$_temp0';
   }
@@ -303,17 +303,17 @@ class AppLocalizationsHi extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count days ago',
-      one: 'Last synced 1 day ago',
+      other: '$count दिन पहले सिंक हुआ',
+      one: '1 दिन पहले सिंक हुआ',
     );
     return '$_temp0';
   }
 
   @override
-  String get traySettings => 'Settings';
+  String get traySettings => 'सेटिंग्स';
 
   @override
-  String get trayQuitBusyMax => 'Quit BusyMax';
+  String get trayQuitBusyMax => 'BusyMax बंद करें';
 
   @override
   String get agendaLoadMoreOverdue =>
@@ -399,127 +399,127 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noGuests => 'कोई अतिथि नहीं';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => 'ज़रूरी';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => 'वैकल्पिक';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => 'मीटिंग';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => 'Google Meet जोड़ें';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => 'Microsoft Teams मीटिंग जोड़ें';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => 'ऑनलाइन मीटिंग जोड़ी गई';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => 'जवाब माँगें';
 
   @override
   String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+      'अतिथियों से आमंत्रण का जवाब देने को कहें।';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => 'अतिथि सूची छिपाएँ';
 
   @override
   String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+      'अतिथि यह नहीं देख सकते कि और किसे आमंत्रित किया गया है।';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => 'नए समय प्रस्तावों की अनुमति दें';
 
   @override
   String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+      'अतिथि मीटिंग का अलग समय सुझा सकते हैं।';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => 'अतिथियों को सूचित करें?';
 
   @override
   String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+      'इस मीटिंग में अतिथि हैं। सहेजते समय आमंत्रण या इवेंट अपडेट भेजें?';
 
   @override
   String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+      'इस मीटिंग में अतिथि हैं। हटाते समय रद्दीकरण भेजें?';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => 'अपडेट भेजें';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => 'रद्दीकरण भेजें';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => 'न भेजें';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => 'मीटिंग सहेजें?';
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+      'Microsoft अतिथियों को आमंत्रण या इवेंट अपडेट भेजेगा।';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => 'मीटिंग हटाएँ?';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+      'Microsoft अतिथियों को रद्दीकरण भेजेगा।';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => 'आयोजक';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => 'आपका जवाब';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => 'अतिथियों के जवाब';
 
   @override
-  String get respond => 'Respond';
+  String get respond => 'जवाब दें';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => 'स्वीकार करें';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => 'अनिश्चित';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => 'अस्वीकार करें';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => 'मीटिंग में शामिल हों';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => 'स्वीकृत';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => 'अनिश्चित';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => 'अस्वीकृत';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => 'जवाब की प्रतीक्षा है';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => 'जवाब नहीं दिया';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => 'आयोजक';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return 'आपका जवाब भेजा नहीं जा सका: $error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => 'मीटिंग लिंक खोला नहीं जा सका।';
 
   @override
   String get description => 'विवरण';
@@ -864,12 +864,12 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return 'BusyMax से $account हटाएँ?';
+    return '$account को BusyMax से हटाएँ?';
   }
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      'इससे इस डिवाइस से कैश किए गए कार्य, कैलेंडर, इवेंट, रिमाइंडर और लंबित ऑफ़लाइन बदलाव हट जाएँगे। सिंक न किए गए बदलाव खो जाएँगे। प्रदाता की कैलेंडर, इवेंट, कार्य सूची और कार्य प्रतियाँ हटाई नहीं जाएँगी।';
 
   @override
   String get revokeGoogleAccess =>
@@ -895,17 +895,17 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return 'कार्य सूची बनाई नहीं जा सकी: $error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return 'कार्य सूची का नाम बदला नहीं जा सका: $error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return 'कार्य सूची हटाई नहीं जा सकी: $error';
   }
 
   @override
@@ -931,15 +931,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String get deleteList => 'सूची मिटाएँ';
 
   @override
-  String get unshare => 'Unshare';
+  String get unshare => 'साझा करना बंद करें';
 
   @override
   String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+      'यह कार्य सूची केवल-पठन है और इसका नाम नहीं बदला जा सकता।';
 
   @override
   String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+      'आपकी मौजूदा अनुमतियों से यह कार्य सूची हटाई नहीं जा सकती।';
 
   @override
   String get builtInMicrosoftList => 'अंतर्निहित';
@@ -950,17 +950,17 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return 'Google Tasks से “$title” मिटाएँ?';
+    return 'Google Tasks से “$title” हटाएँ?';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return '“$title” और इसके सभी कार्य हटाएँ?';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return 'इस खाते से “$title” साझा करना बंद करें?';
   }
 
   @override
@@ -1088,72 +1088,72 @@ class AppLocalizationsHi extends AppLocalizations {
   String get doneStatus => 'पूर्ण';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => 'स्थिति';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => 'कोई स्थिति नहीं';
 
   @override
-  String get taskStatusNeedsAction => 'Needs action';
+  String get taskStatusNeedsAction => 'कार्रवाई आवश्यक';
 
   @override
-  String get taskStatusInProcess => 'In process';
+  String get taskStatusInProcess => 'प्रगति में';
 
   @override
-  String get taskStatusCompleted => 'Completed';
+  String get taskStatusCompleted => 'पूर्ण';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => 'रद्द';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    return '$percent% पूर्ण';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => 'पूर्ण होने की तारीख';
 
   @override
-  String get priority => 'Priority';
+  String get priority => 'प्राथमिकता';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => 'कोई प्राथमिकता नहीं';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    return 'प्राथमिकता $priority · उच्च';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    return 'प्राथमिकता $priority · मध्यम';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    return 'प्राथमिकता $priority · निम्न';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => 'कार्य URL';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => 'स्कीम सहित पूर्ण URL दर्ज करें।';
 
   @override
-  String get classification => 'Classification';
+  String get classification => 'वर्गीकरण';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => 'साझा होने पर पूरा कार्य दिखाएँ';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential => 'साझा होने पर केवल व्यस्तता दिखाएँ';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => 'साझा होने पर यह कार्य छिपाएँ';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => 'कार्य पिन करें';
 
   @override
   String get notes => 'नोट्स';
@@ -1192,82 +1192,82 @@ class AppLocalizationsHi extends AppLocalizations {
   String get addReminder => 'रिमाइंडर जोड़ें';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => 'रिमाइंडर';
 
   @override
-  String get noReminders => 'No reminders';
+  String get noReminders => 'कोई रिमाइंडर नहीं';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => 'रिमाइंडर संपादित करें';
 
   @override
-  String get beforeTaskStarts => 'Before the task starts';
+  String get beforeTaskStarts => 'कार्य शुरू होने से पहले';
 
   @override
-  String get beforeTaskDue => 'Before the task is due';
+  String get beforeTaskDue => 'कार्य की नियत तारीख से पहले';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => 'कार्य शुरू होने के बाद';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => 'कार्य की नियत तारीख के बाद';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => 'कार्य शुरू होने की तारीख के सापेक्ष';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => 'कार्य की नियत तारीख के सापेक्ष';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => 'दिन का समय';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => 'तारीख और समय पर';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => 'मात्रा';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => 'इकाई';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => 'सेकंड';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => 'मिनट';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => 'घंटे';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => 'दिन';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => 'सप्ताह';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => 'कार्य शुरू होने पर';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => 'कार्य की नियत तारीख पर';
 
   @override
   String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+      'यह रिमाइंडर प्रकार सुरक्षित है, लेकिन इसका समय संपादित नहीं किया जा सकता।';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => 'संबंधित रिमाइंडर रखें?';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    return 'इस तारीख पर $count संबंधित रिमाइंडर हैं। इन्हें उनकी मौजूदा तारीख और समय पर रखें?';
   }
 
   @override
-  String get discardRelatedReminders => 'Discard reminders';
+  String get discardRelatedReminders => 'रिमाइंडर हटाएँ';
 
   @override
-  String get keepRelatedReminders => 'Keep reminders';
+  String get keepRelatedReminders => 'रिमाइंडर रखें';
 
   @override
   String get addGuest => 'अतिथि जोड़ें';
@@ -1303,121 +1303,121 @@ class AppLocalizationsHi extends AppLocalizations {
   String get repeatYearly => 'हर वर्ष';
 
   @override
-  String get repeatEvery => 'Repeat every';
+  String get repeatEvery => 'दोहराव अंतराल';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => 'दोहराएँ';
 
   @override
-  String get repeatEnd => 'End repeat';
+  String get repeatEnd => 'दोहराव समाप्त करें';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => 'कभी नहीं';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => 'तारीख तक';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => 'कई बार दोहराने के बाद';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => 'दोहराव की संख्या';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => 'महीने के दिन';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => 'महीने';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => 'सप्ताह के दिन की स्थिति';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => 'विशिष्ट दिन';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => 'पहला';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => 'दूसरा';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => 'तीसरा';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => 'चौथा';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => 'पाँचवाँ';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => 'अंतिम से दूसरा';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => 'अंतिम';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => 'दिन';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => 'सप्ताह का दिन';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => 'सप्ताहांत का दिन';
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    return 'हर $count दिन';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    return 'हर $count सप्ताह';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    return 'हर $count महीने';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    return 'हर $count साल';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'on $days';
+    return '$days को';
   }
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'on day $days';
+    return 'महीने के $daysवें दिन';
   }
 
   @override
   String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+    return '$days के $ordinal दिन';
   }
 
   @override
   String repeatInMonthsSummary(String months) {
-    return 'in $months';
+    return '$months में';
   }
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count times';
+    return '$count बार';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return 'until $date';
+    return '$date तक';
   }
 
   @override
   String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+      'यह दोहराव नियम ऐसे विकल्पों का उपयोग करता है जिन्हें यह संपादक नहीं बदलता।';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
@@ -1477,21 +1477,21 @@ class AppLocalizationsHi extends AppLocalizations {
   String get subtasks => 'उपकार्य';
 
   @override
-  String get duplicateTask => 'Duplicate task';
+  String get duplicateTask => 'कार्य की प्रतिलिपि बनाएँ';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => 'कार्य की प्रतिलिपि बन गई।';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return 'कार्य की प्रतिलिपि नहीं बन सकी: $error';
   }
 
   @override
-  String get hideSubtasks => 'Hide subtasks';
+  String get hideSubtasks => 'उपकार्य छिपाएँ';
 
   @override
-  String get hideClosedSubtasks => 'Hide closed subtasks';
+  String get hideClosedSubtasks => 'बंद उपकार्य छिपाएँ';
 
   @override
   String get moveToTop => 'सबसे ऊपर ले जाएँ';
@@ -1752,7 +1752,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return 'एक लंबित स्थानीय बदलाव अवरुद्ध हो गया। $summary';
+    return 'लंबित स्थानीय बदलाव अवरुद्ध किया गया। $summary';
   }
 
   @override
@@ -1788,7 +1788,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get notificationSnoozeAction => '10 मिनट के लिए स्नूज़ करें';
 
   @override
-  String get notificationDismissAction => 'खारिज करें';
+  String get notificationDismissAction => 'बंद करें';
 
   @override
   String get notificationDetailsHidden =>
@@ -1844,14 +1844,14 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noLocationsFound => 'कोई स्थान नहीं मिला';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => 'यह फ़ील्ड आवश्यक है।';
 
   @override
   String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+      'इनमें से किसी प्रदाता से कैलेंडर और कार्य कनेक्ट करें।';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'Apple iCloud कैलेंडर';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -1860,188 +1860,188 @@ class AppLocalizationsHi extends AppLocalizations {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'Nextcloud कार्य';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => 'Apple iCloud Calendar खाता जोड़ें';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => 'Nextcloud खाता जोड़ें';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => 'Apple iCloud से कनेक्ट हो रहा है…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => 'Nextcloud प्राधिकरण की प्रतीक्षा है…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => 'Apple iCloud Calendar कनेक्ट करें';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'Apple खाते का ईमेल';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'ऐप-विशिष्ट पासवर्ड';
 
   @override
   String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+      'Apple खाते के लिए दो-चरणीय प्रमाणीकरण चालू करने के बाद ऐप-विशिष्ट पासवर्ड बनाएँ।';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      'Apple खाते का पासवर्ड रीसेट करने से ऐप-विशिष्ट पासवर्ड रद्द हो जाते हैं।';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => 'Nextcloud कनेक्ट करें';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'Nextcloud सर्वर या CalDAV पता';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      'Nextcloud सर्वर URL दर्ज करें या Nextcloud से कॉपी किया गया प्राथमिक CalDAV पता चिपकाएँ।';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax आपका ब्राउज़र खोलेगा। वहाँ पहुँच की अनुमति दें और फिर BusyMax पर लौटें।';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => 'कनेक्ट करें';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => 'कनेक्शन रद्द करें';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      'खाता स्थानीय रूप से हटाया गया, लेकिन Nextcloud ऐप पासवर्ड रद्द नहीं किया जा सका।';
 
   @override
   String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+      'ऑफ़लाइन उपयोग के लिए कैलेंडर और कार्य डेटा स्थानीय रूप से कैश किया जाता है।';
 
   @override
   String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+      'सिंक फिर से शुरू करने के लिए इस खाते को दोबारा कनेक्ट करें।';
 
   @override
   String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+      'यह खाता अस्थायी रूप से उपलब्ध नहीं है।';
 
   @override
   String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+      'सर्वर अनुमतियाँ बदल गई हैं। लंबित संपादन रोक दिए गए हैं।';
 
   @override
   String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+      'यह सर्वर या प्रदाता प्रोफ़ाइल समर्थित नहीं है।';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => 'कैलेंडर और कार्य सूचियाँ';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => 'कैलेंडर इवेंट';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => 'कार्य';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => 'केवल-पठन';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => 'स्थानीय रूप से लंबित';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => 'विरोध के कारण अवरुद्ध';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => 'दोबारा कनेक्ट होने तक अवरुद्ध';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => 'कार्रवाई विफल';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => 'सर्वर संस्करण रखें';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => 'स्थानीय बदलाव की समीक्षा कर फिर लागू करें';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => 'नए आइटम के रूप में कॉपी बनाएँ';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => 'कनेक्शन की स्थिति';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => 'कनेक्टेड';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => 'कनेक्ट हो रहा है…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => 'साइन आउट किया गया';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return 'अंतिम सफल सिंक: $time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => 'अभी तक सिंक नहीं हुआ';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => 'कैलेंडर और कार्य सूचियाँ रीफ़्रेश करें';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return 'सर्वर: $host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => 'इवेंट कैलेंडर';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => 'कार्य सूची';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => 'इवेंट और कार्य';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => 'लिखने योग्य';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => 'साझा';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return 'अंतिम सिंक: $time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return 'सिंक समस्या: $code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => 'सिंक विरोध';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return 'सर्वर में बदलाव: $time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return 'स्थानीय संपादन: $summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => 'विरोध का समाधान नहीं हो सका।';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => 'दोहराए जाने वाले इवेंट का दायरा';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => 'पूरी शृंखला';
 
   @override
   String get singleOccurrence => 'यह इवेंट';
@@ -2074,7 +2074,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      'चुनें कि यह बदलाव पूरी शृंखला, केवल इस इवेंट या इस और इसके बाद के इवेंट पर लागू हो।';
 
   @override
   String get taskDueBeforeStart => 'नियत समय प्रारंभ समय से पहले नहीं हो सकता।';
@@ -2107,178 +2107,180 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get calendarCannotRemove =>
-      'इस कैलेंडर को इस खाते से मिटाया या हटाया नहीं जा सकता।';
+      'इस कैलेंडर को इस खाते से हटाया या मिटाया नहीं जा सकता।';
 
   @override
   String get calendarPendingChangesPreventRemoval =>
-      'इस कैलेंडर को मिटाने या हटाने से पहले इसके लंबित बदलावों का सिंक पूरा होने दें।';
+      'कैलेंडर हटाने से पहले उसके लंबित बदलावों का सिंक पूरा होने की प्रतीक्षा करें।';
 
   @override
-  String get calendarSubscriptions => 'Calendar subscriptions';
+  String get calendarSubscriptions => 'कैलेंडर सदस्यताएँ';
 
   @override
   String get calendarSubscriptionsDescription =>
-      'Add read-only calendars that refresh from a secure WebCal URL.';
+      'सुरक्षित WebCal URL से रीफ़्रेश होने वाले केवल-पठन कैलेंडर जोड़ें।';
 
   @override
-  String get addCalendarSubscription => 'Add calendar subscription';
+  String get addCalendarSubscription => 'कैलेंडर सदस्यता जोड़ें';
 
   @override
-  String get subscriptionName => 'Local name';
+  String get subscriptionName => 'स्थानीय नाम';
 
   @override
-  String get subscriptionUrl => 'Subscription URL';
+  String get subscriptionUrl => 'सदस्यता URL';
 
   @override
   String get subscriptionUrlHelp =>
-      'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.';
+      'HTTPS या webcal URL दर्ज करें। BusyMax पूरा URL सुरक्षित संग्रहण में रखता है।';
 
   @override
   String get subscriptionUrlInvalid =>
-      'Enter a valid HTTPS or webcal URL without user information or a fragment.';
+      'उपयोगकर्ता जानकारी या फ़्रैगमेंट के बिना मान्य HTTPS या webcal URL दर्ज करें।';
 
   @override
-  String get subscriptionColor => 'Local color';
+  String get subscriptionColor => 'स्थानीय रंग';
 
   @override
-  String get subscriptionColorHelp => 'Use a six-digit color such as #3584E4.';
+  String get subscriptionColorHelp =>
+      '#3584E4 जैसे छह अंकों वाले रंग का उपयोग करें।';
 
   @override
-  String get subscriptionColorInvalid => 'Enter a six-digit hexadecimal color.';
+  String get subscriptionColorInvalid =>
+      'छह अंकों वाला हेक्साडेसिमल रंग दर्ज करें।';
 
   @override
-  String get subscriptionRefreshMode => 'Refresh frequency';
+  String get subscriptionRefreshMode => 'रीफ़्रेश आवृत्ति';
 
   @override
-  String get subscriptionAutomatic => 'Automatic';
+  String get subscriptionAutomatic => 'स्वचालित';
 
   @override
-  String get subscriptionHourly => 'Hourly';
+  String get subscriptionHourly => 'हर घंटे';
 
   @override
-  String get subscriptionSixHours => 'Every six hours';
+  String get subscriptionSixHours => 'हर छह घंटे';
 
   @override
-  String get subscriptionDaily => 'Daily';
+  String get subscriptionDaily => 'हर दिन';
 
   @override
   String subscriptionSafeOrigin(String origin) {
-    return 'Source: $origin';
+    return 'स्रोत: $origin';
   }
 
   @override
   String get subscriptionSafeOriginUnavailable =>
-      'Enter a valid URL to preview its safe origin.';
+      'सुरक्षित स्रोत का पूर्वावलोकन करने के लिए मान्य URL दर्ज करें।';
 
   @override
-  String get subscriptionReadOnly => 'Read-only subscription';
+  String get subscriptionReadOnly => 'केवल-पठन सदस्यता';
 
   @override
-  String get subscriptionNeverRefreshed => 'Not refreshed yet';
+  String get subscriptionNeverRefreshed => 'अभी तक रीफ़्रेश नहीं हुआ';
 
   @override
   String subscriptionLastRefresh(String time) {
-    return 'Last successful refresh: $time';
+    return 'अंतिम सफल रीफ़्रेश: $time';
   }
 
   @override
   String subscriptionNextRefresh(String time) {
-    return 'Next refresh: $time';
+    return 'अगला रीफ़्रेश: $time';
   }
 
   @override
-  String get subscriptionStatusHealthy => 'Up to date';
+  String get subscriptionStatusHealthy => 'अप टू डेट';
 
   @override
   String subscriptionStatusIssue(String code) {
-    return 'Refresh issue: $code';
+    return 'रीफ़्रेश समस्या: $code';
   }
 
   @override
-  String get refreshNow => 'Refresh now';
+  String get refreshNow => 'अभी रीफ़्रेश करें';
 
   @override
-  String get unsubscribe => 'Unsubscribe';
+  String get unsubscribe => 'सदस्यता रद्द करें';
 
   @override
   String unsubscribeCalendarTitle(String name) {
-    return 'Unsubscribe from “$name”?';
+    return '“$name” की सदस्यता रद्द करें?';
   }
 
   @override
   String get unsubscribeCalendarConfirmation =>
-      'This removes the local subscription and its cached events. The published calendar is not changed.';
+      'इससे स्थानीय सदस्यता और कैश किए गए इवेंट हट जाएँगे। प्रकाशित कैलेंडर नहीं बदलेगा।';
 
   @override
-  String get addSubscriptionAction => 'Add subscription';
+  String get addSubscriptionAction => 'सदस्यता जोड़ें';
 
   @override
   String subscriptionOperationFailed(String error) {
-    return 'Calendar subscription failed: $error';
+    return 'कैलेंडर सदस्यता विफल: $error';
   }
 
   @override
-  String get subscriptions => 'Subscriptions';
+  String get subscriptions => 'सदस्यताएँ';
 
   @override
   String get calendarImport => 'कैलेंडर आयात';
 
   @override
   String get calendarImportDescription =>
-      'फ़ाइल चुनें, उसके इवेंट की समीक्षा करें, फिर वह लिखने योग्य कैलेंडर चुनें जिसमें उन्हें आयात करना है।';
+      'फ़ाइल चुनें, उसके इवेंट की समीक्षा करें और फिर वह लिखने योग्य कैलेंडर चुनें जिसे उन्हें प्राप्त करना चाहिए।';
 
   @override
-  String get importIcsFile => 'Import .ics file';
+  String get importIcsFile => '.ics फ़ाइल आयात करें';
 
   @override
-  String get importIcsPreview => 'Import calendar events';
+  String get importIcsPreview => 'कैलेंडर इवेंट आयात करें';
 
   @override
   String importEventsFound(int count) {
-    return 'Importable event sets: $count';
+    return 'आयात योग्य इवेंट सेट: $count';
   }
 
   @override
   String importInvalidEvents(int count) {
-    return 'Invalid events: $count';
+    return 'अमान्य इवेंट: $count';
   }
 
   @override
   String importFieldsOmitted(String fields) {
-    return 'Intentionally omitted: $fields';
+    return 'जानबूझकर छोड़े गए: $fields';
   }
 
   @override
   String get noWritableCalendars =>
-      'No writable destination calendar is available.';
+      'कोई लिखने योग्य गंतव्य कैलेंडर उपलब्ध नहीं है।';
 
   @override
-  String get importDestinationCalendar => 'Destination calendar';
+  String get importDestinationCalendar => 'गंतव्य कैलेंडर';
 
   @override
-  String get importIcsConfirm => 'Import events';
+  String get importIcsConfirm => 'इवेंट आयात करें';
 
   @override
-  String get importIcsComplete => 'Import complete';
+  String get importIcsComplete => 'आयात पूरा हुआ';
 
   @override
   String importQueued(int count) {
-    return 'Imported or queued: $count';
+    return 'आयातित या कतार में: $count';
   }
 
   @override
   String importDuplicatesSkipped(int count) {
-    return 'Duplicates skipped: $count';
+    return 'डुप्लिकेट छोड़े गए: $count';
   }
 
   @override
   String importUnsupportedSets(int count) {
-    return 'Unsupported recurrence sets: $count';
+    return 'असमर्थित दोहराव सेट: $count';
   }
 
   @override
   String importIcsFailed(String error) {
-    return 'Could not import the calendar file: $error';
+    return 'कैलेंडर फ़ाइल आयात नहीं की जा सकी: $error';
   }
 
   @override

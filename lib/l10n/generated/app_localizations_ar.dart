@@ -17,7 +17,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      'اربط حسابات Google أو Microsoft أو تقويم Apple iCloud أو Nextcloud.';
 
   @override
   String get googlePermissionsConsentNotice =>
@@ -41,7 +41,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      'أضف كل الحسابات التي تريد استخدامها. يزامن BusyMax التقويمات والأحداث وقوائم المهام والمهام المدعومة من كل حساب.';
 
   @override
   String get onboardingPreferencesStepTitle => 'اختيار إعدادات النظام';
@@ -218,68 +218,72 @@ class AppLocalizationsAr extends AppLocalizations {
   String get trayOpenBusyMax => 'فتح BusyMax';
 
   @override
-  String get trayShowBusyMax => 'Show BusyMax';
+  String get trayShowBusyMax => 'إظهار BusyMax';
 
   @override
-  String get trayNewEvent => 'New event…';
+  String get trayNewEvent => 'حدث جديد…';
 
   @override
-  String get trayNewTask => 'New task…';
+  String get trayNewTask => 'مهمة جديدة…';
 
   @override
-  String get trayToday => 'Today';
+  String get trayToday => 'اليوم';
 
   @override
-  String get trayAllDay => 'All day';
+  String get trayAllDay => 'طوال اليوم';
 
   @override
-  String get trayNow => 'Now';
+  String get trayNow => 'الآن';
 
   @override
-  String get trayCalendarEvent => 'Calendar event';
+  String get trayCalendarEvent => 'حدث في التقويم';
 
   @override
-  String get trayUntitledEvent => 'Untitled event';
+  String get trayUntitledEvent => 'حدث بلا عنوان';
 
   @override
-  String get trayNothingElseToday => 'Nothing else today';
+  String get trayNothingElseToday => 'لا شيء آخر اليوم';
 
   @override
   String trayTasksDueToday(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count tasks due today',
-      one: '1 task due today',
+      other: '$count مهمة مستحقة اليوم',
+      many: '$count مهمة مستحقة اليوم',
+      few: '$count مهام مستحقة اليوم',
+      two: 'مهمتان مستحقتان اليوم',
+      one: 'مهمة واحدة مستحقة اليوم',
+      zero: 'لا توجد مهام مستحقة اليوم',
     );
     return '$_temp0';
   }
 
   @override
-  String get trayOpenTodayAgenda => 'Open today’s agenda';
+  String get trayOpenTodayAgenda => 'فتح جدول أعمال اليوم';
 
   @override
-  String get traySyncNow => 'Sync now';
+  String get traySyncNow => 'مزامنة الآن';
 
   @override
-  String get traySyncing => 'Syncing…';
+  String get traySyncing => 'جارٍ العمل على المزامنة…';
 
   @override
-  String get trayNotConnected => 'Not connected';
+  String get trayNotConnected => 'غير متصل';
 
   @override
-  String get trayNotYetSynced => 'Not yet synced';
+  String get trayNotYetSynced => 'لم تتم المزامنة بعد';
 
   @override
-  String get trayLastSyncedJustNow => 'Last synced just now';
+  String get trayLastSyncedJustNow => 'تمت المزامنة للتو';
 
   @override
   String trayLastSyncedMinutesAgo(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count minutes ago',
-      one: 'Last synced 1 minute ago',
+      other: 'تمت المزامنة قبل $count دقائق',
+      one: 'تمت المزامنة قبل دقيقة واحدة',
     );
     return '$_temp0';
   }
@@ -289,8 +293,8 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count hours ago',
-      one: 'Last synced 1 hour ago',
+      other: 'تمت المزامنة قبل $count ساعات',
+      one: 'تمت المزامنة قبل ساعة واحدة',
     );
     return '$_temp0';
   }
@@ -300,17 +304,17 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count days ago',
-      one: 'Last synced 1 day ago',
+      other: 'تمت المزامنة قبل $count أيام',
+      one: 'تمت المزامنة قبل يوم واحد',
     );
     return '$_temp0';
   }
 
   @override
-  String get traySettings => 'Settings';
+  String get traySettings => 'الإعدادات';
 
   @override
-  String get trayQuitBusyMax => 'Quit BusyMax';
+  String get trayQuitBusyMax => 'إنهاء BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'تحميل المزيد من المهام المتأخرة';
@@ -392,130 +396,129 @@ class AppLocalizationsAr extends AppLocalizations {
   String get guests => 'المدعوون';
 
   @override
-  String get noGuests => 'لا يوجد مدعوون';
+  String get noGuests => 'لا يوجد ضيوف';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => 'مطلوب';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => 'اختياري';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => 'الاجتماع';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => 'إضافة Google Meet';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => 'إضافة اجتماع Microsoft Teams';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => 'تمت إضافة الاجتماع عبر الإنترنت';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => 'طلب الردود';
 
   @override
-  String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+  String get requestResponsesDescription => 'اطلب من الضيوف الرد على الدعوة.';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => 'إخفاء قائمة الضيوف';
 
   @override
   String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+      'لا يمكن للضيوف رؤية المدعوين الآخرين.';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => 'السماح باقتراح أوقات جديدة';
 
   @override
   String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+      'يمكن للضيوف اقتراح وقت مختلف للاجتماع.';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => 'إبلاغ الضيوف؟';
 
   @override
   String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+      'يضم هذا الاجتماع ضيوفًا. هل تريد إرسال الدعوات أو تحديثات الحدث عند حفظه؟';
 
   @override
   String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+      'يضم هذا الاجتماع ضيوفًا. هل تريد إرسال إلغاء عند حذفه؟';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => 'إرسال التحديثات';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => 'إرسال الإلغاء';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => 'عدم الإرسال';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => 'حفظ الاجتماع؟';
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+      'سترسل Microsoft الدعوات أو تحديثات الحدث إلى الضيوف.';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => 'حذف الاجتماع؟';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+      'سترسل Microsoft إلغاءً إلى الضيوف.';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => 'المنظّم';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => 'ردك';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => 'ردود الضيوف';
 
   @override
-  String get respond => 'Respond';
+  String get respond => 'الرد';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => 'قبول';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => 'مبدئي';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => 'رفض';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => 'الانضمام إلى الاجتماع';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => 'مقبول';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => 'مبدئي';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => 'مرفوض';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => 'بانتظار الرد';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => 'لم يتم الرد';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => 'المنظّم';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return 'تعذّر إرسال ردك: $error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => 'تعذّر فتح رابط الاجتماع.';
 
   @override
   String get description => 'الوصف';
@@ -873,12 +876,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return 'إزالة ⁨$account⁩ من BusyMax؟';
+    return 'إزالة $account من BusyMax؟';
   }
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      'سيؤدي هذا إلى حذف المهام والتقويمات والأحداث والتذكيرات والتغييرات غير المتصلة المخزنة مؤقتًا من هذا الجهاز. ستُفقد التغييرات التي لم تتم مزامنتها، ولن تُحذف نسخ التقويمات والأحداث وقوائم المهام والمهام لدى موفّر الخدمة.';
 
   @override
   String get revokeGoogleAccess =>
@@ -903,17 +906,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return 'تعذّر إنشاء قائمة المهام: $error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return 'تعذّر إعادة تسمية قائمة المهام: $error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return 'تعذّر حذف قائمة المهام: $error';
   }
 
   @override
@@ -942,11 +945,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+      'قائمة المهام هذه للقراءة فقط ولا يمكن إعادة تسميتها.';
 
   @override
   String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+      'لا يمكن حذف قائمة المهام هذه باستخدام أذوناتك الحالية.';
 
   @override
   String get builtInMicrosoftList => 'مدمجة';
@@ -957,17 +960,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return 'حذف «⁨$title⁩» من Google Tasks؟';
+    return 'حذف \"$title\" من Google Tasks؟';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return 'حذف \"$title\" وجميع مهامها؟';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return 'إلغاء مشاركة \"$title\" من هذا الحساب؟';
   }
 
   @override
@@ -1089,75 +1092,75 @@ class AppLocalizationsAr extends AppLocalizations {
   String get openStatus => 'مفتوحة';
 
   @override
-  String get doneStatus => 'منجزة';
+  String get doneStatus => 'منجز';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => 'الحالة';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => 'بلا حالة';
 
   @override
   String get taskStatusNeedsAction => 'تحتاج إلى إجراء';
 
   @override
-  String get taskStatusInProcess => 'تحت الإجراء';
+  String get taskStatusInProcess => 'قيد التنفيذ';
 
   @override
-  String get taskStatusCompleted => 'مُكتمِل';
+  String get taskStatusCompleted => 'مكتملة';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => 'ملغاة';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    return 'اكتمل بنسبة $percent٪';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => 'تاريخ الإكمال';
 
   @override
   String get priority => 'الأولوية';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => 'بلا أولوية';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    return 'الأولوية $priority · عالية';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    return 'الأولوية $priority · متوسطة';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    return 'الأولوية $priority · منخفضة';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => 'URL المهمة';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => 'أدخل عنوان URL مطلقًا يتضمن مخططه.';
 
   @override
-  String get classification => 'Classification';
+  String get classification => 'التصنيف';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => 'عند المشاركة، أظهر المهمة كاملة';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential => 'عند المشاركة، أظهر الانشغال فقط';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => 'عند المشاركة، أخفِ هذه المهمة';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => 'تثبيت المهمة';
 
   @override
   String get notes => 'ملاحظات';
@@ -1196,82 +1199,82 @@ class AppLocalizationsAr extends AppLocalizations {
   String get addReminder => 'إضافة تذكير';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => 'التذكيرات';
 
   @override
-  String get noReminders => 'لا توجد أي تذكيرات';
+  String get noReminders => 'لا توجد تذكيرات';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => 'تعديل التذكير';
 
   @override
-  String get beforeTaskStarts => 'قبل أن تبدأ المهمة';
+  String get beforeTaskStarts => 'قبل بدء المهمة';
 
   @override
-  String get beforeTaskDue => 'قبل اكتمال المهمة';
+  String get beforeTaskDue => 'قبل موعد استحقاق المهمة';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => 'بعد بدء المهمة';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => 'بعد استحقاق المهمة';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => 'بالنسبة إلى تاريخ بدء المهمة';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => 'بالنسبة إلى تاريخ استحقاق المهمة';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => 'وقت اليوم';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => 'في تاريخ ووقت';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => 'الكمية';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => 'الوحدة';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => 'ثوانٍ';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => 'دقائق';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => 'ساعات';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => 'أيام';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => 'أسابيع';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => 'عند بدء المهمة';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => 'عند وقت استحقاق المهمة';
 
   @override
   String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+      'يُحتفظ بنوع هذا التذكير، لكن لا يمكن تعديل وقته.';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => 'الاحتفاظ بالتذكيرات المرتبطة؟';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    return 'يحتوي هذا التاريخ على $count من التذكيرات المرتبطة. هل تريد الاحتفاظ بها في تاريخها ووقتها الحاليين؟';
   }
 
   @override
-  String get discardRelatedReminders => 'Discard reminders';
+  String get discardRelatedReminders => 'تجاهل التذكيرات';
 
   @override
-  String get keepRelatedReminders => 'Keep reminders';
+  String get keepRelatedReminders => 'الاحتفاظ بالتذكيرات';
 
   @override
   String get addGuest => 'إضافة مدعو';
@@ -1307,106 +1310,106 @@ class AppLocalizationsAr extends AppLocalizations {
   String get repeatYearly => 'سنويًا';
 
   @override
-  String get repeatEvery => 'تكرار كل';
+  String get repeatEvery => 'الفاصل الزمني';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => 'التكرار في';
 
   @override
-  String get repeatEnd => 'نهاية التكرار';
+  String get repeatEnd => 'إنهاء التكرار';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => 'مطلقًا';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => 'في تاريخ';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => 'بعد عدد من التكرارات';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => 'عدد التكرارات';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => 'أيام الشهر';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => 'الأشهر';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => 'ترتيب يوم الأسبوع';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => 'أيام محددة';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => 'الأول';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => 'الثاني';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => 'الثالث';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => 'الرابع';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => 'الخامس';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => 'ما قبل الأخير';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => 'الأخير';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => 'اليوم';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => 'يوم من أيام الأسبوع';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => 'يوم عطلة نهاية الأسبوع';
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    return 'كل $count أيام';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    return 'كل $count أسابيع';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    return 'كل $count أشهر';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    return 'كل $count سنوات';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'on $days';
+    return 'في $days';
   }
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'في يوم $days';
+    return 'في اليوم $days من الشهر';
   }
 
   @override
   String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+    return 'في $ordinal $days';
   }
 
   @override
   String repeatInMonthsSummary(String months) {
-    return 'in $months';
+    return 'في $months';
   }
 
   @override
@@ -1416,12 +1419,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatUntilSummary(String date) {
-    return 'until $date';
+    return 'حتى $date';
   }
 
   @override
   String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+      'تستخدم قاعدة التكرار هذه خيارات لا يغيّرها هذا المحرر.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
@@ -1481,21 +1484,21 @@ class AppLocalizationsAr extends AppLocalizations {
   String get subtasks => 'مهام فرعية';
 
   @override
-  String get duplicateTask => 'Duplicate task';
+  String get duplicateTask => 'تكرار المهمة';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => 'تم تكرار المهمة.';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return 'تعذّر تكرار المهمة: $error';
   }
 
   @override
-  String get hideSubtasks => 'إخْفِ المهام الفرعية';
+  String get hideSubtasks => 'إخفاء المهام الفرعية';
 
   @override
-  String get hideClosedSubtasks => 'إخف المهام الفرعية المغلقة';
+  String get hideClosedSubtasks => 'إخفاء المهام الفرعية المغلقة';
 
   @override
   String get moveToTop => 'نقل إلى الأعلى';
@@ -1756,7 +1759,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return 'تم حظر تغيير محلي معلّق. ⁨$summary⁩';
+    return 'تم حظر تغيير محلي معلق. $summary';
   }
 
   @override
@@ -1796,7 +1799,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get notificationSnoozeAction => 'غفوة لمدة 10 دقائق';
 
   @override
-  String get notificationDismissAction => 'تجاهل';
+  String get notificationDismissAction => 'إغلاق';
 
   @override
   String get notificationDetailsHidden =>
@@ -1850,20 +1853,20 @@ class AppLocalizationsAr extends AppLocalizations {
   String get selectTimeZone => 'اختيار المنطقة الزمنية';
 
   @override
-  String get searchLocations => 'البحث عن مواقع';
+  String get searchLocations => 'البحث عن المواقع';
 
   @override
   String get noLocationsFound => 'لم يتم العثور على مواقع';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => 'هذا الحقل مطلوب.';
 
   @override
   String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+      'اربط التقويمات والمهام من أحد موفّري الخدمة هؤلاء.';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'تقويم Apple iCloud';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -1872,188 +1875,187 @@ class AppLocalizationsAr extends AppLocalizations {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'مهام Nextcloud';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => 'إضافة حساب تقويم Apple iCloud';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => 'إضافة حساب Nextcloud';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => 'جارٍ الاتصال بـ Apple iCloud…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => 'بانتظار تفويض Nextcloud…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => 'ربط تقويم Apple iCloud';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'البريد الإلكتروني لحساب Apple';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'كلمة مرور خاصة بالتطبيق';
 
   @override
   String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+      'أنشئ كلمة مرور خاصة بالتطبيق بعد تفعيل المصادقة الثنائية لحساب Apple.';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      'تؤدي إعادة تعيين كلمة مرور حساب Apple إلى إبطال كلمات المرور الخاصة بالتطبيقات.';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => 'ربط Nextcloud';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'خادم Nextcloud أو عنوان CalDAV';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      'أدخل عنوان URL لخادم Nextcloud أو الصق عنوان CalDAV الأساسي المنسوخ من Nextcloud.';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'سيفتح BusyMax متصفحك. وافق على الوصول هناك، ثم عد إلى BusyMax.';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => 'ربط';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => 'إلغاء الربط';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      'تمت إزالة الحساب محليًا، لكن تعذّر إبطال كلمة مرور تطبيق Nextcloud.';
 
   @override
   String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+      'تُخزّن بيانات التقويم والمهام محليًا للاستخدام دون اتصال.';
 
   @override
   String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+      'أعد ربط هذا الحساب لاستئناف المزامنة.';
 
   @override
-  String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+  String get davTemporarilyUnavailable => 'هذا الحساب غير متاح مؤقتًا.';
 
   @override
   String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+      'تغيّرت أذونات الخادم. تم إيقاف التعديلات المعلقة مؤقتًا.';
 
   @override
   String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+      'هذا الخادم أو ملف موفّر الخدمة غير مدعوم.';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => 'التقويمات وقوائم المهام';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => 'أحداث التقويم';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => 'المهام';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => 'للقراءة فقط';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => 'معلق محليًا';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => 'محظور بسبب تعارض';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => 'محظور حتى إعادة الاتصال';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => 'فشلت العملية';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => 'الاحتفاظ بإصدار الخادم';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => 'مراجعة التغيير المحلي وإعادة تطبيقه';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => 'تكرار كعنصر جديد';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => 'حالة الاتصال';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => 'متصل';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => 'جارٍ الاتصال…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => 'تم تسجيل الخروج';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return 'آخر مزامنة ناجحة: $time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => 'لم تتم المزامنة بعد';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => 'تحديث التقويمات وقوائم المهام';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return 'الخادم: $host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => 'تقويم أحداث';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => 'قائمة مهام';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => 'الأحداث والمهام';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => 'قابل للكتابة';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => 'مشترك';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return 'آخر مزامنة: $time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return 'مشكلة في المزامنة: $code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => 'تعارضات المزامنة';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return 'غيّر الخادم في: $time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return 'تعديل محلي: $summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => 'تعذّر حل التعارض.';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => 'نطاق الحدث المتكرر';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => 'السلسلة بأكملها';
 
   @override
   String get singleOccurrence => 'هذا الحدث';
@@ -2085,7 +2087,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      'اختر ما إذا كان هذا التغيير ينطبق على السلسلة بأكملها، أو هذا الحدث فقط، أو هذا الحدث والأحداث التالية.';
 
   @override
   String get taskDueBeforeStart => 'يجب ألا يكون موعد الاستحقاق قبل وقت البدء.';
@@ -2122,174 +2124,174 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get calendarPendingChangesPreventRemoval =>
-      'انتظر حتى تنتهي مزامنة التغييرات المعلّقة لهذا التقويم قبل حذفه أو إزالته.';
+      'انتظر حتى تنتهي مزامنة التغييرات المعلقة لهذا التقويم قبل حذفه أو إزالته.';
 
   @override
-  String get calendarSubscriptions => 'Calendar subscriptions';
+  String get calendarSubscriptions => 'اشتراكات التقويم';
 
   @override
   String get calendarSubscriptionsDescription =>
-      'Add read-only calendars that refresh from a secure WebCal URL.';
+      'أضف تقاويم للقراءة فقط يتم تحديثها من عنوان WebCal آمن.';
 
   @override
-  String get addCalendarSubscription => 'Add calendar subscription';
+  String get addCalendarSubscription => 'إضافة اشتراك تقويم';
 
   @override
-  String get subscriptionName => 'Local name';
+  String get subscriptionName => 'الاسم المحلي';
 
   @override
-  String get subscriptionUrl => 'Subscription URL';
+  String get subscriptionUrl => 'عنوان URL للاشتراك';
 
   @override
   String get subscriptionUrlHelp =>
-      'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.';
+      'أدخل عنوان HTTPS أو webcal. يحتفظ BusyMax بعنوان URL الكامل في التخزين الآمن.';
 
   @override
   String get subscriptionUrlInvalid =>
-      'Enter a valid HTTPS or webcal URL without user information or a fragment.';
+      'أدخل عنوان HTTPS أو webcal صالحًا من دون معلومات مستخدم أو جزء.';
 
   @override
-  String get subscriptionColor => 'Local color';
+  String get subscriptionColor => 'اللون المحلي';
 
   @override
-  String get subscriptionColorHelp => 'Use a six-digit color such as #3584E4.';
+  String get subscriptionColorHelp => 'استخدم لونًا من ستة أرقام مثل #3584E4.';
 
   @override
-  String get subscriptionColorInvalid => 'Enter a six-digit hexadecimal color.';
+  String get subscriptionColorInvalid =>
+      'أدخل لونًا سداسيًا عشريًا من ستة أرقام.';
 
   @override
-  String get subscriptionRefreshMode => 'Refresh frequency';
+  String get subscriptionRefreshMode => 'تكرار التحديث';
 
   @override
-  String get subscriptionAutomatic => 'Automatic';
+  String get subscriptionAutomatic => 'تلقائي';
 
   @override
-  String get subscriptionHourly => 'Hourly';
+  String get subscriptionHourly => 'كل ساعة';
 
   @override
-  String get subscriptionSixHours => 'Every six hours';
+  String get subscriptionSixHours => 'كل ست ساعات';
 
   @override
-  String get subscriptionDaily => 'Daily';
+  String get subscriptionDaily => 'يوميًا';
 
   @override
   String subscriptionSafeOrigin(String origin) {
-    return 'Source: $origin';
+    return 'المصدر: $origin';
   }
 
   @override
   String get subscriptionSafeOriginUnavailable =>
-      'Enter a valid URL to preview its safe origin.';
+      'أدخل عنوان URL صالحًا لمعاينة مصدره الآمن.';
 
   @override
-  String get subscriptionReadOnly => 'Read-only subscription';
+  String get subscriptionReadOnly => 'اشتراك للقراءة فقط';
 
   @override
-  String get subscriptionNeverRefreshed => 'Not refreshed yet';
+  String get subscriptionNeverRefreshed => 'لم يتم التحديث بعد';
 
   @override
   String subscriptionLastRefresh(String time) {
-    return 'Last successful refresh: $time';
+    return 'آخر تحديث ناجح: $time';
   }
 
   @override
   String subscriptionNextRefresh(String time) {
-    return 'Next refresh: $time';
+    return 'التحديث التالي: $time';
   }
 
   @override
-  String get subscriptionStatusHealthy => 'Up to date';
+  String get subscriptionStatusHealthy => 'محدّث';
 
   @override
   String subscriptionStatusIssue(String code) {
-    return 'Refresh issue: $code';
+    return 'مشكلة في التحديث: $code';
   }
 
   @override
-  String get refreshNow => 'Refresh now';
+  String get refreshNow => 'تحديث الآن';
 
   @override
-  String get unsubscribe => 'Unsubscribe';
+  String get unsubscribe => 'إلغاء الاشتراك';
 
   @override
   String unsubscribeCalendarTitle(String name) {
-    return 'Unsubscribe from “$name”?';
+    return 'إلغاء الاشتراك من «$name»؟';
   }
 
   @override
   String get unsubscribeCalendarConfirmation =>
-      'This removes the local subscription and its cached events. The published calendar is not changed.';
+      'يؤدي هذا إلى إزالة الاشتراك المحلي والأحداث المخزنة مؤقتًا. لن يتغير التقويم المنشور.';
 
   @override
-  String get addSubscriptionAction => 'Add subscription';
+  String get addSubscriptionAction => 'إضافة اشتراك';
 
   @override
   String subscriptionOperationFailed(String error) {
-    return 'Calendar subscription failed: $error';
+    return 'فشل اشتراك التقويم: $error';
   }
 
   @override
-  String get subscriptions => 'Subscriptions';
+  String get subscriptions => 'الاشتراكات';
 
   @override
   String get calendarImport => 'استيراد التقويم';
 
   @override
   String get calendarImportDescription =>
-      'حدّد ملفًا وراجع أحداثه، ثم اختر التقويم القابل للكتابة الذي سيتلقاها.';
+      'حدد ملفًا، وراجع أحداثه، ثم اختر التقويم القابل للكتابة الذي ينبغي أن يستقبلها.';
 
   @override
-  String get importIcsFile => 'Import .ics file';
+  String get importIcsFile => 'استيراد ملف ‎.ics';
 
   @override
-  String get importIcsPreview => 'Import calendar events';
+  String get importIcsPreview => 'استيراد أحداث التقويم';
 
   @override
   String importEventsFound(int count) {
-    return 'Importable event sets: $count';
+    return 'مجموعات أحداث قابلة للاستيراد: $count';
   }
 
   @override
   String importInvalidEvents(int count) {
-    return 'Invalid events: $count';
+    return 'أحداث غير صالحة: $count';
   }
 
   @override
   String importFieldsOmitted(String fields) {
-    return 'Intentionally omitted: $fields';
+    return 'تم الاستبعاد عمدًا: $fields';
   }
 
   @override
-  String get noWritableCalendars =>
-      'No writable destination calendar is available.';
+  String get noWritableCalendars => 'لا يوجد تقويم وجهة قابل للكتابة.';
 
   @override
-  String get importDestinationCalendar => 'Destination calendar';
+  String get importDestinationCalendar => 'تقويم الوجهة';
 
   @override
-  String get importIcsConfirm => 'Import events';
+  String get importIcsConfirm => 'استيراد الأحداث';
 
   @override
-  String get importIcsComplete => 'Import complete';
+  String get importIcsComplete => 'اكتمل الاستيراد';
 
   @override
   String importQueued(int count) {
-    return 'Imported or queued: $count';
+    return 'تم الاستيراد أو وضعه في قائمة الانتظار: $count';
   }
 
   @override
   String importDuplicatesSkipped(int count) {
-    return 'Duplicates skipped: $count';
+    return 'تم تخطي التكرارات: $count';
   }
 
   @override
   String importUnsupportedSets(int count) {
-    return 'Unsupported recurrence sets: $count';
+    return 'مجموعات تكرار غير مدعومة: $count';
   }
 
   @override
   String importIcsFailed(String error) {
-    return 'Could not import the calendar file: $error';
+    return 'تعذّر استيراد ملف التقويم: $error';
   }
 
   @override

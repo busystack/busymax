@@ -17,7 +17,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      'Ühenda Google’i, Microsofti, Apple iCloud Calendari või Nextcloudi kontod.';
 
   @override
   String get googlePermissionsConsentNotice =>
@@ -41,7 +41,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      'Lisa kõik kontod, mida soovid kasutada. BusyMax sünkroonib igast kontost toetatud kalendreid, sündmusi, ülesandeloendeid ja ülesandeid.';
 
   @override
   String get onboardingPreferencesStepTitle => 'Süsteemiseadete valimine';
@@ -219,68 +219,68 @@ class AppLocalizationsEt extends AppLocalizations {
   String get trayOpenBusyMax => 'Ava BusyMax';
 
   @override
-  String get trayShowBusyMax => 'Show BusyMax';
+  String get trayShowBusyMax => 'Näita BusyMaxi';
 
   @override
-  String get trayNewEvent => 'New event…';
+  String get trayNewEvent => 'Uus sündmus…';
 
   @override
-  String get trayNewTask => 'New task…';
+  String get trayNewTask => 'Uus ülesanne…';
 
   @override
-  String get trayToday => 'Today';
+  String get trayToday => 'Täna';
 
   @override
-  String get trayAllDay => 'All day';
+  String get trayAllDay => 'Kogu päev';
 
   @override
-  String get trayNow => 'Now';
+  String get trayNow => 'Praegu';
 
   @override
-  String get trayCalendarEvent => 'Calendar event';
+  String get trayCalendarEvent => 'Kalendrisündmus';
 
   @override
-  String get trayUntitledEvent => 'Untitled event';
+  String get trayUntitledEvent => 'Pealkirjata sündmus';
 
   @override
-  String get trayNothingElseToday => 'Nothing else today';
+  String get trayNothingElseToday => 'Täna pole rohkem midagi';
 
   @override
   String trayTasksDueToday(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count tasks due today',
-      one: '1 task due today',
+      other: 'Täna on tähtajaks $count ülesannet',
+      one: 'Täna on tähtajaks 1 ülesanne',
     );
     return '$_temp0';
   }
 
   @override
-  String get trayOpenTodayAgenda => 'Open today’s agenda';
+  String get trayOpenTodayAgenda => 'Ava tänane päevakava';
 
   @override
-  String get traySyncNow => 'Sync now';
+  String get traySyncNow => 'Sünkrooni kohe';
 
   @override
-  String get traySyncing => 'Syncing…';
+  String get traySyncing => 'Sünkroonimine…';
 
   @override
-  String get trayNotConnected => 'Not connected';
+  String get trayNotConnected => 'Pole ühendatud';
 
   @override
-  String get trayNotYetSynced => 'Not yet synced';
+  String get trayNotYetSynced => 'Veel sünkroonimata';
 
   @override
-  String get trayLastSyncedJustNow => 'Last synced just now';
+  String get trayLastSyncedJustNow => 'Viimati sünkrooniti just nüüd';
 
   @override
   String trayLastSyncedMinutesAgo(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count minutes ago',
-      one: 'Last synced 1 minute ago',
+      other: 'Viimati sünkrooniti $count minutit tagasi',
+      one: 'Viimati sünkrooniti 1 minut tagasi',
     );
     return '$_temp0';
   }
@@ -290,8 +290,8 @@ class AppLocalizationsEt extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count hours ago',
-      one: 'Last synced 1 hour ago',
+      other: 'Viimati sünkrooniti $count tundi tagasi',
+      one: 'Viimati sünkrooniti 1 tund tagasi',
     );
     return '$_temp0';
   }
@@ -301,17 +301,17 @@ class AppLocalizationsEt extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Last synced $count days ago',
-      one: 'Last synced 1 day ago',
+      other: 'Viimati sünkrooniti $count päeva tagasi',
+      one: 'Viimati sünkrooniti 1 päev tagasi',
     );
     return '$_temp0';
   }
 
   @override
-  String get traySettings => 'Settings';
+  String get traySettings => 'Seaded';
 
   @override
-  String get trayQuitBusyMax => 'Quit BusyMax';
+  String get trayQuitBusyMax => 'Välju BusyMaxist';
 
   @override
   String get agendaLoadMoreOverdue => 'Laadi veel tähtaja ületanud ülesandeid';
@@ -396,127 +396,125 @@ class AppLocalizationsEt extends AppLocalizations {
   String get noGuests => 'Külalisi pole';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => 'Nõutud';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => 'Valikuline';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => 'Koosolek';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => 'Lisa Google Meet';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => 'Lisa Microsoft Teamsi koosolek';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => 'Veebikoosolek lisatud';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => 'Küsi vastuseid';
 
   @override
-  String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+  String get requestResponsesDescription => 'Palu külalistel kutsele vastata.';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => 'Peida külaliste loend';
 
   @override
-  String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+  String get hideGuestListDescription => 'Külalised ei näe, keda veel kutsuti.';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => 'Luba uusi ajapakkumisi';
 
   @override
   String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+      'Külalised saavad soovitada muud koosolekuaega.';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => 'Kas teavitada külalisi?';
 
   @override
   String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+      'Sellel koosolekul on külalised. Kas saata salvestamisel kutsed või sündmuse uuendused?';
 
   @override
   String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+      'Sellel koosolekul on külalised. Kas saata kustutamisel tühistus?';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => 'Saada uuendused';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => 'Saada tühistus';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => 'Ära saada';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => 'Kas salvestada koosolek?';
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+      'Microsoft saadab külalistele kutsed või sündmuse uuendused.';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => 'Kas kustutada koosolek?';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+      'Microsoft saadab külalistele tühistuse.';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => 'Korraldaja';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => 'Sinu vastus';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => 'Külaliste vastused';
 
   @override
-  String get respond => 'Respond';
+  String get respond => 'Vasta';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => 'Nõustu';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => 'Esialgne';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => 'Keeldu';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => 'Liitu koosolekuga';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => 'Nõustutud';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => 'Esialgne';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => 'Keeldutud';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => 'Vastust oodatakse';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => 'Vastus puudub';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => 'Korraldaja';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return 'Sinu vastust ei saanud saata: $error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => 'Koosolekulinki ei saanud avada.';
 
   @override
   String get description => 'Kirjeldus';
@@ -866,7 +864,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      'See kustutab sellest seadmest vahemällu salvestatud ülesanded, kalendrid, sündmused, meeldetuletused ja ootel võrguühenduseta muudatused. Sünkroonimata muudatused lähevad kaotsi. Teenusepakkuja kalendrite, sündmuste, ülesandeloendite ja ülesannete koopiaid ei kustutata.';
 
   @override
   String get revokeGoogleAccess =>
@@ -892,17 +890,17 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return 'Ülesandeloendi loomine ebaõnnestus: $error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return 'Ülesandeloendi ümbernimetamine ebaõnnestus: $error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return 'Ülesandeloendi kustutamine ebaõnnestus: $error';
   }
 
   @override
@@ -929,15 +927,15 @@ class AppLocalizationsEt extends AppLocalizations {
   String get deleteList => 'Kustuta loend';
 
   @override
-  String get unshare => 'Unshare';
+  String get unshare => 'Lõpeta jagamine';
 
   @override
   String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+      'See ülesandeloend on kirjutuskaitstud ja seda ei saa ümber nimetada.';
 
   @override
   String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+      'Seda ülesandeloendit ei saa praeguste õigustega kustutada.';
 
   @override
   String get builtInMicrosoftList => 'Sisseehitatud';
@@ -953,12 +951,12 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return 'Kas kustutada „$title” ja kõik selle ülesanded?';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return 'Kas lõpetada „$title” jagamine selle kontoga?';
   }
 
   @override
@@ -1083,75 +1081,75 @@ class AppLocalizationsEt extends AppLocalizations {
   String get openStatus => 'Pooleli';
 
   @override
-  String get doneStatus => 'Valmis';
+  String get doneStatus => 'Tehtud';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => 'Olek';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => 'Olek puudub';
 
   @override
-  String get taskStatusNeedsAction => 'Needs action';
+  String get taskStatusNeedsAction => 'Vajab tegevust';
 
   @override
-  String get taskStatusInProcess => 'In process';
+  String get taskStatusInProcess => 'Töös';
 
   @override
-  String get taskStatusCompleted => 'Completed';
+  String get taskStatusCompleted => 'Lõpetatud';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => 'Tühistatud';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    return 'Lõpetatud $percent%';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => 'Lõpetamise kuupäev';
 
   @override
-  String get priority => 'Priority';
+  String get priority => 'Prioriteet';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => 'Prioriteet puudub';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    return 'Prioriteet $priority · kõrge';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    return 'Prioriteet $priority · keskmine';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    return 'Prioriteet $priority · madal';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => 'Ülesande URL';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => 'Sisesta absoluutne URL koos skeemiga.';
 
   @override
-  String get classification => 'Classification';
+  String get classification => 'Klassifikatsioon';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => 'Jagamisel näita kogu ülesannet';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential => 'Jagamisel näita ainult hõivatust';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => 'Jagamisel peida see ülesanne';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => 'Kinnita ülesanne';
 
   @override
   String get notes => 'Märkmed';
@@ -1190,82 +1188,82 @@ class AppLocalizationsEt extends AppLocalizations {
   String get addReminder => 'Lisa meeldetuletus';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => 'Meeldetuletused';
 
   @override
-  String get noReminders => 'No reminders';
+  String get noReminders => 'Meeldetuletusi pole';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => 'Muuda meeldetuletust';
 
   @override
-  String get beforeTaskStarts => 'Before the task starts';
+  String get beforeTaskStarts => 'Enne ülesande algust';
 
   @override
-  String get beforeTaskDue => 'Before the task is due';
+  String get beforeTaskDue => 'Enne ülesande tähtaega';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => 'Pärast ülesande algust';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => 'Pärast ülesande tähtaega';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => 'Ülesande alguskuupäeva suhtes';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => 'Ülesande tähtaja suhtes';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => 'Kellaaeg';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => 'Kuupäeval ja kellaajal';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => 'Kogus';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => 'Ühik';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => 'Sekundit';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => 'Minutit';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => 'Tundi';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => 'Päeva';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => 'Nädalat';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => 'Ülesande alguses';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => 'Ülesande tähtajal';
 
   @override
   String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+      'See meeldetuletuse tüüp säilitatakse, kuid selle aega ei saa muuta.';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => 'Kas säilitada seotud meeldetuletused?';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    return 'Sellel kuupäeval on $count seotud meeldetuletust. Kas säilitada need praegusel kuupäeval ja kellaajal?';
   }
 
   @override
-  String get discardRelatedReminders => 'Discard reminders';
+  String get discardRelatedReminders => 'Hülga meeldetuletused';
 
   @override
-  String get keepRelatedReminders => 'Keep reminders';
+  String get keepRelatedReminders => 'Säilita meeldetuletused';
 
   @override
   String get addGuest => 'Lisa külaline';
@@ -1301,121 +1299,121 @@ class AppLocalizationsEt extends AppLocalizations {
   String get repeatYearly => 'Iga aasta';
 
   @override
-  String get repeatEvery => 'Repeat every';
+  String get repeatEvery => 'Kordusintervall';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => 'Kordub';
 
   @override
-  String get repeatEnd => 'End repeat';
+  String get repeatEnd => 'Lõpeta kordus';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => 'Mitte kunagi';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => 'Kuupäeval';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => 'Pärast korduste arvu täitumist';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => 'Korduste arv';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => 'Kuu päevad';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => 'Kuud';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => 'Nädalapäeva järjekord';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => 'Kindlad päevad';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => 'Esimene';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => 'Teine';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => 'Kolmas';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => 'Neljas';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => 'Viies';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => 'Eelviimane';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => 'Viimane';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => 'Päev';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => 'Tööpäev';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => 'Nädalavahetuse päev';
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    return 'Iga $count päeva järel';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    return 'Iga $count nädala järel';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    return 'Iga $count kuu järel';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    return 'Iga $count aasta järel';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'on $days';
+    return 'päevadel $days';
   }
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'on day $days';
+    return 'kuu $days. päeval';
   }
 
   @override
   String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+    return '$ordinal $days';
   }
 
   @override
   String repeatInMonthsSummary(String months) {
-    return 'in $months';
+    return 'kuudel $months';
   }
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count times';
+    return '$count korda';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return 'until $date';
+    return 'kuni kuupäevani $date';
   }
 
   @override
   String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+      'See kordusreegel kasutab valikuid, mida see redaktor ei muuda.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
@@ -1475,21 +1473,21 @@ class AppLocalizationsEt extends AppLocalizations {
   String get subtasks => 'Alamülesanded';
 
   @override
-  String get duplicateTask => 'Duplicate task';
+  String get duplicateTask => 'Loo ülesandest koopia';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => 'Ülesanne dubleeriti.';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return 'Ülesande dubleerimine ebaõnnestus: $error';
   }
 
   @override
-  String get hideSubtasks => 'Hide subtasks';
+  String get hideSubtasks => 'Peida alamülesanded';
 
   @override
-  String get hideClosedSubtasks => 'Hide closed subtasks';
+  String get hideClosedSubtasks => 'Peida lõpetatud alamülesanded';
 
   @override
   String get moveToTop => 'Teisalda kõige üles';
@@ -1788,7 +1786,7 @@ class AppLocalizationsEt extends AppLocalizations {
   String get notificationSnoozeAction => 'Lükka 10 minutit edasi';
 
   @override
-  String get notificationDismissAction => 'Loobu';
+  String get notificationDismissAction => 'Sulge';
 
   @override
   String get notificationDetailsHidden =>
@@ -1844,14 +1842,14 @@ class AppLocalizationsEt extends AppLocalizations {
   String get noLocationsFound => 'Asukohti ei leitud';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => 'See väli on kohustuslik.';
 
   @override
   String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+      'Ühenda kalendrid ja ülesanded ühega neist teenusepakkujatest.';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'Apple iCloudi kalender';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -1860,188 +1858,188 @@ class AppLocalizationsEt extends AppLocalizations {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'Nextcloudi ülesanded';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => 'Lisa Apple iCloud Calendari konto';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => 'Lisa Nextcloudi konto';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => 'Apple iCloudiga ühendamine…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => 'Nextcloudi autoriseerimise ootel…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => 'Ühenda Apple iCloud Calendar';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'Apple’i konto e-post';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'Rakendusepõhine parool';
 
   @override
   String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+      'Loo rakendusepõhine parool pärast Apple’i konto kaheastmelise autentimise lubamist.';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      'Apple’i konto parooli lähtestamine tühistab rakendusepõhised paroolid.';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => 'Ühenda Nextcloud';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'Nextcloudi server või CalDAV-aadress';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      'Sisesta Nextcloudi serveri URL või kleebi Nextcloudist kopeeritud peamine CalDAV-aadress.';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax avab brauseri. Kinnita juurdepääs seal ja naase seejärel BusyMaxi.';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => 'Ühenda';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => 'Tühista ühendus';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      'Konto eemaldati kohalikult, kuid Nextcloudi rakenduse parooli ei saanud tühistada.';
 
   @override
   String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+      'Kalendri- ja ülesandeandmed salvestatakse võrguühenduseta kasutamiseks kohapeal.';
 
   @override
   String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+      'Sünkroonimise jätkamiseks ühenda see konto uuesti.';
 
   @override
-  String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+  String get davTemporarilyUnavailable => 'See konto pole ajutiselt saadaval.';
 
   @override
   String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+      'Serveriõigused muutusid. Ootel muudatused on peatatud.';
 
   @override
   String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+      'Seda serverit või teenusepakkuja profiili ei toetata.';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => 'Kalendrid ja ülesandeloendid';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => 'Kalendrisündmused';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => 'Ülesanded';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => 'Kirjutuskaitstud';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => 'Kohapeal ootel';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => 'Konflikti tõttu blokeeritud';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => 'Blokeeritud kuni taasühendamiseni';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => 'Toiming nurjus';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => 'Säilita serveri versioon';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange =>
+      'Vaata kohalik muudatus üle ja rakenda uuesti';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => 'Dubleeri uue üksusena';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => 'Ühenduse olek';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => 'Ühendatud';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => 'Ühendamine…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => 'Välja logitud';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return 'Viimane õnnestunud sünkroonimine: $time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => 'Veel sünkroonimata';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => 'Värskenda kalendreid ja ülesandeloendeid';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return 'Serveri aadress: $host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => 'Sündmuste kalender';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => 'Ülesandeloend';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => 'Sündmused ja ülesanded';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => 'Kirjutatav';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => 'Jagatud';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return 'Viimati sünkroonitud: $time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return 'Sünkroonimisprobleem: $code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => 'Sünkroonimiskonfliktid';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return 'Server muutis: $time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return 'Kohalik muudatus: $summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => 'Konflikti ei saanud lahendada.';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => 'Korduva sündmuse ulatus';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => 'Kogu sari';
 
   @override
   String get singleOccurrence => 'See sündmus';
@@ -2074,7 +2072,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      'Vali, kas see muudatus rakendub kogu sarjale, ainult sellele sündmusele või sellele ja järgnevatele sündmustele.';
 
   @override
   String get taskDueBeforeStart => 'Tähtaeg ei tohi olla enne algust.';
@@ -2107,178 +2105,179 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get calendarCannotRemove =>
-      'Seda kalendrit ei saa sellelt kontolt kustutada ega eemaldada.';
+      'Seda kalendrit ei saa sellest kontost kustutada ega eemaldada.';
 
   @override
   String get calendarPendingChangesPreventRemoval =>
       'Enne kalendri kustutamist või eemaldamist oota, kuni selle ootel muudatused on sünkroonitud.';
 
   @override
-  String get calendarSubscriptions => 'Calendar subscriptions';
+  String get calendarSubscriptions => 'Kalendritellimused';
 
   @override
   String get calendarSubscriptionsDescription =>
-      'Add read-only calendars that refresh from a secure WebCal URL.';
+      'Lisa kirjutuskaitstud kalendreid, mida värskendatakse turvalise WebCali URL-i kaudu.';
 
   @override
-  String get addCalendarSubscription => 'Add calendar subscription';
+  String get addCalendarSubscription => 'Lisa kalendritellimus';
 
   @override
-  String get subscriptionName => 'Local name';
+  String get subscriptionName => 'Kohalik nimi';
 
   @override
-  String get subscriptionUrl => 'Subscription URL';
+  String get subscriptionUrl => 'Tellimuse URL';
 
   @override
   String get subscriptionUrlHelp =>
-      'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.';
+      'Sisesta HTTPS- või webcal-URL. BusyMax hoiab täielikku URL-i turvalises salvestusruumis.';
 
   @override
   String get subscriptionUrlInvalid =>
-      'Enter a valid HTTPS or webcal URL without user information or a fragment.';
+      'Sisesta kehtiv HTTPS- või webcal-URL ilma kasutajateabe või fragmendita.';
 
   @override
-  String get subscriptionColor => 'Local color';
+  String get subscriptionColor => 'Kohalik värv';
 
   @override
-  String get subscriptionColorHelp => 'Use a six-digit color such as #3584E4.';
+  String get subscriptionColorHelp =>
+      'Kasuta kuuekohalist värvi, näiteks #3584E4.';
 
   @override
-  String get subscriptionColorInvalid => 'Enter a six-digit hexadecimal color.';
+  String get subscriptionColorInvalid =>
+      'Sisesta kuuekohaline kuueteistkümnendsüsteemi värv.';
 
   @override
-  String get subscriptionRefreshMode => 'Refresh frequency';
+  String get subscriptionRefreshMode => 'Värskendussagedus';
 
   @override
-  String get subscriptionAutomatic => 'Automatic';
+  String get subscriptionAutomatic => 'Automaatne';
 
   @override
-  String get subscriptionHourly => 'Hourly';
+  String get subscriptionHourly => 'Iga tunni järel';
 
   @override
-  String get subscriptionSixHours => 'Every six hours';
+  String get subscriptionSixHours => 'Iga kuue tunni järel';
 
   @override
-  String get subscriptionDaily => 'Daily';
+  String get subscriptionDaily => 'Iga päev';
 
   @override
   String subscriptionSafeOrigin(String origin) {
-    return 'Source: $origin';
+    return 'Allikas: $origin';
   }
 
   @override
   String get subscriptionSafeOriginUnavailable =>
-      'Enter a valid URL to preview its safe origin.';
+      'Turvalise allika eelvaateks sisesta kehtiv URL.';
 
   @override
-  String get subscriptionReadOnly => 'Read-only subscription';
+  String get subscriptionReadOnly => 'Kirjutuskaitstud tellimus';
 
   @override
-  String get subscriptionNeverRefreshed => 'Not refreshed yet';
+  String get subscriptionNeverRefreshed => 'Veel värskendamata';
 
   @override
   String subscriptionLastRefresh(String time) {
-    return 'Last successful refresh: $time';
+    return 'Viimane edukas värskendus: $time';
   }
 
   @override
   String subscriptionNextRefresh(String time) {
-    return 'Next refresh: $time';
+    return 'Järgmine värskendus: $time';
   }
 
   @override
-  String get subscriptionStatusHealthy => 'Up to date';
+  String get subscriptionStatusHealthy => 'Ajaga kaasas';
 
   @override
   String subscriptionStatusIssue(String code) {
-    return 'Refresh issue: $code';
+    return 'Värskendusprobleem: $code';
   }
 
   @override
-  String get refreshNow => 'Refresh now';
+  String get refreshNow => 'Värskenda kohe';
 
   @override
-  String get unsubscribe => 'Unsubscribe';
+  String get unsubscribe => 'Tühista tellimus';
 
   @override
   String unsubscribeCalendarTitle(String name) {
-    return 'Unsubscribe from “$name”?';
+    return 'Kas tühistada „$name” tellimus?';
   }
 
   @override
   String get unsubscribeCalendarConfirmation =>
-      'This removes the local subscription and its cached events. The published calendar is not changed.';
+      'See eemaldab kohaliku tellimuse ja selle vahemällu salvestatud sündmused. Avaldatud kalendrit ei muudeta.';
 
   @override
-  String get addSubscriptionAction => 'Add subscription';
+  String get addSubscriptionAction => 'Lisa tellimus';
 
   @override
   String subscriptionOperationFailed(String error) {
-    return 'Calendar subscription failed: $error';
+    return 'Kalendritellimus nurjus: $error';
   }
 
   @override
-  String get subscriptions => 'Subscriptions';
+  String get subscriptions => 'Tellimused';
 
   @override
-  String get calendarImport => 'Kalendri importimine';
+  String get calendarImport => 'Kalendri import';
 
   @override
   String get calendarImportDescription =>
-      'Vali fail, vaata selle sündmused üle ja vali seejärel kirjutatav kalender, kuhu need imporditakse.';
+      'Vali fail, vaata selle sündmused üle ja vali seejärel kirjutatav kalender, kuhu need lisada.';
 
   @override
-  String get importIcsFile => 'Import .ics file';
+  String get importIcsFile => 'Impordi .ics-fail';
 
   @override
-  String get importIcsPreview => 'Import calendar events';
+  String get importIcsPreview => 'Impordi kalendrisündmused';
 
   @override
   String importEventsFound(int count) {
-    return 'Importable event sets: $count';
+    return 'Imporditavad sündmusekomplektid: $count';
   }
 
   @override
   String importInvalidEvents(int count) {
-    return 'Invalid events: $count';
+    return 'Sobimatud sündmused: $count';
   }
 
   @override
   String importFieldsOmitted(String fields) {
-    return 'Intentionally omitted: $fields';
+    return 'Tahtlikult välja jäetud: $fields';
   }
 
   @override
-  String get noWritableCalendars =>
-      'No writable destination calendar is available.';
+  String get noWritableCalendars => 'Sobivat kirjutatavat sihtkalendrit pole.';
 
   @override
-  String get importDestinationCalendar => 'Destination calendar';
+  String get importDestinationCalendar => 'Sihtkalender';
 
   @override
-  String get importIcsConfirm => 'Import events';
+  String get importIcsConfirm => 'Impordi sündmused';
 
   @override
-  String get importIcsComplete => 'Import complete';
+  String get importIcsComplete => 'Import lõpetatud';
 
   @override
   String importQueued(int count) {
-    return 'Imported or queued: $count';
+    return 'Imporditud või järjekorda lisatud: $count';
   }
 
   @override
   String importDuplicatesSkipped(int count) {
-    return 'Duplicates skipped: $count';
+    return 'Vahele jäetud duplikaadid: $count';
   }
 
   @override
   String importUnsupportedSets(int count) {
-    return 'Unsupported recurrence sets: $count';
+    return 'Toetamata korduskomplektid: $count';
   }
 
   @override
   String importIcsFailed(String error) {
-    return 'Could not import the calendar file: $error';
+    return 'Kalendrifaili ei saanud importida: $error';
   }
 
   @override

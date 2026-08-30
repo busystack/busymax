@@ -55,10 +55,53 @@ void main() {
         if (translation.trim().isEmpty) {
           failures.add('$path: $key has an empty translation');
         }
-        for (final placeholder in _declaredPlaceholders(templateArb, key)) {
+        final declaredPlaceholders =
+            _declaredPlaceholders(templateArb, key).toSet();
+        for (final placeholder in declaredPlaceholders) {
           if (!translation.contains('{$placeholder')) {
             failures.add('$path: $key does not use {$placeholder}');
           }
+        }
+        for (final placeholder in _usedPlaceholders(translation)) {
+          if (!declaredPlaceholders.contains(placeholder)) {
+            failures.add('$path: $key adds {$placeholder}');
+          }
+        }
+      }
+    }
+
+    expect(failures, isEmpty, reason: failures.join('\n'));
+  });
+
+  test('translated ARB catalogs do not silently copy English messages', () {
+    final template = _decodeArb(File('lib/l10n/app_en.arb'));
+    final templateMessages = _messages(template);
+    const allowedIdenticalKeys = {
+      'appTitle',
+      'apacheLicenseName',
+      'dateTimeDisplay',
+      'etag',
+      'formatBoldShortLabel',
+      'formatItalicShortLabel',
+      'formatUnderlineShortLabel',
+      'googleProvider',
+      'googleTasksApi',
+      'googleTasksProvider',
+      'id',
+      'microsoftProvider',
+      'microsoftTodoProvider',
+      'nextcloudProvider',
+      'appleICloudTasksProvider',
+      'taskUrl',
+    };
+    final failures = <String>[];
+
+    for (final file in _translatedArbFiles()) {
+      final messages = _messages(_decodeArb(file));
+      for (final key in templateMessages.keys) {
+        if (allowedIdenticalKeys.contains(key)) continue;
+        if (messages[key] == templateMessages[key]) {
+          failures.add('${file.path}: $key copies the English value');
         }
       }
     }
@@ -510,6 +553,11 @@ Iterable<String> _declaredPlaceholders(
     return;
   }
   yield* placeholders.keys.cast<String>();
+}
+
+Iterable<String> _usedPlaceholders(String value) sync* {
+  final pattern = RegExp(r'\{([A-Za-z][A-Za-z0-9_]*)(?=,|\})');
+  yield* pattern.allMatches(value).map((match) => match.group(1)!);
 }
 
 int _lineForOffset(String source, int offset) {

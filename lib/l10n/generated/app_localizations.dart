@@ -138,7 +138,7 @@ abstract class AppLocalizations {
   /// **'BusyMax'**
   String get appTitle;
 
-  /// No description provided for @connectGoogleAccount.
+  /// Shown in account onboarding and settings; names the supported account providers.
   ///
   /// In en, this message translates to:
   /// **'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.'**
@@ -180,7 +180,7 @@ abstract class AppLocalizations {
   /// **'Connect accounts'**
   String get onboardingAccountsStepTitle;
 
-  /// No description provided for @onboardingAccountsStepDescription.
+  /// Onboarding explanation of the account data BusyMax synchronizes.
   ///
   /// In en, this message translates to:
   /// **'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.'**
@@ -2013,7 +2013,7 @@ abstract class AppLocalizations {
   /// No description provided for @taskStatusInProcess.
   ///
   /// In en, this message translates to:
-  /// **'In process'**
+  /// **'In progress'**
   String get taskStatusInProcess;
 
   /// No description provided for @taskStatusCompleted.
@@ -2208,7 +2208,7 @@ abstract class AppLocalizations {
   /// **'Before the task starts'**
   String get beforeTaskStarts;
 
-  /// No description provided for @beforeTaskDue.
+  /// Reminder timing relative to the task's due time/deadline, not task completion.
   ///
   /// In en, this message translates to:
   /// **'Before the task is due'**
@@ -2400,13 +2400,13 @@ abstract class AppLocalizations {
   /// **'Yearly'**
   String get repeatYearly;
 
-  /// No description provided for @repeatEvery.
+  /// Standalone label for the numeric interval used by daily, weekly, monthly, and yearly recurrence.
   ///
   /// In en, this message translates to:
-  /// **'Repeat every'**
+  /// **'Interval'**
   String get repeatEvery;
 
-  /// No description provided for @repeatOn.
+  /// Recurrence editor label introducing the selected weekdays, month days, or ordinal weekday.
   ///
   /// In en, this message translates to:
   /// **'Repeat on'**
@@ -2550,37 +2550,37 @@ abstract class AppLocalizations {
   /// **'Every {count} years'**
   String repeatEveryYears(int count);
 
-  /// No description provided for @repeatOnDaysSummary.
+  /// Sentence fragment appended to a recurrence summary; {days} is a localized list of weekdays.
   ///
   /// In en, this message translates to:
   /// **'on {days}'**
   String repeatOnDaysSummary(String days);
 
-  /// No description provided for @repeatOnMonthDaysSummary.
+  /// Sentence fragment appended to a recurrence summary; {days} is a localized list of day-of-month numbers.
   ///
   /// In en, this message translates to:
   /// **'on day {days}'**
   String repeatOnMonthDaysSummary(String days);
 
-  /// No description provided for @repeatOnOrdinalSummary.
+  /// Sentence fragment for ordinal recurrence, such as the first Monday; {ordinal} and {days} are localized.
   ///
   /// In en, this message translates to:
   /// **'on the {ordinal} {days}'**
   String repeatOnOrdinalSummary(String ordinal, String days);
 
-  /// No description provided for @repeatInMonthsSummary.
+  /// Sentence fragment for selected recurrence months; {months} is a localized list of month names.
   ///
   /// In en, this message translates to:
   /// **'in {months}'**
   String repeatInMonthsSummary(String months);
 
-  /// No description provided for @repeatTimesSummary.
+  /// Sentence fragment summarizing a finite recurrence count.
   ///
   /// In en, this message translates to:
   /// **'{count} times'**
   String repeatTimesSummary(int count);
 
-  /// No description provided for @repeatUntilSummary.
+  /// Sentence fragment for the recurrence end date.
   ///
   /// In en, this message translates to:
   /// **'until {date}'**
@@ -2778,7 +2778,7 @@ abstract class AppLocalizations {
   /// **'Updated'**
   String get updated;
 
-  /// No description provided for @parent.
+  /// Metadata label for the immediate parent task of a subtask.
   ///
   /// In en, this message translates to:
   /// **'Parent'**
@@ -3258,7 +3258,7 @@ abstract class AppLocalizations {
   /// **'Snooze 10 minutes'**
   String get notificationSnoozeAction;
 
-  /// No description provided for @notificationDismissAction.
+  /// Non-destructive action that closes or dismisses a desktop notification. Translate distinctly from reject, discard, or cancel.
   ///
   /// In en, this message translates to:
   /// **'Dismiss'**
@@ -3750,10 +3750,10 @@ abstract class AppLocalizations {
   /// **'Copy and delete'**
   String get copyAndDelete;
 
-  /// No description provided for @chooseRecurringEventScope.
+  /// Explains the three recurring-event scope choices: entire series, one occurrence, or this and following events.
   ///
   /// In en, this message translates to:
-  /// **'Choose which events this change applies to.'**
+  /// **'Choose whether this change applies to the entire series, only this occurrence, or this and following events.'**
   String get chooseRecurringEventScope;
 
   /// No description provided for @taskDueBeforeStart.

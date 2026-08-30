@@ -1,14 +1,14 @@
 {
   "@@locale": "pt",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "connectGoogleAccount": "Ligue as contas Google, Microsoft, Calendário Apple iCloud ou Nextcloud.",
   "googlePermissionsConsentNotice": "No ecrã de autorizações da Google, selecione as autorizações do Calendário e das Tarefas.",
   "googlePermissionsRequiredRetry": "As autorizações do Calendário Google e do Google Tasks são necessárias. Tente novamente e selecione ambas as caixas.",
   "finishSetup": "Concluir configuração",
   "continueSetup": "Continuar",
   "onboardingSetupTitle": "Configurar o BusyMax",
   "onboardingAccountsStepTitle": "Ligar contas",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "onboardingAccountsStepDescription": "Adicione todas as contas que pretende utilizar. O BusyMax sincroniza calendários, eventos, listas de tarefas e tarefas suportados de cada conta.",
   "onboardingPreferencesStepTitle": "Escolher definições do sistema",
   "onboardingPreferencesStepDescription": "Configure o comportamento da aplicação no ambiente de trabalho, os lembretes, o nível de detalhe das notificações e o aspeto antes de abrir a agenda.",
   "signInWithGoogle": "Iniciar sessão com a Google",
@@ -36,16 +36,40 @@
   "newCalendar": "Novo calendário",
   "calendarColor": "Cor do calendário",
   "calendarColorOption": "Cor {number}",
-  "@calendarColorOption": {"placeholders": {"number": {"type": "int"}}},
-  "calendarManagementUnsupported": "Este provedor não oferece suporte ao gerenciamento de calendários no BusyMax.",
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarManagementUnsupported": "Este fornecedor não suporta a gestão de calendários no BusyMax.",
   "primaryCalendarCannotDelete": "O calendário principal não pode ser excluído.",
   "calendarCreateFailed": "Não foi possível criar o calendário: {error}",
   "calendarCreatedRefreshPending": "O calendário foi criado, mas o BusyMax não conseguiu atualizar a conta. Ele aparecerá após a próxima sincronização.",
-  "@calendarCreateFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "calendarUpdateFailed": "Não foi possível atualizar o calendário: {error}",
-  "@calendarUpdateFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "calendarDeleteFailed": "Não foi possível excluir o calendário: {error}",
-  "@calendarDeleteFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "newEvent": "Novo evento",
   "refreshCalendar": "Atualizar calendário",
   "openInProvider": "Abrir no serviço",
@@ -65,38 +89,62 @@
   "scheduleNoSearchResultsDescription": "Experimente outra pesquisa ou limpe os filtros atuais.",
   "refresh": "Atualizar",
   "trayOpenBusyMax": "Abrir o BusyMax",
-  "trayShowBusyMax": "Show BusyMax",
-  "trayNewEvent": "New event…",
-  "trayNewTask": "New task…",
-  "trayToday": "Today",
-  "trayAllDay": "All day",
-  "trayNow": "Now",
-  "trayCalendarEvent": "Calendar event",
-  "trayUntitledEvent": "Untitled event",
-  "trayNothingElseToday": "Nothing else today",
-  "trayTasksDueToday": "{count, plural, =1{1 task due today} other{{count} tasks due today}}",
-  "@trayTasksDueToday": {"placeholders": {"count": {"type": "int"}}},
-  "trayOpenTodayAgenda": "Open today’s agenda",
-  "traySyncNow": "Sync now",
-  "traySyncing": "Syncing…",
-  "trayNotConnected": "Not connected",
-  "trayNotYetSynced": "Not yet synced",
-  "trayLastSyncedJustNow": "Last synced just now",
-  "trayLastSyncedMinutesAgo": "{count, plural, =1{Last synced 1 minute ago} other{Last synced {count} minutes ago}}",
-  "@trayLastSyncedMinutesAgo": {"placeholders": {"count": {"type": "int"}}},
-  "trayLastSyncedHoursAgo": "{count, plural, =1{Last synced 1 hour ago} other{Last synced {count} hours ago}}",
-  "@trayLastSyncedHoursAgo": {"placeholders": {"count": {"type": "int"}}},
-  "trayLastSyncedDaysAgo": "{count, plural, =1{Last synced 1 day ago} other{Last synced {count} days ago}}",
-  "@trayLastSyncedDaysAgo": {"placeholders": {"count": {"type": "int"}}},
-  "traySettings": "Settings",
-  "trayQuitBusyMax": "Quit BusyMax",
+  "trayShowBusyMax": "Mostrar o BusyMax",
+  "trayNewEvent": "Novo evento…",
+  "trayNewTask": "Nova tarefa…",
+  "trayToday": "Hoje",
+  "trayAllDay": "Todo o dia",
+  "trayNow": "Agora",
+  "trayCalendarEvent": "Evento do calendário",
+  "trayUntitledEvent": "Evento sem título",
+  "trayNothingElseToday": "Nada mais hoje",
+  "trayTasksDueToday": "{count, plural, =1{1 tarefa termina hoje} other{{count} tarefas terminam hoje}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "Abrir a agenda de hoje",
+  "traySyncNow": "Sincronizar agora",
+  "traySyncing": "A sincronizar…",
+  "trayNotConnected": "Não ligado",
+  "trayNotYetSynced": "Ainda não sincronizado",
+  "trayLastSyncedJustNow": "Sincronizado agora mesmo",
+  "trayLastSyncedMinutesAgo": "{count, plural, =1{Sincronizado há 1 minuto} other{Sincronizado há {count} minutos}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, =1{Sincronizado há 1 hora} other{Sincronizado há {count} horas}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, =1{Sincronizado há 1 dia} other{Sincronizado há {count} dias}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traySettings": "Definições",
+  "trayQuitBusyMax": "Sair do BusyMax",
   "agendaLoadMoreOverdue": "Carregar mais tarefas em atraso",
   "agendaLoadMoreNoDate": "Carregar mais tarefas sem data",
   "viewDay": "Dia",
   "viewWeek": "Semana",
   "viewMonth": "Mês",
   "viewYear": "Ano",
-  "viewAgenda": "Agenda",
+  "viewAgenda": "Vista de agenda",
   "scheduleSettings": "Agenda",
   "scheduleDisplaySettings": "Apresentação da agenda",
   "scheduleDisplayHoursDescription": "As vistas de dia e semana mostram inicialmente este intervalo horário. Os itens anteriores ou posteriores alargam-no quando necessário.",
@@ -143,7 +191,7 @@
   "visibilityPublic": "Pública",
   "visibilityPrivate": "Privada",
   "visibilityConfidential": "Confidencial",
-  "sensitivityNormal": "Normal",
+  "sensitivityNormal": "Habitual",
   "sensitivityPersonal": "Pessoal",
   "tasks": "Tarefas",
   "allTasks": "Todas as tarefas",
@@ -218,7 +266,7 @@
   "removingAccount": "A remover conta…",
   "removeAccountDescription": "Parar a sincronização e remover os dados desta conta deste dispositivo.",
   "removeAccountTitle": "Remover {account} do BusyMax?",
-  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
+  "removeAccountConfirmation": "Esta ação elimina deste dispositivo as tarefas, calendários, eventos, lembretes e alterações offline pendentes colocados em cache. As alterações não sincronizadas serão perdidas. As cópias dos calendários, eventos, listas de tarefas e tarefas no fornecedor não são eliminadas.",
   "revokeGoogleAccess": "Revogar também o acesso do BusyMax a esta conta Google",
   "revokeGoogleAccessDescription": "Terá de conceder acesso novamente antes de voltar a ligar a conta.",
   "removeAccountAction": "Remover conta",
@@ -234,7 +282,7 @@
   "deleteList": "Eliminar lista",
   "builtInMicrosoftList": "Incorporada",
   "builtInMicrosoftListCannotRenameDelete": "As listas incorporadas do Microsoft To Do não podem ser renomeadas nem eliminadas.",
-  "deleteListConfirmation": "Eliminar «{title}» do Google Tasks?",
+  "deleteListConfirmation": "Eliminar “{title}” do Google Tasks?",
   "deleteEvent": "Eliminar evento",
   "title": "Título",
   "create": "Criar",
@@ -297,7 +345,7 @@
   "repeatYearly": "Anualmente",
   "importance": "Importância",
   "importanceLow": "Baixa",
-  "importanceNormal": "Normal",
+  "importanceNormal": "Média",
   "importanceHigh": "Alta",
   "categories": "Categorias",
   "scheduleSection": "Agenda",
@@ -347,7 +395,7 @@
   "taskReminders": "Lembretes de tarefas",
   "notificationDetailLevel": "Nível de detalhe das notificações",
   "notificationDetailPrivate": "Privado",
-  "notificationDetailNormal": "Normal",
+  "notificationDetailNormal": "Predefinido",
   "quietHours": "Período de silêncio",
   "quietHoursDescription": "Pausar as notificações durante este período.",
   "quietHoursStart": "Início do período de silêncio",
@@ -400,7 +448,7 @@
   "taskReminderNotificationBody": "O prazo da tarefa aproxima-se.",
   "notificationOpenAction": "Abrir",
   "notificationSnoozeAction": "Adiar 10 minutos",
-  "notificationDismissAction": "Dispensar",
+  "notificationDismissAction": "Fechar",
   "notificationDetailsHidden": "Os detalhes estão ocultos pelas definições de privacidade.",
   "previousMonth": "Mês anterior",
   "nextMonth": "Mês seguinte",
@@ -414,51 +462,51 @@
   "readOnlyCalendar": "Este calendário é só de leitura.",
   "selectTimeZone": "Selecionar fuso horário",
   "searchLocations": "Pesquisar locais",
-  "noLocationsFound": "Nenhum local encontrado",
-  "requiredField": "This field is required.",
-  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
-  "appleICloudProvider": "Apple iCloud Calendar",
+  "noLocationsFound": "Não foram encontrados locais",
+  "requiredField": "Este campo é obrigatório.",
+  "providerConnectionDescription": "Ligue calendários e tarefas a um destes fornecedores.",
+  "appleICloudProvider": "Calendário Apple iCloud",
   "nextcloudProvider": "Nextcloud",
   "appleICloudTasksProvider": "Apple iCloud",
-  "nextcloudTasksProvider": "Nextcloud Tasks",
-  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
-  "addNextcloudAccount": "Add Nextcloud account",
-  "waitingForAppleICloud": "Connecting to Apple iCloud…",
-  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
-  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
-  "appleAccountEmail": "Apple Account email",
-  "appleAppSpecificPassword": "App-specific password",
-  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
-  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
-  "connectNextcloudTitle": "Connect Nextcloud",
-  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
-  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
-  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
-  "connectAccountAction": "Connect",
-  "cancelAccountConnection": "Cancel connection",
-  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
-  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
-  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
-  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
-  "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Calendars and task lists",
-  "calendarContent": "Calendar events",
-  "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only",
-  "pendingLocally": "Pending locally",
-  "conflictBlocked": "Blocked by conflict",
-  "authenticationBlocked": "Blocked until reconnect",
-  "operationFailed": "Operation failed",
-  "keepServerVersion": "Keep server version",
-  "reapplyLocalChange": "Review and reapply local change",
-  "duplicateLocalItem": "Duplicate as new item",
+  "nextcloudTasksProvider": "Tarefas do Nextcloud",
+  "addAppleICloudAccount": "Adicionar conta do Calendário Apple iCloud",
+  "addNextcloudAccount": "Adicionar conta Nextcloud",
+  "waitingForAppleICloud": "A ligar ao Apple iCloud…",
+  "waitingForNextcloud": "A aguardar autorização do Nextcloud…",
+  "connectAppleICloudTitle": "Ligar o Calendário Apple iCloud",
+  "appleAccountEmail": "E-mail da conta Apple",
+  "appleAppSpecificPassword": "Palavra-passe específica da aplicação",
+  "appleAppSpecificPasswordHelp": "Crie uma palavra-passe específica da aplicação depois de ativar a autenticação de dois fatores na sua conta Apple.",
+  "appleAppSpecificPasswordResetWarning": "A reposição da palavra-passe da conta Apple revoga as palavras-passe específicas de aplicações.",
+  "connectNextcloudTitle": "Ligar ao Nextcloud",
+  "nextcloudServerUrl": "Servidor Nextcloud ou endereço CalDAV",
+  "nextcloudServerUrlHelp": "Introduza o URL do servidor Nextcloud ou cole o endereço CalDAV principal copiado do Nextcloud.",
+  "nextcloudBrowserAuthorizationHelp": "O BusyMax abrirá o navegador. Aprove o acesso aí e volte ao BusyMax.",
+  "connectAccountAction": "Ligar",
+  "cancelAccountConnection": "Cancelar ligação",
+  "nextcloudAccountRemovedRevokeFailed": "A conta foi removida localmente, mas não foi possível revogar a palavra-passe da aplicação Nextcloud.",
+  "davCachedOfflineNotice": "Os dados de calendários e tarefas são colocados em cache localmente para utilização offline.",
+  "davReauthenticationRequired": "Volte a ligar esta conta para retomar a sincronização.",
+  "davTemporarilyUnavailable": "Esta conta está temporariamente indisponível.",
+  "davPermissionChanged": "As permissões do servidor foram alteradas. As edições pendentes estão em pausa.",
+  "davUnsupportedServer": "Este servidor ou perfil do fornecedor não é suportado.",
+  "collectionSettings": "Calendários e listas de tarefas",
+  "calendarContent": "Eventos do calendário",
+  "taskContent": "Tarefas",
+  "readOnlySharedCollection": "Só de leitura",
+  "pendingLocally": "Pendente localmente",
+  "conflictBlocked": "Bloqueado por conflito",
+  "authenticationBlocked": "Bloqueado até voltar a ligar",
+  "operationFailed": "Operação falhou",
+  "keepServerVersion": "Manter versão do servidor",
+  "reapplyLocalChange": "Rever e reaplicar alteração local",
+  "duplicateLocalItem": "Duplicar como novo item",
   "deleteCalendarConfirmation": "Eliminar «{title}»?",
-  "davConnectionState": "Connection state",
-  "davConnected": "Connected",
-  "davConnecting": "Connecting…",
-  "davSignedOut": "Signed out",
-  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "davConnectionState": "Estado da ligação",
+  "davConnected": "Ligado",
+  "davConnecting": "A ligar…",
+  "davSignedOut": "Sessão terminada",
+  "davLastSuccessfulSync": "Última sincronização bem-sucedida: {time}",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -466,9 +514,9 @@
       }
     }
   },
-  "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh calendars and task lists",
-  "nextcloudServerHost": "Server: {host}",
+  "davNeverSynced": "Ainda não sincronizado",
+  "refreshCollections": "Atualizar calendários e listas de tarefas",
+  "nextcloudServerHost": "Servidor: {host}",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -476,12 +524,12 @@
       }
     }
   },
-  "collectionSupportsEvents": "Event calendar",
-  "collectionSupportsTasks": "Task list",
-  "collectionSupportsEventsAndTasks": "Events and tasks",
-  "writableCollection": "Writable",
-  "sharedCollection": "Shared",
-  "collectionLastSynced": "Last synchronized: {time}",
+  "collectionSupportsEvents": "Calendário de eventos",
+  "collectionSupportsTasks": "Lista de tarefas",
+  "collectionSupportsEventsAndTasks": "Eventos e tarefas",
+  "writableCollection": "Editável",
+  "sharedCollection": "Partilhado",
+  "collectionLastSynced": "Última sincronização: {time}",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -489,7 +537,7 @@
       }
     }
   },
-  "collectionSyncError": "Sync issue: {code}",
+  "collectionSyncError": "Problema de sincronização: {code}",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -497,8 +545,8 @@
       }
     }
   },
-  "syncConflicts": "Synchronization conflicts",
-  "remoteChangedAt": "Server changed: {time}",
+  "syncConflicts": "Conflitos de sincronização",
+  "remoteChangedAt": "Alteração no servidor: {time}",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -506,7 +554,7 @@
       }
     }
   },
-  "localPendingEdit": "Local edit: {summary}",
+  "localPendingEdit": "Edição local: {summary}",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -514,216 +562,300 @@
       }
     }
   },
-  "conflictResolutionFailed": "The conflict could not be resolved.",
-  "recurringEventScope": "Recurring event scope",
-  "entireSeries": "Entire series",
+  "conflictResolutionFailed": "Não foi possível resolver o conflito.",
+  "recurringEventScope": "Âmbito do evento recorrente",
+  "entireSeries": "Série inteira",
   "singleOccurrence": "Este evento",
   "thisAndFollowingEvents": "Este evento e os seguintes",
-  "thisAndFutureUnavailable": "Não suportado por este provedor.",
+  "thisAndFutureUnavailable": "Não suportado por este fornecedor.",
   "thisAndFutureMoveUnavailable": "Este evento e os seguintes não podem ser movidos com segurança. Escolha este evento ou a série inteira.",
   "entireSeriesMoveUnavailable": "A regra de recorrência não está disponível localmente. Mova apenas este evento.",
-  "copyEventAndDeleteOriginal": "Copiar o evento e excluir o original?",
-  "copyEventMoveWarning": "O BusyMax não pode mover este evento diretamente de {source} para {destination}. Ele criará a cópia primeiro e excluirá o original somente depois que a cópia for concluída. Os IDs do evento mudarão; os status de resposta dos participantes poderão ser redefinidos e convites ou cancelamentos poderão ser enviados; e links de reunião, anexos, lembretes, campos específicos do provedor e exceções de recorrência poderão não ser transferidos.",
-  "copyAndDelete": "Copiar e excluir",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "copyEventAndDeleteOriginal": "Copiar o evento e eliminar o original?",
+  "copyEventMoveWarning": "O BusyMax não pode mover este evento diretamente de {source} para {destination}. Criará primeiro a cópia e eliminará o original apenas depois de a cópia ser criada com êxito. Os IDs do evento mudarão; os estados das respostas dos participantes poderão ser repostos e poderão ser enviados convites ou cancelamentos; as ligações de reuniões, os anexos, os lembretes, os campos específicos do fornecedor e as exceções de recorrência poderão não ser transferidos.",
+  "copyAndDelete": "Copiar e eliminar",
+  "chooseRecurringEventScope": "Escolha se esta alteração se aplica à série inteira, apenas a este evento ou a este e aos eventos seguintes.",
   "taskDueBeforeStart": "O prazo não pode ser anterior ao início.",
   "taskStartDueTimeModeMismatch": "Defina horários para o início e o prazo, ou torne a tarefa de dia inteiro.",
-  "taskListCreateFailed": "Could not create the task list: {error}",
-  "taskListRenameFailed": "Could not rename the task list: {error}",
-  "taskListDeleteFailed": "Could not delete the task list: {error}",
+  "taskListCreateFailed": "Não foi possível criar a lista de tarefas: {error}",
+  "taskListRenameFailed": "Não foi possível mudar o nome da lista de tarefas: {error}",
+  "taskListDeleteFailed": "Não foi possível eliminar a lista de tarefas: {error}",
   "unshare": "Cancelar partilha",
-  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
-  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
-  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "taskStatus": "Status",
-  "taskStatusNone": "No status",
-  "taskStatusNeedsAction": "Needs action",
-  "taskStatusInProcess": "Em andamento",
+  "readOnlyTaskListCannotRename": "Esta lista de tarefas é só de leitura e não pode ter o nome alterado.",
+  "taskListCannotDelete": "Esta lista de tarefas não pode ser eliminada com as permissões atuais.",
+  "deleteTaskListConfirmation": "Eliminar “{title}” e todas as suas tarefas?",
+  "unshareTaskListConfirmation": "Cancelar a partilha de “{title}” desta conta?",
+  "taskStatus": "Estado",
+  "taskStatusNone": "Sem estado",
+  "taskStatusNeedsAction": "Requer ação",
+  "taskStatusInProcess": "Em curso",
   "taskStatusCompleted": "Concluída",
-  "taskStatusCancelled": "Cancelled",
-  "completionPercent": "{percent}% completed",
-  "completionDate": "Completion date",
+  "taskStatusCancelled": "Cancelada",
+  "completionPercent": "{percent}% concluída",
+  "completionDate": "Data de conclusão",
   "priority": "Prioridade",
-  "priorityNone": "No priority",
-  "priorityHighValue": "Priority {priority} · High",
-  "priorityMediumValue": "Priority {priority} · Medium",
-  "priorityLowValue": "Priority {priority} · Low",
-  "taskUrl": "URL",
-  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
-  "classification": "Classification",
-  "classificationPublic": "When shared, show the full task",
-  "classificationConfidential": "When shared, show only busy",
-  "classificationPrivate": "When shared, hide this task",
-  "pinTask": "Pin task",
-  "reminders": "Reminders",
-  "noReminders": "No reminders",
-  "editReminder": "Edit reminder",
-  "beforeTaskStarts": "Before the task starts",
-  "beforeTaskDue": "Before the task is due",
-  "afterTaskStarts": "After the task starts",
-  "afterTaskDue": "After the task is due",
-  "relativeToTaskStart": "Relative to the task start date",
-  "relativeToTaskDue": "Relative to the task due date",
-  "reminderTimeOfDay": "Time of day",
-  "absoluteReminder": "At a date and time",
-  "reminderAmount": "Amount",
-  "reminderUnitSeconds": "Seconds",
-  "reminderUnitMinutes": "Minutes",
-  "reminderUnitHours": "Hours",
-  "reminderUnitDays": "Days",
-  "reminderUnitWeeks": "Weeks",
-  "reminderAtTaskStart": "At the task start",
-  "reminderAtTaskDue": "At the task due time",
-  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
-  "relatedRemindersTitle": "Keep related reminders?",
-  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
-  "discardRelatedReminders": "Discard reminders",
-  "keepRelatedReminders": "Keep reminders",
-  "repeatEvery": "Repetir a cada",
-  "repeatOn": "Repeat on",
-  "repeatEnd": "End repeat",
-  "repeatNever": "Never",
-  "repeatUntil": "On date",
-  "repeatAfter": "After a number of occurrences",
-  "repeatCount": "Occurrences",
-  "repeatDayOfMonth": "Days of month",
-  "repeatMonths": "Months",
-  "repeatOrdinal": "Weekday position",
-  "repeatSpecificDays": "Specific days",
-  "repeatFirst": "First",
-  "repeatSecond": "Second",
-  "repeatThird": "Third",
-  "repeatFourth": "Fourth",
-  "repeatFifth": "Fifth",
-  "repeatSecondToLast": "Second to last",
-  "repeatLast": "Last",
-  "repeatAnyDay": "Day",
-  "repeatWeekday": "Weekday",
-  "repeatWeekendDay": "Weekend day",
-  "repeatEveryDays": "Every {count} days",
-  "repeatEveryWeeks": "Every {count} weeks",
-  "repeatEveryMonths": "Every {count} months",
-  "repeatEveryYears": "Every {count} years",
+  "priorityNone": "Sem prioridade",
+  "priorityHighValue": "Prioridade {priority} · Alta",
+  "priorityMediumValue": "Prioridade {priority} · Média",
+  "priorityLowValue": "Prioridade {priority} · Baixa",
+  "taskUrl": "URL da tarefa",
+  "invalidTaskUrl": "Introduza um URL absoluto, incluindo o esquema.",
+  "classification": "Classificação",
+  "classificationPublic": "Quando partilhada, mostrar a tarefa completa",
+  "classificationConfidential": "Quando partilhada, mostrar apenas ocupado",
+  "classificationPrivate": "Quando partilhada, ocultar esta tarefa",
+  "pinTask": "Afixar tarefa",
+  "reminders": "Lembretes",
+  "noReminders": "Sem lembretes",
+  "editReminder": "Editar lembrete",
+  "beforeTaskStarts": "Antes do início da tarefa",
+  "beforeTaskDue": "Antes do prazo da tarefa",
+  "afterTaskStarts": "Depois do início da tarefa",
+  "afterTaskDue": "Depois do prazo da tarefa",
+  "relativeToTaskStart": "Relativo à data de início da tarefa",
+  "relativeToTaskDue": "Relativo à data limite da tarefa",
+  "reminderTimeOfDay": "Hora do dia",
+  "absoluteReminder": "Numa data e hora",
+  "reminderAmount": "Quantidade",
+  "reminderUnitSeconds": "Segundos",
+  "reminderUnitMinutes": "Minutos",
+  "reminderUnitHours": "Horas",
+  "reminderUnitDays": "Dias",
+  "reminderUnitWeeks": "Semanas",
+  "reminderAtTaskStart": "No início da tarefa",
+  "reminderAtTaskDue": "No prazo da tarefa",
+  "unsupportedReminder": "Este tipo de lembrete é preservado, mas a hora não pode ser editada.",
+  "relatedRemindersTitle": "Manter lembretes relacionados?",
+  "relatedRemindersDescription": "Esta data tem {count} lembretes relacionados. Mantê-los na data e hora atuais?",
+  "discardRelatedReminders": "Eliminar lembretes",
+  "keepRelatedReminders": "Manter lembretes",
+  "repeatEvery": "Intervalo",
+  "repeatOn": "Repetir em",
+  "repeatEnd": "Terminar repetição",
+  "repeatNever": "Nunca",
+  "repeatUntil": "Numa data",
+  "repeatAfter": "Depois de um número de ocorrências",
+  "repeatCount": "Ocorrências",
+  "repeatDayOfMonth": "Dias do mês",
+  "repeatMonths": "Meses",
+  "repeatOrdinal": "Posição do dia da semana",
+  "repeatSpecificDays": "Dias específicos",
+  "repeatFirst": "Primeiro",
+  "repeatSecond": "Segundo",
+  "repeatThird": "Terceiro",
+  "repeatFourth": "Quarto",
+  "repeatFifth": "Quinto",
+  "repeatSecondToLast": "Penúltimo",
+  "repeatLast": "Último",
+  "repeatAnyDay": "Dia",
+  "repeatWeekday": "Dia útil",
+  "repeatWeekendDay": "Dia do fim de semana",
+  "repeatEveryDays": "A cada {count} dias",
+  "repeatEveryWeeks": "A cada {count} semanas",
+  "repeatEveryMonths": "A cada {count} meses",
+  "repeatEveryYears": "A cada {count} anos",
   "repeatOnDaysSummary": "em {days}",
-  "repeatOnMonthDaysSummary": "on day {days}",
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "repeatInMonthsSummary": "in {months}",
+  "repeatOnMonthDaysSummary": "no dia {days}",
+  "repeatOnOrdinalSummary": "na {ordinal}ª ocorrência de {days}",
+  "repeatInMonthsSummary": "em {months}",
   "repeatTimesSummary": "{count} vezes",
   "repeatUntilSummary": "até {date}",
-  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
+  "unsupportedRecurrencePreserved": "Esta regra de recorrência utiliza opções que este editor não altera.",
   "recurrenceUnsupportedByProvider": "Esta recorrência não pode ser usada com {provider}.",
-  "duplicateTask": "Duplicate task",
-  "taskDuplicated": "Task duplicated.",
-  "taskDuplicateFailed": "Could not duplicate the task: {error}",
+  "duplicateTask": "Duplicar tarefa",
+  "taskDuplicated": "Tarefa duplicada.",
+  "taskDuplicateFailed": "Não foi possível duplicar a tarefa: {error}",
   "hideSubtasks": "Ocultar subtarefas",
-  "hideClosedSubtasks": "Hide closed subtasks",
-  "reminderUnit": "Unit",
-  "attendeeRequired": "Required",
-  "attendeeOptional": "Optional",
-  "meetingSection": "Meeting",
-  "addGoogleMeet": "Add Google Meet",
-  "addTeamsMeeting": "Add Microsoft Teams meeting",
-  "onlineMeetingAdded": "Online meeting added",
-  "requestResponses": "Request responses",
-  "requestResponsesDescription": "Ask guests to respond to the invitation.",
-  "hideGuestList": "Hide guest list",
-  "hideGuestListDescription": "Guests cannot see who else was invited.",
-  "allowNewTimeProposals": "Allow new time proposals",
-  "allowNewTimeProposalsDescription": "Guests can suggest a different meeting time.",
-  "notifyGuestsTitle": "Notify guests?",
-  "notifyGuestsSaveMessage": "This meeting has guests. Send invitations or event updates when it is saved?",
-  "notifyGuestsDeleteMessage": "This meeting has guests. Send a cancellation when it is deleted?",
-  "sendUpdates": "Send updates",
-  "sendCancellation": "Send cancellation",
-  "doNotSend": "Don’t send",
-  "microsoftNotifyGuestsSaveTitle": "Save meeting?",
-  "microsoftNotifyGuestsSaveMessage": "Microsoft will send invitations or event updates to guests.",
-  "microsoftNotifyGuestsDeleteTitle": "Delete meeting?",
-  "microsoftNotifyGuestsDeleteMessage": "Microsoft will send a cancellation to guests.",
-  "organizer": "Organizer",
-  "yourResponse": "Your response",
-  "guestResponses": "Guest responses",
-  "respond": "Respond",
-  "acceptInvitation": "Accept",
-  "tentativeInvitation": "Tentative",
-  "declineInvitation": "Decline",
-  "joinMeeting": "Join meeting",
-  "responseAccepted": "Accepted",
-  "responseTentative": "Tentative",
-  "responseDeclined": "Declined",
-  "responseNeedsAction": "Awaiting response",
-  "responseNotResponded": "Not responded",
-  "responseOrganizer": "Organizer",
-  "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
-  "joinMeetingFailed": "Could not open the meeting link.",
+  "hideClosedSubtasks": "Ocultar subtarefas concluídas",
+  "reminderUnit": "Unidade",
+  "attendeeRequired": "Obrigatório",
+  "attendeeOptional": "Opcional",
+  "meetingSection": "Reunião",
+  "addGoogleMeet": "Adicionar o Google Meet",
+  "addTeamsMeeting": "Adicionar reunião do Microsoft Teams",
+  "onlineMeetingAdded": "Reunião online adicionada",
+  "requestResponses": "Pedir respostas",
+  "requestResponsesDescription": "Peça aos convidados que respondam ao convite.",
+  "hideGuestList": "Ocultar lista de convidados",
+  "hideGuestListDescription": "Os convidados não podem ver quem mais foi convidado.",
+  "allowNewTimeProposals": "Permitir novas propostas de horário",
+  "allowNewTimeProposalsDescription": "Os convidados podem sugerir uma hora diferente para a reunião.",
+  "notifyGuestsTitle": "Notificar convidados?",
+  "notifyGuestsSaveMessage": "Esta reunião tem convidados. Enviar convites ou atualizações do evento ao guardá-la?",
+  "notifyGuestsDeleteMessage": "Esta reunião tem convidados. Enviar um cancelamento ao eliminá-la?",
+  "sendUpdates": "Enviar atualizações",
+  "sendCancellation": "Enviar cancelamento",
+  "doNotSend": "Não enviar",
+  "microsoftNotifyGuestsSaveTitle": "Guardar reunião?",
+  "microsoftNotifyGuestsSaveMessage": "A Microsoft enviará convites ou atualizações do evento aos convidados.",
+  "microsoftNotifyGuestsDeleteTitle": "Eliminar reunião?",
+  "microsoftNotifyGuestsDeleteMessage": "A Microsoft enviará um cancelamento aos convidados.",
+  "organizer": "Organizador",
+  "yourResponse": "A sua resposta",
+  "guestResponses": "Respostas dos convidados",
+  "respond": "Responder",
+  "acceptInvitation": "Aceitar",
+  "tentativeInvitation": "Provisório",
+  "declineInvitation": "Recusar",
+  "joinMeeting": "Participar na reunião",
+  "responseAccepted": "Aceite",
+  "responseTentative": "Provisório",
+  "responseDeclined": "Recusado",
+  "responseNeedsAction": "A aguardar resposta",
+  "responseNotResponded": "Sem resposta",
+  "responseOrganizer": "Organizador",
+  "invitationResponseFailed": "Não foi possível enviar a sua resposta: {error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "Não foi possível abrir a ligação da reunião.",
   "setCustomCalendarName": "Definir nome personalizado",
   "setAction": "Definir",
   "removeFromMyCalendars": "Remover dos meus calendários",
   "removeAction": "Remover",
-  "removeCalendarConfirmation": "Remover \"{title}\" da sua lista do Google Agenda? A agenda compartilhada e os eventos dela não serão excluídos.",
-  "calendarCannotRemove": "Não é possível excluir nem remover esta agenda desta conta.",
-  "calendarPendingChangesPreventRemoval": "Aguarde a sincronização das alterações pendentes desta agenda antes de excluí-la ou removê-la.",
-  "calendarSubscriptions": "Calendar subscriptions",
-  "calendarSubscriptionsDescription": "Add read-only calendars that refresh from a secure WebCal URL.",
-  "addCalendarSubscription": "Add calendar subscription",
-  "subscriptionName": "Local name",
-  "subscriptionUrl": "Subscription URL",
-  "subscriptionUrlHelp": "Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.",
-  "subscriptionUrlInvalid": "Enter a valid HTTPS or webcal URL without user information or a fragment.",
-  "subscriptionColor": "Local color",
-  "subscriptionColorHelp": "Use a six-digit color such as #3584E4.",
-  "subscriptionColorInvalid": "Enter a six-digit hexadecimal color.",
-  "subscriptionRefreshMode": "Refresh frequency",
-  "subscriptionAutomatic": "Automatic",
-  "subscriptionHourly": "Hourly",
-  "subscriptionSixHours": "Every six hours",
-  "subscriptionDaily": "Daily",
-  "subscriptionSafeOrigin": "Source: {origin}",
-  "@subscriptionSafeOrigin": {"placeholders": {"origin": {"type": "String"}}},
-  "subscriptionSafeOriginUnavailable": "Enter a valid URL to preview its safe origin.",
-  "subscriptionReadOnly": "Read-only subscription",
-  "subscriptionNeverRefreshed": "Not refreshed yet",
-  "subscriptionLastRefresh": "Last successful refresh: {time}",
-  "@subscriptionLastRefresh": {"placeholders": {"time": {"type": "String"}}},
-  "subscriptionNextRefresh": "Next refresh: {time}",
-  "@subscriptionNextRefresh": {"placeholders": {"time": {"type": "String"}}},
-  "subscriptionStatusHealthy": "Up to date",
-  "subscriptionStatusIssue": "Refresh issue: {code}",
-  "@subscriptionStatusIssue": {"placeholders": {"code": {"type": "String"}}},
-  "refreshNow": "Refresh now",
-  "unsubscribe": "Unsubscribe",
-  "unsubscribeCalendarTitle": "Unsubscribe from “{name}”?",
-  "@unsubscribeCalendarTitle": {"placeholders": {"name": {"type": "String"}}},
-  "unsubscribeCalendarConfirmation": "This removes the local subscription and its cached events. The published calendar is not changed.",
-  "addSubscriptionAction": "Add subscription",
-  "subscriptionOperationFailed": "Calendar subscription failed: {error}",
-  "@subscriptionOperationFailed": {"placeholders": {"error": {"type": "String"}}},
-  "subscriptions": "Subscriptions",
-  "calendarImport": "Importar calendário",
-  "calendarImportDescription": "Selecione um ficheiro, reveja os eventos e escolha o calendário editável que os receberá.",
-  "importIcsFile": "Import .ics file",
-  "importIcsPreview": "Import calendar events",
-  "importEventsFound": "Importable event sets: {count}",
-  "@importEventsFound": {"placeholders": {"count": {"type": "int"}}},
-  "importInvalidEvents": "Invalid events: {count}",
-  "@importInvalidEvents": {"placeholders": {"count": {"type": "int"}}},
-  "importFieldsOmitted": "Intentionally omitted: {fields}",
-  "@importFieldsOmitted": {"placeholders": {"fields": {"type": "String"}}},
-  "noWritableCalendars": "No writable destination calendar is available.",
-  "importDestinationCalendar": "Destination calendar",
-  "importIcsConfirm": "Import events",
-  "importIcsComplete": "Import complete",
-  "importQueued": "Imported or queued: {count}",
-  "@importQueued": {"placeholders": {"count": {"type": "int"}}},
-  "importDuplicatesSkipped": "Duplicates skipped: {count}",
-  "@importDuplicatesSkipped": {"placeholders": {"count": {"type": "int"}}},
-  "importUnsupportedSets": "Unsupported recurrence sets: {count}",
-  "@importUnsupportedSets": {"placeholders": {"count": {"type": "int"}}},
-  "importIcsFailed": "Could not import the calendar file: {error}",
-  "@importIcsFailed": {"placeholders": {"error": {"type": "String"}}},
-  "networkOffline": "Offline",
+  "removeCalendarConfirmation": "Remover \"{title}\" da sua lista do Google Calendar? O calendário partilhado e os respetivos eventos não serão eliminados.",
+  "calendarCannotRemove": "Não é possível eliminar nem remover este calendário desta conta.",
+  "calendarPendingChangesPreventRemoval": "Aguarde que as alterações pendentes deste calendário terminem de sincronizar antes de o eliminar ou remover.",
+  "calendarSubscriptions": "Subscrições de calendários",
+  "calendarSubscriptionsDescription": "Adicione calendários só de leitura que sejam atualizados a partir de um URL WebCal seguro.",
+  "addCalendarSubscription": "Adicionar subscrição de calendário",
+  "subscriptionName": "Nome local",
+  "subscriptionUrl": "URL da subscrição",
+  "subscriptionUrlHelp": "Introduza um URL HTTPS ou webcal. O BusyMax mantém o URL completo num armazenamento seguro.",
+  "subscriptionUrlInvalid": "Introduza um URL HTTPS ou webcal válido sem informações de utilizador ou fragmento.",
+  "subscriptionColor": "Cor local",
+  "subscriptionColorHelp": "Utilize uma cor de seis dígitos, como #3584E4.",
+  "subscriptionColorInvalid": "Introduza uma cor hexadecimal de seis dígitos.",
+  "subscriptionRefreshMode": "Frequência de atualização",
+  "subscriptionAutomatic": "Automática",
+  "subscriptionHourly": "De hora a hora",
+  "subscriptionSixHours": "A cada seis horas",
+  "subscriptionDaily": "Diária",
+  "subscriptionSafeOrigin": "Origem: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "Introduza um URL válido para pré-visualizar a origem segura.",
+  "subscriptionReadOnly": "Subscrição só de leitura",
+  "subscriptionNeverRefreshed": "Ainda não atualizada",
+  "subscriptionLastRefresh": "Última atualização bem-sucedida: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "Próxima atualização: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "Atualizada",
+  "subscriptionStatusIssue": "Problema de atualização: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "Atualizar agora",
+  "unsubscribe": "Cancelar subscrição",
+  "unsubscribeCalendarTitle": "Cancelar subscrição de “{name}”?",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "Isto remove a subscrição local e os eventos colocados em cache. O calendário publicado não é alterado.",
+  "addSubscriptionAction": "Adicionar subscrição",
+  "subscriptionOperationFailed": "Falha na subscrição do calendário: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "Subscrições",
+  "calendarImport": "Importação de calendário",
+  "calendarImportDescription": "Selecione um ficheiro, reveja os eventos e escolha o calendário editável que os deve receber.",
+  "importIcsFile": "Importar ficheiro .ics",
+  "importIcsPreview": "Importar eventos do calendário",
+  "importEventsFound": "Conjuntos de eventos importáveis: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importInvalidEvents": "Eventos inválidos: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importFieldsOmitted": "Omitidos intencionalmente: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "Não está disponível nenhum calendário de destino editável.",
+  "importDestinationCalendar": "Calendário de destino",
+  "importIcsConfirm": "Importar eventos",
+  "importIcsComplete": "Importação concluída",
+  "importQueued": "Importados ou em fila: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "Duplicados ignorados: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importUnsupportedSets": "Conjuntos de recorrência não suportados: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importIcsFailed": "Não foi possível importar o ficheiro de calendário: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "networkOffline": "Sem ligação",
   "networkOfflineDescription": "As alterações serão sincronizadas quando a ligação for restabelecida.",
   "networkOfflineTryAgain": "Está offline. Ligue-se à Internet e tente novamente."
 }
