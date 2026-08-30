@@ -165,7 +165,11 @@ final class WebCalSubscriptionService {
     final response = await _httpTransport.get(normalized.uri);
     final candidate = _prepareAcceptedResponse(
       response,
-      secretUris: {normalized.uri, response.finalUri},
+      secretValues: {
+        normalized.credentialUri,
+        normalized.uri.toString(),
+        response.finalUri.toString(),
+      },
     );
     final subscriptionId = _idFactory();
     final accountId = 'webcal-account-$subscriptionId';
@@ -430,7 +434,11 @@ final class WebCalSubscriptionService {
       }
       final candidate = _prepareAcceptedResponse(
         response,
-        secretUris: {subscriptionUri, response.finalUri},
+        secretValues: {
+          secret.normalizedSubscriptionUri,
+          subscriptionUri.toString(),
+          response.finalUri.toString(),
+        },
       );
       final source =
           await (_database.select(_database.calendarSources)
@@ -665,6 +673,13 @@ final class WebCalSubscriptionService {
         .select(_database.webCalSubscriptions)
         .get();
     for (final subscription in subscriptions) {
+      if (!_projectionCoverageRequired(
+        subscription,
+        requestedStart: requestedStart,
+        requestedEnd: requestedEnd,
+      )) {
+        continue;
+      }
       await _serializeSubscriptionOperation(
         subscription.id,
         () => _ensureProjectionCoverage(
@@ -814,7 +829,7 @@ final class WebCalSubscriptionService {
 
   _PreparedCandidate _prepareAcceptedResponse(
     WebCalHttpResponse response, {
-    required Iterable<Uri> secretUris,
+    required Iterable<String> secretValues,
   }) {
     if (response.finalUri.scheme != 'https' ||
         response.finalUri.host.isEmpty ||
@@ -862,7 +877,7 @@ final class WebCalSubscriptionService {
     );
     final snapshot = sanitizedCanonicalSnapshot(
       originalIngestion.document,
-      secretUris: secretUris,
+      secretValues: secretValues,
     );
     final projection = _prepareCachedProjection(
       snapshot,

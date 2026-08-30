@@ -223,10 +223,10 @@ int? _refreshIntervalSeconds(IcalDocument document) {
 
 String sanitizedCanonicalSnapshot(
   IcalDocument input, {
-  required Iterable<Uri> secretUris,
+  required Iterable<String> secretValues,
 }) {
   final document = input.deepCopy();
-  final secrets = secretUris.map((uri) => uri.toString()).toSet();
+  final secrets = secretValues.where((value) => value.isNotEmpty).toSet();
   void sanitize(IcalComponent component, {required bool topLevel}) {
     component.children.removeWhere((node) {
       if (node is! IcalProperty) return false;
@@ -235,6 +235,7 @@ String sanitizedCanonicalSnapshot(
       }
       final values = <String>[
         node.rawValue.trim(),
+        node.decodedTextValue.trim(),
         for (final parameter in node.parameters) ...parameter.values,
       ];
       return secrets.any(

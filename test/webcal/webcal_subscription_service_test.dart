@@ -4,6 +4,9 @@ import 'dart:typed_data';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/schedule/schedule_filters.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/webcal/webcal_http_client.dart';
 import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:crypto/crypto.dart';
@@ -176,6 +179,55 @@ END:VEVENT
       expect(snapshot, isNot(contains(origin.toString())));
       expect(snapshot, isNot(contains(target.toString())));
       expect(snapshot, isNot(contains('ALTREP')));
+    },
+  );
+
+  test(
+    'escaped TEXT values cannot expose original or target credentials',
+    () async {
+      const original = r'https://calendar.example.test/feed?token=a,b\c';
+      final target = Uri.parse(
+        'https://cdn.example.test/current.ics?token=a;b',
+      );
+      transport.responses.add(
+        _response(
+          uri: target,
+          body: utf8.encode(
+            _calendar(r'''
+BEGIN:VEVENT
+UID:text-secret
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:https://calendar.example.test/feed?token=a\,b\\c
+DESCRIPTION:https://calendar.example.test/feed?token=a\,b\\c
+LOCATION:https://cdn.example.test/current.ics?token=a\;b
+END:VEVENT
+'''),
+          ),
+        ),
+      );
+
+      await service.addSubscription(subscriptionUrl: original);
+
+      final snapshot = await database
+          .select(database.webCalSubscriptions)
+          .getSingle();
+      final event = await database.select(database.calendarEvents).getSingle();
+      final projectedText = [
+        event.title,
+        event.description,
+        event.location,
+      ].join('\n');
+      expect(snapshot.snapshotIcsBody, isNot(contains(original)));
+      expect(snapshot.snapshotIcsBody, isNot(contains(target.toString())));
+      expect(snapshot.snapshotIcsBody, isNot(contains('SUMMARY:')));
+      expect(snapshot.snapshotIcsBody, isNot(contains('DESCRIPTION:')));
+      expect(snapshot.snapshotIcsBody, isNot(contains('LOCATION:')));
+      expect(projectedText, isNot(contains(original)));
+      expect(projectedText, isNot(contains(target.toString())));
+      expect(event.title, isEmpty);
+      expect(event.description, isNull);
+      expect(event.location, isNull);
     },
   );
 
@@ -461,6 +513,39 @@ END:VEVENT
       );
     },
   );
+
+  test('covered schedule reads do not wait for an in-flight refresh', () async {
+    final uri = Uri.parse('https://calendar.example.test/feed');
+    transport.responses.add(_response(uri: uri, body: _oneEvent));
+    await service.addSubscription(subscriptionUrl: uri.toString());
+
+    final response = Completer<WebCalHttpResponse>();
+    transport.responses.add(response.future);
+    final refresh = service.refreshSubscription('subscription-1', force: true);
+    while (transport.requests.length < 2) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    final repository = ScheduleRepository(
+      database,
+      ensureProjectionCoverage: (range) => service.ensureProjectionCoverage(
+        rangeStartUtc: range.start.toUtc(),
+        rangeEndUtc: range.end.toUtc(),
+      ),
+    );
+    final items = await repository
+        .listItems(
+          range: ScheduleRange.day(DateTime.utc(2026, 8, 30)),
+          filters: const ScheduleFilters(includeTasks: false),
+        )
+        .timeout(const Duration(seconds: 1));
+
+    expect(items.map((item) => item.title), ['One']);
+    expect(response.isCompleted, isFalse);
+
+    response.complete(_response(uri: uri, body: _oneEvent));
+    await refresh;
+  });
 
   test('304 reprojects an aging cached recurring snapshot', () async {
     final uri = Uri.parse('https://calendar.example.test/feed');

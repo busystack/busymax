@@ -304,7 +304,7 @@ END:VEVENT
       );
       final snapshot = sanitizedCanonicalSnapshot(
         result.document,
-        secretUris: [secret, target],
+        secretValues: [secret.toString(), target.toString()],
       );
 
       expect(snapshot, isNot(contains(secret.toString())));
