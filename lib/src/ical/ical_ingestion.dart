@@ -233,8 +233,13 @@ String sanitizedCanonicalSnapshot(
       if (topLevel && (node.name == 'SOURCE' || node.name == 'URL')) {
         return true;
       }
-      final value = node.rawValue.trim();
-      return secrets.any(value.contains);
+      final values = <String>[
+        node.rawValue.trim(),
+        for (final parameter in node.parameters) ...parameter.values,
+      ];
+      return secrets.any(
+        (secret) => values.any((value) => value.contains(secret)),
+      );
     });
     for (final child in component.components) {
       sanitize(child, topLevel: false);

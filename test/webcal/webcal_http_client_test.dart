@@ -5,51 +5,49 @@ import 'package:busymax/src/webcal/webcal_http_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'follows safe redirects without forwarding validators or credentials',
-    () async {
-      final first = _FakeResponse(302, headers: {'location': '/final.ics'});
-      final second = _FakeResponse(
-        200,
-        chunks: const [
-          <int>[1, 2, 3],
-        ],
-      );
-      final client = _FakeHttpClient([first, second]);
-      final transport = IoWebCalHttpTransport(clientFactory: () => client);
-      final start = Uri.parse('https://calendar.example.test/start');
+  test('binds validators only to the exact matching redirect hop', () async {
+    final first = _FakeResponse(302, headers: {'location': '/final.ics'});
+    final second = _FakeResponse(
+      200,
+      chunks: const [
+        <int>[1, 2, 3],
+      ],
+    );
+    final client = _FakeHttpClient([first, second]);
+    final transport = IoWebCalHttpTransport(clientFactory: () => client);
+    final start = Uri.parse('https://calendar.example.test/start');
+    final target = Uri.parse('https://calendar.example.test/final.ics');
 
-      final result = await transport.get(
-        start,
-        validators: const WebCalHttpValidators(
-          etag: '"etag"',
-          lastModified: 'Sat, 29 Aug 2026 20:00:00 GMT',
-        ),
-        validatorTarget: start,
-      );
+    final result = await transport.get(
+      start,
+      validators: const WebCalHttpValidators(
+        etag: '"etag"',
+        lastModified: 'Sat, 29 Aug 2026 20:00:00 GMT',
+      ),
+      validatorTarget: target,
+    );
 
-      expect(
-        result.finalUri.toString(),
-        'https://calendar.example.test/final.ics',
-      );
-      expect(result.body, [1, 2, 3]);
-      expect(client.requests, hasLength(2));
-      final firstHeaders = client.requests.first.recordedHeaders;
-      expect(firstHeaders['accept'], 'text/calendar');
-      expect(firstHeaders['if-none-match'], '"etag"');
-      expect(
-        firstHeaders['if-modified-since'],
-        'Sat, 29 Aug 2026 20:00:00 GMT',
-      );
-      expect(firstHeaders, isNot(contains('authorization')));
-      expect(firstHeaders, isNot(contains('cookie')));
-      expect(firstHeaders, isNot(contains('referer')));
-      expect(firstHeaders, isNot(contains('origin')));
-      final redirectedHeaders = client.requests.last.recordedHeaders;
-      expect(redirectedHeaders, isNot(contains('if-none-match')));
-      expect(redirectedHeaders, isNot(contains('if-modified-since')));
-    },
-  );
+    expect(
+      result.finalUri.toString(),
+      'https://calendar.example.test/final.ics',
+    );
+    expect(result.body, [1, 2, 3]);
+    expect(client.requests, hasLength(2));
+    final firstHeaders = client.requests.first.recordedHeaders;
+    expect(firstHeaders['accept'], 'text/calendar');
+    expect(firstHeaders, isNot(contains('if-none-match')));
+    expect(firstHeaders, isNot(contains('if-modified-since')));
+    expect(firstHeaders, isNot(contains('authorization')));
+    expect(firstHeaders, isNot(contains('cookie')));
+    expect(firstHeaders, isNot(contains('referer')));
+    expect(firstHeaders, isNot(contains('origin')));
+    final redirectedHeaders = client.requests.last.recordedHeaders;
+    expect(redirectedHeaders['if-none-match'], '"etag"');
+    expect(
+      redirectedHeaders['if-modified-since'],
+      'Sat, 29 Aug 2026 20:00:00 GMT',
+    );
+  });
 
   test(
     'rejects redirect downgrade, user information, fragments, and loops',
@@ -197,6 +195,71 @@ void main() {
           validatorTarget: Uri.parse('https://other.example.test/feed'),
         );
     expect(unboundResponse.conditionalRequestSent, isFalse);
+  });
+
+  test('does not wait for stalled redirect or 304 response bodies', () async {
+    final redirectBody = StreamController<List<int>>();
+    final notModifiedBody = StreamController<List<int>>();
+    final redirectClient = _FakeHttpClient([
+      _FakeResponse(
+        302,
+        headers: {'location': '/final.ics'},
+        stream: redirectBody.stream,
+      ),
+      _FakeResponse(
+        200,
+        chunks: const [
+          <int>[1],
+        ],
+      ),
+    ]);
+
+    final redirected =
+        await IoWebCalHttpTransport(clientFactory: () => redirectClient)
+            .get(Uri.parse('https://calendar.example.test/start'))
+            .timeout(const Duration(milliseconds: 100));
+    expect(redirected.body, [1]);
+    expect(redirectBody.hasListener, isFalse);
+
+    final notModifiedClient = _FakeHttpClient([
+      _FakeResponse(304, stream: notModifiedBody.stream),
+    ]);
+    final target = Uri.parse('https://calendar.example.test/feed');
+    final notModified =
+        await IoWebCalHttpTransport(clientFactory: () => notModifiedClient)
+            .get(
+              target,
+              validators: const WebCalHttpValidators(etag: '"one"'),
+              validatorTarget: target,
+            )
+            .timeout(const Duration(milliseconds: 100));
+    expect(notModified.statusCode, 304);
+    expect(notModifiedBody.hasListener, isFalse);
+  });
+
+  test('body waits never exceed the remaining total deadline', () async {
+    final controller = StreamController<List<int>>();
+    scheduleMicrotask(() => controller.add([1]));
+    final client = _FakeHttpClient([
+      _FakeResponse(200, stream: controller.stream),
+    ]);
+
+    await expectLater(
+      IoWebCalHttpTransport(
+        clientFactory: () => client,
+        limits: const WebCalHttpLimits(
+          streamInactivityTimeout: Duration(seconds: 1),
+          totalDeadline: Duration(milliseconds: 20),
+        ),
+      ).get(Uri.parse('https://calendar.example.test/start')),
+      throwsA(
+        isA<WebCalHttpException>().having(
+          (error) => error.code,
+          'code',
+          'WebCalTotalTimeout',
+        ),
+      ),
+    );
   });
 }
 

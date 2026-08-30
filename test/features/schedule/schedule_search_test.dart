@@ -84,6 +84,27 @@ void main() {
   );
 
   test(
+    'repository ensures calendar projection coverage before reading',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final requestedRange = ScheduleRange.day(DateTime(2035, 8, 29));
+      ScheduleRange? ensuredRange;
+      final repository = ScheduleRepository(
+        database,
+        ensureProjectionCoverage: (range) async => ensuredRange = range,
+      );
+
+      await repository.listItems(
+        range: requestedRange,
+        filters: const ScheduleFilters(includeTasks: false),
+      );
+
+      expect(ensuredRange, requestedRange);
+    },
+  );
+
+  test(
     'Microsoft all-day calendar event appears from Graph dateTime fields',
     () async {
       final database = AppDatabase(NativeDatabase.memory());

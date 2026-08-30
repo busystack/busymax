@@ -87,7 +87,6 @@ final class IoWebCalHttpTransport implements WebCalHttpTransport {
     final visited = <String>{};
     var current = uri;
     var redirects = 0;
-    var allowValidators = validatorTarget == current && !validators.isEmpty;
     while (true) {
       _requireHttpsTarget(current);
       if (!visited.add(current.toString())) {
@@ -98,7 +97,9 @@ final class IoWebCalHttpTransport implements WebCalHttpTransport {
       }
       final response = await _singleGet(
         current,
-        validators: allowValidators ? validators : const WebCalHttpValidators(),
+        validators: validatorTarget == current
+            ? validators
+            : const WebCalHttpValidators(),
         deadline: deadline,
       );
       if (!_redirectStatuses.contains(response.statusCode)) return response;
@@ -112,7 +113,6 @@ final class IoWebCalHttpTransport implements WebCalHttpTransport {
       final next = current.resolveUri(location);
       _requireHttpsTarget(next);
       current = next;
-      allowValidators = false;
       redirects += 1;
     }
   }
@@ -171,8 +171,6 @@ final class IoWebCalHttpTransport implements WebCalHttpTransport {
           inactivityTimeout: limits.streamInactivityTimeout,
           maximumBytes: limits.maximumDecodedBodyBytes,
         );
-      } else {
-        await response.drain<void>();
       }
       return _SingleResponse(
         statusCode: response.statusCode,
@@ -216,20 +214,29 @@ Future<Uint8List> _readLimitedBody(
   required int maximumBytes,
 }) async {
   final builder = BytesBuilder(copy: false);
-  final stream = response.timeout(
-    inactivityTimeout,
-    onTimeout: (sink) => sink.addError(
-      const WebCalHttpException('WebCalStreamInactivityTimeout'),
-    ),
-  );
-  await for (final chunk in stream) {
-    if (DateTime.now().isAfter(deadline)) {
-      throw const WebCalHttpException('WebCalTotalTimeout');
+  final iterator = StreamIterator<List<int>>(response);
+  try {
+    while (true) {
+      final remaining = _remaining(deadline);
+      final limitedByDeadline = remaining <= inactivityTimeout;
+      final wait = limitedByDeadline ? remaining : inactivityTimeout;
+      final hasNext = await iterator.moveNext().timeout(
+        wait,
+        onTimeout: () => throw WebCalHttpException(
+          limitedByDeadline
+              ? 'WebCalTotalTimeout'
+              : 'WebCalStreamInactivityTimeout',
+        ),
+      );
+      if (!hasNext) break;
+      final chunk = iterator.current;
+      if (builder.length + chunk.length > maximumBytes) {
+        throw const WebCalHttpException('WebCalBodyTooLarge');
+      }
+      builder.add(chunk);
     }
-    if (builder.length + chunk.length > maximumBytes) {
-      throw const WebCalHttpException('WebCalBodyTooLarge');
-    }
-    builder.add(chunk);
+  } finally {
+    await iterator.cancel();
   }
   return builder.takeBytes();
 }

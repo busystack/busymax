@@ -285,19 +285,31 @@ END:VTODO
 
     test('sanitized snapshot removes secret-bearing properties', () {
       final secret = Uri.parse('https://example.test/private.ics?token=secret');
+      final target = Uri.parse('https://cdn.example.test/current.ics?key=two');
       final result = IcalIngestion.parseString(
         _calendar('''
 SOURCE:${secret.toString()}
-${_event('safe', 'Safe')}
+BEGIN:VEVENT
+UID:safe
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Safe
+DESCRIPTION;ALTREP="${secret.toString()}":Quoted
+DESCRIPTION;ALTREP="https://cdn.example.test/current.ics?
+ key=two":Folded
+DESCRIPTION;ALTREP="${secret.toString()}^nprivate":Escaped
+END:VEVENT
 '''),
         policy: IcalIngestionPolicy.webCal,
       );
       final snapshot = sanitizedCanonicalSnapshot(
         result.document,
-        secretUris: [secret],
+        secretUris: [secret, target],
       );
 
       expect(snapshot, isNot(contains(secret.toString())));
+      expect(snapshot, isNot(contains(target.toString())));
+      expect(snapshot, isNot(contains('ALTREP')));
       expect(snapshot, contains('UID:safe'));
     });
 

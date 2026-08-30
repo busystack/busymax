@@ -18,7 +18,7 @@ import 'webcal_http_client.dart';
 import 'webcal_uri.dart';
 
 const webCalParserVersion = 1;
-const webCalProjectionVersion = 1;
+const webCalProjectionVersion = 2;
 
 enum WebCalRefreshMode { automatic, hourly, sixHours, daily }
 
@@ -107,7 +107,7 @@ final class WebCalSubscriptionService {
   final DateTime Function() _nowUtc;
   final String Function() _idFactory;
   final IcalEventProjector _eventProjector;
-  final Map<String, Future<void>> _refreshTails = {};
+  final Map<String, Future<void>> _operationTails = {};
 
   Stream<List<WebCalSubscriptionEntity>> watchSubscriptions() {
     final query = _database.select(_database.webCalSubscriptions).join([
@@ -253,6 +253,12 @@ final class WebCalSubscriptionService {
                 lastChangedAtUtc: Value(now.toIso8601String()),
                 parserVersion: const Value(webCalParserVersion),
                 projectionVersion: const Value(webCalProjectionVersion),
+                projectionRangeStartUtc: Value(
+                  candidate.projectionRangeStartUtc.toIso8601String(),
+                ),
+                projectionRangeEndUtc: Value(
+                  candidate.projectionRangeEndUtc.toIso8601String(),
+                ),
                 createdAtUtc: now.toIso8601String(),
                 updatedAtUtc: now.toIso8601String(),
               ),
@@ -277,15 +283,21 @@ final class WebCalSubscriptionService {
   Future<void> refreshSubscription(
     String subscriptionId, {
     bool force = false,
-  }) {
-    final previous = _refreshTails[subscriptionId] ?? Future.value();
-    final next = previous
-        .catchError((Object _) {})
-        .then((_) => _refreshSubscription(subscriptionId, force: force));
-    _refreshTails[subscriptionId] = next;
+  }) => _serializeSubscriptionOperation(
+    subscriptionId,
+    () => _refreshSubscription(subscriptionId, force: force),
+  );
+
+  Future<void> _serializeSubscriptionOperation(
+    String subscriptionId,
+    Future<void> Function() operation,
+  ) {
+    final previous = _operationTails[subscriptionId] ?? Future.value();
+    final next = previous.catchError((Object _) {}).then((_) => operation());
+    _operationTails[subscriptionId] = next;
     return next.whenComplete(() {
-      if (identical(_refreshTails[subscriptionId], next)) {
-        _refreshTails.remove(subscriptionId);
+      if (identical(_operationTails[subscriptionId], next)) {
+        _operationTails.remove(subscriptionId);
       }
     });
   }
@@ -327,7 +339,7 @@ final class WebCalSubscriptionService {
         targetFingerprint == subscription.validatorTargetFingerprint;
     try {
       final response = await _httpTransport.get(
-        validatorsBound ? target : subscriptionUri,
+        subscriptionUri,
         validators: validatorsBound
             ? WebCalHttpValidators(
                 etag: subscription.etag,
@@ -343,7 +355,27 @@ final class WebCalSubscriptionService {
             subscription.snapshotIcsBody.isEmpty) {
           throw const WebCalSubscriptionException('WebCalInvalidNotModified');
         }
+        final cachedProjection = _prepareCachedProjectionForRefresh(
+          subscription,
+          now,
+        );
+        final source = cachedProjection == null
+            ? null
+            : await (_database.select(_database.calendarSources)..where(
+                    (row) => row.id.equals(subscription.calendarSourceId),
+                  ))
+                  .getSingle();
         await _database.transaction(() async {
+          if (cachedProjection != null) {
+            await _replaceEvents(
+              subscriptionId: subscription.id,
+              accountId: subscription.accountId,
+              sourceId: subscription.calendarSourceId,
+              color: source!.backgroundColor,
+              projections: cachedProjection.projections,
+              now: now,
+            );
+          }
           await (_database.update(
             _database.webCalSubscriptions,
           )..where((row) => row.id.equals(subscription.id))).write(
@@ -357,6 +389,18 @@ final class WebCalSubscriptionService {
               consecutiveFailureCount: const Value(0),
               lastFailureCode: const Value(null),
               lastFailureHttpStatus: const Value(null),
+              parserVersion: cachedProjection == null
+                  ? const Value.absent()
+                  : const Value(webCalParserVersion),
+              projectionVersion: cachedProjection == null
+                  ? const Value.absent()
+                  : const Value(webCalProjectionVersion),
+              projectionRangeStartUtc: cachedProjection == null
+                  ? const Value.absent()
+                  : Value(cachedProjection.rangeStartUtc.toIso8601String()),
+              projectionRangeEndUtc: cachedProjection == null
+                  ? const Value.absent()
+                  : Value(cachedProjection.rangeEndUtc.toIso8601String()),
               nextRefreshAtUtc: Value(
                 _nextRefresh(
                   now,
@@ -379,6 +423,9 @@ final class WebCalSubscriptionService {
             ),
           );
         });
+        if (cachedProjection != null) {
+          await _rebuildNotifications(subscription.accountId);
+        }
         return;
       }
       final candidate = _prepareAcceptedResponse(
@@ -428,6 +475,14 @@ final class WebCalSubscriptionService {
               lastFailureCode: const Value(null),
               lastFailureHttpStatus: const Value(null),
               generation: Value(subscription.generation + 1),
+              parserVersion: const Value(webCalParserVersion),
+              projectionVersion: const Value(webCalProjectionVersion),
+              projectionRangeStartUtc: Value(
+                candidate.projectionRangeStartUtc.toIso8601String(),
+              ),
+              projectionRangeEndUtc: Value(
+                candidate.projectionRangeEndUtc.toIso8601String(),
+              ),
               nextRefreshAtUtc: Value(
                 _nextRefresh(
                   now,
@@ -463,8 +518,18 @@ final class WebCalSubscriptionService {
     }
   }
 
-  Future<void> renameSubscription(String subscriptionId, String name) async {
+  Future<void> renameSubscription(String subscriptionId, String name) {
     final trimmed = _subscriptionName(name);
+    return _serializeSubscriptionOperation(
+      subscriptionId,
+      () => _renameSubscription(subscriptionId, trimmed),
+    );
+  }
+
+  Future<void> _renameSubscription(
+    String subscriptionId,
+    String trimmed,
+  ) async {
     final subscription = await _subscription(subscriptionId);
     final now = _nowUtc();
     await _database.transaction(() async {
@@ -487,12 +552,19 @@ final class WebCalSubscriptionService {
     });
   }
 
-  Future<void> changeSubscriptionColor(
+  Future<void> changeSubscriptionColor(String subscriptionId, String? color) {
+    final normalized = _normalizedColor(color);
+    return _serializeSubscriptionOperation(
+      subscriptionId,
+      () => _changeSubscriptionColor(subscriptionId, normalized),
+    );
+  }
+
+  Future<void> _changeSubscriptionColor(
     String subscriptionId,
-    String? color,
+    String? normalized,
   ) async {
     final subscription = await _subscription(subscriptionId);
-    final normalized = _normalizedColor(color);
     final now = _nowUtc().millisecondsSinceEpoch;
     await _database.transaction(() async {
       await (_database.update(
@@ -518,6 +590,14 @@ final class WebCalSubscriptionService {
   Future<void> changeRefreshMode(
     String subscriptionId,
     WebCalRefreshMode mode,
+  ) => _serializeSubscriptionOperation(
+    subscriptionId,
+    () => _changeRefreshMode(subscriptionId, mode),
+  );
+
+  Future<void> _changeRefreshMode(
+    String subscriptionId,
+    WebCalRefreshMode mode,
   ) async {
     final subscription = await _subscription(subscriptionId);
     final now = _nowUtc();
@@ -539,7 +619,13 @@ final class WebCalSubscriptionService {
     );
   }
 
-  Future<void> unsubscribe(String subscriptionId) async {
+  Future<void> unsubscribe(String subscriptionId) =>
+      _serializeSubscriptionOperation(
+        subscriptionId,
+        () => _unsubscribe(subscriptionId),
+      );
+
+  Future<void> _unsubscribe(String subscriptionId) async {
     final subscription = await _subscription(subscriptionId);
     final secret = await _secretStore.readCredential(subscription.accountId);
     await _secretStore.deleteCredential(subscription.accountId);
@@ -566,6 +652,164 @@ final class WebCalSubscriptionService {
       throw const WebCalSubscriptionException('WebCalSubscriptionNotFound');
     }
     return value;
+  }
+
+  Future<void> ensureProjectionCoverage({
+    required DateTime rangeStartUtc,
+    required DateTime rangeEndUtc,
+  }) async {
+    final requestedStart = rangeStartUtc.toUtc();
+    final requestedEnd = rangeEndUtc.toUtc();
+    if (!requestedEnd.isAfter(requestedStart)) return;
+    final subscriptions = await _database
+        .select(_database.webCalSubscriptions)
+        .get();
+    for (final subscription in subscriptions) {
+      await _serializeSubscriptionOperation(
+        subscription.id,
+        () => _ensureProjectionCoverage(
+          subscription.id,
+          requestedStart: requestedStart,
+          requestedEnd: requestedEnd,
+        ),
+      );
+    }
+  }
+
+  Future<void> _ensureProjectionCoverage(
+    String subscriptionId, {
+    required DateTime requestedStart,
+    required DateTime requestedEnd,
+  }) async {
+    final subscription = await (_database.select(
+      _database.webCalSubscriptions,
+    )..where((row) => row.id.equals(subscriptionId))).getSingleOrNull();
+    if (subscription == null ||
+        !_projectionCoverageRequired(
+          subscription,
+          requestedStart: requestedStart,
+          requestedEnd: requestedEnd,
+        )) {
+      return;
+    }
+    final range = _projectionRange(
+      _nowUtc(),
+      requestedStart: requestedStart,
+      requestedEnd: requestedEnd,
+    );
+    final projection = _prepareCachedProjection(
+      subscription.snapshotIcsBody,
+      range: range,
+    );
+    final source =
+        await (_database.select(_database.calendarSources)
+              ..where((row) => row.id.equals(subscription.calendarSourceId)))
+            .getSingleOrNull();
+    if (source == null) return;
+    final now = _nowUtc();
+    await _database.transaction(() async {
+      await _replaceEvents(
+        subscriptionId: subscription.id,
+        accountId: subscription.accountId,
+        sourceId: subscription.calendarSourceId,
+        color: source.backgroundColor,
+        projections: projection.projections,
+        now: now,
+      );
+      await (_database.update(
+        _database.webCalSubscriptions,
+      )..where((row) => row.id.equals(subscription.id))).write(
+        WebCalSubscriptionsCompanion(
+          parserVersion: const Value(webCalParserVersion),
+          projectionVersion: const Value(webCalProjectionVersion),
+          projectionRangeStartUtc: Value(
+            projection.rangeStartUtc.toIso8601String(),
+          ),
+          projectionRangeEndUtc: Value(
+            projection.rangeEndUtc.toIso8601String(),
+          ),
+          updatedAtUtc: Value(now.toIso8601String()),
+        ),
+      );
+    });
+    await _rebuildNotifications(subscription.accountId);
+  }
+
+  _PreparedProjection? _prepareCachedProjectionForRefresh(
+    WebCalSubscription subscription,
+    DateTime now,
+  ) {
+    final minimumFuture = DateTime.utc(now.year + 1, now.month, now.day);
+    if (!_projectionCoverageRequired(
+      subscription,
+      requestedStart: now,
+      requestedEnd: minimumFuture,
+      includePadding: false,
+    )) {
+      return null;
+    }
+    return _prepareCachedProjection(
+      subscription.snapshotIcsBody,
+      range: _projectionRange(now),
+    );
+  }
+
+  bool _projectionCoverageRequired(
+    WebCalSubscription subscription, {
+    required DateTime requestedStart,
+    required DateTime requestedEnd,
+    bool includePadding = true,
+  }) {
+    if (subscription.parserVersion != webCalParserVersion ||
+        subscription.projectionVersion != webCalProjectionVersion) {
+      return true;
+    }
+    final storedStart = DateTime.tryParse(
+      subscription.projectionRangeStartUtc ?? '',
+    )?.toUtc();
+    final storedEnd = DateTime.tryParse(
+      subscription.projectionRangeEndUtc ?? '',
+    )?.toUtc();
+    if (storedStart == null || storedEnd == null) return true;
+    final requiredStart = includePadding
+        ? requestedStart.subtract(const Duration(days: 30))
+        : requestedStart;
+    final requiredEnd = includePadding
+        ? requestedEnd.add(const Duration(days: 90))
+        : requestedEnd;
+    return storedStart.isAfter(requiredStart) ||
+        storedEnd.isBefore(requiredEnd);
+  }
+
+  _PreparedProjection _prepareCachedProjection(
+    String snapshot, {
+    required ({DateTime start, DateTime end}) range,
+  }) {
+    final ingestion = IcalIngestion.parseString(
+      snapshot,
+      policy: IcalIngestionPolicy.webCal,
+    );
+    final projections = <ProjectedIcalEvent>[];
+    try {
+      for (final set in ingestion.recurrenceSets) {
+        projections.addAll(
+          _eventProjector.project(
+            set,
+            rangeStartUtc: range.start,
+            rangeEndUtc: range.end,
+            transport: 'webcal',
+          ),
+        );
+      }
+    } on DavException catch (error) {
+      throw WebCalSubscriptionException(error.code);
+    }
+    return _PreparedProjection(
+      ingestion: ingestion,
+      projections: projections,
+      rangeStartUtc: range.start,
+      rangeEndUtc: range.end,
+    );
   }
 
   _PreparedCandidate _prepareAcceptedResponse(
@@ -620,34 +864,18 @@ final class WebCalSubscriptionService {
       originalIngestion.document,
       secretUris: secretUris,
     );
-    final ingestion = IcalIngestion.parseString(
+    final projection = _prepareCachedProjection(
       snapshot,
-      policy: IcalIngestionPolicy.webCal,
+      range: _projectionRange(_nowUtc()),
     );
-    final now = _nowUtc();
-    final rangeStart = DateTime.utc(now.year - 1, now.month, now.day);
-    final rangeEnd = DateTime.utc(now.year + 3, now.month, now.day);
-    final projections = <ProjectedIcalEvent>[];
-    try {
-      for (final set in ingestion.recurrenceSets) {
-        projections.addAll(
-          _eventProjector.project(
-            set,
-            rangeStartUtc: rangeStart,
-            rangeEndUtc: rangeEnd,
-            transport: 'webcal',
-          ),
-        );
-      }
-    } on DavException catch (error) {
-      throw WebCalSubscriptionException(error.code);
-    }
     return _PreparedCandidate(
-      ingestion: ingestion,
-      projections: projections,
+      ingestion: projection.ingestion,
+      projections: projection.projections,
       snapshot: snapshot,
       rawBodyHash: sha256.convert(body).toString(),
       semanticHash: sha256.convert(utf8.encode(snapshot)).toString(),
+      projectionRangeStartUtc: projection.rangeStartUtc,
+      projectionRangeEndUtc: projection.rangeEndUtc,
     );
   }
 
@@ -791,6 +1019,8 @@ final class _PreparedCandidate {
     required this.snapshot,
     required this.rawBodyHash,
     required this.semanticHash,
+    required this.projectionRangeStartUtc,
+    required this.projectionRangeEndUtc,
   });
 
   final IcalIngestionResult ingestion;
@@ -798,6 +1028,42 @@ final class _PreparedCandidate {
   final String snapshot;
   final String rawBodyHash;
   final String semanticHash;
+  final DateTime projectionRangeStartUtc;
+  final DateTime projectionRangeEndUtc;
+}
+
+final class _PreparedProjection {
+  const _PreparedProjection({
+    required this.ingestion,
+    required this.projections,
+    required this.rangeStartUtc,
+    required this.rangeEndUtc,
+  });
+
+  final IcalIngestionResult ingestion;
+  final List<ProjectedIcalEvent> projections;
+  final DateTime rangeStartUtc;
+  final DateTime rangeEndUtc;
+}
+
+({DateTime start, DateTime end}) _projectionRange(
+  DateTime now, {
+  DateTime? requestedStart,
+  DateTime? requestedEnd,
+}) {
+  final utc = now.toUtc();
+  final baseStart = DateTime.utc(utc.year - 1, utc.month, utc.day);
+  final baseEnd = DateTime.utc(utc.year + 3, utc.month, utc.day);
+  final paddedStart = requestedStart?.toUtc().subtract(
+    const Duration(days: 30),
+  );
+  final paddedEnd = requestedEnd?.toUtc().add(const Duration(days: 90));
+  return (
+    start: paddedStart != null && paddedStart.isBefore(baseStart)
+        ? paddedStart
+        : baseStart,
+    end: paddedEnd != null && paddedEnd.isAfter(baseEnd) ? paddedEnd : baseEnd,
+  );
 }
 
 String _subscriptionName(String? value) {

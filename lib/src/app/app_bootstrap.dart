@@ -700,7 +700,15 @@ final icalImportServiceProvider = Provider<IcalImportService>((ref) {
 });
 
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
-  return ScheduleRepository(ref.watch(databaseProvider));
+  return ScheduleRepository(
+    ref.watch(databaseProvider),
+    ensureProjectionCoverage: (range) => ref
+        .read(webCalSubscriptionServiceProvider)
+        .ensureProjectionCoverage(
+          rangeStartUtc: range.start.toUtc(),
+          rangeEndUtc: range.end.toUtc(),
+        ),
+  );
 });
 
 final Provider<String?> activeAccountProvider = Provider<String?>((ref) {

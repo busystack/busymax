@@ -66,6 +66,10 @@ void main() {
           loginName: 'alex',
           appPassword: 'nextcloud-app-secret',
         ),
+        WebCalSecretRecord(
+          normalizedSubscriptionUri:
+              'https://calendar.example.test/feed?token=webcal-secret',
+        ),
       ];
 
       for (final record in records) {
@@ -84,6 +88,26 @@ void main() {
       }
     },
   );
+
+  test('credential decoding rejects mismatched provider and kind', () {
+    final webCal = WebCalSecretRecord(
+      normalizedSubscriptionUri:
+          'https://calendar.example.test/feed?token=secret',
+    ).toJson();
+    webCal['provider'] = BusyProvider.google.storageValue;
+
+    expect(
+      () => SecretRecord.fromJson(webCal),
+      throwsA(isA<SecretStoreCorruptException>()),
+    );
+    expect(
+      () => OAuthSecretRecord(
+        provider: BusyProvider.appleICloud,
+        tokenSet: _tokenSet(),
+      ),
+      throwsA(isA<SecretStoreCorruptException>()),
+    );
+  });
 
   test('typed reads reject a credential from another provider', () async {
     final store = InMemorySecretStore();

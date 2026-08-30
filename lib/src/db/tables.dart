@@ -33,6 +33,13 @@ class Accounts extends Table {
         "'webcal'))",
     "CHECK (credential_kind IN ('oauth', 'apple_app_specific_password', "
         "'nextcloud_app_password', 'webcal_subscription'))",
+    "CHECK ((provider IN ('google', 'microsoft') AND credential_kind = 'oauth') "
+        "OR (provider = 'apple_icloud' AND credential_kind = "
+        "'apple_app_specific_password') "
+        "OR (provider = 'nextcloud' AND credential_kind = "
+        "'nextcloud_app_password') "
+        "OR (provider = 'webcal' AND credential_kind = "
+        "'webcal_subscription'))",
     'CHECK (length(trim(authority)) > 0)',
     'CHECK (length(trim(provider_account_id)) > 0)',
   ];
@@ -526,6 +533,8 @@ class WebCalSubscriptions extends Table {
   IntColumn get generation => integer().withDefault(const Constant(1))();
   IntColumn get parserVersion => integer().withDefault(const Constant(1))();
   IntColumn get projectionVersion => integer().withDefault(const Constant(1))();
+  TextColumn get projectionRangeStartUtc => text().nullable()();
+  TextColumn get projectionRangeEndUtc => text().nullable()();
   TextColumn get createdAtUtc => text()();
   TextColumn get updatedAtUtc => text()();
 

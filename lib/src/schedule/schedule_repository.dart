@@ -17,9 +17,13 @@ import 'schedule_range.dart';
 import 'schedule_sorting.dart';
 
 class ScheduleRepository {
-  const ScheduleRepository(this._database);
+  const ScheduleRepository(
+    this._database, {
+    Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
+  }) : _ensureProjectionCoverage = ensureProjectionCoverage;
 
   final AppDatabase _database;
+  final Future<void> Function(ScheduleRange range)? _ensureProjectionCoverage;
 
   Future<ScheduleTaskTarget?> findTaskTarget({
     required String accountId,
@@ -101,6 +105,9 @@ class ScheduleRepository {
     required ScheduleRange range,
     ScheduleFilters filters = const ScheduleFilters(),
   }) async {
+    if (filters.includeCalendarEvents) {
+      await _ensureProjectionCoverage?.call(range);
+    }
     final context = await _accountContext(filters);
     if (context == null) {
       return const [];

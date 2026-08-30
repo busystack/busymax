@@ -42,12 +42,19 @@ class AccountEntity {
   });
 
   factory AccountEntity.fromRow(Account row) {
+    final provider = BusyProviderCodec.requireStorageValue(row.provider);
+    final credentialKind = _credentialKindFromStorage(row.credentialKind);
+    if (!credentialKindMatchesProvider(provider, credentialKind)) {
+      throw const SecretStoreCorruptException(
+        'Stored account provider and credential kind do not match.',
+      );
+    }
     return AccountEntity(
       id: row.id,
-      provider: BusyProviderCodec.requireStorageValue(row.provider),
+      provider: provider,
       authority: row.authority,
       providerAccountId: row.providerAccountId,
-      credentialKind: _credentialKindFromStorage(row.credentialKind),
+      credentialKind: credentialKind,
       providerProfileVersion: row.providerProfileVersion,
       displayName: row.displayName,
       email: row.email,
@@ -267,7 +274,14 @@ class AccountsRepository {
       providerAccountId ?? id,
     );
     final resolvedCredentialKind =
-        credentialKind ?? _defaultCredentialKind(provider);
+        credentialKind ?? credentialKindForProvider(provider);
+    if (!credentialKindMatchesProvider(provider, resolvedCredentialKind)) {
+      throw ArgumentError.value(
+        resolvedCredentialKind,
+        'credentialKind',
+        'The credential kind does not match the account provider.',
+      );
+    }
     final existing = await (_database.select(
       _database.accounts,
     )..where((account) => account.id.equals(id))).getSingleOrNull();
@@ -352,14 +366,6 @@ class AccountsRepository {
 
   String _now() => _nowUtc().toIso8601String();
 }
-
-CredentialKind _defaultCredentialKind(BusyProvider provider) =>
-    switch (provider) {
-      BusyProvider.google || BusyProvider.microsoft => CredentialKind.oauth,
-      BusyProvider.appleICloud => CredentialKind.appleAppSpecificPassword,
-      BusyProvider.nextcloud => CredentialKind.nextcloudAppPassword,
-      BusyProvider.webCal => CredentialKind.webCalSubscription,
-    };
 
 CredentialKind _credentialKindFromStorage(String value) => switch (value) {
   'oauth' => CredentialKind.oauth,

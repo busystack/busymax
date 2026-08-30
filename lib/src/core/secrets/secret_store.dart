@@ -28,6 +28,30 @@ extension CredentialKindValue on CredentialKind {
   };
 }
 
+CredentialKind credentialKindForProvider(BusyProvider provider) =>
+    switch (provider) {
+      BusyProvider.google || BusyProvider.microsoft => CredentialKind.oauth,
+      BusyProvider.appleICloud => CredentialKind.appleAppSpecificPassword,
+      BusyProvider.nextcloud => CredentialKind.nextcloudAppPassword,
+      BusyProvider.webCal => CredentialKind.webCalSubscription,
+    };
+
+bool credentialKindMatchesProvider(
+  BusyProvider provider,
+  CredentialKind kind,
+) => credentialKindForProvider(provider) == kind;
+
+CredentialKind _credentialKindFromSecretStorage(Object? value) =>
+    switch (value) {
+      'oauth' => CredentialKind.oauth,
+      'apple_app_specific_password' => CredentialKind.appleAppSpecificPassword,
+      'nextcloud_app_password' => CredentialKind.nextcloudAppPassword,
+      'webcal_subscription' => CredentialKind.webCalSubscription,
+      _ => throw SecretStoreCorruptException(
+        'Unsupported credential kind $value.',
+      ),
+    };
+
 sealed class SecretRecord {
   const SecretRecord({required this.provider, required this.kind});
 
@@ -45,8 +69,14 @@ sealed class SecretRecord {
     final provider = BusyProviderCodec.requireStorageValue(
       json['provider']?.toString(),
     );
-    return switch (json['kind']) {
-      'oauth' => OAuthSecretRecord(
+    final kind = _credentialKindFromSecretStorage(json['kind']);
+    if (!credentialKindMatchesProvider(provider, kind)) {
+      throw const SecretStoreCorruptException(
+        'The credential provider and kind do not match.',
+      );
+    }
+    return switch (kind) {
+      CredentialKind.oauth => OAuthSecretRecord(
         provider: provider,
         tokenSet: OAuthTokenSet(
           accessToken: _requiredSecretString(json, 'accessToken'),
@@ -59,18 +89,18 @@ sealed class SecretRecord {
           scopes: _stringList(json['scopes']).toSet(),
         ),
       ),
-      'apple_app_specific_password' => AppleICloudSecretRecord(
+      CredentialKind.appleAppSpecificPassword => AppleICloudSecretRecord(
         username: _requiredSecretString(json, 'username'),
         appSpecificPassword: _requiredSecretString(json, 'appSpecificPassword'),
       ),
-      'nextcloud_app_password' => NextcloudSecretRecord(
+      CredentialKind.nextcloudAppPassword => NextcloudSecretRecord(
         canonicalServer: Uri.parse(
           _requiredSecretString(json, 'canonicalServer'),
         ),
         loginName: _requiredSecretString(json, 'loginName'),
         appPassword: _requiredSecretString(json, 'appPassword'),
       ),
-      'webcal_subscription' => WebCalSecretRecord(
+      CredentialKind.webCalSubscription => WebCalSecretRecord(
         normalizedSubscriptionUri: _requiredSecretString(
           json,
           'normalizedSubscriptionUri',
@@ -83,9 +113,6 @@ sealed class SecretRecord {
           null => null,
         },
       ),
-      final Object? value => throw SecretStoreCorruptException(
-        'Unsupported credential kind $value.',
-      ),
     };
   }
 
@@ -95,11 +122,14 @@ sealed class SecretRecord {
 }
 
 final class OAuthSecretRecord extends SecretRecord {
-  const OAuthSecretRecord({required super.provider, required this.tokenSet})
-    : assert(
-        provider == BusyProvider.google || provider == BusyProvider.microsoft,
-      ),
-      super(kind: CredentialKind.oauth);
+  OAuthSecretRecord({required super.provider, required this.tokenSet})
+    : super(kind: CredentialKind.oauth) {
+    if (!credentialKindMatchesProvider(provider, kind)) {
+      throw const SecretStoreCorruptException(
+        'OAuth credentials require a Google or Microsoft provider.',
+      );
+    }
+  }
 
   final OAuthTokenSet tokenSet;
 

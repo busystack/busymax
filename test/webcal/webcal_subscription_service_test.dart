@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -15,9 +16,10 @@ void main() {
   late _FakeTransport transport;
   late WebCalSubscriptionService service;
   late int notificationRebuilds;
-  final now = DateTime.utc(2026, 8, 29, 20);
+  late DateTime now;
 
   setUp(() {
+    now = DateTime.utc(2026, 8, 29, 20);
     database = AppDatabase(NativeDatabase.memory());
     secrets = InMemorySecretStore();
     transport = _FakeTransport();
@@ -140,6 +142,44 @@ END:VEVENT
   });
 
   test(
+    'snapshot removes original and validator-target URIs from parameters',
+    () async {
+      final origin = Uri.parse(
+        'https://calendar.example.test/feed?private-token=one',
+      );
+      final target = Uri.parse(
+        'https://cdn.example.test/current.ics?private-token=two',
+      );
+      transport.responses.add(
+        _response(
+          uri: target,
+          body: utf8.encode(
+            _calendar('''
+BEGIN:VEVENT
+UID:parameter-secret
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Safe title
+DESCRIPTION;ALTREP="${origin.toString()}":Origin
+LOCATION;ALTREP="${target.toString()}":Target
+END:VEVENT
+'''),
+          ),
+        ),
+      );
+
+      await service.addSubscription(subscriptionUrl: origin.toString());
+
+      final snapshot =
+          (await database.select(database.webCalSubscriptions).getSingle())
+              .snapshotIcsBody;
+      expect(snapshot, isNot(contains(origin.toString())));
+      expect(snapshot, isNot(contains(target.toString())));
+      expect(snapshot, isNot(contains('ALTREP')));
+    },
+  );
+
+  test(
     'malformed refresh preserves snapshot, events, validators, and alarms',
     () async {
       const uri = 'https://calendar.example.test/feed';
@@ -220,7 +260,7 @@ END:VEVENT
 
     await service.refreshSubscription('subscription-1', force: true);
 
-    expect(transport.requests.last.uri, target);
+    expect(transport.requests.last.uri, origin);
     expect(transport.requests.last.validatorTarget, target);
     expect(transport.requests.last.validators.etag, '"one"');
     expect(
@@ -383,6 +423,141 @@ END:VEVENT
       isNull,
     );
   });
+
+  test(
+    'unsubscribe waits for an in-flight refresh and cannot restore secret',
+    () async {
+      final uri = Uri.parse('https://calendar.example.test/feed');
+      transport.responses.add(_response(uri: uri, body: _oneEvent));
+      await service.addSubscription(subscriptionUrl: uri.toString());
+
+      final response = Completer<WebCalHttpResponse>();
+      transport.responses.add(response.future);
+      final refresh = service.refreshSubscription(
+        'subscription-1',
+        force: true,
+      );
+      while (transport.requests.length < 2) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      final unsubscribe = service.unsubscribe('subscription-1');
+      var unsubscribeFinished = false;
+      unawaited(unsubscribe.whenComplete(() => unsubscribeFinished = true));
+      await Future<void>.delayed(Duration.zero);
+      expect(unsubscribeFinished, isFalse);
+
+      response.complete(_response(uri: uri, etag: '"two"', body: _oneEvent));
+      await refresh;
+      await unsubscribe;
+
+      expect(await database.select(database.accounts).get(), isEmpty);
+      expect(
+        await database.select(database.webCalSubscriptions).get(),
+        isEmpty,
+      );
+      expect(
+        await secrets.readCredential('webcal-account-subscription-1'),
+        isNull,
+      );
+    },
+  );
+
+  test('304 reprojects an aging cached recurring snapshot', () async {
+    final uri = Uri.parse('https://calendar.example.test/feed');
+    transport.responses.add(
+      _response(
+        uri: uri,
+        etag: '"one"',
+        body: utf8.encode(
+          _calendar('''
+BEGIN:VEVENT
+UID:long-series
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+RRULE:FREQ=YEARLY;COUNT=20
+SUMMARY:Annual event
+END:VEVENT
+'''),
+        ),
+      ),
+    );
+    await service.addSubscription(subscriptionUrl: uri.toString());
+    expect(
+      (await database.select(database.calendarEvents).get()).any(
+        (event) => event.startDateTime?.startsWith('2031-') == true,
+      ),
+      isFalse,
+    );
+
+    now = DateTime.utc(2029, 8, 29, 20);
+    transport.responses.add(
+      WebCalHttpResponse(
+        statusCode: 304,
+        finalUri: uri,
+        body: null,
+        etag: '"one"',
+        lastModified: null,
+        contentType: null,
+        conditionalRequestSent: true,
+      ),
+    );
+    await service.refreshSubscription('subscription-1', force: true);
+
+    final events = await database.select(database.calendarEvents).get();
+    expect(
+      events.any((event) => event.startDateTime?.startsWith('2031-') == true),
+      isTrue,
+    );
+    final subscription = await database
+        .select(database.webCalSubscriptions)
+        .getSingle();
+    expect(subscription.projectionVersion, webCalProjectionVersion);
+    expect(
+      DateTime.parse(
+        subscription.projectionRangeEndUtc!,
+      ).isAfter(DateTime.utc(2031)),
+      isTrue,
+    );
+    expect(transport.requests.last.uri, uri);
+    expect(notificationRebuilds, 2);
+  });
+
+  test(
+    'requested schedule range extends projection without a network fetch',
+    () async {
+      final uri = Uri.parse('https://calendar.example.test/feed');
+      transport.responses.add(
+        _response(
+          uri: uri,
+          body: utf8.encode(
+            _calendar('''
+BEGIN:VEVENT
+UID:long-series
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+RRULE:FREQ=YEARLY;COUNT=20
+SUMMARY:Annual event
+END:VEVENT
+'''),
+          ),
+        ),
+      );
+      await service.addSubscription(subscriptionUrl: uri.toString());
+
+      await service.ensureProjectionCoverage(
+        rangeStartUtc: DateTime.utc(2035, 8, 1),
+        rangeEndUtc: DateTime.utc(2035, 9, 1),
+      );
+
+      expect(transport.requests, hasLength(1));
+      expect(
+        (await database.select(database.calendarEvents).get()).any(
+          (event) => event.startDateTime?.startsWith('2035-') == true,
+        ),
+        isTrue,
+      );
+    },
+  );
 }
 
 final class _FakeTransport implements WebCalHttpTransport {
@@ -403,6 +578,7 @@ final class _FakeTransport implements WebCalHttpTransport {
     ));
     final next = responses.removeAt(0);
     if (next is WebCalHttpResponse) return next;
+    if (next is Future<WebCalHttpResponse>) return next;
     throw next;
   }
 }

@@ -118,4 +118,21 @@ void main() {
       );
     },
   );
+
+  test('rejects a credential kind that does not match the provider', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = AccountsRepository(database: database);
+
+    await expectLater(
+      repository.upsertSignedInAccount(
+        id: 'invalid',
+        provider: BusyProvider.google,
+        grantedScopes: '',
+        credentialKind: CredentialKind.webCalSubscription,
+      ),
+      throwsArgumentError,
+    );
+    expect(await database.select(database.accounts).get(), isEmpty);
+  });
 }

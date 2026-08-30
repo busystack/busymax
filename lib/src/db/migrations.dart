@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 
 import 'app_database.dart';
 
-const latestSchemaVersion = 12;
+const latestSchemaVersion = 13;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -60,6 +60,9 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       if (from < 12) {
         await _migrateToV12(migrator, database);
       }
+      if (from < 13) {
+        await _migrateToV13(migrator, database);
+      }
       await _createIndexes(database);
       await _verifyForeignKeys(database);
     },
@@ -67,6 +70,24 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       await database.customStatement('PRAGMA foreign_keys = ON');
     },
   );
+}
+
+Future<void> _migrateToV13(Migrator migrator, AppDatabase database) async {
+  await _verifyAccountIdentity(database);
+  await migrator.alterTable(TableMigration(database.accounts));
+  if (await _hasTable(database, 'web_cal_subscriptions')) {
+    for (final column in [
+      database.webCalSubscriptions.projectionRangeStartUtc,
+      database.webCalSubscriptions.projectionRangeEndUtc,
+    ]) {
+      await _addColumnIfMissing(
+        migrator,
+        database,
+        database.webCalSubscriptions,
+        column,
+      );
+    }
+  }
 }
 
 Future<void> _migrateToV12(Migrator migrator, AppDatabase database) async {
@@ -183,7 +204,7 @@ Future<void> _migrateToV6(Migrator migrator, AppDatabase database) async {
   await _migrateGenericCursors(migrator, database);
 
   await _verifyPreservedCounts(database, preservedCounts);
-  await _verifyV6AccountIdentity(database);
+  await _verifyAccountIdentity(database);
 }
 
 Future<void> _addProjectionLinks(
@@ -409,14 +430,22 @@ Future<void> _verifyPreservedCounts(
   }
 }
 
-Future<void> _verifyV6AccountIdentity(AppDatabase database) async {
+Future<void> _verifyAccountIdentity(AppDatabase database) async {
   final invalid = await database.customSelect('''
     SELECT id FROM accounts
-    WHERE provider NOT IN ('google', 'microsoft', 'apple_icloud', 'nextcloud')
+    WHERE provider NOT IN (
+            'google', 'microsoft', 'apple_icloud', 'nextcloud', 'webcal'
+          )
        OR trim(authority) = ''
        OR trim(provider_account_id) = ''
-       OR credential_kind NOT IN (
-         'oauth', 'apple_app_specific_password', 'nextcloud_app_password'
+       OR NOT (
+         (provider IN ('google', 'microsoft') AND credential_kind = 'oauth')
+         OR (provider = 'apple_icloud' AND
+             credential_kind = 'apple_app_specific_password')
+         OR (provider = 'nextcloud' AND
+             credential_kind = 'nextcloud_app_password')
+         OR (provider = 'webcal' AND
+             credential_kind = 'webcal_subscription')
        )
     LIMIT 1
   ''').getSingleOrNull();

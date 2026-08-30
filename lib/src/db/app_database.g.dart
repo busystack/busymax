@@ -19555,6 +19555,28 @@ class $WebCalSubscriptionsTable extends WebCalSubscriptions
     requiredDuringInsert: false,
     defaultValue: const Constant(1),
   );
+  static const VerificationMeta _projectionRangeStartUtcMeta =
+      const VerificationMeta('projectionRangeStartUtc');
+  @override
+  late final GeneratedColumn<String> projectionRangeStartUtc =
+      GeneratedColumn<String>(
+        'projection_range_start_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _projectionRangeEndUtcMeta =
+      const VerificationMeta('projectionRangeEndUtc');
+  @override
+  late final GeneratedColumn<String> projectionRangeEndUtc =
+      GeneratedColumn<String>(
+        'projection_range_end_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _createdAtUtcMeta = const VerificationMeta(
     'createdAtUtc',
   );
@@ -19603,6 +19625,8 @@ class $WebCalSubscriptionsTable extends WebCalSubscriptions
     generation,
     parserVersion,
     projectionVersion,
+    projectionRangeStartUtc,
+    projectionRangeEndUtc,
     createdAtUtc,
     updatedAtUtc,
   ];
@@ -19836,6 +19860,24 @@ class $WebCalSubscriptionsTable extends WebCalSubscriptions
         ),
       );
     }
+    if (data.containsKey('projection_range_start_utc')) {
+      context.handle(
+        _projectionRangeStartUtcMeta,
+        projectionRangeStartUtc.isAcceptableOrUnknown(
+          data['projection_range_start_utc']!,
+          _projectionRangeStartUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('projection_range_end_utc')) {
+      context.handle(
+        _projectionRangeEndUtcMeta,
+        projectionRangeEndUtc.isAcceptableOrUnknown(
+          data['projection_range_end_utc']!,
+          _projectionRangeEndUtcMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at_utc')) {
       context.handle(
         _createdAtUtcMeta,
@@ -19968,6 +20010,14 @@ class $WebCalSubscriptionsTable extends WebCalSubscriptions
         DriftSqlType.int,
         data['${effectivePrefix}projection_version'],
       )!,
+      projectionRangeStartUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}projection_range_start_utc'],
+      ),
+      projectionRangeEndUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}projection_range_end_utc'],
+      ),
       createdAtUtc: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}created_at_utc'],
@@ -20011,6 +20061,8 @@ class WebCalSubscription extends DataClass
   final int generation;
   final int parserVersion;
   final int projectionVersion;
+  final String? projectionRangeStartUtc;
+  final String? projectionRangeEndUtc;
   final String createdAtUtc;
   final String updatedAtUtc;
   const WebCalSubscription({
@@ -20038,6 +20090,8 @@ class WebCalSubscription extends DataClass
     required this.generation,
     required this.parserVersion,
     required this.projectionVersion,
+    this.projectionRangeStartUtc,
+    this.projectionRangeEndUtc,
     required this.createdAtUtc,
     required this.updatedAtUtc,
   });
@@ -20094,6 +20148,14 @@ class WebCalSubscription extends DataClass
     map['generation'] = Variable<int>(generation);
     map['parser_version'] = Variable<int>(parserVersion);
     map['projection_version'] = Variable<int>(projectionVersion);
+    if (!nullToAbsent || projectionRangeStartUtc != null) {
+      map['projection_range_start_utc'] = Variable<String>(
+        projectionRangeStartUtc,
+      );
+    }
+    if (!nullToAbsent || projectionRangeEndUtc != null) {
+      map['projection_range_end_utc'] = Variable<String>(projectionRangeEndUtc);
+    }
     map['created_at_utc'] = Variable<String>(createdAtUtc);
     map['updated_at_utc'] = Variable<String>(updatedAtUtc);
     return map;
@@ -20145,6 +20207,12 @@ class WebCalSubscription extends DataClass
       generation: Value(generation),
       parserVersion: Value(parserVersion),
       projectionVersion: Value(projectionVersion),
+      projectionRangeStartUtc: projectionRangeStartUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(projectionRangeStartUtc),
+      projectionRangeEndUtc: projectionRangeEndUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(projectionRangeEndUtc),
       createdAtUtc: Value(createdAtUtc),
       updatedAtUtc: Value(updatedAtUtc),
     );
@@ -20190,6 +20258,12 @@ class WebCalSubscription extends DataClass
       generation: serializer.fromJson<int>(json['generation']),
       parserVersion: serializer.fromJson<int>(json['parserVersion']),
       projectionVersion: serializer.fromJson<int>(json['projectionVersion']),
+      projectionRangeStartUtc: serializer.fromJson<String?>(
+        json['projectionRangeStartUtc'],
+      ),
+      projectionRangeEndUtc: serializer.fromJson<String?>(
+        json['projectionRangeEndUtc'],
+      ),
       createdAtUtc: serializer.fromJson<String>(json['createdAtUtc']),
       updatedAtUtc: serializer.fromJson<String>(json['updatedAtUtc']),
     );
@@ -20230,6 +20304,12 @@ class WebCalSubscription extends DataClass
       'generation': serializer.toJson<int>(generation),
       'parserVersion': serializer.toJson<int>(parserVersion),
       'projectionVersion': serializer.toJson<int>(projectionVersion),
+      'projectionRangeStartUtc': serializer.toJson<String?>(
+        projectionRangeStartUtc,
+      ),
+      'projectionRangeEndUtc': serializer.toJson<String?>(
+        projectionRangeEndUtc,
+      ),
       'createdAtUtc': serializer.toJson<String>(createdAtUtc),
       'updatedAtUtc': serializer.toJson<String>(updatedAtUtc),
     };
@@ -20260,6 +20340,8 @@ class WebCalSubscription extends DataClass
     int? generation,
     int? parserVersion,
     int? projectionVersion,
+    Value<String?> projectionRangeStartUtc = const Value.absent(),
+    Value<String?> projectionRangeEndUtc = const Value.absent(),
     String? createdAtUtc,
     String? updatedAtUtc,
   }) => WebCalSubscription(
@@ -20302,6 +20384,12 @@ class WebCalSubscription extends DataClass
     generation: generation ?? this.generation,
     parserVersion: parserVersion ?? this.parserVersion,
     projectionVersion: projectionVersion ?? this.projectionVersion,
+    projectionRangeStartUtc: projectionRangeStartUtc.present
+        ? projectionRangeStartUtc.value
+        : this.projectionRangeStartUtc,
+    projectionRangeEndUtc: projectionRangeEndUtc.present
+        ? projectionRangeEndUtc.value
+        : this.projectionRangeEndUtc,
     createdAtUtc: createdAtUtc ?? this.createdAtUtc,
     updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
   );
@@ -20373,6 +20461,12 @@ class WebCalSubscription extends DataClass
       projectionVersion: data.projectionVersion.present
           ? data.projectionVersion.value
           : this.projectionVersion,
+      projectionRangeStartUtc: data.projectionRangeStartUtc.present
+          ? data.projectionRangeStartUtc.value
+          : this.projectionRangeStartUtc,
+      projectionRangeEndUtc: data.projectionRangeEndUtc.present
+          ? data.projectionRangeEndUtc.value
+          : this.projectionRangeEndUtc,
       createdAtUtc: data.createdAtUtc.present
           ? data.createdAtUtc.value
           : this.createdAtUtc,
@@ -20411,6 +20505,8 @@ class WebCalSubscription extends DataClass
           ..write('generation: $generation, ')
           ..write('parserVersion: $parserVersion, ')
           ..write('projectionVersion: $projectionVersion, ')
+          ..write('projectionRangeStartUtc: $projectionRangeStartUtc, ')
+          ..write('projectionRangeEndUtc: $projectionRangeEndUtc, ')
           ..write('createdAtUtc: $createdAtUtc, ')
           ..write('updatedAtUtc: $updatedAtUtc')
           ..write(')'))
@@ -20443,6 +20539,8 @@ class WebCalSubscription extends DataClass
     generation,
     parserVersion,
     projectionVersion,
+    projectionRangeStartUtc,
+    projectionRangeEndUtc,
     createdAtUtc,
     updatedAtUtc,
   ]);
@@ -20475,6 +20573,8 @@ class WebCalSubscription extends DataClass
           other.generation == this.generation &&
           other.parserVersion == this.parserVersion &&
           other.projectionVersion == this.projectionVersion &&
+          other.projectionRangeStartUtc == this.projectionRangeStartUtc &&
+          other.projectionRangeEndUtc == this.projectionRangeEndUtc &&
           other.createdAtUtc == this.createdAtUtc &&
           other.updatedAtUtc == this.updatedAtUtc);
 }
@@ -20504,6 +20604,8 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
   final Value<int> generation;
   final Value<int> parserVersion;
   final Value<int> projectionVersion;
+  final Value<String?> projectionRangeStartUtc;
+  final Value<String?> projectionRangeEndUtc;
   final Value<String> createdAtUtc;
   final Value<String> updatedAtUtc;
   final Value<int> rowid;
@@ -20532,6 +20634,8 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
     this.generation = const Value.absent(),
     this.parserVersion = const Value.absent(),
     this.projectionVersion = const Value.absent(),
+    this.projectionRangeStartUtc = const Value.absent(),
+    this.projectionRangeEndUtc = const Value.absent(),
     this.createdAtUtc = const Value.absent(),
     this.updatedAtUtc = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -20561,6 +20665,8 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
     this.generation = const Value.absent(),
     this.parserVersion = const Value.absent(),
     this.projectionVersion = const Value.absent(),
+    this.projectionRangeStartUtc = const Value.absent(),
+    this.projectionRangeEndUtc = const Value.absent(),
     required String createdAtUtc,
     required String updatedAtUtc,
     this.rowid = const Value.absent(),
@@ -20601,6 +20707,8 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
     Expression<int>? generation,
     Expression<int>? parserVersion,
     Expression<int>? projectionVersion,
+    Expression<String>? projectionRangeStartUtc,
+    Expression<String>? projectionRangeEndUtc,
     Expression<String>? createdAtUtc,
     Expression<String>? updatedAtUtc,
     Expression<int>? rowid,
@@ -20635,6 +20743,10 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
       if (generation != null) 'generation': generation,
       if (parserVersion != null) 'parser_version': parserVersion,
       if (projectionVersion != null) 'projection_version': projectionVersion,
+      if (projectionRangeStartUtc != null)
+        'projection_range_start_utc': projectionRangeStartUtc,
+      if (projectionRangeEndUtc != null)
+        'projection_range_end_utc': projectionRangeEndUtc,
       if (createdAtUtc != null) 'created_at_utc': createdAtUtc,
       if (updatedAtUtc != null) 'updated_at_utc': updatedAtUtc,
       if (rowid != null) 'rowid': rowid,
@@ -20666,6 +20778,8 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
     Value<int>? generation,
     Value<int>? parserVersion,
     Value<int>? projectionVersion,
+    Value<String?>? projectionRangeStartUtc,
+    Value<String?>? projectionRangeEndUtc,
     Value<String>? createdAtUtc,
     Value<String>? updatedAtUtc,
     Value<int>? rowid,
@@ -20700,6 +20814,10 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
       generation: generation ?? this.generation,
       parserVersion: parserVersion ?? this.parserVersion,
       projectionVersion: projectionVersion ?? this.projectionVersion,
+      projectionRangeStartUtc:
+          projectionRangeStartUtc ?? this.projectionRangeStartUtc,
+      projectionRangeEndUtc:
+          projectionRangeEndUtc ?? this.projectionRangeEndUtc,
       createdAtUtc: createdAtUtc ?? this.createdAtUtc,
       updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
       rowid: rowid ?? this.rowid,
@@ -20791,6 +20909,16 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
     if (projectionVersion.present) {
       map['projection_version'] = Variable<int>(projectionVersion.value);
     }
+    if (projectionRangeStartUtc.present) {
+      map['projection_range_start_utc'] = Variable<String>(
+        projectionRangeStartUtc.value,
+      );
+    }
+    if (projectionRangeEndUtc.present) {
+      map['projection_range_end_utc'] = Variable<String>(
+        projectionRangeEndUtc.value,
+      );
+    }
     if (createdAtUtc.present) {
       map['created_at_utc'] = Variable<String>(createdAtUtc.value);
     }
@@ -20832,6 +20960,8 @@ class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
           ..write('generation: $generation, ')
           ..write('parserVersion: $parserVersion, ')
           ..write('projectionVersion: $projectionVersion, ')
+          ..write('projectionRangeStartUtc: $projectionRangeStartUtc, ')
+          ..write('projectionRangeEndUtc: $projectionRangeEndUtc, ')
           ..write('createdAtUtc: $createdAtUtc, ')
           ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('rowid: $rowid')
@@ -39637,6 +39767,8 @@ typedef $$WebCalSubscriptionsTableCreateCompanionBuilder =
       Value<int> generation,
       Value<int> parserVersion,
       Value<int> projectionVersion,
+      Value<String?> projectionRangeStartUtc,
+      Value<String?> projectionRangeEndUtc,
       required String createdAtUtc,
       required String updatedAtUtc,
       Value<int> rowid,
@@ -39667,6 +39799,8 @@ typedef $$WebCalSubscriptionsTableUpdateCompanionBuilder =
       Value<int> generation,
       Value<int> parserVersion,
       Value<int> projectionVersion,
+      Value<String?> projectionRangeStartUtc,
+      Value<String?> projectionRangeEndUtc,
       Value<String> createdAtUtc,
       Value<String> updatedAtUtc,
       Value<int> rowid,
@@ -39846,6 +39980,16 @@ class $$WebCalSubscriptionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get projectionRangeStartUtc => $composableBuilder(
+    column: $table.projectionRangeStartUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get projectionRangeEndUtc => $composableBuilder(
+    column: $table.projectionRangeEndUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get createdAtUtc => $composableBuilder(
     column: $table.createdAtUtc,
     builder: (column) => ColumnFilters(column),
@@ -40022,6 +40166,16 @@ class $$WebCalSubscriptionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get projectionRangeStartUtc => $composableBuilder(
+    column: $table.projectionRangeStartUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get projectionRangeEndUtc => $composableBuilder(
+    column: $table.projectionRangeEndUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get createdAtUtc => $composableBuilder(
     column: $table.createdAtUtc,
     builder: (column) => ColumnOrderings(column),
@@ -40194,6 +40348,16 @@ class $$WebCalSubscriptionsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get projectionRangeStartUtc => $composableBuilder(
+    column: $table.projectionRangeStartUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get projectionRangeEndUtc => $composableBuilder(
+    column: $table.projectionRangeEndUtc,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get createdAtUtc => $composableBuilder(
     column: $table.createdAtUtc,
     builder: (column) => column,
@@ -40312,6 +40476,8 @@ class $$WebCalSubscriptionsTableTableManager
                 Value<int> generation = const Value.absent(),
                 Value<int> parserVersion = const Value.absent(),
                 Value<int> projectionVersion = const Value.absent(),
+                Value<String?> projectionRangeStartUtc = const Value.absent(),
+                Value<String?> projectionRangeEndUtc = const Value.absent(),
                 Value<String> createdAtUtc = const Value.absent(),
                 Value<String> updatedAtUtc = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -40340,6 +40506,8 @@ class $$WebCalSubscriptionsTableTableManager
                 generation: generation,
                 parserVersion: parserVersion,
                 projectionVersion: projectionVersion,
+                projectionRangeStartUtc: projectionRangeStartUtc,
+                projectionRangeEndUtc: projectionRangeEndUtc,
                 createdAtUtc: createdAtUtc,
                 updatedAtUtc: updatedAtUtc,
                 rowid: rowid,
@@ -40371,6 +40539,8 @@ class $$WebCalSubscriptionsTableTableManager
                 Value<int> generation = const Value.absent(),
                 Value<int> parserVersion = const Value.absent(),
                 Value<int> projectionVersion = const Value.absent(),
+                Value<String?> projectionRangeStartUtc = const Value.absent(),
+                Value<String?> projectionRangeEndUtc = const Value.absent(),
                 required String createdAtUtc,
                 required String updatedAtUtc,
                 Value<int> rowid = const Value.absent(),
@@ -40399,6 +40569,8 @@ class $$WebCalSubscriptionsTableTableManager
                 generation: generation,
                 parserVersion: parserVersion,
                 projectionVersion: projectionVersion,
+                projectionRangeStartUtc: projectionRangeStartUtc,
+                projectionRangeEndUtc: projectionRangeEndUtc,
                 createdAtUtc: createdAtUtc,
                 updatedAtUtc: updatedAtUtc,
                 rowid: rowid,
