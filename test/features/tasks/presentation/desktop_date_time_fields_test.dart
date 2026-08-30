@@ -539,6 +539,7 @@ void main() {
     late BuildContext hostContext;
     await tester.pumpWidget(
       localizedTestApp(
+        locale: const Locale('ru'),
         child: Builder(
           builder: (context) {
             hostContext = context;
@@ -557,6 +558,7 @@ void main() {
 
     expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
     expect(find.byType(ModalBarrier), findsAtLeastNWidgets(1));
+    expect(find.text('Июль'), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();

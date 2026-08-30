@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_bootstrap.dart';
@@ -679,11 +678,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (!_nativeHeaderBarAvailable) {
       return;
     }
-    final titleRange = _scheduleRangeLabel(
-      context,
+    final titleRange = localizedScheduleHeading(
+      Localizations.localeOf(context).toLanguageTag(),
       _mode,
       range,
       _selectedDate,
+      agendaLabel: context.l10n.viewAgenda,
     );
     final sidebarVisible = showSidebar && !_sidebarCollapsed;
     final headerBarState = BusyMaxHeaderBarState(
@@ -2871,19 +2871,3 @@ int _firstWeekday(BuildContext context) {
 }
 
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
-
-String _scheduleRangeLabel(
-  BuildContext context,
-  ScheduleViewMode mode,
-  ScheduleRange range,
-  DateTime selectedDate,
-) {
-  final locale = Localizations.localeOf(context).toLanguageTag();
-  return switch (mode) {
-    ScheduleViewMode.day => DateFormat.yMMMMEEEEd(locale).format(selectedDate),
-    ScheduleViewMode.month => DateFormat.yMMMM(locale).format(selectedDate),
-    ScheduleViewMode.year => DateFormat.y(locale).format(selectedDate),
-    ScheduleViewMode.agenda => context.l10n.viewAgenda,
-    ScheduleViewMode.week => localizedScheduleRangeLabel(locale, range),
-  };
-}

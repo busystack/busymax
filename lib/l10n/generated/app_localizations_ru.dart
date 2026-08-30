@@ -1406,7 +1406,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return '$days-го числа месяца';
+    return '$days числа месяца';
   }
 
   @override
@@ -2330,4 +2330,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String repeatOnMonthDaysSummaryMultiple(String days) {
     return 'в дни месяца $days';
   }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day-го';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => ' и ';
 }

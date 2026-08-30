@@ -2299,4 +2299,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String repeatOnMonthDaysSummaryMultiple(String days) {
     return 'on days $days';
   }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => ', ';
 }

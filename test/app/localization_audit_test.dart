@@ -36,6 +36,7 @@ void main() {
     final templateFile = File('lib/l10n/app_en.arb');
     final templateArb = _decodeArb(templateFile);
     final templateMessages = _messages(templateArb);
+    const allowedEmptyTranslationKeys = {'repeatSummarySeparator'};
     final failures = <String>[];
 
     for (final file in _translatedArbFiles()) {
@@ -54,7 +55,8 @@ void main() {
       }
       for (final key in templateKeys.intersection(translatedKeys)) {
         final translation = messages[key]!;
-        if (translation.trim().isEmpty) {
+        if (translation.trim().isEmpty &&
+            !allowedEmptyTranslationKeys.contains(key)) {
           failures.add('$path: $key has an empty translation');
         }
         final declaredPlaceholders = _declaredPlaceholders(
@@ -97,6 +99,9 @@ void main() {
       'nextcloudProvider',
       'appleICloudTasksProvider',
       'taskUrl',
+      'repeatSummarySeparator',
+      'repeatMonthDayValue',
+      'repeatMonthDayListSeparator',
     };
     final failures = <String>[];
 
@@ -234,6 +239,39 @@ void main() {
     expect(localizations.settings, 'Definições');
     expect(localizations.today, 'Hoje');
   });
+
+  test(
+    'reviewed Arabic conflict wording and Portuguese variant stay stable',
+    () {
+      final arabic = AppLocalizationsAr();
+      expect(
+        arabic.remoteChangedAt('14:30'),
+        contains('تم التغيير على الخادم في:'),
+      );
+
+      final portuguese = lookupAppLocalizations(const Locale('pt'));
+      expect(portuguese.settings, 'Definições');
+      expect(portuguese.deleteTask, 'Eliminar tarefa');
+      expect(portuguese.copyAndDelete, 'Copiar e eliminar');
+
+      final portugueseArb = File(
+        'lib/l10n/app_pt.arb',
+      ).readAsStringSync().toLowerCase();
+      for (final brazilianForm in [
+        'excluído',
+        'excluir',
+        'compartilhada',
+        'somente',
+        'ele aparecerá',
+      ]) {
+        expect(
+          portugueseArb,
+          isNot(contains(brazilianForm)),
+          reason: 'pt-PT must not reintroduce $brazilianForm',
+        );
+      }
+    },
+  );
 
   test('Hindi is generated and exposed as a supported locale', () {
     const locale = Locale('hi');
@@ -421,6 +459,20 @@ void main() {
       rawRules: [],
       isSupported: true,
     );
+    const singleMonthDayRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.monthly,
+      interval: 1,
+      byDay: [],
+      byMonth: [],
+      byMonthDay: [15],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
 
     Future<String> summary(Locale locale, RecurrenceRule rule) async {
       var value = '';
@@ -444,10 +496,18 @@ void main() {
       await summary(const Locale('de'), ordinalRule),
       'Monatlich am ersten Montag',
     );
-    expect(await summary(const Locale('ja'), ordinalRule), '毎月 第1月曜日');
+    expect(await summary(const Locale('ja'), ordinalRule), '毎月第1月曜日');
+    expect(await summary(const Locale('ja'), singleMonthDayRule), '毎月15日');
+    expect(await summary(const Locale('ja'), monthDaysRule), '毎月1日、15日');
+    expect(await summary(const Locale('ko'), singleMonthDayRule), '매월 15일');
+    expect(await summary(const Locale('ko'), monthDaysRule), '매월 1일, 15일');
+    expect(
+      await summary(const Locale('et'), ordinalRule),
+      'Iga kuu esimene esmaspäev',
+    );
     expect(
       await summary(const Locale('ru'), monthDaysRule),
-      'Ежемесячно в дни месяца 1, 15',
+      'Ежемесячно в дни месяца 1-го и 15-го',
     );
   });
 

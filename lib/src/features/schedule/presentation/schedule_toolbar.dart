@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
@@ -130,7 +129,13 @@ class ScheduleToolbar extends StatelessWidget {
               Expanded(
                 child: _fittingRangeTitle(
                   context,
-                  _rangeLabel(context, mode, range, selectedDate),
+                  localizedScheduleHeading(
+                    Localizations.localeOf(context).toLanguageTag(),
+                    mode,
+                    range,
+                    selectedDate,
+                    agendaLabel: context.l10n.viewAgenda,
+                  ),
                 ),
               ),
               BusyMaxMenuButton<ScheduleViewMode>(
@@ -269,22 +274,6 @@ IconData _modeIcon(ScheduleViewMode mode) {
     ScheduleViewMode.month => Icons.calendar_view_month,
     ScheduleViewMode.year => Icons.calendar_today_outlined,
     ScheduleViewMode.agenda => Icons.view_agenda_outlined,
-  };
-}
-
-String _rangeLabel(
-  BuildContext context,
-  ScheduleViewMode mode,
-  ScheduleRange range,
-  DateTime selectedDate,
-) {
-  final locale = Localizations.localeOf(context).toLanguageTag();
-  return switch (mode) {
-    ScheduleViewMode.day => DateFormat.yMMMMEEEEd(locale).format(selectedDate),
-    ScheduleViewMode.month => DateFormat.yMMMM(locale).format(selectedDate),
-    ScheduleViewMode.year => DateFormat.y(locale).format(selectedDate),
-    ScheduleViewMode.agenda => context.l10n.viewAgenda,
-    ScheduleViewMode.week => localizedScheduleRangeLabel(locale, range),
   };
 }
 

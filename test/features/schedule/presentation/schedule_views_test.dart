@@ -2837,6 +2837,11 @@ void main() {
     expect(source, contains('context.l10n.allTasksRefreshed'));
     expect(source, contains('setScheduleViewMode(mode)'));
     expect(source, contains('settings.scheduleViewMode'));
+    expect(
+      source,
+      contains('localizedScheduleHeading('),
+      reason: 'native header state shares the Flutter heading formatter',
+    );
     expect(source, contains('ScheduleEmptyState'));
     expect(source, isNot(contains('BusyMaxHeaderBarAction.newItem')));
     expect(source, isNot(contains('BusyMaxHeaderBarAction.openMenu')));
@@ -4080,10 +4085,7 @@ void main() {
       contains('final showPaging = mode != ScheduleViewMode.agenda'),
     );
     expect(toolbar, contains('if (showPaging)'));
-    expect(
-      toolbar,
-      contains('ScheduleViewMode.agenda => context.l10n.viewAgenda'),
-    );
+    expect(toolbar, contains('agendaLabel: context.l10n.viewAgenda'));
     expect(
       workspace,
       contains('navigationVisible: _mode != ScheduleViewMode.agenda'),
@@ -4191,7 +4193,11 @@ void main() {
     expect(mode, contains('year'));
     expect(range, contains('factory ScheduleRange.year(DateTime day)'));
     expect(workspace, contains('ScheduleRange.year(_selectedDate)'));
-    expect(workspace, contains('DateFormat.y(locale).format(selectedDate)'));
+    expect(
+      workspace,
+      contains('localizedScheduleHeading('),
+      reason: 'schedule headers use the centralized localized heading helper',
+    );
     expect(workspace, contains('ScheduleYearView('));
     expect(yearView, contains('final monthWidth ='));
     expect(yearView, contains('Wrap('));

@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
@@ -170,7 +169,7 @@ class YearMonthMiniCalendar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _MiniCalendarHeaderLabel(
-            label: DateFormat.yMMMM(locale).format(month),
+            label: localizedMonthYearHeading(locale, month),
             tooltip: context.l10n.openMonthView,
             onPressed: () => onMonthSelected(month),
           ),
@@ -254,7 +253,11 @@ class MiniCalendarGrid extends StatelessWidget {
                       Expanded(
                         child: Center(
                           child: Text(
-                            DateFormat.E(locale).format(_weekdayDate(weekday)),
+                            localizedWeekdayLabel(
+                              locale,
+                              _weekdayDate(weekday),
+                              abbreviated: true,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.labelSmall

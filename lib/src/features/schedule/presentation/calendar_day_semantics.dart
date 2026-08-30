@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+
+import '../../../l10n/localized_formatters.dart';
 
 /// Gives every interactive calendar day one consistent desktop accessibility
 /// contract, regardless of the visual calendar that renders it.
@@ -20,7 +21,7 @@ class BusyMaxCalendarDaySemantics extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final label = DateFormat.yMMMMEEEEd(locale).format(day);
+    final label = localizedDayHeading(locale, day);
 
     return Semantics(
       container: true,

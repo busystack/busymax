@@ -877,5 +877,22 @@
         "type": "String"
       }
     }
+  },
+  "repeatSummarySeparator": " ",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "int"
+      }
+    }
+  },
+  "repeatMonthDayListSeparator": ", ",
+  "@repeatMonthDayListSeparator": {
+    "description": "Separator between multiple localized recurrence day values."
   }
 }

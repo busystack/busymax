@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../domain/event_recurrence_codec.dart';
@@ -75,28 +75,32 @@ String recurrenceRuleSummary(
         };
   if (recurrence.frequency == RecurrenceFrequency.weekly &&
       recurrence.byDay.isNotEmpty) {
+    final days = recurrence.byDay
+        .map((day) => _localizedInlineWeekday(context, day))
+        .join(', ');
     summary =
-        '$summary ${l10n.repeatOnDaysSummary(recurrence.byDay.map((day) => _localizedWeekday(context, day, abbreviated: false)).join(', '))}';
+        '$summary${l10n.repeatSummarySeparator}${l10n.repeatOnDaysSummary(days)}';
   } else if ((recurrence.frequency == RecurrenceFrequency.monthly ||
           recurrence.frequency == RecurrenceFrequency.yearly) &&
       recurrence.byMonthDay.isNotEmpty) {
+    final monthDays = recurrence.byMonthDay
+        .map((day) => l10n.repeatMonthDayValue(day))
+        .join(l10n.repeatMonthDayListSeparator);
     final monthDaysSummary = recurrence.byMonthDay.length == 1
-        ? l10n.repeatOnMonthDaysSummary(recurrence.byMonthDay.join(', '))
-        : l10n.repeatOnMonthDaysSummaryMultiple(
-            recurrence.byMonthDay.join(', '),
-          );
-    summary = '$summary $monthDaysSummary';
+        ? l10n.repeatOnMonthDaysSummary(monthDays)
+        : l10n.repeatOnMonthDaysSummaryMultiple(monthDays);
+    summary = '$summary${l10n.repeatSummarySeparator}$monthDaysSummary';
   } else if (recurrence.bySetPosition case final position?) {
     final ordinalSummary = l10n.repeatOnOrdinalSummary(
       _ordinalPositionKey(position),
-      _localizedOrdinalDay(context, recurrence.byDay),
+      _localizedOrdinalDaySummary(context, recurrence.byDay),
     );
-    summary = '$summary $ordinalSummary';
+    summary = '$summary${l10n.repeatSummarySeparator}$ordinalSummary';
   }
   if (recurrence.frequency == RecurrenceFrequency.yearly &&
       recurrence.byMonth.isNotEmpty) {
     summary =
-        '$summary ${l10n.repeatInMonthsSummary(recurrence.byMonth.map((month) => _localizedMonth(context, month)).join(', '))}';
+        '$summary ${l10n.repeatInMonthsSummary(recurrence.byMonth.map((month) => _localizedInlineMonth(context, month)).join(', '))}';
   }
   if (recurrence.count != null) {
     return '$summary · ${l10n.repeatTimesSummary(recurrence.count!)}';
@@ -221,7 +225,13 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                   style: YaruChoiceChipBarStyle.wrap,
                   labels: [
                     for (final day in rfcWeekdays)
-                      Text(_localizedWeekday(context, day, abbreviated: true)),
+                      Text(
+                        _localizedStandaloneWeekday(
+                          context,
+                          day,
+                          abbreviated: true,
+                        ),
+                      ),
                   ],
                   isSelected: [
                     for (final day in rfcWeekdays) _value.byDay.contains(day),
@@ -283,7 +293,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                   title: l10n.repeatOn,
                   values: [for (final choice in _ordinalDayChoices) choice.key],
                   selected: _ordinalDayChoiceKey(_value.byDay),
-                  labelFor: (value) => _localizedOrdinalDay(
+                  labelFor: (value) => _localizedOrdinalDayChoice(
                     context,
                     _ordinalDayChoices
                         .firstWhere((choice) => choice.key == value)
@@ -309,7 +319,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                   style: YaruChoiceChipBarStyle.wrap,
                   labels: [
                     for (var month = 1; month <= 12; month += 1)
-                      Text(_localizedMonth(context, month)),
+                      Text(_localizedStandaloneMonth(context, month)),
                   ],
                   isSelected: [
                     for (var month = 1; month <= 12; month += 1)
@@ -593,24 +603,40 @@ String _ordinalDayChoiceKey(List<String> days) {
   return days.firstOrNull ?? 'MO';
 }
 
-String _localizedWeekday(
+DateTime? _weekdayDate(String day) {
+  final index = rfcWeekdays.indexOf(day);
+  if (index < 0) return null;
+  return DateTime(2024, 1, 1 + index);
+}
+
+String _localizedStandaloneWeekday(
   BuildContext context,
   String day, {
   required bool abbreviated,
 }) {
-  final index = rfcWeekdays.indexOf(day);
-  if (index < 0) return day;
-  final date = DateTime(2024, 1, 1 + index);
+  final date = _weekdayDate(day);
+  if (date == null) return day;
   final locale = Localizations.localeOf(context).toLanguageTag();
-  return DateFormat(abbreviated ? 'EEE' : 'EEEE', locale).format(date);
+  return localizedWeekdayLabel(locale, date, abbreviated: abbreviated);
 }
 
-String _localizedMonth(BuildContext context, int month) {
+String _localizedInlineWeekday(BuildContext context, String day) {
+  final date = _weekdayDate(day);
+  if (date == null) return day;
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  return localizedInlineWeekday(locale, date);
+}
+
+String _localizedStandaloneMonth(BuildContext context, int month) {
   if (month < 1 || month > 12) return '$month';
-  return DateFormat(
-    'MMM',
-    Localizations.localeOf(context).toLanguageTag(),
-  ).format(DateTime(2024, month));
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  return localizedMonthLabel(locale, DateTime(2024, month), abbreviated: true);
+}
+
+String _localizedInlineMonth(BuildContext context, int month) {
+  if (month < 1 || month > 12) return '$month';
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  return localizedInlineMonth(locale, DateTime(2024, month), abbreviated: true);
 }
 
 String _localizedOrdinal(BuildContext context, int value) => switch (value) {
@@ -635,9 +661,13 @@ String _ordinalPositionKey(int value) => switch (value) {
   _ => '$value',
 };
 
-String _localizedOrdinalDay(BuildContext context, List<String> days) {
+String _localizedOrdinalDayChoice(BuildContext context, List<String> days) {
   if (days.length == 1) {
-    return _localizedWeekday(context, days.single, abbreviated: false);
+    return _localizedStandaloneWeekday(
+      context,
+      days.single,
+      abbreviated: false,
+    );
   }
   if (_sameDaySet(days, _ordinalDayChoices[7].days)) {
     return context.l10n.repeatAnyDay;
@@ -649,8 +679,26 @@ String _localizedOrdinalDay(BuildContext context, List<String> days) {
     return context.l10n.repeatWeekendDay;
   }
   return days
-      .map((day) => _localizedWeekday(context, day, abbreviated: false))
+      .map(
+        (day) => _localizedStandaloneWeekday(context, day, abbreviated: false),
+      )
       .join(', ');
+}
+
+String _localizedOrdinalDaySummary(BuildContext context, List<String> days) {
+  if (days.length == 1) {
+    return _localizedInlineWeekday(context, days.single);
+  }
+  if (_sameDaySet(days, _ordinalDayChoices[7].days)) {
+    return context.l10n.repeatAnyDay;
+  }
+  if (_sameDaySet(days, _ordinalDayChoices[8].days)) {
+    return context.l10n.repeatWeekday;
+  }
+  if (_sameDaySet(days, _ordinalDayChoices[9].days)) {
+    return context.l10n.repeatWeekendDay;
+  }
+  return days.map((day) => _localizedInlineWeekday(context, day)).join(', ');
 }
 
 bool _sameDaySet(List<String> left, List<String> right) {

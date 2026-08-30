@@ -1363,7 +1363,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return '毎月 $days 日';
+    return '$days';
   }
 
   @override
@@ -2259,6 +2259,17 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummaryMultiple(String days) {
-    return '毎月 $days 日';
+    return '$days';
   }
+
+  @override
+  String get repeatSummarySeparator => '';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day日';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => '、';
 }

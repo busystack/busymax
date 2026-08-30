@@ -2305,4 +2305,15 @@ class AppLocalizationsVi extends AppLocalizations {
   String repeatOnMonthDaysSummaryMultiple(String days) {
     return 'vào các ngày $days trong tháng';
   }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => ', ';
 }

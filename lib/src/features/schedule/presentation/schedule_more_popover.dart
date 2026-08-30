@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_yaru_theme.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_item.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_item_chip.dart';
@@ -26,7 +26,7 @@ Future<ScheduleMorePopoverSelection?> showScheduleMorePopover({
   onTaskCompletionChanged,
 }) async {
   final locale = Localizations.localeOf(context).toLanguageTag();
-  final dayLabel = DateFormat.yMMMMEEEEd(locale).format(day);
+  final dayLabel = localizedDayHeading(locale, day);
   final fallbackAnchorPoint = scheduleGlobalRectFor(anchorContext)?.center;
   return showScheduleAnchoredPopover<ScheduleMorePopoverSelection>(
     context: context,

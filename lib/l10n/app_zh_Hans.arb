@@ -654,7 +654,7 @@
   "repeatEveryMonths": "每 {count} 个月",
   "repeatEveryYears": "每 {count} 年",
   "repeatOnDaysSummary": "在 {days}",
-  "repeatOnMonthDaysSummary": "每月 {days} 日",
+  "repeatOnMonthDaysSummary": "{days}",
   "repeatOnOrdinalSummary": "{position, select, first{第一个{days}} second{第二个{days}} third{第三个{days}} fourth{第四个{days}} fifth{第五个{days}} secondToLast{倒数第二个{days}} last{最后一个{days}} other{{days}}}",
   "repeatInMonthsSummary": "在 {months}",
   "repeatTimesSummary": "重复 {count} 次",
@@ -869,7 +869,7 @@
       }
     }
   },
-  "repeatOnMonthDaysSummaryMultiple": "每月 {days} 日",
+  "repeatOnMonthDaysSummaryMultiple": "{days}",
   "@repeatOnMonthDaysSummaryMultiple": {
     "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
     "placeholders": {
@@ -877,5 +877,22 @@
         "type": "String"
       }
     }
+  },
+  "repeatSummarySeparator": "",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}日",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "int"
+      }
+    }
+  },
+  "repeatMonthDayListSeparator": "、",
+  "@repeatMonthDayListSeparator": {
+    "description": "Separator between multiple localized recurrence day values."
   }
 }

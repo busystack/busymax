@@ -2339,4 +2339,15 @@ class AppLocalizationsFa extends AppLocalizations {
   String repeatOnMonthDaysSummaryMultiple(String days) {
     return 'در روزهای $days ماه';
   }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => ', ';
 }

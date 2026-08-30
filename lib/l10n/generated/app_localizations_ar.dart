@@ -2319,4 +2319,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String repeatOnMonthDaysSummaryMultiple(String days) {
     return 'في أيام الشهر $days';
   }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => ', ';
 }

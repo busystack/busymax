@@ -1394,14 +1394,14 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String repeatOnOrdinalSummary(String position, String days) {
     String _temp0 = intl.Intl.selectLogic(position, {
-      'first': 'esimesel $days',
-      'second': 'teisel $days',
-      'third': 'kolmandal $days',
-      'fourth': 'neljandal $days',
-      'fifth': 'viiendal $days',
-      'secondToLast': 'eelviimasel $days',
-      'last': 'viimasel $days',
-      'other': 'päevadel $days',
+      'first': 'esimene $days',
+      'second': 'teine $days',
+      'third': 'kolmas $days',
+      'fourth': 'neljas $days',
+      'fifth': 'viies $days',
+      'secondToLast': 'eelviimane $days',
+      'last': 'viimane $days',
+      'other': '$days',
     });
     return '$_temp0';
   }
@@ -2305,4 +2305,15 @@ class AppLocalizationsEt extends AppLocalizations {
   String repeatOnMonthDaysSummaryMultiple(String days) {
     return 'kuu päevadel $days';
   }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => ', ';
 }

@@ -6,6 +6,7 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../tasks/domain/task_checklist_item.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
@@ -621,7 +622,7 @@ String _dayLabel(BuildContext context, DateTime day) {
     return context.l10n.tomorrow;
   }
   final locale = Localizations.localeOf(context).toLanguageTag();
-  return DateFormat.yMMMMEEEEd(locale).format(day);
+  return localizedDayHeading(locale, day);
 }
 
 String _nestedTaskScheduleLabel(

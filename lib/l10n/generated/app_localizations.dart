@@ -4109,6 +4109,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'on days {days}'**
   String repeatOnMonthDaysSummaryMultiple(String days);
+
+  /// Separator inserted between the base recurrence frequency and a following day or ordinal phrase.
+  ///
+  /// In en, this message translates to:
+  /// **' '**
+  String get repeatSummarySeparator;
+
+  /// Localized day-of-month value used when composing a list of recurrence days.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}'**
+  String repeatMonthDayValue(int day);
+
+  /// Separator between multiple localized recurrence day values.
+  ///
+  /// In en, this message translates to:
+  /// **', '**
+  String get repeatMonthDayListSeparator;
 }
 
 class _AppLocalizationsDelegate

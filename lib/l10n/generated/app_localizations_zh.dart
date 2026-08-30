@@ -1353,7 +1353,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return '每月 $days 日';
+    return '$days';
   }
 
   @override
@@ -2236,8 +2236,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummaryMultiple(String days) {
-    return '每月 $days 日';
+    return '$days';
   }
+
+  @override
+  String get repeatSummarySeparator => '';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day日';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => '、';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3585,7 +3596,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return '每月 $days 日';
+    return '$days';
   }
 
   @override
@@ -4468,8 +4479,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String repeatOnMonthDaysSummaryMultiple(String days) {
-    return '每月 $days 日';
+    return '$days';
   }
+
+  @override
+  String get repeatSummarySeparator => '';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day日';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => '、';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5817,7 +5839,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return '每月 $days 日';
+    return '$days';
   }
 
   @override
@@ -6701,6 +6723,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String repeatOnMonthDaysSummaryMultiple(String days) {
-    return '每月 $days 日';
+    return '$days';
   }
+
+  @override
+  String get repeatSummarySeparator => '';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day日';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => '、';
 }

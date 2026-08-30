@@ -2328,4 +2328,15 @@ class AppLocalizationsEs extends AppLocalizations {
   String repeatOnMonthDaysSummaryMultiple(String days) {
     return 'los días $days';
   }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(int day) {
+    return '$day';
+  }
+
+  @override
+  String get repeatMonthDayListSeparator => ', ';
 }
