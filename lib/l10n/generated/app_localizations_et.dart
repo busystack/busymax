@@ -141,6 +141,10 @@ class AppLocalizationsEt extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'Kalender loodi, kuid BusyMax ei saanud kontot värskendada. See ilmub pärast järgmist sünkroonimist.';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'Kalendri värskendamine nurjus: $error';
   }
@@ -1588,6 +1592,9 @@ class AppLocalizationsEt extends AppLocalizations {
   String get eventReminders => 'Sündmuste meeldetuletused';
 
   @override
+  String get onState => 'Sees';
+
+  @override
   String get taskReminders => 'Ülesannete meeldetuletused';
 
   @override
@@ -2212,6 +2219,13 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'Kalendri importimine';
+
+  @override
+  String get calendarImportDescription =>
+      'Vali fail, vaata selle sündmused üle ja vali seejärel kirjutatav kalender, kuhu need imporditakse.';
 
   @override
   String get importIcsFile => 'Import .ics file';

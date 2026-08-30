@@ -144,6 +144,10 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'कैलेंडर बन गया, लेकिन BusyMax खाते को रीफ़्रेश नहीं कर सका। यह अगली सिंक के बाद दिखाई देगा।';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'कैलेंडर अपडेट नहीं किया जा सका: $error';
   }
@@ -1589,6 +1593,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get eventReminders => 'ईवेंट रिमाइंडर';
 
   @override
+  String get onState => 'चालू';
+
+  @override
   String get taskReminders => 'कार्य रिमाइंडर';
 
   @override
@@ -2212,6 +2219,13 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'कैलेंडर आयात';
+
+  @override
+  String get calendarImportDescription =>
+      'फ़ाइल चुनें, उसके इवेंट की समीक्षा करें, फिर वह लिखने योग्य कैलेंडर चुनें जिसमें उन्हें आयात करना है।';
 
   @override
   String get importIcsFile => 'Import .ics file';

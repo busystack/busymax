@@ -93,6 +93,32 @@ void main() {
     },
   );
 
+  test('create enforces network availability before DAV transport', () async {
+    var requests = 0;
+    var networkChecks = 0;
+    final service = DavTaskListMutationService(
+      database: database,
+      secretStore: secrets,
+      httpClient: MockClient((_) async {
+        requests += 1;
+        return http.Response('', HttpStatus.created);
+      }),
+      accountId: 'account',
+      refreshAfterMutation: () async {},
+      requireNetwork: () async {
+        networkChecks += 1;
+        throw const _OfflineTestException();
+      },
+    );
+
+    await expectLater(
+      service.createTaskList('Offline'),
+      throwsA(isA<_OfflineTestException>()),
+    );
+    expect(networkChecks, 1);
+    expect(requests, 0);
+  });
+
   test('a lost MKCOL response is reconciled by a matching PROPFIND', () async {
     var requests = 0;
     var refreshes = 0;
@@ -334,3 +360,7 @@ const _forbiddenProppatch =
     '<d:propstat><d:prop><d:displayname/></d:prop>'
     '<d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat>'
     '</d:response></d:multistatus>';
+
+final class _OfflineTestException implements Exception {
+  const _OfflineTestException();
+}

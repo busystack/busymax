@@ -142,6 +142,10 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'تم إنشاء التقويم، لكن تعذّر على BusyMax تحديث الحساب. سيظهر بعد المزامنة التالية.';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'تعذّر تحديث التقويم: $error';
   }
@@ -1593,6 +1597,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get eventReminders => 'تذكيرات الأحداث';
 
   @override
+  String get onState => 'تشغيل';
+
+  @override
   String get taskReminders => 'تذكيرات المهام';
 
   @override
@@ -2223,6 +2230,13 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'استيراد التقويم';
+
+  @override
+  String get calendarImportDescription =>
+      'حدّد ملفًا وراجع أحداثه، ثم اختر التقويم القابل للكتابة الذي سيتلقاها.';
 
   @override
   String get importIcsFile => 'Import .ics file';

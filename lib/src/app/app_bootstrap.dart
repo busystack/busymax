@@ -17,11 +17,13 @@ import '../dav/dav_provider_profile.dart';
 import '../dav/discovery/dav_discovery_service.dart';
 import '../dav/http/dav_http_transport.dart';
 import '../dav/mutation/dav_conflict_repository.dart';
+import '../dav/mutation/dav_calendar_collection_mutation_service.dart';
 import '../dav/mutation/dav_pending_operations.dart';
 import '../dav/mutation/dav_task_list_mutation_service.dart';
 import '../dav/sync/dav_account_sync_engine.dart';
 import '../dav/storage/dav_settings_repository.dart';
 import '../features/calendar/data/calendar_repository.dart';
+import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/auth/data/auth_repository.dart';
@@ -728,6 +730,44 @@ final davTaskListMutationClientForAccountProvider =
         refreshAfterMutation: () => ref
             .read(accountSyncOperationsProvider)
             .syncAccount(accountId, full: true),
+        requireNetwork: ref
+            .watch(networkConnectivityMonitorProvider)
+            .requireNetwork,
+      );
+    });
+
+final davCalendarCollectionMutationClientForAccountProvider =
+    Provider.family<DavCalendarCollectionMutationClient, String>((
+      ref,
+      accountId,
+    ) {
+      return DavCalendarCollectionMutationService(
+        database: ref.watch(databaseProvider),
+        secretStore: ref.watch(secretStoreProvider),
+        httpClient: ref.watch(baseHttpClientProvider),
+        accountId: accountId,
+        refreshAfterMutation: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncAccount(accountId, full: true),
+        requireNetwork: ref
+            .watch(networkConnectivityMonitorProvider)
+            .requireNetwork,
+      );
+    });
+
+final calendarCollectionCreationServiceProvider =
+    Provider<CalendarCollectionCreator>((ref) {
+      return CalendarCollectionCreationService(
+        accountsRepository: ref.watch(accountsRepositoryProvider),
+        calendarRepository: ref.watch(calendarRepositoryProvider),
+        davClientForAccount: (accountId) => ref.read(
+          davCalendarCollectionMutationClientForAccountProvider(accountId),
+        ),
+        requestCloudSynchronization: (accountId) => ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+            )
+            .request(),
       );
     });
 
@@ -744,6 +784,8 @@ final taskListsRepositoryProvider = Provider<TaskListsRepository?>((ref) {
       davTaskListMutationClientForAccountProvider(accountId),
     ),
     onMutationQueued: ref.watch(pendingMutationSyncRequesterProvider)?.request,
+    onNotificationScheduleChanged: () =>
+        ref.read(notificationSchedulerProvider).checkNow(),
   );
 });
 
@@ -759,6 +801,8 @@ final taskListsRepositoryForAccountProvider =
         onMutationQueued: ref
             .watch(pendingMutationSyncRequesterForAccountProvider(accountId))
             .request,
+        onNotificationScheduleChanged: () =>
+            ref.read(notificationSchedulerProvider).checkNow(),
       );
     });
 

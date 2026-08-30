@@ -3778,7 +3778,7 @@ void main() {
     expect(sidebar, contains('visibilityButton: _SourceVisibilityButton'));
     expect(sidebar, contains('menuButton: BusyMaxMenuButton'));
     expect(sidebar, contains('tooltip: context.l10n.options'));
-    expect('highlightWhenOpen: false'.allMatches(sidebar), hasLength(3));
+    expect('highlightWhenOpen: false'.allMatches(sidebar), hasLength(4));
     expect(sidebar, contains('value ? context.l10n.hide : context.l10n.show'));
     expect(sidebar, isNot(contains('tooltip: context.l10n.sourceCalendar')));
     expect(sidebar, isNot(contains('tooltip: context.l10n.sourceTaskList')));
@@ -3792,6 +3792,15 @@ void main() {
     expect(sidebar, isNot(contains('YaruIcons.checkbox')));
     expect(sidebar, isNot(contains('InkWell(')));
     expect(sidebar, isNot(contains('_SourceVisibilityIndicator')));
+  });
+
+  test('sidebar does not expose the one-time calendar import action', () {
+    final sidebar = File(
+      'lib/src/features/schedule/presentation/schedule_sidebar.dart',
+    ).readAsStringSync();
+
+    expect(sidebar, isNot(contains("ValueKey('import-ics-file')")));
+    expect(sidebar, isNot(contains('showIcsImportFlow')));
   });
 
   test('schedule Create uses a native popover before refresh', () {

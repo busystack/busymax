@@ -144,6 +144,10 @@ class AppLocalizationsFi extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'Kalenteri luotiin, mutta BusyMax ei voinut päivittää tiliä. Se tulee näkyviin seuraavan synkronoinnin jälkeen.';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'Kalenteria ei voitu päivittää: $error';
   }
@@ -1592,6 +1596,9 @@ class AppLocalizationsFi extends AppLocalizations {
   String get eventReminders => 'Tapahtumamuistutukset';
 
   @override
+  String get onState => 'Käytössä';
+
+  @override
   String get taskReminders => 'Tehtävämuistutukset';
 
   @override
@@ -2218,6 +2225,13 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'Kalenterin tuonti';
+
+  @override
+  String get calendarImportDescription =>
+      'Valitse tiedosto, tarkista sen tapahtumat ja valitse sitten kirjoitettava kohdekalenteri.';
 
   @override
   String get importIcsFile => 'Import .ics file';

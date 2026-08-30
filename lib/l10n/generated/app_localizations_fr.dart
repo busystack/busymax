@@ -143,6 +143,10 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'Le calendrier a été créé, mais BusyMax n’a pas pu actualiser le compte. Il apparaîtra après la prochaine synchronisation.';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'Impossible de mettre à jour le calendrier : $error';
   }
@@ -1592,6 +1596,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get eventReminders => 'Rappels d’événements';
 
   @override
+  String get onState => 'Activé';
+
+  @override
   String get taskReminders => 'Rappels de tâches';
 
   @override
@@ -2222,6 +2229,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'Importer un calendrier';
+
+  @override
+  String get calendarImportDescription =>
+      'Sélectionnez un fichier, vérifiez ses événements, puis choisissez le calendrier modifiable qui les recevra.';
 
   @override
   String get importIcsFile => 'Import .ics file';

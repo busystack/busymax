@@ -141,6 +141,10 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'カレンダーは作成されましたが、BusyMax はアカウントを更新できませんでした。次回の同期後に表示されます。';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'カレンダーを更新できませんでした: $error';
   }
@@ -1567,6 +1571,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get eventReminders => '予定のリマインダー';
 
   @override
+  String get onState => 'オン';
+
+  @override
   String get taskReminders => 'タスクのリマインダー';
 
   @override
@@ -2183,6 +2190,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'カレンダーのインポート';
+
+  @override
+  String get calendarImportDescription =>
+      'ファイルを選択して予定を確認し、インポート先の書き込み可能なカレンダーを選択します。';
 
   @override
   String get importIcsFile => 'Import .ics file';

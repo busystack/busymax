@@ -29,6 +29,15 @@ abstract final class BusyMaxGlyphs {
     if (icon == Icons.edit_outlined) {
       return 'document-edit-symbolic';
     }
+    if (icon == Icons.palette_outlined) {
+      return 'color-select-symbolic';
+    }
+    if (icon == Icons.notifications_outlined) {
+      return 'preferences-system-notifications-symbolic';
+    }
+    if (icon == Icons.notifications_off_outlined) {
+      return 'notifications-disabled-symbolic';
+    }
     if (icon == Icons.calendar_view_day_outlined ||
         icon == YaruIcons.calendar_day) {
       return 'calendar-app-symbolic';

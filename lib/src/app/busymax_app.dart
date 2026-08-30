@@ -25,7 +25,7 @@ import 'busymax_design.dart';
 import 'system_accent.dart';
 import 'app_theme.dart';
 import '../features/settings/presentation/settings_screen.dart';
-import '../features/schedule/presentation/schedule_sidebar.dart';
+import '../features/calendar/presentation/ical_import_flow.dart';
 
 typedef BusyMaxTrayServiceFactory =
     BusyMaxTrayService Function(BusyMaxTrayServiceConfiguration configuration);

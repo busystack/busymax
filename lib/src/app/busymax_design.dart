@@ -542,6 +542,7 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
     this.overlayColor,
     this.fixedSize,
     this.shape,
+    this.focusNode,
   });
 
   final Widget icon;
@@ -553,6 +554,7 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
   final WidgetStateProperty<Color?>? overlayColor;
   final Size? fixedSize;
   final OutlinedBorder? shape;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -561,6 +563,7 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
       icon: icon,
       iconSize: iconSize,
       onPressed: onPressed,
+      focusNode: focusNode,
       style:
           busyMaxHeaderIconButtonStyle(
             context,

@@ -141,6 +141,10 @@ class AppLocalizationsFa extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'تقویم ایجاد شد، اما BusyMax نتوانست حساب را تازه‌سازی کند. پس از همگام‌سازی بعدی نمایش داده می‌شود.';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'به‌روزرسانی تقویم ممکن نشد: $error';
   }
@@ -1602,6 +1606,9 @@ class AppLocalizationsFa extends AppLocalizations {
   String get eventReminders => 'یادآورهای رویداد';
 
   @override
+  String get onState => 'روشن';
+
+  @override
   String get taskReminders => 'یادآورهای کار';
 
   @override
@@ -2246,6 +2253,13 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'وارد کردن تقویم';
+
+  @override
+  String get calendarImportDescription =>
+      'یک فایل انتخاب کنید، رویدادهای آن را بررسی کنید و سپس تقویم قابل‌نوشتن مقصد را برگزینید.';
 
   @override
   String get importIcsFile => 'Import .ics file';

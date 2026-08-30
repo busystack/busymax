@@ -38,6 +38,21 @@ void main() {
     );
   });
 
+  test('calendar option glyphs resolve for native GTK menus', () {
+    expect(
+      BusyMaxGlyphs.nativeMenuIconName(Icons.palette_outlined),
+      'color-select-symbolic',
+    );
+    expect(
+      BusyMaxGlyphs.nativeMenuIconName(Icons.notifications_outlined),
+      'preferences-system-notifications-symbolic',
+    );
+    expect(
+      BusyMaxGlyphs.nativeMenuIconName(Icons.notifications_off_outlined),
+      'notifications-disabled-symbolic',
+    );
+  });
+
   test('Arabic and Persian glyph coverage is packaged in the snap', () {
     expect(
       File('snap/snapcraft.yaml').readAsStringSync(),

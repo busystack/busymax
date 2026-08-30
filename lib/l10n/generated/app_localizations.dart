@@ -366,6 +366,12 @@ abstract class AppLocalizations {
   /// **'Could not create the calendar: {error}'**
   String calendarCreateFailed(String error);
 
+  /// No description provided for @calendarCreatedRefreshPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The calendar was created, but BusyMax could not refresh the account. It will appear after the next sync.'**
+  String get calendarCreatedRefreshPending;
+
   /// No description provided for @calendarUpdateFailed.
   ///
   /// In en, this message translates to:
@@ -2910,6 +2916,12 @@ abstract class AppLocalizations {
   /// **'Event reminders'**
   String get eventReminders;
 
+  /// No description provided for @onState.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get onState;
+
   /// No description provided for @taskReminders.
   ///
   /// In en, this message translates to:
@@ -3983,6 +3995,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Subscriptions'**
   String get subscriptions;
+
+  /// No description provided for @calendarImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar import'**
+  String get calendarImport;
+
+  /// No description provided for @calendarImportDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a file, review its events, then choose the writable calendar that should receive them.'**
+  String get calendarImportDescription;
 
   /// No description provided for @importIcsFile.
   ///

@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/dav/mutation/dav_task_list_mutation_service.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
+import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
   late AppDatabase database;
@@ -47,6 +49,56 @@ void main() {
     expect(jsonDecode(ops.single.requestJson), {'title': 'Inbox'});
     expect(mutationQueuedCalls, 1);
   });
+
+  test('Microsoft createTaskList keeps the cloud pending path', () async {
+    await (database.update(
+      database.accounts,
+    )..where((row) => row.id.equals('account'))).write(
+      const AccountsCompanion(
+        provider: Value('microsoft'),
+        authority: Value('https://login.microsoftonline.com/common'),
+        providerAccountId: Value('microsoft-account'),
+      ),
+    );
+
+    await repository.createTaskList('Microsoft list');
+
+    final list = await database.select(database.taskLists).getSingle();
+    final operation = await database.select(database.pendingOps).getSingle();
+    expect(list.id, startsWith('local-tasklist-'));
+    expect(operation.operation, 'create_task_list');
+    expect(jsonDecode(operation.requestJson), {'title': 'Microsoft list'});
+  });
+
+  test('createTaskList requires a non-empty title', () async {
+    await expectLater(repository.createTaskList('   '), throwsArgumentError);
+    expect(await database.select(database.taskLists).get(), isEmpty);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  for (final provider in [BusyProvider.appleICloud, BusyProvider.webCal]) {
+    test('${provider.displayName} task-list creation is rejected', () async {
+      await (database.update(
+        database.accounts,
+      )..where((row) => row.id.equals('account'))).write(
+        AccountsCompanion(
+          provider: Value(provider.storageValue),
+          credentialKind: Value(
+            provider == BusyProvider.webCal
+                ? 'webcal_subscription'
+                : 'apple_app_specific_password',
+          ),
+        ),
+      );
+
+      await expectLater(
+        repository.createTaskList('Unsupported'),
+        throwsStateError,
+      );
+      expect(await database.select(database.taskLists).get(), isEmpty);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    });
+  }
 
   test('renameTaskList updates local row and queues patch op', () async {
     var mutationQueuedCalls = 0;
@@ -118,6 +170,54 @@ void main() {
     expect(lists.map((list) => list.id), ['visible']);
     expect(watchedLists.map((list) => list.id), ['visible']);
   });
+
+  test(
+    'setRemindersEnabled updates only the local notification policy',
+    () async {
+      var scheduleChangedCalls = 0;
+      repository = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+        onNotificationScheduleChanged: () async {
+          scheduleChangedCalls += 1;
+        },
+      );
+      await database.taskListsDao.upsertTaskList(_taskList('list-1'));
+
+      await repository.setRemindersEnabled('list-1', false);
+
+      final list = await database.select(database.taskLists).getSingle();
+      expect(list.remindersEnabled, isFalse);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(scheduleChangedCalls, 1);
+    },
+  );
+
+  test(
+    'provider refresh preserves the local task-list reminder policy',
+    () async {
+      await database.taskListsDao.upsertTaskList(
+        _taskList('list-1', remindersEnabled: const Value(false)),
+      );
+
+      await database.taskListsDao.upsertTaskList(
+        taskListFromDto(
+          'account',
+          const TaskListDto(
+            id: 'list-1',
+            title: 'Renamed remotely',
+            rawJson: {'id': 'list-1', 'title': 'Renamed remotely'},
+          ),
+          _now,
+        ),
+      );
+
+      final list = await database.select(database.taskLists).getSingle();
+      expect(list.title, 'Renamed remotely');
+      expect(list.remindersEnabled, isFalse);
+    },
+  );
 
   test(
     'Nextcloud list mutations use CalDAV instead of REST pending ops',
@@ -205,6 +305,7 @@ Future<void> _insertAccount(AppDatabase database) {
           authority: 'https://accounts.google.com',
           providerAccountId: 'google-account',
           credentialKind: 'oauth',
+          authState: const Value('signed_in'),
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),
@@ -217,6 +318,7 @@ TaskListsCompanion _taskList(
   String id, {
   Value<bool> pendingDelete = const Value.absent(),
   Value<bool> serverMissing = const Value.absent(),
+  Value<bool> remindersEnabled = const Value.absent(),
 }) {
   return TaskListsCompanion.insert(
     accountId: 'account',
@@ -224,6 +326,7 @@ TaskListsCompanion _taskList(
     title: 'Inbox',
     pendingDelete: pendingDelete,
     serverMissing: serverMissing,
+    remindersEnabled: remindersEnabled,
     rawJson: '{}',
     createdLocalAtUtc: _now,
     updatedLocalAtUtc: _now,

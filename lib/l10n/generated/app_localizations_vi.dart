@@ -141,6 +141,10 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'Lịch đã được tạo nhưng BusyMax không thể làm mới tài khoản. Lịch sẽ xuất hiện sau lần đồng bộ tiếp theo.';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'Không thể cập nhật lịch: $error';
   }
@@ -1587,6 +1591,9 @@ class AppLocalizationsVi extends AppLocalizations {
   String get eventReminders => 'Lời nhắc sự kiện';
 
   @override
+  String get onState => 'Bật';
+
+  @override
   String get taskReminders => 'Lời nhắc công việc';
 
   @override
@@ -2211,6 +2218,13 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'Nhập lịch';
+
+  @override
+  String get calendarImportDescription =>
+      'Chọn một tệp, xem lại các sự kiện rồi chọn lịch có thể ghi để nhận chúng.';
 
   @override
   String get importIcsFile => 'Import .ics file';

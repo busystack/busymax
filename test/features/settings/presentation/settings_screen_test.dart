@@ -25,7 +25,6 @@ import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
-import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/providers/provider_capabilities.dart';
@@ -745,44 +744,31 @@ void main() {
     expect(second.state.scheduleDayEndMinute, 24 * 60);
   });
 
-  testWidgets('Settings creates a new task list for the account card', (
+  testWidgets('Settings owns calendar import but not task-list creation', (
     tester,
   ) async {
-    final googleLists = _FakeTaskListsRepository();
-    final microsoftLists = _FakeTaskListsRepository();
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
       accounts: const [_googleAccount, _microsoftAccount],
       buildConfig: _configuredBuildConfig,
-      taskListRepositories: {
-        'google:g': googleLists,
-        'microsoft:m': microsoftLists,
-      },
     );
     addTearDown(container.dispose);
 
     await _pumpSettings(tester, container);
 
-    final newTaskListButtons = find.text('New task list');
-    expect(newTaskListButtons, findsNWidgets(2));
-
-    await tester.ensureVisible(newTaskListButtons.at(1));
-    await tester.tap(newTaskListButtons.at(1));
-    await tester.pumpAndSettle();
-
-    final promptField = find.descendant(
-      of: find.byType(BusyMaxPromptDialog),
-      matching: find.byType(TextField),
+    expect(find.text('New task list'), findsNothing);
+    expect(find.text('Calendar import'), findsOneWidget);
+    expect(
+      find.text(
+        'Select a file, review its events, then choose the writable calendar '
+        'that should receive them.',
+      ),
+      findsOneWidget,
     );
-    expect(promptField, findsOneWidget);
-    await tester.enterText(promptField, 'Client work');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-
-    expect(googleLists.createdTitles, isEmpty);
-    expect(microsoftLists.createdTitles, ['Client work']);
-    expect(container.read(selectedAccountIdProvider), 'google:g');
+    expect(find.byKey(const ValueKey('import-ics-file')), findsOneWidget);
+    expect(find.text('Import .ics file'), findsOneWidget);
+    expect(find.text('Remove account…'), findsNWidgets(2));
   });
 
   testWidgets('Settings lists accounts without account switching controls', (
@@ -906,7 +892,6 @@ ProviderContainer _container({
   required _FakeAuthRepository authRepository,
   required List<AccountEntity> accounts,
   BuildConfig buildConfig = _emptyBuildConfig,
-  Map<String, _FakeTaskListsRepository>? taskListRepositories,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
   bool useFlutterHeader = false,
   DavAccountOnboardingService? davOnboardingService,
@@ -942,9 +927,6 @@ ProviderContainer _container({
           ref.onDispose(service.dispose);
           return service;
         }),
-      taskListsRepositoryForAccountProvider.overrideWith((ref, accountId) {
-        return taskListRepositories?[accountId] ?? _FakeTaskListsRepository();
-      }),
     ],
   );
 }
@@ -1081,18 +1063,6 @@ class _FakeAccountsRepository implements AccountsRepository {
 
   @override
   Future<List<AccountEntity>> listSignedInAccounts() async => accounts;
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeTaskListsRepository implements TaskListsRepository {
-  final createdTitles = <String>[];
-
-  @override
-  Future<void> createTaskList(String title) async {
-    createdTitles.add(title);
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

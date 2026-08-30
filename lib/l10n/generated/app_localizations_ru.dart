@@ -142,6 +142,10 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      'Календарь создан, но BusyMax не смог обновить учётную запись. Он появится после следующей синхронизации.';
+
+  @override
   String calendarUpdateFailed(String error) {
     return 'Не удалось обновить календарь: $error';
   }
@@ -1596,6 +1600,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get eventReminders => 'Напоминания о событиях';
 
   @override
+  String get onState => 'Вкл.';
+
+  @override
   String get taskReminders => 'Напоминания о задачах';
 
   @override
@@ -2225,6 +2232,13 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'Импорт календаря';
+
+  @override
+  String get calendarImportDescription =>
+      'Выберите файл, проверьте события, затем выберите доступный для записи календарь назначения.';
 
   @override
   String get importIcsFile => 'Import .ics file';

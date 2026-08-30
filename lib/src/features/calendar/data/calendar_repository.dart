@@ -16,6 +16,7 @@ import '../../../dav/mutation/dav_pending_operations.dart';
 import '../../../dav/mutation/dav_projection_mutations.dart';
 import '../../../dav/storage/dav_object_repository.dart';
 import '../../../db/app_database.dart';
+import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../domain/event_move_policy.dart';
@@ -423,7 +424,8 @@ class CalendarRepository {
       _database.accounts,
     )..where((row) => row.id.equals(accountId))).getSingle();
     final provider = BusyProviderCodec.requireStorageValue(account.provider);
-    if (!calendarManagementCapabilities(provider).supportsCreate) {
+    if (accountCollectionCreationModes(provider).calendarMode !=
+        CalendarCollectionCreationMode.cloudPendingOperation) {
       throw CalendarMutationNotAllowed(
         operation: CalendarMutationOperation.createCalendar,
         sourceId: accountId,

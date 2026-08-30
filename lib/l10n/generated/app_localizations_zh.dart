@@ -139,6 +139,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      '日历已创建，但 BusyMax 无法刷新账户。它将在下次同步后显示。';
+
+  @override
   String calendarUpdateFailed(String error) {
     return '无法更新日历：$error';
   }
@@ -1557,6 +1561,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get eventReminders => '日程提醒';
 
   @override
+  String get onState => '开启';
+
+  @override
   String get taskReminders => '任务提醒';
 
   @override
@@ -2171,6 +2178,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => '导入日历';
+
+  @override
+  String get calendarImportDescription => '选择文件并检查其中的日程，然后选择要接收这些日程的可写日历。';
 
   @override
   String get importIcsFile => 'Import .ics file';
@@ -2367,6 +2380,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      '日历已创建，但 BusyMax 无法刷新账户。它将在下次同步后显示。';
+
+  @override
   String calendarUpdateFailed(String error) {
     return '无法更新日历：$error';
   }
@@ -3785,6 +3802,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get eventReminders => '日程提醒';
 
   @override
+  String get onState => '开启';
+
+  @override
   String get taskReminders => '任务提醒';
 
   @override
@@ -4401,6 +4421,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get subscriptions => 'Subscriptions';
 
   @override
+  String get calendarImport => '导入日历';
+
+  @override
+  String get calendarImportDescription => '选择文件并检查其中的日程，然后选择要接收这些日程的可写日历。';
+
+  @override
   String get importIcsFile => 'Import .ics file';
 
   @override
@@ -4593,6 +4619,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String calendarCreateFailed(String error) {
     return '無法建立行事曆：$error';
   }
+
+  @override
+  String get calendarCreatedRefreshPending =>
+      '行事曆已建立，但 BusyMax 無法重新整理帳戶。它會在下次同步後顯示。';
 
   @override
   String calendarUpdateFailed(String error) {
@@ -6014,6 +6044,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get eventReminders => '活動提醒';
 
   @override
+  String get onState => '開啟';
+
+  @override
   String get taskReminders => '待辦事項提醒';
 
   @override
@@ -6628,6 +6661,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => '匯入行事曆';
+
+  @override
+  String get calendarImportDescription => '選擇檔案並檢查其中的行程，然後選擇要接收這些行程的可寫入行事曆。';
 
   @override
   String get importIcsFile => 'Import .ics file';

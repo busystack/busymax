@@ -7013,6 +7013,21 @@ class $TaskListsTable extends TaskLists
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _remindersEnabledMeta = const VerificationMeta(
+    'remindersEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> remindersEnabled = GeneratedColumn<bool>(
+    'reminders_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("reminders_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _lastSyncedAtUtcMeta = const VerificationMeta(
     'lastSyncedAtUtc',
   );
@@ -7067,6 +7082,7 @@ class $TaskListsTable extends TaskLists
     serverMissing,
     localDirty,
     pendingDelete,
+    remindersEnabled,
     lastSyncedAtUtc,
     createdLocalAtUtc,
     updatedLocalAtUtc,
@@ -7205,6 +7221,15 @@ class $TaskListsTable extends TaskLists
         ),
       );
     }
+    if (data.containsKey('reminders_enabled')) {
+      context.handle(
+        _remindersEnabledMeta,
+        remindersEnabled.isAcceptableOrUnknown(
+          data['reminders_enabled']!,
+          _remindersEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_synced_at_utc')) {
       context.handle(
         _lastSyncedAtUtcMeta,
@@ -7313,6 +7338,10 @@ class $TaskListsTable extends TaskLists
         DriftSqlType.bool,
         data['${effectivePrefix}pending_delete'],
       )!,
+      remindersEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}reminders_enabled'],
+      )!,
       lastSyncedAtUtc: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_synced_at_utc'],
@@ -7352,6 +7381,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
   final bool serverMissing;
   final bool localDirty;
   final bool pendingDelete;
+  final bool remindersEnabled;
   final String? lastSyncedAtUtc;
   final String createdLocalAtUtc;
   final String updatedLocalAtUtc;
@@ -7373,6 +7403,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     required this.serverMissing,
     required this.localDirty,
     required this.pendingDelete,
+    required this.remindersEnabled,
     this.lastSyncedAtUtc,
     required this.createdLocalAtUtc,
     required this.updatedLocalAtUtc,
@@ -7417,6 +7448,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     map['server_missing'] = Variable<bool>(serverMissing);
     map['local_dirty'] = Variable<bool>(localDirty);
     map['pending_delete'] = Variable<bool>(pendingDelete);
+    map['reminders_enabled'] = Variable<bool>(remindersEnabled);
     if (!nullToAbsent || lastSyncedAtUtc != null) {
       map['last_synced_at_utc'] = Variable<String>(lastSyncedAtUtc);
     }
@@ -7460,6 +7492,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       serverMissing: Value(serverMissing),
       localDirty: Value(localDirty),
       pendingDelete: Value(pendingDelete),
+      remindersEnabled: Value(remindersEnabled),
       lastSyncedAtUtc: lastSyncedAtUtc == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSyncedAtUtc),
@@ -7493,6 +7526,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       serverMissing: serializer.fromJson<bool>(json['serverMissing']),
       localDirty: serializer.fromJson<bool>(json['localDirty']),
       pendingDelete: serializer.fromJson<bool>(json['pendingDelete']),
+      remindersEnabled: serializer.fromJson<bool>(json['remindersEnabled']),
       lastSyncedAtUtc: serializer.fromJson<String?>(json['lastSyncedAtUtc']),
       createdLocalAtUtc: serializer.fromJson<String>(json['createdLocalAtUtc']),
       updatedLocalAtUtc: serializer.fromJson<String>(json['updatedLocalAtUtc']),
@@ -7519,6 +7553,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       'serverMissing': serializer.toJson<bool>(serverMissing),
       'localDirty': serializer.toJson<bool>(localDirty),
       'pendingDelete': serializer.toJson<bool>(pendingDelete),
+      'remindersEnabled': serializer.toJson<bool>(remindersEnabled),
       'lastSyncedAtUtc': serializer.toJson<String?>(lastSyncedAtUtc),
       'createdLocalAtUtc': serializer.toJson<String>(createdLocalAtUtc),
       'updatedLocalAtUtc': serializer.toJson<String>(updatedLocalAtUtc),
@@ -7543,6 +7578,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     bool? serverMissing,
     bool? localDirty,
     bool? pendingDelete,
+    bool? remindersEnabled,
     Value<String?> lastSyncedAtUtc = const Value.absent(),
     String? createdLocalAtUtc,
     String? updatedLocalAtUtc,
@@ -7570,6 +7606,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     serverMissing: serverMissing ?? this.serverMissing,
     localDirty: localDirty ?? this.localDirty,
     pendingDelete: pendingDelete ?? this.pendingDelete,
+    remindersEnabled: remindersEnabled ?? this.remindersEnabled,
     lastSyncedAtUtc: lastSyncedAtUtc.present
         ? lastSyncedAtUtc.value
         : this.lastSyncedAtUtc,
@@ -7609,6 +7646,9 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       pendingDelete: data.pendingDelete.present
           ? data.pendingDelete.value
           : this.pendingDelete,
+      remindersEnabled: data.remindersEnabled.present
+          ? data.remindersEnabled.value
+          : this.remindersEnabled,
       lastSyncedAtUtc: data.lastSyncedAtUtc.present
           ? data.lastSyncedAtUtc.value
           : this.lastSyncedAtUtc,
@@ -7641,6 +7681,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
           ..write('serverMissing: $serverMissing, ')
           ..write('localDirty: $localDirty, ')
           ..write('pendingDelete: $pendingDelete, ')
+          ..write('remindersEnabled: $remindersEnabled, ')
           ..write('lastSyncedAtUtc: $lastSyncedAtUtc, ')
           ..write('createdLocalAtUtc: $createdLocalAtUtc, ')
           ..write('updatedLocalAtUtc: $updatedLocalAtUtc')
@@ -7649,7 +7690,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     accountId,
     id,
     davCollectionId,
@@ -7667,10 +7708,11 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     serverMissing,
     localDirty,
     pendingDelete,
+    remindersEnabled,
     lastSyncedAtUtc,
     createdLocalAtUtc,
     updatedLocalAtUtc,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7692,6 +7734,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
           other.serverMissing == this.serverMissing &&
           other.localDirty == this.localDirty &&
           other.pendingDelete == this.pendingDelete &&
+          other.remindersEnabled == this.remindersEnabled &&
           other.lastSyncedAtUtc == this.lastSyncedAtUtc &&
           other.createdLocalAtUtc == this.createdLocalAtUtc &&
           other.updatedLocalAtUtc == this.updatedLocalAtUtc);
@@ -7715,6 +7758,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
   final Value<bool> serverMissing;
   final Value<bool> localDirty;
   final Value<bool> pendingDelete;
+  final Value<bool> remindersEnabled;
   final Value<String?> lastSyncedAtUtc;
   final Value<String> createdLocalAtUtc;
   final Value<String> updatedLocalAtUtc;
@@ -7737,6 +7781,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     this.serverMissing = const Value.absent(),
     this.localDirty = const Value.absent(),
     this.pendingDelete = const Value.absent(),
+    this.remindersEnabled = const Value.absent(),
     this.lastSyncedAtUtc = const Value.absent(),
     this.createdLocalAtUtc = const Value.absent(),
     this.updatedLocalAtUtc = const Value.absent(),
@@ -7760,6 +7805,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     this.serverMissing = const Value.absent(),
     this.localDirty = const Value.absent(),
     this.pendingDelete = const Value.absent(),
+    this.remindersEnabled = const Value.absent(),
     this.lastSyncedAtUtc = const Value.absent(),
     required String createdLocalAtUtc,
     required String updatedLocalAtUtc,
@@ -7788,6 +7834,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     Expression<bool>? serverMissing,
     Expression<bool>? localDirty,
     Expression<bool>? pendingDelete,
+    Expression<bool>? remindersEnabled,
     Expression<String>? lastSyncedAtUtc,
     Expression<String>? createdLocalAtUtc,
     Expression<String>? updatedLocalAtUtc,
@@ -7812,6 +7859,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
       if (serverMissing != null) 'server_missing': serverMissing,
       if (localDirty != null) 'local_dirty': localDirty,
       if (pendingDelete != null) 'pending_delete': pendingDelete,
+      if (remindersEnabled != null) 'reminders_enabled': remindersEnabled,
       if (lastSyncedAtUtc != null) 'last_synced_at_utc': lastSyncedAtUtc,
       if (createdLocalAtUtc != null) 'created_local_at_utc': createdLocalAtUtc,
       if (updatedLocalAtUtc != null) 'updated_local_at_utc': updatedLocalAtUtc,
@@ -7837,6 +7885,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     Value<bool>? serverMissing,
     Value<bool>? localDirty,
     Value<bool>? pendingDelete,
+    Value<bool>? remindersEnabled,
     Value<String?>? lastSyncedAtUtc,
     Value<String>? createdLocalAtUtc,
     Value<String>? updatedLocalAtUtc,
@@ -7860,6 +7909,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
       serverMissing: serverMissing ?? this.serverMissing,
       localDirty: localDirty ?? this.localDirty,
       pendingDelete: pendingDelete ?? this.pendingDelete,
+      remindersEnabled: remindersEnabled ?? this.remindersEnabled,
       lastSyncedAtUtc: lastSyncedAtUtc ?? this.lastSyncedAtUtc,
       createdLocalAtUtc: createdLocalAtUtc ?? this.createdLocalAtUtc,
       updatedLocalAtUtc: updatedLocalAtUtc ?? this.updatedLocalAtUtc,
@@ -7923,6 +7973,9 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     if (pendingDelete.present) {
       map['pending_delete'] = Variable<bool>(pendingDelete.value);
     }
+    if (remindersEnabled.present) {
+      map['reminders_enabled'] = Variable<bool>(remindersEnabled.value);
+    }
     if (lastSyncedAtUtc.present) {
       map['last_synced_at_utc'] = Variable<String>(lastSyncedAtUtc.value);
     }
@@ -7958,6 +8011,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
           ..write('serverMissing: $serverMissing, ')
           ..write('localDirty: $localDirty, ')
           ..write('pendingDelete: $pendingDelete, ')
+          ..write('remindersEnabled: $remindersEnabled, ')
           ..write('lastSyncedAtUtc: $lastSyncedAtUtc, ')
           ..write('createdLocalAtUtc: $createdLocalAtUtc, ')
           ..write('updatedLocalAtUtc: $updatedLocalAtUtc, ')
@@ -31745,6 +31799,7 @@ typedef $$TaskListsTableCreateCompanionBuilder =
       Value<bool> serverMissing,
       Value<bool> localDirty,
       Value<bool> pendingDelete,
+      Value<bool> remindersEnabled,
       Value<String?> lastSyncedAtUtc,
       required String createdLocalAtUtc,
       required String updatedLocalAtUtc,
@@ -31769,6 +31824,7 @@ typedef $$TaskListsTableUpdateCompanionBuilder =
       Value<bool> serverMissing,
       Value<bool> localDirty,
       Value<bool> pendingDelete,
+      Value<bool> remindersEnabled,
       Value<String?> lastSyncedAtUtc,
       Value<String> createdLocalAtUtc,
       Value<String> updatedLocalAtUtc,
@@ -31902,6 +31958,11 @@ class $$TaskListsTableFilterComposer
 
   ColumnFilters<bool> get pendingDelete => $composableBuilder(
     column: $table.pendingDelete,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -32051,6 +32112,11 @@ class $$TaskListsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lastSyncedAtUtc => $composableBuilder(
     column: $table.lastSyncedAtUtc,
     builder: (column) => ColumnOrderings(column),
@@ -32179,6 +32245,11 @@ class $$TaskListsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get lastSyncedAtUtc => $composableBuilder(
     column: $table.lastSyncedAtUtc,
     builder: (column) => column,
@@ -32286,6 +32357,7 @@ class $$TaskListsTableTableManager
                 Value<bool> serverMissing = const Value.absent(),
                 Value<bool> localDirty = const Value.absent(),
                 Value<bool> pendingDelete = const Value.absent(),
+                Value<bool> remindersEnabled = const Value.absent(),
                 Value<String?> lastSyncedAtUtc = const Value.absent(),
                 Value<String> createdLocalAtUtc = const Value.absent(),
                 Value<String> updatedLocalAtUtc = const Value.absent(),
@@ -32308,6 +32380,7 @@ class $$TaskListsTableTableManager
                 serverMissing: serverMissing,
                 localDirty: localDirty,
                 pendingDelete: pendingDelete,
+                remindersEnabled: remindersEnabled,
                 lastSyncedAtUtc: lastSyncedAtUtc,
                 createdLocalAtUtc: createdLocalAtUtc,
                 updatedLocalAtUtc: updatedLocalAtUtc,
@@ -32332,6 +32405,7 @@ class $$TaskListsTableTableManager
                 Value<bool> serverMissing = const Value.absent(),
                 Value<bool> localDirty = const Value.absent(),
                 Value<bool> pendingDelete = const Value.absent(),
+                Value<bool> remindersEnabled = const Value.absent(),
                 Value<String?> lastSyncedAtUtc = const Value.absent(),
                 required String createdLocalAtUtc,
                 required String updatedLocalAtUtc,
@@ -32354,6 +32428,7 @@ class $$TaskListsTableTableManager
                 serverMissing: serverMissing,
                 localDirty: localDirty,
                 pendingDelete: pendingDelete,
+                remindersEnabled: remindersEnabled,
                 lastSyncedAtUtc: lastSyncedAtUtc,
                 createdLocalAtUtc: createdLocalAtUtc,
                 updatedLocalAtUtc: updatedLocalAtUtc,

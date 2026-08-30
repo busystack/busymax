@@ -21,7 +21,7 @@ void main() {
     await database.close();
   });
 
-  test('opens schema version 11 and creates required indexes', () async {
+  test('opens schema version 12 and creates required indexes', () async {
     final version = await database
         .customSelect('PRAGMA user_version')
         .getSingle();
@@ -38,14 +38,21 @@ void main() {
     final calendarSourceColumns = await database
         .customSelect('PRAGMA table_info(calendar_sources)')
         .get();
+    final taskListColumns = await database
+        .customSelect('PRAGMA table_info(task_lists)')
+        .get();
 
-    expect(version.data['user_version'], 11);
+    expect(version.data['user_version'], 12);
     expect(
       taskColumns.map((row) => row.read<String>('name')),
       contains('microsoft_checklist_items_json'),
     );
     expect(
       calendarSourceColumns.map((row) => row.read<String>('name')),
+      contains('reminders_enabled'),
+    );
+    expect(
+      taskListColumns.map((row) => row.read<String>('name')),
       contains('reminders_enabled'),
     );
     expect(indexes.map((row) => row.data['name']).toSet(), {
@@ -106,7 +113,7 @@ void main() {
     expect(
       (await database.customSelect('PRAGMA user_version').getSingle())
           .read<int>('user_version'),
-      11,
+      12,
     );
 
     await database
@@ -135,6 +142,51 @@ void main() {
     database = AppDatabase(NativeDatabase.memory());
     await tempDir.delete(recursive: true);
   });
+
+  test(
+    'schema 11 migration enables task-list reminders without data loss',
+    () async {
+      await database.close();
+      final tempDir = await Directory.systemTemp.createTemp(
+        'busymax-db-v11-test-',
+      );
+      final file = File('${tempDir.path}/busymax.sqlite');
+      final schemaElevenDatabase = AppDatabase(NativeDatabase(file));
+      await _insertAccount(schemaElevenDatabase);
+      await schemaElevenDatabase.taskListsDao.upsertTaskList(
+        _taskList(id: 'list-1', title: 'Existing list'),
+      );
+      await schemaElevenDatabase.close();
+
+      final raw = sqlite3.sqlite3.open(file.path);
+      try {
+        raw.execute('ALTER TABLE task_lists DROP COLUMN reminders_enabled');
+        raw.execute('PRAGMA user_version = 11');
+      } finally {
+        raw.close();
+      }
+
+      database = AppDatabase(NativeDatabase(file));
+      final version = await database
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+      final list = await (database.select(
+        database.taskLists,
+      )..where((row) => row.id.equals('list-1'))).getSingle();
+
+      expect(version.read<int>('user_version'), 12);
+      expect(list.title, 'Existing list');
+      expect(list.remindersEnabled, isTrue);
+      expect(
+        await database.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
+
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await tempDir.delete(recursive: true);
+    },
+  );
 
   test(
     'schema 9 migration adds calendar ownership columns without data loss',
@@ -181,7 +233,7 @@ void main() {
         database.calendarSources,
       )..where((row) => row.id.equals('calendar'))).getSingle();
 
-      expect(version.read<int>('user_version'), 11);
+      expect(version.read<int>('user_version'), 12);
       expect(
         columns.map((row) => row.read<String>('name')),
         containsAll(['data_owner', 'is_removable']),
@@ -381,7 +433,7 @@ void main() {
       final version = await database
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(version.read<int>('user_version'), 11);
+      expect(version.read<int>('user_version'), 12);
 
       final accounts = await database.select(database.accounts).get();
       expect(accounts, hasLength(2));
@@ -582,7 +634,7 @@ void main() {
           .getSingle();
       final op = await database.pendingOpsDao.getOp('op-1');
 
-      expect(version.data['user_version'], 11);
+      expect(version.data['user_version'], 12);
       expect(op, isNot(equals(null)));
       expect(op!.baselineRawJson, equals(null));
 

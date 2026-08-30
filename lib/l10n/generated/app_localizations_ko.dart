@@ -141,6 +141,10 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get calendarCreatedRefreshPending =>
+      '캘린더가 생성되었지만 BusyMax에서 계정을 새로 고치지 못했습니다. 다음 동기화 후에 표시됩니다.';
+
+  @override
   String calendarUpdateFailed(String error) {
     return '캘린더를 업데이트할 수 없습니다: $error';
   }
@@ -1567,6 +1571,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get eventReminders => '일정 미리 알림';
 
   @override
+  String get onState => '켬';
+
+  @override
   String get taskReminders => '할 일 미리 알림';
 
   @override
@@ -2184,6 +2191,13 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => '캘린더 가져오기';
+
+  @override
+  String get calendarImportDescription =>
+      '파일을 선택하고 일정을 검토한 다음 가져올 쓰기 가능한 캘린더를 선택하세요.';
 
   @override
   String get importIcsFile => 'Import .ics file';

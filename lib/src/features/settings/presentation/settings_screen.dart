@@ -31,6 +31,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_connection_state.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../calendar/presentation/ical_import_flow.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../feedback/presentation/feedback_dialog.dart';
@@ -121,8 +122,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onCancelConnection: _cancelAccountConnection,
         onReconnect: (account) =>
             unawaited(_connectAccount(account.provider, reconnecting: account)),
-        onCreateTaskList: (accountId) =>
-            _createTaskList(context, ref, accountId),
         removingAccountIds: _removingAccountIds,
         onRemoveAccount: (account) =>
             unawaited(_removeAccount(context, ref, account)),
@@ -142,6 +141,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         onResolveConflict: (conflict, resolution) =>
             unawaited(_resolveConflict(conflict, resolution)),
+        onImportIcs: () => unawaited(showIcsImportFlow(context, ref)),
         subscriptions: subscriptions,
         busySubscriptionIds: _busySubscriptionIds,
         onAddSubscription: () => unawaited(_addSubscription()),
@@ -822,39 +822,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _createTaskList(
-    BuildContext context,
-    WidgetRef ref,
-    String accountId,
-  ) async {
-    final title = await _taskListTitleDialog(
-      context,
-      ref.read(linuxHeaderBarServiceProvider),
-    );
-    if (title == null || title.trim().isEmpty) {
-      return;
-    }
-
-    try {
-      await ref
-          .read(taskListsRepositoryForAccountProvider(accountId))
-          .createTaskList(title.trim());
-    } on Object catch (error) {
-      _settingsLogger.warning('Task-list creation failed: $error');
-      if (context.mounted) {
-        _showMessage(
-          context,
-          context.l10n.taskListCreateFailed(
-            syncFailureMessage(
-              error,
-              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-            ),
-          ),
-        );
-      }
-    }
-  }
-
   Future<void> _fullSync(
     BuildContext context,
     WidgetRef ref,
@@ -1120,19 +1087,6 @@ String _timeOfDayLabel(BuildContext context, int minute) {
   );
 }
 
-Future<String?> _taskListTitleDialog(
-  BuildContext context,
-  LinuxHeaderBarService headerBarService,
-) {
-  return showBusyMaxTextPrompt(
-    context,
-    title: context.l10n.newTaskList,
-    label: context.l10n.title,
-    actionLabel: context.l10n.create,
-    headerBarService: headerBarService,
-  );
-}
-
 class _AccountManagementSection extends StatelessWidget {
   const _AccountManagementSection({
     required this.accounts,
@@ -1145,7 +1099,6 @@ class _AccountManagementSection extends StatelessWidget {
     required this.onAddNextcloud,
     required this.onCancelConnection,
     required this.onReconnect,
-    required this.onCreateTaskList,
     required this.removingAccountIds,
     required this.onRemoveAccount,
     required this.davCollections,
@@ -1154,6 +1107,7 @@ class _AccountManagementSection extends StatelessWidget {
     required this.onEventsSelected,
     required this.onTasksSelected,
     required this.onResolveConflict,
+    required this.onImportIcs,
     required this.subscriptions,
     required this.busySubscriptionIds,
     required this.onAddSubscription,
@@ -1173,7 +1127,6 @@ class _AccountManagementSection extends StatelessWidget {
   final VoidCallback onAddNextcloud;
   final VoidCallback onCancelConnection;
   final void Function(AccountEntity account) onReconnect;
-  final void Function(String accountId) onCreateTaskList;
   final Set<String> removingAccountIds;
   final void Function(AccountEntity account) onRemoveAccount;
   final List<DavCollectionSettingsEntity> davCollections;
@@ -1188,6 +1141,7 @@ class _AccountManagementSection extends StatelessWidget {
     DavConflictResolution resolution,
   )
   onResolveConflict;
+  final VoidCallback onImportIcs;
   final List<WebCalSubscriptionEntity> subscriptions;
   final Set<String> busySubscriptionIds;
   final VoidCallback onAddSubscription;
@@ -1261,12 +1215,6 @@ class _AccountManagementSection extends StatelessWidget {
             onReconnect: connecting || removingAccountIds.contains(account.id)
                 ? null
                 : () => onReconnect(account),
-            onCreateTaskList:
-                account.provider == BusyProvider.google ||
-                    account.provider == BusyProvider.microsoft ||
-                    account.provider == BusyProvider.nextcloud
-                ? () => onCreateTaskList(account.id)
-                : null,
             onRefreshCollections:
                 account.provider == BusyProvider.appleICloud ||
                     account.provider == BusyProvider.nextcloud
@@ -1295,6 +1243,7 @@ class _AccountManagementSection extends StatelessWidget {
               onResolve: onResolveConflict,
             ),
         ],
+        _CalendarImportCard(onImport: onImportIcs),
         _CalendarSubscriptionsCard(
           subscriptions: subscriptions,
           busySubscriptionIds: busySubscriptionIds,
@@ -1303,6 +1252,29 @@ class _AccountManagementSection extends StatelessWidget {
           onRename: onRenameSubscription,
           onChangeColor: onChangeSubscriptionColor,
           onUnsubscribe: onUnsubscribe,
+        ),
+      ],
+    );
+  }
+}
+
+class _CalendarImportCard extends StatelessWidget {
+  const _CalendarImportCard({required this.onImport});
+
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxGroupedList(
+      title: context.l10n.calendarImport,
+      description: context.l10n.calendarImportDescription,
+      filled: true,
+      children: [
+        BusyMaxActionRow(
+          key: const ValueKey('import-ics-file'),
+          title: context.l10n.importIcsFile,
+          leading: const Icon(Icons.file_open_outlined),
+          onTap: onImport,
         ),
       ],
     );
@@ -1614,7 +1586,6 @@ class _AccountManagementCard extends StatelessWidget {
     required this.account,
     required this.removing,
     required this.onReconnect,
-    required this.onCreateTaskList,
     required this.onRefreshCollections,
     required this.onRemoveAccount,
   });
@@ -1622,7 +1593,6 @@ class _AccountManagementCard extends StatelessWidget {
   final AccountEntity account;
   final bool removing;
   final VoidCallback? onReconnect;
-  final VoidCallback? onCreateTaskList;
   final VoidCallback? onRefreshCollections;
   final VoidCallback onRemoveAccount;
 
@@ -1677,14 +1647,7 @@ class _AccountManagementCard extends StatelessWidget {
               color: Theme.of(context).colorScheme.error,
             ),
             onTap: account.needsReconnect ? onReconnect : null,
-          )
-        else if (onCreateTaskList != null) ...[
-          BusyMaxActionRow(
-            title: l10n.newTaskList,
-            leading: const Icon(YaruIcons.plus),
-            onTap: removing ? null : onCreateTaskList,
           ),
-        ],
         if (onRefreshCollections != null)
           BusyMaxActionRow(
             title: l10n.refreshCollections,

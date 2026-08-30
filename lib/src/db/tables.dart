@@ -216,6 +216,8 @@ class TaskLists extends Table {
   BoolColumn get localDirty => boolean().withDefault(const Constant(false))();
   BoolColumn get pendingDelete =>
       boolean().withDefault(const Constant(false))();
+  BoolColumn get remindersEnabled =>
+      boolean().withDefault(const Constant(true))();
   TextColumn get lastSyncedAtUtc => text().nullable()();
   TextColumn get createdLocalAtUtc => text()();
   TextColumn get updatedLocalAtUtc => text()();

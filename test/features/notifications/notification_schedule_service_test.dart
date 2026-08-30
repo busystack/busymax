@@ -570,6 +570,30 @@ void main() {
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
 
+  test('task-list reminder policy controls scheduled task reminders', () async {
+    await _insertTaskReminder(database, status: 'needsAction');
+    await service.rebuildUpcomingTaskNotifications('microsoft:m');
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
+
+    await database
+        .update(database.taskLists)
+        .write(const TaskListsCompanion(remindersEnabled: Value(false)));
+    await service.rebuildUpcomingTaskNotifications('microsoft:m');
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+
+    await database
+        .update(database.taskLists)
+        .write(const TaskListsCompanion(remindersEnabled: Value(true)));
+    await service.rebuildUpcomingTaskNotifications('microsoft:m');
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
+  });
+
   test('server-missing task removes scheduled task reminder', () async {
     await _insertTaskReminder(database, status: 'needsAction');
     await service.rebuildUpcomingTaskNotifications('microsoft:m');

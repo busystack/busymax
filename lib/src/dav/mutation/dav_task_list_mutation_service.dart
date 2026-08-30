@@ -13,6 +13,10 @@ import '../discovery/dav_discovery_models.dart';
 import '../http/dav_http_transport.dart';
 import '../storage/dav_collection_capabilities.dart';
 import '../xml/dav_xml.dart';
+import 'dav_collection_mutation_helpers.dart';
+
+export 'dav_collection_mutation_helpers.dart'
+    show nextcloudCollectionMemberName;
 
 const nextcloudDefaultTaskListColor = '#0082C9';
 
@@ -34,6 +38,7 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
     required http.Client httpClient,
     required String accountId,
     required Future<void> Function() refreshAfterMutation,
+    Future<void> Function()? requireNetwork,
     DavTransportLimits transportLimits = const DavTransportLimits(),
     DavXmlParser xmlParser = const DavXmlParser(),
     String Function()? correlationIdFactory,
@@ -42,6 +47,7 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
        _httpClient = httpClient,
        _accountId = accountId,
        _refreshAfterMutation = refreshAfterMutation,
+       _requireNetwork = requireNetwork ?? _noNetworkCheck,
        _transportLimits = transportLimits,
        _xmlParser = xmlParser,
        _correlationIdFactory = correlationIdFactory ?? const Uuid().v4;
@@ -51,6 +57,7 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
   final http.Client _httpClient;
   final String _accountId;
   final Future<void> Function() _refreshAfterMutation;
+  final Future<void> Function() _requireNetwork;
   final DavTransportLimits _transportLimits;
   final DavXmlParser _xmlParser;
   final String Function() _correlationIdFactory;
@@ -58,6 +65,7 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
   @override
   Future<void> createTaskList(String title) async {
     final displayName = _requiredTitle(title);
+    await _requireNetwork();
     final context = await _loadContext(requireCalendarHome: true);
     final existing = await _activeCollections();
     if (existing.any(
@@ -72,7 +80,7 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
       );
     }
 
-    final homeUri = _collectionUri(context.calendarHomeUri!);
+    final homeUri = davCollectionUri(context.calendarHomeUri!);
     final memberName = nextcloudCollectionMemberName(
       displayName,
       homeUri: homeUri,
@@ -387,40 +395,6 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
   }
 }
 
-String nextcloudCollectionMemberName(
-  String displayName, {
-  required Uri homeUri,
-  required Iterable<Uri> existingCollectionUris,
-}) {
-  var candidate = displayName
-      .toLowerCase()
-      .replaceAll(RegExp(r'\s+'), '-')
-      .replaceAll(RegExp(r'[^\w-]+'), '')
-      .replaceAll(RegExp(r'--+'), '-')
-      .replaceFirst(RegExp(r'^-+'), '')
-      .replaceFirst(RegExp(r'-+$'), '');
-  if (candidate.isEmpty) candidate = '-';
-  final home = _collectionUri(homeUri);
-  final occupied = {
-    for (final uri in existingCollectionUris) _collectionUri(uri).toString(),
-  };
-  bool available(String value) =>
-      !occupied.contains(_collectionUri(home.resolve(value)).toString());
-  if (available(candidate)) return candidate;
-  if (!candidate.contains('-')) {
-    candidate = '$candidate-1';
-    if (available(candidate)) return candidate;
-  }
-  do {
-    final lastDash = candidate.lastIndexOf('-');
-    final first = candidate.substring(0, lastDash);
-    final suffix = candidate.substring(lastDash + 1);
-    final number = int.tryParse(suffix);
-    candidate = number == null ? '$candidate-1' : '$first-${number + 1}';
-  } while (!available(candidate));
-  return candidate;
-}
-
 final class _DavTaskListContext {
   const _DavTaskListContext({
     required this.transport,
@@ -433,11 +407,6 @@ final class _DavTaskListContext {
   final Uri? calendarHomeUri;
 }
 
-Uri _collectionUri(Uri uri) {
-  final path = uri.path.endsWith('/') ? uri.path : '${uri.path}/';
-  return uri.replace(path: path, query: null, fragment: null);
-}
-
 String _requiredTitle(String title) {
   final value = title.trim();
   if (value.isEmpty) {
@@ -445,11 +414,6 @@ String _requiredTitle(String title) {
   }
   return value;
 }
-
-String _xmlText(String value) => value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
 
 String _taskCollectionMkcolXml({
   required String displayName,
@@ -462,8 +426,8 @@ String _taskCollectionMkcolXml({
     'xmlns:o="$owncloudNamespace">'
     '<d:set><d:prop>'
     '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>'
-    '<d:displayname>${_xmlText(displayName)}</d:displayname>'
-    '<a:calendar-color>${_xmlText(color)}</a:calendar-color>'
+    '<d:displayname>${escapeDavXmlText(displayName)}</d:displayname>'
+    '<a:calendar-color>${escapeDavXmlText(color)}</a:calendar-color>'
     '<o:calendar-enabled>1</o:calendar-enabled>'
     '<c:supported-calendar-component-set>'
     '<c:comp name="VTODO"/>'
@@ -475,7 +439,7 @@ String _displayNameProppatchXml(String displayName) =>
     '<?xml version="1.0" encoding="utf-8"?>'
     '<d:propertyupdate xmlns:d="$davNamespace">'
     '<d:set><d:prop>'
-    '<d:displayname>${_xmlText(displayName)}</d:displayname>'
+    '<d:displayname>${escapeDavXmlText(displayName)}</d:displayname>'
     '</d:prop></d:set>'
     '</d:propertyupdate>';
 
@@ -573,3 +537,5 @@ String? _normalizedHrefPath(String? value) {
   }
   return path;
 }
+
+Future<void> _noNetworkCheck() async {}

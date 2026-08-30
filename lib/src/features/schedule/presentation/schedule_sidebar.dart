@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,12 +13,12 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../l10n/l10n.dart';
-import '../../../ical/ical_import_service.dart';
-import '../../../ical/ical_ingestion.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../accounts/domain/account_collection_creation_capabilities.dart';
+import '../../calendar/data/calendar_collection_creation_service.dart';
 import '../../calendar/data/calendar_repository.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
@@ -68,12 +67,6 @@ class ScheduleSidebar extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
               children: [
-                BusyMaxActionRow(
-                  key: const ValueKey('import-ics-file'),
-                  title: context.l10n.importIcsFile,
-                  leading: const Icon(Icons.file_open_outlined),
-                  onTap: () => unawaited(showIcsImportFlow(context, ref)),
-                ),
                 for (final account in accounts.where(
                   (account) => !account.isSubscription,
                 ))
@@ -128,6 +121,7 @@ class _SourceRow extends ConsumerWidget {
           },
         ),
         menuButton: BusyMaxMenuButton<String>(
+          key: ValueKey(('calendar-options', source.id)),
           tooltip: context.l10n.options,
           highlightWhenOpen: false,
           onSelected: (value) {
@@ -139,14 +133,7 @@ class _SourceRow extends ConsumerWidget {
                   unawaited(_openProviderWeb(providerWebUri));
                 }
               case 'toggle-reminders':
-                unawaited(
-                  ref
-                      .read(calendarRepositoryProvider)
-                      .setSourceRemindersEnabled(
-                        source.id,
-                        !source.remindersEnabled,
-                      ),
-                );
+                unawaited(_setCalendarRemindersEnabled(context, ref, source));
               case 'color':
                 unawaited(_changeCalendarColor(context, ref, source));
               case 'rename':
@@ -169,10 +156,12 @@ class _SourceRow extends ConsumerWidget {
               ),
             BusyMaxMenuEntry(
               value: 'toggle-reminders',
-              label: context.l10n.eventReminders,
-              icon: Icons.notifications_outlined,
-              role: BusyMaxMenuEntryRole.toggle,
-              selected: source.remindersEnabled,
+              label:
+                  '${context.l10n.eventReminders} — '
+                  '${source.remindersEnabled ? context.l10n.onState : context.l10n.off}',
+              icon: source.remindersEnabled
+                  ? Icons.notifications_outlined
+                  : Icons.notifications_off_outlined,
             ),
             BusyMaxMenuEntry(
               value: 'color',
@@ -325,6 +314,8 @@ class _AccountSourcesGroup extends ConsumerStatefulWidget {
 
 class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
   var _expanded = true;
+  var _creatingCalendar = false;
+  var _creatingTaskList = false;
 
   @override
   void didUpdateWidget(covariant _AccountSourcesGroup oldWidget) {
@@ -337,6 +328,27 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
   @override
   Widget build(BuildContext context) {
     final account = widget.account;
+    final networkAvailability =
+        ref.watch(networkAvailabilityProvider).valueOrNull ??
+        ref.read(networkConnectivityMonitorProvider).availability;
+    final capabilities = AccountCollectionCreationCapabilities.resolve(
+      account: account,
+      networkAvailability: networkAvailability,
+      calendarCreationRunning: _creatingCalendar,
+      taskListCreationRunning: _creatingTaskList,
+    );
+    final headerActions = <_AccountHeaderCollectionAction>[
+      if (capabilities.supportsCalendarCreation)
+        _AccountHeaderCollectionAction(
+          action: AccountHeaderCollectionAction.newCalendar,
+          enabled: capabilities.calendarActionEnabled,
+        ),
+      if (capabilities.supportsTaskListCreation)
+        _AccountHeaderCollectionAction(
+          action: AccountHeaderCollectionAction.newTaskList,
+          enabled: capabilities.taskListActionEnabled,
+        ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -344,6 +356,8 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
           account: account,
           expanded: _expanded,
           onToggleExpanded: _toggleExpanded,
+          actions: headerActions,
+          onActionSelected: _handleCollectionAction,
         ),
         if (_expanded) ...[
           _AccountCalendarSources(account: account),
@@ -379,6 +393,29 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
 
   void _toggleExpanded() {
     setState(() => _expanded = !_expanded);
+  }
+
+  Future<void> _handleCollectionAction(
+    AccountHeaderCollectionAction action,
+  ) async {
+    switch (action) {
+      case AccountHeaderCollectionAction.newCalendar:
+        if (_creatingCalendar) return;
+        setState(() => _creatingCalendar = true);
+        try {
+          await _createAccountCalendar(context, ref, widget.account);
+        } finally {
+          if (mounted) setState(() => _creatingCalendar = false);
+        }
+      case AccountHeaderCollectionAction.newTaskList:
+        if (_creatingTaskList) return;
+        setState(() => _creatingTaskList = true);
+        try {
+          await _createAccountTaskList(context, ref, widget.account);
+        } finally {
+          if (mounted) setState(() => _creatingTaskList = false);
+        }
+    }
   }
 }
 
@@ -495,11 +532,15 @@ class _AccountHeaderRow extends StatelessWidget {
     required this.account,
     required this.expanded,
     required this.onToggleExpanded,
+    required this.actions,
+    required this.onActionSelected,
   });
 
   final AccountEntity account;
   final bool expanded;
   final VoidCallback onToggleExpanded;
+  final List<_AccountHeaderCollectionAction> actions;
+  final ValueChanged<AccountHeaderCollectionAction> onActionSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -537,7 +578,49 @@ class _AccountHeaderRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: BusyMaxSpacing.xs),
+          if (actions.isNotEmpty) ...[
+            BusyMaxMenuButton<AccountHeaderCollectionAction>(
+              key: ValueKey(('account-collection-options', account.id)),
+              tooltip: context.l10n.options,
+              highlightWhenOpen: false,
+              triggerBuilder: (context, trigger) => trigger.anchor(
+                child: Semantics(
+                  expanded: trigger.isOpen,
+                  button: true,
+                  child: BusyMaxHeaderIconButton(
+                    tooltip: context.l10n.options,
+                    iconSize: BusyMaxSizes.sidebarActionIcon,
+                    icon: const Icon(YaruIcons.view_more),
+                    focusNode: trigger.focusNode,
+                    onPressed: trigger.onPressed,
+                    foregroundColor: colorScheme.onSurfaceVariant,
+                    backgroundColor: busyMaxSubtleButtonBackground(context),
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                  ),
+                ),
+              ),
+              onSelected: onActionSelected,
+              entries: [
+                for (final item in actions)
+                  BusyMaxMenuEntry(
+                    value: item.action,
+                    label: switch (item.action) {
+                      AccountHeaderCollectionAction.newCalendar =>
+                        '${context.l10n.newCalendar}…',
+                      AccountHeaderCollectionAction.newTaskList =>
+                        '${context.l10n.newTaskList}…',
+                    },
+                    icon: YaruIcons.plus,
+                    enabled: item.enabled,
+                  ),
+              ],
+            ),
+            const SizedBox(width: BusyMaxSpacing.xs),
+          ],
           BusyMaxHeaderIconButton(
+            key: ValueKey(('account-collapse', account.id)),
             tooltip: expanded
                 ? MaterialLocalizations.of(context).expandedIconTapHint
                 : MaterialLocalizations.of(context).collapsedIconTapHint,
@@ -582,9 +665,6 @@ class _AccountCalendarSources extends ConsumerWidget {
       ]),
       builder: (context, snapshot) {
         final sources = snapshot.data ?? const <CalendarSourceEntity>[];
-        final canCreate = calendarManagementCapabilities(
-          account.provider,
-        ).supportsCreate;
         return Column(
           children: [
             if (sources.isEmpty)
@@ -601,13 +681,6 @@ class _AccountCalendarSources extends ConsumerWidget {
                 )),
                 account: account,
                 source: source,
-              ),
-            if (canCreate)
-              BusyMaxActionRow(
-                key: ValueKey(('new-calendar', account.id)),
-                title: context.l10n.newCalendar,
-                leading: const Icon(YaruIcons.plus),
-                onTap: () => unawaited(_createCalendar(context, ref, account)),
               ),
           ],
         );
@@ -703,6 +776,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
           },
         ),
         menuButton: BusyMaxMenuButton<String>(
+          key: ValueKey(('task-list-options', list.accountId, list.id)),
           tooltip: context.l10n.options,
           highlightWhenOpen: false,
           onSelected: (value) {
@@ -713,6 +787,8 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 if (providerWebUri != null) {
                   unawaited(_openProviderWeb(providerWebUri));
                 }
+              case 'toggle-reminders':
+                unawaited(_setTaskListRemindersEnabled(context, ref, list));
               case 'rename':
                 unawaited(_renameTaskList(context, ref, list));
               case 'delete':
@@ -731,6 +807,15 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 label: context.l10n.openInProvider,
                 icon: Icons.open_in_browser_outlined,
               ),
+            BusyMaxMenuEntry(
+              value: 'toggle-reminders',
+              label:
+                  '${context.l10n.taskReminders} — '
+                  '${list.remindersEnabled ? context.l10n.onState : context.l10n.off}',
+              icon: list.remindersEnabled
+                  ? Icons.notifications_outlined
+                  : Icons.notifications_off_outlined,
+            ),
             BusyMaxMenuEntry(
               value: 'rename',
               label: context.l10n.rename,
@@ -994,7 +1079,19 @@ String? _calendarDeleteRestriction(
   return context.l10n.calendarCannotRemove;
 }
 
-Future<void> _createCalendar(
+enum AccountHeaderCollectionAction { newCalendar, newTaskList }
+
+final class _AccountHeaderCollectionAction {
+  const _AccountHeaderCollectionAction({
+    required this.action,
+    required this.enabled,
+  });
+
+  final AccountHeaderCollectionAction action;
+  final bool enabled;
+}
+
+Future<void> _createAccountCalendar(
   BuildContext context,
   WidgetRef ref,
   AccountEntity account,
@@ -1008,10 +1105,16 @@ Future<void> _createCalendar(
   );
   if (!context.mounted || title == null || title.trim().isEmpty) return;
   try {
-    await ref
-        .read(calendarRepositoryProvider)
-        .createLocalSource(accountId: account.id, summary: title);
-    _requestCalendarMutationSync(ref, account.id);
+    final result = await ref
+        .read(calendarCollectionCreationServiceProvider)
+        .createCalendar(accountId: account.id, title: title);
+    if (context.mounted &&
+        result.outcome ==
+            CalendarCollectionCreationOutcome.createdRefreshPending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.calendarCreatedRefreshPending)),
+      );
+    }
   } on Object catch (error) {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1023,6 +1126,73 @@ Future<void> _createCalendar(
           ),
         ),
       );
+    }
+  }
+}
+
+Future<void> _createAccountTaskList(
+  BuildContext context,
+  WidgetRef ref,
+  AccountEntity account,
+) async {
+  final title = await showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.newTaskList,
+    label: context.l10n.title,
+    actionLabel: context.l10n.create,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (!context.mounted || title == null || title.trim().isEmpty) return;
+  try {
+    await ref
+        .read(taskListsRepositoryForAccountProvider(account.id))
+        .createTaskList(title);
+  } on Object catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.taskListCreateFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+  }
+}
+
+Future<void> _setCalendarRemindersEnabled(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .setSourceRemindersEnabled(source.id, !source.remindersEnabled);
+  } on Object {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.operationFailed);
+    }
+  }
+}
+
+Future<void> _setTaskListRemindersEnabled(
+  BuildContext context,
+  WidgetRef ref,
+  TaskListEntity list,
+) async {
+  try {
+    await ref
+        .read(taskListsRepositoryForAccountProvider(list.accountId))
+        .setRemindersEnabled(list.id, !list.remindersEnabled);
+  } on Object {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.operationFailed);
     }
   }
 }
@@ -1239,176 +1409,6 @@ Future<void> _deleteTaskList(
         ),
       );
     }
-  }
-}
-
-Future<void> showIcsImportFlow(
-  BuildContext context,
-  WidgetRef ref, {
-  String? filePath,
-}) async {
-  const typeGroup = XTypeGroup(
-    label: 'iCalendar',
-    extensions: ['ics'],
-    mimeTypes: ['text/calendar'],
-  );
-  final file = filePath == null
-      ? await openFile(acceptedTypeGroups: const [typeGroup])
-      : XFile(filePath);
-  if (file == null || !context.mounted) return;
-  try {
-    final length = await file.length();
-    if (length > icalIngestionDecodedBodyLimit) {
-      throw const IcalIngestionException(
-        'IcalBodyTooLarge',
-        'The calendar data exceeds the 16 MiB limit.',
-      );
-    }
-    final service = ref.read(icalImportServiceProvider);
-    final preview = service.parsePreview(await file.readAsBytes());
-    final destinations = await service.writableDestinations();
-    final accountLabels = {
-      for (final account
-          in await ref.read(accountsRepositoryProvider).watchAccounts().first)
-        account.id: account.selectorLabel,
-    };
-    if (!context.mounted) return;
-    final destination = await showBusyMaxModalDialog<CalendarSourceEntity>(
-      context,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
-      barrierDismissible: false,
-      builder: (dialogContext) => _IcalImportPreviewDialog(
-        preview: preview,
-        destinations: destinations,
-        accountLabels: accountLabels,
-      ),
-    );
-    if (destination == null || !context.mounted) return;
-    final report = await service.importPreview(
-      preview: preview,
-      destination: destination,
-    );
-    if (!context.mounted) return;
-    await showBusyMaxModalDialog<void>(
-      context,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
-      builder: (dialogContext) => _IcalImportReportDialog(report: report),
-    );
-  } on Object catch (error) {
-    if (!context.mounted) return;
-    final code = switch (error) {
-      IcalIngestionException(:final code) => code,
-      _ => 'IcalImportFailed',
-    };
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(context.l10n.importIcsFailed(code))));
-  }
-}
-
-class _IcalImportPreviewDialog extends StatefulWidget {
-  const _IcalImportPreviewDialog({
-    required this.preview,
-    required this.destinations,
-    required this.accountLabels,
-  });
-
-  final IcalImportPreview preview;
-  final List<CalendarSourceEntity> destinations;
-  final Map<String, String> accountLabels;
-
-  @override
-  State<_IcalImportPreviewDialog> createState() =>
-      _IcalImportPreviewDialogState();
-}
-
-class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
-  CalendarSourceEntity? _destination;
-
-  @override
-  void initState() {
-    super.initState();
-    _destination = widget.destinations.firstOrNull;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final omitted = widget.preview.fieldsThatWillBeOmitted.toList()..sort();
-    return BusyMaxDialogShell(
-      title: l10n.importIcsPreview,
-      maxWidth: BusyMaxSizes.compactDetailsWidth,
-      actions: [
-        BusyMaxPushButton.standard(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.cancel),
-        ),
-        BusyMaxPushButton.suggested(
-          key: const ValueKey('confirm-ics-import'),
-          onPressed: _destination == null
-              ? null
-              : () => Navigator.of(context).pop(_destination),
-          child: Text(l10n.importIcsConfirm),
-        ),
-      ],
-      children: [
-        Text(l10n.importEventsFound(widget.preview.eventCount)),
-        if (widget.preview.invalidEventCount > 0)
-          Text(l10n.importInvalidEvents(widget.preview.invalidEventCount)),
-        if (omitted.isNotEmpty)
-          Text(l10n.importFieldsOmitted(omitted.join(', '))),
-        const SizedBox(height: BusyMaxSpacing.md),
-        if (widget.destinations.isEmpty)
-          Text(l10n.noWritableCalendars)
-        else
-          BusyMaxComboRow<CalendarSourceEntity>(
-            key: const ValueKey('ics-import-destination'),
-            title: l10n.importDestinationCalendar,
-            values: widget.destinations,
-            selected: _destination!,
-            labelFor: (source) =>
-                '${widget.accountLabels[source.accountId] ?? source.provider.displayName} · ${source.summary}',
-            onSelected: (value) => setState(() => _destination = value),
-          ),
-      ],
-    );
-  }
-}
-
-class _IcalImportReportDialog extends StatelessWidget {
-  const _IcalImportReportDialog({required this.report});
-
-  final IcalImportReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final omitted = report.fieldsIntentionallyOmitted.toList()..sort();
-    final unsupported = report.unsupportedRecurrenceSets
-        .map((item) => '${item.uid}: ${item.reason}')
-        .toList(growable: false);
-    return BusyMaxDialogShell(
-      title: l10n.importIcsComplete,
-      actions: [
-        BusyMaxPushButton.suggested(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.close),
-        ),
-      ],
-      children: [
-        Text(
-          [
-            l10n.importQueued(report.queued),
-            l10n.importDuplicatesSkipped(report.duplicatesSkipped),
-            l10n.importUnsupportedSets(report.unsupportedRecurrenceSets.length),
-            ...unsupported,
-            l10n.importInvalidEvents(report.invalidEvents),
-            if (omitted.isNotEmpty)
-              l10n.importFieldsOmitted(omitted.join(', ')),
-          ].join('\n'),
-        ),
-      ],
-    );
   }
 }
 
