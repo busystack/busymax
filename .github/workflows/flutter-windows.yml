@@ -25,6 +25,12 @@ jobs:
         shell: pwsh
         run: flutter config --enable-windows-desktop
 
+      - name: Install pinned Pester
+        shell: pwsh
+        run: >-
+          Install-Module Pester -RequiredVersion 5.7.1
+          -Scope CurrentUser -Force -AllowClobber
+
       - name: Create explicitly non-production CI identity
         shell: pwsh
         run: |
@@ -62,5 +68,6 @@ jobs:
           path: |
             build/windows/store/*.msix
             build/windows/store/staging/AppxManifest.xml
+            build/windows/store/*inventory.json
             build/windows/test-results/**
           if-no-files-found: error

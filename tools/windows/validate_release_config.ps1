@@ -2,7 +2,8 @@ param([Parameter(Mandatory)][string]$ConfigPath, [switch]$Ci)
 
 . "$PSScriptRoot/common.ps1"
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
-Assert-BusyMaxStoreConfig -Config $config -Ci:$Ci
+$mode = if ($Ci) { 'CiNonProduction' } else { 'ProductionStore' }
+Assert-BusyMaxStoreConfig -Config $config -Mode $mode
 $familyName = Get-BusyMaxPackageFamilyName `
   -Name $config.identityName -Publisher $config.publisher
 [pscustomobject]@{

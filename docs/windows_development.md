@@ -11,6 +11,7 @@ Flutter and Dart must come from the repository's pinned Flutter 3.44.4 SDK.
 - Visual Studio 2022 with **Desktop development with C++**, including the x64
   MSVC toolchain and CMake tools.
 - Windows SDK `10.0.26100.0` or newer.
+- Pester 5 (CI pins 5.7.1) for packaging and WACK parser contracts.
 - Developer Mode for unpackaged development, or a local test certificate for
   installed MSIX testing.
 
@@ -37,9 +38,10 @@ flutter run -d windows -t lib/main_windows.dart `
 ```
 
 An unpackaged build accurately reports Windows StartupTask as unavailable. It
-does not create a registry or Startup-folder fallback. Notification retrieval
-and cancellation also require installed package identity; display and live
-callbacks can still be exercised unpackaged.
+does not create a registry or Startup-folder fallback. Windows notifications
+are also deliberately unavailable without installed package identity, and the
+Settings page shows that limitation. Display, cancellation, and action
+callbacks must be exercised from a locally installed test-signed MSIX.
 
 Linux continues to use:
 
@@ -89,10 +91,10 @@ On 2026-08-31, the post-port working tree was validated on Linux with Flutter
 | --- | --- |
 | `flutter gen-l10n` | Passed; every supported catalog generated. |
 | `dart run build_runner build --delete-conflicting-outputs` | Passed; generated Drift content remained consistent and the schema version remained 13. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
-| `dart format --output=none --set-exit-if-changed .` | Passed; 452 files checked, zero changes required. |
+| `dart format --output=none --set-exit-if-changed .` | Passed; 458 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| `flutter test --reporter compact` | Passed; 1,540 tests passed, 10 skipped, zero failed. |
+| `flutter test --reporter compact` | Passed; 1,566 tests passed, 10 skipped, zero failed. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
 
 These results establish Linux and platform-neutral source health only. They do

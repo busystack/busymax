@@ -130,6 +130,68 @@ void main() {
       ),
     );
   });
+
+  for (final platform in ['linux', 'windows']) {
+    test(
+      '$platform browser launch false returns visible OAuth error',
+      () async {
+        final flow = OAuthLoopbackFlow(
+          authorizationLauncher: (_) async => false,
+        );
+        await expectLater(
+          flow.start(
+            authorizationEndpoint: _authorizationEndpoint,
+            clientId: 'client-id',
+            scope: googleTasksOAuthScope,
+            browserLaunchFailureMessage: 'Could not open the system browser.',
+          ),
+          throwsA(
+            isA<OAuthException>()
+                .having(
+                  (error) => error.code,
+                  'code',
+                  'OAuthBrowserLaunchFailed',
+                )
+                .having(
+                  (error) => error.message,
+                  'message',
+                  'Could not open the system browser.',
+                ),
+          ),
+        );
+      },
+    );
+
+    test('$platform browser launch exception is sanitized', () async {
+      final flow = OAuthLoopbackFlow(
+        authorizationLauncher: (_) => throw StateError('private shell error'),
+      );
+      await expectLater(
+        flow.start(
+          authorizationEndpoint: _authorizationEndpoint,
+          clientId: 'client-id',
+          scope: googleTasksOAuthScope,
+          browserLaunchFailureMessage: 'Could not open the system browser.',
+        ),
+        throwsA(
+          isA<OAuthException>()
+              .having((error) => error.code, 'code', 'OAuthBrowserLaunchFailed')
+              .having(
+                (error) => error.message,
+                'message',
+                isNot(contains('private shell error')),
+              ),
+        ),
+      );
+    });
+  }
+
+  test('Windows-reachable OAuth implementation contains no xdg-open', () {
+    final source = File(
+      'lib/src/google_tasks/oauth/oauth_loopback_flow.dart',
+    ).readAsStringSync();
+    expect(source, isNot(contains('xdg-open')));
+  });
 }
 
 Future<_StartedFlow> _startFlow({

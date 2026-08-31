@@ -6,6 +6,8 @@
 
 #include <memory>
 
+#include "timezone_native_api.h"
+
 namespace flutter_timezone {
     constexpr auto kGetLocalTimezone = "getLocalTimezone";
     constexpr auto kGetAvailableTimezones = "getAvailableTimezones";
@@ -15,6 +17,9 @@ namespace flutter_timezone {
         static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
 
         FlutterTimezonePlugin();
+
+        // Visible for native tests. The API must outlive the plugin.
+        explicit FlutterTimezonePlugin(TimezoneNativeApi* api);
 
         virtual ~FlutterTimezonePlugin();
 
@@ -28,8 +33,11 @@ namespace flutter_timezone {
             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
     private:
-        void GetLocalTimezone(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result);
-        void GetAvailableTimezones(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result);
+        void GetLocalTimezone(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+        void GetAvailableTimezones(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
+        std::unique_ptr<TimezoneNativeApi> owned_api_;
+        TimezoneNativeApi* api_ = nullptr;
     };
 
 }  // namespace flutter_timezone

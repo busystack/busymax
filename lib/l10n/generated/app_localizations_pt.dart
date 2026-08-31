@@ -1829,6 +1829,18 @@ class AppLocalizationsPt extends AppLocalizations {
   String get notifications => 'Notifications';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Windows notifications are unavailable';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'This unpackaged development run cannot use Windows notifications. Install the test-signed MSIX to test reminders.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax could not initialize Windows notifications. Reminders will not appear until this installation problem is resolved.';
+
+  @override
   String get appearance => 'Appearance';
 
   @override
@@ -4488,6 +4500,18 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get notifications => 'Notificações';
+
+  @override
+  String get windowsNotificationsUnavailable =>
+      'As notificações do Windows não estão disponíveis';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'Esta execução de desenvolvimento sem pacote não pode usar as notificações do Windows. Instale o MSIX assinado para teste para verificar os lembretes.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'O BusyMax não conseguiu inicializar as notificações do Windows. Os lembretes não serão apresentados até este problema de instalação ser resolvido.';
 
   @override
   String get appearance => 'Aspeto';

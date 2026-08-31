@@ -11,14 +11,17 @@ import 'src/app/busymax_app.dart';
 import 'src/config/build_config.dart';
 import 'src/core/logging/redacting_logger.dart';
 import 'src/core/secrets/portal_encrypted_secret_store.dart';
+import 'src/core/secrets/secret_store.dart';
 import 'src/core/time/linux_gweather_location_source.dart';
 import 'src/core/time/local_time_zone.dart';
 import 'src/core/time/time_zone_catalog.dart';
 import 'src/demo/demo_profile.dart';
+import 'src/features/notifications/desktop_notification_backend.dart';
 import 'src/platform/common/desktop_services.dart';
 import 'src/platform/external_calendar_open_service.dart';
 import 'src/platform/gtk_font_service.dart';
 import 'src/platform/linux/linux_notification_backend.dart';
+import 'src/platform/linux/linux_secret_storage_presentation.dart';
 import 'src/platform/linux_autostart_service.dart';
 import 'src/platform/linux_header_bar_service.dart';
 import 'src/platform/linux_window_service.dart';
@@ -89,10 +92,21 @@ Future<void> main(List<String> arguments) async {
       ref.onDispose(() => unawaited(backend.close()));
       return backend;
     }),
+    desktopNotificationReadinessProvider.overrideWith(
+      (ref) => const DesktopNotificationReadiness(
+        DesktopNotificationReadinessState.available,
+      ),
+    ),
     localTimeZoneSourceProvider.overrideWithValue(timeZoneSource),
     localTimeZoneProvider.overrideWithValue(localTimeZone),
-    if (Platform.environment['SNAP']?.isNotEmpty ?? false)
-      secretStoreProvider.overrideWith((ref) => PortalEncryptedSecretStore()),
+    secretStoreProvider.overrideWith(
+      (ref) => Platform.environment['SNAP']?.isNotEmpty ?? false
+          ? PortalEncryptedSecretStore()
+          : SecureSecretStore(
+              ref.watch(secureStorageProvider),
+              presentation: linuxSecretStoragePresentation,
+            ),
+    ),
   ];
   final demoProfile = buildConfig.useFakeProviderData
       ? await BusyMaxDemoProfile.create()

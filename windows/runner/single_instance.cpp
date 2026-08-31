@@ -3,10 +3,13 @@
 #include <sddl.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cctype>
 #include <cstdint>
 #include <memory>
 #include <set>
+#include <system_error>
+#include <utility>
 
 namespace {
 
@@ -76,12 +79,33 @@ bool WriteExact(HANDLE pipe, const void* source, DWORD bytes) {
   return true;
 }
 
+bool ReadAcknowledgmentWithTimeout(HANDLE pipe, uint8_t* acknowledgment) {
+  if (acknowledgment == nullptr) return false;
+  const ULONGLONG deadline =
+      GetTickCount64() + kActivationConnectTimeoutMilliseconds;
+  while (GetTickCount64() < deadline) {
+    DWORD available = 0;
+    if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) {
+      return false;
+    }
+    if (available >= sizeof(*acknowledgment)) {
+      return ReadExact(pipe, acknowledgment, sizeof(*acknowledgment));
+    }
+    Sleep(10);
+  }
+  return false;
+}
+
 std::wstring CurrentUserSid() {
   HANDLE token = nullptr;
   if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return L"";
   DWORD length = 0;
-  GetTokenInformation(token, TokenUser, nullptr, 0, &length);
-  std::vector<unsigned char> buffer(length);
+  if (GetTokenInformation(token, TokenUser, nullptr, 0, &length) ||
+      GetLastError() != ERROR_INSUFFICIENT_BUFFER || length == 0) {
+    CloseHandle(token);
+    return L"";
+  }
+  std::vector<unsigned char> buffer(length, 0);
   if (!GetTokenInformation(token, TokenUser, buffer.data(), length, &length)) {
     CloseHandle(token);
     return L"";
@@ -93,6 +117,25 @@ std::wstring CurrentUserSid() {
   std::wstring value(sid);
   LocalFree(sid);
   return value;
+}
+
+BusyMaxSingleInstanceNativeHooks DefaultHooks() {
+  BusyMaxSingleInstanceNativeHooks hooks;
+  hooks.current_user_sid = CurrentUserSid;
+  hooks.create_mutex = [](const wchar_t* name) {
+    return CreateMutexW(nullptr, FALSE, name);
+  };
+  hooks.last_error = [] { return GetLastError(); };
+  hooks.create_pipe = [](const wchar_t* name, SECURITY_ATTRIBUTES* attributes) {
+    return CreateNamedPipeW(
+        name, PIPE_ACCESS_DUPLEX,
+        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT |
+            PIPE_REJECT_REMOTE_CLIENTS,
+        1, sizeof(uint8_t), kMaximumActivationBytes + sizeof(uint32_t), 5000,
+        attributes);
+  };
+  hooks.close_handle = [](HANDLE handle) { CloseHandle(handle); };
+  return hooks;
 }
 
 std::string EscapeJson(const std::string& value) {
@@ -133,6 +176,26 @@ bool EndsWithIcs(const std::string& value) {
   return suffix == ".ics";
 }
 
+bool IsValidIcsPath(const std::string& value) {
+  if (!EndsWithIcs(value) || value.size() > 32767 || value.empty()) {
+    return false;
+  }
+  for (const unsigned char character : value) {
+    if (character < 0x20 || character == '"' || character == '*' ||
+        character == '<' || character == '>' || character == '|') {
+      return false;
+    }
+  }
+  const size_t colon = value.find(':');
+  if (colon == std::string::npos) return true;
+  const bool drive_path =
+      colon == 1 && std::isalpha(static_cast<unsigned char>(value[0]));
+  const bool extended_drive_path =
+      colon == 5 && value.compare(0, 4, R"(\\?\)") == 0 &&
+      std::isalpha(static_cast<unsigned char>(value[4]));
+  return drive_path || extended_drive_path;
+}
+
 bool StartsWithWebcal(const std::string& value) {
   if (value.size() < 9) return false;
   std::string scheme = value.substr(0, 9);
@@ -141,6 +204,34 @@ bool StartsWithWebcal(const std::string& value) {
                    return static_cast<char>(std::tolower(character));
                  });
   return scheme == "webcal://";
+}
+
+bool IsValidWebcalUri(const std::string& value) {
+  if (!StartsWithWebcal(value) || value.size() > 8192 ||
+      value.find('#') != std::string::npos ||
+      value.find('\\') != std::string::npos) {
+    return false;
+  }
+  for (size_t index = 0; index < value.size(); ++index) {
+    const unsigned char character = value[index];
+    if (character <= 0x20 || character == 0x7f) return false;
+    if (character == '%') {
+      if (index + 2 >= value.size() ||
+          !std::isxdigit(static_cast<unsigned char>(value[index + 1])) ||
+          !std::isxdigit(static_cast<unsigned char>(value[index + 2]))) {
+        return false;
+      }
+      index += 2;
+    }
+  }
+  constexpr size_t kSchemeLength = 9;
+  const size_t authority_end = value.find_first_of("/?", kSchemeLength);
+  const std::string authority = value.substr(
+      kSchemeLength, authority_end == std::string::npos
+                         ? std::string::npos
+                         : authority_end - kSchemeLength);
+  return !authority.empty() && authority.find('@') == std::string::npos &&
+         authority.find('\\') == std::string::npos;
 }
 
 bool ValidUtf8(const std::string& value) {
@@ -273,24 +364,60 @@ bool IsValidNotificationActivation(const std::string& activation) {
 
 }  // namespace
 
-BusyMaxSingleInstance::BusyMaxSingleInstance() : user_sid_(CurrentUserSid()) {
-  if (user_sid_.empty()) return;
+BusyMaxSingleInstanceNativeHooks DefaultBusyMaxSingleInstanceNativeHooks() {
+  return DefaultHooks();
+}
+
+BusyMaxSingleInstance::BusyMaxSingleInstance()
+    : BusyMaxSingleInstance(DefaultBusyMaxSingleInstanceNativeHooks()) {}
+
+BusyMaxSingleInstance::BusyMaxSingleInstance(
+    BusyMaxSingleInstanceNativeHooks hooks)
+    : hooks_(std::move(hooks)) {
+  if (!hooks_.current_user_sid || !hooks_.create_mutex ||
+      !hooks_.last_error || !hooks_.create_pipe || !hooks_.close_handle) {
+    initialization_error_ = "single-instance native hooks are incomplete";
+    return;
+  }
+  user_sid_ = hooks_.current_user_sid();
+  if (user_sid_.empty()) {
+    initialization_error_ = "current-user SID lookup failed";
+    return;
+  }
   pipe_name_ = std::wstring(kPipePrefix) + user_sid_;
   const std::wstring mutex_name = std::wstring(kMutexPrefix) + user_sid_;
-  mutex_ = CreateMutexW(nullptr, FALSE, mutex_name.c_str());
-  primary_ = mutex_ != nullptr && GetLastError() != ERROR_ALREADY_EXISTS;
+  mutex_ = hooks_.create_mutex(mutex_name.c_str());
+  const DWORD mutex_error = hooks_.last_error();
+  if (mutex_ == nullptr) {
+    initialization_error_ = "per-user mutex creation failed";
+    return;
+  }
+  state_ = mutex_error == ERROR_ALREADY_EXISTS
+               ? BusyMaxInstanceState::kSecondary
+               : BusyMaxInstanceState::kPrimary;
 }
 
 BusyMaxSingleInstance::~BusyMaxSingleInstance() {
   Stop();
-  if (mutex_ != nullptr) CloseHandle(mutex_);
+  if (mutex_ != nullptr) hooks_.close_handle(mutex_);
 }
 
-bool BusyMaxSingleInstance::IsPrimary() const { return primary_; }
+BusyMaxInstanceState BusyMaxSingleInstance::state() const { return state_; }
+
+bool BusyMaxSingleInstance::IsPrimary() const {
+  return state_ == BusyMaxInstanceState::kPrimary;
+}
+
+const std::string& BusyMaxSingleInstance::initialization_error() const {
+  return initialization_error_;
+}
 
 bool BusyMaxSingleInstance::ForwardActivation(
     const std::string& activation) const {
-  if (primary_ || !IsValidBusyMaxActivation(activation)) return false;
+  if (state_ != BusyMaxInstanceState::kSecondary ||
+      !IsValidBusyMaxActivation(activation)) {
+    return false;
+  }
   HANDLE pipe = ConnectToActivationPipe(pipe_name_);
   if (pipe == INVALID_HANDLE_VALUE) return false;
   ULONG server_process_id = 0;
@@ -302,16 +429,51 @@ bool BusyMaxSingleInstance::ForwardActivation(
                        WriteExact(pipe, activation.data(), length);
   uint8_t acknowledgment = 0;
   const bool acknowledged =
-      written && ReadExact(pipe, &acknowledgment, sizeof(acknowledgment));
-  CloseHandle(pipe);
+      written && ReadAcknowledgmentWithTimeout(pipe, &acknowledgment);
+  hooks_.close_handle(pipe);
   return acknowledged && acknowledgment == 1;
 }
 
 bool BusyMaxSingleInstance::Start(
-    std::function<void(std::string)> on_activation) {
-  if (!primary_ || listener_.joinable()) return false;
+    std::function<void(std::string)> on_activation,
+    std::function<void()> on_listener_failure) {
+  if (state_ != BusyMaxInstanceState::kPrimary || listener_.joinable()) {
+    return false;
+  }
+  stopping_ = false;
+  {
+    std::scoped_lock lock(listener_start_mutex_);
+    listener_start_complete_ = false;
+    listener_start_succeeded_ = false;
+    listener_start_error_.clear();
+  }
   on_activation_ = std::move(on_activation);
-  listener_ = std::thread(&BusyMaxSingleInstance::Listen, this);
+  on_listener_failure_ = std::move(on_listener_failure);
+  try {
+    listener_ = std::thread(&BusyMaxSingleInstance::Listen, this);
+  } catch (const std::system_error&) {
+    initialization_error_ = "named-pipe listener thread creation failed";
+    state_ = BusyMaxInstanceState::kFatalInitializationFailure;
+    return false;
+  }
+  std::unique_lock lock(listener_start_mutex_);
+  const bool acknowledged = listener_start_condition_.wait_for(
+      lock, std::chrono::seconds(5),
+      [this] { return listener_start_complete_; });
+  if (!acknowledged) {
+    initialization_error_ = "named-pipe listener startup timed out";
+    lock.unlock();
+    Stop();
+    state_ = BusyMaxInstanceState::kFatalInitializationFailure;
+    return false;
+  }
+  if (!listener_start_succeeded_) {
+    initialization_error_ = listener_start_error_;
+    lock.unlock();
+    if (listener_.joinable()) listener_.join();
+    state_ = BusyMaxInstanceState::kFatalInitializationFailure;
+    return false;
+  }
   return true;
 }
 
@@ -321,9 +483,26 @@ void BusyMaxSingleInstance::Stop() {
   HANDLE pipe = CreateFileW(pipe_name_.c_str(), GENERIC_READ | GENERIC_WRITE,
                             0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
                             nullptr);
-  if (pipe != INVALID_HANDLE_VALUE) CloseHandle(pipe);
+  if (pipe != INVALID_HANDLE_VALUE) hooks_.close_handle(pipe);
   CancelSynchronousIo(static_cast<HANDLE>(listener_.native_handle()));
   listener_.join();
+}
+
+HANDLE BusyMaxSingleInstance::CreateSecuredPipe(
+    SECURITY_ATTRIBUTES* attributes) const {
+  return hooks_.create_pipe(pipe_name_.c_str(), attributes);
+}
+
+void BusyMaxSingleInstance::CompleteListenerStartup(bool succeeded,
+                                                    std::string error) {
+  {
+    std::scoped_lock lock(listener_start_mutex_);
+    if (listener_start_complete_) return;
+    listener_start_succeeded_ = succeeded;
+    listener_start_error_ = std::move(error);
+    listener_start_complete_ = true;
+  }
+  listener_start_condition_.notify_one();
 }
 
 void BusyMaxSingleInstance::Listen() {
@@ -331,17 +510,20 @@ void BusyMaxSingleInstance::Listen() {
   PSECURITY_DESCRIPTOR descriptor = nullptr;
   if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
           sddl.c_str(), SDDL_REVISION_1, &descriptor, nullptr)) {
+    CompleteListenerStartup(false,
+                            "named-pipe security descriptor creation failed");
     return;
   }
   SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), descriptor,
                                  FALSE};
+  HANDLE pipe = CreateSecuredPipe(&attributes);
+  if (pipe == INVALID_HANDLE_VALUE) {
+    LocalFree(descriptor);
+    CompleteListenerStartup(false, "secured named-pipe creation failed");
+    return;
+  }
+  CompleteListenerStartup(true, "");
   while (!stopping_) {
-    HANDLE pipe = CreateNamedPipeW(
-        pipe_name_.c_str(), PIPE_ACCESS_DUPLEX,
-        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        1, sizeof(uint8_t), kMaximumActivationBytes + sizeof(uint32_t), 5000,
-        &attributes);
-    if (pipe == INVALID_HANDLE_VALUE) break;
     const bool connected = ConnectNamedPipe(pipe, nullptr) ||
                            GetLastError() == ERROR_PIPE_CONNECTED;
     uint8_t acknowledgment = 0;
@@ -352,16 +534,31 @@ void BusyMaxSingleInstance::Listen() {
         std::string message(length, '\0');
         if (ReadExact(pipe, message.data(), length) &&
             IsValidBusyMaxActivation(message)) {
-          on_activation_(std::move(message));
-          acknowledgment = 1;
+          if (on_activation_) {
+            on_activation_(std::move(message));
+            acknowledgment = 1;
+          }
         }
       }
       WriteExact(pipe, &acknowledgment, sizeof(acknowledgment));
       FlushFileBuffers(pipe);
     }
     DisconnectNamedPipe(pipe);
-    CloseHandle(pipe);
+    hooks_.close_handle(pipe);
+    pipe = INVALID_HANDLE_VALUE;
+    if (!stopping_) {
+      pipe = CreateSecuredPipe(&attributes);
+      if (pipe == INVALID_HANDLE_VALUE) {
+        MessageBoxW(nullptr,
+                    L"BusyMax lost its secured activation channel. Close "
+                    L"BusyMax before starting it again.",
+                    L"BusyMax activation error", MB_OK | MB_ICONERROR);
+        if (on_listener_failure_) on_listener_failure_();
+        break;
+      }
+    }
   }
+  if (pipe != INVALID_HANDLE_VALUE) hooks_.close_handle(pipe);
   LocalFree(descriptor);
 }
 
@@ -377,14 +574,14 @@ std::string BuildBusyMaxActivation(
     }
   }
   for (const auto& argument : arguments) {
-    if (EndsWithIcs(argument) && argument.size() <= 32767) {
+    if (IsValidIcsPath(argument)) {
       const auto escaped = EscapeJson(argument);
       if (!escaped.empty()) {
         return "{\"version\":1,\"kind\":\"icsFile\",\"value\":\"" +
                escaped + "\"}";
       }
     }
-    if (StartsWithWebcal(argument) && argument.size() <= 8192) {
+    if (IsValidWebcalUri(argument)) {
       const auto escaped = EscapeJson(argument);
       if (!escaped.empty()) {
         return "{\"version\":1,\"kind\":\"webCal\",\"value\":\"" +
@@ -408,12 +605,12 @@ bool IsValidBusyMaxActivation(const std::string& activation) {
   if (DecodeValueActivation(
           activation, R"({"version":1,"kind":"icsFile","value":")",
           &value)) {
-    return value.size() <= 32767 && EndsWithIcs(value);
+    return IsValidIcsPath(value);
   }
   if (DecodeValueActivation(
           activation, R"({"version":1,"kind":"webCal","value":")",
           &value)) {
-    return value.size() <= 8192 && StartsWithWebcal(value);
+    return IsValidWebcalUri(value);
   }
   return IsValidNotificationActivation(activation);
 }

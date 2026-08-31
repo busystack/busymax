@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -311,12 +310,36 @@ extension OAuthSecretStoreAccess on SecretStore {
   }
 }
 
+class SecretStoragePresentation {
+  const SecretStoragePresentation({
+    required this.backendDomain,
+    required this.runtimeBackend,
+    required this.unavailableMessage,
+  });
+
+  static const generic = SecretStoragePresentation(
+    backendDomain: 'busymax.secure_storage',
+    runtimeBackend: 'platform-credential-storage',
+    unavailableMessage:
+        'Secure credential storage is temporarily unavailable. Check your '
+        'operating system credential storage and try again.',
+  );
+
+  final String backendDomain;
+  final String runtimeBackend;
+  final String unavailableMessage;
+}
+
 class SecureSecretStore implements SecretStore {
-  SecureSecretStore(this._storage, {RedactingLogger? logger})
-    : _logger = logger ?? RedactingLogger(Logger('SecureSecretStore'));
+  SecureSecretStore(
+    this._storage, {
+    RedactingLogger? logger,
+    this.presentation = SecretStoragePresentation.generic,
+  }) : _logger = logger ?? RedactingLogger(Logger('SecureSecretStore'));
 
   final FlutterSecureStorage _storage;
   final RedactingLogger _logger;
+  final SecretStoragePresentation presentation;
   var _loggedRuntime = false;
 
   static const activeAccountKey = 'busymax.secret.active_account_id';
@@ -453,8 +476,7 @@ class SecureSecretStore implements SecretStore {
     }
     _loggedRuntime = true;
     _logger.info(
-      'Secret storage runtime: backend=flutter-secure-storage '
-      'snap=${_isRunningInSnap()} secret_backend=${_secretBackendLabel()}',
+      'Secret storage runtime: backend=${presentation.runtimeBackend}',
     );
   }
 
@@ -464,11 +486,11 @@ class SecureSecretStore implements SecretStore {
   ) {
     _logger.warning(
       'Secret storage $operation failed: '
-      '${sanitizedFlutterSecureStorageError(error)}',
+      '${sanitizedFlutterSecureStorageError(error, backendDomain: presentation.backendDomain)}',
     );
-    return const SecretStoreException(
+    return SecretStoreException(
       'SecretStoreUnavailable',
-      secretStorageUnavailableMessage,
+      presentation.unavailableMessage,
     );
   }
 }
@@ -542,12 +564,26 @@ class SecretStoreCredentialMismatchException extends SecretStoreException {
 }
 
 const secretStorageUnavailableMessage =
-    'Secure credential storage is locked. Unlock your system keyring and try again.';
+    'Secure credential storage is temporarily unavailable. Check your operating system credential storage and try again.';
 
-String sanitizedFlutterSecureStorageError(PlatformException error) {
-  final message = redactForLog(error.message).replaceAll(RegExp(r'\s+'), ' ');
-  return 'domain=flutter_secure_storage_linux code=${error.code} '
-      'message=${message.trim()} details_type=${error.details.runtimeType}';
+String sanitizedFlutterSecureStorageError(
+  PlatformException error, {
+  String backendDomain = 'busymax.secure_storage',
+}) {
+  String safeIdentifier(String value, String fallback) {
+    final normalized = value.trim();
+    return normalized.length <= 96 &&
+            RegExp(r'^[A-Za-z0-9_.-]+$').hasMatch(normalized)
+        ? normalized
+        : fallback;
+  }
+
+  // Platform messages and details are intentionally omitted. Backends may
+  // include key names, paths, or credential-provider output in those fields.
+  final domain = safeIdentifier(backendDomain, 'busymax.secure_storage');
+  final code = safeIdentifier(error.code, 'backend-error');
+  return 'domain=$domain code=$code '
+      'details_type=${error.details.runtimeType}';
 }
 
 SecretRecord _decodeCredential(String serialized) {
@@ -596,13 +632,3 @@ const _legacyOAuthFieldNames = <String>[
   'token_type',
   'scope',
 ];
-
-bool _isRunningInSnap() => Platform.environment['SNAP']?.isNotEmpty ?? false;
-
-String _secretBackendLabel() {
-  final backend = Platform.environment['SECRET_BACKEND'];
-  if (backend == null || backend.isEmpty) {
-    return '<unset>';
-  }
-  return backend == 'file' ? 'file' : '<set>';
-}

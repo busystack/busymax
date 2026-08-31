@@ -8,7 +8,8 @@ param(
 . "$PSScriptRoot/common.ps1"
 $prerequisites = & "$PSScriptRoot/check_prerequisites.ps1"
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
-Assert-BusyMaxStoreConfig -Config $config -Ci:$Ci
+$mode = if ($Ci) { 'CiNonProduction' } else { 'ProductionStore' }
+Assert-BusyMaxStoreConfig -Config $config -Mode $mode
 if (-not (Test-Path -LiteralPath "$ReleasePath/busymax.exe")) {
   throw "Windows release output was not found: $ReleasePath"
 }
@@ -25,9 +26,13 @@ if (-not $resolvedOutput.StartsWith(
 New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
 $ownerMarker = Join-Path $resolvedOutput '.busymax-store-output'
 $staging = Join-Path $OutputDirectory 'staging'
-if ((Test-Path -LiteralPath $staging) -and
-    -not (Test-Path -LiteralPath $ownerMarker -PathType Leaf)) {
-  throw "Refusing to replace unowned staging directory: $staging"
+$unpacked = Join-Path $OutputDirectory 'unpacked-final-msix'
+$package = Join-Path $OutputDirectory "BusyMax-$($config.msixVersion)-x64.msix"
+foreach ($managedPath in @($staging, $unpacked, $package)) {
+  if ((Test-Path -LiteralPath $managedPath) -and
+      -not (Test-Path -LiteralPath $ownerMarker -PathType Leaf)) {
+    throw "Refusing to replace unowned Windows package output: $managedPath"
+  }
 }
 if (Test-Path -LiteralPath $staging) {
   Remove-Item -LiteralPath $staging -Recurse -Force
@@ -36,8 +41,22 @@ Set-Content -LiteralPath $ownerMarker -Value 'busymax-windows-store-output-v1' `
   -Encoding ascii
 New-Item -ItemType Directory -Force -Path $staging | Out-Null
 Copy-Item -LiteralPath "$ReleasePath/busymax.exe" -Destination $staging
-Get-ChildItem -LiteralPath $ReleasePath -File |
-  Where-Object { $_.Extension -in @('.dll', '.dat') } |
+$runtimeFiles = @(
+  'flutter_windows.dll', 'sqlite3.dll',
+  'connectivity_plus_plugin.dll', 'file_selector_windows_plugin.dll',
+  'flutter_local_notifications_windows.dll',
+  'flutter_secure_storage_windows_plugin.dll',
+  'flutter_timezone_plugin.dll', 'system_theme_plugin.dll',
+  'tray_manager_plugin.dll', 'url_launcher_windows_plugin.dll'
+)
+foreach ($runtimeFile in $runtimeFiles) {
+  $source = Join-Path $ReleasePath $runtimeFile
+  if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+    throw "Required Windows runtime file was not built: $runtimeFile"
+  }
+  Copy-Item -LiteralPath $source -Destination $staging
+}
+Get-ChildItem -LiteralPath $ReleasePath -File -Filter '*.dat' |
   Copy-Item -Destination $staging
 Copy-BusyMaxVCRuntime -VisualStudioPath $prerequisites.VisualStudio `
   -Destination $staging
@@ -48,12 +67,39 @@ Copy-Item -Path 'windows\runner\resources\msix\*' -Destination $assets
 & "$PSScriptRoot/render_manifest.ps1" -ConfigPath $ConfigPath `
   -OutputPath (Join-Path $staging 'AppxManifest.xml') `
   -MaximumTestedVersion $prerequisites.WindowsSdk -Ci:$Ci
-& "$PSScriptRoot/validate_package_contents.ps1" -StagingPath $staging
-$package = Join-Path $OutputDirectory "BusyMax-$($config.msixVersion)-x64.msix"
+$stagingInventoryPath = Join-Path $OutputDirectory 'staging-inventory.json'
+$stagingInventory = @(& "$PSScriptRoot/validate_package_contents.ps1" `
+  -PackageRoot $staging -InventoryOutputPath $stagingInventoryPath)
 if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Force }
 $makeAppx = Join-Path $prerequisites.WindowsSdkBin 'makeappx.exe'
 & $makeAppx pack /d $staging /p $package /o
 if ($LASTEXITCODE -ne 0) { throw 'MakeAppx failed.' }
+if (Test-Path -LiteralPath $unpacked) {
+  Remove-Item -LiteralPath $unpacked -Recurse -Force
+}
+& $makeAppx unpack /p $package /d $unpacked /o
+if ($LASTEXITCODE -ne 0) { throw 'MakeAppx could not unpack the final MSIX.' }
+$finalInventoryPath = Join-Path $OutputDirectory 'final-msix-inventory.json'
+$finalInventory = @(& "$PSScriptRoot/validate_package_contents.ps1" `
+  -PackageRoot $unpacked -InventoryOutputPath $finalInventoryPath)
+$packageMetadataFiles = @('AppxBlockMap.xml', '[Content_Types].xml')
+$expectedInventory = @($stagingInventory | Where-Object {
+  $_ -is [pscustomobject]
+})
+$actualInventory = @($finalInventory | Where-Object {
+  $_ -is [pscustomobject] -and $_.Path -notin $packageMetadataFiles
+})
+$expectedLines = @($expectedInventory | ForEach-Object {
+  "$($_.Path)|$($_.Length)|$($_.SHA256)"
+})
+$actualLines = @($actualInventory | ForEach-Object {
+  "$($_.Path)|$($_.Length)|$($_.SHA256)"
+})
+$difference = Compare-Object -ReferenceObject $expectedLines `
+  -DifferenceObject $actualLines
+if ($difference) {
+  throw "The exact packed MSIX inventory differs from staging: $($difference.InputObject -join ', ')"
+}
 $hash = Get-FileHash -LiteralPath $package -Algorithm SHA256
 [pscustomobject]@{
   Package = (Resolve-Path $package).Path
@@ -62,4 +108,5 @@ $hash = Get-FileHash -LiteralPath $package -Algorithm SHA256
   MinimumOS = '10.0.26100.0'
   MaximumTestedOS = $prerequisites.WindowsSdk
   SHA256 = $hash.Hash
+  Inventory = (Resolve-Path $finalInventoryPath).Path
 }

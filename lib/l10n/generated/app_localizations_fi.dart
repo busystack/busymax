@@ -1826,6 +1826,18 @@ class AppLocalizationsFi extends AppLocalizations {
   String get notifications => 'Ilmoitukset';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Windows-ilmoitukset eivät ole käytettävissä';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'Tämä paketoimaton kehitysajo ei voi käyttää Windows-ilmoituksia. Testaa muistutukset asentamalla testivarmenteella allekirjoitettu MSIX.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax ei voinut alustaa Windows-ilmoituksia. Muistutuksia ei näytetä, ennen kuin tämä asennusongelma on ratkaistu.';
+
+  @override
   String get appearance => 'Ulkoasu';
 
   @override

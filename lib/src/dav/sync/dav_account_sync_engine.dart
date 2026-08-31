@@ -368,12 +368,10 @@ final class DavAccountSyncEngine {
 
   DavException _mapSecretStoreFailure(SecretStoreException error) {
     if (error.code == 'SecretStoreUnavailable') {
-      return const DavException(
+      return DavException(
         kind: DavErrorKind.network,
         code: 'DavCredentialStoreUnavailable',
-        safeMessage:
-            'Secure credential storage is temporarily unavailable. Unlock '
-            'the system keyring and try again.',
+        safeMessage: error.message,
       );
     }
     return const DavException(

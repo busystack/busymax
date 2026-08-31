@@ -1797,6 +1797,18 @@ class AppLocalizationsEt extends AppLocalizations {
   String get notifications => 'Teavitused';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Windowsi teavitused pole saadaval';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'See pakendamata arendusversioon ei saa Windowsi teavitusi kasutada. Meeldetuletuste testimiseks paigalda testallkirjastatud MSIX.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax ei saanud Windowsi teavitusi lähtestada. Meeldetuletusi ei kuvata enne, kui see paigaldusprobleem on lahendatud.';
+
+  @override
   String get appearance => 'Välimus';
 
   @override

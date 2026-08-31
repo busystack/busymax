@@ -323,6 +323,33 @@ void main() {
     expect(backend.notifications, hasLength(1));
   });
 
+  test('duplicate Windows activation is idempotent', () async {
+    await _insertDueTaskNotification(database, now);
+    await scheduler.checkNow();
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+
+    await scheduler.handleActivation(
+      notificationScheduleId: row.id,
+      action: 'snooze',
+    );
+    final first = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    now = now.add(const Duration(minutes: 1));
+    await scheduler.handleActivation(
+      notificationScheduleId: row.id,
+      action: 'snooze',
+    );
+    final duplicate = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+
+    expect(duplicate.snoozedUntilUtc, first.snoozedUntilUtc);
+    expect(duplicate.updatedAtLocal, first.updatedAtLocal);
+  });
+
   test('does not notify for a signed-out account', () async {
     await database
         .into(database.accounts)

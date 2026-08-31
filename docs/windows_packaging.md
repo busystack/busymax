@@ -30,6 +30,22 @@ component of 0, and components no greater than 65535. If a previous version is
 provided, the new value must be greater. CI deliberately uses non-production
 `1.0.0.0`; it is not an owner production version.
 
+The scripts enforce three non-interchangeable validation modes:
+
+- `ProductionStore` is selected by the normal release build. It requires the
+  owner's final identity and `production=true`.
+- `CiNonProduction` is selected only by `-Ci`. It requires
+  `production=false` and the exact committed CI identity used by the Windows
+  workflow. An owner or production configuration is rejected.
+- `LocalTestSigning` is selected by the certificate and installation scripts.
+  It accepts the owner's complete production identity so the local certificate
+  subject can exactly match the Publisher rendered into the package. It never
+  applies CI identity rules.
+
+Every mode rejects placeholders, fake data, development backends, invalid
+Store versions, and incomplete inputs. Production and local-test-signing modes
+also require production HTTPS and OAuth configuration.
+
 ## Build
 
 From a 64-bit Windows 11 PowerShell prompt:
@@ -42,9 +58,10 @@ From a 64-bit Windows 11 PowerShell prompt:
 The script checks Windows, Flutter 3.44.4, Visual Studio x64 C++ tools, and a
 Windows 11 SDK; resolves dependencies; generates localization and Drift code;
 checks committed generation, formatting, analysis, tests, architecture
-boundaries, and release inputs; builds `lib/main_windows.dart`; stages release
-runtime files; renders and validates the manifest; packs the MSIX; and prints
-its path, metadata, and SHA-256. It performs no network deployment.
+boundaries, PowerShell contracts, native runner/plugin tests, and release
+inputs; builds `lib/main_windows.dart`; stages release runtime files; renders
+and validates the manifest; packs the MSIX; and prints its path, metadata, and
+SHA-256. It performs no network deployment.
 
 `MaxVersionTested` is taken from the Windows SDK selected by the prerequisite
 check, so the manifest cannot claim a newer SDK than the release builder used.
@@ -92,8 +109,11 @@ For installed-package testing only:
 
 The password is prompted, never stored. PFX/CER files and the signed copy stay
 under ignored build output. The installer prints a package-specific uninstall
-command for cleanup. The unsigned Store-mode artifact must not depend on this
-development certificate.
+command for cleanup. Both scripts validate in `LocalTestSigning` mode. They
+verify the generated/imported certificate subject against the configured
+Publisher, and the installer unpacks the actual MSIX and verifies the same
+subject against its `AppxManifest.xml` before signing. The unsigned Store-mode
+artifact must not depend on this development certificate.
 
 ## Validation
 
@@ -108,6 +128,13 @@ and `webcal` registration set, capabilities, and placeholder removal.
 data, fake data, debug symbols, Linux/Snap content, extra executables, and
 template branding while checking required Flutter assets and DLLs.
 
+Validation is not limited to staging. After `MakeAppx` packs the artifact, the
+packaging script unpacks that exact MSIX into a new clean directory, reruns the
+manifest/content checks, writes a per-file SHA-256 inventory, and compares the
+unpacked inventory with the deterministic staging inventory (excluding only
+the package metadata files produced by `MakeAppx`). Both inventories are CI
+artifacts.
+
 After installing a release-equivalent locally signed package, run:
 
 ```powershell
@@ -118,3 +145,12 @@ After installing a release-equivalent locally signed package, run:
 Retain the XML report. Any native runner, dependency, manifest, or packaging
 change invalidates an earlier WACK result and requires a repeat. See the
 [release checklist](windows_release_checklist.md) for behavioral coverage.
+
+`run_wack.ps1` parses both `OVERALL_RESULT` and every per-test `RESULT`; a zero
+process exit code or a report file by itself is not accepted. Missing, empty,
+malformed, result-free, or failing reports stop the release. When WACK emits a
+warning, create a local JSON object whose keys exactly match the warning names
+printed by the script and whose values are the written release dispositions,
+then pass it with `-WarningDispositionPath`. The script refuses warnings with
+missing, placeholder, or empty dispositions and emits `wack-summary.json`
+beside the complete XML report.

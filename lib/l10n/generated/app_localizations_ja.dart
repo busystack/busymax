@@ -1783,6 +1783,17 @@ class AppLocalizationsJa extends AppLocalizations {
   String get notifications => '通知';
 
   @override
+  String get windowsNotificationsUnavailable => 'Windows 通知を利用できません';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'このパッケージ化されていない開発実行では Windows 通知を使用できません。リマインダーをテストするには、テスト署名済み MSIX をインストールしてください。';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax は Windows 通知を初期化できませんでした。このインストールの問題が解決するまで、リマインダーは表示されません。';
+
+  @override
   String get appearance => '外観';
 
   @override

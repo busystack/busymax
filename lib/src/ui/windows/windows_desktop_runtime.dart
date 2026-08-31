@@ -12,6 +12,11 @@ import '../../platform/windows/windows_tray_service.dart';
 import 'windows_event_editor_dialog.dart';
 import 'windows_task_editor_dialog.dart';
 
+bool shouldWindowsHideOnClose({
+  required bool runInBackgroundWhenClosed,
+  required bool trayAvailable,
+}) => runInBackgroundWhenClosed && trayAvailable;
+
 class WindowsDesktopRuntime extends ConsumerStatefulWidget {
   const WindowsDesktopRuntime({
     required this.child,
@@ -102,6 +107,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
       if (!needsTray) {
         await window.setHideOnClose(false);
         await _tray?.stop();
+        ref.read(desktopTrayDiagnosticProvider.notifier).state = null;
         _refreshTimer?.cancel();
         _refreshTimer = null;
         return;
@@ -114,6 +120,14 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
           return _formatter!.format(presentation);
         },
         onCommand: _handleCommand,
+        onUnavailable: (errorCode) async {
+          ref.read(desktopTrayDiagnosticProvider.notifier).state =
+              errorCode ?? 'tray-unavailable';
+          // Explorer recovery and native tray failures must never strand an
+          // otherwise healthy process with no reachable window.
+          await window.setHideOnClose(false);
+          await window.showWindow();
+        },
       );
       var available = tray.isAvailable || await tray.start();
       if (available) {
@@ -121,13 +135,16 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
         available = tray.isAvailable;
       }
       await window.setHideOnClose(
-        settings.runInBackgroundWhenClosed && available,
+        shouldWindowsHideOnClose(
+          runInBackgroundWhenClosed: settings.runInBackgroundWhenClosed,
+          trayAvailable: available,
+        ),
       );
       if (!available) {
         // Never strand a process without either a visible window or tray.
         await window.showWindow();
       } else {
-        // The presentation and online/offline icon were refreshed above.
+        ref.read(desktopTrayDiagnosticProvider.notifier).state = null;
       }
       _refreshTimer ??= Timer.periodic(const Duration(minutes: 1), (_) {
         if (mounted) {

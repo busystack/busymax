@@ -11,6 +11,9 @@ final class WindowsWindowService implements DesktopWindowService {
 
   final MethodChannel _channel;
 
+  Future<void> reportNotificationActivationFailure() =>
+      _channel.invokeMethod<void>('reportNotificationActivationFailure');
+
   @override
   Future<void> hideWindow() => _channel.invokeMethod<void>('hide');
 

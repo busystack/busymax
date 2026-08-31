@@ -1879,6 +1879,17 @@ class AppLocalizationsAr extends AppLocalizations {
   String get notifications => 'الإشعارات';
 
   @override
+  String get windowsNotificationsUnavailable => 'إشعارات Windows غير متاحة';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'لا يمكن لتشغيل التطوير غير المحزّم هذا استخدام إشعارات Windows. ثبّت حزمة MSIX الموقّعة للاختبار لاختبار التذكيرات.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'تعذّر على BusyMax تهيئة إشعارات Windows. لن تظهر التذكيرات حتى تُحل مشكلة التثبيت هذه.';
+
+  @override
   String get appearance => 'المظهر';
 
   @override

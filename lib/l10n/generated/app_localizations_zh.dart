@@ -1769,6 +1769,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notifications => '通知';
 
   @override
+  String get windowsNotificationsUnavailable => 'Windows 通知不可用';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      '此未打包的开发版本无法使用 Windows 通知。请安装测试签名的 MSIX 以测试提醒。';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax 无法初始化 Windows 通知。在解决此安装问题之前，提醒不会显示。';
+
+  @override
   String get appearance => '外观';
 
   @override
@@ -4327,6 +4338,17 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get notifications => '通知';
+
+  @override
+  String get windowsNotificationsUnavailable => 'Windows 通知不可用';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      '此未打包的开发版本无法使用 Windows 通知。请安装测试签名的 MSIX 以测试提醒。';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax 无法初始化 Windows 通知。在解决此安装问题之前，提醒不会显示。';
 
   @override
   String get appearance => '外观';
@@ -6888,6 +6910,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get notifications => '通知';
+
+  @override
+  String get windowsNotificationsUnavailable => 'Windows 通知無法使用';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      '此未封裝的開發版本無法使用 Windows 通知。請安裝測試簽署的 MSIX 以測試提醒。';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax 無法初始化 Windows 通知。在解決此安裝問題之前，提醒不會顯示。';
 
   @override
   String get appearance => '外觀';

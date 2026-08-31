@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../features/notifications/desktop_notification_backend.dart';
 import '../common/desktop_services.dart';
+import 'windows_notification_id_store.dart';
+import 'windows_window_service.dart';
 
 const busyMaxToastActivatorClsid = '7B854A6D-8B2A-45A5-B998-1F51EC5A81D7';
 const busyMaxNotificationActivationServerArgument =
@@ -12,15 +15,29 @@ const busyMaxNotificationForwarderArgument = '--busymax-notification-forwarder';
 
 final class WindowsNotificationBackend implements DesktopNotificationBackend {
   WindowsNotificationBackend._({
-    required FlutterLocalNotificationsPlugin plugin,
+    required WindowsNotificationPluginAdapter plugin,
     required void Function(DesktopActivation activation) onActivation,
+    required WindowsNotificationIdStore? idStore,
   }) : _plugin = plugin,
-       _onActivation = onActivation;
+       _onActivation = onActivation,
+       _idStore = idStore;
+
+  static Future<bool> hasPackageIdentity({
+    MethodChannel channel = const MethodChannel(windowsDesktopChannelName),
+  }) async {
+    try {
+      return await channel.invokeMethod<bool>('hasPackageIdentity') ?? false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
 
   static Future<WindowsNotificationBackend> create({
     required String appUserModelId,
     required void Function(DesktopActivation activation) onActivation,
-    FlutterLocalNotificationsPlugin? plugin,
+    WindowsNotificationPluginAdapter? plugin,
+    WindowsNotificationIdStore? idStore,
+    bool activationForwarderOnly = false,
   }) async {
     if (appUserModelId.trim().isEmpty) {
       throw ArgumentError.value(
@@ -29,31 +46,62 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
         'A stable AUMID is required for Windows notifications.',
       );
     }
-    final notifications = plugin ?? FlutterLocalNotificationsPlugin();
+    WindowsNotificationIdStore? notificationIds;
+    if (!activationForwarderOnly) {
+      notificationIds =
+          idStore ?? await WindowsNotificationIdStore.openDefault();
+      await notificationIds.initialize();
+    }
+    final notifications =
+        plugin ??
+        FlutterWindowsNotificationPluginAdapter(
+          FlutterLocalNotificationsPlugin(),
+        );
     late final WindowsNotificationBackend backend;
     backend = WindowsNotificationBackend._(
       plugin: notifications,
       onActivation: onActivation,
+      idStore: notificationIds,
     );
-    await notifications.initialize(
-      settings: InitializationSettings(
-        windows: WindowsInitializationSettings(
-          appName: 'BusyMax',
-          appUserModelId: appUserModelId,
-          guid: busyMaxToastActivatorClsid,
+    try {
+      final initialized = await notifications.initialize(
+        settings: InitializationSettings(
+          windows: WindowsInitializationSettings(
+            appName: 'BusyMax',
+            appUserModelId: appUserModelId,
+            guid: busyMaxToastActivatorClsid,
+          ),
         ),
-      ),
-      onDidReceiveNotificationResponse: backend._handleResponse,
-    );
-    final launch = await notifications.getNotificationAppLaunchDetails();
-    if (launch?.didNotificationLaunchApp ?? false) {
-      backend._handleResponse(launch!.notificationResponse!);
+        onDidReceiveNotificationResponse: backend._handleResponse,
+      );
+      if (initialized != true) {
+        throw const WindowsNotificationInitializationException(
+          'toast-registration-failed',
+        );
+      }
+      final launch = await notifications.getNotificationAppLaunchDetails();
+      if (launch?.didNotificationLaunchApp ?? false) {
+        final response = launch?.notificationResponse;
+        if (response == null) {
+          throw const WindowsNotificationInitializationException(
+            'cold-activation-invalid',
+          );
+        }
+        backend._handleResponse(response);
+      }
+    } on WindowsNotificationInitializationException {
+      rethrow;
+    } on Object {
+      throw const WindowsNotificationInitializationException(
+        'initialization-failed',
+      );
     }
     return backend;
   }
 
-  final FlutterLocalNotificationsPlugin _plugin;
+  final WindowsNotificationPluginAdapter _plugin;
   final void Function(DesktopActivation activation) _onActivation;
+  final WindowsNotificationIdStore? _idStore;
 
   @override
   Future<void> notify(
@@ -94,8 +142,15 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
       ...requestPayload,
       'stableId': request.stableId,
     };
+    final idStore = _idStore;
+    if (idStore == null) {
+      throw StateError(
+        'The notification activation forwarder cannot display notifications.',
+      );
+    }
+    final notificationId = await idStore.idFor(request.stableId);
     await _plugin.show(
-      id: _notificationId(request.stableId),
+      id: notificationId,
       title: request.title,
       body: request.body,
       payload: jsonEncode(payload),
@@ -165,12 +220,82 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
 
   @override
   Future<void> cancel(String stableId) async {
-    await _plugin.cancel(id: _notificationId(stableId));
+    final idStore = _idStore;
+    if (idStore == null) {
+      throw StateError(
+        'The notification activation forwarder cannot cancel notifications.',
+      );
+    }
+    await _plugin.cancel(id: await idStore.idFor(stableId));
   }
 
   @override
   Future<void> close() async {
-    _plugin
+    await _plugin.dispose();
+  }
+}
+
+abstract interface class WindowsNotificationPluginAdapter {
+  Future<bool?> initialize({
+    required InitializationSettings settings,
+    DidReceiveNotificationResponseCallback? onDidReceiveNotificationResponse,
+  });
+
+  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails();
+
+  Future<void> show({
+    required int id,
+    String? title,
+    String? body,
+    NotificationDetails? notificationDetails,
+    String? payload,
+  });
+
+  Future<void> cancel({required int id});
+
+  Future<void> dispose();
+}
+
+final class FlutterWindowsNotificationPluginAdapter
+    implements WindowsNotificationPluginAdapter {
+  FlutterWindowsNotificationPluginAdapter(this.plugin);
+
+  final FlutterLocalNotificationsPlugin plugin;
+
+  @override
+  Future<bool?> initialize({
+    required InitializationSettings settings,
+    DidReceiveNotificationResponseCallback? onDidReceiveNotificationResponse,
+  }) => plugin.initialize(
+    settings: settings,
+    onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
+  );
+
+  @override
+  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails() =>
+      plugin.getNotificationAppLaunchDetails();
+
+  @override
+  Future<void> show({
+    required int id,
+    String? title,
+    String? body,
+    NotificationDetails? notificationDetails,
+    String? payload,
+  }) => plugin.show(
+    id: id,
+    title: title,
+    body: body,
+    notificationDetails: notificationDetails,
+    payload: payload,
+  );
+
+  @override
+  Future<void> cancel({required int id}) => plugin.cancel(id: id);
+
+  @override
+  Future<void> dispose() async {
+    plugin
         .resolvePlatformSpecificImplementation<
           FlutterLocalNotificationsWindows
         >()
@@ -178,10 +303,8 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
   }
 }
 
-int _notificationId(String stableId) {
-  var hash = 0x811c9dc5;
-  for (final byte in utf8.encode(stableId)) {
-    hash = ((hash ^ byte) * 0x01000193) & 0x7fffffff;
-  }
-  return hash;
+final class WindowsNotificationInitializationException implements Exception {
+  const WindowsNotificationInitializationException(this.code);
+
+  final String code;
 }

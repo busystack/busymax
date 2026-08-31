@@ -7,7 +7,8 @@ param(
 
 . "$PSScriptRoot/common.ps1"
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
-Assert-BusyMaxStoreConfig -Config $config -Ci:$Ci
+$mode = if ($Ci) { 'CiNonProduction' } else { 'ProductionStore' }
+Assert-BusyMaxStoreConfig -Config $config -Mode $mode
 if ([version]$MaximumTestedVersion -lt [version]'10.0.26100.0') {
   throw 'MaximumTestedVersion must be the Windows 11 24H2 SDK or newer.'
 }

@@ -1786,6 +1786,17 @@ class AppLocalizationsKo extends AppLocalizations {
   String get notifications => '알림';
 
   @override
+  String get windowsNotificationsUnavailable => 'Windows 알림을 사용할 수 없음';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      '패키징되지 않은 이 개발 실행에서는 Windows 알림을 사용할 수 없습니다. 미리 알림을 테스트하려면 테스트 서명된 MSIX를 설치하세요.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax에서 Windows 알림을 초기화하지 못했습니다. 이 설치 문제가 해결될 때까지 미리 알림이 표시되지 않습니다.';
+
+  @override
   String get appearance => '화면 모양';
 
   @override

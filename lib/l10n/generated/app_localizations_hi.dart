@@ -1816,6 +1816,18 @@ class AppLocalizationsHi extends AppLocalizations {
   String get notifications => 'सूचनाएँ';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Windows सूचनाएँ उपलब्ध नहीं हैं';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'यह बिना पैकेज वाला डेवलपमेंट रन Windows सूचनाओं का उपयोग नहीं कर सकता। रिमाइंडर जाँचने के लिए परीक्षण-हस्ताक्षरित MSIX इंस्टॉल करें।';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax Windows सूचनाएँ शुरू नहीं कर सका। यह इंस्टॉलेशन समस्या हल होने तक रिमाइंडर दिखाई नहीं देंगे।';
+
+  @override
   String get appearance => 'दिखावट';
 
   @override

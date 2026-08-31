@@ -17,6 +17,9 @@ the release candidate.
 - [ ] CI creates only the explicitly non-production unsigned test MSIX and
       uploads it and test reports as CI artifacts; no deployment job exists.
 - [ ] Manifest and package-content validators pass.
+- [ ] Executable runner, timezone, and tray native tests pass on Windows.
+- [ ] The packed MSIX is unpacked to a clean directory; the exact final
+      manifest, runtime inventory, and per-file SHA-256 report pass validation.
 
 ## Installed package lifecycle
 
@@ -84,7 +87,8 @@ the release candidate.
       assets, or missing Flutter/plugin/SQLite runtime DLL.
 - [ ] Clean Windows test environment without build tools installs and runs.
 - [ ] WACK finishes with zero failures; every warning is investigated and its
-      report is retained. Repeat after package-affecting changes.
+      written disposition, complete XML report, and parsed summary are
+      retained. Repeat after package-affecting changes.
 
 ## Release record
 

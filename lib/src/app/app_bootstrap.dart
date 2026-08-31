@@ -231,6 +231,11 @@ final desktopNotificationBackendProvider = Provider<DesktopNotificationBackend>(
   (ref) => const DisabledDesktopNotificationBackend(),
 );
 
+final desktopNotificationReadinessProvider =
+    StateProvider<DesktopNotificationReadiness>(
+      (ref) => const DesktopNotificationReadiness.initializing(),
+    );
+
 final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   (ref) {
     final settings = ref.watch(appSettingsControllerProvider);
@@ -245,6 +250,10 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
 final desktopWindowServiceProvider = Provider<DesktopWindowService>(
   (ref) => const NoOpDesktopWindowService(),
 );
+
+/// Sanitized platform adapter health only; never contains menu labels or user
+/// content.
+final desktopTrayDiagnosticProvider = StateProvider<String?>((ref) => null);
 
 final linuxWindowServiceProvider = desktopWindowServiceProvider;
 

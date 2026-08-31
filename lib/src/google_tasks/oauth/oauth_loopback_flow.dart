@@ -363,12 +363,7 @@ Uri _redactedAuthorizationUri(Uri uri) {
 }
 
 Future<bool> _defaultAuthorizationLauncher(Uri authorizationUri) async {
-  if (await launchUrl(authorizationUri, mode: LaunchMode.externalApplication)) {
-    return true;
-  }
-
-  await Process.start('xdg-open', [authorizationUri.toString()]);
-  return true;
+  return launchUrl(authorizationUri, mode: LaunchMode.externalApplication);
 }
 
 Future<void> _writeBrowserResponse(HttpResponse response) async {

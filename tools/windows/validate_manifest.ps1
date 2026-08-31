@@ -1,9 +1,12 @@
 param([Parameter(Mandatory)][string]$ManifestPath)
 
+. "$PSScriptRoot/common.ps1"
+
 if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
   throw "Manifest not found: $ManifestPath"
 }
-[xml]$manifest = Get-Content -LiteralPath $ManifestPath -Raw
+$manifestText = Get-Content -LiteralPath $ManifestPath -Raw
+[xml]$manifest = $manifestText
 $manager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
 $manager.AddNamespace('f', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
 $manager.AddNamespace('uap', 'http://schemas.microsoft.com/appx/manifest/uap/windows10')
@@ -20,9 +23,44 @@ if ($null -eq $identity -or [string]::IsNullOrWhiteSpace($identity.Name) -or
   throw 'MSIX identity values are incomplete.'
 }
 if ($identity.ProcessorArchitecture -ne 'x64') { throw 'MSIX architecture must be x64.' }
+if ([string]$identity.Publisher -notmatch '^CN=.+') {
+  throw 'MSIX Publisher must be the exact Partner Center Publisher CN.'
+}
+if ([string]$identity.Version -notmatch '^([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)$') {
+  throw 'MSIX version must have four numeric components, start at 1 or newer, and end in 0.'
+}
+$versionParts = @($Matches[1], $Matches[2], $Matches[3], $Matches[4]) |
+  ForEach-Object { [uint64]$_ }
+if ($versionParts[0] -lt 1 -or $versionParts[3] -ne 0 -or
+    @($versionParts | Where-Object { $_ -gt 65535 }).Count -gt 0) {
+  throw 'MSIX version must have components from 0 through 65535, start at 1 or newer, and end in 0.'
+}
 $target = $manifest.SelectSingleNode('/f:Package/f:Dependencies/f:TargetDeviceFamily', $manager)
 if ($target.Name -ne 'Windows.Desktop' -or $target.MinVersion -ne '10.0.26100.0') {
   throw 'MSIX must target Windows.Desktop 10.0.26100.0 or newer.'
+}
+$resources = @($manifest.SelectNodes('/f:Package/f:Resources/f:Resource', $manager))
+if ($resources.Count -eq 0) { throw 'MSIX resource language declarations are empty.' }
+$resourceLanguages = @($resources | ForEach-Object { [string]$_.Language })
+if (($resourceLanguages | Sort-Object -Unique).Count -ne $resourceLanguages.Count) {
+  throw 'MSIX resource language declarations contain duplicates.'
+}
+foreach ($language in $resourceLanguages) {
+  if ($language -notmatch '^[A-Za-z]{2,3}(?:-[A-Za-z]{4})?(?:-[A-Za-z]{2}|-[0-9]{3})?$') {
+    throw "MSIX resource language is not a valid BCP-47 tag: $language"
+  }
+  try {
+    [Globalization.CultureInfo]::GetCultureInfo($language) | Out-Null
+  } catch {
+    throw "MSIX resource language is not recognized by Windows: $language"
+  }
+}
+$expectedResourceLanguages = @(Get-BusyMaxResourceLanguages)
+$resourceDifference = Compare-Object `
+  -ReferenceObject $expectedResourceLanguages `
+  -DifferenceObject @($resourceLanguages | Sort-Object)
+if ($resourceDifference) {
+  throw "MSIX resource languages differ from the supported ARB locales: $($resourceDifference.InputObject -join ', ')"
 }
 if ([version]$target.MaxVersionTested -lt [version]$target.MinVersion) {
   throw 'MaxVersionTested must be at least the minimum Windows version.'
@@ -93,5 +131,7 @@ if (@($capabilities | Where-Object { $_ -notin @('internetClient', 'runFullTrust
 foreach ($required in @('internetClient', 'runFullTrust')) {
   if ($required -notin $capabilities) { throw "Missing capability: $required" }
 }
-if ($manifest.InnerText -match '@@[A-Z_]+@@') { throw 'Manifest placeholders remain.' }
+if ($manifestText -match '@@[A-Z_]+@@|(?i)REPLACE_WITH|example\.com|placeholder|\bTODO\b|your[-_]') {
+  throw 'Manifest placeholders remain.'
+}
 Write-Host "Validated manifest: $ManifestPath"

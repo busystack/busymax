@@ -54,3 +54,7 @@ app.*.map.json
 config/windows_store.local.json
 *.pfx
 *.cer
+*.p12
+*.pem
+*.key
+*.crt

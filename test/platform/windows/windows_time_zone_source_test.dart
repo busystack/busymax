@@ -1,5 +1,6 @@
 import 'package:busymax/src/platform/windows/windows_time_zone_source.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as time_zone_data;
 import 'package:timezone/timezone.dart' as time_zone;
@@ -33,6 +34,32 @@ void main() {
     expect(
       unknown.diagnostic,
       'local-time-zone/unrecognized=Etc/Unknown; fallback=Etc/UTC',
+    );
+  });
+
+  test('exposes only allowlisted native failure diagnostics', () async {
+    final mappedFailure = WindowsLocalTimeZoneSource(
+      load: () async => throw PlatformException(
+        code: 'icu-timezone-mapping-failed',
+        message: 'sensitive native detail',
+      ),
+    );
+    final unknownFailure = WindowsLocalTimeZoneSource(
+      load: () async => throw PlatformException(
+        code: 'native-secret-C:/Users/albert',
+        message: 'sensitive native detail',
+      ),
+    );
+
+    expect(await mappedFailure.currentIanaTimeZone(), 'Etc/UTC');
+    expect(
+      mappedFailure.diagnostic,
+      'local-time-zone/icu-timezone-mapping-failed; fallback=Etc/UTC',
+    );
+    expect(await unknownFailure.currentIanaTimeZone(), 'Etc/UTC');
+    expect(
+      unknownFailure.diagnostic,
+      'local-time-zone/unavailable; fallback=Etc/UTC',
     );
   });
 

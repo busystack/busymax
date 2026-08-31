@@ -5,7 +5,7 @@ param(
 
 . "$PSScriptRoot/common.ps1"
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
-Assert-BusyMaxStoreConfig -Config $config -Ci
+Assert-BusyMaxStoreConfig -Config $config -Mode LocalTestSigning
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $certificate = New-SelfSignedCertificate `
   -Type Custom `
@@ -14,6 +14,14 @@ $certificate = New-SelfSignedCertificate `
   -FriendlyName 'BusyMax local MSIX test certificate' `
   -CertStoreLocation 'Cert:\CurrentUser\My' `
   -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
+try {
+  Assert-BusyMaxCertificatePublisher `
+    -CertificateSubject ([string]$certificate.Subject) `
+    -ManifestPublisher ([string]$config.publisher)
+} catch {
+  Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($certificate.Thumbprint)" -Force
+  throw
+}
 $password = Read-Host 'Choose a local PFX password' -AsSecureString
 $pfx = Join-Path $OutputDirectory 'busymax-test-only.pfx'
 $cer = Join-Path $OutputDirectory 'busymax-test-only.cer'

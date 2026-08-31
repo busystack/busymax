@@ -1,6 +1,7 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
 project(busymax LANGUAGES CXX)
+enable_testing()
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8 OR CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
   message(FATAL_ERROR "BusyMax for Windows supports x64 only.")

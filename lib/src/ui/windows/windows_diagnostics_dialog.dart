@@ -35,6 +35,10 @@ class _WindowsDiagnosticsDialog extends ConsumerWidget {
     final timeZoneDiagnostic = ref
         .watch(localTimeZoneSourceProvider)
         .diagnostic;
+    final notificationReadiness = ref.watch(
+      desktopNotificationReadinessProvider,
+    );
+    final trayDiagnostic = ref.watch(desktopTrayDiagnosticProvider);
     return ContentDialog(
       title: Text(l10n.diagnostics),
       constraints: const BoxConstraints(maxWidth: 760, maxHeight: 700),
@@ -43,6 +47,13 @@ class _WindowsDiagnosticsDialog extends ConsumerWidget {
           SelectableText(Platform.operatingSystemVersion),
           SelectableText(timeZone),
           if (timeZoneDiagnostic != null) SelectableText(timeZoneDiagnostic),
+          SelectableText(
+            'windows-notifications/${notificationReadiness.state.name}',
+          ),
+          if (notificationReadiness.diagnosticCode case final code?)
+            SelectableText(code),
+          if (trayDiagnostic != null)
+            SelectableText('windows-tray/$trayDiagnostic'),
           const SizedBox(height: 16),
           Text(
             l10n.googleTasksApi,

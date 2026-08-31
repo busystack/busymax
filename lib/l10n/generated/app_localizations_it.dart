@@ -1828,6 +1828,18 @@ class AppLocalizationsIt extends AppLocalizations {
   String get notifications => 'Notifiche';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Le notifiche di Windows non sono disponibili';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'Questa esecuzione di sviluppo non pacchettizzata non può usare le notifiche di Windows. Installa il pacchetto MSIX firmato per i test per verificare i promemoria.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax non ha potuto inizializzare le notifiche di Windows. I promemoria non appariranno finché il problema di installazione non sarà risolto.';
+
+  @override
   String get appearance => 'Aspetto';
 
   @override

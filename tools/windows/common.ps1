@@ -47,43 +47,105 @@ function Assert-BusyMaxHttpsUrl {
   }
 }
 
+function Assert-BusyMaxCertificatePublisher {
+  param(
+    [Parameter(Mandatory)][string]$CertificateSubject,
+    [Parameter(Mandatory)][string]$ManifestPublisher
+  )
+  if ($CertificateSubject -cne $ManifestPublisher) {
+    throw "Certificate subject '$CertificateSubject' does not exactly match AppxManifest Publisher '$ManifestPublisher' in LocalTestSigning mode."
+  }
+}
+
 function Assert-BusyMaxStoreConfig {
-  param([Parameter(Mandatory)]$Config, [switch]$Ci)
+  param(
+    [Parameter(Mandatory)]$Config,
+    [Parameter(Mandatory)]
+    [ValidateSet('ProductionStore', 'CiNonProduction', 'LocalTestSigning')]
+    [string]$Mode
+  )
   foreach ($field in @(
       'identityName', 'publisher', 'publisherDisplayName', 'msixVersion',
       'privacyPolicyUrl', 'supportUrl', 'googleOAuthClientId',
       'microsoftOAuthClientId', 'microsoftOAuthAuthorityTenant',
       'homepageUrl')) {
     if (Test-BusyMaxPlaceholder -Value ([string]$Config.$field)) {
-      throw "Store configuration field '$field' is missing or still a placeholder."
+      throw "Store configuration field '$field' is missing or still a placeholder in $Mode mode."
     }
   }
-  if ($Ci) {
-    if ($Config.production -ne $false) {
-      throw 'A CI package must use an explicitly non-production identity.'
+  switch ($Mode) {
+    'ProductionStore' {
+      if ($Config.production -ne $true) {
+        throw "Field 'production' must be true in ProductionStore mode."
+      }
+      if ([string]$Config.identityName -ceq 'BusyStack.BusyMax.CI' -or
+          [string]$Config.publisher -ceq 'CN=BusyMax CI Package') {
+        throw "Field 'identityName' and 'publisher' must not use the committed CI identity in ProductionStore mode."
+      }
     }
-  } elseif ($Config.production -ne $true) {
-    throw 'A production Store build requires production=true.'
+    'LocalTestSigning' {
+      if ($Config.production -ne $true) {
+        throw "Field 'production' must be true in LocalTestSigning mode because the test certificate must match the owner's rendered Store identity."
+      }
+      if ([string]$Config.identityName -ceq 'BusyStack.BusyMax.CI' -or
+          [string]$Config.publisher -ceq 'CN=BusyMax CI Package') {
+        throw "Field 'identityName' and 'publisher' must use the owner's Store identity, not the committed CI identity, in LocalTestSigning mode."
+      }
+    }
+    'CiNonProduction' {
+      if ($Config.production -ne $false) {
+        throw "Field 'production' must be false in CiNonProduction mode. Production configurations cannot be used by CI."
+      }
+      $expected = [ordered]@{
+        identityName = 'BusyStack.BusyMax.CI'
+        publisher = 'CN=BusyMax CI Package'
+        publisherDisplayName = 'BusyMax CI'
+        msixVersion = '1.0.0.0'
+        privacyPolicyUrl = 'https://busystack.org/privacy'
+        supportUrl = 'https://busystack.org/support'
+        homepageUrl = 'https://busystack.org'
+        googleOAuthClientId = 'busymax-ci-google-client-id'
+        microsoftOAuthClientId = 'busymax-ci-microsoft-client-id'
+        microsoftOAuthAuthorityTenant = 'common'
+      }
+      foreach ($entry in $expected.GetEnumerator()) {
+        $property = $Config.PSObject.Properties[$entry.Key]
+        if ($null -eq $property -or
+            [string]$property.Value -cne [string]$entry.Value) {
+          throw "Field '$($entry.Key)' must equal the committed nonproduction test value in CiNonProduction mode."
+        }
+      }
+    }
   }
-  if ($Config.fakeData -eq $true) { throw 'Fake-data mode is prohibited for Store packages.' }
+  if ($Config.fakeData -eq $true) {
+    throw "Field 'fakeData' must be false in $Mode mode."
+  }
   if ($Config.developmentBackend -eq $true) {
-    throw 'A development backend is prohibited for Store packages.'
+    throw "Field 'developmentBackend' must be false in $Mode mode."
   }
   if ($Config.identityName -notmatch '^[A-Za-z0-9.-]{3,50}$') {
-    throw 'identityName must be a valid Partner Center package identity name.'
+    throw "Field 'identityName' must be a valid Partner Center package identity name in $Mode mode."
   }
-  if ($Config.publisher -notmatch '^CN=') {
-    throw 'publisher must be the exact Partner Center Publisher CN.'
+  if ($Config.publisher -notmatch '^CN=.+') {
+    throw "Field 'publisher' must be the exact Partner Center Publisher CN in $Mode mode."
   }
   if (-not [string]::IsNullOrWhiteSpace($Config.googleOAuthClientSecret) -and
       (Test-BusyMaxPlaceholder -Value ([string]$Config.googleOAuthClientSecret))) {
-    throw 'googleOAuthClientSecret is still a placeholder.'
+    throw "Field 'googleOAuthClientSecret' is still a placeholder in $Mode mode."
   }
-  Assert-BusyMaxMsixVersion -Version ([string]$Config.msixVersion) `
-    -PreviousVersion ([string]$Config.previousMsixVersion)
-  Assert-BusyMaxHttpsUrl -Name 'privacyPolicyUrl' -Value $Config.privacyPolicyUrl
-  Assert-BusyMaxHttpsUrl -Name 'supportUrl' -Value $Config.supportUrl
-  Assert-BusyMaxHttpsUrl -Name 'homepageUrl' -Value $Config.homepageUrl
+  try {
+    Assert-BusyMaxMsixVersion -Version ([string]$Config.msixVersion) `
+      -PreviousVersion ([string]$Config.previousMsixVersion)
+  } catch {
+    throw "Field 'msixVersion' is invalid in $Mode mode: $($_.Exception.Message)"
+  }
+  foreach ($urlField in @('privacyPolicyUrl', 'supportUrl', 'homepageUrl')) {
+    try {
+      Assert-BusyMaxHttpsUrl -Name $urlField -Value $Config.$urlField
+    } catch {
+      throw "Field '$urlField' is invalid in $Mode mode: $($_.Exception.Message)"
+    }
+  }
 }
 
 function Get-BusyMaxPackageFamilyName {
@@ -126,7 +188,7 @@ namespace BusyMax {
   return [BusyMax.PackageIdentity]::FamilyName($Name, $Publisher)
 }
 
-function Get-BusyMaxResourceXml {
+function Get-BusyMaxResourceLanguages {
   $locales = Get-ChildItem -LiteralPath 'lib/l10n' -Filter 'app_*.arb' |
     ForEach-Object {
       $json = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json
@@ -148,7 +210,13 @@ function Get-BusyMaxResourceXml {
       }
     } | Sort-Object -Unique
   if (-not $locales) { throw 'No BusyMax ARB locales were found.' }
-  return ($locales | ForEach-Object { "    <Resource Language=`"$_`" />" }) -join "`r`n"
+  return @($locales)
+}
+
+function Get-BusyMaxResourceXml {
+  return (Get-BusyMaxResourceLanguages | ForEach-Object {
+      "    <Resource Language=`"$_`" />"
+    }) -join "`r`n"
 }
 
 function Copy-BusyMaxVCRuntime {

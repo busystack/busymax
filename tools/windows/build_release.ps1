@@ -8,6 +8,23 @@ param(
 $identity = & "$PSScriptRoot/validate_release_config.ps1" `
   -ConfigPath $ConfigPath -Ci:$Ci
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
+$pesterModule = Get-Module -ListAvailable Pester |
+  Sort-Object Version -Descending | Select-Object -First 1
+if ($null -eq $pesterModule -or $pesterModule.Version -lt [version]'5.0.0') {
+  throw 'Pester 5 is required to run the Windows packaging contract tests.'
+}
+Import-Module Pester -MinimumVersion 5.0.0
+New-Item -ItemType Directory -Force -Path 'build\windows\test-results' | Out-Null
+$pester = Invoke-Pester -Path 'tools\windows\tests' -PassThru -Output Detailed
+[pscustomobject]@{
+  Result = [string]$pester.Result
+  PassedCount = $pester.PassedCount
+  FailedCount = $pester.FailedCount
+  SkippedCount = $pester.SkippedCount
+} | ConvertTo-Json | Set-Content `
+  -LiteralPath 'build\windows\test-results\pester-summary.json' `
+  -Encoding utf8NoBOM
+if ($pester.FailedCount -ne 0) { throw 'Windows packaging contract tests failed.' }
 
 & flutter pub get
 if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed.' }
@@ -21,7 +38,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Generated files are not committed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Formatting check failed.' }
 & flutter analyze
 if ($LASTEXITCODE -ne 0) { throw 'Flutter analysis failed.' }
-New-Item -ItemType Directory -Force -Path 'build\windows\test-results' | Out-Null
 & flutter test --machine | Tee-Object `
   -FilePath 'build\windows\test-results\flutter-tests.jsonl'
 if ($LASTEXITCODE -ne 0) { throw 'Flutter tests failed.' }
@@ -45,6 +61,8 @@ if (-not [string]::IsNullOrWhiteSpace($config.googleOAuthClientSecret)) {
 }
 & flutter build windows --release -t lib/main_windows.dart @defines
 if ($LASTEXITCODE -ne 0) { throw 'Flutter Windows release build failed.' }
+& "$PSScriptRoot/run_native_tests.ps1"
+if ($LASTEXITCODE -ne 0) { throw 'Windows native tests failed.' }
 
 $metadata = & "$PSScriptRoot/package_store.ps1" `
   -ConfigPath $ConfigPath -Ci:$Ci

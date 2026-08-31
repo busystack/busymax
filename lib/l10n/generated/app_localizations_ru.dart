@@ -1833,6 +1833,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get notifications => 'Уведомления';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Уведомления Windows недоступны';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'Эта незапакованная сборка для разработки не может использовать уведомления Windows. Для проверки напоминаний установите тестово подписанный MSIX.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax не удалось инициализировать уведомления Windows. Напоминания не будут отображаться, пока проблема установки не будет устранена.';
+
+  @override
   String get appearance => 'Внешний вид';
 
   @override

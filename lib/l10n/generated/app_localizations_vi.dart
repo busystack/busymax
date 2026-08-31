@@ -1814,6 +1814,18 @@ class AppLocalizationsVi extends AppLocalizations {
   String get notifications => 'Thông báo';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Thông báo Windows không khả dụng';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'Bản chạy phát triển chưa đóng gói này không thể dùng thông báo Windows. Hãy cài đặt MSIX được ký để thử nghiệm nhằm kiểm tra lời nhắc.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax không thể khởi tạo thông báo Windows. Lời nhắc sẽ không xuất hiện cho đến khi sự cố cài đặt này được khắc phục.';
+
+  @override
   String get appearance => 'Giao diện';
 
   @override

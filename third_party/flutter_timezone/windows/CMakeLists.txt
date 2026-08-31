@@ -20,6 +20,8 @@ set(PLUGIN_NAME "flutter_timezone_plugin")
 list(APPEND PLUGIN_SOURCES
   "flutter_timezone_plugin.cpp"
   "flutter_timezone_plugin.h"
+  "timezone_native_api.cpp"
+  "timezone_native_api.h"
 )
 
 # Define the plugin library target. Its name must not be changed (see comment

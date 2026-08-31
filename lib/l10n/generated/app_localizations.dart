@@ -3112,6 +3112,24 @@ abstract class AppLocalizations {
   /// **'Notifications'**
   String get notifications;
 
+  /// No description provided for @windowsNotificationsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows notifications are unavailable'**
+  String get windowsNotificationsUnavailable;
+
+  /// No description provided for @windowsNotificationsUnpackaged.
+  ///
+  /// In en, this message translates to:
+  /// **'This unpackaged development run cannot use Windows notifications. Install the test-signed MSIX to test reminders.'**
+  String get windowsNotificationsUnpackaged;
+
+  /// No description provided for @windowsNotificationsInstalledFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax could not initialize Windows notifications. Reminders will not appear until this installation problem is resolved.'**
+  String get windowsNotificationsInstalledFailure;
+
   /// No description provided for @appearance.
   ///
   /// In en, this message translates to:

@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
+import '../../features/notifications/desktop_notification_backend.dart';
 import '../../l10n/app_locale.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../providers/busy_provider.dart';
@@ -38,6 +39,9 @@ class WindowsSettingsPage extends ConsumerWidget {
     final accounts = ref.watch(accountManagementStreamProvider);
     final subscriptions = ref.watch(webCalSubscriptionsProvider);
     final config = ref.watch(buildConfigProvider);
+    final notificationReadiness = ref.watch(
+      desktopNotificationReadinessProvider,
+    );
     return ScaffoldPage.scrollable(
       header: PageHeader(title: Text(l10n.settings)),
       children: [
@@ -188,6 +192,10 @@ class WindowsSettingsPage extends ConsumerWidget {
         ),
         const SizedBox(height: 20),
         _SectionTitle(l10n.notifications),
+        if (!notificationReadiness.canNotify) ...[
+          WindowsNotificationReadinessInfoBar(readiness: notificationReadiness),
+          const SizedBox(height: 8),
+        ],
         Card(
           child: Column(
             children: [
@@ -511,6 +519,32 @@ class WindowsSettingsPage extends ConsumerWidget {
         ),
         const SizedBox(height: 32),
       ],
+    );
+  }
+}
+
+class WindowsNotificationReadinessInfoBar extends StatelessWidget {
+  const WindowsNotificationReadinessInfoBar({
+    required this.readiness,
+    super.key,
+  });
+
+  final DesktopNotificationReadiness readiness;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final unpackaged =
+        readiness.state ==
+        DesktopNotificationReadinessState.unavailableUnpackaged;
+    return InfoBar(
+      title: Text(l10n.windowsNotificationsUnavailable),
+      content: Text(
+        unpackaged
+            ? l10n.windowsNotificationsUnpackaged
+            : l10n.windowsNotificationsInstalledFailure,
+      ),
+      severity: unpackaged ? InfoBarSeverity.warning : InfoBarSeverity.error,
     );
   }
 }

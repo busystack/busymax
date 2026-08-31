@@ -39,5 +39,17 @@ target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "advapi32.lib" "windowsapp.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
+# Built and executed explicitly by tools/windows/run_native_tests.ps1. Keeping
+# it out of the default target prevents test code from entering the package.
+add_executable(busymax_runner_native_test EXCLUDE_FROM_ALL
+  "tests/single_instance_test.cpp"
+  "single_instance.cpp"
+)
+apply_standard_settings(busymax_runner_native_test)
+target_compile_definitions(busymax_runner_native_test PRIVATE "NOMINMAX")
+target_link_libraries(busymax_runner_native_test PRIVATE
+  "advapi32.lib" "user32.lib")
+add_test(NAME busymax_runner_native_test COMMAND busymax_runner_native_test)
+
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

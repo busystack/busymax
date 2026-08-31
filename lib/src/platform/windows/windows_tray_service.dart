@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
+import 'package:logging/logging.dart';
 import 'package:tray_manager/tray_manager.dart';
 
 import '../../features/tray/domain/tray_presentation.dart';
@@ -19,6 +21,7 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
   WindowsTrayService({
     required Future<BusyMaxTrayMenuPresentation> Function() loadPresentation,
     required Future<void> Function(WindowsTrayCommand command) onCommand,
+    this.onUnavailable,
     this.iconPath = 'assets/windows/busymax_tray.ico',
     this.offlineIconPath = 'assets/windows/busymax_tray_offline.ico',
   }) : _loadPresentation = loadPresentation,
@@ -26,13 +29,20 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
 
   final Future<BusyMaxTrayMenuPresentation> Function() _loadPresentation;
   final Future<void> Function(WindowsTrayCommand command) _onCommand;
+  final Future<void> Function(String? errorCode)? onUnavailable;
   final String iconPath;
   final String offlineIconPath;
   bool _available = false;
   bool _listenerAttached = false;
+  bool _healthHandlerAttached = false;
+  String? _lastFailure;
+  final _logger = Logger('busymax.windows.tray');
+  static const _healthChannel = MethodChannel('busymax/windows/tray_health');
 
   @override
   bool get isAvailable => _available;
+
+  String? get lastFailure => _lastFailure;
 
   @override
   Future<bool> start() async {
@@ -42,14 +52,22 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
         trayManager.addListener(this);
         _listenerAttached = true;
       }
+      if (!_healthHandlerAttached) {
+        _healthChannel.setMethodCallHandler(_handleHealthEvent);
+        _healthHandlerAttached = true;
+      }
       await trayManager.setIcon(iconPath);
       await trayManager.setToolTip('BusyMax');
       _available = true;
+      _lastFailure = null;
       await refresh();
       return _available;
     } on Object {
+      _lastFailure = 'tray-initialization-failed';
+      _logger.warning('The Windows tray could not be initialized.');
       _removeListener();
       _available = false;
+      await onUnavailable?.call(_lastFailure);
       return false;
     }
   }
@@ -71,6 +89,8 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
         presentation.offline ? offlineIconPath : iconPath,
       );
     } on Object {
+      _lastFailure = 'tray-refresh-failed';
+      _logger.warning('The Windows tray could not be refreshed.');
       _removeListener();
       _available = false;
       try {
@@ -78,7 +98,30 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
       } on Object {
         // Explorer may already have discarded the old tray host.
       }
+      await onUnavailable?.call(_lastFailure);
     }
+  }
+
+  Future<Object?> _handleHealthEvent(MethodCall call) async {
+    if (call.method != 'onTrayAvailabilityChanged') return null;
+    final arguments = call.arguments;
+    if (arguments is! Map) return null;
+    final available = arguments['available'] == true;
+    _available = available;
+    if (available) {
+      _lastFailure = null;
+      return null;
+    }
+    final error = arguments['errorCode'];
+    _lastFailure =
+        error is String &&
+            error.length <= 96 &&
+            RegExp(r'^tray-[a-z0-9-]+$').hasMatch(error)
+        ? error
+        : 'tray-native-recovery-failed';
+    _logger.warning('The Windows tray became unavailable.');
+    await onUnavailable?.call(_lastFailure);
+    return null;
   }
 
   Menu _menu(BusyMaxTrayMenuPresentation value) {
@@ -156,6 +199,21 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
   }
 
   @override
+  void onTrayIconRightMouseDown() {
+    unawaited(_showContextMenu());
+  }
+
+  Future<void> _showContextMenu() async {
+    try {
+      await trayManager.popUpContextMenu();
+    } on Object {
+      _lastFailure = 'tray-menu-display-failed';
+      _logger.warning('The Windows tray menu could not be displayed.');
+      await onUnavailable?.call(_lastFailure);
+    }
+  }
+
+  @override
   void onTrayMenuItemClick(MenuItem menuItem) {
     // MenuItem callbacks are used so the adapter also works on plugin builds
     // that do not emit this listener callback on Windows.
@@ -170,6 +228,10 @@ final class WindowsTrayService with TrayListener implements DesktopTrayService {
       // Quit must not be blocked by an unavailable Explorer tray host.
     }
     _available = false;
+    if (_healthHandlerAttached) {
+      _healthChannel.setMethodCallHandler(null);
+      _healthHandlerAttached = false;
+    }
   }
 
   void _removeListener() {

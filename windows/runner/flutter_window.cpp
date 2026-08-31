@@ -17,6 +17,12 @@ constexpr UINT kUiTaskMessage = WM_APP + 43;
 constexpr LONG kMinimumWidth = 900;
 constexpr LONG kMinimumHeight = 600;
 
+bool HasPackageIdentity() {
+  UINT32 length = 0;
+  const LONG result = GetCurrentPackageFullName(&length, nullptr);
+  return result == ERROR_INSUFFICIENT_BUFFER && length > 0;
+}
+
 void PostUiTask(HWND window, std::function<void()> task) {
   auto* owned = new std::function<void()>(std::move(task));
   if (!PostMessage(window, kUiTaskMessage, 0,
@@ -81,6 +87,20 @@ bool FlutterWindow::OnCreate() {
         if (method == "isVisible") {
           result->Success(flutter::EncodableValue(
               static_cast<bool>(IsWindowVisible(GetHandle()))));
+          return;
+        }
+        if (method == "hasPackageIdentity") {
+          result->Success(flutter::EncodableValue(HasPackageIdentity()));
+          return;
+        }
+        if (method == "reportNotificationActivationFailure") {
+          MessageBoxW(
+              GetHandle(),
+              L"BusyMax could not deliver the selected notification action "
+              L"to the running application. No calendar or task data was "
+              L"changed by this process.",
+              L"BusyMax notification error", MB_OK | MB_ICONERROR);
+          result->Success();
           return;
         }
         if (method == "setHideOnClose") {

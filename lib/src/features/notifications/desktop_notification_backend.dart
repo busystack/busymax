@@ -1,5 +1,25 @@
 import 'package:flutter/foundation.dart';
 
+enum DesktopNotificationReadinessState {
+  initializing,
+  available,
+  unavailableUnpackaged,
+  failedInstalledPackage,
+}
+
+@immutable
+final class DesktopNotificationReadiness {
+  const DesktopNotificationReadiness(this.state, {this.diagnosticCode});
+
+  const DesktopNotificationReadiness.initializing()
+    : this(DesktopNotificationReadinessState.initializing);
+
+  final DesktopNotificationReadinessState state;
+  final String? diagnosticCode;
+
+  bool get canNotify => state == DesktopNotificationReadinessState.available;
+}
+
 typedef DesktopNotificationActionHandler =
     Future<void> Function(String action, Map<String, String>? payload);
 

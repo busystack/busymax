@@ -1813,6 +1813,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get notifications => 'Alertes';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Les notifications Windows sont indisponibles';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'Cette exécution de développement non empaquetée ne peut pas utiliser les notifications Windows. Installez le MSIX signé pour les tests afin de vérifier les rappels.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax n’a pas pu initialiser les notifications Windows. Les rappels ne s’afficheront pas tant que ce problème d’installation ne sera pas résolu.';
+
+  @override
   String get appearance => 'Apparence';
 
   @override

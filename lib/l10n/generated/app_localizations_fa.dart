@@ -1834,6 +1834,18 @@ class AppLocalizationsFa extends AppLocalizations {
   String get notifications => 'اعلان‌ها';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'اعلان‌های Windows در دسترس نیستند';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'این اجرای توسعه‌ای بسته‌بندی‌نشده نمی‌تواند از اعلان‌های Windows استفاده کند. برای آزمایش یادآورها، MSIX امضاشدهٔ آزمایشی را نصب کنید.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax نتوانست اعلان‌های Windows را راه‌اندازی کند. تا برطرف شدن این مشکل نصب، یادآورها نمایش داده نمی‌شوند.';
+
+  @override
   String get appearance => 'ظاهر';
 
   @override
