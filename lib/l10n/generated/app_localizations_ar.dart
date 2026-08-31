@@ -1373,23 +1373,77 @@ class AppLocalizationsAr extends AppLocalizations {
   String get repeatWeekendDay => 'يوم عطلة نهاية الأسبوع';
 
   @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'اثنين',
+      'TU': 'ثلاثاء',
+      'WE': 'أربعاء',
+      'TH': 'خميس',
+      'FR': 'جمعة',
+      'SA': 'سبت',
+      'SU': 'أحد',
+      'day': 'يوم',
+      'weekday': 'يوم من أيام الأسبوع',
+      'weekend': 'يوم من عطلة نهاية الأسبوع',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String repeatEveryDays(int count) {
-    return 'كل $count أيام';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'كل $count يوم',
+      many: 'كل $count يومًا',
+      few: 'كل $count أيام',
+      two: 'كل يومين',
+      one: 'كل يوم',
+    );
+    return '$_temp0';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'كل $count أسابيع';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'كل $count أسبوع',
+      many: 'كل $count أسبوعًا',
+      few: 'كل $count أسابيع',
+      two: 'كل أسبوعين',
+      one: 'كل أسبوع',
+    );
+    return '$_temp0';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'كل $count أشهر';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'كل $count شهر',
+      many: 'كل $count شهرًا',
+      few: 'كل $count أشهر',
+      two: 'كل شهرين',
+      one: 'كل شهر',
+    );
+    return '$_temp0';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'كل $count سنوات';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'كل $count سنة',
+      many: 'كل $count سنة',
+      few: 'كل $count سنوات',
+      two: 'كل سنتين',
+      one: 'كل سنة',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -1405,13 +1459,13 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String repeatOnOrdinalSummary(String position, String days) {
     String _temp0 = intl.Intl.selectLogic(position, {
-      'first': 'في $days الأول',
-      'second': 'في $days الثاني',
-      'third': 'في $days الثالث',
-      'fourth': 'في $days الرابع',
-      'fifth': 'في $days الخامس',
-      'secondToLast': 'في $days ما قبل الأخير',
-      'last': 'في $days الأخير',
+      'first': 'في أول $days',
+      'second': 'في ثاني $days',
+      'third': 'في ثالث $days',
+      'fourth': 'في رابع $days',
+      'fifth': 'في خامس $days',
+      'secondToLast': 'في $days قبل الأخير',
+      'last': 'في آخر $days',
       'other': 'في $days',
     });
     return '$_temp0';
@@ -1424,7 +1478,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count مرات';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count مرة',
+      many: '$count مرة',
+      few: '$count مرات',
+      two: 'مرتين',
+      one: 'مرة واحدة',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2336,7 +2399,24 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get repeatMonthDayListSeparator => ', ';
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first و$second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first و$second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first، $rest';
+  }
 
   @override
   String repeatYearlyMonthValue(String month, String monthKey) {
@@ -2408,14 +2488,14 @@ class AppLocalizationsAr extends AppLocalizations {
     String days,
   ) {
     String _temp0 = intl.Intl.selectLogic(position, {
-      'first': 'في أول يوم $days من $month',
-      'second': 'في ثاني يوم $days من $month',
-      'third': 'في ثالث يوم $days من $month',
-      'fourth': 'في رابع يوم $days من $month',
-      'fifth': 'في خامس يوم $days من $month',
-      'secondToLast': 'في يوم $days قبل الأخير من $month',
-      'last': 'في آخر يوم $days من $month',
-      'other': 'في يوم $days من $month',
+      'first': 'في أول $days من $month',
+      'second': 'في ثاني $days من $month',
+      'third': 'في ثالث $days من $month',
+      'fourth': 'في رابع $days من $month',
+      'fifth': 'في خامس $days من $month',
+      'secondToLast': 'في $days قبل الأخير من $month',
+      'last': 'في آخر $days من $month',
+      'other': 'في $days من $month',
     });
     return '$frequency $_temp0';
   }
@@ -2428,14 +2508,14 @@ class AppLocalizationsAr extends AppLocalizations {
     String days,
   ) {
     String _temp0 = intl.Intl.selectLogic(position, {
-      'first': 'في أول يوم $days من أشهر $months',
-      'second': 'في ثاني يوم $days من أشهر $months',
-      'third': 'في ثالث يوم $days من أشهر $months',
-      'fourth': 'في رابع يوم $days من أشهر $months',
-      'fifth': 'في خامس يوم $days من أشهر $months',
-      'secondToLast': 'في يوم $days قبل الأخير من أشهر $months',
-      'last': 'في آخر يوم $days من أشهر $months',
-      'other': 'في يوم $days من أشهر $months',
+      'first': 'في أول $days من أشهر $months',
+      'second': 'في ثاني $days من أشهر $months',
+      'third': 'في ثالث $days من أشهر $months',
+      'fourth': 'في رابع $days من أشهر $months',
+      'fifth': 'في خامس $days من أشهر $months',
+      'secondToLast': 'في $days قبل الأخير من أشهر $months',
+      'last': 'في آخر $days من أشهر $months',
+      'other': 'في $days من أشهر $months',
     });
     return '$frequency $_temp0';
   }

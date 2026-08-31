@@ -1364,6 +1364,24 @@ class AppLocalizationsVi extends AppLocalizations {
   String get repeatWeekendDay => 'Ngày cuối tuần';
 
   @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'Thứ Hai',
+      'TU': 'Thứ Ba',
+      'WE': 'Thứ Tư',
+      'TH': 'Thứ Năm',
+      'FR': 'Thứ Sáu',
+      'SA': 'Thứ Bảy',
+      'SU': 'Chủ Nhật',
+      'day': 'ngày',
+      'weekday': 'ngày trong tuần',
+      'weekend': 'ngày cuối tuần',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String repeatEveryDays(int count) {
     return 'Mỗi $count ngày';
   }
@@ -1415,7 +1433,12 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count lần';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count lần',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2322,7 +2345,24 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
-  String get repeatMonthDayListSeparator => ', ';
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first và $second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first và $second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
 
   @override
   String repeatYearlyMonthValue(String month, String monthKey) {

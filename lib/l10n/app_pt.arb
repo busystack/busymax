@@ -651,6 +651,7 @@
   "repeatAnyDay": "Dia",
   "repeatWeekday": "Dia útil",
   "repeatWeekendDay": "Dia do fim de semana",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{segunda-feira} TU{terça-feira} WE{quarta-feira} TH{quinta-feira} FR{sexta-feira} SA{sábado} SU{domingo} day{dia} weekday{dia útil} weekend{dia do fim de semana} other{{day}}}",
   "repeatEveryDays": "A cada {count} dias",
   "repeatEveryWeeks": "A cada {count} semanas",
   "repeatEveryMonths": "A cada {count} meses",
@@ -659,7 +660,7 @@
   "repeatOnMonthDaysSummary": "no dia {days}",
   "repeatOnOrdinalSummary": "{position, select, first{na primeira ocorrência de {days}} second{na segunda ocorrência de {days}} third{na terceira ocorrência de {days}} fourth{na quarta ocorrência de {days}} fifth{na quinta ocorrência de {days}} secondToLast{na penúltima ocorrência de {days}} last{na última ocorrência de {days}} other{em {days}}}",
   "repeatInMonthsSummary": "em {months}",
-  "repeatTimesSummary": "{count} vezes",
+  "repeatTimesSummary": "{count, plural, one{{count} vez} other{{count} vezes}}",
   "repeatUntilSummary": "até {date}",
   "unsupportedRecurrencePreserved": "Esta regra de recorrência utiliza opções que este editor não altera.",
   "recurrenceUnsupportedByProvider": "Esta recorrência não pode ser usada com {provider}.",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first} e {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} e {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first} e {second}",
   "repeatYearlyMonthDayListStart": "{first}, {rest}",

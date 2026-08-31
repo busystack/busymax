@@ -1372,6 +1372,24 @@ class AppLocalizationsFr extends AppLocalizations {
   String get repeatWeekendDay => 'Jour du week-end';
 
   @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'lundi',
+      'TU': 'mardi',
+      'WE': 'mercredi',
+      'TH': 'jeudi',
+      'FR': 'vendredi',
+      'SA': 'samedi',
+      'SU': 'dimanche',
+      'day': 'jour',
+      'weekday': 'jour de semaine',
+      'weekend': 'jour du week-end',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String repeatEveryDays(int count) {
     return 'Tous les $count jours';
   }
@@ -1423,7 +1441,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count fois';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count fois',
+      one: '$count fois',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2344,7 +2368,24 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get repeatMonthDayListSeparator => ', ';
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first et $second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first et $second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
 
   @override
   String repeatYearlyMonthValue(String month, String monthKey) {

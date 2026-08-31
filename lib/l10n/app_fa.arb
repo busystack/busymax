@@ -715,6 +715,7 @@
   "repeatAnyDay": "روز",
   "repeatWeekday": "روز هفته",
   "repeatWeekendDay": "روز آخر هفته",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{دوشنبه} TU{سه‌شنبه} WE{چهارشنبه} TH{پنجشنبه} FR{جمعه} SA{شنبه} SU{یکشنبه} day{روز} weekday{روز هفته} weekend{روز آخر هفته} other{{day}}}",
   "repeatEveryDays": "هر {count} روز",
   "repeatEveryWeeks": "هر {count} هفته",
   "repeatEveryMonths": "هر {count} ماه",
@@ -723,7 +724,7 @@
   "repeatOnMonthDaysSummary": "در روز {days} ماه",
   "repeatOnOrdinalSummary": "{position, select, first{در اولین {days}} second{در دومین {days}} third{در سومین {days}} fourth{در چهارمین {days}} fifth{در پنجمین {days}} secondToLast{در یکی‌مانده‌به‌آخرین {days}} last{در آخرین {days}} other{در {days}}}",
   "repeatInMonthsSummary": "در {months}",
-  "repeatTimesSummary": "{count} بار",
+  "repeatTimesSummary": "{count, plural, one{{count} بار} other{{count} بار}}",
   "repeatUntilSummary": "تا {date}",
   "unsupportedRecurrencePreserved": "این قانون تکرار از گزینه‌هایی استفاده می‌کند که این ویرایشگر تغییر نمی‌دهد.",
   "recurrenceUnsupportedByProvider": "این تکرار را نمی‌توان با {provider} استفاده کرد.",
@@ -957,10 +958,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first} و {second}",
+  "repeatWeekdayListStart": "{first}، {rest}",
+  "repeatMonthDayListPair": "{first} و {second}",
+  "repeatMonthDayListStart": "{first}، {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first} و {second}",
   "repeatYearlyMonthDayListStart": "{first}، {rest}",

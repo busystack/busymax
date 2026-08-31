@@ -651,6 +651,7 @@
   "repeatAnyDay": "日期",
   "repeatWeekday": "工作日",
   "repeatWeekendDay": "週末",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{星期一} TU{星期二} WE{星期三} TH{星期四} FR{星期五} SA{星期六} SU{星期日} day{日期} weekday{工作日} weekend{週末} other{{day}}}",
   "repeatEveryDays": "每 {count} 天",
   "repeatEveryWeeks": "每 {count} 週",
   "repeatEveryMonths": "每 {count} 個月",
@@ -659,7 +660,7 @@
   "repeatOnMonthDaysSummary": "{days}",
   "repeatOnOrdinalSummary": "{position, select, first{第一個{days}} second{第二個{days}} third{第三個{days}} fourth{第四個{days}} fifth{第五個{days}} secondToLast{倒數第二個{days}} last{最後一個{days}} other{{days}}}",
   "repeatInMonthsSummary": "在 {months}",
-  "repeatTimesSummary": "重複 {count} 次",
+  "repeatTimesSummary": "{count, plural, other{重複 {count} 次}}",
   "repeatUntilSummary": "直到 {date}",
   "unsupportedRecurrencePreserved": "此重複規則使用了編輯器不會更改的選項。",
   "recurrenceUnsupportedByProvider": "此重複規則無法用於 {provider}。",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": "、",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first}和{second}",
+  "repeatWeekdayListStart": "{first}、{rest}",
+  "repeatMonthDayListPair": "{first}、{second}",
+  "repeatMonthDayListStart": "{first}、{rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first}和{second}",
   "repeatYearlyMonthDayListStart": "{first}、{rest}",

@@ -651,6 +651,7 @@
   "repeatAnyDay": "요일",
   "repeatWeekday": "평일",
   "repeatWeekendDay": "주말",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{월요일} TU{화요일} WE{수요일} TH{목요일} FR{금요일} SA{토요일} SU{일요일} day{날} weekday{평일} weekend{주말} other{{day}}}",
   "repeatEveryDays": "{count}일마다",
   "repeatEveryWeeks": "{count}주마다",
   "repeatEveryMonths": "{count}개월마다",
@@ -659,7 +660,7 @@
   "repeatOnMonthDaysSummary": "{days}",
   "repeatOnOrdinalSummary": "{position, select, first{첫 번째 {days}} second{두 번째 {days}} third{세 번째 {days}} fourth{네 번째 {days}} fifth{다섯 번째 {days}} secondToLast{끝에서 두 번째 {days}} last{마지막 {days}} other{{days}}}",
   "repeatInMonthsSummary": "{months}에",
-  "repeatTimesSummary": "{count}회",
+  "repeatTimesSummary": "{count, plural, other{{count}회}}",
   "repeatUntilSummary": "{date}까지",
   "unsupportedRecurrencePreserved": "이 반복 규칙에는 이 편집기에서 변경하지 않는 옵션이 사용됩니다.",
   "recurrenceUnsupportedByProvider": "이 반복은 {provider}에서 사용할 수 없습니다.",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first}과 {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first}과 {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first}과 {second}",
   "repeatYearlyMonthDayListStart": "{first}, {rest}",

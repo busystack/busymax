@@ -651,6 +651,7 @@
   "repeatAnyDay": "День",
   "repeatWeekday": "Будний день",
   "repeatWeekendDay": "Выходной день",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{понедельник} TU{вторник} WE{среду} TH{четверг} FR{пятницу} SA{субботу} SU{воскресенье} day{день} weekday{будний день} weekend{выходной день} other{{day}}}",
   "repeatEveryDays": "Каждые {count} дн.",
   "repeatEveryWeeks": "Каждые {count} нед.",
   "repeatEveryMonths": "Каждые {count} мес.",
@@ -659,7 +660,7 @@
   "repeatOnMonthDaysSummary": "{days} числа месяца",
   "repeatOnOrdinalSummary": "{position, select, first{в первый {days}} second{во второй {days}} third{в третий {days}} fourth{в четвёртый {days}} fifth{в пятый {days}} secondToLast{в предпоследний {days}} last{в последний {days}} other{в {days}}}",
   "repeatInMonthsSummary": "в месяцы {months}",
-  "repeatTimesSummary": "{count} раз",
+  "repeatTimesSummary": "{count, plural, one{{count} раз} few{{count} раза} many{{count} раз} other{{count} раза}}",
   "repeatUntilSummary": "до {date}",
   "unsupportedRecurrencePreserved": "Это правило повторения использует параметры, которые этот редактор не изменяет.",
   "recurrenceUnsupportedByProvider": "Это повторение нельзя использовать с {provider}.",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": " и ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first} и {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} и {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first} и {second}",
   "repeatYearlyMonthDayListStart": "{first}, {rest}",

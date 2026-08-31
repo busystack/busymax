@@ -651,15 +651,16 @@
   "repeatAnyDay": "اليوم",
   "repeatWeekday": "يوم من أيام الأسبوع",
   "repeatWeekendDay": "يوم عطلة نهاية الأسبوع",
-  "repeatEveryDays": "كل {count} أيام",
-  "repeatEveryWeeks": "كل {count} أسابيع",
-  "repeatEveryMonths": "كل {count} أشهر",
-  "repeatEveryYears": "كل {count} سنوات",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{اثنين} TU{ثلاثاء} WE{أربعاء} TH{خميس} FR{جمعة} SA{سبت} SU{أحد} day{يوم} weekday{يوم من أيام الأسبوع} weekend{يوم من عطلة نهاية الأسبوع} other{{day}}}",
+  "repeatEveryDays": "{count, plural, one{كل يوم} two{كل يومين} few{كل {count} أيام} many{كل {count} يومًا} other{كل {count} يوم}}",
+  "repeatEveryWeeks": "{count, plural, one{كل أسبوع} two{كل أسبوعين} few{كل {count} أسابيع} many{كل {count} أسبوعًا} other{كل {count} أسبوع}}",
+  "repeatEveryMonths": "{count, plural, one{كل شهر} two{كل شهرين} few{كل {count} أشهر} many{كل {count} شهرًا} other{كل {count} شهر}}",
+  "repeatEveryYears": "{count, plural, one{كل سنة} two{كل سنتين} few{كل {count} سنوات} many{كل {count} سنة} other{كل {count} سنة}}",
   "repeatOnDaysSummary": "في {days}",
   "repeatOnMonthDaysSummary": "في اليوم {days} من الشهر",
-  "repeatOnOrdinalSummary": "{position, select, first{في {days} الأول} second{في {days} الثاني} third{في {days} الثالث} fourth{في {days} الرابع} fifth{في {days} الخامس} secondToLast{في {days} ما قبل الأخير} last{في {days} الأخير} other{في {days}}}",
+  "repeatOnOrdinalSummary": "{position, select, first{في أول {days}} second{في ثاني {days}} third{في ثالث {days}} fourth{في رابع {days}} fifth{في خامس {days}} secondToLast{في {days} قبل الأخير} last{في آخر {days}} other{في {days}}}",
   "repeatInMonthsSummary": "في {months}",
-  "repeatTimesSummary": "{count} مرات",
+  "repeatTimesSummary": "{count, plural, one{مرة واحدة} two{مرتين} few{{count} مرات} many{{count} مرة} other{{count} مرة}}",
   "repeatUntilSummary": "حتى {date}",
   "unsupportedRecurrencePreserved": "تستخدم قاعدة التكرار هذه خيارات لا يغيّرها هذا المحرر.",
   "recurrenceUnsupportedByProvider": "لا يمكن استخدام هذا التكرار مع {provider}.",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first} و{second}",
+  "repeatWeekdayListStart": "{first}، {rest}",
+  "repeatMonthDayListPair": "{first} و{second}",
+  "repeatMonthDayListStart": "{first}، {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first} و{second}",
   "repeatYearlyMonthDayListStart": "{first}، {rest}",
@@ -905,7 +906,7 @@
   "repeatYearlyOnMonthDaySummary": "{frequency} في يوم {day} من {month}",
   "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} في يوم {day} من أشهر {months}",
   "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} في الأيام {days} من أشهر {months}",
-  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {position, select, first{في أول يوم {days} من أشهر {months}} second{في ثاني يوم {days} من أشهر {months}} third{في ثالث يوم {days} من أشهر {months}} fourth{في رابع يوم {days} من أشهر {months}} fifth{في خامس يوم {days} من أشهر {months}} secondToLast{في يوم {days} قبل الأخير من أشهر {months}} last{في آخر يوم {days} من أشهر {months}} other{في يوم {days} من أشهر {months}}}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {position, select, first{في أول {days} من أشهر {months}} second{في ثاني {days} من أشهر {months}} third{في ثالث {days} من أشهر {months}} fourth{في رابع {days} من أشهر {months}} fifth{في خامس {days} من أشهر {months}} secondToLast{في {days} قبل الأخير من أشهر {months}} last{في آخر {days} من أشهر {months}} other{في {days} من أشهر {months}}}",
   "repeatYearlyOnMonthDaysSummary": "{frequency} في الأيام {days} من {month}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
@@ -915,7 +916,7 @@
       "days": {"type": "String"}
     }
   },
-  "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{في أول يوم {days} من {month}} second{في ثاني يوم {days} من {month}} third{في ثالث يوم {days} من {month}} fourth{في رابع يوم {days} من {month}} fifth{في خامس يوم {days} من {month}} secondToLast{في يوم {days} قبل الأخير من {month}} last{في آخر يوم {days} من {month}} other{في يوم {days} من {month}}}",
+  "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{في أول {days} من {month}} second{في ثاني {days} من {month}} third{في ثالث {days} من {month}} fourth{في رابع {days} من {month}} fifth{في خامس {days} من {month}} secondToLast{في {days} قبل الأخير من {month}} last{في آخر {days} من {month}} other{في {days} من {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {

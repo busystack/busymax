@@ -2526,6 +2526,12 @@ abstract class AppLocalizations {
   /// **'Weekend day'**
   String get repeatWeekendDay;
 
+  /// Sentence-form day label used inside ordinal recurrence summaries. {dayKey} is MO through SU, day, weekday, or weekend; {day} is the locale-formatted weekday fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} day{day} weekday{weekday} weekend{weekend day} other{{day}}}'**
+  String repeatOrdinalDaySummary(String dayKey, String day);
+
   /// No description provided for @repeatEveryDays.
   ///
   /// In en, this message translates to:
@@ -2577,7 +2583,7 @@ abstract class AppLocalizations {
   /// Sentence fragment summarizing a finite recurrence count.
   ///
   /// In en, this message translates to:
-  /// **'{count} times'**
+  /// **'{count, plural, one{{count} time} other{{count} times}}'**
   String repeatTimesSummary(int count);
 
   /// Sentence fragment for the recurrence end date.
@@ -4134,11 +4140,29 @@ abstract class AppLocalizations {
   /// **'{day}'**
   String repeatMonthDayValue(String day);
 
-  /// Separator between multiple localized recurrence day values.
+  /// Joins the final two weekday names in a recurrence summary.
   ///
   /// In en, this message translates to:
-  /// **', '**
-  String get repeatMonthDayListSeparator;
+  /// **'{first} and {second}'**
+  String repeatWeekdayListPair(String first, String second);
+
+  /// Prepends a weekday name to an already localized recurrence weekday list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}, {rest}'**
+  String repeatWeekdayListStart(String first, String rest);
+
+  /// Joins the final two day-of-month values in a monthly recurrence summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{first} and {second}'**
+  String repeatMonthDayListPair(String first, String second);
+
+  /// Prepends a day-of-month value to an already localized monthly recurrence day list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}, {rest}'**
+  String repeatMonthDayListStart(String first, String rest);
 
   /// Month value used in yearly recurrence sentences. Locales may select an inflected form with {monthKey}; {month} is the CLDR abbreviated month fallback.
   ///

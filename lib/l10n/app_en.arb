@@ -641,6 +641,14 @@
   "repeatAnyDay": "Day",
   "repeatWeekday": "Weekday",
   "repeatWeekendDay": "Weekend day",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} day{day} weekday{weekday} weekend{weekend day} other{{day}}}",
+  "@repeatOrdinalDaySummary": {
+    "description": "Sentence-form day label used inside ordinal recurrence summaries. {dayKey} is MO through SU, day, weekday, or weekend; {day} is the locale-formatted weekday fallback.",
+    "placeholders": {
+      "dayKey": {"type": "String"},
+      "day": {"type": "String"}
+    }
+  },
   "repeatEveryDays": "Every {count} days",
   "@repeatEveryDays": {
     "placeholders": {
@@ -712,7 +720,7 @@
       }
     }
   },
-  "repeatTimesSummary": "{count} times",
+  "repeatTimesSummary": "{count, plural, one{{count} time} other{{count} times}}",
   "@repeatTimesSummary": {
     "description": "Sentence fragment summarizing a finite recurrence count.",
     "placeholders": {
@@ -1276,9 +1284,37 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
+  "repeatWeekdayListPair": "{first} and {second}",
+  "@repeatWeekdayListPair": {
+    "description": "Joins the final two weekday names in a recurrence summary.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "second": {"type": "String"}
+    }
+  },
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "@repeatWeekdayListStart": {
+    "description": "Prepends a weekday name to an already localized recurrence weekday list.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "rest": {"type": "String"}
+    }
+  },
+  "repeatMonthDayListPair": "{first} and {second}",
+  "@repeatMonthDayListPair": {
+    "description": "Joins the final two day-of-month values in a monthly recurrence summary.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "second": {"type": "String"}
+    }
+  },
+  "repeatMonthDayListStart": "{first}, {rest}",
+  "@repeatMonthDayListStart": {
+    "description": "Prepends a day-of-month value to an already localized monthly recurrence day list.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "rest": {"type": "String"}
+    }
   },
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "@repeatYearlyMonthValue": {

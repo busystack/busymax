@@ -829,6 +829,7 @@
   "repeatAnyDay": "Päev",
   "repeatWeekday": "Tööpäev",
   "repeatWeekendDay": "Nädalavahetuse päev",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{esmaspäev} TU{teisipäev} WE{kolmapäev} TH{neljapäev} FR{reede} SA{laupäev} SU{pühapäev} day{päev} weekday{tööpäev} weekend{nädalavahetuse päev} other{{day}}}",
   "repeatEveryDays": "Iga {count} päeva järel",
   "repeatEveryWeeks": "Iga {count} nädala järel",
   "repeatEveryMonths": "Iga {count} kuu järel",
@@ -837,7 +838,7 @@
   "repeatOnMonthDaysSummary": "{days} päeval",
   "repeatOnOrdinalSummary": "{position, select, first{esimene {days}} second{teine {days}} third{kolmas {days}} fourth{neljas {days}} fifth{viies {days}} secondToLast{eelviimane {days}} last{viimane {days}} other{{days}}}",
   "repeatInMonthsSummary": "{months}",
-  "repeatTimesSummary": "{count} korda",
+  "repeatTimesSummary": "{count, plural, one{{count} kord} other{{count} korda}}",
   "repeatUntilSummary": "kuni kuupäevani {date}",
   "unsupportedRecurrencePreserved": "See kordusreegel kasutab valikuid, mida see redaktor ei muuda.",
   "recurrenceUnsupportedByProvider": "Seda kordust ei saa teenusega {provider} kasutada.",
@@ -1071,10 +1072,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": " ja ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first} ja {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} ja {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, jan{jaanuaris} feb{veebruaris} mar{märtsis} apr{aprillis} may{mais} jun{juunis} jul{juulis} aug{augustis} sep{septembris} oct{oktoobris} nov{novembris} dec{detsembris} other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first} ja {second}",
   "repeatYearlyMonthDayListStart": "{first}, {rest}",

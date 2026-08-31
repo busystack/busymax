@@ -651,6 +651,7 @@
   "repeatAnyDay": "Ngày",
   "repeatWeekday": "Ngày trong tuần",
   "repeatWeekendDay": "Ngày cuối tuần",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{Thứ Hai} TU{Thứ Ba} WE{Thứ Tư} TH{Thứ Năm} FR{Thứ Sáu} SA{Thứ Bảy} SU{Chủ Nhật} day{ngày} weekday{ngày trong tuần} weekend{ngày cuối tuần} other{{day}}}",
   "repeatEveryDays": "Mỗi {count} ngày",
   "repeatEveryWeeks": "Mỗi {count} tuần",
   "repeatEveryMonths": "Mỗi {count} tháng",
@@ -659,7 +660,7 @@
   "repeatOnMonthDaysSummary": "vào ngày {days} trong tháng",
   "repeatOnOrdinalSummary": "{position, select, first{vào {days} đầu tiên} second{vào {days} thứ hai} third{vào {days} thứ ba} fourth{vào {days} thứ tư} fifth{vào {days} thứ năm} secondToLast{vào {days} áp chót} last{vào {days} cuối cùng} other{vào {days}}}",
   "repeatInMonthsSummary": "vào {months}",
-  "repeatTimesSummary": "{count} lần",
+  "repeatTimesSummary": "{count, plural, other{{count} lần}}",
   "repeatUntilSummary": "đến {date}",
   "unsupportedRecurrencePreserved": "Quy tắc lặp lại này sử dụng các tùy chọn mà trình chỉnh sửa này không thay đổi.",
   "recurrenceUnsupportedByProvider": "Không thể sử dụng kiểu lặp lại này với {provider}.",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first} và {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} và {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first} và {second}",
   "repeatYearlyMonthDayListStart": "{first}, {rest}",

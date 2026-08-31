@@ -651,6 +651,7 @@
   "repeatAnyDay": "दिन",
   "repeatWeekday": "सप्ताह का दिन",
   "repeatWeekendDay": "सप्ताहांत का दिन",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{सोमवार} TU{मंगलवार} WE{बुधवार} TH{गुरुवार} FR{शुक्रवार} SA{शनिवार} SU{रविवार} day{दिन} weekday{सप्ताह का दिन} weekend{सप्ताहांत का दिन} other{{day}}}",
   "repeatEveryDays": "हर {count} दिन",
   "repeatEveryWeeks": "हर {count} सप्ताह",
   "repeatEveryMonths": "हर {count} महीने",
@@ -659,7 +660,7 @@
   "repeatOnMonthDaysSummary": "के {days}वें दिन",
   "repeatOnOrdinalSummary": "{position, select, first{के पहले {days} को} second{के दूसरे {days} को} third{के तीसरे {days} को} fourth{के चौथे {days} को} fifth{के पाँचवें {days} को} secondToLast{के अंतिम से दूसरे {days} को} last{के अंतिम {days} को} other{के {days} को}}",
   "repeatInMonthsSummary": "{months} में",
-  "repeatTimesSummary": "{count} बार",
+  "repeatTimesSummary": "{count, plural, one{{count} बार} other{{count} बार}}",
   "repeatUntilSummary": "{date} तक",
   "unsupportedRecurrencePreserved": "यह दोहराव नियम ऐसे विकल्पों का उपयोग करता है जिन्हें यह संपादक नहीं बदलता।",
   "recurrenceUnsupportedByProvider": "इस पुनरावृत्ति का उपयोग {provider} के साथ नहीं किया जा सकता।",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first} और {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} और {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first} और {second}",
   "repeatYearlyMonthDayListStart": "{first}, {rest}",

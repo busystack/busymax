@@ -651,6 +651,7 @@
   "repeatAnyDay": "日",
   "repeatWeekday": "平日",
   "repeatWeekendDay": "週末",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{月曜日} TU{火曜日} WE{水曜日} TH{木曜日} FR{金曜日} SA{土曜日} SU{日曜日} day{日} weekday{平日} weekend{週末} other{{day}}}",
   "repeatEveryDays": "{count} 日ごと",
   "repeatEveryWeeks": "{count} 週間ごと",
   "repeatEveryMonths": "{count} か月ごと",
@@ -659,7 +660,7 @@
   "repeatOnMonthDaysSummary": "{days}",
   "repeatOnOrdinalSummary": "{position, select, first{第1{days}} second{第2{days}} third{第3{days}} fourth{第4{days}} fifth{第5{days}} secondToLast{最後から2番目の{days}} last{最後の{days}} other{{days}}}",
   "repeatInMonthsSummary": "{months} に",
-  "repeatTimesSummary": "{count} 回",
+  "repeatTimesSummary": "{count, plural, other{{count} 回}}",
   "repeatUntilSummary": "{date} まで",
   "unsupportedRecurrencePreserved": "この繰り返しルールには、このエディターで変更されないオプションが含まれています。",
   "recurrenceUnsupportedByProvider": "この繰り返しは {provider} では使用できません。",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": "、",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first}、{second}",
+  "repeatWeekdayListStart": "{first}、{rest}",
+  "repeatMonthDayListPair": "{first}、{second}",
+  "repeatMonthDayListStart": "{first}、{rest}",
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first}と{second}",
   "repeatYearlyMonthDayListStart": "{first}、{rest}",

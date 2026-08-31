@@ -1327,6 +1327,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get repeatWeekendDay => '周末';
 
   @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': '星期一',
+      'TU': '星期二',
+      'WE': '星期三',
+      'TH': '星期四',
+      'FR': '星期五',
+      'SA': '星期六',
+      'SU': '星期日',
+      'day': '日期',
+      'weekday': '工作日',
+      'weekend': '周末',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String repeatEveryDays(int count) {
     return '每 $count 天';
   }
@@ -1378,7 +1396,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
-    return '重复 $count 次';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '重复 $count 次',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2255,7 +2278,24 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get repeatMonthDayListSeparator => '、';
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first、$second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
 
   @override
   String repeatYearlyMonthValue(String month, String monthKey) {
@@ -3679,6 +3719,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get repeatWeekendDay => '周末';
 
   @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': '星期一',
+      'TU': '星期二',
+      'WE': '星期三',
+      'TH': '星期四',
+      'FR': '星期五',
+      'SA': '星期六',
+      'SU': '星期日',
+      'day': '日期',
+      'weekday': '工作日',
+      'weekend': '周末',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String repeatEveryDays(int count) {
     return '每 $count 天';
   }
@@ -3730,7 +3788,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String repeatTimesSummary(int count) {
-    return '重复 $count 次';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '重复 $count 次',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -4607,7 +4670,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get repeatMonthDayListSeparator => '、';
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first、$second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
 
   @override
   String repeatYearlyMonthValue(String month, String monthKey) {
@@ -6031,6 +6111,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get repeatWeekendDay => '週末';
 
   @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': '星期一',
+      'TU': '星期二',
+      'WE': '星期三',
+      'TH': '星期四',
+      'FR': '星期五',
+      'SA': '星期六',
+      'SU': '星期日',
+      'day': '日期',
+      'weekday': '工作日',
+      'weekend': '週末',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String repeatEveryDays(int count) {
     return '每 $count 天';
   }
@@ -6082,7 +6180,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String repeatTimesSummary(int count) {
-    return '重複 $count 次';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '重複 $count 次',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -6960,7 +7063,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get repeatMonthDayListSeparator => '、';
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first、$second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
 
   @override
   String repeatYearlyMonthValue(String month, String monthKey) {

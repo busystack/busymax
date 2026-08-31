@@ -101,7 +101,8 @@ void main() {
       'taskUrl',
       'repeatSummarySeparator',
       'repeatMonthDayValue',
-      'repeatMonthDayListSeparator',
+      'repeatWeekdayListStart',
+      'repeatMonthDayListStart',
       'repeatYearlyMonthDayListStart',
       'repeatYearlyMonthListStart',
       'repeatYearlyMonthValue',
@@ -614,8 +615,8 @@ void main() {
         'سنويًا في الأيام 1 و15 من سبتمبر',
         'سنويًا في يوم 15 من أشهر سبتمبر وأكتوبر',
         'سنويًا في الأيام 1 و15 من أشهر سبتمبر وأكتوبر',
-        'سنويًا في أول يوم الاثنين من سبتمبر',
-        'سنويًا في أول يوم الاثنين من أشهر سبتمبر وأكتوبر',
+        'سنويًا في أول اثنين من سبتمبر',
+        'سنويًا في أول اثنين من أشهر سبتمبر وأكتوبر',
       ],
       'de': [
         'Jährlich am 15. Sept.',
@@ -799,7 +800,7 @@ void main() {
     expect(await summary(const Locale('ja'), singleMonthDayRule), '毎月15日');
     expect(await summary(const Locale('ja'), monthDaysRule), '毎月1日、15日');
     expect(await summary(const Locale('ko'), singleMonthDayRule), '매월 15일');
-    expect(await summary(const Locale('ko'), monthDaysRule), '매월 1일, 15일');
+    expect(await summary(const Locale('ko'), monthDaysRule), '매월 1일과 15일');
     expect(
       await summary(const Locale('et'), ordinalRule),
       'Iga kuu esimene esmaspäev',
@@ -853,6 +854,190 @@ void main() {
     );
     expect(persianMonthDay, contains('۱۵'));
     expect(persianMonthDay, isNot(contains('15')));
+  });
+
+  testWidgets(
+    'recurrence plurals, ordinal labels, and lists follow locale grammar',
+    (tester) async {
+      RecurrenceRule rule({
+        RecurrenceFrequency frequency = RecurrenceFrequency.daily,
+        int interval = 1,
+        List<String> byDay = const [],
+        List<int> byMonth = const [],
+        List<int> byMonthDay = const [],
+        int? bySetPosition,
+        int? count,
+      }) => RecurrenceRule(
+        frequency: frequency,
+        interval: interval,
+        byDay: byDay,
+        byMonth: byMonth,
+        byMonthDay: byMonthDay,
+        bySetPosition: bySetPosition,
+        count: count,
+        untilRaw: null,
+        recurrenceDates: const [],
+        exceptionDates: const [],
+        rawRules: const [],
+        isSupported: true,
+      );
+
+      Future<String> summary(Locale locale, RecurrenceRule recurrence) async {
+        var value = '';
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Builder(
+              builder: (context) {
+                value = recurrenceRuleSummary(context, recurrence);
+                return const SizedBox();
+              },
+            ),
+          ),
+        );
+        return value;
+      }
+
+      const singularCountSummaries = <String, String>{
+        'en': 'Daily · 1 time',
+        'es': 'Diaria · 1 vez',
+        'et': 'Iga päev · 1 kord',
+        'fi': 'Päivittäin · 1 kerran',
+        'it': 'Ogni giorno · 1 volta',
+        'pt': 'Diariamente · 1 vez',
+        'ru': 'Ежедневно · 1 раз',
+        'ar': 'يوميًا · مرة واحدة',
+      };
+      for (final entry in singularCountSummaries.entries) {
+        expect(
+          await summary(Locale(entry.key), rule(count: 1)),
+          entry.value,
+          reason: entry.key,
+        );
+      }
+      expect(
+        await summary(const Locale('ru'), rule(count: 2)),
+        'Ежедневно · 2 раза',
+      );
+      expect(
+        await summary(const Locale('ar'), rule(count: 2)),
+        'يوميًا · مرتين',
+      );
+      expect(
+        await summary(const Locale('ar'), rule(count: 3)),
+        'يوميًا · 3 مرات',
+      );
+      expect(
+        await summary(const Locale('ar'), rule(count: 11)),
+        'يوميًا · 11 مرة',
+      );
+
+      const arabicIntervals = <RecurrenceFrequency, List<String>>{
+        RecurrenceFrequency.daily: ['كل يومين', 'كل 3 أيام', 'كل 11 يومًا'],
+        RecurrenceFrequency.weekly: [
+          'كل أسبوعين',
+          'كل 3 أسابيع',
+          'كل 11 أسبوعًا',
+        ],
+        RecurrenceFrequency.monthly: ['كل شهرين', 'كل 3 أشهر', 'كل 11 شهرًا'],
+        RecurrenceFrequency.yearly: ['كل سنتين', 'كل 3 سنوات', 'كل 11 سنة'],
+      };
+      for (final entry in arabicIntervals.entries) {
+        for (var index = 0; index < 3; index += 1) {
+          final interval = const [2, 3, 11][index];
+          expect(
+            await summary(
+              const Locale('ar'),
+              rule(frequency: entry.key, interval: interval),
+            ),
+            entry.value[index],
+            reason: '${entry.key.name}: $interval',
+          );
+        }
+      }
+
+      const allDays = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+      const weekdays = ['MO', 'TU', 'WE', 'TH', 'FR'];
+      const weekend = ['SA', 'SU'];
+      final ordinalChoices = <List<String>, List<String>>{
+        allDays: ['شهريًا في أول يوم', 'Kuukausittain ensimmäisenä päivänä'],
+        weekdays: [
+          'شهريًا في أول يوم من أيام الأسبوع',
+          'Kuukausittain ensimmäisenä arkipäivänä',
+        ],
+        weekend: [
+          'شهريًا في أول يوم من عطلة نهاية الأسبوع',
+          'Kuukausittain ensimmäisenä viikonlopun päivänä',
+        ],
+      };
+      for (final entry in ordinalChoices.entries) {
+        final recurrence = rule(
+          frequency: RecurrenceFrequency.monthly,
+          byDay: entry.key,
+          bySetPosition: 1,
+        );
+        expect(await summary(const Locale('ar'), recurrence), entry.value[0]);
+        expect(await summary(const Locale('fi'), recurrence), entry.value[1]);
+      }
+      expect(
+        await summary(
+          const Locale('ar'),
+          rule(
+            frequency: RecurrenceFrequency.monthly,
+            byDay: const ['MO'],
+            bySetPosition: 1,
+          ),
+        ),
+        'شهريًا في أول اثنين',
+      );
+      expect(
+        await summary(
+          const Locale('ar'),
+          rule(
+            frequency: RecurrenceFrequency.yearly,
+            byDay: allDays,
+            byMonth: const [9],
+            bySetPosition: 1,
+          ),
+        ),
+        'سنويًا في أول يوم من سبتمبر',
+      );
+
+      final weekly = rule(
+        frequency: RecurrenceFrequency.weekly,
+        byDay: const ['MO', 'WE'],
+      );
+      expect(await summary(const Locale('ja'), weekly), '毎週月曜日、水曜日');
+      expect(await summary(const Locale('zh'), weekly), '每周在 星期一和星期三');
+      expect(
+        await summary(const Locale('ar'), weekly),
+        'أسبوعيًا في الاثنين والأربعاء',
+      );
+
+      final monthly = rule(
+        frequency: RecurrenceFrequency.monthly,
+        byMonthDay: const [1, 15],
+      );
+      expect(
+        await summary(const Locale('en'), monthly),
+        'Monthly on days 1 and 15',
+      );
+      expect(await summary(const Locale('ja'), monthly), '毎月1日、15日');
+      expect(await summary(const Locale('zh'), monthly), '每月1日、15日');
+    },
+  );
+
+  test('recurrence summaries do not use hard-coded list separators', () {
+    final source = File(
+      'lib/src/features/recurrence/presentation/recurrence_editor.dart',
+    ).readAsStringSync();
+
+    expect(source, isNot(contains(".join(', ')")));
+    expect(source, isNot(contains('repeatMonthDayListSeparator')));
+    expect(source, contains('repeatWeekdayListPair'));
+    expect(source, contains('repeatMonthDayListPair'));
   });
 
   test('Persian dynamic numbers use Persian digits', () {

@@ -651,6 +651,7 @@
   "repeatAnyDay": "Päivä",
   "repeatWeekday": "Arkipäivä",
   "repeatWeekendDay": "Viikonlopun päivä",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{maanantaina} TU{tiistaina} WE{keskiviikkona} TH{torstaina} FR{perjantaina} SA{lauantaina} SU{sunnuntaina} day{päivänä} weekday{arkipäivänä} weekend{viikonlopun päivänä} other{{day}}}",
   "repeatEveryDays": "Joka {count}. päivä",
   "repeatEveryWeeks": "Joka {count}. viikko",
   "repeatEveryMonths": "Joka {count}. kuukausi",
@@ -659,7 +660,7 @@
   "repeatOnMonthDaysSummary": "kuukauden päivinä {days}",
   "repeatOnOrdinalSummary": "{position, select, first{ensimmäisenä {days}} second{toisena {days}} third{kolmantena {days}} fourth{neljäntenä {days}} fifth{viidentenä {days}} secondToLast{toiseksi viimeisenä {days}} last{viimeisenä {days}} other{päivinä {days}}}",
   "repeatInMonthsSummary": "{months} aikana",
-  "repeatTimesSummary": "{count} kertaa",
+  "repeatTimesSummary": "{count, plural, one{{count} kerran} other{{count} kertaa}}",
   "repeatUntilSummary": "{date} asti",
   "unsupportedRecurrencePreserved": "Tämä toistosääntö käyttää asetuksia, joita tämä muokkain ei muuta.",
   "recurrenceUnsupportedByProvider": "Tätä toistoa ei voi käyttää palvelussa {provider}.",
@@ -893,10 +894,10 @@
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
-  "@repeatMonthDayListSeparator": {
-    "description": "Separator between multiple localized recurrence day values."
-  },
+  "repeatWeekdayListPair": "{first} ja {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} ja {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
   "repeatYearlyMonthValue": "{monthKey, select, jan{tammikuun} feb{helmikuun} mar{maaliskuun} apr{huhtikuun} may{toukokuun} jun{kesäkuun} jul{heinäkuun} aug{elokuun} sep{syyskuun} oct{lokakuun} nov{marraskuun} dec{joulukuun} other{{month}}}",
   "repeatYearlyMonthDayListPair": "{first} ja {second}",
   "repeatYearlyMonthDayListStart": "{first}, {rest}",

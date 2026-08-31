@@ -76,9 +76,14 @@ String recurrenceRuleSummary(
   var yearlyMonthPlacedInSummary = false;
   if (recurrence.frequency == RecurrenceFrequency.weekly &&
       recurrence.byDay.isNotEmpty) {
-    final days = recurrence.byDay
+    final dayValues = recurrence.byDay
         .map((day) => _localizedInlineWeekday(context, day))
-        .join(', ');
+        .toList(growable: false);
+    final days = _localizedRecurrenceList(
+      dayValues,
+      pair: l10n.repeatWeekdayListPair,
+      start: l10n.repeatWeekdayListStart,
+    );
     summary =
         '$summary${l10n.repeatSummarySeparator}${l10n.repeatOnDaysSummary(days)}';
   } else if ((recurrence.frequency == RecurrenceFrequency.monthly ||
@@ -128,7 +133,11 @@ String recurrenceRuleSummary(
       };
       yearlyMonthPlacedInSummary = true;
     } else {
-      final monthDays = monthDayValues.join(l10n.repeatMonthDayListSeparator);
+      final monthDays = _localizedRecurrenceList(
+        monthDayValues,
+        pair: l10n.repeatMonthDayListPair,
+        start: l10n.repeatMonthDayListStart,
+      );
       final monthDaysSummary = recurrence.byMonthDay.length == 1
           ? l10n.repeatOnMonthDaysSummary(monthDays)
           : l10n.repeatOnMonthDaysSummaryMultiple(monthDays);
@@ -804,27 +813,38 @@ String _localizedOrdinalDayChoice(BuildContext context, List<String> days) {
   if (_sameDaySet(days, _ordinalDayChoices[9].days)) {
     return context.l10n.repeatWeekendDay;
   }
-  return days
+  final dayValues = days
       .map(
         (day) => _localizedStandaloneWeekday(context, day, abbreviated: false),
       )
-      .join(', ');
+      .toList(growable: false);
+  return _localizedRecurrenceList(
+    dayValues,
+    pair: context.l10n.repeatWeekdayListPair,
+    start: context.l10n.repeatWeekdayListStart,
+  );
 }
 
 String _localizedOrdinalDaySummary(BuildContext context, List<String> days) {
+  final dayKey = _ordinalDayChoiceKey(days);
   if (days.length == 1) {
-    return _localizedInlineWeekday(context, days.single);
+    return context.l10n.repeatOrdinalDaySummary(
+      dayKey,
+      _localizedInlineWeekday(context, days.single),
+    );
   }
-  if (_sameDaySet(days, _ordinalDayChoices[7].days)) {
-    return context.l10n.repeatAnyDay;
+  if (dayKey == 'day' || dayKey == 'weekday' || dayKey == 'weekend') {
+    return context.l10n.repeatOrdinalDaySummary(dayKey, '');
   }
-  if (_sameDaySet(days, _ordinalDayChoices[8].days)) {
-    return context.l10n.repeatWeekday;
-  }
-  if (_sameDaySet(days, _ordinalDayChoices[9].days)) {
-    return context.l10n.repeatWeekendDay;
-  }
-  return days.map((day) => _localizedInlineWeekday(context, day)).join(', ');
+  final dayValues = days
+      .map((day) => _localizedInlineWeekday(context, day))
+      .toList(growable: false);
+  final localizedDays = _localizedRecurrenceList(
+    dayValues,
+    pair: context.l10n.repeatWeekdayListPair,
+    start: context.l10n.repeatWeekdayListStart,
+  );
+  return context.l10n.repeatOrdinalDaySummary(dayKey, localizedDays);
 }
 
 bool _sameDaySet(List<String> left, List<String> right) {
