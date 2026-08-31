@@ -795,7 +795,14 @@
   "synced": "Synced",
   "account": "Account",
   "sync": "Sync",
-  "manualFullSync": "Manual full sync",
+  "forceFullResync": "Force full resync",
+  "@forceFullResync": {
+    "description": "Troubleshooting action that forces a complete resynchronization of every connected account."
+  },
+  "forceFullResyncDescription": "Completely reload data from every connected account. Use this only to troubleshoot synchronization problems.",
+  "@forceFullResyncDescription": {
+    "description": "Explanation shown above the force-full-resync troubleshooting action in Diagnostics."
+  },
   "runInBackgroundWhenClosed": "Continue running when the window is closed",
   "showTrayIcon": "Show tray icon",
   "startMinimizedToTray": "Start minimized to the tray",
@@ -829,6 +836,10 @@
   "appearance": "Appearance",
   "theme": "Theme",
   "themeSystem": "System",
+  "settingsSystem": "System",
+  "@settingsSystem": {
+    "description": "Standalone noun used for the System section in the Settings sidebar and page heading."
+  },
   "themeLight": "Light",
   "themeDark": "Dark",
   "themeFamily": "Theme family",

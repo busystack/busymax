@@ -1516,7 +1516,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sync => '同步';
 
   @override
-  String get manualFullSync => '手动完整同步';
+  String get forceFullResync => '强制完全重新同步';
+
+  @override
+  String get forceFullResyncDescription =>
+      '从每个已连接的账号中重新完整加载所有数据。请仅在排查同步问题时使用此功能。';
 
   @override
   String get runInBackgroundWhenClosed => '窗口关闭后继续在后台运行';
@@ -1597,6 +1601,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get themeSystem => '系统';
+
+  @override
+  String get settingsSystem => '系统';
 
   @override
   String get themeLight => '浅色';
@@ -3861,7 +3868,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get sync => '同步';
 
   @override
-  String get manualFullSync => '手动完整同步';
+  String get forceFullResync => '强制完全重新同步';
+
+  @override
+  String get forceFullResyncDescription =>
+      '从每个已连接的账号中重新完整加载所有数据。请仅在排查同步问题时使用此功能。';
 
   @override
   String get runInBackgroundWhenClosed => '窗口关闭后继续在后台运行';
@@ -3942,6 +3953,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get themeSystem => '系统';
+
+  @override
+  String get settingsSystem => '系统';
 
   @override
   String get themeLight => '浅色';
@@ -6207,7 +6221,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get sync => '同步';
 
   @override
-  String get manualFullSync => '手動完整同步';
+  String get forceFullResync => '強制完整重新同步';
+
+  @override
+  String get forceFullResyncDescription =>
+      '從每個已連結的帳號完整重新載入所有資料。僅在疑難排解同步問題時使用此功能。';
 
   @override
   String get runInBackgroundWhenClosed => '視窗關閉後繼續在背景執行';
@@ -6288,6 +6306,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get themeSystem => '系統';
+
+  @override
+  String get settingsSystem => '系統';
 
   @override
   String get themeLight => '淺色';

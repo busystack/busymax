@@ -1563,7 +1563,11 @@ class AppLocalizationsFr extends AppLocalizations {
   String get sync => 'Synchronisation';
 
   @override
-  String get manualFullSync => 'Synchronisation complète manuelle';
+  String get forceFullResync => 'Forcer une resynchronisation complète';
+
+  @override
+  String get forceFullResyncDescription =>
+      'Recharge entièrement les données de chaque compte connecté. N’utilisez cette option que pour résoudre des problèmes de synchronisation.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -1650,6 +1654,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get themeSystem => 'Système';
+
+  @override
+  String get settingsSystem => 'Système';
 
   @override
   String get themeLight => 'Clair';

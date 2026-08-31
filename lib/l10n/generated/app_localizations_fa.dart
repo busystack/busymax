@@ -1572,7 +1572,11 @@ class AppLocalizationsFa extends AppLocalizations {
   String get sync => 'همگام‌سازی';
 
   @override
-  String get manualFullSync => 'همگام‌سازی کامل دستی';
+  String get forceFullResync => 'اجبار به همگام‌سازی مجدد کامل';
+
+  @override
+  String get forceFullResyncDescription =>
+      'همهٔ داده‌های هر حساب متصل را به‌طور کامل دوباره بارگیری می‌کند. فقط برای عیب‌یابی مشکلات همگام‌سازی از این گزینه استفاده کنید.';
 
   @override
   String get runInBackgroundWhenClosed => 'ادامهٔ اجرا پس از بسته شدن پنجره';
@@ -1655,6 +1659,9 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get themeSystem => 'سیستم';
+
+  @override
+  String get settingsSystem => 'سیستم';
 
   @override
   String get themeLight => 'روشن';

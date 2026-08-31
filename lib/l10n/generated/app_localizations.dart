@@ -2832,11 +2832,17 @@ abstract class AppLocalizations {
   /// **'Sync'**
   String get sync;
 
-  /// No description provided for @manualFullSync.
+  /// Troubleshooting action that forces a complete resynchronization of every connected account.
   ///
   /// In en, this message translates to:
-  /// **'Manual full sync'**
-  String get manualFullSync;
+  /// **'Force full resync'**
+  String get forceFullResync;
+
+  /// Explanation shown above the force-full-resync troubleshooting action in Diagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Completely reload data from every connected account. Use this only to troubleshoot synchronization problems.'**
+  String get forceFullResyncDescription;
 
   /// No description provided for @runInBackgroundWhenClosed.
   ///
@@ -2993,6 +2999,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'System'**
   String get themeSystem;
+
+  /// Standalone noun used for the System section in the Settings sidebar and page heading.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get settingsSystem;
 
   /// No description provided for @themeLight.
   ///

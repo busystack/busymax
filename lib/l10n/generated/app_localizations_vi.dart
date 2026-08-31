@@ -1555,7 +1555,11 @@ class AppLocalizationsVi extends AppLocalizations {
   String get sync => 'Đồng bộ';
 
   @override
-  String get manualFullSync => 'Đồng bộ toàn bộ thủ công';
+  String get forceFullResync => 'Buộc đồng bộ hóa lại toàn bộ';
+
+  @override
+  String get forceFullResyncDescription =>
+      'Tải lại toàn bộ dữ liệu từ mọi tài khoản đã kết nối. Chỉ sử dụng tùy chọn này để khắc phục sự cố đồng bộ hóa.';
 
   @override
   String get runInBackgroundWhenClosed => 'Tiếp tục chạy khi đóng cửa sổ';
@@ -1639,6 +1643,9 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get themeSystem => 'Hệ thống';
+
+  @override
+  String get settingsSystem => 'Hệ thống';
 
   @override
   String get themeLight => 'Sáng';

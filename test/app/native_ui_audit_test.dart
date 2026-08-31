@@ -241,7 +241,8 @@ void main() {
         expect(router, isNot(contains("path: '/diagnostics'")));
         expect(router, isNot(contains('DiagnosticsScreen')));
         expect(settings, contains('SettingsPage.system'));
-        expect(settings, contains('l10n.manualFullSync'));
+        expect(settings, contains('l10n.forceFullResync'));
+        expect(settings, contains('l10n.forceFullResyncDescription'));
         expect(settings, contains('l10n.currentLocale'));
         expect(settings, isNot(contains('SettingsPage.sync')));
         expect(settings, isNot(contains('SettingsPage.appearance')));

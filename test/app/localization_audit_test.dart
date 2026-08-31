@@ -105,6 +105,7 @@ void main() {
       'repeatYearlyMonthDayListStart',
       'repeatYearlyMonthListStart',
       'repeatYearlyMonthValue',
+      'settingsSystem',
     };
     final failures = <String>[];
 

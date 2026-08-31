@@ -1571,7 +1571,11 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sync => 'Синхронизация';
 
   @override
-  String get manualFullSync => 'Полная синхронизация вручную';
+  String get forceFullResync => 'Принудительная полная синхронизация';
+
+  @override
+  String get forceFullResyncDescription =>
+      'Полностью загружает заново данные всех подключённых аккаунтов. Используйте эту функцию только для устранения проблем с синхронизацией.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -1656,6 +1660,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get themeSystem => 'Системная';
+
+  @override
+  String get settingsSystem => 'Система';
 
   @override
   String get themeLight => 'Светлая';

@@ -1559,7 +1559,11 @@ class AppLocalizationsFi extends AppLocalizations {
   String get sync => 'Synkronointi';
 
   @override
-  String get manualFullSync => 'Manuaalinen täysi synkronointi';
+  String get forceFullResync => 'Pakota täydellinen uudelleensynkronointi';
+
+  @override
+  String get forceFullResyncDescription =>
+      'Lataa kaikkien yhdistettyjen tilien tiedot kokonaan uudelleen. Käytä tätä vain synkronointiongelmien vianmääritykseen.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -1644,6 +1648,9 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get themeSystem => 'Järjestelmä';
+
+  @override
+  String get settingsSystem => 'Järjestelmä';
 
   @override
   String get themeLight => 'Vaalea';

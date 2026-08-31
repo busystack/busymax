@@ -43,7 +43,7 @@ final _settingsLogger = RedactingLogger(Logger('SettingsScreen'));
 const _systemLocaleTag = 'system';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key, this.initialPage = SettingsPage.accounts});
+  const SettingsScreen({super.key, this.initialPage = SettingsPage.system});
 
   final SettingsPage initialPage;
 
@@ -177,16 +177,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.system => BusyMaxGroupedList(
-        title: l10n.themeSystem,
+        title: l10n.settingsSystem,
         filled: true,
         children: [
-          BusyMaxActionRow(
-            title: l10n.manualFullSync,
-            leading: const Icon(YaruIcons.sync),
-            enabled: accounts.isNotEmpty,
-            onTap: accounts.isEmpty
-                ? null
-                : () => _fullSync(context, ref, accounts),
+          BusyMaxComboRow<String>(
+            title: l10n.currentLocale,
+            leading: const Icon(Icons.language),
+            values: [
+              _systemLocaleTag,
+              for (final option in busyMaxLocaleOptions) option.tag,
+            ],
+            selected: settings.localeTag ?? _systemLocaleTag,
+            labelFor: (tag) => tag == _systemLocaleTag
+                ? l10n.themeSystem
+                : busyMaxLocaleEndonym(tag),
+            onSelected: (tag) => settingsController.setLocaleTag(
+              tag == _systemLocaleTag ? null : tag,
+            ),
           ),
           BusyMaxSwitchRow(
             title: l10n.showTrayIcon,
@@ -226,21 +233,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             selected: settings.themeModePreference,
             labelFor: (value) => _themeModeLabel(context, value),
             onSelected: themeController.setThemeMode,
-          ),
-          BusyMaxComboRow<String>(
-            title: l10n.currentLocale,
-            leading: const Icon(Icons.language),
-            values: [
-              _systemLocaleTag,
-              for (final option in busyMaxLocaleOptions) option.tag,
-            ],
-            selected: settings.localeTag ?? _systemLocaleTag,
-            labelFor: (tag) => tag == _systemLocaleTag
-                ? l10n.themeSystem
-                : busyMaxLocaleEndonym(tag),
-            onSelected: (tag) => settingsController.setLocaleTag(
-              tag == _systemLocaleTag ? null : tag,
-            ),
           ),
         ],
       ),
@@ -329,7 +321,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ],
       ),
-      SettingsPage.diagnostics => const DiagnosticsPanel(scrollable: false),
+      SettingsPage.diagnostics => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          BusyMaxGroupedList(
+            title: l10n.sync,
+            description: l10n.forceFullResyncDescription,
+            filled: true,
+            children: [
+              BusyMaxActionRow(
+                title: l10n.forceFullResync,
+                leading: const Icon(YaruIcons.sync),
+                enabled: accounts.isNotEmpty,
+                onTap: accounts.isEmpty
+                    ? null
+                    : () => _forceFullResync(context, ref, accounts),
+              ),
+            ],
+          ),
+          const DiagnosticsPanel(scrollable: false),
+        ],
+      ),
     };
 
     return Scaffold(
@@ -544,7 +556,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
     if (action == BusyMaxHeaderBarAction.settings) {
-      _selectPage(SettingsPage.accounts);
+      _selectPage(SettingsPage.system);
       return;
     }
     if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
@@ -822,7 +834,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _fullSync(
+  Future<void> _forceFullResync(
     BuildContext context,
     WidgetRef ref,
     List<AccountEntity> accounts,
@@ -1018,9 +1030,9 @@ class _SettingsFallbackHeader extends StatelessWidget {
 }
 
 enum SettingsPage {
+  system,
   accounts,
   schedule,
-  system,
   notifications,
   privacy,
   diagnostics,
@@ -1028,12 +1040,13 @@ enum SettingsPage {
 
 SettingsPage settingsPageFromRouteValue(String? value) {
   return switch (value) {
+    'accounts' => SettingsPage.accounts,
     'schedule' => SettingsPage.schedule,
     'system' => SettingsPage.system,
     'notifications' => SettingsPage.notifications,
     'privacy' => SettingsPage.privacy,
     'diagnostics' => SettingsPage.diagnostics,
-    _ => SettingsPage.accounts,
+    _ => SettingsPage.system,
   };
 }
 
@@ -1044,7 +1057,7 @@ String _settingsPageLabel(BuildContext context, SettingsPage page) {
   return switch (page) {
     SettingsPage.accounts => l10n.accounts,
     SettingsPage.schedule => l10n.scheduleSettings,
-    SettingsPage.system => l10n.themeSystem,
+    SettingsPage.system => l10n.settingsSystem,
     SettingsPage.notifications => l10n.notifications,
     SettingsPage.privacy => l10n.privacy,
     SettingsPage.diagnostics => l10n.diagnostics,

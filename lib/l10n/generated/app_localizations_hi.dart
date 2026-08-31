@@ -1557,7 +1557,11 @@ class AppLocalizationsHi extends AppLocalizations {
   String get sync => 'सिंक';
 
   @override
-  String get manualFullSync => 'मैन्युअल पूर्ण सिंक';
+  String get forceFullResync => 'पूर्ण पुनः सिंक करें';
+
+  @override
+  String get forceFullResyncDescription =>
+      'हर कनेक्ट किए गए खाते से सभी डेटा पूरी तरह फिर से लोड करता है। इसका उपयोग केवल सिंक संबंधी समस्याओं के निवारण के लिए करें।';
 
   @override
   String get runInBackgroundWhenClosed => 'विंडो बंद होने पर भी चलते रहें';
@@ -1640,6 +1644,9 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get themeSystem => 'सिस्टम';
+
+  @override
+  String get settingsSystem => 'सिस्टम';
 
   @override
   String get themeLight => 'हल्की';

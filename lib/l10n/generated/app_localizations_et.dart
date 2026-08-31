@@ -1553,7 +1553,11 @@ class AppLocalizationsEt extends AppLocalizations {
   String get sync => 'Sünkroonimine';
 
   @override
-  String get manualFullSync => 'Käsitsi täielik sünkroonimine';
+  String get forceFullResync => 'Sunni täielik uuesti sünkroonimine';
+
+  @override
+  String get forceFullResyncDescription =>
+      'Laadib kõigi ühendatud kontode andmed täielikult uuesti. Kasutage seda ainult sünkroonimisprobleemide tõrkeotsinguks.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -1637,6 +1641,9 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get themeSystem => 'Süsteem';
+
+  @override
+  String get settingsSystem => 'Süsteem';
 
   @override
   String get themeLight => 'Hele';

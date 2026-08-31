@@ -1564,7 +1564,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get sync => 'المزامنة';
 
   @override
-  String get manualFullSync => 'مزامنة كاملة يدويًا';
+  String get forceFullResync => 'فرض إعادة مزامنة كاملة';
+
+  @override
+  String get forceFullResyncDescription =>
+      'إعادة تحميل جميع البيانات بالكامل من كل حساب متصل. استخدم هذا الخيار فقط لاستكشاف مشكلات المزامنة وإصلاحها.';
 
   @override
   String get runInBackgroundWhenClosed => 'متابعة التشغيل عند إغلاق النافذة';
@@ -1647,6 +1651,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get themeSystem => 'النظام';
+
+  @override
+  String get settingsSystem => 'النظام';
 
   @override
   String get themeLight => 'فاتحة';

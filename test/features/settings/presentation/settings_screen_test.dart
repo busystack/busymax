@@ -52,6 +52,42 @@ void main() {
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
+  test('Settings defaults generic routes to System', () {
+    expect(const SettingsScreen().initialPage, SettingsPage.system);
+    expect(settingsPageFromRouteValue(null), SettingsPage.system);
+    expect(settingsPageFromRouteValue('unknown'), SettingsPage.system);
+    expect(settingsPageFromRouteValue('system'), SettingsPage.system);
+    expect(settingsPageFromRouteValue('accounts'), SettingsPage.accounts);
+  });
+
+  testWidgets('Settings opens the System page by default', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      buildConfig: _configuredBuildConfig,
+      activeAccountIdOverride: null,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpDefaultSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+    );
+
+    expect(
+      tester
+          .widget<BusyMaxSidebarNavigationTile>(
+            find.byKey(const ValueKey('settings-navigation-system')),
+          )
+          .selected,
+      isTrue,
+    );
+    expect(find.text('Theme'), findsOneWidget);
+    expect(find.text('Add Google account'), findsNothing);
+  });
+
   testWidgets('Settings fallback header uses the semantic title style', (
     tester,
   ) async {
@@ -504,10 +540,47 @@ void main() {
 
     expect(find.text('Theme'), findsOneWidget);
     expect(find.text('Current locale'), findsOneWidget);
-    expect(find.text('Manual full sync'), findsOneWidget);
+    expect(find.text('Force full resync'), findsNothing);
     expect(find.text('Launch at login'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Current locale')).dy,
+      lessThan(tester.getTopLeft(find.text('Show tray icon')).dy),
+    );
     expect(find.text('Theme family'), findsNothing);
     expect(find.text('Add Google account'), findsNothing);
+  });
+
+  testWidgets('Russian System section uses a standalone noun', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      buildConfig: _configuredBuildConfig,
+      activeAccountIdOverride: null,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      locale: const Locale('ru'),
+    );
+
+    final systemNavigation = find.byKey(
+      const ValueKey('settings-navigation-system'),
+    );
+    expect(
+      find.descendant(of: systemNavigation, matching: find.text('Система')),
+      findsOneWidget,
+    );
+    expect(find.text('Системная'), findsNothing);
+
+    await tester.tap(systemNavigation);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Система'), findsNWidgets(2));
+    expect(find.text('Системная'), findsWidgets);
   });
 
   testWidgets('Settings workspace uses the native window surface', (
@@ -569,6 +642,15 @@ void main() {
     );
     expect(find.byType(YaruNavigationRail), findsNothing);
     expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+    final navigationTiles = tester
+        .widgetList<BusyMaxSidebarNavigationTile>(
+          find.byType(BusyMaxSidebarNavigationTile),
+        )
+        .toList(growable: false);
+    expect(
+      navigationTiles.first.key,
+      const ValueKey('settings-navigation-system'),
+    );
     final accountsTile = tester.widget<BusyMaxSidebarNavigationTile>(
       find.byKey(const ValueKey('settings-navigation-accounts')),
     );
@@ -634,6 +716,14 @@ void main() {
     await tester.tap(find.text('Diagnostics'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Force full resync'), findsOneWidget);
+    expect(
+      find.text(
+        'Completely reload data from every connected account. Use this only '
+        'to troubleshoot synchronization problems.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Google Tasks API'), findsOneWidget);
     expect(find.text('Accounts'), findsOneWidget);
     expect(find.text('System'), findsOneWidget);
@@ -943,6 +1033,8 @@ Future<void> _pumpSettings(
   ProviderContainer container, {
   Size? logicalSize,
   TextScaler? textScaler,
+  Locale locale = const Locale('en'),
+  SettingsPage initialPage = SettingsPage.accounts,
 }) async {
   if (logicalSize != null) {
     tester.view.devicePixelRatio = 1;
@@ -951,17 +1043,37 @@ Future<void> _pumpSettings(
     addTearDown(tester.view.resetPhysicalSize);
   }
   final settings = textScaler == null
-      ? const SettingsScreen()
+      ? SettingsScreen(initialPage: initialPage)
       : Builder(
           builder: (context) => MediaQuery(
             data: MediaQuery.of(context).copyWith(textScaler: textScaler),
-            child: const SettingsScreen(),
+            child: SettingsScreen(initialPage: initialPage),
           ),
         );
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: localizedTestApp(child: settings),
+      child: localizedTestApp(locale: locale, child: settings),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpDefaultSettings(
+  WidgetTester tester,
+  ProviderContainer container, {
+  Size? logicalSize,
+}) async {
+  if (logicalSize != null) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = logicalSize;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+  }
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: localizedTestApp(child: const SettingsScreen()),
     ),
   );
   await tester.pumpAndSettle();
@@ -975,7 +1087,11 @@ Future<GoRouter> _pumpRoutedSettings(
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
-      GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings',
+        builder: (_, _) =>
+            const SettingsScreen(initialPage: SettingsPage.accounts),
+      ),
       GoRoute(
         path: '/schedule',
         builder: (_, _) => const Text('schedule route'),

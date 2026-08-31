@@ -1530,7 +1530,11 @@ class AppLocalizationsKo extends AppLocalizations {
   String get sync => '동기화';
 
   @override
-  String get manualFullSync => '수동 전체 동기화';
+  String get forceFullResync => '전체 재동기화 강제 실행';
+
+  @override
+  String get forceFullResyncDescription =>
+      '연결된 모든 계정의 데이터를 완전히 다시 불러옵니다. 동기화 문제를 해결할 때만 사용하세요.';
 
   @override
   String get runInBackgroundWhenClosed => '창을 닫아도 계속 실행';
@@ -1612,6 +1616,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get themeSystem => '시스템';
+
+  @override
+  String get settingsSystem => '시스템';
 
   @override
   String get themeLight => '라이트';

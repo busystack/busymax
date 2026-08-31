@@ -1528,7 +1528,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sync => '同期';
 
   @override
-  String get manualFullSync => '手動ですべて同期';
+  String get forceFullResync => '完全な再同期を強制';
+
+  @override
+  String get forceFullResyncDescription =>
+      '接続されているすべてのアカウントからデータを完全に再読み込みします。同期の問題を解決する場合にのみ使用してください。';
 
   @override
   String get runInBackgroundWhenClosed => 'ウィンドウを閉じてもバックグラウンドで実行を続ける';
@@ -1610,6 +1614,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get themeSystem => 'システム';
+
+  @override
+  String get settingsSystem => 'システム';
 
   @override
   String get themeLight => 'ライト';
