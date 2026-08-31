@@ -218,7 +218,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
             ...GlobalUbuntuLocalizations.delegates,
           ],
           localeListResolutionCallback: resolveBusyMaxLocales,
-          supportedLocales: AppLocalizations.supportedLocales,
+          supportedLocales: busyMaxSupportedLocales,
           builder: (context, child) {
             final l10n = AppLocalizations.of(context);
             final material = MaterialLocalizations.of(context);

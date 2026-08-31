@@ -15,7 +15,7 @@
   <name xml:lang="it">BusyMax</name>
   <name xml:lang="ja">BusyMax</name>
   <name xml:lang="ko">BusyMax</name>
-  <name xml:lang="pt">BusyMax</name>
+  <name xml:lang="pt-PT">BusyMax</name>
   <name xml:lang="ru">BusyMax</name>
   <name xml:lang="vi">BusyMax</name>
   <name xml:lang="zh">BusyMax</name>
@@ -33,7 +33,7 @@
   <summary xml:lang="it">Gestore di calendari e attività</summary>
   <summary xml:lang="ja">カレンダー・タスク管理アプリ</summary>
   <summary xml:lang="ko">캘린더와 할 일 관리</summary>
-  <summary xml:lang="pt">Gestor de calendário e tarefas</summary>
+  <summary xml:lang="pt-PT">Gestor de calendário e tarefas</summary>
   <summary xml:lang="ru">Календарь и планировщик задач</summary>
   <summary xml:lang="vi">Trình quản lý lịch và công việc</summary>
   <summary xml:lang="zh">日历与任务管理工具</summary>
@@ -52,7 +52,7 @@
     <p xml:lang="it">BusyMax è un gestore di calendari e attività per desktop Linux che riunisce eventi, attività, promemoria e programmi giornalieri in un unico spazio di lavoro.</p>
     <p xml:lang="ja">BusyMax は、予定、タスク、リマインダー、毎日のスケジュールを一つのワークスペースで管理できる Linux デスクトップ向けのカレンダー・タスク管理アプリです。</p>
     <p xml:lang="ko">BusyMax는 일정, 할 일, 미리 알림, 일일 계획을 하나의 작업 공간에서 관리할 수 있는 Linux 데스크톱용 캘린더 및 할 일 관리 앱입니다.</p>
-    <p xml:lang="pt">BusyMax é um gestor de calendário e tarefas para o ambiente de trabalho Linux que reúne eventos, tarefas, lembretes e agendas diárias num único espaço de trabalho.</p>
+    <p xml:lang="pt-PT">BusyMax é um gestor de calendário e tarefas para o ambiente de trabalho Linux que reúne eventos, tarefas, lembretes e agendas diárias num único espaço de trabalho.</p>
     <p xml:lang="ru">BusyMax — календарь и планировщик задач для Linux. В одном приложении можно управлять событиями, задачами, напоминаниями и распорядком дня.</p>
     <p xml:lang="vi">BusyMax là trình quản lý lịch và công việc cho máy tính Linux, giúp lập kế hoạch sự kiện, công việc, lời nhắc và lịch trình hằng ngày trong một không gian làm việc.</p>
     <p xml:lang="zh">BusyMax 是一款面向 Linux 桌面的日历与任务管理工具，可在一个工作区中规划日程、任务、提醒和每日安排。</p>

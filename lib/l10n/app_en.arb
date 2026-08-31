@@ -1,5 +1,35 @@
 {
   "@@locale": "en",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} other{{day}}}",
+  "@repeatWeeklyDaySummary": {
+    "description": "Sentence-form weekday used inside a weekly recurrence summary. {dayKey} is MO through SU; {day} is the locale-formatted fallback.",
+    "placeholders": {"dayKey": {"type": "String"}, "day": {"type": "String"}}
+  },
+  "repeatOnTwoMonthDaysSummary": "on days {first} and {second}",
+  "@repeatOnTwoMonthDaysSummary": {
+    "description": "Sentence fragment for a monthly recurrence on exactly two dates.",
+    "placeholders": {"first": {"type": "String"}, "second": {"type": "String"}}
+  },
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} on days {firstDay} and {secondDay} of {month}",
+  "@repeatYearlyOnTwoMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for exactly two dates in one month.",
+    "placeholders": {"frequency": {"type": "String"}, "month": {"type": "String"}, "firstDay": {"type": "String"}, "secondDay": {"type": "String"}}
+  },
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} on day {day} of {firstMonth} and {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one date in exactly two months.",
+    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "day": {"type": "String"}}
+  },
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} on days {firstDay} and {secondDay} of {firstMonth} and {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for exactly two dates in exactly two months.",
+    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "firstDay": {"type": "String"}, "secondDay": {"type": "String"}}
+  },
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} on days {days} of {firstMonth} and {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for three or more dates in exactly two months.",
+    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "days": {"type": "String"}}
+  },
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
   "@connectGoogleAccount": {
@@ -45,7 +75,8 @@
   "@calendarColorOption": {
     "placeholders": {
       "number": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -87,7 +118,8 @@
   "@moreItems": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -115,7 +147,8 @@
   "@trayTasksDueToday": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -129,7 +162,8 @@
   "@trayLastSyncedMinutesAgo": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -137,7 +171,8 @@
   "@trayLastSyncedHoursAgo": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -145,7 +180,8 @@
   "@trayLastSyncedDaysAgo": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -241,7 +277,8 @@
   "@reminderMinutesBefore": {
     "placeholders": {
       "minutes": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -250,7 +287,8 @@
   "@reminderHoursBefore": {
     "placeholders": {
       "hours": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -258,7 +296,8 @@
   "@reminderDaysBefore": {
     "placeholders": {
       "days": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -518,7 +557,8 @@
   "@completionPercent": {
     "placeholders": {
       "percent": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -529,7 +569,8 @@
   "@priorityHighValue": {
     "placeholders": {
       "priority": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -537,7 +578,8 @@
   "@priorityMediumValue": {
     "placeholders": {
       "priority": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -545,7 +587,8 @@
   "@priorityLowValue": {
     "placeholders": {
       "priority": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -597,7 +640,8 @@
   "@relatedRemindersDescription": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -653,7 +697,8 @@
   "@repeatEveryDays": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -661,7 +706,8 @@
   "@repeatEveryWeeks": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -669,7 +715,8 @@
   "@repeatEveryMonths": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -677,7 +724,8 @@
   "@repeatEveryYears": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -725,7 +773,8 @@
     "description": "Sentence fragment summarizing a finite recurrence count.",
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -895,7 +944,8 @@
   "@pendingOpAttempts": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -934,7 +984,8 @@
   "@dueTodayNotificationBody": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -959,7 +1010,8 @@
   "@weekNumberTooltip": {
     "placeholders": {
       "number": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -968,7 +1020,8 @@
   "@scheduleItemCount": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -1203,7 +1256,8 @@
   "@importEventsFound": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -1211,7 +1265,8 @@
   "@importInvalidEvents": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -1231,7 +1286,8 @@
   "@importQueued": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -1239,7 +1295,8 @@
   "@importDuplicatesSkipped": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -1247,7 +1304,8 @@
   "@importUnsupportedSets": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },

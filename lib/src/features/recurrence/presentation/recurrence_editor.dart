@@ -50,6 +50,11 @@ String recurrenceRuleSummary(
 }) {
   if (!recurrence.repeats) return context.l10n.repeatNone;
   final l10n = context.l10n;
+  if (recurrence.frequency == RecurrenceFrequency.yearly &&
+      recurrence.bySetPosition != null &&
+      recurrence.byMonth.length > 1) {
+    return l10n.unsupportedRecurrencePreserved;
+  }
   var summary = recurrence.interval == 1
       ? switch (recurrence.frequency) {
           RecurrenceFrequency.daily => l10n.repeatDaily,
@@ -77,7 +82,7 @@ String recurrenceRuleSummary(
   if (recurrence.frequency == RecurrenceFrequency.weekly &&
       recurrence.byDay.isNotEmpty) {
     final dayValues = recurrence.byDay
-        .map((day) => _localizedInlineWeekday(context, day))
+        .map((day) => _localizedWeeklyDaySummary(context, day))
         .toList(growable: false);
     final days = _localizedRecurrenceList(
       dayValues,
@@ -112,18 +117,43 @@ String recurrenceRuleSummary(
       summary = switch ((monthValues.length, monthDayValues.length)) {
         (1, 1) => l10n.repeatYearlyOnMonthDaySummary(
           summary,
-          months,
-          monthDays,
+          monthValues.single,
+          monthDayValues.single,
+        ),
+        (1, 2) => l10n.repeatYearlyOnTwoMonthDaysSummary(
+          summary,
+          monthValues.single,
+          monthDayValues.first,
+          monthDayValues.last,
         ),
         (1, _) => l10n.repeatYearlyOnMonthDaysSummary(
           summary,
-          months,
+          monthValues.single,
+          monthDays,
+        ),
+        (2, 1) => l10n.repeatYearlyInTwoMonthsOnMonthDaySummary(
+          summary,
+          monthValues.first,
+          monthValues.last,
+          monthDayValues.single,
+        ),
+        (2, 2) => l10n.repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+          summary,
+          monthValues.first,
+          monthValues.last,
+          monthDayValues.first,
+          monthDayValues.last,
+        ),
+        (2, _) => l10n.repeatYearlyInTwoMonthsOnMonthDaysSummary(
+          summary,
+          monthValues.first,
+          monthValues.last,
           monthDays,
         ),
         (_, 1) => l10n.repeatYearlyInMonthsOnMonthDaySummary(
           summary,
           months,
-          monthDays,
+          monthDayValues.single,
         ),
         _ => l10n.repeatYearlyInMonthsOnMonthDaysSummary(
           summary,
@@ -138,36 +168,27 @@ String recurrenceRuleSummary(
         pair: l10n.repeatMonthDayListPair,
         start: l10n.repeatMonthDayListStart,
       );
-      final monthDaysSummary = recurrence.byMonthDay.length == 1
-          ? l10n.repeatOnMonthDaysSummary(monthDays)
-          : l10n.repeatOnMonthDaysSummaryMultiple(monthDays);
+      final monthDaysSummary = switch (monthDayValues.length) {
+        1 => l10n.repeatOnMonthDaysSummary(monthDayValues.single),
+        2 => l10n.repeatOnTwoMonthDaysSummary(
+          monthDayValues.first,
+          monthDayValues.last,
+        ),
+        _ => l10n.repeatOnMonthDaysSummaryMultiple(monthDays),
+      };
       summary = '$summary${l10n.repeatSummarySeparator}$monthDaysSummary';
     }
   } else if (recurrence.bySetPosition case final position?) {
     final days = _localizedOrdinalDaySummary(context, recurrence.byDay);
     if (recurrence.frequency == RecurrenceFrequency.yearly &&
         recurrence.byMonth.isNotEmpty) {
-      final monthValues = recurrence.byMonth
-          .map((month) => _localizedYearlyMonth(context, month))
-          .toList(growable: false);
-      final months = _localizedRecurrenceList(
-        monthValues,
-        pair: l10n.repeatYearlyMonthListPair,
-        start: l10n.repeatYearlyMonthListStart,
+      final month = _localizedYearlyMonth(context, recurrence.byMonth.single);
+      summary = l10n.repeatYearlyOnOrdinalSummary(
+        summary,
+        month,
+        _ordinalPositionKey(position),
+        days,
       );
-      summary = monthValues.length == 1
-          ? l10n.repeatYearlyOnOrdinalSummary(
-              summary,
-              months,
-              _ordinalPositionKey(position),
-              days,
-            )
-          : l10n.repeatYearlyInMonthsOnOrdinalSummary(
-              summary,
-              months,
-              _ordinalPositionKey(position),
-              days,
-            );
       yearlyMonthPlacedInSummary = true;
     } else {
       final ordinalSummary = l10n.repeatOnOrdinalSummary(
@@ -582,7 +603,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
 
   void _toggleMonth(int month, bool selected) {
     var values = [..._value.byMonth];
-    if (!widget.limits.allowMultipleMonths) {
+    if (!widget.limits.allowMultipleMonths || _value.bySetPosition != null) {
       values = [month];
     } else if (selected) {
       if (!values.contains(month)) values.add(month);
@@ -610,6 +631,11 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
               ? [_weekdayCode(widget.baseDate.weekday)]
               : _value.byDay,
           byMonthDay: const [],
+          byMonth:
+              _value.frequency == RecurrenceFrequency.yearly &&
+                  _value.byMonth.length > 1
+              ? [_value.byMonth.first]
+              : _value.byMonth,
         );
       }
     });
@@ -845,6 +871,13 @@ String _localizedOrdinalDaySummary(BuildContext context, List<String> days) {
     start: context.l10n.repeatWeekdayListStart,
   );
   return context.l10n.repeatOrdinalDaySummary(dayKey, localizedDays);
+}
+
+String _localizedWeeklyDaySummary(BuildContext context, String day) {
+  return context.l10n.repeatWeeklyDaySummary(
+    day,
+    _localizedInlineWeekday(context, day),
+  );
 }
 
 bool _sameDaySet(List<String> left, List<String> right) {

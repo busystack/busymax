@@ -107,6 +107,8 @@ void main() {
       'repeatYearlyMonthListStart',
       'repeatYearlyMonthValue',
       'settingsSystem',
+      'sensitivityNormal',
+      'sensitivityPersonal',
     };
     final failures = <String>[];
 
@@ -124,7 +126,7 @@ void main() {
   });
 
   test('discard-changes action is distinct from cancel in every locale', () {
-    for (final locale in AppLocalizations.supportedLocales) {
+    for (final locale in busyMaxSupportedLocales) {
       final localizations = lookupAppLocalizations(locale);
       expect(
         localizations.discardChangesAction,
@@ -207,7 +209,7 @@ void main() {
       'it': 'Gestore di calendari e attività',
       'ja': 'カレンダー・タスク管理アプリ',
       'ko': '캘린더와 할 일 관리',
-      'pt': 'Gestor de calendário e tarefas',
+      'pt_PT': 'Gestor de calendário e tarefas',
       'ru': 'Календарь и планировщик задач',
       'vi': 'Trình quản lý lịch và công việc',
       'zh': '日历与任务管理工具',
@@ -236,14 +238,29 @@ void main() {
     );
   });
 
-  test('Portuguese is generated and exposed as a supported locale', () {
-    const locale = Locale('pt');
-    final localizations = lookupAppLocalizations(locale);
+  test(
+    'European Portuguese is generated and exposed without a generic alias',
+    () {
+      const locale = Locale('pt', 'PT');
+      final localizations = lookupAppLocalizations(locale);
 
-    expect(AppLocalizations.supportedLocales, contains(locale));
-    expect(localizations.settings, 'Definições');
-    expect(localizations.today, 'Hoje');
-  });
+      expect(AppLocalizations.supportedLocales, contains(locale));
+      expect(busyMaxSupportedLocales, contains(locale));
+      expect(busyMaxSupportedLocales, isNot(contains(const Locale('pt'))));
+      expect(busyMaxLocaleFromTag('pt-PT'), locale);
+      expect(busyMaxLocaleFromTag('pt'), isNull);
+      expect(busyMaxLocaleFromTag('pt-BR'), isNull);
+      expect(_messages(_decodeArb(File('lib/l10n/app_pt.arb'))), isEmpty);
+      expect(
+        resolveBusyMaxLocales(const [
+          Locale('pt', 'BR'),
+        ], busyMaxSupportedLocales),
+        const Locale('en'),
+      );
+      expect(localizations.settings, 'Definições');
+      expect(localizations.today, 'Hoje');
+    },
+  );
 
   test(
     'reviewed Arabic conflict wording and Portuguese variant stay stable',
@@ -254,13 +271,13 @@ void main() {
         contains('تم التغيير على الخادم في:'),
       );
 
-      final portuguese = lookupAppLocalizations(const Locale('pt'));
+      final portuguese = lookupAppLocalizations(const Locale('pt', 'PT'));
       expect(portuguese.settings, 'Definições');
       expect(portuguese.deleteTask, 'Eliminar tarefa');
       expect(portuguese.copyAndDelete, 'Copiar e eliminar');
 
       final portugueseArb = File(
-        'lib/l10n/app_pt.arb',
+        'lib/l10n/app_pt_PT.arb',
       ).readAsStringSync().toLowerCase();
       for (final brazilianForm in [
         'excluído',
@@ -277,6 +294,48 @@ void main() {
       }
     },
   );
+
+  test('reviewed terminology and punctuation stay consistent', () {
+    final de = lookupAppLocalizations(const Locale('de'));
+    final es = lookupAppLocalizations(const Locale('es'));
+    final pt = lookupAppLocalizations(const Locale('pt', 'PT'));
+    expect(de.sensitivityNormal, 'Normal');
+    expect(es.sensitivityNormal, 'Normal');
+    expect(es.sensitivityPersonal, 'Personal');
+    expect(pt.sensitivityNormal, 'Normal');
+
+    final estonian = File('lib/l10n/app_et.arb').readAsStringSync();
+    expect(estonian, isNot(contains("Google'")));
+    expect(estonian, contains('Lisage kõik kontod, mida soovite kasutada.'));
+    expect(estonian, contains('Ühendage Google’i'));
+
+    expect(
+      File('lib/l10n/app_hi.arb').readAsStringSync(),
+      isNot(contains('ईवेंट')),
+    );
+    for (final path in ['lib/l10n/app_zh.arb', 'lib/l10n/app_zh_Hans.arb']) {
+      final catalog = File(path).readAsStringSync();
+      expect(catalog, isNot(contains('帐户')), reason: path);
+      expect(catalog, isNot(contains('活动')), reason: path);
+    }
+    expect(
+      File('lib/l10n/app_ar.arb').readAsStringSync(),
+      isNot(contains('ضيوف')),
+    );
+    expect(
+      File('lib/l10n/app_fa.arb').readAsStringSync(),
+      isNot(contains('مهمانی')),
+    );
+    expect(
+      File('lib/l10n/app_ko.arb').readAsStringSync(),
+      isNot(contains('게스트')),
+    );
+
+    final french = File('lib/l10n/app_fr.arb').readAsStringSync();
+    expect(RegExp(r' [;:?!]').hasMatch(french), isFalse);
+    expect(french.contains('« '), isFalse);
+    expect(french.contains(' »'), isFalse);
+  });
 
   test('Hindi is generated and exposed as a supported locale', () {
     const locale = Locale('hi');
@@ -432,6 +491,42 @@ void main() {
       }
     },
   );
+
+  test('RTL catalogs isolate non-recurrence String placeholders', () {
+    const fsi = '\u2068';
+    const pdi = '\u2069';
+    final template = _decodeArb(File('lib/l10n/app_en.arb'));
+
+    for (final locale in ['ar', 'fa']) {
+      final messages = _decodeArb(File('lib/l10n/app_$locale.arb'));
+      final failures = <String>[];
+      for (final entry in template.entries) {
+        if (!entry.key.startsWith('@') || entry.key.startsWith('@@')) {
+          continue;
+        }
+        final messageKey = entry.key.substring(1);
+        if (messageKey.startsWith('repeat') || entry.value is! Map) {
+          continue;
+        }
+        final metadata = Map<String, dynamic>.from(entry.value as Map);
+        final placeholders = metadata['placeholders'];
+        if (placeholders is! Map) continue;
+        final translation = messages[messageKey] as String? ?? '';
+        for (final placeholderEntry in placeholders.entries) {
+          final placeholderMetadata = placeholderEntry.value;
+          if (placeholderMetadata is! Map ||
+              placeholderMetadata['type'] != 'String') {
+            continue;
+          }
+          final placeholder = placeholderEntry.key.toString();
+          if (!translation.contains('$fsi{$placeholder}$pdi')) {
+            failures.add('$locale:$messageKey:$placeholder');
+          }
+        }
+      }
+      expect(failures, isEmpty, reason: failures.join('\n'));
+    }
+  });
 
   testWidgets('recurrence summaries use sentence-form localized grammar', (
     tester,
@@ -612,19 +707,17 @@ void main() {
     const expectedYearlySummaries = <String, List<String>>{
       'ar': [
         'سنويًا في يوم 15 من سبتمبر',
-        'سنويًا في الأيام 1 و15 من سبتمبر',
-        'سنويًا في يوم 15 من أشهر سبتمبر وأكتوبر',
-        'سنويًا في الأيام 1 و15 من أشهر سبتمبر وأكتوبر',
+        'سنويًا في يومي 1 و15 من سبتمبر',
+        'سنويًا في اليوم 15 من شهري سبتمبر وأكتوبر',
+        'سنويًا في يومي 1 و15 من شهري سبتمبر وأكتوبر',
         'سنويًا في أول اثنين من سبتمبر',
-        'سنويًا في أول اثنين من أشهر سبتمبر وأكتوبر',
       ],
       'de': [
         'Jährlich am 15. Sept.',
         'Jährlich an den Tagen 1 und 15 im Sept.',
-        'Jährlich jeweils am 15. in Sept. und Okt.',
-        'Jährlich jeweils an den Tagen 1 und 15 in Sept. und Okt.',
+        'Jährlich jeweils am 15. im Sept. und Okt.',
+        'Jährlich jeweils an den Tagen 1 und 15 im Sept. und Okt.',
         'Jährlich am ersten Montag im Sept.',
-        'Jährlich jeweils am ersten Montag in Sept. und Okt.',
       ],
       'en': [
         'Yearly on Sep 15',
@@ -632,7 +725,6 @@ void main() {
         'Yearly on day 15 of Sep and Oct',
         'Yearly on days 1 and 15 of Sep and Oct',
         'Yearly on the first Monday of Sep',
-        'Yearly on the first Monday of Sep and Oct',
       ],
       'es': [
         'Anual el día 15 de sept',
@@ -640,7 +732,6 @@ void main() {
         'Anual el día 15 de sept y oct',
         'Anual los días 1 y 15 de sept y oct',
         'Anual el primer lunes de sept',
-        'Anual el primer lunes de sept y oct',
       ],
       'et': [
         'Iga aasta septembris 15. päeval',
@@ -648,7 +739,6 @@ void main() {
         'Iga aasta septembris ja oktoobris 15. päeval',
         'Iga aasta septembris ja oktoobris 1. ja 15. päeval',
         'Iga aasta septembris: esimene esmaspäev',
-        'Iga aasta septembris ja oktoobris: esimene esmaspäev',
       ],
       'fa': [
         'سالانه در روز ۱۵ ماه سپتامبر',
@@ -656,15 +746,13 @@ void main() {
         'سالانه در روز ۱۵ ماه‌های سپتامبر و اکتبر',
         'سالانه در روزهای ۱ و ۱۵ ماه‌های سپتامبر و اکتبر',
         'سالانه در اولین دوشنبه ماه سپتامبر',
-        'سالانه در اولین دوشنبه ماه‌های سپتامبر و اکتبر',
       ],
       'fi': [
         'Vuosittain syyskuun 15. päivänä',
-        'Vuosittain syyskuun päivinä 1 ja 15',
+        'Vuosittain syyskuun 1. ja 15. päivänä',
         'Vuosittain syyskuun ja lokakuun 15. päivänä',
-        'Vuosittain syyskuun ja lokakuun päivinä 1 ja 15',
+        'Vuosittain syyskuun ja lokakuun 1. ja 15. päivänä',
         'Vuosittain syyskuun ensimmäisenä maanantaina',
-        'Vuosittain syyskuun ja lokakuun ensimmäisenä maanantaina',
       ],
       'fr': [
         'Annuel le 15 sept.',
@@ -672,7 +760,6 @@ void main() {
         'Annuel le 15 de sept. et oct.',
         'Annuel les jours 1 et 15 de sept. et oct.',
         'Annuel le premier lundi de sept.',
-        'Annuel le premier lundi de sept. et oct.',
       ],
       'hi': [
         'हर वर्ष सित॰ की 15 तारीख को',
@@ -680,7 +767,6 @@ void main() {
         'हर वर्ष सित॰ और अक्तू॰ की 15 तारीख को',
         'हर वर्ष सित॰ और अक्तू॰ की 1 और 15 तारीखों को',
         'हर वर्ष सित॰ के पहले सोमवार को',
-        'हर वर्ष सित॰ और अक्तू॰ के पहले सोमवार को',
       ],
       'it': [
         'Ogni anno il giorno 15 di set',
@@ -688,7 +774,6 @@ void main() {
         'Ogni anno il giorno 15 di set e ott',
         'Ogni anno nei giorni 1 e 15 di set e ott',
         'Ogni anno il primo lunedì di set',
-        'Ogni anno il primo lunedì di set e ott',
       ],
       'ja': [
         '毎年9月15日',
@@ -696,7 +781,6 @@ void main() {
         '毎年9月と10月の15日',
         '毎年9月と10月の1日と15日',
         '毎年9月の第1月曜日',
-        '毎年9月と10月の第1月曜日',
       ],
       'ko': [
         '매년 9월 15일',
@@ -704,15 +788,13 @@ void main() {
         '매년 9월과 10월의 15일',
         '매년 9월과 10월의 1일과 15일',
         '매년 9월의 첫 번째 월요일',
-        '매년 9월과 10월의 첫 번째 월요일',
       ],
-      'pt': [
+      'pt-PT': [
         'Anualmente no dia 15 de set.',
         'Anualmente nos dias 1 e 15 de set.',
         'Anualmente no dia 15 de set. e out.',
         'Anualmente nos dias 1 e 15 de set. e out.',
         'Anualmente na primeira ocorrência de segunda-feira de set.',
-        'Anualmente na primeira ocorrência de segunda-feira de set. e out.',
       ],
       'ru': [
         'Ежегодно: сент., 15-го числа',
@@ -720,7 +802,6 @@ void main() {
         'Ежегодно: сент. и окт., 15-го числа',
         'Ежегодно: сент. и окт., 1-го и 15-го числа',
         'Ежегодно: сент., в первый понедельник',
-        'Ежегодно: сент. и окт., в первый понедельник',
       ],
       'vi': [
         'Hằng năm vào ngày 15 thg 9',
@@ -728,7 +809,6 @@ void main() {
         'Hằng năm vào ngày 15 của thg 9 và thg 10',
         'Hằng năm vào các ngày 1 và 15 của thg 9 và thg 10',
         'Hằng năm vào Thứ Hai đầu tiên của thg 9',
-        'Hằng năm vào Thứ Hai đầu tiên của thg 9 và thg 10',
       ],
       'zh': [
         '每年9月15日',
@@ -736,7 +816,6 @@ void main() {
         '每年9月和10月的15日',
         '每年9月和10月的1日和15日',
         '每年9月的第一个星期一',
-        '每年9月和10月的第一个星期一',
       ],
       'zh-Hans': [
         '每年9月15日',
@@ -744,7 +823,6 @@ void main() {
         '每年9月和10月的15日',
         '每年9月和10月的1日和15日',
         '每年9月的第一个星期一',
-        '每年9月和10月的第一个星期一',
       ],
       'zh-Hant': [
         '每年9月15日',
@@ -752,18 +830,16 @@ void main() {
         '每年9月和10月的15日',
         '每年9月和10月的1日和15日',
         '每年9月的第一個星期一',
-        '每年9月和10月的第一個星期一',
       ],
     };
 
-    for (final locale in AppLocalizations.supportedLocales) {
+    for (final locale in busyMaxSupportedLocales) {
       final values = <String>[
         await summary(locale, yearlyMonthDayRule),
         await summary(locale, yearlyMonthDaysRule),
         await summary(locale, yearlyMonthsMonthDayRule),
         await summary(locale, yearlyMonthsMonthDaysRule),
         await summary(locale, yearlyOrdinalRule),
-        await summary(locale, yearlyMonthsOrdinalRule),
       ];
       expect(
         values,
@@ -771,6 +847,10 @@ void main() {
         reason: locale.toLanguageTag(),
       );
     }
+    expect(
+      await summary(const Locale('en'), yearlyMonthsOrdinalRule),
+      lookupAppLocalizations(const Locale('en')).unsupportedRecurrencePreserved,
+    );
     expect(
       await summary(const Locale('en'), yearlyThreeMonthsAndDaysRule),
       'Yearly on days 1, 15 and 20 of Aug, Sep and Oct',
@@ -807,7 +887,7 @@ void main() {
     );
     expect(
       await summary(const Locale('ru'), monthDaysRule),
-      'Ежемесячно в дни месяца 1-го и 15-го',
+      'Ежемесячно 1-го и 15-го числа каждого месяца',
     );
     expect(
       await summary(const Locale('et'), singleMonthDayRule),
@@ -819,7 +899,15 @@ void main() {
     );
     expect(
       await summary(const Locale('hi'), singleMonthDayRule),
-      'हर महीने के 15वें दिन',
+      'हर महीने की 15 तारीख को',
+    );
+    expect(
+      await summary(const Locale('hi'), monthDaysRule),
+      'हर महीने की 1 और 15 तारीखों को',
+    );
+    expect(
+      await summary(const Locale('ar'), monthDaysRule),
+      'شهريًا في يومي 1 و15 من الشهر',
     );
     expect(
       await summary(const Locale('hi'), ordinalRule),
@@ -906,13 +994,13 @@ void main() {
         'et': 'Iga päev · 1 kord',
         'fi': 'Päivittäin · 1 kerran',
         'it': 'Ogni giorno · 1 volta',
-        'pt': 'Diariamente · 1 vez',
+        'pt-PT': 'Diariamente · 1 vez',
         'ru': 'Ежедневно · 1 раз',
         'ar': 'يوميًا · مرة واحدة',
       };
       for (final entry in singularCountSummaries.entries) {
         expect(
-          await summary(Locale(entry.key), rule(count: 1)),
+          await summary(busyMaxLocaleFromTag(entry.key)!, rule(count: 1)),
           entry.value,
           reason: entry.key,
         );
@@ -1015,10 +1103,42 @@ void main() {
         await summary(const Locale('ar'), weekly),
         'أسبوعيًا في الاثنين والأربعاء',
       );
+      expect(
+        await summary(const Locale('de'), weekly),
+        'Wöchentlich montags und mittwochs',
+      );
+      expect(
+        await summary(const Locale('et'), weekly),
+        'Iga nädal esmaspäeviti ja kolmapäeviti',
+      );
+      expect(
+        await summary(const Locale('fi'), weekly),
+        'Viikoittain maanantaisin ja keskiviikkoisin',
+      );
+      expect(
+        await summary(const Locale('fr'), weekly),
+        'Hebdomadaire le lundi et le mercredi',
+      );
+      expect(
+        await summary(const Locale('it'), weekly),
+        'Ogni settimana il lunedì e il mercoledì',
+      );
+      expect(
+        await summary(const Locale('pt', 'PT'), weekly),
+        'Semanalmente à segunda-feira e à quarta-feira',
+      );
+      expect(
+        await summary(const Locale('ru'), weekly),
+        'Еженедельно по понедельникам и средам',
+      );
 
       final monthly = rule(
         frequency: RecurrenceFrequency.monthly,
         byMonthDay: const [1, 15],
+      );
+      final monthlyThreeDates = rule(
+        frequency: RecurrenceFrequency.monthly,
+        byMonthDay: const [1, 15, 20],
       );
       expect(
         await summary(const Locale('en'), monthly),
@@ -1026,6 +1146,26 @@ void main() {
       );
       expect(await summary(const Locale('ja'), monthly), '毎月1日、15日');
       expect(await summary(const Locale('zh'), monthly), '每月1日、15日');
+      expect(
+        await summary(const Locale('hi'), monthly),
+        'हर महीने की 1 और 15 तारीखों को',
+      );
+      expect(
+        await summary(const Locale('ar'), monthly),
+        'شهريًا في يومي 1 و15 من الشهر',
+      );
+      expect(
+        await summary(const Locale('en'), monthlyThreeDates),
+        'Monthly on days 1, 15 and 20',
+      );
+      expect(
+        await summary(const Locale('hi'), monthlyThreeDates),
+        'हर महीने की 1, 15 और 20 तारीखों को',
+      );
+      expect(
+        await summary(const Locale('ar'), monthlyThreeDates),
+        'شهريًا في الأيام 1، 15 و20 من الشهر',
+      );
     },
   );
 
@@ -1038,6 +1178,17 @@ void main() {
     expect(source, isNot(contains('repeatMonthDayListSeparator')));
     expect(source, contains('repeatWeekdayListPair'));
     expect(source, contains('repeatMonthDayListPair'));
+    expect(source, contains('repeatWeeklyDaySummary'));
+    expect(
+      source,
+      isNot(contains('l10n.repeatYearlyInMonthsOnOrdinalSummary')),
+    );
+    expect(
+      source,
+      contains(
+        '!widget.limits.allowMultipleMonths || _value.bySetPosition != null',
+      ),
+    );
   });
 
   test('Persian dynamic numbers use Persian digits', () {
@@ -1052,6 +1203,78 @@ void main() {
     // package:intl intentionally uses Latin digits for the generic ar locale.
     expect(AppLocalizationsAr().moreItems(12), contains('${fsi}12$pdi'));
   });
+
+  test('all human-facing Persian numeric placeholders use Persian digits', () {
+    final fa = AppLocalizationsFa();
+    final valuesWithTwelve = <String>[
+      fa.calendarColorOption(12),
+      fa.moreItems(12),
+      fa.trayTasksDueToday(12),
+      fa.trayLastSyncedMinutesAgo(12),
+      fa.trayLastSyncedHoursAgo(12),
+      fa.trayLastSyncedDaysAgo(12),
+      fa.reminderMinutesBefore(12),
+      fa.reminderHoursBefore(12),
+      fa.reminderDaysBefore(12),
+      fa.completionPercent(12),
+      fa.relatedRemindersDescription(12),
+      fa.repeatEveryDays(12),
+      fa.repeatEveryWeeks(12),
+      fa.repeatEveryMonths(12),
+      fa.repeatEveryYears(12),
+      fa.repeatTimesSummary(12),
+      fa.pendingOpAttempts(12),
+      fa.dueTodayNotificationBody(12),
+      fa.weekNumberTooltip(12),
+      fa.scheduleItemCount(12),
+      fa.importEventsFound(12),
+      fa.importInvalidEvents(12),
+      fa.importQueued(12),
+      fa.importDuplicatesSkipped(12),
+      fa.importUnsupportedSets(12),
+    ];
+    for (final value in valuesWithTwelve) {
+      expect(value, contains('۱۲'), reason: value);
+      expect(value, isNot(contains('12')), reason: value);
+    }
+    for (final value in [
+      fa.priorityHighValue(4),
+      fa.priorityMediumValue(4),
+      fa.priorityLowValue(4),
+    ]) {
+      expect(value, contains('۴'), reason: value);
+      expect(value, isNot(contains('4')), reason: value);
+    }
+  });
+
+  test(
+    'Finnish and Arabic quantities select singular and Arabic dual forms',
+    () {
+      final fi = lookupAppLocalizations(const Locale('fi'));
+      final ar = AppLocalizationsAr();
+      const fsi = '\u2068';
+      const pdi = '\u2069';
+
+      expect(fi.moreItems(1), '+1 muu');
+      expect(fi.moreItems(2), '+2 muuta');
+      expect(ar.moreItems(1), '+عنصر واحد آخر');
+      expect(ar.moreItems(2), '+عنصران آخران');
+      expect(ar.moreItems(3), '+${fsi}3$pdi عناصر أخرى');
+      expect(ar.moreItems(11), '+${fsi}11$pdi عنصرًا آخر');
+
+      expect(ar.trayLastSyncedMinutesAgo(2), 'تمت المزامنة قبل دقيقتين');
+      expect(ar.trayLastSyncedHoursAgo(2), 'تمت المزامنة قبل ساعتين');
+      expect(ar.trayLastSyncedDaysAgo(2), 'تمت المزامنة قبل يومين');
+      expect(
+        ar.trayLastSyncedMinutesAgo(3),
+        'تمت المزامنة قبل ${fsi}3$pdi دقائق',
+      );
+      expect(
+        ar.trayLastSyncedMinutesAgo(11),
+        'تمت المزامنة قبل ${fsi}11$pdi دقيقة',
+      );
+    },
+  );
 
   test('yearly recurrence month forms cover every month', () {
     const monthKeys = [
@@ -1180,7 +1403,7 @@ void main() {
   });
 
   test('every selectable locale has a generated catalog', () {
-    final generated = AppLocalizations.supportedLocales.toSet()
+    final generated = busyMaxSupportedLocales.toSet()
       ..remove(const Locale('zh'));
     final selectable = busyMaxLocaleOptions
         .map((option) => option.locale)
@@ -1210,7 +1433,8 @@ Iterable<File> _translatedArbFiles() sync* {
   for (final entity in Directory('lib/l10n').listSync()) {
     if (entity is File &&
         entity.path.endsWith('.arb') &&
-        !entity.path.endsWith('app_en.arb')) {
+        !entity.path.endsWith('app_en.arb') &&
+        !entity.path.endsWith('app_pt.arb')) {
       yield entity;
     }
   }

@@ -13,6 +13,67 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'الاثنين',
+      'TU': 'الثلاثاء',
+      'WE': 'الأربعاء',
+      'TH': 'الخميس',
+      'FR': 'الجمعة',
+      'SA': 'السبت',
+      'SU': 'الأحد',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return 'في يومي $first و$second من الشهر';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency في يومي $firstDay و$secondDay من $month';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency في اليوم $day من شهري $firstMonth و$secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency في يومي $firstDay و$secondDay من شهري $firstMonth و$secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency في الأيام $days من شهري $firstMonth و$secondMonth';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
@@ -138,7 +199,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String calendarCreateFailed(String error) {
-    return 'تعذّر إنشاء التقويم: $error';
+    return 'تعذّر إنشاء التقويم: ⁨$error⁩';
   }
 
   @override
@@ -147,12 +208,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String calendarUpdateFailed(String error) {
-    return 'تعذّر تحديث التقويم: $error';
+    return 'تعذّر تحديث التقويم: ⁨$error⁩';
   }
 
   @override
   String calendarDeleteFailed(String error) {
-    return 'تعذّر حذف التقويم: $error';
+    return 'تعذّر حذف التقويم: ⁨$error⁩';
   }
 
   @override
@@ -178,7 +239,20 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+⁨$count⁩ عناصر أخرى';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '+⁨$countString⁩ عنصر آخر',
+      many: '+⁨$countString⁩ عنصرًا آخر',
+      few: '+⁨$countString⁩ عناصر أخرى',
+      two: '+عنصران آخران',
+      one: '+عنصر واحد آخر',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -249,9 +323,9 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count مهمة مستحقة اليوم',
-      many: '$count مهمة مستحقة اليوم',
-      few: '$count مهام مستحقة اليوم',
+      other: '⁨$count⁩ مهمة مستحقة اليوم',
+      many: '⁨$count⁩ مهمة مستحقة اليوم',
+      few: '⁨$count⁩ مهام مستحقة اليوم',
       two: 'مهمتان مستحقتان اليوم',
       one: 'مهمة واحدة مستحقة اليوم',
       zero: 'لا توجد مهام مستحقة اليوم',
@@ -282,7 +356,10 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'تمت المزامنة قبل $count دقائق',
+      other: 'تمت المزامنة قبل ⁨$count⁩ دقيقة',
+      many: 'تمت المزامنة قبل ⁨$count⁩ دقيقة',
+      few: 'تمت المزامنة قبل ⁨$count⁩ دقائق',
+      two: 'تمت المزامنة قبل دقيقتين',
       one: 'تمت المزامنة قبل دقيقة واحدة',
     );
     return '$_temp0';
@@ -293,7 +370,10 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'تمت المزامنة قبل $count ساعات',
+      other: 'تمت المزامنة قبل ⁨$count⁩ ساعة',
+      many: 'تمت المزامنة قبل ⁨$count⁩ ساعة',
+      few: 'تمت المزامنة قبل ⁨$count⁩ ساعات',
+      two: 'تمت المزامنة قبل ساعتين',
       one: 'تمت المزامنة قبل ساعة واحدة',
     );
     return '$_temp0';
@@ -304,7 +384,10 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'تمت المزامنة قبل $count أيام',
+      other: 'تمت المزامنة قبل ⁨$count⁩ يوم',
+      many: 'تمت المزامنة قبل ⁨$count⁩ يومًا',
+      few: 'تمت المزامنة قبل ⁨$count⁩ أيام',
+      two: 'تمت المزامنة قبل يومين',
       one: 'تمت المزامنة قبل يوم واحد',
     );
     return '$_temp0';
@@ -396,7 +479,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get guests => 'المدعوون';
 
   @override
-  String get noGuests => 'لا يوجد ضيوف';
+  String get noGuests => 'لا يوجد مدعوون';
 
   @override
   String get attendeeRequired => 'مطلوب';
@@ -420,32 +503,32 @@ class AppLocalizationsAr extends AppLocalizations {
   String get requestResponses => 'طلب الردود';
 
   @override
-  String get requestResponsesDescription => 'اطلب من الضيوف الرد على الدعوة.';
+  String get requestResponsesDescription => 'اطلب من المدعوين الرد على الدعوة.';
 
   @override
-  String get hideGuestList => 'إخفاء قائمة الضيوف';
+  String get hideGuestList => 'إخفاء قائمة المدعوين';
 
   @override
   String get hideGuestListDescription =>
-      'لا يمكن للضيوف رؤية المدعوين الآخرين.';
+      'لا يمكن للمدعوين رؤية المدعوين الآخرين.';
 
   @override
   String get allowNewTimeProposals => 'السماح باقتراح أوقات جديدة';
 
   @override
   String get allowNewTimeProposalsDescription =>
-      'يمكن للضيوف اقتراح وقت مختلف للاجتماع.';
+      'يمكن للمدعوين اقتراح وقت مختلف للاجتماع.';
 
   @override
-  String get notifyGuestsTitle => 'إبلاغ الضيوف؟';
+  String get notifyGuestsTitle => 'إبلاغ المدعوين؟';
 
   @override
   String get notifyGuestsSaveMessage =>
-      'يضم هذا الاجتماع ضيوفًا. هل تريد إرسال الدعوات أو تحديثات الحدث عند حفظه؟';
+      'يضم هذا الاجتماع مدعوين. هل تريد إرسال الدعوات أو تحديثات الحدث عند حفظه؟';
 
   @override
   String get notifyGuestsDeleteMessage =>
-      'يضم هذا الاجتماع ضيوفًا. هل تريد إرسال إلغاء عند حذفه؟';
+      'يضم هذا الاجتماع مدعوين. هل تريد إرسال إلغاء عند حذفه؟';
 
   @override
   String get sendUpdates => 'إرسال التحديثات';
@@ -461,14 +544,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'سترسل Microsoft الدعوات أو تحديثات الحدث إلى الضيوف.';
+      'سترسل Microsoft الدعوات أو تحديثات الحدث إلى المدعوين.';
 
   @override
   String get microsoftNotifyGuestsDeleteTitle => 'حذف الاجتماع؟';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'سترسل Microsoft إلغاءً إلى الضيوف.';
+      'سترسل Microsoft إلغاءً إلى المدعوين.';
 
   @override
   String get organizer => 'المنظّم';
@@ -477,7 +560,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get yourResponse => 'ردك';
 
   @override
-  String get guestResponses => 'ردود الضيوف';
+  String get guestResponses => 'ردود المدعوين';
 
   @override
   String get respond => 'الرد';
@@ -514,7 +597,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String invitationResponseFailed(String error) {
-    return 'تعذّر إرسال ردك: $error';
+    return 'تعذّر إرسال ردك: ⁨$error⁩';
   }
 
   @override
@@ -564,12 +647,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: 'قبل ⁨$minutes⁩ دقيقة',
-      many: 'قبل ⁨$minutes⁩ دقيقة',
-      few: 'قبل ⁨$minutes⁩ دقائق',
+      other: 'قبل ⁨$minutesString⁩ دقيقة',
+      many: 'قبل ⁨$minutesString⁩ دقيقة',
+      few: 'قبل ⁨$minutesString⁩ دقائق',
       two: 'قبل دقيقتين',
       one: 'قبل دقيقة واحدة',
       zero: 'عند البدء',
@@ -582,12 +669,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: 'قبل ⁨$hours⁩ ساعة',
-      many: 'قبل ⁨$hours⁩ ساعة',
-      few: 'قبل ⁨$hours⁩ ساعات',
+      other: 'قبل ⁨$hoursString⁩ ساعة',
+      many: 'قبل ⁨$hoursString⁩ ساعة',
+      few: 'قبل ⁨$hoursString⁩ ساعات',
       two: 'قبل ساعتين',
       one: 'قبل ساعة واحدة',
       zero: 'عند البدء',
@@ -597,12 +688,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: 'قبل ⁨$days⁩ يوم',
-      many: 'قبل ⁨$days⁩ يومًا',
-      few: 'قبل ⁨$days⁩ أيام',
+      other: 'قبل ⁨$daysString⁩ يوم',
+      many: 'قبل ⁨$daysString⁩ يومًا',
+      few: 'قبل ⁨$daysString⁩ أيام',
       two: 'قبل يومين',
       one: 'قبل يوم واحد',
       zero: 'في اليوم نفسه',
@@ -648,7 +744,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String tasksInList(String title) {
-    return 'المهام في ⁨$title⁩';
+    return 'المهام في ⁨⁨$title⁩⁩';
   }
 
   @override
@@ -828,7 +924,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String feedbackSuccess(String id) {
-    return 'تم إرسال الملاحظات. المرجع: ⁨$id⁩';
+    return 'تم إرسال الملاحظات. المرجع: ⁨⁨$id⁩⁩';
   }
 
   @override
@@ -876,7 +972,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return 'إزالة ⁨$account⁩ من BusyMax؟';
+    return 'إزالة ⁨⁨$account⁩⁩ من BusyMax؟';
   }
 
   @override
@@ -906,17 +1002,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'تعذّر إنشاء قائمة المهام: $error';
+    return 'تعذّر إنشاء قائمة المهام: ⁨$error⁩';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'تعذّر إعادة تسمية قائمة المهام: $error';
+    return 'تعذّر إعادة تسمية قائمة المهام: ⁨$error⁩';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'تعذّر حذف قائمة المهام: $error';
+    return 'تعذّر حذف قائمة المهام: ⁨$error⁩';
   }
 
   @override
@@ -960,17 +1056,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return 'حذف \"⁨$title⁩\" من Google Tasks؟';
+    return 'حذف \"⁨⁨$title⁩⁩\" من Google Tasks؟';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'حذف \"$title\" وجميع مهامها؟';
+    return 'حذف \"⁨$title⁩\" وجميع مهامها؟';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'إلغاء مشاركة \"$title\" من هذا الحساب؟';
+    return 'إلغاء مشاركة \"⁨$title⁩\" من هذا الحساب؟';
   }
 
   @override
@@ -1002,17 +1098,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String exportedFile(String path) {
-    return 'تم التصدير إلى ⁨$path⁩';
+    return 'تم التصدير إلى ⁨⁨$path⁩⁩';
   }
 
   @override
   String exportFailed(String error) {
-    return 'فشل التصدير: ⁨$error⁩';
+    return 'فشل التصدير: ⁨⁨$error⁩⁩';
   }
 
   @override
   String refreshFailed(String error) {
-    return 'فشل التحديث: ⁨$error⁩';
+    return 'فشل التحديث: ⁨⁨$error⁩⁩';
   }
 
   @override
@@ -1053,12 +1149,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String duePrefix(String date) {
-    return 'مستحقة في ⁨$date⁩';
+    return 'مستحقة في ⁨⁨$date⁩⁩';
   }
 
   @override
   String dateTimeDisplay(String date, String time) {
-    return '⁨$date⁩ · ⁨$time⁩';
+    return '⁨⁨$date⁩⁩ · ⁨⁨$time⁩⁩';
   }
 
   @override
@@ -1114,7 +1210,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return 'اكتمل بنسبة $percent٪';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return 'اكتمل بنسبة $percentString٪';
   }
 
   @override
@@ -1128,17 +1228,29 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return 'الأولوية $priority · عالية';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'الأولوية $priorityString · عالية';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'الأولوية $priority · متوسطة';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'الأولوية $priorityString · متوسطة';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'الأولوية $priority · منخفضة';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'الأولوية $priorityString · منخفضة';
   }
 
   @override
@@ -1267,7 +1379,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'يحتوي هذا التاريخ على $count من التذكيرات المرتبطة. هل تريد الاحتفاظ بها في تاريخها ووقتها الحاليين؟';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'يحتوي هذا التاريخ على $countString من التذكيرات المرتبطة. هل تريد الاحتفاظ بها في تاريخها ووقتها الحاليين؟';
   }
 
   @override
@@ -1392,12 +1508,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatEveryDays(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'كل $count يوم',
-      many: 'كل $count يومًا',
-      few: 'كل $count أيام',
+      other: 'كل $countString يوم',
+      many: 'كل $countString يومًا',
+      few: 'كل $countString أيام',
       two: 'كل يومين',
       one: 'كل يوم',
     );
@@ -1406,12 +1526,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatEveryWeeks(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'كل $count أسبوع',
-      many: 'كل $count أسبوعًا',
-      few: 'كل $count أسابيع',
+      other: 'كل $countString أسبوع',
+      many: 'كل $countString أسبوعًا',
+      few: 'كل $countString أسابيع',
       two: 'كل أسبوعين',
       one: 'كل أسبوع',
     );
@@ -1420,12 +1544,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatEveryMonths(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'كل $count شهر',
-      many: 'كل $count شهرًا',
-      few: 'كل $count أشهر',
+      other: 'كل $countString شهر',
+      many: 'كل $countString شهرًا',
+      few: 'كل $countString أشهر',
       two: 'كل شهرين',
       one: 'كل شهر',
     );
@@ -1434,12 +1562,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatEveryYears(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'كل $count سنة',
-      many: 'كل $count سنة',
-      few: 'كل $count سنوات',
+      other: 'كل $countString سنة',
+      many: 'كل $countString سنة',
+      few: 'كل $countString سنوات',
       two: 'كل سنتين',
       one: 'كل سنة',
     );
@@ -1478,12 +1610,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count مرة',
-      many: '$count مرة',
-      few: '$count مرات',
+      other: '$countString مرة',
+      many: '$countString مرة',
+      few: '$countString مرات',
       two: 'مرتين',
       one: 'مرة واحدة',
     );
@@ -1492,7 +1628,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatUntilSummary(String date) {
-    return 'حتى $date';
+    return 'حتى ⁨$date⁩';
   }
 
   @override
@@ -1501,7 +1637,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
-    return 'لا يمكن استخدام هذا التكرار مع $provider.';
+    return 'لا يمكن استخدام هذا التكرار مع ⁨$provider⁩.';
   }
 
   @override
@@ -1564,7 +1700,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'تعذّر تكرار المهمة: $error';
+    return 'تعذّر تكرار المهمة: ⁨$error⁩';
   }
 
   @override
@@ -1584,7 +1720,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String deleteTaskConfirmation(String title) {
-    return 'حذف «⁨$title⁩»؟';
+    return 'حذف «⁨⁨$title⁩⁩»؟';
   }
 
   @override
@@ -1661,7 +1797,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String syncFailed(String error) {
-    return 'فشلت المزامنة: ⁨$error⁩';
+    return 'فشلت المزامنة: ⁨⁨$error⁩⁩';
   }
 
   @override
@@ -1757,7 +1893,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String discoveryRevision(String revision) {
-    return 'مراجعة Discovery: ⁨$revision⁩';
+    return 'مراجعة Discovery: ⁨⁨$revision⁩⁩';
   }
 
   @override
@@ -1784,17 +1920,21 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String pendingOpListId(String id) {
-    return 'القائمة=⁨$id⁩';
+    return 'القائمة=⁨⁨$id⁩⁩';
   }
 
   @override
   String pendingOpTaskId(String id) {
-    return 'المهمة=⁨$id⁩';
+    return 'المهمة=⁨⁨$id⁩⁩';
   }
 
   @override
   String pendingOpAttempts(int count) {
-    return 'المحاولات=⁨$count⁩';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'المحاولات=⁨$countString⁩';
   }
 
   @override
@@ -1831,7 +1971,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String syncFailureNotificationBody(String message) {
-    return 'فشلت المزامنة في الخلفية. ⁨$message⁩';
+    return 'فشلت المزامنة في الخلفية. ⁨⁨$message⁩⁩';
   }
 
   @override
@@ -1839,7 +1979,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return 'تم حظر تغيير محلي معلق. ⁨$summary⁩';
+    return 'تم حظر تغيير محلي معلق. ⁨⁨$summary⁩⁩';
   }
 
   @override
@@ -1847,12 +1987,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'هناك ⁨$count⁩ مهمة مستحقة اليوم.',
-      many: 'هناك ⁨$count⁩ مهمة مستحقة اليوم.',
-      few: 'هناك ⁨$count⁩ مهام مستحقة اليوم.',
+      other: 'هناك ⁨$countString⁩ مهمة مستحقة اليوم.',
+      many: 'هناك ⁨$countString⁩ مهمة مستحقة اليوم.',
+      few: 'هناك ⁨$countString⁩ مهام مستحقة اليوم.',
       two: 'هناك مهمتان مستحقتان اليوم.',
       one: 'هناك مهمة واحدة مستحقة اليوم.',
       zero: 'لا توجد مهام مستحقة اليوم.',
@@ -1905,7 +2049,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return 'الأسبوع ⁨$number⁩';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'الأسبوع ⁨$numberString⁩';
   }
 
   @override
@@ -1913,12 +2061,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '⁨$count⁩ عنصر',
-      many: '⁨$count⁩ عنصرًا',
-      few: '⁨$count⁩ عناصر',
+      other: '⁨$countString⁩ عنصر',
+      many: '⁨$countString⁩ عنصرًا',
+      few: '⁨$countString⁩ عناصر',
       two: 'عنصران',
       one: 'عنصر واحد',
       zero: 'لا عناصر',
@@ -2076,7 +2228,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'آخر مزامنة ناجحة: $time';
+    return 'آخر مزامنة ناجحة: ⁨$time⁩';
   }
 
   @override
@@ -2087,7 +2239,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String nextcloudServerHost(String host) {
-    return 'الخادم: $host';
+    return 'الخادم: ⁨$host⁩';
   }
 
   @override
@@ -2107,12 +2259,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String collectionLastSynced(String time) {
-    return 'آخر مزامنة: $time';
+    return 'آخر مزامنة: ⁨$time⁩';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'مشكلة في المزامنة: $code';
+    return 'مشكلة في المزامنة: ⁨$code⁩';
   }
 
   @override
@@ -2120,12 +2272,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String remoteChangedAt(String time) {
-    return 'تم التغيير على الخادم في: ⁨$time⁩';
+    return 'تم التغيير على الخادم في: ⁨⁨$time⁩⁩';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'تعديل محلي: $summary';
+    return 'تعديل محلي: ⁨$summary⁩';
   }
 
   @override
@@ -2159,7 +2311,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String copyEventMoveWarning(String source, String destination) {
-    return 'لا يستطيع BusyMax نقل هذا الحدث مباشرةً من $source إلى $destination. سينشئ النسخة أولاً ولن يحذف الأصل إلا بعد نجاح النسخ. ستتغير معرّفات الحدث؛ وقد تُعاد تعيين حالات استجابة الحاضرين وتُرسل دعوات أو إلغاءات؛ وقد لا تُنقل روابط الاجتماعات والمرفقات والتذكيرات والحقول الخاصة بموفّر الخدمة واستثناءات التكرار.';
+    return 'لا يستطيع BusyMax نقل هذا الحدث مباشرةً من ⁨$source⁩ إلى ⁨$destination⁩. سينشئ النسخة أولاً ولن يحذف الأصل إلا بعد نجاح النسخ. ستتغير معرّفات الحدث؛ وقد تُعاد تعيين حالات استجابة الحاضرين وتُرسل دعوات أو إلغاءات؛ وقد لا تُنقل روابط الاجتماعات والمرفقات والتذكيرات والحقول الخاصة بموفّر الخدمة واستثناءات التكرار.';
   }
 
   @override
@@ -2178,7 +2330,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String deleteCalendarConfirmation(String title) {
-    return 'حذف «⁨$title⁩»؟';
+    return 'حذف «⁨⁨$title⁩⁩»؟';
   }
 
   @override
@@ -2195,7 +2347,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String removeCalendarConfirmation(String title) {
-    return 'هل تريد إزالة \"$title\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.';
+    return 'هل تريد إزالة \"⁨$title⁩\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.';
   }
 
   @override
@@ -2257,7 +2409,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String subscriptionSafeOrigin(String origin) {
-    return 'المصدر: $origin';
+    return 'المصدر: ⁨$origin⁩';
   }
 
   @override
@@ -2272,12 +2424,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String subscriptionLastRefresh(String time) {
-    return 'آخر تحديث ناجح: $time';
+    return 'آخر تحديث ناجح: ⁨$time⁩';
   }
 
   @override
   String subscriptionNextRefresh(String time) {
-    return 'التحديث التالي: $time';
+    return 'التحديث التالي: ⁨$time⁩';
   }
 
   @override
@@ -2285,7 +2437,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String subscriptionStatusIssue(String code) {
-    return 'مشكلة في التحديث: $code';
+    return 'مشكلة في التحديث: ⁨$code⁩';
   }
 
   @override
@@ -2296,7 +2448,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String unsubscribeCalendarTitle(String name) {
-    return 'إلغاء الاشتراك من «$name»؟';
+    return 'إلغاء الاشتراك من «⁨$name⁩»؟';
   }
 
   @override
@@ -2308,7 +2460,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String subscriptionOperationFailed(String error) {
-    return 'فشل اشتراك التقويم: $error';
+    return 'فشل اشتراك التقويم: ⁨$error⁩';
   }
 
   @override
@@ -2339,7 +2491,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String importFieldsOmitted(String fields) {
-    return 'تم الاستبعاد عمدًا: $fields';
+    return 'تم الاستبعاد عمدًا: ⁨$fields⁩';
   }
 
   @override
@@ -2371,7 +2523,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String importIcsFailed(String error) {
-    return 'تعذّر استيراد ملف التقويم: $error';
+    return 'تعذّر استيراد ملف التقويم: ⁨$error⁩';
   }
 
   @override
@@ -2387,7 +2539,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummaryMultiple(String days) {
-    return 'في أيام الشهر $days';
+    return 'في الأيام $days من الشهر';
   }
 
   @override

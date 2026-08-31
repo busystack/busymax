@@ -60,6 +60,7 @@ final class RecurrenceRuleLimits {
       case RecurrenceFrequency.yearly:
         return rule.byMonth.isNotEmpty &&
             (allowMultipleMonths || rule.byMonth.length == 1) &&
+            (rule.bySetPosition == null || rule.byMonth.length == 1) &&
             _supportsMonthlyShape(rule);
     }
   }

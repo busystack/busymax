@@ -13,6 +13,67 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'सोमवार',
+      'TU': 'मंगलवार',
+      'WE': 'बुधवार',
+      'TH': 'गुरुवार',
+      'FR': 'शुक्रवार',
+      'SA': 'शनिवार',
+      'SU': 'रविवार',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return 'की $first और $second तारीखों को';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency $month की $firstDay और $secondDay तारीखों को';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency $firstMonth और $secondMonth की $day तारीख को';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency $firstMonth और $secondMonth की $firstDay और $secondDay तारीखों को';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency $firstMonth और $secondMonth की $days तारीखों को';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
@@ -108,7 +169,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get all => 'सभी';
 
   @override
-  String get calendarEvents => 'ईवेंट';
+  String get calendarEvents => 'इवेंट';
 
   @override
   String get calendarTasks => 'कार्य';
@@ -158,7 +219,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get newEvent => 'नया ईवेंट';
+  String get newEvent => 'नया इवेंट';
 
   @override
   String get refreshCalendar => 'कैलेंडर रीफ़्रेश करें';
@@ -180,11 +241,15 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count और';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '+$countString और';
   }
 
   @override
-  String get noEventsOrTasks => 'कोई ईवेंट या कार्य नहीं';
+  String get noEventsOrTasks => 'कोई इवेंट या कार्य नहीं';
 
   @override
   String get scheduleLoading => 'शेड्यूल लोड हो रहा है...';
@@ -208,7 +273,7 @@ class AppLocalizationsHi extends AppLocalizations {
       'कैलेंडर और कार्य सिंक करने के लिए साइन इन करें।';
 
   @override
-  String get scheduleNoSearchResults => 'कोई मिलता-जुलता ईवेंट या कार्य नहीं';
+  String get scheduleNoSearchResults => 'कोई मिलता-जुलता इवेंट या कार्य नहीं';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -363,16 +428,16 @@ class AppLocalizationsHi extends AppLocalizations {
   String get createChoiceTitle => 'बनाएँ';
 
   @override
-  String get createEventAtTime => 'ईवेंट';
+  String get createEventAtTime => 'इवेंट';
 
   @override
   String get createTaskAtDate => 'कार्य';
 
   @override
-  String get editEvent => 'ईवेंट संपादित करें';
+  String get editEvent => 'इवेंट संपादित करें';
 
   @override
-  String get eventTitle => 'ईवेंट का शीर्षक';
+  String get eventTitle => 'इवेंट का शीर्षक';
 
   @override
   String get location => 'स्थान';
@@ -565,10 +630,14 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: '$minutes मिनट पहले',
+      other: '$minutesString मिनट पहले',
       one: '1 मिनट पहले',
     );
     return '$_temp0';
@@ -579,10 +648,14 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: '$hours घंटे पहले',
+      other: '$hoursString घंटे पहले',
       one: '1 घंटा पहले',
     );
     return '$_temp0';
@@ -590,10 +663,15 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: '$days दिन पहले',
+      other: '$daysString दिन पहले',
       one: '1 दिन पहले',
     );
     return '$_temp0';
@@ -700,10 +778,10 @@ class AppLocalizationsHi extends AppLocalizations {
   String get shortcutGroupCreateAndEdit => 'बनाएँ और संपादित करें';
 
   @override
-  String get shortcutSaveItem => 'ईवेंट या कार्य सहेजें';
+  String get shortcutSaveItem => 'इवेंट या कार्य सहेजें';
 
   @override
-  String get shortcutDeleteItem => 'ईवेंट या कार्य मिटाएँ';
+  String get shortcutDeleteItem => 'इवेंट या कार्य मिटाएँ';
 
   @override
   String get shortcutGroupTaskEditing => 'कार्य संपादन';
@@ -964,7 +1042,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get deleteEvent => 'ईवेंट मिटाएँ';
+  String get deleteEvent => 'इवेंट मिटाएँ';
 
   @override
   String get title => 'शीर्षक';
@@ -1107,7 +1185,11 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return '$percent% पूर्ण';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString% पूर्ण';
   }
 
   @override
@@ -1121,17 +1203,29 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return 'प्राथमिकता $priority · उच्च';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'प्राथमिकता $priorityString · उच्च';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'प्राथमिकता $priority · मध्यम';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'प्राथमिकता $priorityString · मध्यम';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'प्राथमिकता $priority · निम्न';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'प्राथमिकता $priorityString · निम्न';
   }
 
   @override
@@ -1260,7 +1354,11 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'इस तारीख पर $count संबंधित रिमाइंडर हैं। इन्हें उनकी मौजूदा तारीख और समय पर रखें?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'इस तारीख पर $countString संबंधित रिमाइंडर हैं। इन्हें उनकी मौजूदा तारीख और समय पर रखें?';
   }
 
   @override
@@ -1385,22 +1483,38 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String repeatEveryDays(int count) {
-    return 'हर $count दिन';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'हर $countString दिन';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'हर $count सप्ताह';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'हर $countString सप्ताह';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'हर $count महीने';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'हर $countString महीने';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'हर $count साल';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'हर $countString साल';
   }
 
   @override
@@ -1410,7 +1524,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'के $daysवें दिन';
+    return 'की $days तारीख को';
   }
 
   @override
@@ -1435,11 +1549,15 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count बार',
-      one: '$count बार',
+      other: '$countString बार',
+      one: '$countString बार',
     );
     return '$_temp0';
   }
@@ -1628,7 +1746,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get notifyDueToday => 'आज देय कार्यों की सूचनाएँ';
 
   @override
-  String get eventReminders => 'ईवेंट रिमाइंडर';
+  String get eventReminders => 'इवेंट रिमाइंडर';
 
   @override
   String get onState => 'चालू';
@@ -1748,7 +1866,11 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return 'प्रयास=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'प्रयास=$countString';
   }
 
   @override
@@ -1801,23 +1923,27 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'आज $count कार्य देय हैं।',
+      other: 'आज $countString कार्य देय हैं।',
       one: 'आज एक कार्य देय है।',
     );
     return '$_temp0';
   }
 
   @override
-  String get eventReminderNotificationTitle => 'ईवेंट रिमाइंडर';
+  String get eventReminderNotificationTitle => 'इवेंट रिमाइंडर';
 
   @override
   String get taskReminderNotificationTitle => 'कार्य रिमाइंडर';
 
   @override
-  String get eventReminderNotificationBody => 'ईवेंट जल्द शुरू होगा।';
+  String get eventReminderNotificationBody => 'इवेंट जल्द शुरू होगा।';
 
   @override
   String get taskReminderNotificationBody => 'कार्य जल्द देय है।';
@@ -1855,7 +1981,11 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return 'सप्ताह $number';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'सप्ताह $numberString';
   }
 
   @override
@@ -1863,10 +1993,14 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count आइटम',
+      other: '$countString आइटम',
       one: '1 आइटम',
     );
     return '$_temp0';
@@ -2337,7 +2471,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummaryMultiple(String days) {
-    return 'के $daysवें दिन';
+    return 'की $days तारीखों को';
   }
 
   @override

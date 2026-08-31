@@ -1,5 +1,11 @@
 {
   "@@locale": "fa",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{دوشنبه} TU{سه‌شنبه} WE{چهارشنبه} TH{پنجشنبه} FR{جمعه} SA{شنبه} SU{یکشنبه} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "در روزهای {first} و {second} ماه",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} در روزهای {firstDay} و {secondDay} ماه {month}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} در روز {day} ماه‌های {firstMonth} و {secondMonth}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} در روزهای {firstDay} و {secondDay} ماه‌های {firstMonth} و {secondMonth}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} در روزهای {days} ماه‌های {firstMonth} و {secondMonth}",
   "appTitle": "BusyMax",
   "connectGoogleAccount": "حساب‌های Google، Microsoft، Apple iCloud Calendar یا Nextcloud را متصل کنید.",
   "googlePermissionsConsentNotice": "در صفحهٔ مجوزهای Google، مجوزهای تقویم و کارها را هر دو انتخاب کنید.",
@@ -39,13 +45,14 @@
   "@calendarColorOption": {
     "placeholders": {
       "number": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
   "calendarManagementUnsupported": "این ارائه‌دهنده از مدیریت تقویم در BusyMax پشتیبانی نمی‌کند.",
   "primaryCalendarCannotDelete": "تقویم اصلی را نمی‌توان حذف کرد.",
-  "calendarCreateFailed": "ایجاد تقویم ممکن نشد: {error}",
+  "calendarCreateFailed": "ایجاد تقویم ممکن نشد: ⁨{error}⁩",
   "calendarCreatedRefreshPending": "تقویم ایجاد شد، اما BusyMax نتوانست حساب را تازه‌سازی کند. پس از همگام‌سازی بعدی نمایش داده می‌شود.",
   "@calendarCreateFailed": {
     "placeholders": {
@@ -54,7 +61,7 @@
       }
     }
   },
-  "calendarUpdateFailed": "به‌روزرسانی تقویم ممکن نشد: {error}",
+  "calendarUpdateFailed": "به‌روزرسانی تقویم ممکن نشد: ⁨{error}⁩",
   "@calendarUpdateFailed": {
     "placeholders": {
       "error": {
@@ -62,7 +69,7 @@
       }
     }
   },
-  "calendarDeleteFailed": "حذف تقویم ممکن نشد: {error}",
+  "calendarDeleteFailed": "حذف تقویم ممکن نشد: ⁨{error}⁩",
   "@calendarDeleteFailed": {
     "placeholders": {
       "error": {
@@ -102,7 +109,8 @@
   "@trayTasksDueToday": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -116,7 +124,8 @@
   "@trayLastSyncedMinutesAgo": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -124,7 +133,8 @@
   "@trayLastSyncedHoursAgo": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -132,7 +142,8 @@
   "@trayLastSyncedDaysAgo": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -164,7 +175,7 @@
   "doesNotRepeat": "تکرار نمی‌شود",
   "defaultReminder": "یادآور پیش‌فرض",
   "guests": "مهمانان",
-  "noGuests": "مهمانی وجود ندارد",
+  "noGuests": "فهرست مهمانان خالی است",
   "description": "توضیحات",
   "availabilityShowAs": "وضعیت دسترسی / نمایش به‌عنوان",
   "busy": "مشغول",
@@ -195,7 +206,7 @@
   "sensitivityPersonal": "شخصی",
   "tasks": "کارها",
   "allTasks": "همهٔ کارها",
-  "tasksInList": "کارهای ⁨{title}⁩",
+  "tasksInList": "کارهای ⁨⁨{title}⁩⁩",
   "taskLists": "فهرست‌های کار",
   "navigation": "پیمایش",
   "mainMenu": "منوی اصلی",
@@ -250,7 +261,7 @@
   "feedbackRateLimitedError": "بازخوردهای بیش از حدی از این شبکه ارسال شده است. کمی صبر کنید و دوباره تلاش کنید.",
   "feedbackRejectedError": "سرور ارسال را رد کرد. فیلدها را بررسی و دوباره تلاش کنید.",
   "feedbackServerError": "BusyStack اکنون نمی‌تواند بازخورد شما را بپذیرد. بازخورد شما پاک نشده است؛ دوباره تلاش کنید.",
-  "feedbackSuccess": "بازخورد ارسال شد. شناسهٔ پیگیری: ⁨{id}⁩",
+  "feedbackSuccess": "بازخورد ارسال شد. شناسهٔ پیگیری: ⁨⁨{id}⁩⁩",
   "toggleSidebar": "نمایش یا پنهان کردن نوار کناری",
   "showSidebar": "نمایش پنل کناری",
   "hideSidebar": "پنهان کردن پنل کناری",
@@ -265,7 +276,7 @@
   "removeAccount": "حذف حساب…",
   "removingAccount": "در حال حذف حساب…",
   "removeAccountDescription": "همگام‌سازی را متوقف و داده‌های این حساب را از این دستگاه حذف کنید.",
-  "removeAccountTitle": "⁨{account}⁩ از BusyMax حذف شود؟",
+  "removeAccountTitle": "⁨⁨{account}⁩⁩ از BusyMax حذف شود؟",
   "removeAccountConfirmation": "این کار، کارها، تقویم‌ها، رویدادها، یادآورها و تغییرات آفلاین در انتظار را که در این دستگاه ذخیره شده‌اند حذف می‌کند. تغییرات همگام‌نشده از بین می‌روند. نسخه‌های تقویم‌ها، رویدادها، فهرست‌های کار و کارها نزد ارائه‌دهنده حذف نمی‌شوند.",
   "revokeGoogleAccess": "دسترسی BusyMax به این حساب Google نیز لغو شود",
   "revokeGoogleAccessDescription": "پیش از اتصال دوباره باید دسترسی را دوباره اعطا کنید.",
@@ -282,7 +293,7 @@
   "deleteList": "حذف فهرست",
   "builtInMicrosoftList": "داخلی",
   "builtInMicrosoftListCannotRenameDelete": "فهرست‌های داخلی Microsoft To Do را نمی‌توان تغییر نام داد یا حذف کرد.",
-  "deleteListConfirmation": "‏«⁨{title}⁩» از Google Tasks حذف شود؟",
+  "deleteListConfirmation": "‏«⁨⁨{title}⁩⁩» از Google Tasks حذف شود؟",
   "deleteEvent": "حذف رویداد",
   "title": "عنوان",
   "create": "ایجاد",
@@ -292,9 +303,9 @@
   "refreshAll": "تازه‌سازی همه",
   "listRefreshed": "فهرست تازه‌سازی شد.",
   "allTasksRefreshed": "همهٔ حساب‌ها تازه‌سازی شدند.",
-  "exportedFile": "در ⁨{path}⁩ خروجی گرفته شد",
-  "exportFailed": "خروجی گرفتن ناموفق بود: ⁨{error}⁩",
-  "refreshFailed": "تازه‌سازی ناموفق بود: ⁨{error}⁩",
+  "exportedFile": "در ⁨⁨{path}⁩⁩ خروجی گرفته شد",
+  "exportFailed": "خروجی گرفتن ناموفق بود: ⁨⁨{error}⁩⁩",
+  "refreshFailed": "تازه‌سازی ناموفق بود: ⁨⁨{error}⁩⁩",
   "selectOrCreateTaskList": "برای شروع، یک فهرست کار انتخاب یا ایجاد کنید.",
   "signInToViewTasks": "برای دیدن کارها وارد شوید.",
   "noTasks": "هیچ کاری وجود ندارد.",
@@ -307,8 +318,8 @@
   "upcoming": "پیش رو",
   "noDate": "بدون تاریخ",
   "completed": "انجام‌شده",
-  "duePrefix": "سررسید: ⁨{date}⁩",
-  "dateTimeDisplay": "⁨{date}⁩ · ⁨{time}⁩",
+  "duePrefix": "سررسید: ⁨⁨{date}⁩⁩",
+  "dateTimeDisplay": "⁨⁨{date}⁩⁩ · ⁨⁨{time}⁩⁩",
   "taskDetails": "جزئیات کار",
   "editTask": "ویرایش کار",
   "noTaskSelected": "هیچ کاری انتخاب نشده است.",
@@ -363,7 +374,7 @@
   "moveToTop": "انتقال به بالاترین جایگاه",
   "deleteTask": "حذف کار",
   "newSubtask": "زیرکار جدید",
-  "deleteTaskConfirmation": "«⁨{title}⁩» حذف شود؟",
+  "deleteTaskConfirmation": "«⁨⁨{title}⁩⁩» حذف شود؟",
   "metadata": "فراداده",
   "id": "شناسه",
   "etag": "ETag",
@@ -387,7 +398,7 @@
   "launchAtLoginFailed": "تنظیم اجرای هنگام ورود به‌روزرسانی نشد.",
   "requiresTrayIcon": "به نماد سینی سیستم نیاز دارد.",
   "syncComplete": "همگام‌سازی کامل شد.",
-  "syncFailed": "همگام‌سازی ناموفق بود: ⁨{error}⁩",
+  "syncFailed": "همگام‌سازی ناموفق بود: ⁨⁨{error}⁩⁩",
   "notifySyncFailures": "اعلان هنگام شکست همگام‌سازی",
   "notifyConflicts": "اعلان هنگام تداخل",
   "notifyDueToday": "اعلان کارهای دارای سررسید امروز",
@@ -418,7 +429,7 @@
   "diagnostics": "اطلاعات تشخیصی",
   "apiInspectorDisabled": "نمایش بازرس API",
   "googleTasksApi": "رابط Google Tasks API",
-  "discoveryRevision": "بازبینی Discovery: ⁨{revision}⁩",
+  "discoveryRevision": "بازبینی Discovery: ⁨⁨{revision}⁩⁩",
   "implementedMethods": "روش‌های پیاده‌سازی‌شده",
   "supportsTasksScopes": "از محدوده‌های tasks و tasks.readonly پشتیبانی می‌کند",
   "requiresTasksScope": "به محدودهٔ tasks نیاز دارد",
@@ -426,8 +437,8 @@
   "signInToInspectPendingOperations": "برای بررسی عملیات در انتظار وارد شوید.",
   "noBlockedPendingOperations": "هیچ عملیات در انتظار مسدودشده‌ای وجود ندارد.",
   "operationActions": "اقدامات عملیات",
-  "pendingOpListId": "فهرست=⁨{id}⁩",
-  "pendingOpTaskId": "کار=⁨{id}⁩",
+  "pendingOpListId": "فهرست=⁨⁨{id}⁩⁩",
+  "pendingOpTaskId": "کار=⁨⁨{id}⁩⁩",
   "pendingOpAttempts": "تلاش‌ها=⁨{count}⁩",
   "retry": "تلاش دوباره",
   "discard": "کنار گذاشتن",
@@ -439,9 +450,9 @@
   "discardPendingOperationConfirmation": "با این کار عملیات محلی مسدودشده حذف می‌شود. در همگام‌سازی بعدی، داده‌ها از Google Tasks تازه‌سازی می‌شوند.",
   "pendingOperationDiscarded": "عملیات در انتظار کنار گذاشته شد.",
   "syncFailureNotificationTitle": "همگام‌سازی BusyMax ناموفق بود",
-  "syncFailureNotificationBody": "همگام‌سازی پس‌زمینه ناموفق بود. ⁨{message}⁩",
+  "syncFailureNotificationBody": "همگام‌سازی پس‌زمینه ناموفق بود. ⁨⁨{message}⁩⁩",
   "conflictNotificationTitle": "تداخل همگام‌سازی BusyMax",
-  "conflictNotificationBody": "یک تغییر محلی در انتظار مسدود شد. ⁨{summary}⁩",
+  "conflictNotificationBody": "یک تغییر محلی در انتظار مسدود شد. ⁨⁨{summary}⁩⁩",
   "dueTodayNotificationTitle": "کارهای دارای سررسید امروز",
   "dueTodayNotificationBody": "{count, plural, =0{امروز هیچ کاری سررسید ندارد.} =1{امروز یک کار سررسید دارد.} other{امروز ⁨{count}⁩ کار سررسید دارند.}}",
   "eventReminderNotificationTitle": "یادآور رویداد",
@@ -503,7 +514,7 @@
   "keepServerVersion": "نگه‌داشتن نسخهٔ سرور",
   "reapplyLocalChange": "بررسی و اعمال دوبارهٔ تغییر محلی",
   "duplicateLocalItem": "تکرار به‌عنوان مورد جدید",
-  "deleteCalendarConfirmation": "«⁨{title}⁩» حذف شود؟",
+  "deleteCalendarConfirmation": "«⁨⁨{title}⁩⁩» حذف شود؟",
   "@moreItems": {
     "placeholders": {
       "count": {
@@ -572,7 +583,7 @@
   "davConnected": "متصل",
   "davConnecting": "در حال اتصال…",
   "davSignedOut": "خارج‌شده",
-  "davLastSuccessfulSync": "آخرین همگام‌سازی موفق: {time}",
+  "davLastSuccessfulSync": "آخرین همگام‌سازی موفق: ⁨{time}⁩",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -582,7 +593,7 @@
   },
   "davNeverSynced": "هنوز همگام نشده",
   "refreshCollections": "تازه‌سازی تقویم‌ها و فهرست‌های کار",
-  "nextcloudServerHost": "سرور: {host}",
+  "nextcloudServerHost": "سرور: ⁨{host}⁩",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -595,7 +606,7 @@
   "collectionSupportsEventsAndTasks": "رویدادها و کارها",
   "writableCollection": "قابل نوشتن",
   "sharedCollection": "اشتراکی",
-  "collectionLastSynced": "آخرین همگام‌سازی: {time}",
+  "collectionLastSynced": "آخرین همگام‌سازی: ⁨{time}⁩",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -603,7 +614,7 @@
       }
     }
   },
-  "collectionSyncError": "مشکل همگام‌سازی: {code}",
+  "collectionSyncError": "مشکل همگام‌سازی: ⁨{code}⁩",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -612,7 +623,7 @@
     }
   },
   "syncConflicts": "تعارض‌های همگام‌سازی",
-  "remoteChangedAt": "تغییر سرور: {time}",
+  "remoteChangedAt": "تغییر سرور: ⁨{time}⁩",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -620,7 +631,7 @@
       }
     }
   },
-  "localPendingEdit": "ویرایش محلی: {summary}",
+  "localPendingEdit": "ویرایش محلی: ⁨{summary}⁩",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -637,19 +648,19 @@
   "thisAndFutureMoveUnavailable": "انتقال امن این رویداد و رویدادهای بعدی ممکن نیست. این رویداد یا کل مجموعه را انتخاب کنید.",
   "entireSeriesMoveUnavailable": "قاعدهٔ تکرار به‌صورت محلی در دسترس نیست. به‌جای آن فقط این رویداد را منتقل کنید.",
   "copyEventAndDeleteOriginal": "رویداد کپی و نسخهٔ اصلی حذف شود؟",
-  "copyEventMoveWarning": "BusyMax نمی‌تواند این رویداد را مستقیماً از {source} به {destination} منتقل کند. ابتدا کپی را ایجاد می‌کند و فقط پس از موفقیت کپی، نسخهٔ اصلی را حذف می‌کند. شناسه‌های رویداد تغییر می‌کنند؛ ممکن است وضعیت پاسخ شرکت‌کنندگان بازنشانی شود و دعوت‌نامه یا لغو ارسال شود؛ و شاید پیوندهای جلسه، پیوست‌ها، یادآورها، فیلدهای ویژهٔ ارائه‌دهنده و استثناهای تکرار منتقل نشوند.",
+  "copyEventMoveWarning": "BusyMax نمی‌تواند این رویداد را مستقیماً از ⁨{source}⁩ به ⁨{destination}⁩ منتقل کند. ابتدا کپی را ایجاد می‌کند و فقط پس از موفقیت کپی، نسخهٔ اصلی را حذف می‌کند. شناسه‌های رویداد تغییر می‌کنند؛ ممکن است وضعیت پاسخ شرکت‌کنندگان بازنشانی شود و دعوت‌نامه یا لغو ارسال شود؛ و شاید پیوندهای جلسه، پیوست‌ها، یادآورها، فیلدهای ویژهٔ ارائه‌دهنده و استثناهای تکرار منتقل نشوند.",
   "copyAndDelete": "کپی و حذف",
   "chooseRecurringEventScope": "انتخاب کنید این تغییر برای کل مجموعه، فقط این رویداد، یا این رویداد و رویدادهای بعدی اعمال شود.",
   "taskDueBeforeStart": "زمان سررسید نباید پیش از زمان شروع باشد.",
   "taskStartDueTimeModeMismatch": "برای شروع و سررسید هر دو زمان تعیین کنید، یا کار را تمام‌روز کنید.",
-  "taskListCreateFailed": "ایجاد فهرست کار ممکن نیست: {error}",
-  "taskListRenameFailed": "تغییر نام فهرست کار ممکن نیست: {error}",
-  "taskListDeleteFailed": "حذف فهرست کار ممکن نیست: {error}",
+  "taskListCreateFailed": "ایجاد فهرست کار ممکن نیست: ⁨{error}⁩",
+  "taskListRenameFailed": "تغییر نام فهرست کار ممکن نیست: ⁨{error}⁩",
+  "taskListDeleteFailed": "حذف فهرست کار ممکن نیست: ⁨{error}⁩",
   "unshare": "لغو اشتراک‌گذاری",
   "readOnlyTaskListCannotRename": "این فهرست کار فقط‌خواندنی است و نمی‌توان نام آن را تغییر داد.",
   "taskListCannotDelete": "این فهرست کار با مجوزهای فعلی شما قابل حذف نیست.",
-  "deleteTaskListConfirmation": "‏«{title}» و همهٔ کارهای آن حذف شوند؟",
-  "unshareTaskListConfirmation": "اشتراک‌گذاری «{title}» از این حساب لغو شود؟",
+  "deleteTaskListConfirmation": "‏«⁨{title}⁩» و همهٔ کارهای آن حذف شوند؟",
+  "unshareTaskListConfirmation": "اشتراک‌گذاری «⁨{title}⁩» از این حساب لغو شود؟",
   "taskStatus": "وضعیت",
   "taskStatusNone": "بدون وضعیت",
   "taskStatusNeedsAction": "نیازمند اقدام",
@@ -725,12 +736,12 @@
   "repeatOnOrdinalSummary": "{position, select, first{در اولین {days}} second{در دومین {days}} third{در سومین {days}} fourth{در چهارمین {days}} fifth{در پنجمین {days}} secondToLast{در یکی‌مانده‌به‌آخرین {days}} last{در آخرین {days}} other{در {days}}}",
   "repeatInMonthsSummary": "در {months}",
   "repeatTimesSummary": "{count, plural, one{{count} بار} other{{count} بار}}",
-  "repeatUntilSummary": "تا {date}",
+  "repeatUntilSummary": "تا ⁨{date}⁩",
   "unsupportedRecurrencePreserved": "این قانون تکرار از گزینه‌هایی استفاده می‌کند که این ویرایشگر تغییر نمی‌دهد.",
-  "recurrenceUnsupportedByProvider": "این تکرار را نمی‌توان با {provider} استفاده کرد.",
+  "recurrenceUnsupportedByProvider": "این تکرار را نمی‌توان با ⁨{provider}⁩ استفاده کرد.",
   "duplicateTask": "تکرار کار",
   "taskDuplicated": "کار تکرار شد.",
-  "taskDuplicateFailed": "تکرار کار ممکن نیست: {error}",
+  "taskDuplicateFailed": "تکرار کار ممکن نیست: ⁨{error}⁩",
   "hideSubtasks": "پنهان کردن زیروظیفه‌ها",
   "hideClosedSubtasks": "پنهان کردن زیروظیفه‌های بسته‌شده",
   "reminderUnit": "واحد",
@@ -770,7 +781,7 @@
   "responseNeedsAction": "در انتظار پاسخ",
   "responseNotResponded": "بی‌پاسخ",
   "responseOrganizer": "برگزارکننده",
-  "invitationResponseFailed": "ارسال پاسخ شما ممکن نیست: {error}",
+  "invitationResponseFailed": "ارسال پاسخ شما ممکن نیست: ⁨{error}⁩",
   "@invitationResponseFailed": {
     "placeholders": {
       "error": {
@@ -783,7 +794,7 @@
   "setAction": "تنظیم",
   "removeFromMyCalendars": "حذف از تقویم‌های من",
   "removeAction": "حذف",
-  "removeCalendarConfirmation": "«{title}» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.",
+  "removeCalendarConfirmation": "«⁨{title}⁩» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.",
   "calendarCannotRemove": "این تقویم را نمی‌توان از این حساب حذف یا جدا کرد.",
   "calendarPendingChangesPreventRemoval": "پیش از حذف یا جدا کردن این تقویم، صبر کنید تغییرات در انتظار آن همگام شوند.",
   "calendarSubscriptions": "اشتراک‌های تقویم",
@@ -801,7 +812,7 @@
   "subscriptionHourly": "ساعتی",
   "subscriptionSixHours": "هر شش ساعت",
   "subscriptionDaily": "روزانه",
-  "subscriptionSafeOrigin": "مبدأ: {origin}",
+  "subscriptionSafeOrigin": "مبدأ: ⁨{origin}⁩",
   "@subscriptionSafeOrigin": {
     "placeholders": {
       "origin": {
@@ -812,7 +823,7 @@
   "subscriptionSafeOriginUnavailable": "برای پیش‌نمایش مبدأ امن، یک URL معتبر وارد کنید.",
   "subscriptionReadOnly": "اشتراک فقط‌خواندنی",
   "subscriptionNeverRefreshed": "هنوز تازه نشده",
-  "subscriptionLastRefresh": "آخرین تازه‌سازی موفق: {time}",
+  "subscriptionLastRefresh": "آخرین تازه‌سازی موفق: ⁨{time}⁩",
   "@subscriptionLastRefresh": {
     "placeholders": {
       "time": {
@@ -820,7 +831,7 @@
       }
     }
   },
-  "subscriptionNextRefresh": "تازه‌سازی بعدی: {time}",
+  "subscriptionNextRefresh": "تازه‌سازی بعدی: ⁨{time}⁩",
   "@subscriptionNextRefresh": {
     "placeholders": {
       "time": {
@@ -829,7 +840,7 @@
     }
   },
   "subscriptionStatusHealthy": "به‌روز",
-  "subscriptionStatusIssue": "مشکل تازه‌سازی: {code}",
+  "subscriptionStatusIssue": "مشکل تازه‌سازی: ⁨{code}⁩",
   "@subscriptionStatusIssue": {
     "placeholders": {
       "code": {
@@ -839,7 +850,7 @@
   },
   "refreshNow": "تازه‌سازی اکنون",
   "unsubscribe": "لغو اشتراک",
-  "unsubscribeCalendarTitle": "اشتراک «{name}» لغو شود؟",
+  "unsubscribeCalendarTitle": "اشتراک «⁨{name}⁩» لغو شود؟",
   "@unsubscribeCalendarTitle": {
     "placeholders": {
       "name": {
@@ -849,7 +860,7 @@
   },
   "unsubscribeCalendarConfirmation": "این کار اشتراک محلی و رویدادهای ذخیره‌شدهٔ آن را حذف می‌کند. تقویم منتشرشده تغییر نمی‌کند.",
   "addSubscriptionAction": "افزودن اشتراک",
-  "subscriptionOperationFailed": "اشتراک تقویم ناموفق بود: {error}",
+  "subscriptionOperationFailed": "اشتراک تقویم ناموفق بود: ⁨{error}⁩",
   "@subscriptionOperationFailed": {
     "placeholders": {
       "error": {
@@ -866,7 +877,8 @@
   "@importEventsFound": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -874,11 +886,12 @@
   "@importInvalidEvents": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
-  "importFieldsOmitted": "عمداً حذف‌شده: {fields}",
+  "importFieldsOmitted": "عمداً حذف‌شده: ⁨{fields}⁩",
   "@importFieldsOmitted": {
     "placeholders": {
       "fields": {
@@ -894,7 +907,8 @@
   "@importQueued": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -902,7 +916,8 @@
   "@importDuplicatesSkipped": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
@@ -910,11 +925,12 @@
   "@importUnsupportedSets": {
     "placeholders": {
       "count": {
-        "type": "int"
+        "type": "int",
+      "format": "decimalPattern"
       }
     }
   },
-  "importIcsFailed": "درون‌ریزی فایل تقویم ممکن نیست: {error}",
+  "importIcsFailed": "درون‌ریزی فایل تقویم ممکن نیست: ⁨{error}⁩",
   "@importIcsFailed": {
     "placeholders": {
       "error": {

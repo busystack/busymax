@@ -13,6 +13,67 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'понедельникам',
+      'TU': 'вторникам',
+      'WE': 'средам',
+      'TH': 'четвергам',
+      'FR': 'пятницам',
+      'SA': 'субботам',
+      'SU': 'воскресеньям',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return '$first и $second числа каждого месяца';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency: $month, $firstDay и $secondDay числа';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency: $firstMonth и $secondMonth, $day числа';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency: $firstMonth и $secondMonth, $firstDay и $secondDay числа';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency: $firstMonth и $secondMonth, $days числа';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
@@ -178,7 +239,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+ ещё $count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '+ ещё $countString';
   }
 
   @override
@@ -568,13 +633,17 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: 'За $minutes минуты',
-      many: 'За $minutes минут',
-      few: 'За $minutes минуты',
-      one: 'За $minutes минуту',
+      other: 'За $minutesString минуты',
+      many: 'За $minutesString минут',
+      few: 'За $minutesString минуты',
+      one: 'За $minutesString минуту',
     );
     return '$_temp0';
   }
@@ -584,26 +653,35 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: 'За $hours часа',
-      many: 'За $hours часов',
-      few: 'За $hours часа',
-      one: 'За $hours час',
+      other: 'За $hoursString часа',
+      many: 'За $hoursString часов',
+      few: 'За $hoursString часа',
+      one: 'За $hoursString час',
     );
     return '$_temp0';
   }
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: 'За $days дня',
-      many: 'За $days дней',
-      few: 'За $days дня',
-      one: 'За $days день',
+      other: 'За $daysString дня',
+      many: 'За $daysString дней',
+      few: 'За $daysString дня',
+      one: 'За $daysString день',
     );
     return '$_temp0';
   }
@@ -1119,7 +1197,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return 'Выполнено на $percent%';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return 'Выполнено на $percentString%';
   }
 
   @override
@@ -1133,17 +1215,29 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return 'Приоритет $priority · высокий';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Приоритет $priorityString · высокий';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Приоритет $priority · средний';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Приоритет $priorityString · средний';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Приоритет $priority · низкий';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Приоритет $priorityString · низкий';
   }
 
   @override
@@ -1274,7 +1368,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'На эту дату приходится $count связанных напоминаний. Сохранить их текущие дату и время?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'На эту дату приходится $countString связанных напоминаний. Сохранить их текущие дату и время?';
   }
 
   @override
@@ -1399,27 +1497,43 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String repeatEveryDays(int count) {
-    return 'Каждые $count дн.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Каждые $countString дн.';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Каждые $count нед.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Каждые $countString нед.';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Каждые $count мес.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Каждые $countString мес.';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Каждые $count г.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Каждые $countString г.';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'в дни $days';
+    return 'по $days';
   }
 
   @override
@@ -1449,13 +1563,17 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count раза',
-      many: '$count раз',
-      few: '$count раза',
-      one: '$count раз',
+      other: '$countString раза',
+      many: '$countString раз',
+      few: '$countString раза',
+      one: '$countString раз',
     );
     return '$_temp0';
   }
@@ -1767,7 +1885,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return 'попытки=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'попытки=$countString';
   }
 
   @override
@@ -1820,13 +1942,17 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Сегодня нужно выполнить $count задачи.',
-      many: 'Сегодня нужно выполнить $count задач.',
-      few: 'Сегодня нужно выполнить $count задачи.',
-      one: 'Сегодня нужно выполнить $count задачу.',
+      other: 'Сегодня нужно выполнить $countString задачи.',
+      many: 'Сегодня нужно выполнить $countString задач.',
+      few: 'Сегодня нужно выполнить $countString задачи.',
+      one: 'Сегодня нужно выполнить $countString задачу.',
     );
     return '$_temp0';
   }
@@ -1877,7 +2003,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return 'Неделя $number';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'Неделя $numberString';
   }
 
   @override
@@ -1885,13 +2015,17 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count записи',
-      many: '$count записей',
-      few: '$count записи',
-      one: '$count запись',
+      other: '$countString записи',
+      many: '$countString записей',
+      few: '$countString записи',
+      one: '$countString запись',
     );
     return '$_temp0';
   }

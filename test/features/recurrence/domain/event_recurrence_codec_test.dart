@@ -70,6 +70,38 @@ void main() {
       expect(rule.rawRules, ['FREQ=WEEKLY;BYDAY=MO']);
       expect(rule.exceptionDates, ['EXDATE:20260615T160000Z']);
     });
+
+    test('rejects one ordinal set position across multiple yearly months', () {
+      final decoded = EventRecurrenceCodec.decode(BusyProvider.google, const [
+        'RRULE:FREQ=YEARLY;BYMONTH=9,10;BYDAY=MO;BYSETPOS=1',
+      ], baseDate: DateTime(2026, 9, 7));
+
+      expect(decoded.isSupported, isFalse);
+      expect(
+        EventRecurrenceCodec.canEncode(BusyProvider.google, decoded),
+        isFalse,
+      );
+
+      const editableShape = RecurrenceRule(
+        frequency: RecurrenceFrequency.yearly,
+        interval: 1,
+        byDay: ['MO'],
+        byMonth: [9, 10],
+        byMonthDay: [],
+        bySetPosition: 1,
+        count: null,
+        untilRaw: null,
+        recurrenceDates: [],
+        exceptionDates: [],
+        rawRules: [],
+        isSupported: true,
+      );
+      expect(RecurrenceRuleLimits.rfc5545.supports(editableShape), isFalse);
+      expect(
+        EventRecurrenceCodec.canEncode(BusyProvider.google, editableShape),
+        isFalse,
+      );
+    });
   });
 
   group('Microsoft Graph recurrence', () {

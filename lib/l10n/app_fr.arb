@@ -1,5 +1,11 @@
 {
   "@@locale": "fr",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{le lundi} TU{le mardi} WE{le mercredi} TH{le jeudi} FR{le vendredi} SA{le samedi} SU{le dimanche} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "les jours {first} et {second} du mois",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} les jours {firstDay} et {secondDay} de {month}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} le {day} de {firstMonth} et {secondMonth}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} les jours {firstDay} et {secondDay} de {firstMonth} et {secondMonth}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} les jours {days} de {firstMonth} et {secondMonth}",
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Connectez les comptes Google, Microsoft, Calendrier Apple iCloud ou Nextcloud.",
   "googlePermissionsConsentNotice": "Sur l’écran d’autorisations Google, sélectionnez les autorisations Calendrier et Tâches.",
@@ -45,7 +51,7 @@
   },
   "calendarManagementUnsupported": "Ce fournisseur ne prend pas en charge la gestion des calendriers dans BusyMax.",
   "primaryCalendarCannotDelete": "Le calendrier principal ne peut pas être supprimé.",
-  "calendarCreateFailed": "Impossible de créer le calendrier : {error}",
+  "calendarCreateFailed": "Impossible de créer le calendrier : {error}",
   "calendarCreatedRefreshPending": "Le calendrier a été créé, mais BusyMax n’a pas pu actualiser le compte. Il apparaîtra après la prochaine synchronisation.",
   "@calendarCreateFailed": {
     "placeholders": {
@@ -54,7 +60,7 @@
       }
     }
   },
-  "calendarUpdateFailed": "Impossible de mettre à jour le calendrier : {error}",
+  "calendarUpdateFailed": "Impossible de mettre à jour le calendrier : {error}",
   "@calendarUpdateFailed": {
     "placeholders": {
       "error": {
@@ -62,7 +68,7 @@
       }
     }
   },
-  "calendarDeleteFailed": "Impossible de supprimer le calendrier : {error}",
+  "calendarDeleteFailed": "Impossible de supprimer le calendrier : {error}",
   "@calendarDeleteFailed": {
     "placeholders": {
       "error": {
@@ -267,11 +273,11 @@
   "feedbackMessageLengthError": "Le message doit comporter entre 10 et 5 000 caractères.",
   "feedbackInvalidEmail": "Saisissez une adresse e-mail valide.",
   "feedbackConnectionError": "Impossible de se connecter à BusyStack. Vérifiez votre connexion et réessayez.",
-  "feedbackTimeoutError": "La demande a expiré. Vos commentaires n’ont pas été effacés ; réessayez.",
+  "feedbackTimeoutError": "La demande a expiré. Vos commentaires n’ont pas été effacés ; réessayez.",
   "feedbackRateLimitedError": "Trop de commentaires ont été envoyés depuis ce réseau. Patientez, puis réessayez.",
   "feedbackRejectedError": "Le serveur a rejeté l’envoi. Vérifiez les champs, puis réessayez.",
-  "feedbackServerError": "BusyStack ne peut pas accepter vos commentaires pour le moment. Vos commentaires n’ont pas été effacés ; réessayez.",
-  "feedbackSuccess": "Commentaires envoyés. Référence : {id}",
+  "feedbackServerError": "BusyStack ne peut pas accepter vos commentaires pour le moment. Vos commentaires n’ont pas été effacés ; réessayez.",
+  "feedbackSuccess": "Commentaires envoyés. Référence : {id}",
   "toggleSidebar": "Afficher/masquer la barre latérale",
   "showSidebar": "Afficher le panneau latéral",
   "hideSidebar": "Masquer le panneau latéral",
@@ -328,7 +334,7 @@
       }
     }
   },
-  "exportFailed": "Échec de l’export : {error}",
+  "exportFailed": "Échec de l’export : {error}",
   "@exportFailed": {
     "placeholders": {
       "error": {
@@ -336,7 +342,7 @@
       }
     }
   },
-  "refreshFailed": "Échec de l’actualisation : {error}",
+  "refreshFailed": "Échec de l’actualisation : {error}",
   "selectOrCreateTaskList": "Sélectionnez ou créez une liste de tâches pour commencer.",
   "signInToViewTasks": "Connectez-vous pour voir les tâches.",
   "noTasks": "Aucune tâche.",
@@ -405,7 +411,7 @@
   "moveToTop": "Déplacer tout en haut",
   "deleteTask": "Supprimer la tâche",
   "newSubtask": "Nouvelle sous-tâche",
-  "deleteTaskConfirmation": "Supprimer « {title} » ?",
+  "deleteTaskConfirmation": "Supprimer « {title} » ?",
   "metadata": "Métadonnées",
   "id": "ID",
   "etag": "ETag",
@@ -429,7 +435,7 @@
   "launchAtLoginFailed": "Impossible de modifier le lancement à la connexion.",
   "requiresTrayIcon": "Nécessite l’icône de la zone de notification.",
   "syncComplete": "Synchronisation terminée.",
-  "syncFailed": "Échec de la synchronisation : {error}",
+  "syncFailed": "Échec de la synchronisation : {error}",
   "notifySyncFailures": "Notifications d’échec de synchronisation",
   "notifyConflicts": "Notifications de conflits",
   "notifyDueToday": "Notifications des tâches dues aujourd’hui",
@@ -460,7 +466,7 @@
   "diagnostics": "Informations de diagnostic",
   "apiInspectorDisabled": "Afficher l’inspecteur API",
   "googleTasksApi": "API Google Tasks",
-  "discoveryRevision": "Révision Discovery : {revision}",
+  "discoveryRevision": "Révision Discovery : {revision}",
   "implementedMethods": "Méthodes implémentées",
   "supportsTasksScopes": "Prend en charge les champs d’application tasks et tasks.readonly",
   "requiresTasksScope": "Nécessite le champ d’application tasks",
@@ -474,10 +480,10 @@
   "retry": "Réessayer",
   "discard": "Abandonner",
   "discardChangesAction": "Abandonner",
-  "discardChanges": "Abandonner les modifications ?",
+  "discardChanges": "Abandonner les modifications ?",
   "discardChangesConfirmation": "Les modifications non enregistrées apportées à cette tâche seront perdues.",
   "retryCompleted": "Nouvelle tentative terminée.",
-  "discardPendingOperation": "Abandonner l’opération en attente ?",
+  "discardPendingOperation": "Abandonner l’opération en attente ?",
   "discardPendingOperationConfirmation": "Cette action supprime l’opération locale bloquée. Lors de la prochaine synchronisation, les données seront rechargées depuis Google Tasks.",
   "pendingOperationDiscarded": "Opération en attente abandonnée.",
   "syncFailureNotificationTitle": "Échec de la synchronisation BusyMax",
@@ -559,7 +565,7 @@
   "keepServerVersion": "Conserver la version du serveur",
   "reapplyLocalChange": "Examiner et réappliquer la modification locale",
   "duplicateLocalItem": "Dupliquer comme nouvel élément",
-  "deleteCalendarConfirmation": "Supprimer « {title} » ?",
+  "deleteCalendarConfirmation": "Supprimer « {title} » ?",
   "@deleteCalendarConfirmation": {
     "placeholders": {
       "title": {
@@ -719,7 +725,7 @@
   "repeatEveryWeeks": "Toutes les {count} semaines",
   "repeatEveryMonths": "Tous les {count} mois",
   "repeatEveryYears": "Toutes les {count} années",
-  "repeatOnDaysSummary": "les {days}",
+  "repeatOnDaysSummary": "{days}",
   "repeatOnMonthDaysSummary": "le {days} du mois",
   "repeatOnOrdinalSummary": "{position, select, first{le premier {days}} second{le deuxième {days}} third{le troisième {days}} fourth{le quatrième {days}} fifth{le cinquième {days}} secondToLast{l’avant-dernier {days}} last{le dernier {days}} other{les {days}}}",
   "repeatInMonthsSummary": "en {months}",
@@ -782,7 +788,7 @@
   "setAction": "Définir",
   "removeFromMyCalendars": "Retirer de mes agendas",
   "removeAction": "Retirer",
-  "removeCalendarConfirmation": "Retirer « {title} » de votre liste Google Agenda ? L’agenda partagé et ses événements ne seront pas supprimés.",
+  "removeCalendarConfirmation": "Retirer « {title} » de votre liste Google Agenda ? L’agenda partagé et ses événements ne seront pas supprimés.",
   "calendarCannotRemove": "Ce calendrier ne peut pas être supprimé ou retiré de ce compte.",
   "calendarPendingChangesPreventRemoval": "Attendez que les modifications en attente de ce calendrier aient fini de se synchroniser avant de le supprimer ou de le retirer.",
   "calendarSubscriptions": "Abonnements aux calendriers",

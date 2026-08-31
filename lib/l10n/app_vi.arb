@@ -1,5 +1,11 @@
 {
   "@@locale": "vi",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{Thứ Hai} TU{Thứ Ba} WE{Thứ Tư} TH{Thứ Năm} FR{Thứ Sáu} SA{Thứ Bảy} SU{Chủ Nhật} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "vào các ngày {first} và {second}",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} vào các ngày {firstDay} và {secondDay} của {month}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} vào ngày {day} của {firstMonth} và {secondMonth}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} vào các ngày {firstDay} và {secondDay} của {firstMonth} và {secondMonth}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} vào các ngày {days} của {firstMonth} và {secondMonth}",
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Kết nối tài khoản Google, Microsoft, Apple iCloud Calendar hoặc Nextcloud.",
   "googlePermissionsConsentNotice": "Trên màn hình cấp quyền của Google, hãy chọn cả quyền truy cập Lịch và Công việc.",

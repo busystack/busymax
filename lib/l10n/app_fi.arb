@@ -1,5 +1,11 @@
 {
   "@@locale": "fi",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{maanantaisin} TU{tiistaisin} WE{keskiviikkoisin} TH{torstaisin} FR{perjantaisin} SA{lauantaisin} SU{sunnuntaisin} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "kuukauden {first} ja {second} päivänä",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} {month} {firstDay} ja {secondDay} päivänä",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} {firstMonth} ja {secondMonth} {day} päivänä",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} {firstMonth} ja {secondMonth} {firstDay} ja {secondDay} päivänä",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} {firstMonth} ja {secondMonth} {days} päivänä",
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Yhdistä Google-, Microsoft-, Apple iCloud Calendar- tai Nextcloud-tilit.",
   "googlePermissionsConsentNotice": "Valitse Googlen käyttöoikeusnäkymässä sekä Kalenteri- että Tehtävät-käyttöoikeudet.",
@@ -77,7 +83,7 @@
   "showInSchedule": "Näytä aikataulussa",
   "noCalendarsSynced": "Kalentereita ei ole vielä synkronoitu.",
   "allDay": "Koko päivä",
-  "moreItems": "+{count} muuta",
+  "moreItems": "{count, plural, one{+1 muu} other{+{count} muuta}}",
   "noEventsOrTasks": "Ei tapahtumia tai tehtäviä",
   "scheduleLoading": "Ladataan aikataulua...",
   "scheduleUnavailable": "Aikataulu ei ole käytettävissä",
@@ -656,8 +662,8 @@
   "repeatEveryWeeks": "Joka {count}. viikko",
   "repeatEveryMonths": "Joka {count}. kuukausi",
   "repeatEveryYears": "Joka {count}. vuosi",
-  "repeatOnDaysSummary": "päivinä {days}",
-  "repeatOnMonthDaysSummary": "kuukauden päivinä {days}",
+  "repeatOnDaysSummary": "{days}",
+  "repeatOnMonthDaysSummary": "kuukauden {days} päivänä",
   "repeatOnOrdinalSummary": "{position, select, first{ensimmäisenä {days}} second{toisena {days}} third{kolmantena {days}} fourth{neljäntenä {days}} fifth{viidentenä {days}} secondToLast{toiseksi viimeisenä {days}} last{viimeisenä {days}} other{päivinä {days}}}",
   "repeatInMonthsSummary": "{months} aikana",
   "repeatTimesSummary": "{count, plural, one{{count} kerran} other{{count} kertaa}}",
@@ -872,7 +878,7 @@
       }
     }
   },
-  "repeatOnMonthDaysSummaryMultiple": "kuukauden päivinä {days}",
+  "repeatOnMonthDaysSummaryMultiple": "kuukauden {days} päivänä",
   "@repeatOnMonthDaysSummaryMultiple": {
     "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
     "placeholders": {
@@ -885,7 +891,7 @@
   "@repeatSummarySeparator": {
     "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
   },
-  "repeatMonthDayValue": "{day}",
+  "repeatMonthDayValue": "{day}.",
   "@repeatMonthDayValue": {
     "description": "Localized day-of-month value used when composing a list of recurrence days.",
     "placeholders": {
@@ -903,11 +909,11 @@
   "repeatYearlyMonthDayListStart": "{first}, {rest}",
   "repeatYearlyMonthListPair": "{first} ja {second}",
   "repeatYearlyMonthListStart": "{first}, {rest}",
-  "repeatYearlyOnMonthDaySummary": "{frequency} {month} {day}. päivänä",
-  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months} {day}. päivänä",
-  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months} päivinä {days}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} {month} {day} päivänä",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months} {day} päivänä",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months} {days} päivänä",
   "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {months} {position, select, first{ensimmäisenä} second{toisena} third{kolmantena} fourth{neljäntenä} fifth{viidentenä} secondToLast{toiseksi viimeisenä} last{viimeisenä} other{}} {days}",
-  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} päivinä {days}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} {days} päivänä",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {

@@ -1,5 +1,11 @@
 {
   "@@locale": "zh_Hant",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{星期一} TU{星期二} WE{星期三} TH{星期四} FR{星期五} SA{星期六} SU{星期日} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "{first}、{second}",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency}{month}的{firstDay}和{secondDay}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency}{firstMonth}和{secondMonth}的{day}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency}{firstMonth}和{secondMonth}的{firstDay}和{secondDay}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency}{firstMonth}和{secondMonth}的{days}",
   "appTitle": "BusyMax",
   "connectGoogleAccount": "連接 Google、Microsoft、Apple iCloud Calendar 或 Nextcloud 帳戶。",
   "googlePermissionsConsentNotice": "在 Google 權限畫面中，同時選取行事曆和待辦事項權限。",

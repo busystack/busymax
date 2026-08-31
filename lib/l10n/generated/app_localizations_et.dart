@@ -13,15 +13,76 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'esmaspäeviti',
+      'TU': 'teisipäeviti',
+      'WE': 'kolmapäeviti',
+      'TH': 'neljapäeviti',
+      'FR': 'reedeti',
+      'SA': 'laupäeviti',
+      'SU': 'pühapäeviti',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return '$first ja $second päeval';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency $month $firstDay ja $secondDay päeval';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency $firstMonth ja $secondMonth $day päeval';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency $firstMonth ja $secondMonth $firstDay ja $secondDay päeval';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency $firstMonth ja $secondMonth $days päeval';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
   String get connectGoogleAccount =>
-      'Ühenda Google’i, Microsofti, Apple iCloud Calendari või Nextcloudi kontod.';
+      'Ühendage Google’i, Microsofti, Apple iCloud Calendari või Nextcloudi kontod.';
 
   @override
   String get googlePermissionsConsentNotice =>
-      'Valige Google\'i õiguste kuval nii kalendri kui ka ülesannete õigused.';
+      'Valige Google’i õiguste kuval nii kalendri kui ka ülesannete õigused.';
 
   @override
   String get googlePermissionsRequiredRetry =>
@@ -41,7 +102,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Lisa kõik kontod, mida soovid kasutada. BusyMax sünkroonib igast kontost toetatud kalendreid, sündmusi, ülesandeloendeid ja ülesandeid.';
+      'Lisage kõik kontod, mida soovite kasutada. BusyMax sünkroonib igast kontost toetatud kalendreid, sündmusi, ülesandeloendeid ja ülesandeid.';
 
   @override
   String get onboardingPreferencesStepTitle => 'Süsteemiseadete valimine';
@@ -51,7 +112,7 @@ class AppLocalizationsEt extends AppLocalizations {
       'Enne ajakava avamist määrake töölauakäitumine, meeldetuletused, teavituste üksikasjalikkus ja välimus.';
 
   @override
-  String get signInWithGoogle => 'Logi Google\'iga sisse';
+  String get signInWithGoogle => 'Logi Google’iga sisse';
 
   @override
   String get signInWithMicrosoft => 'Logi Microsoftiga sisse';
@@ -66,7 +127,7 @@ class AppLocalizationsEt extends AppLocalizations {
   String get providerNotConfigured => 'See teenusepakkuja pole seadistatud.';
 
   @override
-  String get waitingForGoogleSignIn => 'Google\'isse sisselogimise ootel...';
+  String get waitingForGoogleSignIn => 'Google’isse sisselogimise ootel...';
 
   @override
   String get waitingForMicrosoftSignIn => 'Microsofti sisselogimise ootel...';
@@ -417,7 +478,8 @@ class AppLocalizationsEt extends AppLocalizations {
   String get requestResponses => 'Küsi vastuseid';
 
   @override
-  String get requestResponsesDescription => 'Palu külalistel kutsele vastata.';
+  String get requestResponsesDescription =>
+      'Paluge külalistel kutsele vastata.';
 
   @override
   String get hideGuestList => 'Peida külaliste loend';
@@ -833,7 +895,7 @@ class AppLocalizationsEt extends AppLocalizations {
   String get switchAccount => 'Vaheta kontot';
 
   @override
-  String get addGoogleAccount => 'Lisa Google\'i konto';
+  String get addGoogleAccount => 'Lisa Google’i konto';
 
   @override
   String get addMicrosoftAccount => 'Lisa Microsofti konto';
@@ -868,7 +930,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get revokeGoogleAccess =>
-      'Tühista ka BusyMaxi juurdepääs sellele Google\'i kontole';
+      'Tühista ka BusyMaxi juurdepääs sellele Google’i kontole';
 
   @override
   String get revokeGoogleAccessDescription =>
@@ -883,7 +945,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get accountRemovedGoogleRevokeFailed =>
-      'Konto eemaldati sellest seadmest, kuid BusyMaxi juurdepääsu teie Google\'i kontole ei saanud tühistada. Saate selle oma Google\'i kontol käsitsi tühistada.';
+      'Konto eemaldati sellest seadmest, kuid BusyMaxi juurdepääsu teie Google’i kontole ei saanud tühistada. Saate selle oma Google’i kontol käsitsi tühistada.';
 
   @override
   String get newTaskList => 'Uus ülesandeloend';
@@ -1103,7 +1165,11 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return 'Lõpetatud $percent%';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return 'Lõpetatud $percentString%';
   }
 
   @override
@@ -1117,24 +1183,36 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return 'Prioriteet $priority · kõrge';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Prioriteet $priorityString · kõrge';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Prioriteet $priority · keskmine';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Prioriteet $priorityString · keskmine';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Prioriteet $priority · madal';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Prioriteet $priorityString · madal';
   }
 
   @override
   String get taskUrl => 'Ülesande URL';
 
   @override
-  String get invalidTaskUrl => 'Sisesta absoluutne URL koos skeemiga.';
+  String get invalidTaskUrl => 'Sisestage absoluutne URL koos skeemiga.';
 
   @override
   String get classification => 'Klassifikatsioon';
@@ -1256,7 +1334,11 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'Sellel kuupäeval on $count seotud meeldetuletust. Kas säilitada need praegusel kuupäeval ja kellaajal?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Sellel kuupäeval on $countString seotud meeldetuletust. Kas säilitada need praegusel kuupäeval ja kellaajal?';
   }
 
   @override
@@ -1381,27 +1463,43 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String repeatEveryDays(int count) {
-    return 'Iga $count päeva järel';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Iga $countString päeva järel';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Iga $count nädala järel';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Iga $countString nädala järel';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Iga $count kuu järel';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Iga $countString kuu järel';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Iga $count aasta järel';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Iga $countString aasta järel';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'päevadel $days';
+    return '$days';
   }
 
   @override
@@ -1431,11 +1529,15 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count korda',
-      one: '$count kord',
+      other: '$countString korda',
+      one: '$countString kord',
     );
     return '$_temp0';
   }
@@ -1598,7 +1700,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get launchAtLoginDescription =>
-      'Käivita BusyMax taustal, et meeldetuletused töötaksid pärast sisselogimist.';
+      'BusyMax käivitatakse taustal, et meeldetuletused töötaksid pärast sisselogimist.';
 
   @override
   String get launchAtLoginFailed =>
@@ -1887,7 +1989,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get providerConnectionDescription =>
-      'Ühenda kalendrid ja ülesanded ühega neist teenusepakkujatest.';
+      'Ühendage kalendrid ja ülesanded ühega neist teenusepakkujatest.';
 
   @override
   String get appleICloudProvider => 'Apple iCloudi kalender';
@@ -1938,7 +2040,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Sisesta Nextcloudi serveri URL või kleebi Nextcloudist kopeeritud peamine CalDAV-aadress.';
+      'Sisestage Nextcloudi serveri URL või kleepige Nextcloudist kopeeritud peamine CalDAV-aadress.';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
@@ -2093,7 +2195,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get thisAndFutureMoveUnavailable =>
-      'Seda ja järgnevaid sündmusi ei saa turvaliselt teisaldada. Vali see sündmus või kogu sari.';
+      'Seda ja järgnevaid sündmusi ei saa turvaliselt teisaldada. Valige see sündmus või kogu sari.';
 
   @override
   String get entireSeriesMoveUnavailable =>
@@ -2113,14 +2215,14 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get chooseRecurringEventScope =>
-      'Vali, kas see muudatus rakendub kogu sarjale, ainult sellele sündmusele või sellele ja järgnevatele sündmustele.';
+      'Valige, kas see muudatus rakendub kogu sarjale, ainult sellele sündmusele või sellele ja järgnevatele sündmustele.';
 
   @override
   String get taskDueBeforeStart => 'Tähtaeg ei tohi olla enne algust.';
 
   @override
   String get taskStartDueTimeModeMismatch =>
-      'Määra nii algus- kui ka tähtaja kellaaeg või tee ülesanne kogu päeva ülesandeks.';
+      'Määrake nii algus- kui ka tähtaja kellaaeg või tehke ülesanne kogu päeva ülesandeks.';
 
   @override
   String deleteCalendarConfirmation(String title) {
@@ -2141,7 +2243,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String removeCalendarConfirmation(String title) {
-    return 'Kas eemaldada „$title” sinu Google\'i kalendrite loendist? Jagatud kalendrit ega selle sündmusi ei kustutata.';
+    return 'Kas eemaldada „$title” teie Google’i kalendrite loendist? Jagatud kalendrit ega selle sündmusi ei kustutata.';
   }
 
   @override
@@ -2150,14 +2252,14 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get calendarPendingChangesPreventRemoval =>
-      'Enne kalendri kustutamist või eemaldamist oota, kuni selle ootel muudatused on sünkroonitud.';
+      'Enne kalendri kustutamist või eemaldamist oodake, kuni selle ootel muudatused on sünkroonitud.';
 
   @override
   String get calendarSubscriptions => 'Kalendritellimused';
 
   @override
   String get calendarSubscriptionsDescription =>
-      'Lisa kirjutuskaitstud kalendreid, mida värskendatakse turvalise WebCali URL-i kaudu.';
+      'Lisage kirjutuskaitstud kalendreid, mida värskendatakse turvalise WebCali URL-i kaudu.';
 
   @override
   String get addCalendarSubscription => 'Lisa kalendritellimus';
@@ -2170,22 +2272,22 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get subscriptionUrlHelp =>
-      'Sisesta HTTPS- või webcal-URL. BusyMax hoiab täielikku URL-i turvalises salvestusruumis.';
+      'Sisestage HTTPS- või webcal-URL. BusyMax hoiab täielikku URL-i turvalises salvestusruumis.';
 
   @override
   String get subscriptionUrlInvalid =>
-      'Sisesta kehtiv HTTPS- või webcal-URL ilma kasutajateabe või fragmendita.';
+      'Sisestage kehtiv HTTPS- või webcal-URL ilma kasutajateabe või fragmendita.';
 
   @override
   String get subscriptionColor => 'Kohalik värv';
 
   @override
   String get subscriptionColorHelp =>
-      'Kasuta kuuekohalist värvi, näiteks #3584E4.';
+      'Kasutage kuuekohalist värvi, näiteks #3584E4.';
 
   @override
   String get subscriptionColorInvalid =>
-      'Sisesta kuuekohaline kuueteistkümnendsüsteemi värv.';
+      'Sisestage kuuekohaline kuueteistkümnendsüsteemi värv.';
 
   @override
   String get subscriptionRefreshMode => 'Värskendussagedus';
@@ -2266,7 +2368,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get calendarImportDescription =>
-      'Vali fail, vaata selle sündmused üle ja vali seejärel kirjutatav kalender, kuhu need lisada.';
+      'Valige fail, vaadake selle sündmused üle ja valige seejärel kirjutatav kalender, kuhu need lisada.';
 
   @override
   String get importIcsFile => 'Impordi .ics-fail';

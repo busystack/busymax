@@ -13,6 +13,67 @@ class AppLocalizationsIt extends AppLocalizations {
   AppLocalizationsIt([String locale = 'it']) : super(locale);
 
   @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'il lunedì',
+      'TU': 'il martedì',
+      'WE': 'il mercoledì',
+      'TH': 'il giovedì',
+      'FR': 'il venerdì',
+      'SA': 'il sabato',
+      'SU': 'la domenica',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return 'nei giorni $first e $second';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency nei giorni $firstDay e $secondDay di $month';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency il giorno $day di $firstMonth e $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency nei giorni $firstDay e $secondDay di $firstMonth e $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency nei giorni $days di $firstMonth e $secondMonth';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
@@ -180,7 +241,11 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count in più';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '+$countString in più';
   }
 
   @override
@@ -565,10 +630,14 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: '$minutes minuti prima',
+      other: '$minutesString minuti prima',
       one: '1 minuto prima',
     );
     return '$_temp0';
@@ -579,10 +648,14 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: '$hours ore prima',
+      other: '$hoursString ore prima',
       one: '1 ora prima',
     );
     return '$_temp0';
@@ -590,10 +663,15 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: '$days giorni prima',
+      other: '$daysString giorni prima',
       one: '1 giorno prima',
     );
     return '$_temp0';
@@ -1110,7 +1188,11 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completata';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString% completata';
   }
 
   @override
@@ -1124,17 +1206,29 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priorità $priority · alta';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priorità $priorityString · alta';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priorità $priority · media';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priorità $priorityString · media';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priorità $priority · bassa';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priorità $priorityString · bassa';
   }
 
   @override
@@ -1268,7 +1362,11 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'Questa data ha $count promemoria correlati. Conservarli alla data e all’ora attuali?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Questa data ha $countString promemoria correlati. Conservarli alla data e all’ora attuali?';
   }
 
   @override
@@ -1393,27 +1491,43 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String repeatEveryDays(int count) {
-    return 'Ogni $count giorni';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Ogni $countString giorni';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Ogni $count settimane';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Ogni $countString settimane';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Ogni $count mesi';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Ogni $countString mesi';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Ogni $count anni';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Ogni $countString anni';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'il $days';
+    return '$days';
   }
 
   @override
@@ -1443,11 +1557,15 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count volte',
-      one: '$count volta',
+      other: '$countString volte',
+      one: '$countString volta',
     );
     return '$_temp0';
   }
@@ -1762,7 +1880,11 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return 'tentativi=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'tentativi=$countString';
   }
 
   @override
@@ -1817,10 +1939,14 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count attività scadono oggi.',
+      other: '$countString attività scadono oggi.',
       one: 'Un’attività scade oggi.',
     );
     return '$_temp0';
@@ -1871,7 +1997,11 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return 'Settimana $number';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'Settimana $numberString';
   }
 
   @override
@@ -1880,10 +2010,14 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count elementi',
+      other: '$countString elementi',
       one: '1 elemento',
     );
     return '$_temp0';

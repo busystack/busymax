@@ -13,6 +13,67 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': '월요일',
+      'TU': '화요일',
+      'WE': '수요일',
+      'TH': '목요일',
+      'FR': '금요일',
+      'SA': '토요일',
+      'SU': '일요일',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return '$first과 $second';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency $month의 $firstDay과 $secondDay';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency $firstMonth과 $secondMonth의 $day';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency $firstMonth과 $secondMonth의 $firstDay과 $secondDay';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency $firstMonth과 $secondMonth의 $days';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
@@ -177,7 +238,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count개 더 보기';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '+$countString개 더 보기';
   }
 
   @override
@@ -388,7 +453,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get guests => '참석자';
 
   @override
-  String get noGuests => '게스트 없음';
+  String get noGuests => '참석자 없음';
 
   @override
   String get attendeeRequired => '필수';
@@ -412,29 +477,29 @@ class AppLocalizationsKo extends AppLocalizations {
   String get requestResponses => '응답 요청';
 
   @override
-  String get requestResponsesDescription => '게스트에게 초대에 응답하도록 요청합니다.';
+  String get requestResponsesDescription => '참석자에게 초대에 응답하도록 요청합니다.';
 
   @override
-  String get hideGuestList => '게스트 목록 숨기기';
+  String get hideGuestList => '참석자 목록 숨기기';
 
   @override
-  String get hideGuestListDescription => '게스트는 다른 초대 대상자를 볼 수 없습니다.';
+  String get hideGuestListDescription => '참석자는 다른 초대 대상자를 볼 수 없습니다.';
 
   @override
   String get allowNewTimeProposals => '새 시간 제안 허용';
 
   @override
-  String get allowNewTimeProposalsDescription => '게스트가 다른 회의 시간을 제안할 수 있습니다.';
+  String get allowNewTimeProposalsDescription => '참석자가 다른 회의 시간을 제안할 수 있습니다.';
 
   @override
-  String get notifyGuestsTitle => '게스트에게 알릴까요?';
+  String get notifyGuestsTitle => '참석자에게 알릴까요?';
 
   @override
   String get notifyGuestsSaveMessage =>
-      '이 회의에는 게스트가 있습니다. 저장할 때 초대 또는 일정 업데이트를 보낼까요?';
+      '이 회의에는 참석자가 있습니다. 저장할 때 초대 또는 일정 업데이트를 보낼까요?';
 
   @override
-  String get notifyGuestsDeleteMessage => '이 회의에는 게스트가 있습니다. 삭제할 때 취소를 보낼까요?';
+  String get notifyGuestsDeleteMessage => '이 회의에는 참석자가 있습니다. 삭제할 때 취소를 보낼까요?';
 
   @override
   String get sendUpdates => '업데이트 보내기';
@@ -450,14 +515,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft에서 게스트에게 초대 또는 일정 업데이트를 보냅니다.';
+      'Microsoft에서 참석자에게 초대 또는 일정 업데이트를 보냅니다.';
 
   @override
   String get microsoftNotifyGuestsDeleteTitle => '회의를 삭제할까요?';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft에서 게스트에게 취소를 보냅니다.';
+      'Microsoft에서 참석자에게 취소를 보냅니다.';
 
   @override
   String get organizer => '주최자';
@@ -466,7 +531,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get yourResponse => '내 응답';
 
   @override
-  String get guestResponses => '게스트 응답';
+  String get guestResponses => '참석자 응답';
 
   @override
   String get respond => '응답';
@@ -553,10 +618,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: '$minutes분 전',
+      other: '$minutesString분 전',
       one: '1분 전',
     );
     return '$_temp0';
@@ -567,10 +636,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: '$hours시간 전',
+      other: '$hoursString시간 전',
       one: '1시간 전',
     );
     return '$_temp0';
@@ -578,10 +651,15 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: '$days일 전',
+      other: '$daysString일 전',
       one: '1일 전',
     );
     return '$_temp0';
@@ -1081,7 +1159,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return '$percent% 완료';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString% 완료';
   }
 
   @override
@@ -1095,17 +1177,29 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return '우선순위 $priority · 높음';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '우선순위 $priorityString · 높음';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return '우선순위 $priority · 중간';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '우선순위 $priorityString · 중간';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return '우선순위 $priority · 낮음';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '우선순위 $priorityString · 낮음';
   }
 
   @override
@@ -1233,7 +1327,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return '이 날짜에 관련 알림이 $count개 있습니다. 현재 날짜와 시간에 유지할까요?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '이 날짜에 관련 알림이 $countString개 있습니다. 현재 날짜와 시간에 유지할까요?';
   }
 
   @override
@@ -1358,22 +1456,38 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String repeatEveryDays(int count) {
-    return '$count일마다';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString일마다';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return '$count주마다';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString주마다';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return '$count개월마다';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString개월마다';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return '$count년마다';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString년마다';
   }
 
   @override
@@ -1408,10 +1522,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count회',
+      other: '$countString회',
     );
     return '$_temp0';
   }
@@ -1717,7 +1835,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return '시도=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '시도=$countString';
   }
 
   @override
@@ -1769,10 +1891,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '오늘 마감인 할 일이 $count개 있습니다.',
+      other: '오늘 마감인 할 일이 $countString개 있습니다.',
       one: '오늘 마감인 할 일이 1개 있습니다.',
     );
     return '$_temp0';
@@ -1822,7 +1948,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return '$number주차';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return '$numberString주차';
   }
 
   @override
@@ -1830,10 +1960,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '항목 $count개',
+      other: '항목 $countString개',
       one: '항목 1개',
     );
     return '$_temp0';

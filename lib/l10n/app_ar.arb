@@ -1,5 +1,11 @@
 {
   "@@locale": "ar",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{الاثنين} TU{الثلاثاء} WE{الأربعاء} TH{الخميس} FR{الجمعة} SA{السبت} SU{الأحد} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "في يومي {first} و{second} من الشهر",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} في يومي {firstDay} و{secondDay} من {month}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} في اليوم {day} من شهري {firstMonth} و{secondMonth}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} في يومي {firstDay} و{secondDay} من شهري {firstMonth} و{secondMonth}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} في الأيام {days} من شهري {firstMonth} و{secondMonth}",
   "appTitle": "BusyMax",
   "connectGoogleAccount": "اربط حسابات Google أو Microsoft أو تقويم Apple iCloud أو Nextcloud.",
   "googlePermissionsConsentNotice": "في شاشة أذونات Google، حدّد أذونات التقويم والمهام معًا.",
@@ -45,7 +51,7 @@
   },
   "calendarManagementUnsupported": "لا يدعم هذا المزوّد إدارة التقويمات في BusyMax.",
   "primaryCalendarCannotDelete": "لا يمكن حذف التقويم الأساسي.",
-  "calendarCreateFailed": "تعذّر إنشاء التقويم: {error}",
+  "calendarCreateFailed": "تعذّر إنشاء التقويم: ⁨{error}⁩",
   "calendarCreatedRefreshPending": "تم إنشاء التقويم، لكن تعذّر على BusyMax تحديث الحساب. سيظهر بعد المزامنة التالية.",
   "@calendarCreateFailed": {
     "placeholders": {
@@ -54,7 +60,7 @@
       }
     }
   },
-  "calendarUpdateFailed": "تعذّر تحديث التقويم: {error}",
+  "calendarUpdateFailed": "تعذّر تحديث التقويم: ⁨{error}⁩",
   "@calendarUpdateFailed": {
     "placeholders": {
       "error": {
@@ -62,7 +68,7 @@
       }
     }
   },
-  "calendarDeleteFailed": "تعذّر حذف التقويم: {error}",
+  "calendarDeleteFailed": "تعذّر حذف التقويم: ⁨{error}⁩",
   "@calendarDeleteFailed": {
     "placeholders": {
       "error": {
@@ -77,7 +83,7 @@
   "showInSchedule": "إظهار في الجدول",
   "noCalendarsSynced": "لم تتم مزامنة أي تقويمات بعد.",
   "allDay": "طوال اليوم",
-  "moreItems": "+⁨{count}⁩ عناصر أخرى",
+  "moreItems": "{count, plural, one{+عنصر واحد آخر} two{+عنصران آخران} few{+⁨{count}⁩ عناصر أخرى} many{+⁨{count}⁩ عنصرًا آخر} other{+⁨{count}⁩ عنصر آخر}}",
   "noEventsOrTasks": "لا توجد أحداث أو مهام",
   "scheduleLoading": "جارٍ تحميل الجدول...",
   "scheduleUnavailable": "الجدول غير متاح",
@@ -98,7 +104,7 @@
   "trayCalendarEvent": "حدث في التقويم",
   "trayUntitledEvent": "حدث بلا عنوان",
   "trayNothingElseToday": "لا شيء آخر اليوم",
-  "trayTasksDueToday": "{count, plural, =0{لا توجد مهام مستحقة اليوم} =1{مهمة واحدة مستحقة اليوم} =2{مهمتان مستحقتان اليوم} few{{count} مهام مستحقة اليوم} many{{count} مهمة مستحقة اليوم} other{{count} مهمة مستحقة اليوم}}",
+  "trayTasksDueToday": "{count, plural, =0{لا توجد مهام مستحقة اليوم} =1{مهمة واحدة مستحقة اليوم} =2{مهمتان مستحقتان اليوم} few{⁨{count}⁩ مهام مستحقة اليوم} many{⁨{count}⁩ مهمة مستحقة اليوم} other{⁨{count}⁩ مهمة مستحقة اليوم}}",
   "@trayTasksDueToday": {
     "placeholders": {
       "count": {
@@ -112,7 +118,7 @@
   "trayNotConnected": "غير متصل",
   "trayNotYetSynced": "لم تتم المزامنة بعد",
   "trayLastSyncedJustNow": "تمت المزامنة للتو",
-  "trayLastSyncedMinutesAgo": "{count, plural, =1{تمت المزامنة قبل دقيقة واحدة} other{تمت المزامنة قبل {count} دقائق}}",
+  "trayLastSyncedMinutesAgo": "{count, plural, one{تمت المزامنة قبل دقيقة واحدة} two{تمت المزامنة قبل دقيقتين} few{تمت المزامنة قبل ⁨{count}⁩ دقائق} many{تمت المزامنة قبل ⁨{count}⁩ دقيقة} other{تمت المزامنة قبل ⁨{count}⁩ دقيقة}}",
   "@trayLastSyncedMinutesAgo": {
     "placeholders": {
       "count": {
@@ -120,7 +126,7 @@
       }
     }
   },
-  "trayLastSyncedHoursAgo": "{count, plural, =1{تمت المزامنة قبل ساعة واحدة} other{تمت المزامنة قبل {count} ساعات}}",
+  "trayLastSyncedHoursAgo": "{count, plural, one{تمت المزامنة قبل ساعة واحدة} two{تمت المزامنة قبل ساعتين} few{تمت المزامنة قبل ⁨{count}⁩ ساعات} many{تمت المزامنة قبل ⁨{count}⁩ ساعة} other{تمت المزامنة قبل ⁨{count}⁩ ساعة}}",
   "@trayLastSyncedHoursAgo": {
     "placeholders": {
       "count": {
@@ -128,7 +134,7 @@
       }
     }
   },
-  "trayLastSyncedDaysAgo": "{count, plural, =1{تمت المزامنة قبل يوم واحد} other{تمت المزامنة قبل {count} أيام}}",
+  "trayLastSyncedDaysAgo": "{count, plural, one{تمت المزامنة قبل يوم واحد} two{تمت المزامنة قبل يومين} few{تمت المزامنة قبل ⁨{count}⁩ أيام} many{تمت المزامنة قبل ⁨{count}⁩ يومًا} other{تمت المزامنة قبل ⁨{count}⁩ يوم}}",
   "@trayLastSyncedDaysAgo": {
     "placeholders": {
       "count": {
@@ -164,7 +170,7 @@
   "doesNotRepeat": "لا يتكرر",
   "defaultReminder": "التذكير الافتراضي",
   "guests": "المدعوون",
-  "noGuests": "لا يوجد ضيوف",
+  "noGuests": "لا يوجد مدعوون",
   "description": "الوصف",
   "availabilityShowAs": "التوفر / إظهار كـ",
   "busy": "مشغول",
@@ -195,7 +201,7 @@
   "sensitivityPersonal": "شخصي",
   "tasks": "المهام",
   "allTasks": "كل المهام",
-  "tasksInList": "المهام في ⁨{title}⁩",
+  "tasksInList": "المهام في ⁨⁨{title}⁩⁩",
   "taskLists": "قوائم المهام",
   "navigation": "التنقل",
   "mainMenu": "القائمة الرئيسية",
@@ -250,7 +256,7 @@
   "feedbackRateLimitedError": "أُرسلت ملاحظات كثيرة جدًا من هذه الشبكة. انتظر وحاول مرة أخرى.",
   "feedbackRejectedError": "رفض الخادم الإرسال. راجع الحقول وحاول مرة أخرى.",
   "feedbackServerError": "يتعذر على BusyStack قبول ملاحظاتك الآن. لم تُمسح ملاحظاتك؛ حاول مرة أخرى.",
-  "feedbackSuccess": "تم إرسال الملاحظات. المرجع: ⁨{id}⁩",
+  "feedbackSuccess": "تم إرسال الملاحظات. المرجع: ⁨⁨{id}⁩⁩",
   "toggleSidebar": "إظهار الشريط الجانبي أو إخفاؤه",
   "showSidebar": "إظهار اللوحة الجانبية",
   "hideSidebar": "إخفاء اللوحة الجانبية",
@@ -265,7 +271,7 @@
   "removeAccount": "إزالة الحساب…",
   "removingAccount": "جارٍ إزالة الحساب…",
   "removeAccountDescription": "إيقاف المزامنة وإزالة بيانات هذا الحساب من هذا الجهاز.",
-  "removeAccountTitle": "إزالة ⁨{account}⁩ من BusyMax؟",
+  "removeAccountTitle": "إزالة ⁨⁨{account}⁩⁩ من BusyMax؟",
   "removeAccountConfirmation": "سيؤدي هذا إلى حذف المهام والتقويمات والأحداث والتذكيرات والتغييرات غير المتصلة المخزنة مؤقتًا من هذا الجهاز. ستُفقد التغييرات التي لم تتم مزامنتها، ولن تُحذف نسخ التقويمات والأحداث وقوائم المهام والمهام لدى موفّر الخدمة.",
   "revokeGoogleAccess": "إلغاء وصول BusyMax إلى حساب Google هذا أيضًا",
   "revokeGoogleAccessDescription": "ستحتاج إلى منح الوصول مرة أخرى قبل إعادة الاتصال.",
@@ -282,7 +288,7 @@
   "deleteList": "حذف القائمة",
   "builtInMicrosoftList": "مدمجة",
   "builtInMicrosoftListCannotRenameDelete": "لا يمكن إعادة تسمية قوائم Microsoft To Do المدمجة أو حذفها.",
-  "deleteListConfirmation": "حذف \"⁨{title}⁩\" من Google Tasks؟",
+  "deleteListConfirmation": "حذف \"⁨⁨{title}⁩⁩\" من Google Tasks؟",
   "deleteEvent": "حذف الحدث",
   "title": "العنوان",
   "create": "إنشاء",
@@ -292,9 +298,9 @@
   "refreshAll": "تحديث الكل",
   "listRefreshed": "تم تحديث القائمة.",
   "allTasksRefreshed": "تم تحديث جميع الحسابات.",
-  "exportedFile": "تم التصدير إلى ⁨{path}⁩",
-  "exportFailed": "فشل التصدير: ⁨{error}⁩",
-  "refreshFailed": "فشل التحديث: ⁨{error}⁩",
+  "exportedFile": "تم التصدير إلى ⁨⁨{path}⁩⁩",
+  "exportFailed": "فشل التصدير: ⁨⁨{error}⁩⁩",
+  "refreshFailed": "فشل التحديث: ⁨⁨{error}⁩⁩",
   "selectOrCreateTaskList": "اختر قائمة مهام أو أنشئ واحدة للبدء.",
   "signInToViewTasks": "سجّل الدخول لعرض المهام.",
   "noTasks": "لا توجد مهام.",
@@ -307,8 +313,8 @@
   "upcoming": "القادمة",
   "noDate": "بلا تاريخ",
   "completed": "مكتملة",
-  "duePrefix": "مستحقة في ⁨{date}⁩",
-  "dateTimeDisplay": "⁨{date}⁩ · ⁨{time}⁩",
+  "duePrefix": "مستحقة في ⁨⁨{date}⁩⁩",
+  "dateTimeDisplay": "⁨⁨{date}⁩⁩ · ⁨⁨{time}⁩⁩",
   "taskDetails": "تفاصيل المهمة",
   "editTask": "تعديل المهمة",
   "noTaskSelected": "لم يتم تحديد مهمة.",
@@ -363,7 +369,7 @@
   "moveToTop": "نقل إلى الأعلى",
   "deleteTask": "حذف المهمة",
   "newSubtask": "مهمة فرعية جديدة",
-  "deleteTaskConfirmation": "حذف «⁨{title}⁩»؟",
+  "deleteTaskConfirmation": "حذف «⁨⁨{title}⁩⁩»؟",
   "metadata": "البيانات الوصفية",
   "id": "المعرّف",
   "etag": "ETag",
@@ -387,7 +393,7 @@
   "launchAtLoginFailed": "تعذر تحديث إعداد التشغيل عند تسجيل الدخول.",
   "requiresTrayIcon": "يتطلب أيقونة شريط النظام.",
   "syncComplete": "اكتملت المزامنة.",
-  "syncFailed": "فشلت المزامنة: ⁨{error}⁩",
+  "syncFailed": "فشلت المزامنة: ⁨⁨{error}⁩⁩",
   "notifySyncFailures": "إشعارات عند فشل المزامنة",
   "notifyConflicts": "إشعارات عند حدوث تعارضات",
   "notifyDueToday": "إشعارات المهام المستحقة اليوم",
@@ -418,7 +424,7 @@
   "diagnostics": "التشخيصات",
   "apiInspectorDisabled": "إظهار فاحص API",
   "googleTasksApi": "واجهة Google Tasks API",
-  "discoveryRevision": "مراجعة Discovery: ⁨{revision}⁩",
+  "discoveryRevision": "مراجعة Discovery: ⁨⁨{revision}⁩⁩",
   "implementedMethods": "الطرق المنفذة",
   "supportsTasksScopes": "يدعم نطاقَي tasks وtasks.readonly",
   "requiresTasksScope": "يتطلب نطاق tasks",
@@ -426,8 +432,8 @@
   "signInToInspectPendingOperations": "سجّل الدخول لفحص العمليات المعلّقة.",
   "noBlockedPendingOperations": "لا توجد عمليات معلّقة محظورة.",
   "operationActions": "إجراءات العملية",
-  "pendingOpListId": "القائمة=⁨{id}⁩",
-  "pendingOpTaskId": "المهمة=⁨{id}⁩",
+  "pendingOpListId": "القائمة=⁨⁨{id}⁩⁩",
+  "pendingOpTaskId": "المهمة=⁨⁨{id}⁩⁩",
   "pendingOpAttempts": "المحاولات=⁨{count}⁩",
   "retry": "إعادة المحاولة",
   "discard": "تجاهل",
@@ -439,9 +445,9 @@
   "discardPendingOperationConfirmation": "سيؤدي ذلك إلى إزالة العملية المحلية المحظورة. ستُحدّث البيانات من Google Tasks في المزامنة التالية.",
   "pendingOperationDiscarded": "تم تجاهل العملية المعلّقة.",
   "syncFailureNotificationTitle": "فشلت مزامنة BusyMax",
-  "syncFailureNotificationBody": "فشلت المزامنة في الخلفية. ⁨{message}⁩",
+  "syncFailureNotificationBody": "فشلت المزامنة في الخلفية. ⁨⁨{message}⁩⁩",
   "conflictNotificationTitle": "تعارض في مزامنة BusyMax",
-  "conflictNotificationBody": "تم حظر تغيير محلي معلق. ⁨{summary}⁩",
+  "conflictNotificationBody": "تم حظر تغيير محلي معلق. ⁨⁨{summary}⁩⁩",
   "dueTodayNotificationTitle": "المهام المستحقة اليوم",
   "dueTodayNotificationBody": "{count, plural, =0{لا توجد مهام مستحقة اليوم.} =1{هناك مهمة واحدة مستحقة اليوم.} =2{هناك مهمتان مستحقتان اليوم.} few{هناك ⁨{count}⁩ مهام مستحقة اليوم.} many{هناك ⁨{count}⁩ مهمة مستحقة اليوم.} other{هناك ⁨{count}⁩ مهمة مستحقة اليوم.}}",
   "eventReminderNotificationTitle": "تذكير بحدث",
@@ -503,12 +509,12 @@
   "keepServerVersion": "الاحتفاظ بإصدار الخادم",
   "reapplyLocalChange": "مراجعة التغيير المحلي وإعادة تطبيقه",
   "duplicateLocalItem": "تكرار كعنصر جديد",
-  "deleteCalendarConfirmation": "حذف «⁨{title}⁩»؟",
+  "deleteCalendarConfirmation": "حذف «⁨⁨{title}⁩⁩»؟",
   "davConnectionState": "حالة الاتصال",
   "davConnected": "متصل",
   "davConnecting": "جارٍ الاتصال…",
   "davSignedOut": "تم تسجيل الخروج",
-  "davLastSuccessfulSync": "آخر مزامنة ناجحة: {time}",
+  "davLastSuccessfulSync": "آخر مزامنة ناجحة: ⁨{time}⁩",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -518,7 +524,7 @@
   },
   "davNeverSynced": "لم تتم المزامنة بعد",
   "refreshCollections": "تحديث التقويمات وقوائم المهام",
-  "nextcloudServerHost": "الخادم: {host}",
+  "nextcloudServerHost": "الخادم: ⁨{host}⁩",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -531,7 +537,7 @@
   "collectionSupportsEventsAndTasks": "الأحداث والمهام",
   "writableCollection": "قابل للكتابة",
   "sharedCollection": "مشترك",
-  "collectionLastSynced": "آخر مزامنة: {time}",
+  "collectionLastSynced": "آخر مزامنة: ⁨{time}⁩",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -539,7 +545,7 @@
       }
     }
   },
-  "collectionSyncError": "مشكلة في المزامنة: {code}",
+  "collectionSyncError": "مشكلة في المزامنة: ⁨{code}⁩",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -548,7 +554,7 @@
     }
   },
   "syncConflicts": "تعارضات المزامنة",
-  "remoteChangedAt": "تم التغيير على الخادم في: ⁨{time}⁩",
+  "remoteChangedAt": "تم التغيير على الخادم في: ⁨⁨{time}⁩⁩",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -556,7 +562,7 @@
       }
     }
   },
-  "localPendingEdit": "تعديل محلي: {summary}",
+  "localPendingEdit": "تعديل محلي: ⁨{summary}⁩",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -573,19 +579,19 @@
   "thisAndFutureMoveUnavailable": "لا يمكن نقل هذا الحدث والأحداث التالية بأمان. اختر هذا الحدث أو السلسلة كاملة.",
   "entireSeriesMoveUnavailable": "قاعدة التكرار غير متوفرة محليًا. انقل هذا الحدث بدلاً من ذلك.",
   "copyEventAndDeleteOriginal": "هل تريد نسخ الحدث وحذف الأصل؟",
-  "copyEventMoveWarning": "لا يستطيع BusyMax نقل هذا الحدث مباشرةً من {source} إلى {destination}. سينشئ النسخة أولاً ولن يحذف الأصل إلا بعد نجاح النسخ. ستتغير معرّفات الحدث؛ وقد تُعاد تعيين حالات استجابة الحاضرين وتُرسل دعوات أو إلغاءات؛ وقد لا تُنقل روابط الاجتماعات والمرفقات والتذكيرات والحقول الخاصة بموفّر الخدمة واستثناءات التكرار.",
+  "copyEventMoveWarning": "لا يستطيع BusyMax نقل هذا الحدث مباشرةً من ⁨{source}⁩ إلى ⁨{destination}⁩. سينشئ النسخة أولاً ولن يحذف الأصل إلا بعد نجاح النسخ. ستتغير معرّفات الحدث؛ وقد تُعاد تعيين حالات استجابة الحاضرين وتُرسل دعوات أو إلغاءات؛ وقد لا تُنقل روابط الاجتماعات والمرفقات والتذكيرات والحقول الخاصة بموفّر الخدمة واستثناءات التكرار.",
   "copyAndDelete": "نسخ وحذف",
   "chooseRecurringEventScope": "اختر ما إذا كان هذا التغيير ينطبق على السلسلة بأكملها، أو هذا الحدث فقط، أو هذا الحدث والأحداث التالية.",
   "taskDueBeforeStart": "يجب ألا يكون موعد الاستحقاق قبل وقت البدء.",
   "taskStartDueTimeModeMismatch": "عيّن وقتًا لكل من البدء والاستحقاق، أو اجعل المهمة طوال اليوم.",
-  "taskListCreateFailed": "تعذّر إنشاء قائمة المهام: {error}",
-  "taskListRenameFailed": "تعذّر إعادة تسمية قائمة المهام: {error}",
-  "taskListDeleteFailed": "تعذّر حذف قائمة المهام: {error}",
+  "taskListCreateFailed": "تعذّر إنشاء قائمة المهام: ⁨{error}⁩",
+  "taskListRenameFailed": "تعذّر إعادة تسمية قائمة المهام: ⁨{error}⁩",
+  "taskListDeleteFailed": "تعذّر حذف قائمة المهام: ⁨{error}⁩",
   "unshare": "إلغاء المشاركة",
   "readOnlyTaskListCannotRename": "قائمة المهام هذه للقراءة فقط ولا يمكن إعادة تسميتها.",
   "taskListCannotDelete": "لا يمكن حذف قائمة المهام هذه باستخدام أذوناتك الحالية.",
-  "deleteTaskListConfirmation": "حذف \"{title}\" وجميع مهامها؟",
-  "unshareTaskListConfirmation": "إلغاء مشاركة \"{title}\" من هذا الحساب؟",
+  "deleteTaskListConfirmation": "حذف \"⁨{title}⁩\" وجميع مهامها؟",
+  "unshareTaskListConfirmation": "إلغاء مشاركة \"⁨{title}⁩\" من هذا الحساب؟",
   "taskStatus": "الحالة",
   "taskStatusNone": "بلا حالة",
   "taskStatusNeedsAction": "تحتاج إلى إجراء",
@@ -661,12 +667,12 @@
   "repeatOnOrdinalSummary": "{position, select, first{في أول {days}} second{في ثاني {days}} third{في ثالث {days}} fourth{في رابع {days}} fifth{في خامس {days}} secondToLast{في {days} قبل الأخير} last{في آخر {days}} other{في {days}}}",
   "repeatInMonthsSummary": "في {months}",
   "repeatTimesSummary": "{count, plural, one{مرة واحدة} two{مرتين} few{{count} مرات} many{{count} مرة} other{{count} مرة}}",
-  "repeatUntilSummary": "حتى {date}",
+  "repeatUntilSummary": "حتى ⁨{date}⁩",
   "unsupportedRecurrencePreserved": "تستخدم قاعدة التكرار هذه خيارات لا يغيّرها هذا المحرر.",
-  "recurrenceUnsupportedByProvider": "لا يمكن استخدام هذا التكرار مع {provider}.",
+  "recurrenceUnsupportedByProvider": "لا يمكن استخدام هذا التكرار مع ⁨{provider}⁩.",
   "duplicateTask": "تكرار المهمة",
   "taskDuplicated": "تم تكرار المهمة.",
-  "taskDuplicateFailed": "تعذّر تكرار المهمة: {error}",
+  "taskDuplicateFailed": "تعذّر تكرار المهمة: ⁨{error}⁩",
   "hideSubtasks": "إخفاء المهام الفرعية",
   "hideClosedSubtasks": "إخفاء المهام الفرعية المغلقة",
   "reminderUnit": "الوحدة",
@@ -677,24 +683,24 @@
   "addTeamsMeeting": "إضافة اجتماع Microsoft Teams",
   "onlineMeetingAdded": "تمت إضافة الاجتماع عبر الإنترنت",
   "requestResponses": "طلب الردود",
-  "requestResponsesDescription": "اطلب من الضيوف الرد على الدعوة.",
-  "hideGuestList": "إخفاء قائمة الضيوف",
-  "hideGuestListDescription": "لا يمكن للضيوف رؤية المدعوين الآخرين.",
+  "requestResponsesDescription": "اطلب من المدعوين الرد على الدعوة.",
+  "hideGuestList": "إخفاء قائمة المدعوين",
+  "hideGuestListDescription": "لا يمكن للمدعوين رؤية المدعوين الآخرين.",
   "allowNewTimeProposals": "السماح باقتراح أوقات جديدة",
-  "allowNewTimeProposalsDescription": "يمكن للضيوف اقتراح وقت مختلف للاجتماع.",
-  "notifyGuestsTitle": "إبلاغ الضيوف؟",
-  "notifyGuestsSaveMessage": "يضم هذا الاجتماع ضيوفًا. هل تريد إرسال الدعوات أو تحديثات الحدث عند حفظه؟",
-  "notifyGuestsDeleteMessage": "يضم هذا الاجتماع ضيوفًا. هل تريد إرسال إلغاء عند حذفه؟",
+  "allowNewTimeProposalsDescription": "يمكن للمدعوين اقتراح وقت مختلف للاجتماع.",
+  "notifyGuestsTitle": "إبلاغ المدعوين؟",
+  "notifyGuestsSaveMessage": "يضم هذا الاجتماع مدعوين. هل تريد إرسال الدعوات أو تحديثات الحدث عند حفظه؟",
+  "notifyGuestsDeleteMessage": "يضم هذا الاجتماع مدعوين. هل تريد إرسال إلغاء عند حذفه؟",
   "sendUpdates": "إرسال التحديثات",
   "sendCancellation": "إرسال الإلغاء",
   "doNotSend": "عدم الإرسال",
   "microsoftNotifyGuestsSaveTitle": "حفظ الاجتماع؟",
-  "microsoftNotifyGuestsSaveMessage": "سترسل Microsoft الدعوات أو تحديثات الحدث إلى الضيوف.",
+  "microsoftNotifyGuestsSaveMessage": "سترسل Microsoft الدعوات أو تحديثات الحدث إلى المدعوين.",
   "microsoftNotifyGuestsDeleteTitle": "حذف الاجتماع؟",
-  "microsoftNotifyGuestsDeleteMessage": "سترسل Microsoft إلغاءً إلى الضيوف.",
+  "microsoftNotifyGuestsDeleteMessage": "سترسل Microsoft إلغاءً إلى المدعوين.",
   "organizer": "المنظّم",
   "yourResponse": "ردك",
-  "guestResponses": "ردود الضيوف",
+  "guestResponses": "ردود المدعوين",
   "respond": "الرد",
   "acceptInvitation": "قبول",
   "tentativeInvitation": "مبدئي",
@@ -706,7 +712,7 @@
   "responseNeedsAction": "بانتظار الرد",
   "responseNotResponded": "لم يتم الرد",
   "responseOrganizer": "المنظّم",
-  "invitationResponseFailed": "تعذّر إرسال ردك: {error}",
+  "invitationResponseFailed": "تعذّر إرسال ردك: ⁨{error}⁩",
   "@invitationResponseFailed": {
     "placeholders": {
       "error": {
@@ -719,7 +725,7 @@
   "setAction": "تعيين",
   "removeFromMyCalendars": "إزالة من تقاويمي",
   "removeAction": "إزالة",
-  "removeCalendarConfirmation": "هل تريد إزالة \"{title}\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.",
+  "removeCalendarConfirmation": "هل تريد إزالة \"⁨{title}⁩\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.",
   "calendarCannotRemove": "لا يمكن حذف هذا التقويم أو إزالته من هذا الحساب.",
   "calendarPendingChangesPreventRemoval": "انتظر حتى تنتهي مزامنة التغييرات المعلقة لهذا التقويم قبل حذفه أو إزالته.",
   "calendarSubscriptions": "اشتراكات التقويم",
@@ -737,7 +743,7 @@
   "subscriptionHourly": "كل ساعة",
   "subscriptionSixHours": "كل ست ساعات",
   "subscriptionDaily": "يوميًا",
-  "subscriptionSafeOrigin": "المصدر: {origin}",
+  "subscriptionSafeOrigin": "المصدر: ⁨{origin}⁩",
   "@subscriptionSafeOrigin": {
     "placeholders": {
       "origin": {
@@ -748,7 +754,7 @@
   "subscriptionSafeOriginUnavailable": "أدخل عنوان URL صالحًا لمعاينة مصدره الآمن.",
   "subscriptionReadOnly": "اشتراك للقراءة فقط",
   "subscriptionNeverRefreshed": "لم يتم التحديث بعد",
-  "subscriptionLastRefresh": "آخر تحديث ناجح: {time}",
+  "subscriptionLastRefresh": "آخر تحديث ناجح: ⁨{time}⁩",
   "@subscriptionLastRefresh": {
     "placeholders": {
       "time": {
@@ -756,7 +762,7 @@
       }
     }
   },
-  "subscriptionNextRefresh": "التحديث التالي: {time}",
+  "subscriptionNextRefresh": "التحديث التالي: ⁨{time}⁩",
   "@subscriptionNextRefresh": {
     "placeholders": {
       "time": {
@@ -765,7 +771,7 @@
     }
   },
   "subscriptionStatusHealthy": "محدّث",
-  "subscriptionStatusIssue": "مشكلة في التحديث: {code}",
+  "subscriptionStatusIssue": "مشكلة في التحديث: ⁨{code}⁩",
   "@subscriptionStatusIssue": {
     "placeholders": {
       "code": {
@@ -775,7 +781,7 @@
   },
   "refreshNow": "تحديث الآن",
   "unsubscribe": "إلغاء الاشتراك",
-  "unsubscribeCalendarTitle": "إلغاء الاشتراك من «{name}»؟",
+  "unsubscribeCalendarTitle": "إلغاء الاشتراك من «⁨{name}⁩»؟",
   "@unsubscribeCalendarTitle": {
     "placeholders": {
       "name": {
@@ -785,7 +791,7 @@
   },
   "unsubscribeCalendarConfirmation": "يؤدي هذا إلى إزالة الاشتراك المحلي والأحداث المخزنة مؤقتًا. لن يتغير التقويم المنشور.",
   "addSubscriptionAction": "إضافة اشتراك",
-  "subscriptionOperationFailed": "فشل اشتراك التقويم: {error}",
+  "subscriptionOperationFailed": "فشل اشتراك التقويم: ⁨{error}⁩",
   "@subscriptionOperationFailed": {
     "placeholders": {
       "error": {
@@ -814,7 +820,7 @@
       }
     }
   },
-  "importFieldsOmitted": "تم الاستبعاد عمدًا: {fields}",
+  "importFieldsOmitted": "تم الاستبعاد عمدًا: ⁨{fields}⁩",
   "@importFieldsOmitted": {
     "placeholders": {
       "fields": {
@@ -850,7 +856,7 @@
       }
     }
   },
-  "importIcsFailed": "تعذّر استيراد ملف التقويم: {error}",
+  "importIcsFailed": "تعذّر استيراد ملف التقويم: ⁨{error}⁩",
   "@importIcsFailed": {
     "placeholders": {
       "error": {
@@ -872,7 +878,7 @@
       }
     }
   },
-  "repeatOnMonthDaysSummaryMultiple": "في أيام الشهر {days}",
+  "repeatOnMonthDaysSummaryMultiple": "في الأيام {days} من الشهر",
   "@repeatOnMonthDaysSummaryMultiple": {
     "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
     "placeholders": {

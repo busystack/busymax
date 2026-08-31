@@ -125,12 +125,70 @@ abstract class AppLocalizations {
     Locale('ja'),
     Locale('ko'),
     Locale('pt'),
+    Locale('pt', 'PT'),
     Locale('ru'),
     Locale('vi'),
     Locale('zh'),
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
+
+  /// Sentence-form weekday used inside a weekly recurrence summary. {dayKey} is MO through SU; {day} is the locale-formatted fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} other{{day}}}'**
+  String repeatWeeklyDaySummary(String dayKey, String day);
+
+  /// Sentence fragment for a monthly recurrence on exactly two dates.
+  ///
+  /// In en, this message translates to:
+  /// **'on days {first} and {second}'**
+  String repeatOnTwoMonthDaysSummary(String first, String second);
+
+  /// Complete yearly recurrence summary for exactly two dates in one month.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {firstDay} and {secondDay} of {month}'**
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  );
+
+  /// Complete yearly recurrence summary for one date in exactly two months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on day {day} of {firstMonth} and {secondMonth}'**
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  );
+
+  /// Complete yearly recurrence summary for exactly two dates in exactly two months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {firstDay} and {secondDay} of {firstMonth} and {secondMonth}'**
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  );
+
+  /// Complete yearly recurrence summary for three or more dates in exactly two months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {days} of {firstMonth} and {secondMonth}'**
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  );
 
   /// No description provided for @appTitle.
   ///
@@ -4300,6 +4358,18 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
             return AppLocalizationsZhHans();
           case 'Hant':
             return AppLocalizationsZhHant();
+        }
+        break;
+      }
+  }
+
+  // Lookup logic when language+country codes are specified.
+  switch (locale.languageCode) {
+    case 'pt':
+      {
+        switch (locale.countryCode) {
+          case 'PT':
+            return AppLocalizationsPtPt();
         }
         break;
       }

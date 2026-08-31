@@ -13,6 +13,67 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'le lundi',
+      'TU': 'le mardi',
+      'WE': 'le mercredi',
+      'TH': 'le jeudi',
+      'FR': 'le vendredi',
+      'SA': 'le samedi',
+      'SU': 'le dimanche',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return 'les jours $first et $second du mois';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency les jours $firstDay et $secondDay de $month';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency le $day de $firstMonth et $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency les jours $firstDay et $secondDay de $firstMonth et $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency les jours $days de $firstMonth et $secondMonth';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
@@ -139,7 +200,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String calendarCreateFailed(String error) {
-    return 'Impossible de créer le calendrier : $error';
+    return 'Impossible de créer le calendrier : $error';
   }
 
   @override
@@ -148,12 +209,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String calendarUpdateFailed(String error) {
-    return 'Impossible de mettre à jour le calendrier : $error';
+    return 'Impossible de mettre à jour le calendrier : $error';
   }
 
   @override
   String calendarDeleteFailed(String error) {
-    return 'Impossible de supprimer le calendrier : $error';
+    return 'Impossible de supprimer le calendrier : $error';
   }
 
   @override
@@ -179,7 +240,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count de plus';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '+$countString de plus';
   }
 
   @override
@@ -801,7 +866,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get feedbackTimeoutError =>
-      'La demande a expiré. Vos commentaires n’ont pas été effacés ; réessayez.';
+      'La demande a expiré. Vos commentaires n’ont pas été effacés ; réessayez.';
 
   @override
   String get feedbackRateLimitedError =>
@@ -813,11 +878,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get feedbackServerError =>
-      'BusyStack ne peut pas accepter vos commentaires pour le moment. Vos commentaires n’ont pas été effacés ; réessayez.';
+      'BusyStack ne peut pas accepter vos commentaires pour le moment. Vos commentaires n’ont pas été effacés ; réessayez.';
 
   @override
   String feedbackSuccess(String id) {
-    return 'Commentaires envoyés. Référence : $id';
+    return 'Commentaires envoyés. Référence : $id';
   }
 
   @override
@@ -998,12 +1063,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String exportFailed(String error) {
-    return 'Échec de l’export : $error';
+    return 'Échec de l’export : $error';
   }
 
   @override
   String refreshFailed(String error) {
-    return 'Échec de l’actualisation : $error';
+    return 'Échec de l’actualisation : $error';
   }
 
   @override
@@ -1108,7 +1173,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return '$percent % terminée';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString % terminée';
   }
 
   @override
@@ -1122,17 +1191,29 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priorité $priority · élevée';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priorité $priorityString · élevée';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priorité $priority · moyenne';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priorité $priorityString · moyenne';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priorité $priority · faible';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priorité $priorityString · faible';
   }
 
   @override
@@ -1266,7 +1347,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'Cette date comporte $count rappels associés. Les conserver à leur date et heure actuelles ?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Cette date comporte $countString rappels associés. Les conserver à leur date et heure actuelles ?';
   }
 
   @override
@@ -1391,27 +1476,43 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String repeatEveryDays(int count) {
-    return 'Tous les $count jours';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Tous les $countString jours';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Toutes les $count semaines';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Toutes les $countString semaines';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Tous les $count mois';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Tous les $countString mois';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Toutes les $count années';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Toutes les $countString années';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'les $days';
+    return '$days';
   }
 
   @override
@@ -1441,11 +1542,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count fois',
-      one: '$count fois',
+      other: '$countString fois',
+      one: '$countString fois',
     );
     return '$_temp0';
   }
@@ -1544,7 +1649,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String deleteTaskConfirmation(String title) {
-    return 'Supprimer « $title » ?';
+    return 'Supprimer « $title » ?';
   }
 
   @override
@@ -1624,7 +1729,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String syncFailed(String error) {
-    return 'Échec de la synchronisation : $error';
+    return 'Échec de la synchronisation : $error';
   }
 
   @override
@@ -1721,7 +1826,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String discoveryRevision(String revision) {
-    return 'Révision Discovery : $revision';
+    return 'Révision Discovery : $revision';
   }
 
   @override
@@ -1760,7 +1865,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return 'tentatives=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'tentatives=$countString';
   }
 
   @override
@@ -1773,7 +1882,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get discardChangesAction => 'Abandonner';
 
   @override
-  String get discardChanges => 'Abandonner les modifications ?';
+  String get discardChanges => 'Abandonner les modifications ?';
 
   @override
   String get discardChangesConfirmation =>
@@ -1783,7 +1892,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get retryCompleted => 'Nouvelle tentative terminée.';
 
   @override
-  String get discardPendingOperation => 'Abandonner l’opération en attente ?';
+  String get discardPendingOperation => 'Abandonner l’opération en attente ?';
 
   @override
   String get discardPendingOperationConfirmation =>
@@ -1814,10 +1923,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count tâches sont dues aujourd’hui.',
+      other: '$countString tâches sont dues aujourd’hui.',
       one: 'Une tâche est due aujourd’hui.',
     );
     return '$_temp0';
@@ -2145,7 +2258,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String deleteCalendarConfirmation(String title) {
-    return 'Supprimer « $title » ?';
+    return 'Supprimer « $title » ?';
   }
 
   @override
@@ -2162,7 +2275,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String removeCalendarConfirmation(String title) {
-    return 'Retirer « $title » de votre liste Google Agenda ? L’agenda partagé et ses événements ne seront pas supprimés.';
+    return 'Retirer « $title » de votre liste Google Agenda ? L’agenda partagé et ses événements ne seront pas supprimés.';
   }
 
   @override

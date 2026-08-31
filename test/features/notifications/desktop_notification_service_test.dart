@@ -183,7 +183,7 @@ void main() {
     final service = DesktopNotificationService(
       backend: backend,
       settings: AppSettings.defaults().copyWith(notifyDueToday: true),
-      locale: const Locale('pt'),
+      locale: const Locale('pt', 'PT'),
     );
 
     await service.notifyDueToday(2);

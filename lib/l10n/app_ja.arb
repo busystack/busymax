@@ -1,5 +1,11 @@
 {
   "@@locale": "ja",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{月曜日} TU{火曜日} WE{水曜日} TH{木曜日} FR{金曜日} SA{土曜日} SU{日曜日} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "{first}、{second}",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency}{month}の{firstDay}と{secondDay}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency}{firstMonth}と{secondMonth}の{day}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency}{firstMonth}と{secondMonth}の{firstDay}と{secondDay}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency}{firstMonth}と{secondMonth}の{days}",
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Google、Microsoft、Apple iCloud Calendar、または Nextcloud のアカウントを接続します。",
   "googlePermissionsConsentNotice": "Google の権限画面で、カレンダーとタスクの両方の権限を選択してください。",

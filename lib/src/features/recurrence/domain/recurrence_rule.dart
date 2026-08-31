@@ -490,6 +490,13 @@ _NormalizedEditorRule? _normalizeMonthlyOrYearly({
     );
   }
 
+  final hasOrdinalByDay = byDay.any(
+    (value) => RegExp(r'^-?[1-5](?:MO|TU|WE|TH|FR|SA|SU)$').hasMatch(value),
+  );
+  if (byMonth.length > 1 && (bySetPositions.isNotEmpty || hasOrdinalByDay)) {
+    return null;
+  }
+
   if (byDay.length == 1 && bySetPositions.isEmpty) {
     final ordinal = RegExp(
       r'^(-?[1-5])(MO|TU|WE|TH|FR|SA|SU)$',

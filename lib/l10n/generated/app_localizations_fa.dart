@@ -13,6 +13,67 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'دوشنبه',
+      'TU': 'سه‌شنبه',
+      'WE': 'چهارشنبه',
+      'TH': 'پنجشنبه',
+      'FR': 'جمعه',
+      'SA': 'شنبه',
+      'SU': 'یکشنبه',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return 'در روزهای $first و $second ماه';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency در روزهای $firstDay و $secondDay ماه $month';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency در روز $day ماه‌های $firstMonth و $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency در روزهای $firstDay و $secondDay ماه‌های $firstMonth و $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency در روزهای $days ماه‌های $firstMonth و $secondMonth';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
@@ -125,7 +186,11 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String calendarColorOption(int number) {
-    return 'رنگ $number';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'رنگ $numberString';
   }
 
   @override
@@ -137,7 +202,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String calendarCreateFailed(String error) {
-    return 'ایجاد تقویم ممکن نشد: $error';
+    return 'ایجاد تقویم ممکن نشد: ⁨$error⁩';
   }
 
   @override
@@ -146,12 +211,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String calendarUpdateFailed(String error) {
-    return 'به‌روزرسانی تقویم ممکن نشد: $error';
+    return 'به‌روزرسانی تقویم ممکن نشد: ⁨$error⁩';
   }
 
   @override
   String calendarDeleteFailed(String error) {
-    return 'حذف تقویم ممکن نشد: $error';
+    return 'حذف تقویم ممکن نشد: ⁨$error⁩';
   }
 
   @override
@@ -250,10 +315,14 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String trayTasksDueToday(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count کار امروز سررسید دارند',
+      other: '$countString کار امروز سررسید دارند',
       one: '۱ کار امروز سررسید دارد',
     );
     return '$_temp0';
@@ -279,10 +348,14 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String trayLastSyncedMinutesAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count دقیقه پیش همگام شد',
+      other: '$countString دقیقه پیش همگام شد',
       one: '۱ دقیقه پیش همگام شد',
     );
     return '$_temp0';
@@ -290,10 +363,14 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String trayLastSyncedHoursAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count ساعت پیش همگام شد',
+      other: '$countString ساعت پیش همگام شد',
       one: '۱ ساعت پیش همگام شد',
     );
     return '$_temp0';
@@ -301,10 +378,14 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String trayLastSyncedDaysAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count روز پیش همگام شد',
+      other: '$countString روز پیش همگام شد',
       one: '۱ روز پیش همگام شد',
     );
     return '$_temp0';
@@ -396,7 +477,7 @@ class AppLocalizationsFa extends AppLocalizations {
   String get guests => 'مهمانان';
 
   @override
-  String get noGuests => 'مهمانی وجود ندارد';
+  String get noGuests => 'فهرست مهمانان خالی است';
 
   @override
   String get attendeeRequired => 'ضروری';
@@ -515,7 +596,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String invitationResponseFailed(String error) {
-    return 'ارسال پاسخ شما ممکن نیست: $error';
+    return 'ارسال پاسخ شما ممکن نیست: ⁨$error⁩';
   }
 
   @override
@@ -653,7 +734,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String tasksInList(String title) {
-    return 'کارهای ⁨$title⁩';
+    return 'کارهای ⁨⁨$title⁩⁩';
   }
 
   @override
@@ -832,7 +913,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String feedbackSuccess(String id) {
-    return 'بازخورد ارسال شد. شناسهٔ پیگیری: ⁨$id⁩';
+    return 'بازخورد ارسال شد. شناسهٔ پیگیری: ⁨⁨$id⁩⁩';
   }
 
   @override
@@ -880,7 +961,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return '⁨$account⁩ از BusyMax حذف شود؟';
+    return '⁨⁨$account⁩⁩ از BusyMax حذف شود؟';
   }
 
   @override
@@ -910,17 +991,17 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'ایجاد فهرست کار ممکن نیست: $error';
+    return 'ایجاد فهرست کار ممکن نیست: ⁨$error⁩';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'تغییر نام فهرست کار ممکن نیست: $error';
+    return 'تغییر نام فهرست کار ممکن نیست: ⁨$error⁩';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'حذف فهرست کار ممکن نیست: $error';
+    return 'حذف فهرست کار ممکن نیست: ⁨$error⁩';
   }
 
   @override
@@ -964,17 +1045,17 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return '‏«⁨$title⁩» از Google Tasks حذف شود؟';
+    return '‏«⁨⁨$title⁩⁩» از Google Tasks حذف شود؟';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return '‏«$title» و همهٔ کارهای آن حذف شوند؟';
+    return '‏«⁨$title⁩» و همهٔ کارهای آن حذف شوند؟';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'اشتراک‌گذاری «$title» از این حساب لغو شود؟';
+    return 'اشتراک‌گذاری «⁨$title⁩» از این حساب لغو شود؟';
   }
 
   @override
@@ -1006,17 +1087,17 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String exportedFile(String path) {
-    return 'در ⁨$path⁩ خروجی گرفته شد';
+    return 'در ⁨⁨$path⁩⁩ خروجی گرفته شد';
   }
 
   @override
   String exportFailed(String error) {
-    return 'خروجی گرفتن ناموفق بود: ⁨$error⁩';
+    return 'خروجی گرفتن ناموفق بود: ⁨⁨$error⁩⁩';
   }
 
   @override
   String refreshFailed(String error) {
-    return 'تازه‌سازی ناموفق بود: ⁨$error⁩';
+    return 'تازه‌سازی ناموفق بود: ⁨⁨$error⁩⁩';
   }
 
   @override
@@ -1059,12 +1140,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String duePrefix(String date) {
-    return 'سررسید: ⁨$date⁩';
+    return 'سررسید: ⁨⁨$date⁩⁩';
   }
 
   @override
   String dateTimeDisplay(String date, String time) {
-    return '⁨$date⁩ · ⁨$time⁩';
+    return '⁨⁨$date⁩⁩ · ⁨⁨$time⁩⁩';
   }
 
   @override
@@ -1121,7 +1202,11 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return '$percent٪ تکمیل‌شده';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString٪ تکمیل‌شده';
   }
 
   @override
@@ -1135,17 +1220,29 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return 'اولویت $priority · زیاد';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'اولویت $priorityString · زیاد';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'اولویت $priority · متوسط';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'اولویت $priorityString · متوسط';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'اولویت $priority · کم';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'اولویت $priorityString · کم';
   }
 
   @override
@@ -1275,7 +1372,11 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'این تاریخ $count یادآور مرتبط دارد. آن‌ها در تاریخ و زمان فعلی نگه داشته شوند؟';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'این تاریخ $countString یادآور مرتبط دارد. آن‌ها در تاریخ و زمان فعلی نگه داشته شوند؟';
   }
 
   @override
@@ -1400,22 +1501,38 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String repeatEveryDays(int count) {
-    return 'هر $count روز';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'هر $countString روز';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'هر $count هفته';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'هر $countString هفته';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'هر $count ماه';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'هر $countString ماه';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'هر $count سال';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'هر $countString سال';
   }
 
   @override
@@ -1450,18 +1567,22 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count بار',
-      one: '$count بار',
+      other: '$countString بار',
+      one: '$countString بار',
     );
     return '$_temp0';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return 'تا $date';
+    return 'تا ⁨$date⁩';
   }
 
   @override
@@ -1470,7 +1591,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
-    return 'این تکرار را نمی‌توان با $provider استفاده کرد.';
+    return 'این تکرار را نمی‌توان با ⁨$provider⁩ استفاده کرد.';
   }
 
   @override
@@ -1533,7 +1654,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'تکرار کار ممکن نیست: $error';
+    return 'تکرار کار ممکن نیست: ⁨$error⁩';
   }
 
   @override
@@ -1553,7 +1674,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String deleteTaskConfirmation(String title) {
-    return '«⁨$title⁩» حذف شود؟';
+    return '«⁨⁨$title⁩⁩» حذف شود؟';
   }
 
   @override
@@ -1629,7 +1750,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String syncFailed(String error) {
-    return 'همگام‌سازی ناموفق بود: ⁨$error⁩';
+    return 'همگام‌سازی ناموفق بود: ⁨⁨$error⁩⁩';
   }
 
   @override
@@ -1726,7 +1847,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String discoveryRevision(String revision) {
-    return 'بازبینی Discovery: ⁨$revision⁩';
+    return 'بازبینی Discovery: ⁨⁨$revision⁩⁩';
   }
 
   @override
@@ -1755,12 +1876,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String pendingOpListId(String id) {
-    return 'فهرست=⁨$id⁩';
+    return 'فهرست=⁨⁨$id⁩⁩';
   }
 
   @override
   String pendingOpTaskId(String id) {
-    return 'کار=⁨$id⁩';
+    return 'کار=⁨⁨$id⁩⁩';
   }
 
   @override
@@ -1806,7 +1927,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String syncFailureNotificationBody(String message) {
-    return 'همگام‌سازی پس‌زمینه ناموفق بود. ⁨$message⁩';
+    return 'همگام‌سازی پس‌زمینه ناموفق بود. ⁨⁨$message⁩⁩';
   }
 
   @override
@@ -1814,7 +1935,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return 'یک تغییر محلی در انتظار مسدود شد. ⁨$summary⁩';
+    return 'یک تغییر محلی در انتظار مسدود شد. ⁨⁨$summary⁩⁩';
   }
 
   @override
@@ -2057,7 +2178,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'آخرین همگام‌سازی موفق: $time';
+    return 'آخرین همگام‌سازی موفق: ⁨$time⁩';
   }
 
   @override
@@ -2068,7 +2189,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String nextcloudServerHost(String host) {
-    return 'سرور: $host';
+    return 'سرور: ⁨$host⁩';
   }
 
   @override
@@ -2088,12 +2209,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String collectionLastSynced(String time) {
-    return 'آخرین همگام‌سازی: $time';
+    return 'آخرین همگام‌سازی: ⁨$time⁩';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'مشکل همگام‌سازی: $code';
+    return 'مشکل همگام‌سازی: ⁨$code⁩';
   }
 
   @override
@@ -2101,12 +2222,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String remoteChangedAt(String time) {
-    return 'تغییر سرور: $time';
+    return 'تغییر سرور: ⁨$time⁩';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'ویرایش محلی: $summary';
+    return 'ویرایش محلی: ⁨$summary⁩';
   }
 
   @override
@@ -2141,7 +2262,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String copyEventMoveWarning(String source, String destination) {
-    return 'BusyMax نمی‌تواند این رویداد را مستقیماً از $source به $destination منتقل کند. ابتدا کپی را ایجاد می‌کند و فقط پس از موفقیت کپی، نسخهٔ اصلی را حذف می‌کند. شناسه‌های رویداد تغییر می‌کنند؛ ممکن است وضعیت پاسخ شرکت‌کنندگان بازنشانی شود و دعوت‌نامه یا لغو ارسال شود؛ و شاید پیوندهای جلسه، پیوست‌ها، یادآورها، فیلدهای ویژهٔ ارائه‌دهنده و استثناهای تکرار منتقل نشوند.';
+    return 'BusyMax نمی‌تواند این رویداد را مستقیماً از ⁨$source⁩ به ⁨$destination⁩ منتقل کند. ابتدا کپی را ایجاد می‌کند و فقط پس از موفقیت کپی، نسخهٔ اصلی را حذف می‌کند. شناسه‌های رویداد تغییر می‌کنند؛ ممکن است وضعیت پاسخ شرکت‌کنندگان بازنشانی شود و دعوت‌نامه یا لغو ارسال شود؛ و شاید پیوندهای جلسه، پیوست‌ها، یادآورها، فیلدهای ویژهٔ ارائه‌دهنده و استثناهای تکرار منتقل نشوند.';
   }
 
   @override
@@ -2160,7 +2281,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String deleteCalendarConfirmation(String title) {
-    return '«⁨$title⁩» حذف شود؟';
+    return '«⁨⁨$title⁩⁩» حذف شود؟';
   }
 
   @override
@@ -2177,7 +2298,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String removeCalendarConfirmation(String title) {
-    return '«$title» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.';
+    return '«⁨$title⁩» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.';
   }
 
   @override
@@ -2238,7 +2359,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String subscriptionSafeOrigin(String origin) {
-    return 'مبدأ: $origin';
+    return 'مبدأ: ⁨$origin⁩';
   }
 
   @override
@@ -2253,12 +2374,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String subscriptionLastRefresh(String time) {
-    return 'آخرین تازه‌سازی موفق: $time';
+    return 'آخرین تازه‌سازی موفق: ⁨$time⁩';
   }
 
   @override
   String subscriptionNextRefresh(String time) {
-    return 'تازه‌سازی بعدی: $time';
+    return 'تازه‌سازی بعدی: ⁨$time⁩';
   }
 
   @override
@@ -2266,7 +2387,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String subscriptionStatusIssue(String code) {
-    return 'مشکل تازه‌سازی: $code';
+    return 'مشکل تازه‌سازی: ⁨$code⁩';
   }
 
   @override
@@ -2277,7 +2398,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String unsubscribeCalendarTitle(String name) {
-    return 'اشتراک «$name» لغو شود؟';
+    return 'اشتراک «⁨$name⁩» لغو شود؟';
   }
 
   @override
@@ -2289,7 +2410,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String subscriptionOperationFailed(String error) {
-    return 'اشتراک تقویم ناموفق بود: $error';
+    return 'اشتراک تقویم ناموفق بود: ⁨$error⁩';
   }
 
   @override
@@ -2310,17 +2431,25 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String importEventsFound(int count) {
-    return 'مجموعه رویدادهای قابل درون‌ریزی: $count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'مجموعه رویدادهای قابل درون‌ریزی: $countString';
   }
 
   @override
   String importInvalidEvents(int count) {
-    return 'رویدادهای نامعتبر: $count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'رویدادهای نامعتبر: $countString';
   }
 
   @override
   String importFieldsOmitted(String fields) {
-    return 'عمداً حذف‌شده: $fields';
+    return 'عمداً حذف‌شده: ⁨$fields⁩';
   }
 
   @override
@@ -2337,22 +2466,34 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String importQueued(int count) {
-    return 'درون‌ریزی‌شده یا در صف: $count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'درون‌ریزی‌شده یا در صف: $countString';
   }
 
   @override
   String importDuplicatesSkipped(int count) {
-    return 'تکراری‌ها رد شدند: $count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'تکراری‌ها رد شدند: $countString';
   }
 
   @override
   String importUnsupportedSets(int count) {
-    return 'مجموعه‌های تکرار پشتیبانی‌نشده: $count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'مجموعه‌های تکرار پشتیبانی‌نشده: $countString';
   }
 
   @override
   String importIcsFailed(String error) {
-    return 'درون‌ریزی فایل تقویم ممکن نیست: $error';
+    return 'درون‌ریزی فایل تقویم ممکن نیست: ⁨$error⁩';
   }
 
   @override

@@ -372,7 +372,7 @@ class NotificationStrings {
   factory NotificationStrings.forLocales(List<Locale>? locales) {
     final supportedLocale = resolveBusyMaxLocales(
       locales,
-      AppLocalizations.supportedLocales,
+      busyMaxSupportedLocales,
     );
     return NotificationStrings.fromLocalizations(
       lookupAppLocalizations(supportedLocale),
