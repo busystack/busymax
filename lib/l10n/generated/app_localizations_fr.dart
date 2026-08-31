@@ -2340,12 +2340,65 @@ class AppLocalizationsFr extends AppLocalizations {
   String get repeatMonthDayListSeparator => ', ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first et $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first et $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency le $day $month';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency le $days $month';
+    return '$frequency les jours $days de $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency le $day de $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency les jours $days de $months';
   }
 
   @override
@@ -2364,6 +2417,26 @@ class AppLocalizationsFr extends AppLocalizations {
       'secondToLast': 'l’avant-dernier $days de $month',
       'last': 'le dernier $days de $month',
       'other': 'les $days de $month',
+    });
+    return '$frequency $_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'le premier $days de $months',
+      'second': 'le deuxième $days de $months',
+      'third': 'le troisième $days de $months',
+      'fourth': 'le quatrième $days de $months',
+      'fifth': 'le cinquième $days de $months',
+      'secondToLast': 'l’avant-dernier $days de $months',
+      'last': 'le dernier $days de $months',
+      'other': 'les $days de $months',
     });
     return '$frequency $_temp0';
   }

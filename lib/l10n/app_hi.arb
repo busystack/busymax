@@ -895,7 +895,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} के {days}वें दिन",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} और {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} और {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} {month} की {day} तारीख को",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months} की {day} तारीख को",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months} की {days} तारीखों को",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {months} के {position, select, first{पहले} second{दूसरे} third{तीसरे} fourth{चौथे} fifth{पाँचवें} secondToLast{अंतिम से दूसरे} last{अंतिम} other{}} {days} को",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} की {days} तारीखों को",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {

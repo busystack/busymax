@@ -895,7 +895,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} في {month} يوم {days}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} و{second}",
+  "repeatYearlyMonthDayListStart": "{first}، {rest}",
+  "repeatYearlyMonthListPair": "{first} و{second}",
+  "repeatYearlyMonthListStart": "{first}، {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} في يوم {day} من {month}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} في يوم {day} من أشهر {months}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} في الأيام {days} من أشهر {months}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {position, select, first{في أول يوم {days} من أشهر {months}} second{في ثاني يوم {days} من أشهر {months}} third{في ثالث يوم {days} من أشهر {months}} fourth{في رابع يوم {days} من أشهر {months}} fifth{في خامس يوم {days} من أشهر {months}} secondToLast{في يوم {days} قبل الأخير من أشهر {months}} last{في آخر يوم {days} من أشهر {months}} other{في يوم {days} من أشهر {months}}}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} في الأيام {days} من {month}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
@@ -904,7 +913,7 @@
       "days": {"type": "String"}
     }
   },
-  "repeatYearlyOnOrdinalSummary": "{frequency} في {position, select, first{أول {days} في {month}} second{ثاني {days} في {month}} third{ثالث {days} في {month}} fourth{رابع {days} في {month}} fifth{خامس {days} في {month}} secondToLast{قبل الأخير {days} في {month}} last{آخر {days} في {month}} other{{days} في {month}}}",
+  "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{في أول يوم {days} من {month}} second{في ثاني يوم {days} من {month}} third{في ثالث يوم {days} من {month}} fourth{في رابع يوم {days} من {month}} fifth{في خامس يوم {days} من {month}} secondToLast{في يوم {days} قبل الأخير من {month}} last{في آخر يوم {days} من {month}} other{في يوم {days} من {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {

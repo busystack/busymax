@@ -102,6 +102,9 @@ void main() {
       'repeatSummarySeparator',
       'repeatMonthDayValue',
       'repeatMonthDayListSeparator',
+      'repeatYearlyMonthDayListStart',
+      'repeatYearlyMonthListStart',
+      'repeatYearlyMonthValue',
     };
     final failures = <String>[];
 
@@ -501,6 +504,90 @@ void main() {
       rawRules: [],
       isSupported: true,
     );
+    const yearlyMonthDaysRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.yearly,
+      interval: 1,
+      byDay: [],
+      byMonth: [9],
+      byMonthDay: [1, 15],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+    const yearlyMonthsMonthDayRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.yearly,
+      interval: 1,
+      byDay: [],
+      byMonth: [9, 10],
+      byMonthDay: [15],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+    const yearlyMonthsMonthDaysRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.yearly,
+      interval: 1,
+      byDay: [],
+      byMonth: [9, 10],
+      byMonthDay: [1, 15],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+    const yearlyMonthsOrdinalRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.yearly,
+      interval: 1,
+      byDay: ['MO'],
+      byMonth: [9, 10],
+      byMonthDay: [],
+      bySetPosition: 1,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+    const yearlyThreeMonthsAndDaysRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.yearly,
+      interval: 1,
+      byDay: [],
+      byMonth: [8, 9, 10],
+      byMonthDay: [1, 15, 20],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+    const yearlyMonthsOnlyRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.yearly,
+      interval: 1,
+      byDay: [],
+      byMonth: [9, 10],
+      byMonthDay: [],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
 
     Future<String> summary(Locale locale, RecurrenceRule rule) async {
       var value = '';
@@ -519,6 +606,189 @@ void main() {
       );
       return value;
     }
+
+    const expectedYearlySummaries = <String, List<String>>{
+      'ar': [
+        'سنويًا في يوم 15 من سبتمبر',
+        'سنويًا في الأيام 1 و15 من سبتمبر',
+        'سنويًا في يوم 15 من أشهر سبتمبر وأكتوبر',
+        'سنويًا في الأيام 1 و15 من أشهر سبتمبر وأكتوبر',
+        'سنويًا في أول يوم الاثنين من سبتمبر',
+        'سنويًا في أول يوم الاثنين من أشهر سبتمبر وأكتوبر',
+      ],
+      'de': [
+        'Jährlich am 15. Sept.',
+        'Jährlich an den Tagen 1 und 15 im Sept.',
+        'Jährlich jeweils am 15. in Sept. und Okt.',
+        'Jährlich jeweils an den Tagen 1 und 15 in Sept. und Okt.',
+        'Jährlich am ersten Montag im Sept.',
+        'Jährlich jeweils am ersten Montag in Sept. und Okt.',
+      ],
+      'en': [
+        'Yearly on Sep 15',
+        'Yearly on days 1 and 15 of Sep',
+        'Yearly on day 15 of Sep and Oct',
+        'Yearly on days 1 and 15 of Sep and Oct',
+        'Yearly on the first Monday of Sep',
+        'Yearly on the first Monday of Sep and Oct',
+      ],
+      'es': [
+        'Anual el día 15 de sept',
+        'Anual los días 1 y 15 de sept',
+        'Anual el día 15 de sept y oct',
+        'Anual los días 1 y 15 de sept y oct',
+        'Anual el primer lunes de sept',
+        'Anual el primer lunes de sept y oct',
+      ],
+      'et': [
+        'Iga aasta septembris 15. päeval',
+        'Iga aasta septembris 1. ja 15. päeval',
+        'Iga aasta septembris ja oktoobris 15. päeval',
+        'Iga aasta septembris ja oktoobris 1. ja 15. päeval',
+        'Iga aasta septembris: esimene esmaspäev',
+        'Iga aasta septembris ja oktoobris: esimene esmaspäev',
+      ],
+      'fa': [
+        'سالانه در روز ۱۵ ماه سپتامبر',
+        'سالانه در روزهای ۱ و ۱۵ ماه سپتامبر',
+        'سالانه در روز ۱۵ ماه‌های سپتامبر و اکتبر',
+        'سالانه در روزهای ۱ و ۱۵ ماه‌های سپتامبر و اکتبر',
+        'سالانه در اولین دوشنبه ماه سپتامبر',
+        'سالانه در اولین دوشنبه ماه‌های سپتامبر و اکتبر',
+      ],
+      'fi': [
+        'Vuosittain syyskuun 15. päivänä',
+        'Vuosittain syyskuun päivinä 1 ja 15',
+        'Vuosittain syyskuun ja lokakuun 15. päivänä',
+        'Vuosittain syyskuun ja lokakuun päivinä 1 ja 15',
+        'Vuosittain syyskuun ensimmäisenä maanantaina',
+        'Vuosittain syyskuun ja lokakuun ensimmäisenä maanantaina',
+      ],
+      'fr': [
+        'Annuel le 15 sept.',
+        'Annuel les jours 1 et 15 de sept.',
+        'Annuel le 15 de sept. et oct.',
+        'Annuel les jours 1 et 15 de sept. et oct.',
+        'Annuel le premier lundi de sept.',
+        'Annuel le premier lundi de sept. et oct.',
+      ],
+      'hi': [
+        'हर वर्ष सित॰ की 15 तारीख को',
+        'हर वर्ष सित॰ की 1 और 15 तारीखों को',
+        'हर वर्ष सित॰ और अक्तू॰ की 15 तारीख को',
+        'हर वर्ष सित॰ और अक्तू॰ की 1 और 15 तारीखों को',
+        'हर वर्ष सित॰ के पहले सोमवार को',
+        'हर वर्ष सित॰ और अक्तू॰ के पहले सोमवार को',
+      ],
+      'it': [
+        'Ogni anno il giorno 15 di set',
+        'Ogni anno nei giorni 1 e 15 di set',
+        'Ogni anno il giorno 15 di set e ott',
+        'Ogni anno nei giorni 1 e 15 di set e ott',
+        'Ogni anno il primo lunedì di set',
+        'Ogni anno il primo lunedì di set e ott',
+      ],
+      'ja': [
+        '毎年9月15日',
+        '毎年9月の1日と15日',
+        '毎年9月と10月の15日',
+        '毎年9月と10月の1日と15日',
+        '毎年9月の第1月曜日',
+        '毎年9月と10月の第1月曜日',
+      ],
+      'ko': [
+        '매년 9월 15일',
+        '매년 9월의 1일과 15일',
+        '매년 9월과 10월의 15일',
+        '매년 9월과 10월의 1일과 15일',
+        '매년 9월의 첫 번째 월요일',
+        '매년 9월과 10월의 첫 번째 월요일',
+      ],
+      'pt': [
+        'Anualmente no dia 15 de set.',
+        'Anualmente nos dias 1 e 15 de set.',
+        'Anualmente no dia 15 de set. e out.',
+        'Anualmente nos dias 1 e 15 de set. e out.',
+        'Anualmente na primeira ocorrência de segunda-feira de set.',
+        'Anualmente na primeira ocorrência de segunda-feira de set. e out.',
+      ],
+      'ru': [
+        'Ежегодно: сент., 15-го числа',
+        'Ежегодно: сент., 1-го и 15-го числа',
+        'Ежегодно: сент. и окт., 15-го числа',
+        'Ежегодно: сент. и окт., 1-го и 15-го числа',
+        'Ежегодно: сент., в первый понедельник',
+        'Ежегодно: сент. и окт., в первый понедельник',
+      ],
+      'vi': [
+        'Hằng năm vào ngày 15 thg 9',
+        'Hằng năm vào các ngày 1 và 15 của thg 9',
+        'Hằng năm vào ngày 15 của thg 9 và thg 10',
+        'Hằng năm vào các ngày 1 và 15 của thg 9 và thg 10',
+        'Hằng năm vào Thứ Hai đầu tiên của thg 9',
+        'Hằng năm vào Thứ Hai đầu tiên của thg 9 và thg 10',
+      ],
+      'zh': [
+        '每年9月15日',
+        '每年9月的1日和15日',
+        '每年9月和10月的15日',
+        '每年9月和10月的1日和15日',
+        '每年9月的第一个星期一',
+        '每年9月和10月的第一个星期一',
+      ],
+      'zh-Hans': [
+        '每年9月15日',
+        '每年9月的1日和15日',
+        '每年9月和10月的15日',
+        '每年9月和10月的1日和15日',
+        '每年9月的第一个星期一',
+        '每年9月和10月的第一个星期一',
+      ],
+      'zh-Hant': [
+        '每年9月15日',
+        '每年9月的1日和15日',
+        '每年9月和10月的15日',
+        '每年9月和10月的1日和15日',
+        '每年9月的第一個星期一',
+        '每年9月和10月的第一個星期一',
+      ],
+    };
+
+    for (final locale in AppLocalizations.supportedLocales) {
+      final values = <String>[
+        await summary(locale, yearlyMonthDayRule),
+        await summary(locale, yearlyMonthDaysRule),
+        await summary(locale, yearlyMonthsMonthDayRule),
+        await summary(locale, yearlyMonthsMonthDaysRule),
+        await summary(locale, yearlyOrdinalRule),
+        await summary(locale, yearlyMonthsOrdinalRule),
+      ];
+      expect(
+        values,
+        expectedYearlySummaries[locale.toLanguageTag()],
+        reason: locale.toLanguageTag(),
+      );
+    }
+    expect(
+      await summary(const Locale('en'), yearlyThreeMonthsAndDaysRule),
+      'Yearly on days 1, 15 and 20 of Aug, Sep and Oct',
+    );
+    expect(
+      await summary(const Locale('ja'), yearlyThreeMonthsAndDaysRule),
+      '毎年8月、9月と10月の1日、15日と20日',
+    );
+    expect(
+      await summary(const Locale('en'), yearlyMonthsOnlyRule),
+      'Yearly in Sep and Oct',
+    );
+    expect(
+      await summary(const Locale('et'), yearlyMonthsOnlyRule),
+      'Iga aasta septembris ja oktoobris',
+    );
+    expect(
+      await summary(const Locale('fi'), yearlyMonthsOnlyRule),
+      'Vuosittain syyskuun ja lokakuun aikana',
+    );
 
     expect(
       await summary(const Locale('de'), ordinalRule),
@@ -595,6 +865,70 @@ void main() {
 
     // package:intl intentionally uses Latin digits for the generic ar locale.
     expect(AppLocalizationsAr().moreItems(12), contains('${fsi}12$pdi'));
+  });
+
+  test('yearly recurrence month forms cover every month', () {
+    const monthKeys = [
+      'jan',
+      'feb',
+      'mar',
+      'apr',
+      'may',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'oct',
+      'nov',
+      'dec',
+    ];
+    const estonian = [
+      'jaanuaris',
+      'veebruaris',
+      'märtsis',
+      'aprillis',
+      'mais',
+      'juunis',
+      'juulis',
+      'augustis',
+      'septembris',
+      'oktoobris',
+      'novembris',
+      'detsembris',
+    ];
+    const finnish = [
+      'tammikuun',
+      'helmikuun',
+      'maaliskuun',
+      'huhtikuun',
+      'toukokuun',
+      'kesäkuun',
+      'heinäkuun',
+      'elokuun',
+      'syyskuun',
+      'lokakuun',
+      'marraskuun',
+      'joulukuun',
+    ];
+    final et = lookupAppLocalizations(const Locale('et'));
+    final fi = lookupAppLocalizations(const Locale('fi'));
+
+    for (var index = 0; index < monthKeys.length; index += 1) {
+      expect(
+        et.repeatYearlyMonthValue('fallback', monthKeys[index]),
+        estonian[index],
+      );
+      expect(
+        fi.repeatYearlyMonthValue('fallback', monthKeys[index]),
+        finnish[index],
+      );
+    }
+    expect(
+      lookupAppLocalizations(
+        const Locale('en'),
+      ).repeatYearlyMonthValue('Sep', 'sep'),
+      'Sep',
+    );
   });
 
   test('both Chinese scripts are generated and supported', () {

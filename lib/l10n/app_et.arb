@@ -834,7 +834,7 @@
   "repeatOnDaysSummary": "päevadel {days}",
   "repeatOnMonthDaysSummary": "{days} päeval",
   "repeatOnOrdinalSummary": "{position, select, first{esimene {days}} second{teine {days}} third{kolmas {days}} fourth{neljas {days}} fifth{viies {days}} secondToLast{eelviimane {days}} last{viimane {days}} other{{days}}}",
-  "repeatInMonthsSummary": "kuudel {months}",
+  "repeatInMonthsSummary": "{months}",
   "repeatTimesSummary": "{count} korda",
   "repeatUntilSummary": "kuni kuupäevani {date}",
   "unsupportedRecurrencePreserved": "See kordusreegel kasutab valikuid, mida see redaktor ei muuda.",
@@ -1073,7 +1073,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} {days} {month} kuupäeval",
+  "repeatYearlyMonthValue": "{monthKey, select, jan{jaanuaris} feb{veebruaris} mar{märtsis} apr{aprillis} may{mais} jun{juunis} jul{juulis} aug{augustis} sep{septembris} oct{oktoobris} nov{novembris} dec{detsembris} other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} ja {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} ja {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} {month} {day} päeval",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months} {day} päeval",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months} {days} päeval",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {months}: {position, select, first{esimene} second{teine} third{kolmas} fourth{neljas} fifth{viies} secondToLast{eelviimane} last{viimane} other{}} {days}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} {days} päeval",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
@@ -1082,7 +1091,7 @@
       "days": {"type": "String"}
     }
   },
-  "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{esimene} second{teine} third{kolmas} fourth{neljas} fifth{viies} secondToLast{eelviimane} last{viimane} other{}} {days} {month}",
+  "repeatYearlyOnOrdinalSummary": "{frequency} {month}: {position, select, first{esimene} second{teine} third{kolmas} fourth{neljas} fifth{viies} secondToLast{eelviimane} last{viimane} other{}} {days}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {

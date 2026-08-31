@@ -2318,12 +2318,65 @@ class AppLocalizationsVi extends AppLocalizations {
   String get repeatMonthDayListSeparator => ', ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first và $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first và $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency vào ngày $day $month';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency vào ngày $days tháng $month';
+    return '$frequency vào các ngày $days của $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency vào ngày $day của $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency vào các ngày $days của $months';
   }
 
   @override
@@ -2334,7 +2387,7 @@ class AppLocalizationsVi extends AppLocalizations {
     String days,
   ) {
     String _temp0 = intl.Intl.selectLogic(position, {
-      'first': 'thứ nhất',
+      'first': 'đầu tiên',
       'second': 'thứ hai',
       'third': 'thứ ba',
       'fourth': 'thứ tư',
@@ -2343,6 +2396,26 @@ class AppLocalizationsVi extends AppLocalizations {
       'last': 'cuối cùng',
       'other': '',
     });
-    return '$frequency vào $_temp0 $days tháng $month';
+    return '$frequency vào $days $_temp0 của $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'đầu tiên',
+      'second': 'thứ hai',
+      'third': 'thứ ba',
+      'fourth': 'thứ tư',
+      'fifth': 'thứ năm',
+      'secondToLast': 'áp chót',
+      'last': 'cuối cùng',
+      'other': '',
+    });
+    return '$frequency vào $days $_temp0 của $months';
   }
 }

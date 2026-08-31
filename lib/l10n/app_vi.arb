@@ -895,7 +895,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} vào ngày {days} tháng {month}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} và {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} và {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} vào ngày {day} {month}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} vào ngày {day} của {months}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} vào các ngày {days} của {months}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} vào {days} {position, select, first{đầu tiên} second{thứ hai} third{thứ ba} fourth{thứ tư} fifth{thứ năm} secondToLast{áp chót} last{cuối cùng} other{}} của {months}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} vào các ngày {days} của {month}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
@@ -904,7 +913,7 @@
       "days": {"type": "String"}
     }
   },
-  "repeatYearlyOnOrdinalSummary": "{frequency} vào {position, select, first{thứ nhất} second{thứ hai} third{thứ ba} fourth{thứ tư} fifth{thứ năm} secondToLast{áp chót} last{cuối cùng} other{}} {days} tháng {month}",
+  "repeatYearlyOnOrdinalSummary": "{frequency} vào {days} {position, select, first{đầu tiên} second{thứ hai} third{thứ ba} fourth{thứ tư} fifth{thứ năm} secondToLast{áp chót} last{cuối cùng} other{}} của {month}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {

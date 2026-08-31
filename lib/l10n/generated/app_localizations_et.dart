@@ -1408,7 +1408,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String repeatInMonthsSummary(String months) {
-    return 'kuudel $months';
+    return '$months';
   }
 
   @override
@@ -2318,12 +2318,79 @@ class AppLocalizationsEt extends AppLocalizations {
   String get repeatMonthDayListSeparator => ' ja ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {
+      'jan': 'jaanuaris',
+      'feb': 'veebruaris',
+      'mar': 'märtsis',
+      'apr': 'aprillis',
+      'may': 'mais',
+      'jun': 'juunis',
+      'jul': 'juulis',
+      'aug': 'augustis',
+      'sep': 'septembris',
+      'oct': 'oktoobris',
+      'nov': 'novembris',
+      'dec': 'detsembris',
+      'other': '$month',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first ja $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first ja $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency $month $day päeval';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency $days $month kuupäeval';
+    return '$frequency $month $days päeval';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency $months $day päeval';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency $months $days päeval';
   }
 
   @override
@@ -2343,6 +2410,26 @@ class AppLocalizationsEt extends AppLocalizations {
       'last': 'viimane',
       'other': '',
     });
-    return '$frequency $_temp0 $days $month';
+    return '$frequency $month: $_temp0 $days';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'esimene',
+      'second': 'teine',
+      'third': 'kolmas',
+      'fourth': 'neljas',
+      'fifth': 'viies',
+      'secondToLast': 'eelviimane',
+      'last': 'viimane',
+      'other': '',
+    });
+    return '$frequency $months: $_temp0 $days';
   }
 }

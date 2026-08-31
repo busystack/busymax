@@ -2338,12 +2338,65 @@ class AppLocalizationsIt extends AppLocalizations {
   String get repeatMonthDayListSeparator => ', ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first e $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first e $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency il giorno $day di $month';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency il giorno $days di $month';
+    return '$frequency nei giorni $days di $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency il giorno $day di $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency nei giorni $days di $months';
   }
 
   @override
@@ -2362,6 +2415,26 @@ class AppLocalizationsIt extends AppLocalizations {
       'secondToLast': 'il penultimo $days di $month',
       'last': 'l’ultimo $days di $month',
       'other': 'nei giorni $days di $month',
+    });
+    return '$frequency $_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'il primo $days di $months',
+      'second': 'il secondo $days di $months',
+      'third': 'il terzo $days di $months',
+      'fourth': 'il quarto $days di $months',
+      'fifth': 'il quinto $days di $months',
+      'secondToLast': 'il penultimo $days di $months',
+      'last': 'l’ultimo $days di $months',
+      'other': 'nei giorni $days di $months',
     });
     return '$frequency $_temp0';
   }

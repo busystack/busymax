@@ -656,7 +656,7 @@
   "repeatOnDaysSummary": "päivinä {days}",
   "repeatOnMonthDaysSummary": "kuukauden päivinä {days}",
   "repeatOnOrdinalSummary": "{position, select, first{ensimmäisenä {days}} second{toisena {days}} third{kolmantena {days}} fourth{neljäntenä {days}} fifth{viidentenä {days}} secondToLast{toiseksi viimeisenä {days}} last{viimeisenä {days}} other{päivinä {days}}}",
-  "repeatInMonthsSummary": "kuukausina {months}",
+  "repeatInMonthsSummary": "{months} aikana",
   "repeatTimesSummary": "{count} kertaa",
   "repeatUntilSummary": "{date} asti",
   "unsupportedRecurrencePreserved": "Tämä toistosääntö käyttää asetuksia, joita tämä muokkain ei muuta.",
@@ -895,7 +895,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} {days}. {month}",
+  "repeatYearlyMonthValue": "{monthKey, select, jan{tammikuun} feb{helmikuun} mar{maaliskuun} apr{huhtikuun} may{toukokuun} jun{kesäkuun} jul{heinäkuun} aug{elokuun} sep{syyskuun} oct{lokakuun} nov{marraskuun} dec{joulukuun} other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} ja {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} ja {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} {month} {day}. päivänä",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months} {day}. päivänä",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months} päivinä {days}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {months} {position, select, first{ensimmäisenä} second{toisena} third{kolmantena} fourth{neljäntenä} fifth{viidentenä} secondToLast{toiseksi viimeisenä} last{viimeisenä} other{}} {days}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} päivinä {days}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
@@ -904,7 +913,7 @@
       "days": {"type": "String"}
     }
   },
-  "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{ensimmäisenä} second{toisena} third{kolmantena} fourth{neljäntenä} fifth{viidentenä} secondToLast{toiseksi viimeisenä} last{viimeisenä} other{}} {days} {month}",
+  "repeatYearlyOnOrdinalSummary": "{frequency} {month} {position, select, first{ensimmäisenä} second{toisena} third{kolmantena} fourth{neljäntenä} fifth{viidentenä} secondToLast{toiseksi viimeisenä} last{viimeisenä} other{}} {days}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {

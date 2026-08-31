@@ -2339,12 +2339,65 @@ class AppLocalizationsDe extends AppLocalizations {
   String get repeatMonthDayListSeparator => ', ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first und $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first und $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency am $day. $month';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency am $days. $month';
+    return '$frequency an den Tagen $days im $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency jeweils am $day. in $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency jeweils an den Tagen $days in $months';
   }
 
   @override
@@ -2365,5 +2418,25 @@ class AppLocalizationsDe extends AppLocalizations {
       'other': 'an',
     });
     return '$frequency $_temp0 $days im $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'jeweils am ersten',
+      'second': 'jeweils am zweiten',
+      'third': 'jeweils am dritten',
+      'fourth': 'jeweils am vierten',
+      'fifth': 'jeweils am fünften',
+      'secondToLast': 'jeweils am vorletzten',
+      'last': 'jeweils am letzten',
+      'other': 'jeweils an',
+    });
+    return '$frequency $_temp0 $days in $months';
   }
 }

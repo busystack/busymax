@@ -4128,13 +4128,73 @@ abstract class AppLocalizations {
   /// **', '**
   String get repeatMonthDayListSeparator;
 
-  /// Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.
+  /// Month value used in yearly recurrence sentences. Locales may select an inflected form with {monthKey}; {month} is the CLDR abbreviated month fallback.
   ///
   /// In en, this message translates to:
-  /// **'{frequency} on {month} {days}'**
+  /// **'{monthKey, select, other{{month}}}'**
+  String repeatYearlyMonthValue(String month, String monthKey);
+
+  /// Joins the final two localized day-of-month values in a yearly recurrence summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{first} and {second}'**
+  String repeatYearlyMonthDayListPair(String first, String second);
+
+  /// Prepends a localized day-of-month value to an already localized yearly recurrence day list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}, {rest}'**
+  String repeatYearlyMonthDayListStart(String first, String rest);
+
+  /// Joins the final two localized month names in a yearly recurrence summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{first} and {second}'**
+  String repeatYearlyMonthListPair(String first, String second);
+
+  /// Prepends a localized month name to an already localized yearly recurrence month list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}, {rest}'**
+  String repeatYearlyMonthListStart(String first, String rest);
+
+  /// Complete yearly recurrence summary for one day in one month.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on {month} {day}'**
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  );
+
+  /// Complete yearly recurrence summary for multiple days in one month.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {days} of {month}'**
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
+    String days,
+  );
+
+  /// Complete yearly recurrence summary for one day in multiple months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on day {day} of {months}'**
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  );
+
+  /// Complete yearly recurrence summary for multiple days in multiple months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {days} of {months}'**
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
     String days,
   );
 
@@ -4145,6 +4205,17 @@ abstract class AppLocalizations {
   String repeatYearlyOnOrdinalSummary(
     String frequency,
     String month,
+    String position,
+    String days,
+  );
+
+  /// Complete yearly ordinal-weekday recurrence summary for multiple months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} {position, select, first{on the first {days} of {months}} second{on the second {days} of {months}} third{on the third {days} of {months}} fourth{on the fourth {days} of {months}} fifth{on the fifth {days} of {months}} secondToLast{on the second to last {days} of {months}} last{on the last {days} of {months}} other{on {days} of {months}}}'**
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
     String position,
     String days,
   );

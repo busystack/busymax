@@ -895,7 +895,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency}{month}{days}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first}和{second}",
+  "repeatYearlyMonthDayListStart": "{first}、{rest}",
+  "repeatYearlyMonthListPair": "{first}和{second}",
+  "repeatYearlyMonthListStart": "{first}、{rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency}{month}{day}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency}{months}的{day}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency}{months}的{days}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency}{months}的{position, select, first{第一個{days}} second{第二個{days}} third{第三個{days}} fourth{第四個{days}} fifth{第五個{days}} secondToLast{倒數第二個{days}} last{最後一個{days}} other{{days}}}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency}{month}的{days}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {

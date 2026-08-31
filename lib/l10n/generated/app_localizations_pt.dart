@@ -2338,12 +2338,65 @@ class AppLocalizationsPt extends AppLocalizations {
   String get repeatMonthDayListSeparator => ', ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first e $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first e $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency no dia $day de $month';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency no dia $days de $month';
+    return '$frequency nos dias $days de $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency no dia $day de $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency nos dias $days de $months';
   }
 
   @override
@@ -2362,6 +2415,26 @@ class AppLocalizationsPt extends AppLocalizations {
       'secondToLast': 'na penúltima ocorrência de $days de $month',
       'last': 'na última ocorrência de $days de $month',
       'other': 'em $days de $month',
+    });
+    return '$frequency $_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'na primeira ocorrência de $days de $months',
+      'second': 'na segunda ocorrência de $days de $months',
+      'third': 'na terceira ocorrência de $days de $months',
+      'fourth': 'na quarta ocorrência de $days de $months',
+      'fifth': 'na quinta ocorrência de $days de $months',
+      'secondToLast': 'na penúltima ocorrência de $days de $months',
+      'last': 'na última ocorrência de $days de $months',
+      'other': 'em $days de $months',
     });
     return '$frequency $_temp0';
   }

@@ -959,7 +959,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} در روز {days} ماه {month}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} و {second}",
+  "repeatYearlyMonthDayListStart": "{first}، {rest}",
+  "repeatYearlyMonthListPair": "{first} و {second}",
+  "repeatYearlyMonthListStart": "{first}، {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} در روز {day} ماه {month}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} در روز {day} ماه‌های {months}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} در روزهای {days} ماه‌های {months}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} در {position, select, first{اولین} second{دومین} third{سومین} fourth{چهارمین} fifth{پنجمین} secondToLast{یکی‌مانده‌به‌آخرین} last{آخرین} other{}} {days} ماه‌های {months}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} در روزهای {days} ماه {month}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {

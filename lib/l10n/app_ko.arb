@@ -895,7 +895,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} {days}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first}과 {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first}과 {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} {month} {day}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months}의 {day}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months}의 {days}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {months}의 {position, select, first{첫 번째 {days}} second{두 번째 {days}} third{세 번째 {days}} fourth{네 번째 {days}} fifth{다섯 번째 {days}} secondToLast{끝에서 두 번째 {days}} last{마지막 {days}} other{{days}}}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month}의 {days}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {

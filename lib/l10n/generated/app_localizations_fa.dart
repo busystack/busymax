@@ -2352,12 +2352,65 @@ class AppLocalizationsFa extends AppLocalizations {
   String get repeatMonthDayListSeparator => ', ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first و $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first و $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency در روز $day ماه $month';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency در روز $days ماه $month';
+    return '$frequency در روزهای $days ماه $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency در روز $day ماه‌های $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency در روزهای $days ماه‌های $months';
   }
 
   @override
@@ -2378,5 +2431,25 @@ class AppLocalizationsFa extends AppLocalizations {
       'other': '',
     });
     return '$frequency در $_temp0 $days ماه $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'اولین',
+      'second': 'دومین',
+      'third': 'سومین',
+      'fourth': 'چهارمین',
+      'fifth': 'پنجمین',
+      'secondToLast': 'یکی‌مانده‌به‌آخرین',
+      'last': 'آخرین',
+      'other': '',
+    });
+    return '$frequency در $_temp0 $days ماه‌های $months';
   }
 }

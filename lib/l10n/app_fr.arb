@@ -958,7 +958,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} le {days} {month}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} et {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} et {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} le {day} {month}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} le {day} de {months}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} les jours {days} de {months}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {position, select, first{le premier {days} de {months}} second{le deuxième {days} de {months}} third{le troisième {days} de {months}} fourth{le quatrième {days} de {months}} fifth{le cinquième {days} de {months}} secondToLast{l’avant-dernier {days} de {months}} last{le dernier {days} de {months}} other{les {days} de {months}}}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} les jours {days} de {month}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {

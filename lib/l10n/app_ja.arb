@@ -895,7 +895,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency}{month}{days}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first}と{second}",
+  "repeatYearlyMonthDayListStart": "{first}、{rest}",
+  "repeatYearlyMonthListPair": "{first}と{second}",
+  "repeatYearlyMonthListStart": "{first}、{rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency}{month}{day}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency}{months}の{day}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency}{months}の{days}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency}{months}の{position, select, first{第1{days}} second{第2{days}} third{第3{days}} fourth{第4{days}} fifth{第5{days}} secondToLast{最後から2番目の{days}} last{最後の{days}} other{{days}}}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency}{month}の{days}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {

@@ -895,7 +895,16 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} {days} числа {month}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} и {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} и {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency}: {month}, {day} числа",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency}: {months}, {day} числа",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency}: {months}, {days} числа",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency}: {months}, {position, select, first{в первый {days}} second{во второй {days}} third{в третий {days}} fourth{в четвёртый {days}} fifth{в пятый {days}} secondToLast{в предпоследний {days}} last{в последний {days}} other{в {days}}}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency}: {month}, {days} числа",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
@@ -904,7 +913,7 @@
       "days": {"type": "String"}
     }
   },
-  "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{в первый {days} {month}} second{во второй {days} {month}} third{в третий {days} {month}} fourth{в четвёртый {days} {month}} fifth{в пятый {days} {month}} secondToLast{в предпоследний {days} {month}} last{в последний {days} {month}} other{в {days} {month}}}",
+  "repeatYearlyOnOrdinalSummary": "{frequency}: {month}, {position, select, first{в первый {days}} second{во второй {days}} third{в третий {days}} fourth{в четвёртый {days}} fifth{в пятый {days}} secondToLast{в предпоследний {days}} last{в последний {days}} other{в {days}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {

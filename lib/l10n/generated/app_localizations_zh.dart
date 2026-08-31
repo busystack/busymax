@@ -2251,12 +2251,65 @@ class AppLocalizationsZh extends AppLocalizations {
   String get repeatMonthDayListSeparator => '、';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency$month$day';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency$month$days';
+    return '$frequency$month的$days';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency$months的$day';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency$months的$days';
   }
 
   @override
@@ -2277,6 +2330,26 @@ class AppLocalizationsZh extends AppLocalizations {
       'other': '$days',
     });
     return '$frequency$month的$_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一个$days',
+      'second': '第二个$days',
+      'third': '第三个$days',
+      'fourth': '第四个$days',
+      'fifth': '第五个$days',
+      'secondToLast': '倒数第二个$days',
+      'last': '最后一个$days',
+      'other': '$days',
+    });
+    return '$frequency$months的$_temp0';
   }
 }
 
@@ -4523,12 +4596,65 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get repeatMonthDayListSeparator => '、';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency$month$day';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency$month$days';
+    return '$frequency$month的$days';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency$months的$day';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency$months的$days';
   }
 
   @override
@@ -4549,6 +4675,26 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       'other': '$days',
     });
     return '$frequency$month的$_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一个$days',
+      'second': '第二个$days',
+      'third': '第三个$days',
+      'fourth': '第四个$days',
+      'fifth': '第五个$days',
+      'secondToLast': '倒数第二个$days',
+      'last': '最后一个$days',
+      'other': '$days',
+    });
+    return '$frequency$months的$_temp0';
   }
 }
 
@@ -6796,12 +6942,65 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get repeatMonthDayListSeparator => '、';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first和$second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency$month$day';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency$month$days';
+    return '$frequency$month的$days';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency$months的$day';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency$months的$days';
   }
 
   @override
@@ -6822,5 +7021,25 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       'other': '$days',
     });
     return '$frequency$month的$_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一個$days',
+      'second': '第二個$days',
+      'third': '第三個$days',
+      'fourth': '第四個$days',
+      'fifth': '第五個$days',
+      'secondToLast': '倒數第二個$days',
+      'last': '最後一個$days',
+      'other': '$days',
+    });
+    return '$frequency$months的$_temp0';
   }
 }

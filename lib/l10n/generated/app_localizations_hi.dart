@@ -2321,12 +2321,65 @@ class AppLocalizationsHi extends AppLocalizations {
   String get repeatMonthDayListSeparator => ', ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first और $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first और $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency $month की $day तारीख को';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency $month के $daysवें दिन';
+    return '$frequency $month की $days तारीखों को';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency $months की $day तारीख को';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency $months की $days तारीखों को';
   }
 
   @override
@@ -2347,5 +2400,25 @@ class AppLocalizationsHi extends AppLocalizations {
       'other': '',
     });
     return '$frequency $month के $_temp0 $days को';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'पहले',
+      'second': 'दूसरे',
+      'third': 'तीसरे',
+      'fourth': 'चौथे',
+      'fifth': 'पाँचवें',
+      'secondToLast': 'अंतिम से दूसरे',
+      'last': 'अंतिम',
+      'other': '',
+    });
+    return '$frequency $months के $_temp0 $days को';
   }
 }

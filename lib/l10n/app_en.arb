@@ -1269,12 +1269,79 @@
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
   },
-  "repeatYearlyOnMonthDaysSummary": "{frequency} on {month} {days}",
-  "@repeatYearlyOnMonthDaysSummary": {
-    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "@repeatYearlyMonthValue": {
+    "description": "Month value used in yearly recurrence sentences. Locales may select an inflected form with {monthKey}; {month} is the CLDR abbreviated month fallback.",
+    "placeholders": {
+      "month": {"type": "String"},
+      "monthKey": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthDayListPair": "{first} and {second}",
+  "@repeatYearlyMonthDayListPair": {
+    "description": "Joins the final two localized day-of-month values in a yearly recurrence summary.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "second": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "@repeatYearlyMonthDayListStart": {
+    "description": "Prepends a localized day-of-month value to an already localized yearly recurrence day list.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "rest": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthListPair": "{first} and {second}",
+  "@repeatYearlyMonthListPair": {
+    "description": "Joins the final two localized month names in a yearly recurrence summary.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "second": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "@repeatYearlyMonthListStart": {
+    "description": "Prepends a localized month name to an already localized yearly recurrence month list.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "rest": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnMonthDaySummary": "{frequency} on {month} {day}",
+  "@repeatYearlyOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one day in one month.",
     "placeholders": {
       "frequency": {"type": "String"},
       "month": {"type": "String"},
+      "day": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnMonthDaysSummary": "{frequency} on days {days} of {month}",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for multiple days in one month.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} on day {day} of {months}",
+  "@repeatYearlyInMonthsOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one day in multiple months.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "months": {"type": "String"},
+      "day": {"type": "String"}
+    }
+  },
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} on days {days} of {months}",
+  "@repeatYearlyInMonthsOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for multiple days in multiple months.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "months": {"type": "String"},
       "days": {"type": "String"}
     }
   },
@@ -1284,6 +1351,16 @@
     "placeholders": {
       "frequency": {"type": "String"},
       "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {position, select, first{on the first {days} of {months}} second{on the second {days} of {months}} third{on the third {days} of {months}} fourth{on the fourth {days} of {months}} fifth{on the fifth {days} of {months}} secondToLast{on the second to last {days} of {months}} last{on the last {days} of {months}} other{on {days} of {months}}}",
+  "@repeatYearlyInMonthsOnOrdinalSummary": {
+    "description": "Complete yearly ordinal-weekday recurrence summary for multiple months.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "months": {"type": "String"},
       "position": {"type": "String"},
       "days": {"type": "String"}
     }

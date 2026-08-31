@@ -2274,12 +2274,65 @@ class AppLocalizationsJa extends AppLocalizations {
   String get repeatMonthDayListSeparator => '、';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$firstと$second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$firstと$second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency$month$day';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency$month$days';
+    return '$frequency$monthの$days';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency$monthsの$day';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency$monthsの$days';
   }
 
   @override
@@ -2300,5 +2353,25 @@ class AppLocalizationsJa extends AppLocalizations {
       'other': '$days',
     });
     return '$frequency$monthの$_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第1$days',
+      'second': '第2$days',
+      'third': '第3$days',
+      'fourth': '第4$days',
+      'fifth': '第5$days',
+      'secondToLast': '最後から2番目の$days',
+      'last': '最後の$days',
+      'other': '$days',
+    });
+    return '$frequency$monthsの$_temp0';
   }
 }

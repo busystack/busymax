@@ -2343,12 +2343,65 @@ class AppLocalizationsRu extends AppLocalizations {
   String get repeatMonthDayListSeparator => ' и ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first и $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first и $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency: $month, $day числа';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency $days числа $month';
+    return '$frequency: $month, $days числа';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency: $months, $day числа';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency: $months, $days числа';
   }
 
   @override
@@ -2359,15 +2412,35 @@ class AppLocalizationsRu extends AppLocalizations {
     String days,
   ) {
     String _temp0 = intl.Intl.selectLogic(position, {
-      'first': 'в первый $days $month',
-      'second': 'во второй $days $month',
-      'third': 'в третий $days $month',
-      'fourth': 'в четвёртый $days $month',
-      'fifth': 'в пятый $days $month',
-      'secondToLast': 'в предпоследний $days $month',
-      'last': 'в последний $days $month',
-      'other': 'в $days $month',
+      'first': 'в первый $days',
+      'second': 'во второй $days',
+      'third': 'в третий $days',
+      'fourth': 'в четвёртый $days',
+      'fifth': 'в пятый $days',
+      'secondToLast': 'в предпоследний $days',
+      'last': 'в последний $days',
+      'other': 'в $days',
     });
-    return '$frequency $_temp0';
+    return '$frequency: $month, $_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'в первый $days',
+      'second': 'во второй $days',
+      'third': 'в третий $days',
+      'fourth': 'в четвёртый $days',
+      'fifth': 'в пятый $days',
+      'secondToLast': 'в предпоследний $days',
+      'last': 'в последний $days',
+      'other': 'в $days',
+    });
+    return '$frequency: $months, $_temp0';
   }
 }

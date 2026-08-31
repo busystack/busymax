@@ -2332,12 +2332,65 @@ class AppLocalizationsAr extends AppLocalizations {
   String get repeatMonthDayListSeparator => ', ';
 
   @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first و$second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first و$second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency في يوم $day من $month';
+  }
+
+  @override
   String repeatYearlyOnMonthDaysSummary(
     String frequency,
     String month,
     String days,
   ) {
-    return '$frequency في $month يوم $days';
+    return '$frequency في الأيام $days من $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency في يوم $day من أشهر $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency في الأيام $days من أشهر $months';
   }
 
   @override
@@ -2348,15 +2401,35 @@ class AppLocalizationsAr extends AppLocalizations {
     String days,
   ) {
     String _temp0 = intl.Intl.selectLogic(position, {
-      'first': 'أول $days في $month',
-      'second': 'ثاني $days في $month',
-      'third': 'ثالث $days في $month',
-      'fourth': 'رابع $days في $month',
-      'fifth': 'خامس $days في $month',
-      'secondToLast': 'قبل الأخير $days في $month',
-      'last': 'آخر $days في $month',
-      'other': '$days في $month',
+      'first': 'في أول يوم $days من $month',
+      'second': 'في ثاني يوم $days من $month',
+      'third': 'في ثالث يوم $days من $month',
+      'fourth': 'في رابع يوم $days من $month',
+      'fifth': 'في خامس يوم $days من $month',
+      'secondToLast': 'في يوم $days قبل الأخير من $month',
+      'last': 'في آخر يوم $days من $month',
+      'other': 'في يوم $days من $month',
     });
-    return '$frequency في $_temp0';
+    return '$frequency $_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'في أول يوم $days من أشهر $months',
+      'second': 'في ثاني يوم $days من أشهر $months',
+      'third': 'في ثالث يوم $days من أشهر $months',
+      'fourth': 'في رابع يوم $days من أشهر $months',
+      'fifth': 'في خامس يوم $days من أشهر $months',
+      'secondToLast': 'في يوم $days قبل الأخير من أشهر $months',
+      'last': 'في آخر يوم $days من أشهر $months',
+      'other': 'في يوم $days من أشهر $months',
+    });
+    return '$frequency $_temp0';
   }
 }

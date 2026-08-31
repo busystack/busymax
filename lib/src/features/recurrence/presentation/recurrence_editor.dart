@@ -84,19 +84,51 @@ String recurrenceRuleSummary(
   } else if ((recurrence.frequency == RecurrenceFrequency.monthly ||
           recurrence.frequency == RecurrenceFrequency.yearly) &&
       recurrence.byMonthDay.isNotEmpty) {
-    final monthDays = recurrence.byMonthDay
+    final monthDayValues = recurrence.byMonthDay
         .map(
           (day) => l10n.repeatMonthDayValue(_localizedDayNumber(context, day)),
         )
-        .join(l10n.repeatMonthDayListSeparator);
+        .toList(growable: false);
     if (recurrence.frequency == RecurrenceFrequency.yearly &&
         recurrence.byMonth.isNotEmpty) {
-      final months = recurrence.byMonth
-          .map((month) => _localizedInlineMonth(context, month))
-          .join(l10n.repeatMonthDayListSeparator);
-      summary = l10n.repeatYearlyOnMonthDaysSummary(summary, months, monthDays);
+      final monthValues = recurrence.byMonth
+          .map((month) => _localizedYearlyMonth(context, month))
+          .toList(growable: false);
+      final monthDays = _localizedRecurrenceList(
+        monthDayValues,
+        pair: l10n.repeatYearlyMonthDayListPair,
+        start: l10n.repeatYearlyMonthDayListStart,
+      );
+      final months = _localizedRecurrenceList(
+        monthValues,
+        pair: l10n.repeatYearlyMonthListPair,
+        start: l10n.repeatYearlyMonthListStart,
+      );
+      summary = switch ((monthValues.length, monthDayValues.length)) {
+        (1, 1) => l10n.repeatYearlyOnMonthDaySummary(
+          summary,
+          months,
+          monthDays,
+        ),
+        (1, _) => l10n.repeatYearlyOnMonthDaysSummary(
+          summary,
+          months,
+          monthDays,
+        ),
+        (_, 1) => l10n.repeatYearlyInMonthsOnMonthDaySummary(
+          summary,
+          months,
+          monthDays,
+        ),
+        _ => l10n.repeatYearlyInMonthsOnMonthDaysSummary(
+          summary,
+          months,
+          monthDays,
+        ),
+      };
       yearlyMonthPlacedInSummary = true;
     } else {
+      final monthDays = monthDayValues.join(l10n.repeatMonthDayListSeparator);
       final monthDaysSummary = recurrence.byMonthDay.length == 1
           ? l10n.repeatOnMonthDaysSummary(monthDays)
           : l10n.repeatOnMonthDaysSummaryMultiple(monthDays);
@@ -106,15 +138,27 @@ String recurrenceRuleSummary(
     final days = _localizedOrdinalDaySummary(context, recurrence.byDay);
     if (recurrence.frequency == RecurrenceFrequency.yearly &&
         recurrence.byMonth.isNotEmpty) {
-      final months = recurrence.byMonth
-          .map((month) => _localizedInlineMonth(context, month))
-          .join(l10n.repeatMonthDayListSeparator);
-      summary = l10n.repeatYearlyOnOrdinalSummary(
-        summary,
-        months,
-        _ordinalPositionKey(position),
-        days,
+      final monthValues = recurrence.byMonth
+          .map((month) => _localizedYearlyMonth(context, month))
+          .toList(growable: false);
+      final months = _localizedRecurrenceList(
+        monthValues,
+        pair: l10n.repeatYearlyMonthListPair,
+        start: l10n.repeatYearlyMonthListStart,
       );
+      summary = monthValues.length == 1
+          ? l10n.repeatYearlyOnOrdinalSummary(
+              summary,
+              months,
+              _ordinalPositionKey(position),
+              days,
+            )
+          : l10n.repeatYearlyInMonthsOnOrdinalSummary(
+              summary,
+              months,
+              _ordinalPositionKey(position),
+              days,
+            );
       yearlyMonthPlacedInSummary = true;
     } else {
       final ordinalSummary = l10n.repeatOnOrdinalSummary(
@@ -127,8 +171,15 @@ String recurrenceRuleSummary(
   if (recurrence.frequency == RecurrenceFrequency.yearly &&
       recurrence.byMonth.isNotEmpty &&
       !yearlyMonthPlacedInSummary) {
-    summary =
-        '$summary ${l10n.repeatInMonthsSummary(recurrence.byMonth.map((month) => _localizedInlineMonth(context, month)).join(', '))}';
+    final monthValues = recurrence.byMonth
+        .map((month) => _localizedYearlyMonth(context, month))
+        .toList(growable: false);
+    final months = _localizedRecurrenceList(
+      monthValues,
+      pair: l10n.repeatYearlyMonthListPair,
+      start: l10n.repeatYearlyMonthListStart,
+    );
+    summary = '$summary ${l10n.repeatInMonthsSummary(months)}';
   }
   if (recurrence.count != null) {
     return '$summary · ${l10n.repeatTimesSummary(recurrence.count!)}';
@@ -669,11 +720,50 @@ String _localizedDayNumber(BuildContext context, int day) {
   return localizedNumber(locale, day);
 }
 
+String _localizedRecurrenceList(
+  List<String> values, {
+  required String Function(String first, String second) pair,
+  required String Function(String first, String rest) start,
+}) {
+  assert(values.isNotEmpty);
+  if (values.length == 1) return values.single;
+
+  var result = pair(values[values.length - 2], values.last);
+  for (var index = values.length - 3; index >= 0; index -= 1) {
+    result = start(values[index], result);
+  }
+  return result;
+}
+
 String _localizedInlineMonth(BuildContext context, int month) {
   if (month < 1 || month > 12) return '$month';
   final locale = Localizations.localeOf(context).toLanguageTag();
   return localizedInlineMonth(locale, DateTime(2024, month), abbreviated: true);
 }
+
+String _localizedYearlyMonth(BuildContext context, int month) {
+  final localizedMonth = _localizedInlineMonth(context, month);
+  return context.l10n.repeatYearlyMonthValue(
+    localizedMonth,
+    _recurrenceMonthKey(month),
+  );
+}
+
+String _recurrenceMonthKey(int month) => switch (month) {
+  1 => 'jan',
+  2 => 'feb',
+  3 => 'mar',
+  4 => 'apr',
+  5 => 'may',
+  6 => 'jun',
+  7 => 'jul',
+  8 => 'aug',
+  9 => 'sep',
+  10 => 'oct',
+  11 => 'nov',
+  12 => 'dec',
+  _ => 'other',
+};
 
 String _localizedOrdinal(BuildContext context, int value) => switch (value) {
   1 => context.l10n.repeatFirst,
