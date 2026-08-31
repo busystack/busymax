@@ -1392,20 +1392,20 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'महीने के $daysवें दिन';
+    return 'के $daysवें दिन';
   }
 
   @override
   String repeatOnOrdinalSummary(String position, String days) {
     String _temp0 = intl.Intl.selectLogic(position, {
-      'first': 'पहले $days',
-      'second': 'दूसरे $days',
-      'third': 'तीसरे $days',
-      'fourth': 'चौथे $days',
-      'fifth': 'पाँचवें $days',
-      'secondToLast': 'अंतिम से दूसरे $days',
-      'last': 'अंतिम $days',
-      'other': '$days',
+      'first': 'के पहले $days को',
+      'second': 'के दूसरे $days को',
+      'third': 'के तीसरे $days को',
+      'fourth': 'के चौथे $days को',
+      'fifth': 'के पाँचवें $days को',
+      'secondToLast': 'के अंतिम से दूसरे $days को',
+      'last': 'के अंतिम $days को',
+      'other': 'के $days को',
     });
     return '$_temp0';
   }
@@ -2306,17 +2306,46 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummaryMultiple(String days) {
-    return 'महीने के दिन $days';
+    return 'के $daysवें दिन';
   }
 
   @override
   String get repeatSummarySeparator => ' ';
 
   @override
-  String repeatMonthDayValue(int day) {
+  String repeatMonthDayValue(String day) {
     return '$day';
   }
 
   @override
   String get repeatMonthDayListSeparator => ', ';
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency $month के $daysवें दिन';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'पहले',
+      'second': 'दूसरे',
+      'third': 'तीसरे',
+      'fourth': 'चौथे',
+      'fifth': 'पाँचवें',
+      'secondToLast': 'अंतिम से दूसरे',
+      'last': 'अंतिम',
+      'other': '',
+    });
+    return '$frequency $month के $_temp0 $days को';
+  }
 }

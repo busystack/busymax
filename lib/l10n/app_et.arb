@@ -832,7 +832,7 @@
   "repeatEveryMonths": "Iga {count} kuu järel",
   "repeatEveryYears": "Iga {count} aasta järel",
   "repeatOnDaysSummary": "päevadel {days}",
-  "repeatOnMonthDaysSummary": "kuu {days}. päeval",
+  "repeatOnMonthDaysSummary": "{days} päeval",
   "repeatOnOrdinalSummary": "{position, select, first{esimene {days}} second{teine {days}} third{kolmas {days}} fourth{neljas {days}} fifth{viies {days}} secondToLast{eelviimane {days}} last{viimane {days}} other{{days}}}",
   "repeatInMonthsSummary": "kuudel {months}",
   "repeatTimesSummary": "{count} korda",
@@ -1047,7 +1047,7 @@
       }
     }
   },
-  "repeatOnMonthDaysSummaryMultiple": "kuu päevadel {days}",
+  "repeatOnMonthDaysSummaryMultiple": "{days} päeval",
   "@repeatOnMonthDaysSummaryMultiple": {
     "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
     "placeholders": {
@@ -1060,17 +1060,36 @@
   "@repeatSummarySeparator": {
     "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
   },
-  "repeatMonthDayValue": "{day}",
+  "repeatMonthDayValue": "{day}.",
   "@repeatMonthDayValue": {
     "description": "Localized day-of-month value used when composing a list of recurrence days.",
     "placeholders": {
       "day": {
-        "type": "int"
+        "type": "String"
       }
     }
   },
-  "repeatMonthDayListSeparator": ", ",
+  "repeatMonthDayListSeparator": " ja ",
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
+  },
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {days} {month} kuupäeval",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{esimene} second{teine} third{kolmas} fourth{neljas} fifth{viies} secondToLast{eelviimane} last{viimane} other{}} {days} {month}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
   }
 }

@@ -1388,7 +1388,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'kuu $days. päeval';
+    return '$days päeval';
   }
 
   @override
@@ -2303,17 +2303,46 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummaryMultiple(String days) {
-    return 'kuu päevadel $days';
+    return '$days päeval';
   }
 
   @override
   String get repeatSummarySeparator => ' ';
 
   @override
-  String repeatMonthDayValue(int day) {
-    return '$day';
+  String repeatMonthDayValue(String day) {
+    return '$day.';
   }
 
   @override
-  String get repeatMonthDayListSeparator => ', ';
+  String get repeatMonthDayListSeparator => ' ja ';
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency $days $month kuupäeval';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'esimene',
+      'second': 'teine',
+      'third': 'kolmas',
+      'fourth': 'neljas',
+      'fifth': 'viies',
+      'secondToLast': 'eelviimane',
+      'last': 'viimane',
+      'other': '',
+    });
+    return '$frequency $_temp0 $days $month';
+  }
 }

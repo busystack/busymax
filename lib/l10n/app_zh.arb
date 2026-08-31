@@ -887,12 +887,31 @@
     "description": "Localized day-of-month value used when composing a list of recurrence days.",
     "placeholders": {
       "day": {
-        "type": "int"
+        "type": "String"
       }
     }
   },
   "repeatMonthDayListSeparator": "、",
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
+  },
+  "repeatYearlyOnMonthDaysSummary": "{frequency}{month}{days}",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency}{month}的{position, select, first{第一个{days}} second{第二个{days}} third{第三个{days}} fourth{第四个{days}} fifth{第五个{days}} secondToLast{倒数第二个{days}} last{最后一个{days}} other{{days}}}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
   }
 }

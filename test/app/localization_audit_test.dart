@@ -473,6 +473,34 @@ void main() {
       rawRules: [],
       isSupported: true,
     );
+    const yearlyMonthDayRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.yearly,
+      interval: 1,
+      byDay: [],
+      byMonth: [9],
+      byMonthDay: [15],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+    const yearlyOrdinalRule = RecurrenceRule(
+      frequency: RecurrenceFrequency.yearly,
+      interval: 1,
+      byDay: ['MO'],
+      byMonth: [9],
+      byMonthDay: [],
+      bySetPosition: 1,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
 
     Future<String> summary(Locale locale, RecurrenceRule rule) async {
       var value = '';
@@ -509,6 +537,51 @@ void main() {
       await summary(const Locale('ru'), monthDaysRule),
       'Ежемесячно в дни месяца 1-го и 15-го',
     );
+    expect(
+      await summary(const Locale('et'), singleMonthDayRule),
+      'Iga kuu 15. päeval',
+    );
+    expect(
+      await summary(const Locale('et'), monthDaysRule),
+      'Iga kuu 1. ja 15. päeval',
+    );
+    expect(
+      await summary(const Locale('hi'), singleMonthDayRule),
+      'हर महीने के 15वें दिन',
+    );
+    expect(
+      await summary(const Locale('hi'), ordinalRule),
+      'हर महीने के पहले सोमवार को',
+    );
+    for (final locale in [
+      const Locale('ja'),
+      const Locale('ko'),
+      const Locale('zh'),
+      const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+      const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+    ]) {
+      final monthDays = await summary(locale, yearlyMonthDayRule);
+      final ordinal = await summary(locale, yearlyOrdinalRule);
+      if (locale.languageCode == 'ja') {
+        expect(monthDays, '毎年9月15日');
+        expect(ordinal, '毎年9月の第1月曜日');
+      } else if (locale.languageCode == 'ko') {
+        expect(monthDays, '매년 9월 15일');
+        expect(ordinal, '매년 9월의 첫 번째 월요일');
+      } else if (locale.scriptCode == 'Hant') {
+        expect(monthDays, '每年9月15日');
+        expect(ordinal, '每年9月的第一個星期一');
+      } else {
+        expect(monthDays, '每年9月15日');
+        expect(ordinal, '每年9月的第一个星期一');
+      }
+    }
+    final persianMonthDay = await summary(
+      const Locale('fa'),
+      singleMonthDayRule,
+    );
+    expect(persianMonthDay, contains('۱۵'));
+    expect(persianMonthDay, isNot(contains('15')));
   });
 
   test('Persian dynamic numbers use Persian digits', () {
@@ -708,8 +781,82 @@ Iterable<String> _declaredPlaceholders(
 }
 
 Iterable<String> _usedPlaceholders(String value) sync* {
-  final pattern = RegExp(r'\{([A-Za-z][A-Za-z0-9_]*)(?=,|\})');
-  yield* pattern.allMatches(value).map((match) => match.group(1)!);
+  yield* _scanIcuPlaceholders(value);
+}
+
+Iterable<String> _scanIcuPlaceholders(String value) sync* {
+  for (var index = 0; index < value.length;) {
+    if (value[index] != '{') {
+      index += 1;
+      continue;
+    }
+
+    final closing = _matchingBrace(value, index);
+    if (closing == -1) {
+      index += 1;
+      continue;
+    }
+
+    final body = value.substring(index + 1, closing);
+    final nameMatch = RegExp(r'^\s*([A-Za-z][A-Za-z0-9_]*)').firstMatch(body);
+    if (nameMatch != null) {
+      final name = nameMatch.group(1)!;
+      final remainder = body.substring(nameMatch.end).trimLeft();
+      if (remainder.isEmpty || remainder.startsWith(',')) {
+        yield name;
+      }
+
+      final selectMatch = RegExp(
+        r'^\s*[A-Za-z][A-Za-z0-9_]*\s*,\s*select\s*,',
+      ).firstMatch(body);
+      if (selectMatch != null) {
+        yield* _scanIcuSelectOptions(body.substring(selectMatch.end));
+      } else if (remainder.startsWith(',')) {
+        yield* _scanIcuPlaceholders(body.substring(nameMatch.end));
+      }
+    } else {
+      yield* _scanIcuPlaceholders(body);
+    }
+
+    index = closing + 1;
+  }
+}
+
+Iterable<String> _scanIcuSelectOptions(String value) sync* {
+  for (var index = 0; index < value.length;) {
+    while (index < value.length && value[index].trim().isEmpty) {
+      index += 1;
+    }
+    if (index >= value.length) return;
+
+    final optionMatch = RegExp(
+      r'[A-Za-z][A-Za-z0-9_]*',
+    ).matchAsPrefix(value, index);
+    if (optionMatch == null) return;
+    index = optionMatch.end;
+    while (index < value.length && value[index].trim().isEmpty) {
+      index += 1;
+    }
+    if (index >= value.length || value[index] != '{') return;
+
+    final closing = _matchingBrace(value, index);
+    if (closing == -1) return;
+    yield* _scanIcuPlaceholders(value.substring(index + 1, closing));
+    index = closing + 1;
+  }
+}
+
+int _matchingBrace(String value, int opening) {
+  var depth = 0;
+  for (var index = opening; index < value.length; index += 1) {
+    if (value[index] == '{') {
+      depth += 1;
+    } else if (value[index] == '}') {
+      depth -= 1;
+      if (depth == 0) return index;
+    }
+  }
+  return -1;
 }
 
 int _lineForOffset(String source, int offset) {

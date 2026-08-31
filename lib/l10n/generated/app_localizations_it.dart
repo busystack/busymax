@@ -2330,10 +2330,39 @@ class AppLocalizationsIt extends AppLocalizations {
   String get repeatSummarySeparator => ' ';
 
   @override
-  String repeatMonthDayValue(int day) {
+  String repeatMonthDayValue(String day) {
     return '$day';
   }
 
   @override
   String get repeatMonthDayListSeparator => ', ';
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency il giorno $days di $month';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'il primo $days di $month',
+      'second': 'il secondo $days di $month',
+      'third': 'il terzo $days di $month',
+      'fourth': 'il quarto $days di $month',
+      'fifth': 'il quinto $days di $month',
+      'secondToLast': 'il penultimo $days di $month',
+      'last': 'l’ultimo $days di $month',
+      'other': 'nei giorni $days di $month',
+    });
+    return '$frequency $_temp0';
+  }
 }

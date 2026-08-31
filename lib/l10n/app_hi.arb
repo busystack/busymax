@@ -654,8 +654,8 @@
   "repeatEveryMonths": "हर {count} महीने",
   "repeatEveryYears": "हर {count} साल",
   "repeatOnDaysSummary": "{days} को",
-  "repeatOnMonthDaysSummary": "महीने के {days}वें दिन",
-  "repeatOnOrdinalSummary": "{position, select, first{पहले {days}} second{दूसरे {days}} third{तीसरे {days}} fourth{चौथे {days}} fifth{पाँचवें {days}} secondToLast{अंतिम से दूसरे {days}} last{अंतिम {days}} other{{days}}}",
+  "repeatOnMonthDaysSummary": "के {days}वें दिन",
+  "repeatOnOrdinalSummary": "{position, select, first{के पहले {days} को} second{के दूसरे {days} को} third{के तीसरे {days} को} fourth{के चौथे {days} को} fifth{के पाँचवें {days} को} secondToLast{के अंतिम से दूसरे {days} को} last{के अंतिम {days} को} other{के {days} को}}",
   "repeatInMonthsSummary": "{months} में",
   "repeatTimesSummary": "{count} बार",
   "repeatUntilSummary": "{date} तक",
@@ -869,7 +869,7 @@
       }
     }
   },
-  "repeatOnMonthDaysSummaryMultiple": "महीने के दिन {days}",
+  "repeatOnMonthDaysSummaryMultiple": "के {days}वें दिन",
   "@repeatOnMonthDaysSummaryMultiple": {
     "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
     "placeholders": {
@@ -887,12 +887,31 @@
     "description": "Localized day-of-month value used when composing a list of recurrence days.",
     "placeholders": {
       "day": {
-        "type": "int"
+        "type": "String"
       }
     }
   },
   "repeatMonthDayListSeparator": ", ",
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
+  },
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} के {days}वें दिन",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency} {month} के {position, select, first{पहले} second{दूसरे} third{तीसरे} fourth{चौथे} fifth{पाँचवें} secondToLast{अंतिम से दूसरे} last{अंतिम} other{}} {days} को",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
   }
 }

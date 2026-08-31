@@ -73,6 +73,7 @@ String recurrenceRuleSummary(
           ),
           RecurrenceFrequency.none => l10n.repeatNone,
         };
+  var yearlyMonthPlacedInSummary = false;
   if (recurrence.frequency == RecurrenceFrequency.weekly &&
       recurrence.byDay.isNotEmpty) {
     final days = recurrence.byDay
@@ -84,21 +85,48 @@ String recurrenceRuleSummary(
           recurrence.frequency == RecurrenceFrequency.yearly) &&
       recurrence.byMonthDay.isNotEmpty) {
     final monthDays = recurrence.byMonthDay
-        .map((day) => l10n.repeatMonthDayValue(day))
+        .map(
+          (day) => l10n.repeatMonthDayValue(_localizedDayNumber(context, day)),
+        )
         .join(l10n.repeatMonthDayListSeparator);
-    final monthDaysSummary = recurrence.byMonthDay.length == 1
-        ? l10n.repeatOnMonthDaysSummary(monthDays)
-        : l10n.repeatOnMonthDaysSummaryMultiple(monthDays);
-    summary = '$summary${l10n.repeatSummarySeparator}$monthDaysSummary';
+    if (recurrence.frequency == RecurrenceFrequency.yearly &&
+        recurrence.byMonth.isNotEmpty) {
+      final months = recurrence.byMonth
+          .map((month) => _localizedInlineMonth(context, month))
+          .join(l10n.repeatMonthDayListSeparator);
+      summary = l10n.repeatYearlyOnMonthDaysSummary(summary, months, monthDays);
+      yearlyMonthPlacedInSummary = true;
+    } else {
+      final monthDaysSummary = recurrence.byMonthDay.length == 1
+          ? l10n.repeatOnMonthDaysSummary(monthDays)
+          : l10n.repeatOnMonthDaysSummaryMultiple(monthDays);
+      summary = '$summary${l10n.repeatSummarySeparator}$monthDaysSummary';
+    }
   } else if (recurrence.bySetPosition case final position?) {
-    final ordinalSummary = l10n.repeatOnOrdinalSummary(
-      _ordinalPositionKey(position),
-      _localizedOrdinalDaySummary(context, recurrence.byDay),
-    );
-    summary = '$summary${l10n.repeatSummarySeparator}$ordinalSummary';
+    final days = _localizedOrdinalDaySummary(context, recurrence.byDay);
+    if (recurrence.frequency == RecurrenceFrequency.yearly &&
+        recurrence.byMonth.isNotEmpty) {
+      final months = recurrence.byMonth
+          .map((month) => _localizedInlineMonth(context, month))
+          .join(l10n.repeatMonthDayListSeparator);
+      summary = l10n.repeatYearlyOnOrdinalSummary(
+        summary,
+        months,
+        _ordinalPositionKey(position),
+        days,
+      );
+      yearlyMonthPlacedInSummary = true;
+    } else {
+      final ordinalSummary = l10n.repeatOnOrdinalSummary(
+        _ordinalPositionKey(position),
+        days,
+      );
+      summary = '$summary${l10n.repeatSummarySeparator}$ordinalSummary';
+    }
   }
   if (recurrence.frequency == RecurrenceFrequency.yearly &&
-      recurrence.byMonth.isNotEmpty) {
+      recurrence.byMonth.isNotEmpty &&
+      !yearlyMonthPlacedInSummary) {
     summary =
         '$summary ${l10n.repeatInMonthsSummary(recurrence.byMonth.map((month) => _localizedInlineMonth(context, month)).join(', '))}';
   }
@@ -256,7 +284,10 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                 padding: const EdgeInsets.all(BusyMaxSpacing.md),
                 child: YaruChoiceChipBar(
                   style: YaruChoiceChipBarStyle.wrap,
-                  labels: [for (var day = 1; day <= 31; day += 1) Text('$day')],
+                  labels: [
+                    for (var day = 1; day <= 31; day += 1)
+                      Text(_localizedDayNumber(context, day)),
+                  ],
                   isSelected: [
                     for (var day = 1; day <= 31; day += 1)
                       _value.byMonthDay.contains(day),
@@ -631,6 +662,11 @@ String _localizedStandaloneMonth(BuildContext context, int month) {
   if (month < 1 || month > 12) return '$month';
   final locale = Localizations.localeOf(context).toLanguageTag();
   return localizedMonthLabel(locale, DateTime(2024, month), abbreviated: true);
+}
+
+String _localizedDayNumber(BuildContext context, int day) {
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  return localizedNumber(locale, day);
 }
 
 String _localizedInlineMonth(BuildContext context, int month) {

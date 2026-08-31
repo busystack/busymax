@@ -4120,13 +4120,34 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'{day}'**
-  String repeatMonthDayValue(int day);
+  String repeatMonthDayValue(String day);
 
   /// Separator between multiple localized recurrence day values.
   ///
   /// In en, this message translates to:
   /// **', '**
   String get repeatMonthDayListSeparator;
+
+  /// Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on {month} {days}'**
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  );
+
+  /// Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} {position, select, first{on the first {days} of {month}} second{on the second {days} of {month}} third{on the third {days} of {month}} fourth{on the fourth {days} of {month}} fifth{on the fifth {days} of {month}} secondToLast{on the second to last {days} of {month}} last{on the last {days} of {month}} other{on {days} of {month}}}'**
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  );
 }
 
 class _AppLocalizationsDelegate

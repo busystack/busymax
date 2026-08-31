@@ -4,6 +4,7 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/recurrence/domain/event_recurrence_codec.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/recurrence/presentation/recurrence_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
@@ -782,6 +783,53 @@ void main() {
     expect(saved?.recurrence, const [
       'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR;WKST=MO;COUNT=9',
     ]);
+  });
+
+  testWidgets('Persian recurrence day choices use Persian digits', (
+    tester,
+  ) async {
+    const initial = RecurrenceRule(
+      frequency: RecurrenceFrequency.monthly,
+      interval: 1,
+      byDay: [],
+      byMonth: [],
+      byMonthDay: [15],
+      bySetPosition: null,
+      count: null,
+      untilRaw: null,
+      recurrenceDates: [],
+      exceptionDates: [],
+      rawRules: [],
+      isSupported: true,
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        locale: const Locale('fa'),
+        child: Scaffold(
+          body: RecurrenceEditorDialog(
+            initial: initial,
+            allDay: true,
+            baseDate: DateTime(2026, 9, 7),
+            minimumDate: DateTime(2026, 1, 1),
+            floating: false,
+            useNativeDatePicker: false,
+            limits: RecurrenceRuleLimits.rfc5545,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final dialog = find.byType(RecurrenceEditorDialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text('۱۵')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('15')),
+      findsNothing,
+    );
   });
 
   testWidgets('Microsoft recurrence range follows a changed start date', (

@@ -951,12 +951,31 @@
     "description": "Localized day-of-month value used when composing a list of recurrence days.",
     "placeholders": {
       "day": {
-        "type": "int"
+        "type": "String"
       }
     }
   },
   "repeatMonthDayListSeparator": ", ",
   "@repeatMonthDayListSeparator": {
     "description": "Separator between multiple localized recurrence day values."
+  },
+  "repeatYearlyOnMonthDaysSummary": "{frequency} در روز {days} ماه {month}",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency} در {position, select, first{اولین} second{دومین} third{سومین} fourth{چهارمین} fifth{پنجمین} secondToLast{یکی‌مانده‌به‌آخرین} last{آخرین} other{}} {days} ماه {month}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
   }
 }

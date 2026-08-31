@@ -106,6 +106,11 @@ String localizedInlineMonth(
   return _formatContextPattern(abbreviated ? 'MMM' : 'MMMM', locale, month);
 }
 
+/// Formats a number using the active locale's decimal digits.
+String localizedNumber(String locale, num value) {
+  return NumberFormat.decimalPattern(locale).format(value);
+}
+
 /// Formats the title shared by the Flutter and native schedule headers.
 String localizedScheduleHeading(
   String locale,

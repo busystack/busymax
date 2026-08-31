@@ -2268,10 +2268,39 @@ class AppLocalizationsKo extends AppLocalizations {
   String get repeatSummarySeparator => ' ';
 
   @override
-  String repeatMonthDayValue(int day) {
+  String repeatMonthDayValue(String day) {
     return '$day일';
   }
 
   @override
   String get repeatMonthDayListSeparator => ', ';
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency $month $days';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '첫 번째 $days',
+      'second': '두 번째 $days',
+      'third': '세 번째 $days',
+      'fourth': '네 번째 $days',
+      'fifth': '다섯 번째 $days',
+      'secondToLast': '끝에서 두 번째 $days',
+      'last': '마지막 $days',
+      'other': '$days',
+    });
+    return '$frequency $month의 $_temp0';
+  }
 }

@@ -2335,10 +2335,39 @@ class AppLocalizationsRu extends AppLocalizations {
   String get repeatSummarySeparator => ' ';
 
   @override
-  String repeatMonthDayValue(int day) {
+  String repeatMonthDayValue(String day) {
     return '$day-го';
   }
 
   @override
   String get repeatMonthDayListSeparator => ' и ';
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency $days числа $month';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'в первый $days $month',
+      'second': 'во второй $days $month',
+      'third': 'в третий $days $month',
+      'fourth': 'в четвёртый $days $month',
+      'fifth': 'в пятый $days $month',
+      'secondToLast': 'в предпоследний $days $month',
+      'last': 'в последний $days $month',
+      'other': 'в $days $month',
+    });
+    return '$frequency $_temp0';
+  }
 }

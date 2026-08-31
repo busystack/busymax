@@ -2243,12 +2243,41 @@ class AppLocalizationsZh extends AppLocalizations {
   String get repeatSummarySeparator => '';
 
   @override
-  String repeatMonthDayValue(int day) {
+  String repeatMonthDayValue(String day) {
     return '$day日';
   }
 
   @override
   String get repeatMonthDayListSeparator => '、';
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency$month$days';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一个$days',
+      'second': '第二个$days',
+      'third': '第三个$days',
+      'fourth': '第四个$days',
+      'fifth': '第五个$days',
+      'secondToLast': '倒数第二个$days',
+      'last': '最后一个$days',
+      'other': '$days',
+    });
+    return '$frequency$month的$_temp0';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -4486,12 +4515,41 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get repeatSummarySeparator => '';
 
   @override
-  String repeatMonthDayValue(int day) {
+  String repeatMonthDayValue(String day) {
     return '$day日';
   }
 
   @override
   String get repeatMonthDayListSeparator => '、';
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency$month$days';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一个$days',
+      'second': '第二个$days',
+      'third': '第三个$days',
+      'fourth': '第四个$days',
+      'fifth': '第五个$days',
+      'secondToLast': '倒数第二个$days',
+      'last': '最后一个$days',
+      'other': '$days',
+    });
+    return '$frequency$month的$_temp0';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6730,10 +6788,39 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get repeatSummarySeparator => '';
 
   @override
-  String repeatMonthDayValue(int day) {
+  String repeatMonthDayValue(String day) {
     return '$day日';
   }
 
   @override
   String get repeatMonthDayListSeparator => '、';
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency$month$days';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第一個$days',
+      'second': '第二個$days',
+      'third': '第三個$days',
+      'fourth': '第四個$days',
+      'fifth': '第五個$days',
+      'secondToLast': '倒數第二個$days',
+      'last': '最後一個$days',
+      'other': '$days',
+    });
+    return '$frequency$month的$_temp0';
+  }
 }
