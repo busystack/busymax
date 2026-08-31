@@ -291,6 +291,80 @@ END:VEVENT
     },
   );
 
+  test(
+    'refresh sanitizes the previous redirect target after rotation',
+    () async {
+      final origin = Uri.parse(
+        'https://calendar.example.test/feed?token=original',
+      );
+      final previousTarget = Uri.parse(
+        'https://old-cdn.example.test/calendar.ics?token=old,private',
+      );
+      final nextTarget = Uri.parse(
+        'https://new-cdn.example.test/calendar.ics?token=new;private',
+      );
+      transport.responses.add(
+        _response(uri: previousTarget, etag: '"one"', body: _oneEvent),
+      );
+      await service.addSubscription(subscriptionUrl: origin.toString());
+
+      final escapedPrevious = previousTarget.toString().replaceAll(',', r'\,');
+      transport.responses.add(
+        _response(
+          uri: nextTarget,
+          etag: '"two"',
+          body: utf8.encode(
+            _calendar('''
+SOURCE:${origin.toString()}
+BEGIN:VEVENT
+UID:uid-one
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Rotated feed
+DESCRIPTION:$escapedPrevious
+LOCATION;ALTREP="${previousTarget.toString()}":Office
+URL:${nextTarget.toString()}
+END:VEVENT
+'''),
+          ),
+        ),
+      );
+
+      await service.refreshSubscription('subscription-1', force: true);
+
+      final request = transport.requests.last;
+      expect(request.uri, origin);
+      expect(request.validatorTarget, previousTarget);
+      expect(request.validators.etag, '"one"');
+
+      final subscription = await database
+          .select(database.webCalSubscriptions)
+          .getSingle();
+      final snapshot = subscription.snapshotIcsBody;
+      expect(snapshot, isNot(contains(origin.toString())));
+      expect(snapshot, isNot(contains(previousTarget.toString())));
+      expect(snapshot, isNot(contains(nextTarget.toString())));
+      expect(snapshot, isNot(contains('DESCRIPTION:')));
+      expect(snapshot, isNot(contains('LOCATION;')));
+      expect(snapshot, isNot(contains('URL:')));
+
+      final event = await database.select(database.calendarEvents).getSingle();
+      final projectedRow = jsonEncode(event.toJson());
+      expect(projectedRow, isNot(contains(origin.toString())));
+      expect(projectedRow, isNot(contains(previousTarget.toString())));
+      expect(projectedRow, isNot(contains(nextTarget.toString())));
+      expect(event.title, 'Rotated feed');
+      expect(event.description, isNull);
+      expect(event.location, isNull);
+      expect(event.webLink, isNull);
+
+      final committedSecret =
+          await secrets.readCredential('webcal-account-subscription-1')
+              as WebCalSecretRecord;
+      expect(committedSecret.validatorTargetUri, nextTarget);
+    },
+  );
+
   test('conditional 304 is accepted only for the bound target', () async {
     final origin = Uri.parse('https://calendar.example.test/feed');
     final target = Uri.parse('https://cdn.example.test/current.ics');

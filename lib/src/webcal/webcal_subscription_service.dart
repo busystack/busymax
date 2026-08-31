@@ -437,6 +437,7 @@ final class WebCalSubscriptionService {
         secretValues: {
           secret.normalizedSubscriptionUri,
           subscriptionUri.toString(),
+          if (target != null) target.toString(),
           response.finalUri.toString(),
         },
       );
