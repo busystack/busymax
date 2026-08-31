@@ -725,6 +725,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Google Tasks API'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Sync')).style,
+      tester.widget<Text>(find.text('Google Tasks API')).style,
+    );
+    final resyncSection = tester.getRect(
+      find.byKey(const ValueKey('diagnostics-full-resync-section')),
+    );
+    final diagnosticsContent = tester.getRect(find.text('Google Tasks API'));
+    expect(diagnosticsContent.top - resyncSection.bottom, BusyMaxSpacing.lg);
     expect(find.text('Accounts'), findsOneWidget);
     expect(find.text('System'), findsOneWidget);
     expect(find.text('Add Google account'), findsNothing);

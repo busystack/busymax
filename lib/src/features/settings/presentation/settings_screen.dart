@@ -324,9 +324,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       SettingsPage.diagnostics => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(l10n.sync, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: BusyMaxSpacing.sm),
+          Text(l10n.forceFullResyncDescription),
           BusyMaxGroupedList(
-            title: l10n.sync,
-            description: l10n.forceFullResyncDescription,
+            key: const ValueKey('diagnostics-full-resync-section'),
             filled: true,
             children: [
               BusyMaxActionRow(
@@ -339,6 +341,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: BusyMaxSpacing.lg),
           const DiagnosticsPanel(scrollable: false),
         ],
       ),
