@@ -1,0 +1,25 @@
+name: tray_manager
+description: Windows-only BusyMax packaging of the upstream tray_manager API.
+homepage: https://github.com/leanflutter/tray_manager
+version: 0.5.3
+publish_to: none
+
+platforms:
+  windows:
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.3.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  menu_base: ^0.1.0
+  path: ^1.8.0
+  shortid: ^0.1.2
+
+flutter:
+  plugin:
+    platforms:
+      windows:
+        pluginClass: TrayManagerPlugin

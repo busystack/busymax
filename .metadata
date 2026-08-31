@@ -18,6 +18,9 @@ migration:
     - platform: linux
       create_revision: f6ff1529fd6d8af5f706051d9251ac9231c83407
       base_revision: f6ff1529fd6d8af5f706051d9251ac9231c83407
+    - platform: windows
+      create_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
+      base_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
 
   # User provided section
 

@@ -13,6 +13,40 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get windowsSupport => '支持';
+
+  @override
+  String get windowsThirdPartyLicenses => '第三方许可证';
+
+  @override
+  String get windowsSearch => '搜索';
+
+  @override
+  String get windowsStartupDisabledByUser => '用户已在 Windows 设置中禁用。';
+
+  @override
+  String get windowsStartupDisabledByPolicy => '已由 Windows 策略禁用。';
+
+  @override
+  String get windowsStartupUnavailable => '从 MSIX 包安装 BusyMax 后可用。';
+
+  @override
+  String get windowsReminderExitNotice =>
+      '完全退出 BusyMax 后，提醒将停止。请让应用在后台运行以接收提醒。';
+
+  @override
+  String get windowsProductVersionLabel => '产品版本';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows 包版本';
+
+  @override
+  String get windowsUnpackaged => '未打包';
+
+  @override
+  String get windowsAgendaLoadMore => '載入更多議程項目';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': '星期一',
@@ -835,7 +869,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      '仅添加您的 Linux 操作系统版本和应用区域设置。不包含日志、账户数据、文件名或其他诊断信息。';
+      '仅添加您的操作系统名称和版本以及应用区域设置。不包含日志、账户数据、文件名或其他诊断信息。';
 
   @override
   String get feedbackCategoryRequired => '请选择类别。';
@@ -2539,6 +2573,40 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get windowsSupport => '支持';
+
+  @override
+  String get windowsThirdPartyLicenses => '第三方许可证';
+
+  @override
+  String get windowsSearch => '搜索';
+
+  @override
+  String get windowsStartupDisabledByUser => '用户已在 Windows 设置中禁用。';
+
+  @override
+  String get windowsStartupDisabledByPolicy => '已由 Windows 策略禁用。';
+
+  @override
+  String get windowsStartupUnavailable => '从 MSIX 包安装 BusyMax 后可用。';
+
+  @override
+  String get windowsReminderExitNotice =>
+      '完全退出 BusyMax 后，提醒将停止。请让应用在后台运行以接收提醒。';
+
+  @override
+  String get windowsProductVersionLabel => '产品版本';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows 包版本';
+
+  @override
+  String get windowsUnpackaged => '未打包';
+
+  @override
+  String get windowsAgendaLoadMore => '加载更多议程项目';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': '星期一',
@@ -3361,7 +3429,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      '仅添加您的 Linux 操作系统版本和应用区域设置。不包含日志、账户数据、文件名或其他诊断信息。';
+      '仅添加您的操作系统名称和版本以及应用区域设置。不包含日志、账户数据、文件名或其他诊断信息。';
 
   @override
   String get feedbackCategoryRequired => '请选择类别。';
@@ -5065,6 +5133,40 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
 
   @override
+  String get windowsSupport => '支援';
+
+  @override
+  String get windowsThirdPartyLicenses => '第三方授權';
+
+  @override
+  String get windowsSearch => '搜尋';
+
+  @override
+  String get windowsStartupDisabledByUser => '使用者已在 Windows 設定中停用。';
+
+  @override
+  String get windowsStartupDisabledByPolicy => '已由 Windows 原則停用。';
+
+  @override
+  String get windowsStartupUnavailable => '從 MSIX 套件安裝 BusyMax 後即可使用。';
+
+  @override
+  String get windowsReminderExitNotice =>
+      '完全結束 BusyMax 後，提醒會停止。請讓應用程式在背景執行以接收提醒。';
+
+  @override
+  String get windowsProductVersionLabel => '產品版本';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows 套件版本';
+
+  @override
+  String get windowsUnpackaged => '未封裝';
+
+  @override
+  String get windowsAgendaLoadMore => '載入更多議程項目';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': '星期一',
@@ -5887,7 +5989,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      '只會加入您的 Linux 作業系統版本和應用程式語系。不會包含記錄、帳戶資料、檔案名稱或其他診斷資訊。';
+      '只會加入您的作業系統名稱與版本和應用程式語系。不會包含記錄、帳戶資料、檔案名稱或其他診斷資訊。';
 
   @override
   String get feedbackCategoryRequired => '請選擇類別。';

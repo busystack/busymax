@@ -9,6 +9,7 @@ import '../../../ical/ical_import_service.dart';
 import '../../../ical/ical_ingestion.dart';
 import '../../../l10n/l10n.dart';
 import '../../../providers/busy_provider.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import '../data/calendar_repository.dart';
 
 Future<void> showIcsImportFlow(

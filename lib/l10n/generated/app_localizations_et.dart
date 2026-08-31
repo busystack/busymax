@@ -13,6 +13,43 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get windowsSupport => 'Tugi';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Kolmandate osapoolte litsentsid';
+
+  @override
+  String get windowsSearch => 'Otsi';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Kasutaja keelas selle Windowsi sätetes.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Windowsi poliitika on selle keelanud.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Saadaval pärast BusyMaxi installimist MSIX-paketist.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'BusyMaxi täielikul sulgemisel meeldetuletused peatuvad. Nende saamiseks jätke rakendus taustal tööle.';
+
+  @override
+  String get windowsProductVersionLabel => 'Toote versioon';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windowsi paketi versioon';
+
+  @override
+  String get windowsUnpackaged => 'Pakkimata';
+
+  @override
+  String get windowsAgendaLoadMore => 'Laadi rohkem päevakava üksusi';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'esmaspäeviti',
@@ -835,7 +872,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Lisatakse ainult teie Linuxi operatsioonisüsteemi versioon ning rakenduse keel ja piirkonnaseaded. Logisid, kontoandmeid, failinimesid ega muid diagnostikaandmeid ei lisata.';
+      'Lisatakse ainult teie operatsioonisüsteemi nimi ja versioon ning rakenduse keel ja piirkonnaseaded. Logisid, kontoandmeid, failinimesid ega muid diagnostikaandmeid ei lisata.';
 
   @override
   String get feedbackCategoryRequired => 'Valige kategooria.';

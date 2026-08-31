@@ -25,6 +25,7 @@ import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_commands.dart';
 import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';

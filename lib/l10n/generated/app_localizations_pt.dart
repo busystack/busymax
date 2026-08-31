@@ -13,6 +13,42 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get windowsSupport => 'Support';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Third-party licenses';
+
+  @override
+  String get windowsSearch => 'Search';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Disabled by the user in Windows Settings.';
+
+  @override
+  String get windowsStartupDisabledByPolicy => 'Disabled by Windows policy.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Available after BusyMax is installed from an MSIX package.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Reminders stop when BusyMax is fully quit. Keep it running in the background to receive them.';
+
+  @override
+  String get windowsProductVersionLabel => 'Product version';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows package version';
+
+  @override
+  String get windowsUnpackaged => 'Unpackaged';
+
+  @override
+  String get windowsAgendaLoadMore => 'Load more agenda items';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'Monday',
@@ -872,7 +908,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Adds only your Linux operating-system version and application locale. No logs, account data, file names, or other diagnostics are included.';
+      'Adds only your operating-system name and version and application locale. No logs, account data, file names, or other diagnostics are included.';
 
   @override
   String get feedbackCategoryRequired => 'Select a category.';
@@ -2641,6 +2677,43 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
 
   @override
+  String get windowsSupport => 'Suporte';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Licenças de terceiros';
+
+  @override
+  String get windowsSearch => 'Pesquisar';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Desativado pelo utilizador nas Definições do Windows.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Desativado por uma política do Windows.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Disponível após a instalação do BusyMax a partir de um pacote MSIX.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Os lembretes param quando o BusyMax é totalmente encerrado. Mantenha-o em execução em segundo plano para os receber.';
+
+  @override
+  String get windowsProductVersionLabel => 'Versão do produto';
+
+  @override
+  String get windowsPackageVersionLabel => 'Versão do pacote do Windows';
+
+  @override
+  String get windowsUnpackaged => 'Sem pacote';
+
+  @override
+  String get windowsAgendaLoadMore => 'Carregar mais itens da agenda';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'à segunda-feira',
@@ -3487,7 +3560,7 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Adiciona apenas a versão do sistema operativo Linux e a configuração regional da aplicação. Não são incluídos registos, dados de contas, nomes de ficheiros nem outros diagnósticos.';
+      'Adiciona apenas o nome e a versão do sistema operativo e a configuração regional da aplicação. Não são incluídos registos, dados de contas, nomes de ficheiros nem outros diagnósticos.';
 
   @override
   String get feedbackCategoryRequired => 'Selecione uma categoria.';

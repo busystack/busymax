@@ -13,6 +13,42 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get windowsSupport => '지원';
+
+  @override
+  String get windowsThirdPartyLicenses => '타사 라이선스';
+
+  @override
+  String get windowsSearch => '검색';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Windows 설정에서 사용자가 사용하지 않도록 설정했습니다.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Windows 정책에 의해 사용하지 않도록 설정되었습니다.';
+
+  @override
+  String get windowsStartupUnavailable => 'BusyMax를 MSIX 패키지로 설치하면 사용할 수 있습니다.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'BusyMax를 완전히 종료하면 미리 알림이 중지됩니다. 받으려면 백그라운드에서 계속 실행하세요.';
+
+  @override
+  String get windowsProductVersionLabel => '제품 버전';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows 패키지 버전';
+
+  @override
+  String get windowsUnpackaged => '패키지되지 않음';
+
+  @override
+  String get windowsAgendaLoadMore => '일정 항목 더 불러오기';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': '월요일',
@@ -842,7 +878,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Linux 운영 체제 버전과 앱 로캘만 추가됩니다. 로그, 계정 데이터, 파일 이름 또는 기타 진단 정보는 포함되지 않습니다.';
+      '운영 체제 이름과 버전 및 앱 로캘만 추가됩니다. 로그, 계정 데이터, 파일 이름 또는 기타 진단 정보는 포함되지 않습니다.';
 
   @override
   String get feedbackCategoryRequired => '범주를 선택하세요.';

@@ -25,6 +25,7 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../../webcal/webcal_uri.dart';
 import 'package:busymax/src/providers/busy_provider.dart';

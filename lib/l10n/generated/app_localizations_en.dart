@@ -13,6 +13,42 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get windowsSupport => 'Support';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Third-party licenses';
+
+  @override
+  String get windowsSearch => 'Search';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Disabled by the user in Windows Settings.';
+
+  @override
+  String get windowsStartupDisabledByPolicy => 'Disabled by Windows policy.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Available after BusyMax is installed from an MSIX package.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Reminders stop when BusyMax is fully quit. Keep it running in the background to receive them.';
+
+  @override
+  String get windowsProductVersionLabel => 'Product version';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows package version';
+
+  @override
+  String get windowsUnpackaged => 'Unpackaged';
+
+  @override
+  String get windowsAgendaLoadMore => 'Load more agenda items';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'Monday',
@@ -872,7 +908,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Adds only your Linux operating-system version and application locale. No logs, account data, file names, or other diagnostics are included.';
+      'Adds only your operating-system name and version and application locale. No logs, account data, file names, or other diagnostics are included.';
 
   @override
   String get feedbackCategoryRequired => 'Select a category.';

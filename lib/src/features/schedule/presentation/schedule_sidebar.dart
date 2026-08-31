@@ -13,6 +13,7 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../l10n/l10n.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../webcal/webcal_subscription_service.dart';

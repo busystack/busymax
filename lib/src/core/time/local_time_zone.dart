@@ -1,5 +1,17 @@
 import 'dart:io';
 
+import '../../platform/common/desktop_services.dart';
+
+final class LinuxLocalTimeZoneSource implements LocalTimeZoneSource {
+  const LinuxLocalTimeZoneSource();
+
+  @override
+  String? get diagnostic => null;
+
+  @override
+  Future<String> currentIanaTimeZone() async => localIanaTimeZone();
+}
+
 String localIanaTimeZone() {
   try {
     final timezoneFile = File('/etc/timezone');

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../accounts/data/accounts_repository.dart';

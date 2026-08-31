@@ -145,6 +145,41 @@ class ScheduleRepository {
     return filtered;
   }
 
+  /// Lists every visible task without applying a calendar date window.
+  ///
+  /// The Tasks workspace is a complete task collection, unlike the Schedule
+  /// workspace, whose projections are intentionally bounded by a visible
+  /// range. Keeping this query here also ensures every platform observes the
+  /// same account, source, completion, search, and hierarchy rules.
+  Future<List<TaskScheduleItem>> listAllTasks({
+    ScheduleFilters filters = const ScheduleFilters(
+      includeCalendarEvents: false,
+      showCompletedTasks: true,
+      showNoDateTasks: true,
+    ),
+  }) async {
+    if (!filters.includeTasks) return const [];
+    final context = await _accountContext(filters);
+    if (context == null) return const [];
+
+    // `_taskItems` ignores this range when `searching` is true. Here that flag
+    // deliberately requests the same unbounded query used by global search.
+    final items = await _taskItems(
+      ScheduleRange.day(DateTime.now()),
+      filters,
+      true,
+      context.accountIds,
+      context.providers,
+      context.accountDisplayNames,
+      context.accountEmails,
+    );
+    final tasks = items.whereType<TaskScheduleItem>().where((item) {
+      return filters.query.trim().isEmpty ||
+          matchesScheduleQuery(item, filters.query);
+    }).toList()..sort(compareScheduleItems);
+    return ScheduleProjection.arrangeHierarchy(tasks);
+  }
+
   Future<ScheduleTaskBucketPage> listOverdueTasks({
     required DateTime before,
     required int limit,

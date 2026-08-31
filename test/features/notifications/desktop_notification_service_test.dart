@@ -5,7 +5,6 @@ import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
-import 'package:desktop_notifications/desktop_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -337,10 +336,7 @@ void main() {
 
     await service.notifyEventReminder('Standup', 'Starts at 9:00 AM');
 
-    expect(
-      backend.notifications.single.hints.map((hint) => hint.key),
-      isNot(contains('transient')),
-    );
+    expect(backend.notifications.single.transient, isFalse);
   });
 
   test('reminder notification default action activates callback', () async {
@@ -356,9 +352,12 @@ void main() {
       'Starts at 9:00',
       onActivated: () async => activated = true,
     );
-    await backend.notifications.single.onAction?.call('default');
+    await backend.notifications.single.onAction?.call(
+      'default',
+      backend.notifications.single.payload,
+    );
 
-    expect(backend.notifications.single.actions.single.key, 'default');
+    expect(backend.notifications.single.actions.single.id, 'default');
     expect(activated, isTrue);
   });
 
@@ -439,33 +438,28 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
 
   @override
   Future<void> notify(
-    String summary, {
-    String body = '',
-    List<NotificationHint> hints = const [],
-    List<NotificationAction> actions = const [],
+    BusyMaxNotificationRequest request, {
     DesktopNotificationActionHandler? onAction,
   }) async {
-    notifications.add(
-      _NotificationRecord(summary, body, hints, actions, onAction),
-    );
+    notifications.add(_NotificationRecord(request, onAction));
   }
+
+  @override
+  Future<void> cancel(String stableId) async {}
 
   @override
   Future<void> close() async {}
 }
 
 class _NotificationRecord {
-  const _NotificationRecord(
-    this.summary,
-    this.body,
-    this.hints,
-    this.actions,
-    this.onAction,
-  );
+  const _NotificationRecord(this.request, this.onAction);
 
-  final String summary;
-  final String body;
-  final List<NotificationHint> hints;
-  final List<NotificationAction> actions;
+  final BusyMaxNotificationRequest request;
   final DesktopNotificationActionHandler? onAction;
+
+  String get summary => request.title;
+  String get body => request.body;
+  bool get transient => request.transient;
+  Map<String, String>? get payload => request.payload;
+  List<BusyMaxNotificationAction> get actions => request.actions;
 }

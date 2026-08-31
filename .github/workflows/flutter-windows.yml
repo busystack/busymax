@@ -1,0 +1,66 @@
+name: Flutter Windows
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.4'
+          cache: true
+
+      - name: Enable Windows desktop
+        shell: pwsh
+        run: flutter config --enable-windows-desktop
+
+      - name: Create explicitly non-production CI identity
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/windows | Out-Null
+          @{
+            production = $false
+            identityName = 'BusyStack.BusyMax.CI'
+            publisher = 'CN=BusyMax CI Package'
+            publisherDisplayName = 'BusyMax CI'
+            msixVersion = '1.0.0.0'
+            previousMsixVersion = ''
+            privacyPolicyUrl = 'https://busystack.org/privacy'
+            supportUrl = 'https://busystack.org/support'
+            homepageUrl = 'https://busystack.org'
+            googleOAuthClientId = 'busymax-ci-google-client-id'
+            googleOAuthClientSecret = ''
+            microsoftOAuthClientId = 'busymax-ci-microsoft-client-id'
+            microsoftOAuthAuthorityTenant = 'common'
+            fakeData = $false
+            developmentBackend = $false
+          } | ConvertTo-Json | Set-Content `
+            -LiteralPath build/windows/store-ci.json -Encoding utf8NoBOM
+
+      - name: Validate, compile, and package Windows x64
+        shell: pwsh
+        run: >-
+          ./tools/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci
+
+      - name: Upload unsigned CI MSIX and test reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: busymax-windows-x64-ci
+          path: |
+            build/windows/store/*.msix
+            build/windows/store/staging/AppxManifest.xml
+            build/windows/test-results/**
+          if-no-files-found: error

@@ -78,4 +78,5 @@ const _submission = FeedbackSubmission(
   subject: 'Calendar issue',
   message: 'The calendar view did not update.',
   replyEmail: null,
+  platform: 'linux',
 );

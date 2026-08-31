@@ -13,6 +13,43 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get windowsSupport => 'Hỗ trợ';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Giấy phép bên thứ ba';
+
+  @override
+  String get windowsSearch => 'Tìm kiếm';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Người dùng đã tắt trong Cài đặt Windows.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Đã tắt theo chính sách Windows.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Khả dụng sau khi cài đặt BusyMax từ gói MSIX.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Lời nhắc sẽ dừng khi thoát hẳn BusyMax. Hãy để ứng dụng chạy trong nền để nhận lời nhắc.';
+
+  @override
+  String get windowsProductVersionLabel => 'Phiên bản sản phẩm';
+
+  @override
+  String get windowsPackageVersionLabel => 'Phiên bản gói Windows';
+
+  @override
+  String get windowsUnpackaged => 'Chưa đóng gói';
+
+  @override
+  String get windowsAgendaLoadMore => 'Tải thêm mục lịch biểu';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'Thứ Hai',
@@ -854,7 +891,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Chỉ thêm phiên bản hệ điều hành Linux và ngôn ngữ, khu vực của ứng dụng. Không bao gồm nhật ký, dữ liệu tài khoản, tên tệp hoặc thông tin chẩn đoán khác.';
+      'Chỉ thêm tên và phiên bản hệ điều hành cùng ngôn ngữ, khu vực của ứng dụng. Không bao gồm nhật ký, dữ liệu tài khoản, tên tệp hoặc thông tin chẩn đoán khác.';
 
   @override
   String get feedbackCategoryRequired => 'Hãy chọn một danh mục.';

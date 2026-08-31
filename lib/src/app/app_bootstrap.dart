@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -8,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import '../config/build_config.dart';
-import '../core/time/local_time_zone.dart';
 import '../db/app_database.dart';
 import '../dav/auth/dav_account_onboarding_service.dart';
 import '../dav/auth/nextcloud_app_password_revoker.dart';
@@ -48,26 +46,21 @@ import '../google_tasks/http/retrying_http_client.dart';
 import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
-import 'package:busymax/src/core/secrets/portal_encrypted_secret_store.dart';
 import '../google_calendar/google_calendar_api_client.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
-import '../platform/linux_window_service.dart';
-import '../platform/external_calendar_open_service.dart';
-import '../platform/linux_autostart_service.dart';
+import '../platform/common/desktop_services.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
 import '../webcal/webcal_http_client.dart';
 import '../webcal/webcal_subscription_service.dart';
-import 'app_router.dart';
 import 'app_settings.dart';
 
 export '../app/app_settings.dart';
-export '../platform/linux_header_bar_provider.dart';
 
 final buildConfigProvider = Provider<BuildConfig>(
   (ref) => BuildConfig.fromEnvironment(),
@@ -195,11 +188,6 @@ final feedbackSubmissionServiceProvider = Provider<FeedbackSubmissionService>((
 });
 
 final secretStoreProvider = Provider<SecretStore>((ref) {
-  if (Platform.isLinux && (Platform.environment['SNAP']?.isNotEmpty ?? false)) {
-    // flutter_secure_storage_linux warms up direct libsecret first, so
-    // SECRET_BACKEND=file cannot avoid a locked keyring inside strict snaps.
-    return PortalEncryptedSecretStore();
-  }
   return SecureSecretStore(ref.watch(secureStorageProvider));
 });
 
@@ -240,13 +228,7 @@ final authenticatedHttpClientProvider = Provider<http.Client>((ref) {
 });
 
 final desktopNotificationBackendProvider = Provider<DesktopNotificationBackend>(
-  (ref) {
-    final backend = FreedesktopNotificationBackend();
-    ref.onDispose(() {
-      unawaited(backend.close());
-    });
-    return backend;
-  },
+  (ref) => const DisabledDesktopNotificationBackend(),
 );
 
 final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
@@ -260,25 +242,45 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   },
 );
 
-final linuxWindowServiceProvider = Provider<LinuxWindowService>(
-  (ref) => const LinuxWindowService(),
+final desktopWindowServiceProvider = Provider<DesktopWindowService>(
+  (ref) => const NoOpDesktopWindowService(),
 );
 
-final externalCalendarOpenServiceProvider =
-    Provider<ExternalCalendarOpenService>((ref) {
-      final service = ExternalCalendarOpenService();
-      unawaited(service.initialize());
-      ref.onDispose(() => unawaited(service.dispose()));
-      return service;
-    });
+final linuxWindowServiceProvider = desktopWindowServiceProvider;
 
-final linuxAutostartServiceProvider = Provider<LinuxAutostartService>(
-  (ref) => LinuxAutostartService(),
+final desktopActivationServiceProvider = Provider<DesktopActivationService>(
+  (ref) => const NoOpDesktopActivationService(),
+);
+
+final externalCalendarOpenServiceProvider = desktopActivationServiceProvider;
+
+final desktopAutostartServiceProvider = Provider<DesktopAutostartService>(
+  (ref) => const UnavailableDesktopAutostartService(),
+);
+
+final linuxAutostartServiceProvider = desktopAutostartServiceProvider;
+
+final launchAtLoginStateProvider = FutureProvider<DesktopAutostartState>(
+  (ref) => ref.watch(desktopAutostartServiceProvider).state(),
 );
 
 final launchAtLoginEnabledProvider = FutureProvider<bool>(
-  (ref) => ref.watch(linuxAutostartServiceProvider).isEnabled(),
+  (ref) async =>
+      await ref.watch(launchAtLoginStateProvider.future) ==
+      DesktopAutostartState.enabled,
 );
+
+final desktopNavigationServiceProvider = Provider<DesktopNavigationService>((
+  ref,
+) {
+  final service = QueuedDesktopNavigationService();
+  ref.onDispose(() => unawaited(service.dispose()));
+  return service;
+});
+
+final systemAppearanceSourceProvider = Provider<SystemAppearanceSource>((ref) {
+  throw StateError('A platform SystemAppearanceSource was not configured.');
+});
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
@@ -374,7 +376,11 @@ final selectedAccountCapabilitiesProvider =
           : adapterDefaultTaskCapabilities(account.provider);
     });
 
-final localTimeZoneProvider = Provider<String>((ref) => localIanaTimeZone());
+final localTimeZoneSourceProvider = Provider<LocalTimeZoneSource>(
+  (ref) => const FixedLocalTimeZoneSource('Etc/UTC'),
+);
+
+final localTimeZoneProvider = Provider<String>((ref) => 'Etc/UTC');
 
 final googleTasksApiClientForAccountProvider =
     Provider.family<TaskRemoteClient, String>((ref, accountId) {
@@ -1034,7 +1040,7 @@ Future<void> _openNotificationSource(
   return switch (row.sourceType) {
     'event' => _openEventNotification(ref, row),
     'task' => _openTaskNotification(ref, row),
-    _ => ref.read(linuxWindowServiceProvider).showWindow(),
+    _ => ref.read(desktopWindowServiceProvider).showWindow(),
   };
 }
 
@@ -1053,7 +1059,7 @@ Future<void> _openEventNotification(
           ))
           .getSingleOrNull();
   if (event == null) {
-    await ref.read(linuxWindowServiceProvider).showWindow();
+    await ref.read(desktopWindowServiceProvider).showWindow();
     return;
   }
 
@@ -1083,7 +1089,7 @@ Future<void> _openTaskNotification(
             ..limit(1))
           .getSingleOrNull();
   if (task == null) {
-    await ref.read(linuxWindowServiceProvider).showWindow();
+    await ref.read(desktopWindowServiceProvider).showWindow();
     return;
   }
 
@@ -1105,7 +1111,7 @@ Future<void> _openScheduleItemFromNotification(
   required String sourceId,
   required String itemId,
 }) async {
-  await ref.read(linuxWindowServiceProvider).showWindow();
+  await ref.read(desktopWindowServiceProvider).showWindow();
   final sequenceController = ref.read(
     _notificationOpenSequenceProvider.notifier,
   );
@@ -1121,7 +1127,9 @@ Future<void> _openScheduleItemFromNotification(
     sourceId: sourceId,
     itemId: itemId,
   );
-  ref.read(appRouterProvider).go('/schedule');
+  ref
+      .read(desktopNavigationServiceProvider)
+      .open(DesktopNavigationDestination.schedule);
 }
 
 DateTime? _calendarEventCommandDate(CalendarEvent event) {

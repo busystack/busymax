@@ -13,6 +13,43 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get windowsSupport => 'सहायता';
+
+  @override
+  String get windowsThirdPartyLicenses => 'तृतीय-पक्ष लाइसेंस';
+
+  @override
+  String get windowsSearch => 'खोजें';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'उपयोगकर्ता ने Windows सेटिंग में इसे बंद किया है।';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Windows नीति द्वारा बंद किया गया है।';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'BusyMax को MSIX पैकेज से इंस्टॉल करने के बाद उपलब्ध होगा।';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'BusyMax को पूरी तरह बंद करने पर रिमाइंडर रुक जाते हैं। उन्हें पाने के लिए इसे पृष्ठभूमि में चलने दें।';
+
+  @override
+  String get windowsProductVersionLabel => 'उत्पाद संस्करण';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows पैकेज संस्करण';
+
+  @override
+  String get windowsUnpackaged => 'पैकेज रहित';
+
+  @override
+  String get windowsAgendaLoadMore => 'एजेंडा के और आइटम लोड करें';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'सोमवार',
@@ -856,7 +893,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'केवल आपके Linux ऑपरेटिंग सिस्टम का संस्करण और ऐप की भाषा व क्षेत्रीय सेटिंग जोड़ी जाती है। लॉग, खाता डेटा, फ़ाइल नाम या अन्य निदान जानकारी शामिल नहीं की जाती।';
+      'केवल आपके ऑपरेटिंग सिस्टम का नाम और संस्करण तथा ऐप की भाषा व क्षेत्रीय सेटिंग जोड़ी जाती है। लॉग, खाता डेटा, फ़ाइल नाम या अन्य निदान जानकारी शामिल नहीं की जाती।';
 
   @override
   String get feedbackCategoryRequired => 'श्रेणी चुनें।';

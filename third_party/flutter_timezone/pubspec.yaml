@@ -1,0 +1,24 @@
+name: flutter_timezone
+description: Windows-only BusyMax packaging of the upstream timezone plugin.
+homepage: https://github.com/tjarvstrand/flutter_timezone
+version: 5.1.0
+publish_to: none
+
+platforms:
+  windows:
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  equatable: ^2.0.7
+  flutter:
+    sdk: flutter
+  meta: ^1.16.0
+
+flutter:
+  plugin:
+    platforms:
+      windows:
+        pluginClass: FlutterTimezonePluginCApi

@@ -11,6 +11,12 @@ class BuildConfig {
     this.microsoftGraphBaseUrl = 'https://graph.microsoft.com/v1.0',
     this.googleApiBaseUrl = 'https://www.googleapis.com',
     this.feedbackEndpoint = 'https://busystack.org/api/feedback',
+    this.privacyPolicyUrl = '',
+    this.supportUrl = '',
+    this.homepageUrl = 'https://busystack.org',
+    this.windowsAppUserModelId = '',
+    this.windowsPackageVersion = '',
+    this.windowsStoreMode = false,
     String? apiBaseUrl,
     required this.oauthAuthorizationEndpoint,
     required this.oauthTokenEndpoint,
@@ -51,6 +57,23 @@ class BuildConfig {
         'BUSYSTACK_FEEDBACK_ENDPOINT',
         defaultValue: 'https://busystack.org/api/feedback',
       ),
+      privacyPolicyUrl: const String.fromEnvironment(
+        'BUSYMAX_PRIVACY_POLICY_URL',
+      ),
+      supportUrl: const String.fromEnvironment('BUSYMAX_SUPPORT_URL'),
+      homepageUrl: const String.fromEnvironment(
+        'BUSYMAX_HOMEPAGE_URL',
+        defaultValue: 'https://busystack.org',
+      ),
+      windowsAppUserModelId: const String.fromEnvironment(
+        'BUSYMAX_WINDOWS_AUMID',
+      ),
+      windowsPackageVersion: const String.fromEnvironment(
+        'BUSYMAX_MSIX_VERSION',
+      ),
+      windowsStoreMode: const bool.fromEnvironment(
+        'BUSYMAX_WINDOWS_STORE_MODE',
+      ),
       oauthAuthorizationEndpoint: const String.fromEnvironment(
         'GOOGLE_OAUTH_AUTHORIZATION_ENDPOINT',
         defaultValue: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -82,6 +105,12 @@ class BuildConfig {
   final String microsoftGraphBaseUrl;
   final String googleApiBaseUrl;
   final String feedbackEndpoint;
+  final String privacyPolicyUrl;
+  final String supportUrl;
+  final String homepageUrl;
+  final String windowsAppUserModelId;
+  final String windowsPackageVersion;
+  final bool windowsStoreMode;
   final String apiBaseUrl;
   final String oauthAuthorizationEndpoint;
   final String oauthTokenEndpoint;
@@ -107,8 +136,8 @@ class BuildConfig {
           'Please install an official build.';
     }
 
-    return 'Missing provider configuration. Run with at least one provider:\n'
-        'flutter run -d linux '
+    return 'Missing provider configuration. Run the platform entrypoint with '
+        'at least one provider:\n'
         '--dart-define=GOOGLE_OAUTH_CLIENT_ID=<desktop-client-id> '
         '--dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<desktop-client-secret> '
         '--dart-define=MICROSOFT_OAUTH_CLIENT_ID=<public-client-id>';

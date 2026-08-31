@@ -13,6 +13,42 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get windowsSupport => 'Поддержка';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Лицензии сторонних компонентов';
+
+  @override
+  String get windowsSearch => 'Поиск';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Отключено пользователем в параметрах Windows.';
+
+  @override
+  String get windowsStartupDisabledByPolicy => 'Отключено политикой Windows.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Доступно после установки BusyMax из пакета MSIX.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Напоминания прекращаются после полного выхода из BusyMax. Оставьте приложение работать в фоновом режиме, чтобы получать их.';
+
+  @override
+  String get windowsProductVersionLabel => 'Версия продукта';
+
+  @override
+  String get windowsPackageVersionLabel => 'Версия пакета Windows';
+
+  @override
+  String get windowsUnpackaged => 'Без пакета';
+
+  @override
+  String get windowsAgendaLoadMore => 'Загрузить ещё элементы повестки';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'понедельникам',
@@ -867,7 +903,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Будут добавлены только версия Linux и выбранный язык приложения. Журналы, данные аккаунтов, имена файлов и другие диагностические сведения не добавляются.';
+      'Будут добавлены только название и версия операционной системы и выбранный язык приложения. Журналы, данные аккаунтов, имена файлов и другие диагностические сведения не добавляются.';
 
   @override
   String get feedbackCategoryRequired => 'Выберите категорию.';

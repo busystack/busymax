@@ -13,6 +13,42 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get windowsSupport => 'الدعم';
+
+  @override
+  String get windowsThirdPartyLicenses => 'تراخيص الجهات الخارجية';
+
+  @override
+  String get windowsSearch => 'بحث';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'عطّل المستخدم هذه الميزة في إعدادات Windows.';
+
+  @override
+  String get windowsStartupDisabledByPolicy => 'معطّلة بواسطة نهج Windows.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'تتوفر بعد تثبيت BusyMax من حزمة MSIX.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'تتوقف التذكيرات عند إنهاء BusyMax بالكامل. أبقِه قيد التشغيل في الخلفية لتلقيها.';
+
+  @override
+  String get windowsProductVersionLabel => 'إصدار المنتج';
+
+  @override
+  String get windowsPackageVersionLabel => 'إصدار حزمة Windows';
+
+  @override
+  String get windowsUnpackaged => 'غير معبأ';
+
+  @override
+  String get windowsAgendaLoadMore => 'تحميل المزيد من عناصر جدول الأعمال';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'الاثنين',
@@ -886,7 +922,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'يضيف فقط إصدار نظام التشغيل Linux ولغة التطبيق ومنطقته. لا يتم تضمين أي سجلات أو بيانات حسابات أو أسماء ملفات أو معلومات تشخيصية أخرى.';
+      'يضيف فقط اسم نظام التشغيل وإصداره ولغة التطبيق ومنطقته. لا يتم تضمين أي سجلات أو بيانات حسابات أو أسماء ملفات أو معلومات تشخيصية أخرى.';
 
   @override
   String get feedbackCategoryRequired => 'اختر فئة.';

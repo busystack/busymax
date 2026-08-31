@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap10 desktop desktop4 com rescap">
+  <Identity
+    Name="@@IDENTITY_NAME@@"
+    Publisher="@@PUBLISHER@@"
+    Version="@@PACKAGE_VERSION@@"
+    ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>BusyMax</DisplayName>
+    <PublisherDisplayName>@@PUBLISHER_DISPLAY_NAME@@</PublisherDisplayName>
+    <Description>BusyMax calendar and task manager</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.26100.0"
+      MaxVersionTested="@@MAX_TESTED_VERSION@@" />
+  </Dependencies>
+  <Resources>
+@@RESOURCE_LANGUAGES@@
+  </Resources>
+  <Applications>
+    <Application
+      Id="BusyMax"
+      Executable="busymax.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        AppListEntry="default"
+        DisplayName="BusyMax"
+        Description="BusyMax calendar and task manager"
+        BackgroundColor="transparent"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        Square150x150Logo="Assets\Square150x150Logo.png" />
+      <Extensions>
+        <uap:Extension
+          Category="windows.fileTypeAssociation"
+          Executable="busymax.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <uap:FileTypeAssociation Name="busymax-icalendar">
+            <uap:DisplayName>iCalendar file</uap:DisplayName>
+            <uap:Logo>Assets\FileAssociation.png</uap:Logo>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.ics</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+        <uap:Extension
+          Category="windows.protocol"
+          Executable="busymax.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <uap:Protocol Name="webcal">
+            <uap:DisplayName>Web calendar subscription</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+        <desktop:Extension
+          Category="windows.startupTask"
+          Executable="busymax.exe"
+          EntryPoint="Windows.FullTrustApplication"
+          uap10:Parameters="--start-minimized">
+          <desktop:StartupTask
+            TaskId="BusyMaxStartupTask"
+            Enabled="false"
+            DisplayName="BusyMax" />
+        </desktop:Extension>
+        <desktop4:Extension Category="windows.toastNotificationActivation">
+          <desktop4:ToastNotificationActivation
+            ToastActivatorCLSID="{7B854A6D-8B2A-45A5-B998-1F51EC5A81D7}" />
+        </desktop4:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer
+              Executable="busymax.exe"
+              Arguments="----AppNotificationActivationServer"
+              DisplayName="BusyMax notification activator">
+              <com:Class Id="{7B854A6D-8B2A-45A5-B998-1F51EC5A81D7}" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

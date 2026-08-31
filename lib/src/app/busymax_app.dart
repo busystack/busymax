@@ -10,9 +10,9 @@ import '../features/tray/domain/tray_presentation.dart';
 import '../features/tray/domain/tray_presentation_formatter.dart';
 import '../platform/gtk_font_service.dart';
 import '../platform/linux_header_bar_configuration_synchronizer.dart';
+import '../platform/linux_header_bar_provider.dart';
 import '../platform/linux_header_bar_service.dart';
-import '../platform/linux_window_service.dart';
-import '../platform/external_calendar_open_service.dart';
+import '../platform/common/desktop_services.dart';
 import '../l10n/locale_resolution.dart';
 import '../schedule/schedule_commands.dart';
 import 'app_bootstrap.dart';
@@ -61,8 +61,8 @@ BusyMaxHeaderBarTheme busyMaxHeaderBarThemeFor(
   );
 }
 
-class BusyMaxApp extends ConsumerStatefulWidget {
-  const BusyMaxApp({
+class LinuxBusyMaxApp extends ConsumerStatefulWidget {
+  const LinuxBusyMaxApp({
     super.key,
     this.trayServiceFactory,
     this.startMinimizedAtLaunch = false,
@@ -73,10 +73,18 @@ class BusyMaxApp extends ConsumerStatefulWidget {
   final bool startMinimizedAtLaunch;
 
   @override
-  ConsumerState<BusyMaxApp> createState() => _BusyMaxAppState();
+  ConsumerState<LinuxBusyMaxApp> createState() => _BusyMaxAppState();
 }
 
-class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
+class BusyMaxApp extends LinuxBusyMaxApp {
+  const BusyMaxApp({
+    super.key,
+    super.trayServiceFactory,
+    super.startMinimizedAtLaunch,
+  });
+}
+
+class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   BusyMaxTrayService? _trayService;
   bool? _lastHideOnClose;
   bool? _lastTrayEnabled;
@@ -84,7 +92,8 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   bool _settingsReady = false;
   var _scheduleCommandSequence = 0;
   BusyMaxTrayPresentationFormatter? _trayPresentationFormatter;
-  StreamSubscription<ExternalCalendarOpenRequest>? _externalOpenSubscription;
+  StreamSubscription<DesktopActivation>? _externalOpenSubscription;
+  StreamSubscription<DesktopNavigationRequest>? _navigationSubscription;
   Future<void> _externalOpenTail = Future<void>.value();
   late final BusyMaxHeaderBarConfigurationSynchronizer
   _headerBarConfigurationSynchronizer;
@@ -97,13 +106,17 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
           ref.read(linuxHeaderBarServiceProvider),
         );
     _externalOpenSubscription = ref
-        .read(externalCalendarOpenServiceProvider)
-        .requests
+        .read(desktopActivationServiceProvider)
+        .activations
         .listen((request) {
           _externalOpenTail = _externalOpenTail
               .catchError((Object _) {})
               .then((_) => _handleExternalCalendarOpen(request));
         });
+    _navigationSubscription = ref
+        .read(desktopNavigationServiceProvider)
+        .requests
+        .listen(_handleNavigationRequest);
     unawaited(_waitForSettings());
   }
 
@@ -111,6 +124,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   void dispose() {
     _headerBarConfigurationSynchronizer.dispose();
     unawaited(_externalOpenSubscription?.cancel());
+    unawaited(_navigationSubscription?.cancel());
     final tray = _trayService;
     if (tray != null) {
       unawaited(tray.stop());
@@ -118,32 +132,49 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     super.dispose();
   }
 
-  Future<void> _handleExternalCalendarOpen(
-    ExternalCalendarOpenRequest request,
-  ) async {
+  Future<void> _handleExternalCalendarOpen(DesktopActivation request) async {
     if (!mounted) return;
     final router = ref.read(appRouterProvider);
     switch (request.kind) {
-      case ExternalCalendarOpenKind.webCal:
+      case DesktopActivationKind.webCal:
         router.go('/settings?page=accounts');
-      case ExternalCalendarOpenKind.icsFile:
+      case DesktopActivationKind.icsFile:
         final session = ref.read(authSessionControllerProvider);
         router.go(session.isSignedIn ? '/schedule' : '/settings?page=accounts');
+      case DesktopActivationKind.normalLaunch:
+      case DesktopActivationKind.startMinimized:
+      case DesktopActivationKind.notification:
+        return;
     }
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     final dialogContext = rootNavigatorKey.currentContext;
     if (dialogContext == null || !dialogContext.mounted) return;
     switch (request.kind) {
-      case ExternalCalendarOpenKind.webCal:
+      case DesktopActivationKind.webCal:
         await showAddCalendarSubscriptionFlow(
           dialogContext,
           ref,
-          initialUrl: request.value,
+          initialUrl: request.value!,
         );
-      case ExternalCalendarOpenKind.icsFile:
-        await showIcsImportFlow(dialogContext, ref, filePath: request.value);
+      case DesktopActivationKind.icsFile:
+        await showIcsImportFlow(dialogContext, ref, filePath: request.value!);
+      case DesktopActivationKind.normalLaunch:
+      case DesktopActivationKind.startMinimized:
+      case DesktopActivationKind.notification:
+        return;
     }
+  }
+
+  void _handleNavigationRequest(DesktopNavigationRequest request) {
+    if (!mounted) return;
+    final router = ref.read(appRouterProvider);
+    router.go(switch (request.destination) {
+      DesktopNavigationDestination.schedule => '/schedule',
+      DesktopNavigationDestination.tasks => '/tasks',
+      DesktopNavigationDestination.settings => '/settings',
+      DesktopNavigationDestination.signIn => '/sign-in',
+    });
   }
 
   Future<void> _waitForSettings() async {
@@ -370,7 +401,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
       return;
     }
 
-    final windowService = ref.read(linuxWindowServiceProvider);
+    final windowService = ref.read(desktopWindowServiceProvider);
     final trayEnabled =
         settings.showTrayIcon ||
         settings.runInBackgroundWhenClosed ||
@@ -411,7 +442,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
   }
 
   BusyMaxTrayService _createTrayService({
-    required LinuxWindowService windowService,
+    required DesktopWindowService windowService,
     required BusyMaxTrayPresentationFormatter formatter,
     required AppSettings settings,
   }) {
@@ -460,20 +491,20 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     return formatter.format(presentation);
   }
 
-  Future<void> _openTrayNewEvent(LinuxWindowService windowService) async {
+  Future<void> _openTrayNewEvent(DesktopWindowService windowService) async {
     await windowService.showWindow();
     ref.read(appRouterProvider).go('/schedule');
     _issueScheduleCommand(ScheduleWorkspaceCommandKind.newEvent);
   }
 
-  Future<void> _openTrayNewTask(LinuxWindowService windowService) async {
+  Future<void> _openTrayNewTask(DesktopWindowService windowService) async {
     await windowService.showWindow();
     ref.read(appRouterProvider).go('/tasks');
     _issueScheduleCommand(ScheduleWorkspaceCommandKind.newTask);
   }
 
   Future<void> _openTrayEvent(
-    LinuxWindowService windowService,
+    DesktopWindowService windowService,
     BusyMaxTrayEventEntry event,
   ) async {
     await windowService.showWindow();
@@ -487,7 +518,9 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     );
   }
 
-  Future<void> _openTrayTasksDueToday(LinuxWindowService windowService) async {
+  Future<void> _openTrayTasksDueToday(
+    DesktopWindowService windowService,
+  ) async {
     await windowService.showWindow();
     ref.read(appRouterProvider).go('/tasks');
     _issueScheduleCommand(
@@ -496,12 +529,12 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     );
   }
 
-  Future<void> _openTraySettings(LinuxWindowService windowService) async {
+  Future<void> _openTraySettings(DesktopWindowService windowService) async {
     await windowService.showWindow();
     ref.read(appRouterProvider).go('/settings');
   }
 
-  Future<void> _openMainAgenda(LinuxWindowService windowService) async {
+  Future<void> _openMainAgenda(DesktopWindowService windowService) async {
     await windowService.showWindow();
     ref.read(appRouterProvider).go('/schedule');
     _issueScheduleCommand(
@@ -529,7 +562,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
     );
   }
 
-  void _setHideOnClose(LinuxWindowService windowService, bool enabled) {
+  void _setHideOnClose(DesktopWindowService windowService, bool enabled) {
     if (_lastHideOnClose == enabled) {
       return;
     }
@@ -539,7 +572,7 @@ class _BusyMaxAppState extends ConsumerState<BusyMaxApp> {
 
   Future<void> _startTray(
     BusyMaxTrayService tray,
-    LinuxWindowService windowService, {
+    DesktopWindowService windowService, {
     required bool startMinimizedToTray,
   }) async {
     await tray.start();

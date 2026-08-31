@@ -13,6 +13,43 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get windowsSupport => 'Tuki';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Kolmannen osapuolen lisenssit';
+
+  @override
+  String get windowsSearch => 'Haku';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Käyttäjä on poistanut toiminnon käytöstä Windowsin asetuksissa.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Windows-käytäntö on poistanut toiminnon käytöstä.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Käytettävissä, kun BusyMax on asennettu MSIX-paketista.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Muistutukset lakkaavat, kun BusyMax suljetaan kokonaan. Jätä se toimimaan taustalle saadaksesi muistutukset.';
+
+  @override
+  String get windowsProductVersionLabel => 'Tuoteversio';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows-paketin versio';
+
+  @override
+  String get windowsUnpackaged => 'Pakkaamaton';
+
+  @override
+  String get windowsAgendaLoadMore => 'Lataa lisää esityslistan kohteita';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'maanantaisin',
@@ -863,7 +900,7 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Lisää vain Linux-käyttöjärjestelmäsi version ja sovelluksen alueasetuksen. Lokeja, tilitietoja, tiedostonimiä tai muita diagnostiikkatietoja ei lisätä.';
+      'Lisää vain käyttöjärjestelmäsi nimen ja version sekä sovelluksen alueasetuksen. Lokeja, tilitietoja, tiedostonimiä tai muita diagnostiikkatietoja ei lisätä.';
 
   @override
   String get feedbackCategoryRequired => 'Valitse luokka.';

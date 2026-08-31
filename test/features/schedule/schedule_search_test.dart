@@ -83,6 +83,45 @@ void main() {
     },
   );
 
+  test('all-task query is not limited by year or an arbitrary page', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
+    await _insertTaskList(database);
+    await _insertTask(
+      database,
+      id: 'past',
+      title: 'Past task',
+      dueUtc: '2020-01-02',
+    );
+    await _insertTask(
+      database,
+      id: 'future',
+      title: 'Future task',
+      dueUtc: '2040-03-04',
+    );
+    for (var index = 0; index < 501; index += 1) {
+      await _insertTask(
+        database,
+        id: 'undated-$index',
+        title: 'Undated $index',
+      );
+    }
+
+    final tasks = await ScheduleRepository(database).listAllTasks(
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeCalendarEvents: false,
+        showCompletedTasks: true,
+        showNoDateTasks: true,
+      ),
+    );
+
+    expect(tasks, hasLength(503));
+    expect(tasks.map((item) => item.id), containsAll(['past', 'future']));
+    expect(tasks.where((item) => item.start == null), hasLength(501));
+  });
+
   test(
     'repository ensures calendar projection coverage before reading',
     () async {

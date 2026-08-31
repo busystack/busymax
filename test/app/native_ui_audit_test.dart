@@ -327,7 +327,7 @@ void main() {
     });
 
     test('startup defers native presentation until the app frame is ready', () {
-      final source = File('lib/main.dart').readAsStringSync();
+      final source = File('lib/main_linux.dart').readAsStringSync();
       final deferFrame = source.indexOf('binding.deferFirstFrame();');
       final firstRunApp = source.indexOf('runApp(');
       final firstAllowFrame = source.indexOf('binding.allowFirstFrame();');
@@ -340,9 +340,7 @@ void main() {
 
     test('snap uses portal-backed secret storage without keyring plug', () {
       final snapcraft = File('snap/snapcraft.yaml').readAsStringSync();
-      final bootstrap = File(
-        'lib/src/app/app_bootstrap.dart',
-      ).readAsStringSync();
+      final linuxMain = File('lib/main_linux.dart').readAsStringSync();
       final portalStore = File(
         'lib/src/core/secrets/portal_encrypted_secret_store.dart',
       ).readAsStringSync();
@@ -352,7 +350,7 @@ void main() {
       expect(snapcraft, contains('GDK_BACKEND: wayland,x11'));
       expect(snapcraft, contains('SECRET_BACKEND: file'));
       expect(snapcraft, isNot(contains('password-manager-service')));
-      expect(bootstrap, contains('PortalEncryptedSecretStore'));
+      expect(linuxMain, contains('PortalEncryptedSecretStore'));
       expect(portalStore, contains('org.freedesktop.portal.Secret'));
       expect(portalStore, contains('RetrieveSecret'));
       expect(portalStore, contains('AesGcm.with256bits'));
@@ -2187,7 +2185,7 @@ void main() {
         'lib/src/platform/gtk_font_service.dart',
       ).readAsStringSync();
       final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
-      final main = File('lib/main.dart').readAsStringSync();
+      final main = File('lib/main_linux.dart').readAsStringSync();
 
       expect(source, contains('kGtkThemeColorsEventChannel'));
       expect(source, contains('io.busystack.busymax/gtk_theme_colors'));
@@ -2322,7 +2320,10 @@ void main() {
           final line = lines[index];
           final location = '${file.path}:${index + 1}';
           if (line.contains('fontFamily:') &&
-              !file.path.endsWith('lib/src/app/busymax_yaru_theme.dart')) {
+              !file.path.endsWith('lib/src/app/busymax_yaru_theme.dart') &&
+              !file.path.endsWith(
+                'lib/src/app/windows/windows_busymax_app.dart',
+              )) {
             matches.add('$location: $line');
           }
           if (line.contains('fontSize:') &&

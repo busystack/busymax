@@ -13,6 +13,43 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get windowsSupport => 'Soporte';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Licencias de terceros';
+
+  @override
+  String get windowsSearch => 'Buscar';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Desactivado por el usuario en Configuración de Windows.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Desactivado por una directiva de Windows.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Disponible después de instalar BusyMax desde un paquete MSIX.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Los recordatorios se detienen al cerrar BusyMax por completo. Déjalo ejecutándose en segundo plano para recibirlos.';
+
+  @override
+  String get windowsProductVersionLabel => 'Versión del producto';
+
+  @override
+  String get windowsPackageVersionLabel => 'Versión del paquete de Windows';
+
+  @override
+  String get windowsUnpackaged => 'Sin empaquetar';
+
+  @override
+  String get windowsAgendaLoadMore => 'Cargar más elementos de la agenda';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'lunes',
@@ -844,7 +881,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Incluye únicamente la versión del sistema operativo Linux y la configuración regional de la aplicación. No se incluyen registros, datos de cuenta, nombres de archivos ni otros diagnósticos.';
+      'Incluye únicamente el nombre y la versión del sistema operativo y la configuración regional de la aplicación. No se incluyen registros, datos de cuenta, nombres de archivos ni otros diagnósticos.';
 
   @override
   String get feedbackCategoryRequired => 'Selecciona una categoría.';

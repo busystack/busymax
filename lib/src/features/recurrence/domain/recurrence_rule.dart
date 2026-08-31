@@ -490,18 +490,12 @@ _NormalizedEditorRule? _normalizeMonthlyOrYearly({
     );
   }
 
-  final hasOrdinalByDay = byDay.any(
-    (value) => RegExp(r'^-?[1-5](?:MO|TU|WE|TH|FR|SA|SU)$').hasMatch(value),
-  );
-  if (byMonth.length > 1 && (bySetPositions.isNotEmpty || hasOrdinalByDay)) {
-    return null;
-  }
-
   if (byDay.length == 1 && bySetPositions.isEmpty) {
     final ordinal = RegExp(
       r'^(-?[1-5])(MO|TU|WE|TH|FR|SA|SU)$',
     ).firstMatch(byDay.single);
     if (ordinal != null) {
+      if (byMonth.length > 1) return null;
       final position = int.parse(ordinal.group(1)!);
       if (_editorSetPositions.contains(position)) {
         return (
@@ -518,6 +512,12 @@ _NormalizedEditorRule? _normalizeMonthlyOrYearly({
       bySetPositions.length == 1 &&
       _allowedEditorByDay(byDay) &&
       _editorSetPositions.contains(bySetPositions.single)) {
+    // A single weekday plus BYSETPOS is ordinal within the whole yearly
+    // candidate set when multiple BYMONTH values are present. BusyMax's
+    // editor models an ordinal inside each selected month, so keep that RFC
+    // shape opaque instead of silently changing its meaning. Multi-weekday
+    // workday/weekend sets remain representable for Nextcloud tasks.
+    if (byMonth.length > 1 && byDay.length == 1) return null;
     return (
       byDay: byDay,
       byMonth: byMonth,

@@ -22,7 +22,7 @@ void main() {
     );
   });
 
-  test('missing client id has developer run command', () {
+  test('missing client id has platform-neutral developer guidance', () {
     const config = BuildConfig(
       googleOAuthClientId: '',
       googleOAuthClientSecret: '',
@@ -34,7 +34,8 @@ void main() {
     );
 
     expect(config.hasGoogleOAuthClientId, isFalse);
-    expect(config.missingClientIdMessage, contains('flutter run -d linux'));
+    expect(config.missingClientIdMessage, contains('platform entrypoint'));
+    expect(config.missingClientIdMessage, isNot(contains('linux')));
   });
 
   test('demo mode is never enabled in release builds', () {

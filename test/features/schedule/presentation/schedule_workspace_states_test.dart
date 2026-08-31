@@ -9,6 +9,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_empty_states
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';

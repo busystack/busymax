@@ -13,6 +13,43 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get windowsSupport => 'پشتیبانی';
+
+  @override
+  String get windowsThirdPartyLicenses => 'مجوزهای شخص ثالث';
+
+  @override
+  String get windowsSearch => 'جستجو';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'کاربر این گزینه را در تنظیمات Windows غیرفعال کرده است.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'با خط‌مشی Windows غیرفعال شده است.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'پس از نصب BusyMax از بستهٔ MSIX در دسترس است.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'با خروج کامل از BusyMax یادآورها متوقف می‌شوند. برای دریافت آن‌ها برنامه را در پس‌زمینه فعال نگه دارید.';
+
+  @override
+  String get windowsProductVersionLabel => 'نسخهٔ محصول';
+
+  @override
+  String get windowsPackageVersionLabel => 'نسخهٔ بستهٔ Windows';
+
+  @override
+  String get windowsUnpackaged => 'بدون بسته';
+
+  @override
+  String get windowsAgendaLoadMore => 'بارگیری موارد بیشتر دستور کار';
+
+  @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
     String _temp0 = intl.Intl.selectLogic(dayKey, {
       'MO': 'دوشنبه',
@@ -875,7 +912,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'فقط نسخهٔ سیستم‌عامل Linux و تنظیمات منطقه‌ای برنامه افزوده می‌شود. هیچ گزارش، دادهٔ حساب، نام پرونده یا اطلاعات تشخیصی دیگری افزوده نمی‌شود.';
+      'فقط نام و نسخهٔ سیستم‌عامل و تنظیمات منطقه‌ای برنامه افزوده می‌شود. هیچ گزارش، دادهٔ حساب، نام پرونده یا اطلاعات تشخیصی دیگری افزوده نمی‌شود.';
 
   @override
   String get feedbackCategoryRequired => 'یک دسته‌بندی انتخاب کنید.';

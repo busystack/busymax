@@ -26,6 +26,7 @@ import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../../../l10n/l10n.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import '../../sync/sync_auth_error.dart';
 
 enum _OnboardingStep { accounts, preferences }

@@ -133,6 +133,72 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @windowsSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Support'**
+  String get windowsSupport;
+
+  /// No description provided for @windowsThirdPartyLicenses.
+  ///
+  /// In en, this message translates to:
+  /// **'Third-party licenses'**
+  String get windowsThirdPartyLicenses;
+
+  /// No description provided for @windowsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get windowsSearch;
+
+  /// No description provided for @windowsStartupDisabledByUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by the user in Windows Settings.'**
+  String get windowsStartupDisabledByUser;
+
+  /// No description provided for @windowsStartupDisabledByPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by Windows policy.'**
+  String get windowsStartupDisabledByPolicy;
+
+  /// No description provided for @windowsStartupUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available after BusyMax is installed from an MSIX package.'**
+  String get windowsStartupUnavailable;
+
+  /// No description provided for @windowsReminderExitNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders stop when BusyMax is fully quit. Keep it running in the background to receive them.'**
+  String get windowsReminderExitNotice;
+
+  /// No description provided for @windowsProductVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Product version'**
+  String get windowsProductVersionLabel;
+
+  /// No description provided for @windowsPackageVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows package version'**
+  String get windowsPackageVersionLabel;
+
+  /// No description provided for @windowsUnpackaged.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpackaged'**
+  String get windowsUnpackaged;
+
+  /// No description provided for @windowsAgendaLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more agenda items'**
+  String get windowsAgendaLoadMore;
+
   /// Sentence-form weekday used inside a weekly recurrence summary. {dayKey} is MO through SU; {day} is the locale-formatted fallback.
   ///
   /// In en, this message translates to:
@@ -1525,7 +1591,7 @@ abstract class AppLocalizations {
   /// No description provided for @feedbackTechnicalDetailsDisclosure.
   ///
   /// In en, this message translates to:
-  /// **'Adds only your Linux operating-system version and application locale. No logs, account data, file names, or other diagnostics are included.'**
+  /// **'Adds only your operating-system name and version and application locale. No logs, account data, file names, or other diagnostics are included.'**
   String get feedbackTechnicalDetailsDisclosure;
 
   /// No description provided for @feedbackCategoryRequired.
