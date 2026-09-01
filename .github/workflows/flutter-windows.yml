@@ -57,6 +57,26 @@ jobs:
           } | ConvertTo-Json | Set-Content `
             -LiteralPath build/windows/store-ci.json -Encoding utf8NoBOM
 
+      - name: Verify Windows build prerequisites
+        shell: pwsh
+        run: ./tools/windows/check_prerequisites.ps1 | Format-List
+
+      - name: Validate non-production CI identity
+        shell: pwsh
+        run: >-
+          ./tools/windows/validate_release_config.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci | Format-List
+
+      - name: Run pinned Pester contract tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester `
+            -Path tools/windows/tests -PassThru -Output Detailed
+          if ($result.FailedCount -ne 0) {
+            throw 'Windows packaging contract tests failed.'
+          }
+
       - name: Validate, compile, and package Windows x64
         shell: pwsh
         run: >-
