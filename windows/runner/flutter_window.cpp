@@ -1,5 +1,6 @@
 #include "flutter_window.h"
 
+#include <appmodel.h>
 #include <flutter/standard_method_codec.h>
 #include <functional>
 #include <optional>

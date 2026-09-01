@@ -32,6 +32,11 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_BUILD=${FLUTT
 # Disable Windows macros that collide with C++ standard library functions.
 target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 
+# Flutter 3.44.4 targets C++17. C++/WinRT therefore uses the legacy coroutine
+# header, which current MSVC toolsets require consumers to acknowledge.
+target_compile_definitions(${BINARY_NAME} PRIVATE
+  "_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS")
+
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)

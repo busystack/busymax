@@ -1,6 +1,7 @@
 #include "windows_startup_task.h"
 
 #include <windows.h>
+#include <appmodel.h>
 #include <winrt/Windows.ApplicationModel.h>
 #include <winrt/Windows.Foundation.h>
 
