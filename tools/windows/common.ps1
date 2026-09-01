@@ -237,18 +237,47 @@ function Get-BusyMaxResourceXml {
     }) -join "`r`n"
 }
 
+function Get-BusyMaxVCRuntimeDirectory {
+  param([Parameter(Mandatory)][string]$RedistRoot)
+  $rankedDirectories = @(Get-ChildItem -LiteralPath $RedistRoot -Directory |
+    ForEach-Object {
+      $directory = $_
+      try {
+        [pscustomobject]@{
+          Directory = $directory
+          IsNumericVersion = 1
+          Version = [version]$directory.Name
+        }
+      } catch {
+        # Recent Visual Studio layouts can include aliases such as `v145`
+        # beside numeric redistributable versions. Keep them as a fallback.
+        [pscustomobject]@{
+          Directory = $directory
+          IsNumericVersion = 0
+          Version = [version]'0.0'
+        }
+      }
+    } | Sort-Object -Property `
+      @{ Expression = 'IsNumericVersion'; Descending = $true }, `
+      @{ Expression = 'Version'; Descending = $true }, `
+      @{ Expression = { $_.Directory.Name }; Descending = $true })
+  foreach ($entry in $rankedDirectories) {
+    $candidate = Get-ChildItem -LiteralPath `
+      (Join-Path $entry.Directory.FullName 'x64') -Directory `
+      -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue |
+      Sort-Object Name -Descending | Select-Object -First 1
+    if ($null -ne $candidate) { return $candidate }
+  }
+  return $null
+}
+
 function Copy-BusyMaxVCRuntime {
   param(
     [Parameter(Mandatory)][string]$VisualStudioPath,
     [Parameter(Mandatory)][string]$Destination
   )
   $redistRoot = Join-Path $VisualStudioPath 'VC\Redist\MSVC'
-  $crt = Get-ChildItem -LiteralPath $redistRoot -Directory |
-    Sort-Object { [version]$_.Name } -Descending |
-    ForEach-Object {
-      Get-ChildItem -LiteralPath (Join-Path $_.FullName 'x64') `
-        -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue
-    } | Select-Object -First 1
+  $crt = Get-BusyMaxVCRuntimeDirectory -RedistRoot $redistRoot
   if ($null -eq $crt) {
     throw 'The Visual Studio x64 VC runtime redistributable was not found.'
   }

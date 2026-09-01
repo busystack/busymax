@@ -31,3 +31,30 @@ Describe 'BusyMax Windows SDK discovery' {
     $sdk | Should -BeNullOrEmpty
   }
 }
+
+Describe 'BusyMax Visual C++ runtime discovery' {
+  It 'prefers the newest numeric runtime and tolerates toolset aliases' {
+    $visualStudio = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+    $redistRoot = Join-Path $visualStudio 'VC\Redist\MSVC'
+    $numericCrt = Join-Path $redistRoot `
+      '14.50.35717\x64\Microsoft.VC145.CRT'
+    $aliasCrt = Join-Path $redistRoot 'v145\x64\Microsoft.VC145.CRT'
+    New-Item -ItemType Directory -Path $numericCrt -Force | Out-Null
+    New-Item -ItemType Directory -Path $aliasCrt -Force | Out-Null
+    foreach ($name in @(
+        'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
+      Set-Content -LiteralPath (Join-Path $numericCrt $name) `
+        -Value 'numeric' -Encoding ascii
+      Set-Content -LiteralPath (Join-Path $aliasCrt $name) `
+        -Value 'alias' -Encoding ascii
+    }
+    $destination = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $destination | Out-Null
+
+    Copy-BusyMaxVCRuntime -VisualStudioPath $visualStudio `
+      -Destination $destination
+
+    Get-Content -LiteralPath (Join-Path $destination 'msvcp140.dll') |
+      Should -Be 'numeric'
+  }
+}
