@@ -104,7 +104,14 @@ jobs:
 
       - name: Verify combined Windows build prerequisites
         shell: pwsh
-        run: ./tools/windows/check_prerequisites.ps1 | Format-List
+        run: |
+          New-Item -ItemType Directory -Force `
+            -Path build/windows/test-results | Out-Null
+          $environment = ./tools/windows/check_prerequisites.ps1
+          $environment | ConvertTo-Json | Set-Content `
+            -LiteralPath build/windows/test-results/windows-environment.json `
+            -Encoding utf8NoBOM
+          $environment | Format-List
 
       - name: Validate non-production CI identity
         shell: pwsh

@@ -25,6 +25,12 @@ $visualStudio = & $vswhere -latest -products * `
 if ([string]::IsNullOrWhiteSpace($visualStudio)) {
   throw 'Visual Studio C++ x64 desktop tools were not found.'
 }
+$visualStudioVersion = & $vswhere -latest -products * `
+  -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+  -property installationVersion
+$visualStudioDisplayName = & $vswhere -latest -products * `
+  -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+  -property displayName
 $kitsBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
 $sdk = Get-BusyMaxWindowsSdkDirectory -KitsBin $kitsBin
 if ($null -eq $sdk) { throw 'Windows SDK 10.0.26100.0 or newer is required.' }
@@ -40,11 +46,19 @@ if ($RequireWack) {
     throw 'The Windows App Certification Kit is required.'
   }
 }
+$windowsVersion = Get-ItemProperty -LiteralPath `
+  'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 [pscustomobject]@{
   Flutter = $flutterVersion
   VisualStudio = $visualStudio
+  VisualStudioDisplayName = $visualStudioDisplayName
+  VisualStudioVersion = $visualStudioVersion
   WindowsSdk = $sdk.Name
   WindowsSdkBin = Join-Path $sdk.FullName 'x64'
+  HostProductName = [string]$windowsVersion.ProductName
+  HostEditionId = [string]$windowsVersion.EditionID
+  HostDisplayVersion = [string]$windowsVersion.DisplayVersion
+  HostVersion = [Environment]::OSVersion.Version.ToString()
   HostBuild = [Environment]::OSVersion.Version.Build
   Windows11ValidationHost = [Environment]::OSVersion.Version.Build -ge 26100
 }
