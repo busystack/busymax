@@ -7,6 +7,11 @@
 namespace flutter_timezone {
 namespace {
 
+// GetUserDefaultGeoName requires space for at least 85 UTF-16 code units.
+// GEO_NAME_LENGTH is not exposed by every supported Windows SDK header set,
+// so keep the documented capacity local to this narrow Win32 adapter.
+constexpr size_t kGeoNameCapacity = 85;
+
 TimezoneOperationResult Failure(const char* code, const char* message) {
   TimezoneOperationResult result{};
   result.error_code = code;
@@ -108,12 +113,13 @@ TimezoneOperationResult ResolveLocalTimezone(TimezoneNativeApi& api) {
                                       _countof(information.TimeZoneKeyName));
   if (key_length == 0 ||
       key_length >= _countof(information.TimeZoneKeyName) ||
-      key_length > static_cast<size_t>(std::numeric_limits<int32_t>::max())) {
+      key_length >
+          static_cast<size_t>((std::numeric_limits<int32_t>::max)())) {
     return Failure("windows-timezone-key-invalid",
                    "Windows returned an invalid time-zone key.");
   }
 
-  std::array<wchar_t, GEO_NAME_LENGTH> geo_buffer{};
+  std::array<wchar_t, kGeoNameCapacity> geo_buffer{};
   const int geo_length = api.GetUserDefaultGeoName(
       geo_buffer.data(), static_cast<int>(geo_buffer.size()));
   if (geo_length <= 0 || geo_length > static_cast<int>(geo_buffer.size())) {
