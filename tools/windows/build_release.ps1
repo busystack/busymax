@@ -81,8 +81,14 @@ function Invoke-BusyMaxWindowsCompile {
   if (-not [string]::IsNullOrWhiteSpace($config.googleOAuthClientSecret)) {
     $defines += "--dart-define=GOOGLE_OAUTH_CLIENT_SECRET=$($config.googleOAuthClientSecret)"
   }
-  & flutter build windows --release -t lib/main_windows.dart @defines
-  if ($LASTEXITCODE -ne 0) { throw 'Flutter Windows release build failed.' }
+  New-Item -ItemType Directory -Force `
+    -Path 'build\windows\test-results' | Out-Null
+  & flutter build windows --release -t lib/main_windows.dart @defines 2>&1 |
+    Tee-Object -FilePath 'build\windows\test-results\windows-build.log'
+  $compileExitCode = $LASTEXITCODE
+  if ($compileExitCode -ne 0) {
+    throw "Flutter Windows release build failed with exit code $compileExitCode."
+  }
 }
 
 function Invoke-BusyMaxNativeTests {

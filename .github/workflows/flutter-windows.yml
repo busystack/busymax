@@ -196,11 +196,37 @@ jobs:
           }
 
       - name: Compile Windows x64 release
+        id: windows-compile
         shell: pwsh
         run: >-
           ./tools/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage WindowsCompile
+
+      - name: Report Windows compiler failures
+        if: ${{ failure() && steps.windows-compile.conclusion == 'failure' }}
+        shell: pwsh
+        run: |
+          $log = 'build/windows/test-results/windows-build.log'
+          if (-not (Test-Path -LiteralPath $log -PathType Leaf)) {
+            Write-Host '::error title=Windows release compilation failed::The compiler log was not created.'
+            exit 0
+          }
+          $diagnostics = @(Get-Content -LiteralPath $log |
+            Where-Object {
+              $_ -match '(?i)(cmake error|fatal error|error C\d+|LNK\d+|ninja:.*failed|error:)'
+            } | Select-Object -Unique -First 20)
+          if ($diagnostics.Count -eq 0) {
+            $diagnostics = @(Get-Content -LiteralPath $log |
+              Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+              Select-Object -Last 1)
+          }
+          foreach ($diagnostic in $diagnostics) {
+            $safe = ([string]$diagnostic).Replace('%', '%25')
+            $safe = $safe.Replace("`r", '%0D').Replace("`n", '%0A')
+            if ($safe.Length -gt 1000) { $safe = $safe.Substring(0, 1000) }
+            Write-Host "::error title=Windows release compilation failed::$safe"
+          }
 
       - name: Run native C++ tests
         shell: pwsh
