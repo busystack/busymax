@@ -2316,14 +2316,13 @@ void main() {
       final matches = <String>[];
       for (final file in _dartFilesIn('lib')) {
         final lines = file.readAsLinesSync();
+        final path = _normalizedPath(file);
         for (var index = 0; index < lines.length; index++) {
           final line = lines[index];
-          final location = '${file.path}:${index + 1}';
+          final location = '$path:${index + 1}';
           if (line.contains('fontFamily:') &&
-              !file.path.endsWith('lib/src/app/busymax_yaru_theme.dart') &&
-              !file.path.endsWith(
-                'lib/src/app/windows/windows_busymax_app.dart',
-              )) {
+              !path.endsWith('lib/src/app/busymax_yaru_theme.dart') &&
+              !path.endsWith('lib/src/app/windows/windows_busymax_app.dart')) {
             matches.add('$location: $line');
           }
           if (line.contains('fontSize:') &&
@@ -2477,11 +2476,12 @@ void main() {
 
       for (final file in files) {
         final lines = file.readAsLinesSync();
+        final path = _normalizedPath(file);
         for (var index = 0; index < lines.length; index++) {
           final line = lines[index];
-          final location = '${file.path}:${index + 1}';
+          final location = '$path:${index + 1}';
           final isSharedConfirmationFallback =
-              file.path.endsWith('lib/src/app/busymax_design.dart') &&
+              path.endsWith('lib/src/app/busymax_design.dart') &&
               line.contains('return AlertDialog(');
           expect(
             line.contains('AlertDialog'),
@@ -2566,7 +2566,7 @@ bool _hasRawMenuItemButton(String line) {
 }
 
 bool _hasRawPopupMenuEntry(File file, String line) {
-  if (file.path.endsWith('lib/src/app/busymax_design.dart')) {
+  if (_normalizedPath(file).endsWith('lib/src/app/busymax_design.dart')) {
     return false;
   }
   return line.contains('PopupMenuItem') ||
@@ -2574,7 +2574,7 @@ bool _hasRawPopupMenuEntry(File file, String line) {
 }
 
 bool _hasRawMenuAnchor(File file, String line) {
-  if (file.path.endsWith('lib/src/app/busymax_design.dart')) {
+  if (_normalizedPath(file).endsWith('lib/src/app/busymax_design.dart')) {
     return false;
   }
   return RegExp(r'\bMenuAnchor\s*\(').hasMatch(line);
@@ -2589,7 +2589,7 @@ bool _hasRawSwitch(String line) {
 }
 
 bool _hasRawIconButton(File file, String line) {
-  if (file.path.endsWith('lib/src/app/busymax_design.dart')) {
+  if (_normalizedPath(file).endsWith('lib/src/app/busymax_design.dart')) {
     return false;
   }
   return line.contains('IconButton(') &&
@@ -2599,15 +2599,18 @@ bool _hasRawIconButton(File file, String line) {
 }
 
 bool _isAllowedFontSizeException(File file, String line) {
-  if (file.path.endsWith('lib/src/app/busymax_yaru_theme.dart')) {
+  final path = _normalizedPath(file);
+  if (path.endsWith('lib/src/app/busymax_yaru_theme.dart')) {
     return true;
   }
-  if (file.path.endsWith('lib/src/app/busymax_app.dart') &&
+  if (path.endsWith('lib/src/app/busymax_app.dart') &&
       line.contains('theme.tooltipTheme.textStyle?.fontSize')) {
     return true;
   }
-  return file.path.endsWith(
+  return path.endsWith(
         'lib/src/features/tasks/presentation/desktop_date_time_fields.dart',
       ) &&
       line.contains('fontSize: 0');
 }
+
+String _normalizedPath(File file) => file.path.replaceAll('\\', '/');

@@ -2182,13 +2182,14 @@ void main() {
       if (entry is! File) {
         continue;
       }
+      final path = entry.path.replaceAll('\\', '/');
       final text = utf8.decode(entry.readAsBytesSync(), allowMalformed: true);
-      final fileForbidden = entry.path == centralizedAccentMapping
+      final fileForbidden = path == centralizedAccentMapping
           ? forbidden
           : [...forbidden, 'YaruVariant.', 'YaruColors.'];
       for (final token in fileForbidden) {
         if (text.contains(token)) {
-          matches.add('${entry.path}: $token');
+          matches.add('$path: $token');
         }
       }
     }
