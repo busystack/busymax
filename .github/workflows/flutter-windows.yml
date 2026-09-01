@@ -57,7 +57,54 @@ jobs:
           } | ConvertTo-Json | Set-Content `
             -LiteralPath build/windows/store-ci.json -Encoding utf8NoBOM
 
-      - name: Verify Windows build prerequisites
+      - name: Verify x64 Windows build host
+        shell: pwsh
+        run: |
+          if ($env:OS -ne 'Windows_NT' -or
+              -not [Environment]::Is64BitOperatingSystem) {
+            throw 'BusyMax Windows builds require 64-bit Windows.'
+          }
+
+      - name: Verify pinned Flutter version
+        shell: pwsh
+        run: |
+          $version = (flutter --version --machine |
+            ConvertFrom-Json).frameworkVersion
+          if ($version -ne '3.44.4') {
+            throw "BusyMax requires Flutter 3.44.4; found $version."
+          }
+
+      - name: Verify Visual Studio C++ toolchain
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} `
+            'Microsoft Visual Studio\Installer\vswhere.exe'
+          $installation = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+          if ([string]::IsNullOrWhiteSpace($installation)) {
+            throw 'Visual Studio C++ x64 desktop tools were not found.'
+          }
+
+      - name: Verify Windows SDK packaging tools
+        shell: pwsh
+        run: |
+          $kitsBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $sdk = Get-ChildItem -LiteralPath $kitsBin -Directory |
+            Where-Object { [version]$_.Name -ge [version]'10.0.26100.0' } |
+            Sort-Object { [version]$_.Name } -Descending |
+            Select-Object -First 1
+          if ($null -eq $sdk) {
+            throw 'Windows SDK 10.0.26100.0 or newer is required.'
+          }
+          foreach ($tool in @('makeappx.exe', 'signtool.exe')) {
+            if (-not (Test-Path -LiteralPath `
+                (Join-Path $sdk.FullName "x64\$tool"))) {
+              throw "$tool was not found in Windows SDK $($sdk.Name)."
+            }
+          }
+
+      - name: Verify combined Windows build prerequisites
         shell: pwsh
         run: ./tools/windows/check_prerequisites.ps1 | Format-List
 
