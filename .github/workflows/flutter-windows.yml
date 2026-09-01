@@ -153,17 +153,37 @@ jobs:
           }
           $names = @{}
           $failedIds = [System.Collections.Generic.HashSet[int]]::new()
+          $runnerErrors = [System.Collections.Generic.List[string]]::new()
+          $doneSuccess = $null
           foreach ($line in Get-Content -LiteralPath $report) {
             try { $event = $line | ConvertFrom-Json } catch { continue }
             if ($event.type -eq 'testStart') {
               $names[[int]$event.test.id] = [string]$event.test.name
             }
-            if ($event.type -eq 'testDone' -and $event.result -eq 'error') {
+            if ($event.type -eq 'testDone' -and
+                $event.result -notin @('success', 'skipped')) {
               $failedIds.Add([int]$event.testID) | Out-Null
+            }
+            if ($event.type -eq 'error') {
+              if ($null -ne $event.testID) {
+                $failedIds.Add([int]$event.testID) | Out-Null
+              }
+              $summary = ([string]$event.error -split '\r?\n', 2)[0]
+              if (-not [string]::IsNullOrWhiteSpace($summary)) {
+                $runnerErrors.Add($summary) | Out-Null
+              }
+            }
+            if ($event.type -eq 'done') {
+              $doneSuccess = $event.success
             }
           }
           if ($failedIds.Count -eq 0) {
-            Write-Host '::error title=Windows Flutter tests failed::No failing test ID was present in the machine report.'
+            $summary = "No failing test ID was present; machine success=$doneSuccess."
+            if ($runnerErrors.Count -gt 0) {
+              $summary += " Runner error: $($runnerErrors[0])"
+            }
+            $safeSummary = $summary.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Host "::error title=Windows Flutter tests failed::$safeSummary"
           }
           foreach ($testId in $failedIds) {
             $name = if ($names.ContainsKey($testId)) {
