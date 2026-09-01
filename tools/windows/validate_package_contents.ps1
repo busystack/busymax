@@ -105,10 +105,22 @@ function Assert-BusyMaxX64Pe {
 foreach ($nativeBinary in @(
     Get-ChildItem -LiteralPath $PackageRoot -File -Filter '*.exe'
     Get-ChildItem -LiteralPath $PackageRoot -File -Filter '*.dll'
-    Get-Item -LiteralPath (Join-Path $PackageRoot 'data/app.so')
   )) {
   Assert-BusyMaxX64Pe -Path $nativeBinary.FullName
 }
+function Assert-BusyMaxX64Elf {
+  param([Parameter(Mandatory)][string]$Path)
+  $bytes = [IO.File]::ReadAllBytes($Path)
+  if ($bytes.Length -lt 20 -or
+      $bytes[0] -ne 0x7f -or $bytes[1] -ne 0x45 -or
+      $bytes[2] -ne 0x4c -or $bytes[3] -ne 0x46 -or
+      $bytes[4] -ne 2 -or $bytes[5] -ne 1 -or
+      [BitConverter]::ToUInt16($bytes, 18) -ne 0x3e) {
+    throw "Flutter AOT artifact is not a little-endian x64 ELF file: $Path"
+  }
+}
+Assert-BusyMaxX64Elf -Path `
+  (Join-Path $PackageRoot 'data/app.so')
 $manifestPath = Join-Path $PackageRoot 'AppxManifest.xml'
 & "$PSScriptRoot/validate_manifest.ps1" -ManifestPath $manifestPath
 [xml]$packageManifest = Get-Content -LiteralPath $manifestPath -Raw
