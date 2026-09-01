@@ -165,7 +165,9 @@ function Get-BusyMaxPackageFamilyName {
   if (-not ('BusyMax.PackageIdentity' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 namespace BusyMax {
   public static class PackageIdentity {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -181,17 +183,21 @@ namespace BusyMax {
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern int PackageFamilyNameFromId(
       ref PACKAGE_ID packageId, ref uint packageFamilyNameLength,
-      System.Text.StringBuilder packageFamilyName);
+      StringBuilder packageFamilyName);
     public static string FamilyName(string name, string publisher) {
-      var id = new PACKAGE_ID { name = name, publisher = publisher,
-        resourceId = "", publisherId = "" };
-      uint length = 0;
-      PackageFamilyNameFromId(ref id, ref length, null);
-      var value = new System.Text.StringBuilder((int)length);
+      var id = new PACKAGE_ID { name = name, publisher = publisher };
+      // PACKAGE_FAMILY_NAME_MAX_LENGTH is 64 characters, excluding the
+      // terminating null. A fixed buffer avoids a nullable output pointer in
+      // managed interop and follows Microsoft's documented C# example.
+      uint length = 65;
+      var value = new StringBuilder((int)length);
       int result = PackageFamilyNameFromId(ref id, ref length, value);
-      if (result != 0) throw new InvalidOperationException(
-        "PackageFamilyNameFromId failed: " + result);
-      return value.ToString();
+      if (result != 0) throw new Win32Exception(result,
+        "PackageFamilyNameFromId failed");
+      var familyName = value.ToString();
+      if (String.IsNullOrWhiteSpace(familyName)) throw new InvalidOperationException(
+        "PackageFamilyNameFromId returned an empty package family name");
+      return familyName;
     }
   }
 }
