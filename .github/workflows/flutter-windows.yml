@@ -115,21 +115,63 @@ jobs:
 
       - name: Run pinned Pester contract tests
         shell: pwsh
-        run: |
-          $result = Invoke-Pester `
-            -Path tools/windows/tests -PassThru -Output Detailed
-          if ($result.FailedCount -ne 0) {
-            throw 'Windows packaging contract tests failed.'
-          }
+        run: >-
+          ./tools/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage PesterTests
 
-      - name: Validate, compile, and package Windows x64
+      - name: Restore dependencies and generate sources
         shell: pwsh
         run: >-
           ./tools/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
-          -Ci
+          -Ci -Stage SourceGeneration
 
-      - name: Upload unsigned CI MSIX and test reports
+      - name: Check formatting, analysis, and platform boundaries
+        shell: pwsh
+        run: >-
+          ./tools/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage StaticAnalysis
+
+      - name: Run Dart and Flutter tests
+        shell: pwsh
+        run: >-
+          ./tools/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage FlutterTests
+
+      - name: Compile Windows x64 release
+        shell: pwsh
+        run: >-
+          ./tools/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage WindowsCompile
+
+      - name: Run native C++ tests
+        shell: pwsh
+        run: >-
+          ./tools/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage NativeTests
+
+      - name: Pack and inspect exact MSIX
+        shell: pwsh
+        run: >-
+          ./tools/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage Package
+
+      - name: Upload Windows test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: busymax-windows-x64-test-reports
+          path: build/windows/test-results/**
+          if-no-files-found: warn
+
+      - name: Upload unsigned CI MSIX and package evidence
+        if: success()
         uses: actions/upload-artifact@v7
         with:
           name: busymax-windows-x64-ci
@@ -138,5 +180,4 @@ jobs:
             build/windows/store/staging/AppxManifest.xml
             build/windows/store/*inventory.json
             build/windows/store/*metadata.json
-            build/windows/test-results/**
           if-no-files-found: error
