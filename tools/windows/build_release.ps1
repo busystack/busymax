@@ -97,8 +97,26 @@ function Invoke-BusyMaxNativeTests {
 }
 
 function Invoke-BusyMaxPackage {
-  $metadata = & "$PSScriptRoot/package_store.ps1" `
-    -ConfigPath $ConfigPath -Ci:$Ci
+  New-Item -ItemType Directory -Force `
+    -Path 'build\windows\test-results' | Out-Null
+  $logPath = 'build\windows\test-results\package-store.log'
+  try {
+    $packageOutput = @(& "$PSScriptRoot/package_store.ps1" `
+      -ConfigPath $ConfigPath -Ci:$Ci *>&1 |
+      Tee-Object -FilePath $logPath)
+  } catch {
+    ($_ | Out-String).TrimEnd() | Add-Content -LiteralPath $logPath
+    throw
+  }
+  $metadata = @($packageOutput | Where-Object {
+    $_ -is [pscustomobject] -and
+    $_.PSObject.Properties.Name -contains 'Package' -and
+    $_.PSObject.Properties.Name -contains 'SHA256'
+  } | Select-Object -Last 1)
+  if ($metadata.Count -ne 1) {
+    throw 'Windows package generation did not return package metadata.'
+  }
+  $metadata = $metadata[0]
   $metadata | Format-List | Out-Host
   $metadata
 }

@@ -265,11 +265,37 @@ jobs:
           }
 
       - name: Pack and inspect exact MSIX
+        id: package
         shell: pwsh
         run: >-
           ./tools/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage Package
+
+      - name: Report exact-MSIX packaging failures
+        if: ${{ failure() && steps.package.conclusion == 'failure' }}
+        shell: pwsh
+        run: |
+          $log = 'build/windows/test-results/package-store.log'
+          if (-not (Test-Path -LiteralPath $log -PathType Leaf)) {
+            Write-Host '::error title=Exact MSIX packaging failed::The package log was not created.'
+            exit 0
+          }
+          $diagnostics = @(Get-Content -LiteralPath $log |
+            Where-Object {
+              $_ -match '(?i)(makeappx.*error|error APPX|throw|exception|failed|missing|prohibited|unexpected|does not|differs|invalid|cannot|could not|refusing)'
+            } | Select-Object -Unique -First 20)
+          if ($diagnostics.Count -eq 0) {
+            $diagnostics = @(Get-Content -LiteralPath $log |
+              Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+              Select-Object -Last 10)
+          }
+          foreach ($diagnostic in $diagnostics) {
+            $safe = ([string]$diagnostic).Replace('%', '%25')
+            $safe = $safe.Replace("`r", '%0D').Replace("`n", '%0A')
+            if ($safe.Length -gt 1000) { $safe = $safe.Substring(0, 1000) }
+            Write-Host "::error title=Exact MSIX packaging failed::$safe"
+          }
 
       - name: Upload Windows test reports
         if: always()
