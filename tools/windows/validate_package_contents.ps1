@@ -1,7 +1,15 @@
 param(
   [Parameter(Mandatory)][Alias('StagingPath')][string]$PackageRoot,
-  [string]$InventoryOutputPath = ''
+  [string]$InventoryOutputPath = '',
+  [ValidateSet('Staging', 'FinalMsix')][string]$ValidationMode = 'Staging'
 )
+
+. "$PSScriptRoot/common.ps1"
+
+if ($ValidationMode -eq 'FinalMsix') {
+  Assert-BusyMaxFinalMsixMetadata -PackageRoot $PackageRoot
+}
+$packageFiles = @(Get-BusyMaxPackageFiles -PackageRoot $PackageRoot)
 
 if (-not (Test-Path -LiteralPath "$PackageRoot/busymax.exe")) {
   throw 'Staging directory does not contain busymax.exe.'
@@ -31,41 +39,30 @@ foreach ($asset in $allowedAssets) {
     throw "Required unqualified package visual asset is missing: $asset"
   }
 }
-$unexpectedAssets = @(Get-ChildItem `
-  -LiteralPath (Join-Path $PackageRoot 'Assets') -Recurse -File |
+$unexpectedAssets = @($packageFiles |
   Where-Object {
-    $relative = [IO.Path]::GetRelativePath(
-      $PackageRoot, $_.FullName).Replace('\', '/')
-    $relative -notin $allowedAssets
+    $relative = Get-BusyMaxPackageRelativePath -PackageRoot $PackageRoot `
+      -Path $_.FullName
+    $relative.StartsWith('Assets/', [StringComparison]::OrdinalIgnoreCase) -and
+      $relative -notin $allowedAssets
   })
 if ($unexpectedAssets.Count -gt 0) {
   throw "Unexpected or unreferenced package visual asset: $($unexpectedAssets.FullName -join ', ')"
 }
-$qualifiedVisualAssets = @(Get-ChildItem `
-  -LiteralPath (Join-Path $PackageRoot 'Assets') -File |
-  Where-Object { $_.Name -match '(?i)\.(scale|targetsize)-' })
+$qualifiedVisualAssets = @($packageFiles | Where-Object {
+    $relative = Get-BusyMaxPackageRelativePath -PackageRoot $PackageRoot `
+      -Path $_.FullName
+    $relative.StartsWith('Assets/', [StringComparison]::OrdinalIgnoreCase) -and
+      $_.Name -match '(?i)\.(scale|targetsize)-'
+  })
 if ($qualifiedVisualAssets.Count -gt 0) {
   throw 'Qualified visual assets require a generated resources.pri and must not be staged by the unqualified-asset packaging path.'
 }
 if (Test-Path -LiteralPath (Join-Path $PackageRoot 'resources.pri')) {
   throw 'The unqualified-asset packaging path must not contain a stale resources.pri.'
 }
-$prohibited = Get-ChildItem -LiteralPath $PackageRoot -Recurse -File |
-  Where-Object {
-    $relative = [IO.Path]::GetRelativePath($PackageRoot, $_.FullName).Replace('\', '/')
-    $_.Extension -in @(
-      '.pfx', '.cer', '.log', '.db', '.sqlite', '.dart', '.cc', '.h', '.pdb',
-      '.cpp', '.c', '.hpp', '.cmake', '.ps1', '.jsonl', '.yaml', '.yml',
-      '.md', '.p12', '.pem', '.key', '.crt', '.p7x', '.snap', '.AppImage'
-    ) -or
-    ($_.Extension -eq '.so' -and $relative -cne 'data/app.so') -or
-    $_.Name -match '(?i)(^|[._-])(test|fake|credential|secret|token|development)([._-]|$)|flutter_logo' -or
-    $relative -match '(?i)(^|/)(linux|snap|snapcraft)(/|$)'
-  }
-if ($prohibited) {
-  throw "Prohibited package content: $($prohibited.FullName -join ', ')"
-}
-$executables = @(Get-ChildItem -LiteralPath $PackageRoot -Recurse -File -Filter '*.exe')
+Assert-BusyMaxPackageHasNoProhibitedFiles -PackageRoot $PackageRoot
+$executables = @($packageFiles | Where-Object { $_.Extension -ieq '.exe' })
 if ($executables.Count -ne 1 -or $executables[0].Name -cne 'busymax.exe') {
   throw "The package must contain only busymax.exe: $($executables.FullName -join ', ')"
 }
@@ -80,9 +77,10 @@ $allowedDlls = @(
   'msvcp140_atomic_wait.dll', 'msvcp140_codecvt_ids.dll', 'vccorlib140.dll',
   'vcruntime140.dll', 'vcruntime140_1.dll', 'vcruntime140_threads.dll'
 )
-$unexpectedDlls = @(Get-ChildItem -LiteralPath $PackageRoot -Recurse -File -Filter '*.dll' |
+$unexpectedDlls = @($packageFiles | Where-Object { $_.Extension -ieq '.dll' } |
   Where-Object {
-    $relative = [IO.Path]::GetRelativePath($PackageRoot, $_.FullName).Replace('\', '/')
+    $relative = Get-BusyMaxPackageRelativePath -PackageRoot $PackageRoot `
+      -Path $_.FullName
     $_.Name -notin $allowedDlls -or $relative -cne $_.Name
   })
 if ($unexpectedDlls) {
@@ -103,8 +101,8 @@ function Assert-BusyMaxX64Pe {
   }
 }
 foreach ($nativeBinary in @(
-    Get-ChildItem -LiteralPath $PackageRoot -File -Filter '*.exe'
-    Get-ChildItem -LiteralPath $PackageRoot -File -Filter '*.dll'
+    Get-ChildItem -LiteralPath $PackageRoot -File -Filter '*.exe' -Force
+    Get-ChildItem -LiteralPath $PackageRoot -File -Filter '*.dll' -Force
   )) {
   Assert-BusyMaxX64Pe -Path $nativeBinary.FullName
 }
@@ -163,15 +161,7 @@ foreach ($reference in $logoReferences) {
   }
 }
 
-$inventory = @(Get-ChildItem -LiteralPath $PackageRoot -Recurse -File |
-  Sort-Object FullName |
-  ForEach-Object {
-    [pscustomobject]@{
-      Path = [IO.Path]::GetRelativePath($PackageRoot, $_.FullName).Replace('\', '/')
-      Length = $_.Length
-      SHA256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
-    }
-  })
+$inventory = @(Get-BusyMaxPackageInventory -PackageRoot $PackageRoot)
 if (-not [string]::IsNullOrWhiteSpace($InventoryOutputPath)) {
   $inventoryDirectory = Split-Path -Parent $InventoryOutputPath
   if (-not [string]::IsNullOrWhiteSpace($inventoryDirectory)) {

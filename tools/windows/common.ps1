@@ -21,6 +21,95 @@ function Get-BusyMaxWindowsSdkDirectory {
     Select-Object -First 1
 }
 
+function Test-BusyMaxWindows11ValidationHost {
+  param(
+    [Parameter(Mandatory)][int]$Build,
+    [Parameter(Mandatory)][uint32]$ProductType
+  )
+  return $ProductType -eq 1 -and $Build -ge 26100
+}
+
+function Assert-BusyMaxWindows11ValidationHost {
+  param(
+    [Parameter(Mandatory)][int]$Build,
+    [Parameter(Mandatory)][uint32]$ProductType
+  )
+  if ($ProductType -ne 1) {
+    throw "Installed-package and WACK validation require a Windows 11 workstation (Win32_OperatingSystem.ProductType 1); found ProductType $ProductType."
+  }
+  if ($Build -lt 26100) {
+    throw "Installed-package and WACK validation require Windows 11 24H2/build 26100 or newer; found build $Build."
+  }
+}
+
+function Get-BusyMaxPackageFiles {
+  param([Parameter(Mandatory)][string]$PackageRoot)
+  if (-not (Test-Path -LiteralPath $PackageRoot -PathType Container)) {
+    throw "Package root does not exist: $PackageRoot"
+  }
+  return @(Get-ChildItem -LiteralPath $PackageRoot -Recurse -File -Force)
+}
+
+function Get-BusyMaxPackageRelativePath {
+  param(
+    [Parameter(Mandatory)][string]$PackageRoot,
+    [Parameter(Mandatory)][string]$Path
+  )
+  return [IO.Path]::GetRelativePath($PackageRoot, $Path).Replace('\', '/')
+}
+
+function Test-BusyMaxProhibitedPackageFile {
+  param(
+    [Parameter(Mandatory)][string]$PackageRoot,
+    [Parameter(Mandatory)][IO.FileInfo]$File
+  )
+  $relative = Get-BusyMaxPackageRelativePath -PackageRoot $PackageRoot `
+    -Path $File.FullName
+  return $File.Extension -in @(
+    '.pfx', '.cer', '.log', '.db', '.sqlite', '.dart', '.cc', '.h', '.pdb',
+    '.cpp', '.c', '.hpp', '.cmake', '.ps1', '.jsonl', '.yaml', '.yml',
+    '.md', '.p12', '.pem', '.key', '.crt', '.p7x', '.snap', '.AppImage'
+  ) -or
+    ($File.Extension -eq '.so' -and $relative -cne 'data/app.so') -or
+    $File.Name -match '(?i)(^|[._-])(test|fake|credential|secret|token|development)([._-]|$)|flutter_logo' -or
+    $relative -match '(?i)(^|/)(linux|snap|snapcraft)(/|$)'
+}
+
+function Assert-BusyMaxPackageHasNoProhibitedFiles {
+  param([Parameter(Mandatory)][string]$PackageRoot)
+  $prohibited = @(Get-BusyMaxPackageFiles -PackageRoot $PackageRoot |
+    Where-Object {
+      Test-BusyMaxProhibitedPackageFile -PackageRoot $PackageRoot -File $_
+    })
+  if ($prohibited.Count -gt 0) {
+    throw "Prohibited package content: $($prohibited.FullName -join ', ')"
+  }
+}
+
+function Assert-BusyMaxFinalMsixMetadata {
+  param([Parameter(Mandatory)][string]$PackageRoot)
+  foreach ($metadataFile in @('AppxBlockMap.xml', '[Content_Types].xml')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot $metadataFile) `
+        -PathType Leaf)) {
+      throw "Final MSIX metadata is missing: $metadataFile"
+    }
+  }
+}
+
+function Get-BusyMaxPackageInventory {
+  param([Parameter(Mandatory)][string]$PackageRoot)
+  return @(Get-BusyMaxPackageFiles -PackageRoot $PackageRoot |
+    Sort-Object FullName |
+    ForEach-Object {
+      [pscustomobject]@{
+        Path = Get-BusyMaxPackageRelativePath -PackageRoot $PackageRoot `
+          -Path $_.FullName
+        Length = $_.Length
+        SHA256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+      }
+    })
+}
+
 function Test-BusyMaxPlaceholder {
   param([AllowNull()][string]$Value)
   return [string]::IsNullOrWhiteSpace($Value) -or

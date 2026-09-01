@@ -32,6 +32,29 @@ Describe 'BusyMax Windows SDK discovery' {
   }
 }
 
+Describe 'BusyMax Windows 11 validation-host detection' {
+  It 'accepts Windows 11 24H2 workstation build 26100' {
+    Test-BusyMaxWindows11ValidationHost -Build 26100 -ProductType 1 |
+      Should -BeTrue
+    { Assert-BusyMaxWindows11ValidationHost -Build 26100 -ProductType 1 } |
+      Should -Not -Throw
+  }
+
+  It 'rejects Windows Server build 26100' {
+    Test-BusyMaxWindows11ValidationHost -Build 26100 -ProductType 3 |
+      Should -BeFalse
+    { Assert-BusyMaxWindows11ValidationHost -Build 26100 -ProductType 3 } |
+      Should -Throw -ExpectedMessage '*ProductType 1*found ProductType 3*'
+  }
+
+  It 'rejects a workstation older than Windows 11 24H2' {
+    Test-BusyMaxWindows11ValidationHost -Build 22631 -ProductType 1 |
+      Should -BeFalse
+    { Assert-BusyMaxWindows11ValidationHost -Build 22631 -ProductType 1 } |
+      Should -Throw -ExpectedMessage '*build 26100*found build 22631*'
+  }
+}
+
 Describe 'BusyMax Visual C++ runtime discovery' {
   It 'prefers the newest numeric runtime and tolerates toolset aliases' {
     $visualStudio = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))

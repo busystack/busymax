@@ -8,8 +8,21 @@ param(
 if ($env:OS -ne 'Windows_NT' -or -not [Environment]::Is64BitOperatingSystem) {
   throw 'BusyMax Windows builds require 64-bit Windows 11.'
 }
-if ($RequireWindows11 -and [Environment]::OSVersion.Version.Build -lt 26100) {
-  throw 'Installed-package and WACK validation require Windows 11 24H2/build 26100 or newer.'
+$operatingSystem = Get-CimInstance -ClassName Win32_OperatingSystem
+if ($null -eq $operatingSystem) {
+  throw 'Win32_OperatingSystem could not be queried for Windows validation.'
+}
+try {
+  $hostBuild = [int]$operatingSystem.BuildNumber
+  $hostProductType = [uint32]$operatingSystem.ProductType
+} catch {
+  throw "Win32_OperatingSystem returned invalid validation data: $($_.Exception.Message)"
+}
+$windows11ValidationHost = Test-BusyMaxWindows11ValidationHost `
+  -Build $hostBuild -ProductType $hostProductType
+if ($RequireWindows11) {
+  Assert-BusyMaxWindows11ValidationHost -Build $hostBuild `
+    -ProductType $hostProductType
 }
 $flutterVersion = (& flutter --version --machine | ConvertFrom-Json).frameworkVersion
 if ($flutterVersion -ne '3.44.4') {
@@ -59,6 +72,7 @@ $windowsVersion = Get-ItemProperty -LiteralPath `
   HostEditionId = [string]$windowsVersion.EditionID
   HostDisplayVersion = [string]$windowsVersion.DisplayVersion
   HostVersion = [Environment]::OSVersion.Version.ToString()
-  HostBuild = [Environment]::OSVersion.Version.Build
-  Windows11ValidationHost = [Environment]::OSVersion.Version.Build -ge 26100
+  HostBuild = $hostBuild
+  HostProductType = $hostProductType
+  Windows11ValidationHost = $windows11ValidationHost
 }

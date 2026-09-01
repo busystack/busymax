@@ -81,7 +81,8 @@ foreach ($asset in $logicalAssets.GetEnumerator()) {
   -MaximumTestedVersion $prerequisites.WindowsSdk -Ci:$Ci
 $stagingInventoryPath = Join-Path $OutputDirectory 'staging-inventory.json'
 $stagingInventory = @(& "$PSScriptRoot/validate_package_contents.ps1" `
-  -PackageRoot $staging -InventoryOutputPath $stagingInventoryPath)
+  -PackageRoot $staging -InventoryOutputPath $stagingInventoryPath `
+  -ValidationMode Staging)
 if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Force }
 $makeAppx = Join-Path $prerequisites.WindowsSdkBin 'makeappx.exe'
 & $makeAppx pack /v /d $staging /p $package /o
@@ -95,13 +96,22 @@ if (Test-Path -LiteralPath $unpacked) {
 if ($LASTEXITCODE -ne 0) { throw 'MakeAppx could not unpack the final MSIX.' }
 $finalInventoryPath = Join-Path $OutputDirectory 'final-msix-inventory.json'
 $finalInventory = @(& "$PSScriptRoot/validate_package_contents.ps1" `
-  -PackageRoot $unpacked -InventoryOutputPath $finalInventoryPath)
+  -PackageRoot $unpacked -InventoryOutputPath $finalInventoryPath `
+  -ValidationMode FinalMsix)
 $packageMetadataFiles = @('AppxBlockMap.xml', '[Content_Types].xml')
+$finalInventoryObjects = @($finalInventory | Where-Object {
+  $_ -is [pscustomobject]
+})
+foreach ($metadataFile in $packageMetadataFiles) {
+  if ($metadataFile -cnotin $finalInventoryObjects.Path) {
+    throw "Final MSIX metadata is absent from the exact-package inventory: $metadataFile"
+  }
+}
 $expectedInventory = @($stagingInventory | Where-Object {
   $_ -is [pscustomobject]
 })
-$actualInventory = @($finalInventory | Where-Object {
-  $_ -is [pscustomobject] -and $_.Path -notin $packageMetadataFiles
+$actualInventory = @($finalInventoryObjects | Where-Object {
+  $_.Path -notin $packageMetadataFiles
 })
 $expectedLines = @($expectedInventory | ForEach-Object {
   "$($_.Path)|$($_.Length)|$($_.SHA256)"
