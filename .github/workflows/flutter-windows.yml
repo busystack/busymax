@@ -135,11 +135,45 @@ jobs:
           -Ci -Stage StaticAnalysis
 
       - name: Run Dart and Flutter tests
+        id: flutter-tests
         shell: pwsh
         run: >-
           ./tools/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage FlutterTests
+
+      - name: Report failing Flutter tests
+        if: ${{ failure() && steps.flutter-tests.conclusion == 'failure' }}
+        shell: pwsh
+        run: |
+          $report = 'build/windows/test-results/flutter-tests.jsonl'
+          if (-not (Test-Path -LiteralPath $report -PathType Leaf)) {
+            Write-Host '::error title=Windows Flutter tests failed::The machine test report was not created.'
+            exit 0
+          }
+          $names = @{}
+          $failedIds = [System.Collections.Generic.HashSet[int]]::new()
+          foreach ($line in Get-Content -LiteralPath $report) {
+            try { $event = $line | ConvertFrom-Json } catch { continue }
+            if ($event.type -eq 'testStart') {
+              $names[[int]$event.test.id] = [string]$event.test.name
+            }
+            if ($event.type -eq 'testDone' -and $event.result -eq 'error') {
+              $failedIds.Add([int]$event.testID) | Out-Null
+            }
+          }
+          if ($failedIds.Count -eq 0) {
+            Write-Host '::error title=Windows Flutter tests failed::No failing test ID was present in the machine report.'
+          }
+          foreach ($testId in $failedIds) {
+            $name = if ($names.ContainsKey($testId)) {
+              $names[$testId]
+            } else {
+              "Unknown test ID $testId"
+            }
+            $safeName = $name.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Host "::error title=Windows Flutter test failed::$safeName"
+          }
 
       - name: Compile Windows x64 release
         shell: pwsh
