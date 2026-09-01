@@ -1,12 +1,15 @@
-param([switch]$RequireWack)
+param(
+  [switch]$RequireWindows11,
+  [switch]$RequireWack
+)
 
 . "$PSScriptRoot/common.ps1"
 
 if ($env:OS -ne 'Windows_NT' -or -not [Environment]::Is64BitOperatingSystem) {
   throw 'BusyMax Windows builds require 64-bit Windows 11.'
 }
-if ([Environment]::OSVersion.Version.Build -lt 26100) {
-  throw 'BusyMax Windows builds require Windows 11 24H2/build 26100 or newer.'
+if ($RequireWindows11 -and [Environment]::OSVersion.Version.Build -lt 26100) {
+  throw 'Installed-package and WACK validation require Windows 11 24H2/build 26100 or newer.'
 }
 $flutterVersion = (& flutter --version --machine | ConvertFrom-Json).frameworkVersion
 if ($flutterVersion -ne '3.44.4') {
@@ -45,4 +48,6 @@ if ($RequireWack) {
   VisualStudio = $visualStudio
   WindowsSdk = $sdk.Name
   WindowsSdkBin = Join-Path $sdk.FullName 'x64'
+  HostBuild = [Environment]::OSVersion.Version.Build
+  Windows11ValidationHost = [Environment]::OSVersion.Version.Build -ge 26100
 }

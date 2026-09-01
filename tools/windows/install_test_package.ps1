@@ -5,7 +5,7 @@ param(
 )
 
 . "$PSScriptRoot/common.ps1"
-$prerequisites = & "$PSScriptRoot/check_prerequisites.ps1"
+$prerequisites = & "$PSScriptRoot/check_prerequisites.ps1" -RequireWindows11
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
 Assert-BusyMaxStoreConfig -Config $config -Mode LocalTestSigning
 $password = Read-Host 'Local PFX password' -AsSecureString

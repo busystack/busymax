@@ -6,7 +6,10 @@ Flutter and Dart must come from the repository's pinned Flutter 3.44.4 SDK.
 
 ## Prerequisites
 
-- 64-bit Windows 11 24H2 or newer.
+- A 64-bit Windows build host for compilation and unsigned packaging. The
+  GitHub workflow uses `windows-latest`.
+- 64-bit Windows 11 24H2 or newer for installing, exercising, signing, and
+  WACK-validating the release-equivalent package.
 - Flutter 3.44.4 with Windows desktop enabled.
 - Visual Studio 2022 with **Desktop development with C++**, including the x64
   MSVC toolchain and CMake tools.
@@ -15,7 +18,9 @@ Flutter and Dart must come from the repository's pinned Flutter 3.44.4 SDK.
 - Developer Mode for unpackaged development, or a local test certificate for
   installed MSIX testing.
 
-Check the toolchain from a PowerShell prompt at the repository root:
+Check the build toolchain from a PowerShell prompt at the repository root.
+This requires SDK 10.0.26100.0 or newer and never lowers the MSIX manifest's
+Windows 11 24H2 minimum:
 
 ```powershell
 flutter config --enable-windows-desktop

@@ -14,7 +14,8 @@ if (-not (Test-Path -LiteralPath $PackagePath -PathType Leaf)) {
 }
 $packageHash = (Get-FileHash -LiteralPath $PackagePath -Algorithm SHA256).Hash
 
-& "$PSScriptRoot/check_prerequisites.ps1" -RequireWack | Out-Host
+& "$PSScriptRoot/check_prerequisites.ps1" `
+  -RequireWindows11 -RequireWack | Out-Host
 $appCert = Join-Path ${env:ProgramFiles(x86)} `
   'Windows Kits\10\App Certification Kit\appcert.exe'
 $directory = Split-Path -Parent $ReportPath
