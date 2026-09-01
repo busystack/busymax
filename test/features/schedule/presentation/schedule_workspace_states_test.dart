@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
@@ -285,6 +286,7 @@ void main() {
         containsPair('searchActive', false),
       );
     },
+    skip: !Platform.isLinux,
   );
 }
 

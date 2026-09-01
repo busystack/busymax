@@ -66,7 +66,7 @@ void main() {
       tester.getSize(find.byType(YaruWindowControl)),
       const Size.square(kYaruWindowControlSize),
     );
-  });
+  }, skip: !Platform.isLinux);
 
   testWidgets(
     'informational titlebar retains its semantic high-contrast divider',

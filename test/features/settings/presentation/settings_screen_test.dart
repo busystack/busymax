@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -582,7 +583,7 @@ void main() {
 
     expect(find.text('Система'), findsNWidgets(2));
     expect(find.text('Системная'), findsWidgets);
-  });
+  }, skip: !Platform.isLinux);
 
   testWidgets('Settings workspace uses the native window surface', (
     tester,
