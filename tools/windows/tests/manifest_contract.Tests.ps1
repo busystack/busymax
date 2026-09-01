@@ -1,16 +1,22 @@
-$tools = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-. (Join-Path $tools 'common.ps1')
+BeforeAll {
+  $script:tools = Split-Path -Parent $PSScriptRoot
+  . (Join-Path $script:tools 'common.ps1')
 
-function New-BusyMaxRenderedTestManifest {
-  $template = Get-Content `
-    -LiteralPath (Join-Path $tools 'AppxManifest.xml.template') -Raw
-  return $template `
-    .Replace('@@IDENTITY_NAME@@', 'BusyStack.BusyMax.CI') `
-    .Replace('@@PUBLISHER@@', 'CN=BusyMax CI Package') `
-    .Replace('@@PUBLISHER_DISPLAY_NAME@@', 'BusyMax CI') `
-    .Replace('@@PACKAGE_VERSION@@', '1.0.0.0') `
-    .Replace('@@MAX_TESTED_VERSION@@', '10.0.26100.0') `
-    .Replace('@@RESOURCE_LANGUAGES@@', (Get-BusyMaxResourceXml))
+  function New-BusyMaxRenderedTestManifest {
+    $rendered = Get-Content `
+      -LiteralPath (Join-Path $script:tools 'AppxManifest.xml.template') -Raw
+    $rendered = $rendered.Replace(
+      '@@IDENTITY_NAME@@', 'BusyStack.BusyMax.CI')
+    $rendered = $rendered.Replace(
+      '@@PUBLISHER@@', 'CN=BusyMax CI Package')
+    $rendered = $rendered.Replace(
+      '@@PUBLISHER_DISPLAY_NAME@@', 'BusyMax CI')
+    $rendered = $rendered.Replace('@@PACKAGE_VERSION@@', '1.0.0.0')
+    $rendered = $rendered.Replace(
+      '@@MAX_TESTED_VERSION@@', '10.0.26100.0')
+    return $rendered.Replace(
+      '@@RESOURCE_LANGUAGES@@', (Get-BusyMaxResourceXml))
+  }
 }
 
 Describe 'BusyMax rendered manifest contract' {
@@ -35,12 +41,12 @@ Describe 'BusyMax rendered manifest contract' {
     $rendered = $rendered.Replace(
       'IgnorableNamespaces="uap uap10 desktop com rescap"',
       'IgnorableNamespaces="uap uap10 desktop desktop4 com rescap"')
-    $rendered = $rendered `
-      .Replace(
-        '<desktop:Extension Category="windows.toastNotificationActivation">',
-        '<desktop4:Extension Category="windows.toastNotificationActivation">') `
-      .Replace('<desktop:ToastNotificationActivation',
-        '<desktop4:ToastNotificationActivation')
+    $rendered = $rendered.Replace(
+      '<desktop:Extension Category="windows.toastNotificationActivation">',
+      '<desktop4:Extension Category="windows.toastNotificationActivation">')
+    $rendered = $rendered.Replace(
+      '<desktop:ToastNotificationActivation',
+      '<desktop4:ToastNotificationActivation')
     $rendered = [regex]::Replace(
       $rendered,
       '</desktop:Extension>(\s*<com:Extension Category="windows\.comServer">)',

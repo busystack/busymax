@@ -1,37 +1,38 @@
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path (Split-Path -Parent $here) 'common.ps1')
+BeforeAll {
+  . (Join-Path (Split-Path -Parent $PSScriptRoot) 'common.ps1')
 
-function New-ValidConfig {
-  param([bool]$Production = $true)
-  return [pscustomobject]@{
-    production = $Production
-    identityName = 'BusyStack.BusyMax.Owner'
-    publisher = 'CN=BusyMax Owner'
-    publisherDisplayName = 'BusyMax Owner'
-    msixVersion = '1.2.3.0'
-    previousMsixVersion = '1.2.2.0'
-    privacyPolicyUrl = 'https://busystack.org/privacy'
-    supportUrl = 'https://busystack.org/support'
-    homepageUrl = 'https://busystack.org'
-    googleOAuthClientId = 'google-owner-client-id'
-    googleOAuthClientSecret = ''
-    microsoftOAuthClientId = 'microsoft-owner-client-id'
-    microsoftOAuthAuthorityTenant = 'common'
-    fakeData = $false
-    developmentBackend = $false
+  function New-ValidConfig {
+    param([bool]$Production = $true)
+    return [pscustomobject]@{
+      production = $Production
+      identityName = 'BusyStack.BusyMax.Owner'
+      publisher = 'CN=BusyMax Owner'
+      publisherDisplayName = 'BusyMax Owner'
+      msixVersion = '1.2.3.0'
+      previousMsixVersion = '1.2.2.0'
+      privacyPolicyUrl = 'https://busystack.org/privacy'
+      supportUrl = 'https://busystack.org/support'
+      homepageUrl = 'https://busystack.org'
+      googleOAuthClientId = 'google-owner-client-id'
+      googleOAuthClientSecret = ''
+      microsoftOAuthClientId = 'microsoft-owner-client-id'
+      microsoftOAuthAuthorityTenant = 'common'
+      fakeData = $false
+      developmentBackend = $false
+    }
   }
-}
 
-function New-CiConfig {
-  $config = New-ValidConfig -Production $false
-  $config.identityName = 'BusyStack.BusyMax.CI'
-  $config.publisher = 'CN=BusyMax CI Package'
-  $config.publisherDisplayName = 'BusyMax CI'
-  $config.msixVersion = '1.0.0.0'
-  $config.previousMsixVersion = ''
-  $config.googleOAuthClientId = 'busymax-ci-google-client-id'
-  $config.microsoftOAuthClientId = 'busymax-ci-microsoft-client-id'
-  return $config
+  function New-CiConfig {
+    $config = New-ValidConfig -Production $false
+    $config.identityName = 'BusyStack.BusyMax.CI'
+    $config.publisher = 'CN=BusyMax CI Package'
+    $config.publisherDisplayName = 'BusyMax CI'
+    $config.msixVersion = '1.0.0.0'
+    $config.previousMsixVersion = ''
+    $config.googleOAuthClientId = 'busymax-ci-google-client-id'
+    $config.microsoftOAuthClientId = 'busymax-ci-microsoft-client-id'
+    return $config
+  }
 }
 
 Describe 'BusyMax Store configuration validation modes' {

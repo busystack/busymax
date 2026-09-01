@@ -1,10 +1,12 @@
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path (Split-Path -Parent $here) 'wack_report.ps1')
+BeforeAll {
+  . (Join-Path (Split-Path -Parent $PSScriptRoot) 'wack_report.ps1')
+}
 
 Describe 'BusyMax WACK report parsing' {
   BeforeEach {
-    $report = Join-Path $TestDrive 'report.xml'
-    $dispositions = Join-Path $TestDrive 'dispositions.json'
+    $caseId = [guid]::NewGuid().ToString('N')
+    $report = Join-Path $TestDrive "$caseId-report.xml"
+    $dispositions = Join-Path $TestDrive "$caseId-dispositions.json"
   }
 
   It 'accepts result elements and attribute-based test results' {
