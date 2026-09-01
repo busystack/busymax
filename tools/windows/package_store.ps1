@@ -94,6 +94,10 @@ if (Test-Path -LiteralPath $unpacked) {
 }
 & $makeAppx unpack /p $package /d $unpacked /o
 if ($LASTEXITCODE -ne 0) { throw 'MakeAppx could not unpack the final MSIX.' }
+# MakeAppx validates and unpacks package payloads but omits the OPC container
+# member [Content_Types].xml. Restore both generated metadata members directly
+# from the exact MSIX so validation and inventory cover the complete archive.
+Expand-BusyMaxMsixMetadata -PackagePath $package -PackageRoot $unpacked
 $finalInventoryPath = Join-Path $OutputDirectory 'final-msix-inventory.json'
 $finalInventory = @(& "$PSScriptRoot/validate_package_contents.ps1" `
   -PackageRoot $unpacked -InventoryOutputPath $finalInventoryPath `

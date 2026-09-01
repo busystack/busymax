@@ -96,6 +96,48 @@ function Assert-BusyMaxFinalMsixMetadata {
   }
 }
 
+function Expand-BusyMaxMsixMetadata {
+  param(
+    [Parameter(Mandatory)][string]$PackagePath,
+    [Parameter(Mandatory)][string]$PackageRoot
+  )
+  if (-not (Test-Path -LiteralPath $PackagePath -PathType Leaf)) {
+    throw "MSIX package does not exist: $PackagePath"
+  }
+  if (-not (Test-Path -LiteralPath $PackageRoot -PathType Container)) {
+    throw "Unpacked MSIX directory does not exist: $PackageRoot"
+  }
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $archive = [IO.Compression.ZipFile]::OpenRead(
+    (Resolve-Path -LiteralPath $PackagePath).Path)
+  try {
+    foreach ($metadataFile in @('AppxBlockMap.xml', '[Content_Types].xml')) {
+      $entries = @($archive.Entries | Where-Object {
+          $_.FullName -ceq $metadataFile
+        })
+      if ($entries.Count -ne 1) {
+        throw "Exact MSIX archive must contain one $metadataFile entry; found $($entries.Count)."
+      }
+      $destination = Join-Path $PackageRoot $metadataFile
+      $inputStream = $entries[0].Open()
+      try {
+        $outputStream = [IO.File]::Open(
+          $destination, [IO.FileMode]::Create, [IO.FileAccess]::Write,
+          [IO.FileShare]::None)
+        try {
+          $inputStream.CopyTo($outputStream)
+        } finally {
+          $outputStream.Dispose()
+        }
+      } finally {
+        $inputStream.Dispose()
+      }
+    }
+  } finally {
+    $archive.Dispose()
+  }
+}
+
 function Get-BusyMaxPackageInventory {
   param([Parameter(Mandatory)][string]$PackageRoot)
   return @(Get-BusyMaxPackageFiles -PackageRoot $PackageRoot |

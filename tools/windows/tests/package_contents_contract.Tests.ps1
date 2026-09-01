@@ -48,6 +48,29 @@ Describe 'BusyMax exact-package file inspection' {
       Should -Throw -ExpectedMessage '*Content_Types*.xml*'
   }
 
+  It 'extracts generated metadata from the exact MSIX container' {
+    $archiveSource = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $archiveSource | Out-Null
+    [IO.File]::WriteAllText(
+      (Join-Path $archiveSource 'AppxBlockMap.xml'), 'block map')
+    [IO.File]::WriteAllText(
+      (Join-Path $archiveSource '[Content_Types].xml'), 'content types')
+    [IO.File]::WriteAllText(
+      (Join-Path $archiveSource 'busymax.exe'), 'payload')
+    $packagePath = Join-Path $TestDrive `
+      "$([guid]::NewGuid().ToString('N')).msix"
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::CreateFromDirectory($archiveSource, $packagePath)
+
+    Expand-BusyMaxMsixMetadata -PackagePath $packagePath `
+      -PackageRoot $packageRoot
+
+    Get-Content -LiteralPath (Join-Path $packageRoot 'AppxBlockMap.xml') |
+      Should -Be 'block map'
+    Get-Content -LiteralPath (Join-Path $packageRoot '[Content_Types].xml') |
+      Should -Be 'content types'
+  }
+
   It 'wires distinct staging and final-MSIX validation modes' {
     $validator = Get-Content `
       -LiteralPath (Join-Path $tools 'validate_package_contents.ps1') -Raw
@@ -57,5 +80,6 @@ Describe 'BusyMax exact-package file inspection' {
     $validator | Should -Match "ValidateSet\('Staging', 'FinalMsix'\)"
     $packager | Should -Match '-ValidationMode Staging'
     $packager | Should -Match '-ValidationMode FinalMsix'
+    $packager | Should -Match 'Expand-BusyMaxMsixMetadata'
   }
 }
