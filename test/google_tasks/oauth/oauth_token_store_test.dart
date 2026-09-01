@@ -280,6 +280,7 @@ void main() {
       expect((await storageFile.stat()).mode & 0x1ff, 0x180);
       expect((await storageFile.parent.stat()).mode & 0x1ff, 0x1c0);
     },
+    skip: !Platform.isLinux,
   );
 
   test('portal encrypted token store maps portal failures', () async {

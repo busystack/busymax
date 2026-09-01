@@ -249,7 +249,7 @@ void main() {
       expect(fixture.commandLogContents, isNot(contains('sudo\tsnap install')));
       expect(victim.readAsStringSync(), 'do not delete');
     });
-  });
+  }, skip: !Platform.isLinux);
 }
 
 Future<void> _expectUnsafeRootRejected(
