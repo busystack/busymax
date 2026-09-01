@@ -74,18 +74,42 @@ if ($application.Id -cne 'BusyMax' -or $application.Executable -cne 'busymax.exe
 }
 $visualElements = $manifest.SelectSingleNode(
   '/f:Package/f:Applications/f:Application/uap:VisualElements', $manager)
-if ($null -eq $visualElements -or
+$propertiesLogo = $manifest.SelectSingleNode(
+  '/f:Package/f:Properties/f:Logo', $manager)
+if ($null -eq $propertiesLogo -or
+    $propertiesLogo.InnerText -cne 'Assets\StoreLogo.png' -or
+    $null -eq $visualElements -or
     $visualElements.Square44x44Logo -cne 'Assets\Square44x44Logo.png' -or
     $visualElements.Square150x150Logo -cne 'Assets\Square150x150Logo.png') {
   throw 'BusyMax package visual elements are incomplete.'
 }
 $fileType = $manifest.SelectSingleNode('//uap:FileType[text()=".ics"]', $manager)
+$fileAssociationLogo = $manifest.SelectSingleNode(
+  '//uap:FileTypeAssociation/uap:Logo', $manager)
+if ($null -eq $fileAssociationLogo -or
+    $fileAssociationLogo.InnerText -cne 'Assets\FileAssociationLogo.png') {
+  throw 'BusyMax file-association logo is incomplete.'
+}
 $protocol = $manifest.SelectSingleNode('//uap:Protocol[@Name="webcal"]', $manager)
 $startup = $manifest.SelectSingleNode('//desktop:StartupTask[@TaskId="BusyMaxStartupTask"]', $manager)
-$toast = $manifest.SelectSingleNode('//desktop4:ToastNotificationActivation', $manager)
+$invalidDesktop4Toast = $manifest.SelectSingleNode(
+  '//desktop4:Extension[@Category="windows.toastNotificationActivation"]',
+  $manager)
+if ($null -ne $invalidDesktop4Toast) {
+  throw 'Toast activation must use the base desktop namespace, not desktop4.'
+}
+$toastExtension = $manifest.SelectSingleNode(
+  '//desktop:Extension[@Category="windows.toastNotificationActivation"]',
+  $manager)
+$toast = $null
+if ($null -ne $toastExtension) {
+  $toast = $toastExtension.SelectSingleNode(
+    'desktop:ToastNotificationActivation', $manager)
+}
 $toastServer = $manifest.SelectSingleNode('//com:ExeServer/com:Class', $manager)
 if ($null -eq $fileType -or $null -eq $protocol -or $null -eq $startup -or
-    $null -eq $toast -or $null -eq $toastServer) {
+    $null -eq $toastExtension -or $null -eq $toast -or
+    $null -eq $toastServer) {
   throw 'Manifest activation declarations are incomplete.'
 }
 $extensions = @($manifest.SelectNodes(
@@ -119,7 +143,11 @@ if ($startup.Enabled -ne 'false' -or $startupArguments -ne '--start-minimized') 
 if ($toast.ToastActivatorCLSID -ne '{7B854A6D-8B2A-45A5-B998-1F51EC5A81D7}') {
   throw 'Toast activator CLSID does not match the committed notification backend.'
 }
-if ($toastServer.Id -ne $toast.ToastActivatorCLSID -or
+if ($toastExtension.NamespaceURI -cne 'http://schemas.microsoft.com/appx/manifest/desktop/windows10' -or
+    $toast.NamespaceURI -cne 'http://schemas.microsoft.com/appx/manifest/desktop/windows10') {
+  throw 'Toast activation must use desktop:Extension and desktop:ToastNotificationActivation.'
+}
+if ($toastServer.Id -cne $toast.ToastActivatorCLSID -or
     $toastServer.ParentNode.Arguments -ne '----AppNotificationActivationServer') {
   throw 'Toast COM server does not match the activation declaration.'
 }

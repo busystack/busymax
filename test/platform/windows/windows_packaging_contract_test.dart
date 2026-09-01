@@ -64,9 +64,47 @@ void main() {
     final toastClsid = elements(
       'ToastNotificationActivation',
     ).single.getAttribute('ToastActivatorCLSID');
+    final toast = elements('ToastNotificationActivation').single;
+    expect(
+      toast.name.namespaceUri,
+      'http://schemas.microsoft.com/appx/manifest/desktop/windows10',
+    );
+    expect(
+      toast.parentElement!.name.namespaceUri,
+      'http://schemas.microsoft.com/appx/manifest/desktop/windows10',
+    );
+    final ignorableNamespaces = manifest.rootElement
+        .getAttribute('IgnorableNamespaces')!
+        .split(' ');
+    expect(ignorableNamespaces, contains('desktop'));
+    expect(ignorableNamespaces, isNot(contains('desktop4')));
+    expect(manifestSource, isNot(contains('xmlns:desktop4=')));
     final comClsid = elements('Class').single.getAttribute('Id');
     expect(toastClsid, '{$busyMaxToastActivatorClsid}');
     expect(comClsid, toastClsid);
+  });
+
+  test('every manifest logo has a matching unqualified source asset', () {
+    final references = <String>{
+      elements('Logo').first.innerText,
+      elements('Logo').last.innerText,
+      elements('VisualElements').single.getAttribute('Square44x44Logo')!,
+      elements('VisualElements').single.getAttribute('Square150x150Logo')!,
+    };
+    expect(references, {
+      r'Assets\StoreLogo.png',
+      r'Assets\FileAssociationLogo.png',
+      r'Assets\Square44x44Logo.png',
+      r'Assets\Square150x150Logo.png',
+    });
+    for (final reference in references) {
+      final name = reference.split(r'\').last;
+      expect(
+        File('windows/runner/resources/msix/$name').existsSync(),
+        isTrue,
+        reason: reference,
+      );
+    }
   });
 
   test('Store manifest capability set remains minimal', () {

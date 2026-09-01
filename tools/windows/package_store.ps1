@@ -63,7 +63,19 @@ Copy-BusyMaxVCRuntime -VisualStudioPath $prerequisites.VisualStudio `
 Copy-Item -LiteralPath "$ReleasePath/data" -Destination $staging -Recurse
 $assets = Join-Path $staging 'Assets'
 New-Item -ItemType Directory -Force -Path $assets | Out-Null
-Copy-Item -Path 'windows\runner\resources\msix\*' -Destination $assets
+$logicalAssets = [ordered]@{
+  'StoreLogo.png' = 'StoreLogo.png'
+  'Square44x44Logo.png' = 'Square44x44Logo.png'
+  'Square150x150Logo.png' = 'Square150x150Logo.png'
+  'FileAssociationLogo.png' = 'FileAssociationLogo.png'
+}
+foreach ($asset in $logicalAssets.GetEnumerator()) {
+  $source = Join-Path 'windows\runner\resources\msix' $asset.Value
+  if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+    throw "Required unqualified MSIX visual asset is missing: $source"
+  }
+  Copy-Item -LiteralPath $source -Destination (Join-Path $assets $asset.Key)
+}
 & "$PSScriptRoot/render_manifest.ps1" -ConfigPath $ConfigPath `
   -OutputPath (Join-Path $staging 'AppxManifest.xml') `
   -MaximumTestedVersion $prerequisites.WindowsSdk -Ci:$Ci
@@ -72,8 +84,10 @@ $stagingInventory = @(& "$PSScriptRoot/validate_package_contents.ps1" `
   -PackageRoot $staging -InventoryOutputPath $stagingInventoryPath)
 if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Force }
 $makeAppx = Join-Path $prerequisites.WindowsSdkBin 'makeappx.exe'
-& $makeAppx pack /d $staging /p $package /o
-if ($LASTEXITCODE -ne 0) { throw 'MakeAppx failed.' }
+& $makeAppx pack /v /d $staging /p $package /o
+if ($LASTEXITCODE -ne 0) {
+  throw 'MakeAppx schema validation or packing failed.'
+}
 if (Test-Path -LiteralPath $unpacked) {
   Remove-Item -LiteralPath $unpacked -Recurse -Force
 }
@@ -101,7 +115,7 @@ if ($difference) {
   throw "The exact packed MSIX inventory differs from staging: $($difference.InputObject -join ', ')"
 }
 $hash = Get-FileHash -LiteralPath $package -Algorithm SHA256
-[pscustomobject]@{
+$metadata = [pscustomobject]@{
   Package = (Resolve-Path $package).Path
   Version = $config.msixVersion
   Architecture = 'x64'
@@ -110,3 +124,7 @@ $hash = Get-FileHash -LiteralPath $package -Algorithm SHA256
   SHA256 = $hash.Hash
   Inventory = (Resolve-Path $finalInventoryPath).Path
 }
+$metadataPath = Join-Path $OutputDirectory 'package-metadata.json'
+$metadata | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $metadataPath `
+  -Encoding utf8NoBOM
+$metadata

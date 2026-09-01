@@ -34,6 +34,7 @@ void main() {
     200: 88,
     400: 176,
   });
+  _writePng(packageAssets, packageSource, 'Square44x44Logo.png', 44);
   _writeScaleSet(packageAssets, packageSource, 'Square150x150Logo', const {
     100: 150,
     125: 188,
@@ -41,6 +42,7 @@ void main() {
     200: 300,
     400: 600,
   });
+  _writePng(packageAssets, packageSource, 'Square150x150Logo.png', 150);
   _writeScaleSet(packageAssets, packageSource, 'StoreLogo', const {
     100: 50,
     125: 63,
@@ -48,7 +50,9 @@ void main() {
     200: 100,
     400: 200,
   });
+  _writePng(packageAssets, packageSource, 'StoreLogo.png', 50);
   _writePng(packageAssets, packageSource, 'FileAssociation.png', 44);
+  _writePng(packageAssets, packageSource, 'FileAssociationLogo.png', 44);
   _writeScaleSet(packageAssets, packageSource, 'FileAssociation', const {
     100: 44,
     125: 55,

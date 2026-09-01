@@ -1,10 +1,13 @@
 name: Flutter Windows
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'Release/**'
 
 jobs:
   build:
@@ -69,5 +72,6 @@ jobs:
             build/windows/store/*.msix
             build/windows/store/staging/AppxManifest.xml
             build/windows/store/*inventory.json
+            build/windows/store/*metadata.json
             build/windows/test-results/**
           if-no-files-found: error

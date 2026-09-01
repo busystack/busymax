@@ -63,6 +63,10 @@ flutter test
 dart run tool/check_platform_boundaries.dart
 ```
 
+The Windows workflow can be started manually with `workflow_dispatch` and runs
+automatically for pushes to `main` and `Release/**`. This permits validation of
+the exact release-branch commit without first merging it into `main`.
+
 The boundary checker fails if Windows/common code reaches Yaru, Ubuntu
 localizations, DBus, freedesktop notifications, XDG tray, or GTK services, or
 if business code reaches Fluent UI.
@@ -91,10 +95,10 @@ On 2026-08-31, the post-port working tree was validated on Linux with Flutter
 | --- | --- |
 | `flutter gen-l10n` | Passed; every supported catalog generated. |
 | `dart run build_runner build --delete-conflicting-outputs` | Passed; generated Drift content remained consistent and the schema version remained 13. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
-| `dart format --output=none --set-exit-if-changed .` | Passed; 458 files checked, zero changes required. |
+| `dart format --output=none --set-exit-if-changed .` | Passed; 459 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| `flutter test --reporter compact` | Passed; 1,566 tests passed, 10 skipped, zero failed. |
+| `flutter test --reporter compact` | Passed; 1,568 tests passed, 10 skipped, zero failed. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
 
 These results establish Linux and platform-neutral source health only. They do

@@ -49,4 +49,21 @@ void main() {
       }
     },
   );
+
+  test('MSIX manifest assets also have real unqualified files', () {
+    const logicalSizes = {
+      'StoreLogo.png': 50,
+      'Square44x44Logo.png': 44,
+      'Square150x150Logo.png': 150,
+      'FileAssociationLogo.png': 44,
+    };
+    for (final MapEntry(key: name, value: size) in logicalSizes.entries) {
+      final path = 'windows/runner/resources/msix/$name';
+      final asset = image.decodePng(File(path).readAsBytesSync());
+      expect(asset, isNotNull, reason: path);
+      expect(asset!.width, size, reason: path);
+      expect(asset.height, size, reason: path);
+      expect(asset.getPixel(0, 0).a, 0, reason: '$path needs safe padding');
+    }
+  });
 }

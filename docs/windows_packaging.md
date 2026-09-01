@@ -73,6 +73,11 @@ The manifest is rendered reproducibly from
 catalogs, and BusyMax visual assets. It contains no location, microphone,
 webcam, contacts, broad-filesystem, or private-network capability.
 
+Toast activation uses the base `desktop:Extension` and
+`desktop:ToastNotificationActivation` schema. Its CLSID is validated against
+both the COM class and the notification backend constant. The obsolete
+`desktop4` namespace is neither declared nor accepted for this extension.
+
 `msix` remains pinned as the repository's Store packaging tool dependency, but
 its generated configuration does not express BusyMax's complete combination of
 StartupTask parameters, full-trust toast COM activation, and resource-derived
@@ -89,6 +94,14 @@ Windows assets with:
 ```powershell
 dart run tool/generate_windows_assets.dart
 ```
+
+The Store package deliberately stages concrete, unqualified PNG files for all
+four manifest logo paths. Scale-qualified source variants remain committed for
+review and possible future PRI-based packaging, but this packaging path does
+not place them in the MSIX. `validate_package_contents.ps1` rejects a staged
+`.scale-*` or `.targetsize-*` asset and confirms every logo reference resolves
+to a real file after the exact MSIX is unpacked. Consequently this path does
+not require or pretend to contain `resources.pri`.
 
 The startup extension passes `--start-minimized` through its schema-valid
 `uap10:Parameters` attribute. The nested `desktop:StartupTask` remains disabled
@@ -133,7 +146,9 @@ packaging script unpacks that exact MSIX into a new clean directory, reruns the
 manifest/content checks, writes a per-file SHA-256 inventory, and compares the
 unpacked inventory with the deterministic staging inventory (excluding only
 the package metadata files produced by `MakeAppx`). Both inventories are CI
-artifacts.
+artifacts. `MakeAppx pack /v` is also the mandatory Windows SDK schema and
+package validation gate; a successful custom XML check alone cannot produce an
+artifact.
 
 After installing a release-equivalent locally signed package, run:
 

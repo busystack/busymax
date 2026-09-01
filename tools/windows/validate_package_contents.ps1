@@ -21,15 +21,34 @@ foreach ($required in @(
     throw "Required package file is missing: $required"
   }
 }
-foreach ($asset in @(
-    'StoreLogo', 'Square44x44Logo', 'Square150x150Logo',
-    'FileAssociation')) {
-  foreach ($scale in @(100, 125, 150, 200, 400)) {
-    $candidate = "Assets/$asset.scale-$scale.png"
-    if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot $candidate))) {
-      throw "Required package visual asset is missing: $candidate"
-    }
+$allowedAssets = @(
+    'Assets/StoreLogo.png',
+    'Assets/Square44x44Logo.png',
+    'Assets/Square150x150Logo.png',
+    'Assets/FileAssociationLogo.png')
+foreach ($asset in $allowedAssets) {
+  if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot $asset))) {
+    throw "Required unqualified package visual asset is missing: $asset"
   }
+}
+$unexpectedAssets = @(Get-ChildItem `
+  -LiteralPath (Join-Path $PackageRoot 'Assets') -Recurse -File |
+  Where-Object {
+    $relative = [IO.Path]::GetRelativePath(
+      $PackageRoot, $_.FullName).Replace('\', '/')
+    $relative -notin $allowedAssets
+  })
+if ($unexpectedAssets.Count -gt 0) {
+  throw "Unexpected or unreferenced package visual asset: $($unexpectedAssets.FullName -join ', ')"
+}
+$qualifiedVisualAssets = @(Get-ChildItem `
+  -LiteralPath (Join-Path $PackageRoot 'Assets') -File |
+  Where-Object { $_.Name -match '(?i)\.(scale|targetsize)-' })
+if ($qualifiedVisualAssets.Count -gt 0) {
+  throw 'Qualified visual assets require a generated resources.pri and must not be staged by the unqualified-asset packaging path.'
+}
+if (Test-Path -LiteralPath (Join-Path $PackageRoot 'resources.pri')) {
+  throw 'The unqualified-asset packaging path must not contain a stale resources.pri.'
 }
 $prohibited = Get-ChildItem -LiteralPath $PackageRoot -Recurse -File |
   Where-Object {
@@ -90,8 +109,47 @@ foreach ($nativeBinary in @(
   )) {
   Assert-BusyMaxX64Pe -Path $nativeBinary.FullName
 }
-& "$PSScriptRoot/validate_manifest.ps1" `
-  -ManifestPath (Join-Path $PackageRoot 'AppxManifest.xml')
+$manifestPath = Join-Path $PackageRoot 'AppxManifest.xml'
+& "$PSScriptRoot/validate_manifest.ps1" -ManifestPath $manifestPath
+[xml]$packageManifest = Get-Content -LiteralPath $manifestPath -Raw
+$manifestNamespaces = [System.Xml.XmlNamespaceManager]::new(
+  $packageManifest.NameTable)
+$manifestNamespaces.AddNamespace(
+  'f', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+$manifestNamespaces.AddNamespace(
+  'uap', 'http://schemas.microsoft.com/appx/manifest/uap/windows10')
+$propertiesLogo = $packageManifest.SelectSingleNode(
+  '/f:Package/f:Properties/f:Logo', $manifestNamespaces)
+$visualElements = $packageManifest.SelectSingleNode(
+  '//uap:VisualElements', $manifestNamespaces)
+$fileAssociationLogo = $packageManifest.SelectSingleNode(
+  '//uap:FileTypeAssociation/uap:Logo', $manifestNamespaces)
+if ($null -eq $propertiesLogo -or $null -eq $visualElements -or
+    $null -eq $fileAssociationLogo) {
+  throw 'The exact package manifest is missing required logo declarations.'
+}
+$logoReferences = @(
+  [string]$propertiesLogo.InnerText
+  [string]$visualElements.Square44x44Logo
+  [string]$visualElements.Square150x150Logo
+  [string]$fileAssociationLogo.InnerText
+) | Sort-Object -Unique
+if ($logoReferences.Count -ne 4) {
+  throw 'The manifest must contain exactly four distinct BusyMax logo paths.'
+}
+foreach ($reference in $logoReferences) {
+  if ([string]::IsNullOrWhiteSpace($reference) -or
+      [IO.Path]::IsPathRooted($reference) -or
+      $reference -match '(^|[\\/])\.\.([\\/]|$)') {
+    throw "Manifest logo path is unsafe: $reference"
+  }
+  $resolvedReference = $reference.Replace(
+    '\', [IO.Path]::DirectorySeparatorChar)
+  if (-not (Test-Path -LiteralPath `
+      (Join-Path $PackageRoot $resolvedReference) -PathType Leaf)) {
+    throw "Manifest logo does not resolve inside the exact package: $reference"
+  }
+}
 
 $inventory = @(Get-ChildItem -LiteralPath $PackageRoot -Recurse -File |
   Sort-Object FullName |
