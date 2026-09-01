@@ -80,7 +80,7 @@ void main() {
     expect(ignorableNamespaces, isNot(contains('desktop4')));
     expect(manifestSource, isNot(contains('xmlns:desktop4=')));
     final comClsid = elements('Class').single.getAttribute('Id');
-    expect(toastClsid, '{$busyMaxToastActivatorClsid}');
+    expect(toastClsid, busyMaxToastActivatorClsid);
     expect(comClsid, toastClsid);
   });
 

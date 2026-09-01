@@ -59,8 +59,8 @@ Describe 'BusyMax rendered manifest contract' {
 
   It 'rejects a COM class that differs from the toast activator CLSID' {
     $rendered = (New-BusyMaxRenderedTestManifest).Replace(
-      '<com:Class Id="{7B854A6D-8B2A-45A5-B998-1F51EC5A81D7}" />',
-      '<com:Class Id="{11111111-1111-1111-1111-111111111111}" />')
+      '<com:Class Id="7B854A6D-8B2A-45A5-B998-1F51EC5A81D7" />',
+      '<com:Class Id="11111111-1111-1111-1111-111111111111" />')
     $rendered | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
     { & (Join-Path $tools 'validate_manifest.ps1') `
         -ManifestPath $manifestPath } |

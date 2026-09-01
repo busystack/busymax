@@ -140,7 +140,7 @@ $startupArguments = $startupExtension.GetAttribute(
 if ($startup.Enabled -ne 'false' -or $startupArguments -ne '--start-minimized') {
   throw 'StartupTask must be disabled by default and start minimized.'
 }
-if ($toast.ToastActivatorCLSID -ne '{7B854A6D-8B2A-45A5-B998-1F51EC5A81D7}') {
+if ($toast.ToastActivatorCLSID -cne '7B854A6D-8B2A-45A5-B998-1F51EC5A81D7') {
   throw 'Toast activator CLSID does not match the committed notification backend.'
 }
 if ($toastExtension.NamespaceURI -cne 'http://schemas.microsoft.com/appx/manifest/desktop/windows10' -or
