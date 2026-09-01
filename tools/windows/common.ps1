@@ -9,6 +9,18 @@ function Get-BusyMaxStoreConfig {
   return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
 }
 
+function Get-BusyMaxWindowsSdkDirectory {
+  param(
+    [Parameter(Mandatory)][string]$KitsBin,
+    [version]$MinimumVersion = [version]'10.0.26100.0'
+  )
+  return Get-ChildItem -LiteralPath $KitsBin -Directory |
+    Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+    Where-Object { [version]$_.Name -ge $MinimumVersion } |
+    Sort-Object { [version]$_.Name } -Descending |
+    Select-Object -First 1
+}
+
 function Test-BusyMaxPlaceholder {
   param([AllowNull()][string]$Value)
   return [string]::IsNullOrWhiteSpace($Value) -or

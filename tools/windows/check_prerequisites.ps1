@@ -26,10 +26,7 @@ if ([string]::IsNullOrWhiteSpace($visualStudio)) {
   throw 'Visual Studio C++ x64 desktop tools were not found.'
 }
 $kitsBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-$sdk = Get-ChildItem -LiteralPath $kitsBin -Directory |
-  Where-Object { [version]$_.Name -ge [version]'10.0.26100.0' } |
-  Sort-Object { [version]$_.Name } -Descending |
-  Select-Object -First 1
+$sdk = Get-BusyMaxWindowsSdkDirectory -KitsBin $kitsBin
 if ($null -eq $sdk) { throw 'Windows SDK 10.0.26100.0 or newer is required.' }
 foreach ($tool in @('makeappx.exe', 'signtool.exe')) {
   if (-not (Test-Path -LiteralPath (Join-Path $sdk.FullName "x64\$tool"))) {

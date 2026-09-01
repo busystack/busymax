@@ -89,11 +89,9 @@ jobs:
       - name: Verify Windows SDK packaging tools
         shell: pwsh
         run: |
+          . ./tools/windows/common.ps1
           $kitsBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-          $sdk = Get-ChildItem -LiteralPath $kitsBin -Directory |
-            Where-Object { [version]$_.Name -ge [version]'10.0.26100.0' } |
-            Sort-Object { [version]$_.Name } -Descending |
-            Select-Object -First 1
+          $sdk = Get-BusyMaxWindowsSdkDirectory -KitsBin $kitsBin
           if ($null -eq $sdk) {
             throw 'Windows SDK 10.0.26100.0 or newer is required.'
           }
