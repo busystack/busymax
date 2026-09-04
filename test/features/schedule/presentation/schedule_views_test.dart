@@ -1240,7 +1240,21 @@ void main() {
           ),
         )
         .toList();
-    expect(restingSurfaces, hasLength(4));
+    expect(restingSurfaces, hasLength(3));
+    final destructiveSurfaces = tester
+        .widgetList<Material>(
+          find.descendant(
+            of: find.byType(BusyMaxPopoverIconButton),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Material &&
+                  widget.color == Theme.of(actionContext).colorScheme.error &&
+                  widget.shape == const CircleBorder(),
+            ),
+          ),
+        )
+        .toList();
+    expect(destructiveSurfaces, hasLength(1));
     for (final button in find.byType(BusyMaxPopoverIconButton).evaluate()) {
       expect(
         tester.getSize(find.byWidget(button.widget)),
@@ -1257,7 +1271,7 @@ void main() {
     }
     expect(
       tester.widget<Icon>(find.byIcon(YaruIcons.trash)).color,
-      Theme.of(actionContext).colorScheme.error,
+      Theme.of(actionContext).colorScheme.onError,
     );
     expect(tester.widget<Icon>(find.byIcon(YaruIcons.share)).color, isNull);
 
@@ -1566,6 +1580,48 @@ void main() {
         );
       },
     );
+
+    testWidgets('destructive popover action uses a visible semantic fill in '
+        '$brightness mode', (tester) async {
+      final theme = BusyMaxYaruTheme.build(
+        brightness: brightness,
+        accentColor: const Color(0xFF3584E4),
+      );
+      final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Center(
+            child: BusyMaxPopoverIconButton(
+              icon: YaruIcons.trash,
+              tooltip: 'Delete',
+              destructive: true,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final action = find.byType(BusyMaxPopoverIconButton);
+      final destructiveSurface = tester.widget<Material>(
+        find.descendant(
+          of: action,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Material &&
+                widget.color == theme.colorScheme.error &&
+                widget.shape == const CircleBorder(),
+          ),
+        ),
+      );
+      final icon = tester.widget<Icon>(find.byIcon(YaruIcons.trash));
+
+      expect(destructiveSurface.color, theme.colorScheme.error);
+      expect(destructiveSurface.color, isNot(colors.control));
+      expect(icon.color, theme.colorScheme.onError);
+    });
   }
 
   testWidgets('popover action retains Yaru keyboard-focus treatment', (

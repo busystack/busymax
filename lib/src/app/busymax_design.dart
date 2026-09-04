@@ -997,10 +997,12 @@ class BusyMaxPopoverIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
-    final foreground = destructive ? Theme.of(context).colorScheme.error : null;
+    final colorScheme = Theme.of(context).colorScheme;
+    final foreground = destructive ? colorScheme.onError : null;
+    final background = destructive ? colorScheme.error : colors.control;
     final enabled = onPressed != null;
     return Material(
-      color: enabled ? colors.control : colors.disabledControl,
+      color: enabled ? background : colors.disabledControl,
       shape: const CircleBorder(),
       child: YaruIconButton(
         icon: Icon(
