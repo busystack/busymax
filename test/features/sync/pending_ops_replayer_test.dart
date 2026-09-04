@@ -193,6 +193,227 @@ void main() {
     expect(apiClient.calls, ['create_task:list-1']);
   });
 
+  test('task edit waits while its creation is retrying', () async {
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(title: 'Draft'),
+    );
+    final localTask = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+    await repository.patchTask(
+      'list-1',
+      localTask.id,
+      const TaskPatchInput({'title': 'Edited offline'}),
+    );
+    apiClient.createTaskError = const GoogleTasksApiError(
+      statusCode: 503,
+      message: 'Temporarily unavailable',
+    );
+
+    final firstApplied = await PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+    ).replayDueOps();
+
+    expect(firstApplied, 0);
+    expect(apiClient.calls, ['create_task:list-1']);
+    var operations = await database.select(database.pendingOps).get();
+    final pendingCreate = operations.singleWhere(
+      (operation) => operation.operation == 'create_task',
+    );
+    final pendingPatch = operations.singleWhere(
+      (operation) => operation.operation == 'patch_task',
+    );
+    expect(pendingCreate.state, 'retry');
+    expect(pendingCreate.attemptCount, 1);
+    expect(pendingPatch.dependsOnOpId, pendingCreate.id);
+    expect(pendingPatch.attemptCount, 0);
+
+    apiClient.createTaskError = null;
+    final secondApplied = await PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 5),
+    ).replayDueOps();
+
+    expect(secondApplied, 2);
+    expect(apiClient.calls, [
+      'create_task:list-1',
+      'create_task:list-1',
+      'patch_task:task-server',
+    ]);
+    expect(apiClient.taskPatchFields.single['title'], 'Edited offline');
+    operations = await database.select(database.pendingOps).get();
+    expect(operations, isEmpty);
+  });
+
+  test('deleting a task whose create is in flight queues after it', () async {
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(title: 'Draft'),
+    );
+    final localTask = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+    final gate = Completer<void>();
+    apiClient.createTaskGate = gate;
+    final firstReplay = PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+    ).replayDueOps();
+    await _waitFor(() => apiClient.calls.isNotEmpty);
+
+    await repository.deleteTask('list-1', localTask.id);
+
+    var operations = await database.select(database.pendingOps).get();
+    final create = operations.singleWhere(
+      (operation) => operation.operation == 'create_task',
+    );
+    final delete = operations.singleWhere(
+      (operation) => operation.operation == 'delete_task',
+    );
+    expect(create.state, 'in_progress');
+    expect(delete.dependsOnOpId, create.id);
+
+    gate.complete();
+    expect(await firstReplay, 1);
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+      ).replayDueOps(),
+      1,
+    );
+    expect(apiClient.calls, ['create_task:list-1', 'delete_task:task-server']);
+    operations = await database.select(database.pendingOps).get();
+    expect(operations, isEmpty);
+  });
+
+  test('server ID rewrite revives a legacy blocked task edit', () async {
+    await database.tasksDao.upsertTask(
+      _task('list-1', 'local-task-1', title: 'Draft'),
+    );
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'create_task',
+      taskListId: 'list-1',
+      taskId: 'local-task-1',
+      localTempId: 'local-task-1',
+      request: {
+        'body': {'title': 'Draft'},
+      },
+    );
+    await _enqueue(
+      database,
+      id: '02',
+      operation: 'patch_task',
+      taskListId: 'list-1',
+      taskId: 'local-task-1',
+      request: {'title': 'Edited offline'},
+    );
+    await (database.update(
+      database.pendingOps,
+    )..where((row) => row.id.equals('02'))).write(
+      const PendingOpsCompanion(
+        state: Value('failed'),
+        attemptCount: Value(1),
+        nextAttemptAtUtc: Value('9999-12-31T00:00:00.000Z'),
+        lastErrorCode: Value('400'),
+        lastErrorMessage: Value('Invalid temporary task ID'),
+      ),
+    );
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      1,
+    );
+
+    final revived = await database.pendingOpsDao.getOp('02');
+    expect(revived!.taskId, 'task-server');
+    expect(revived.state, 'pending');
+    expect(revived.nextAttemptAtUtc, equals(null));
+    expect(revived.lastErrorCode, equals(null));
+    expect(revived.lastErrorMessage, equals(null));
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+      ).replayDueOps(),
+      1,
+    );
+    expect(apiClient.calls, ['create_task:list-1', 'patch_task:task-server']);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  test('new task can move to another list before creation sync', () async {
+    await database.taskListsDao.upsertTaskList(_taskList('list-2'));
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(title: 'Draft'),
+    );
+    final localTask = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+    await repository.moveTask(
+      TaskMoveInput(
+        sourceTaskListId: 'list-1',
+        taskId: localTask.id,
+        destinationTaskListId: 'list-2',
+      ),
+    );
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      2,
+    );
+
+    expect(apiClient.calls, ['create_task:list-1', 'move_task:task-server']);
+    expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
+    final destination = await database.tasksDao.listTasks('account', 'list-2');
+    expect(destination.single.id, 'task-server');
+  });
+
   test(
     'Google subtask is moved under its parent after a root insert',
     () async {
@@ -1191,6 +1412,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   final createParentTaskIds = <String?>[];
   final moveParentTaskIds = <String?>[];
   GoogleTasksApiError? patchTaskListError;
+  GoogleTasksApiError? createTaskError;
   GoogleTasksApiError? deleteTaskError;
   GoogleTasksApiError? clearCompletedError;
   GoogleTasksApiError? moveTaskError;
@@ -1247,6 +1469,8 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     calls.add('create_task:$taskListId');
     createParentTaskIds.add(parentTaskId);
     await createTaskGate?.future;
+    final error = createTaskError;
+    if (error != null) throw error;
     return _taskDto('task-server', title: create.fields['title'].toString());
   }
 

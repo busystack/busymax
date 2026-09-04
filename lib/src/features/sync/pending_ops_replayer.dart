@@ -49,38 +49,54 @@ class PendingOpsReplayer {
       _nowUtc(),
     );
     var applied = 0;
+    final handledIds = <String>{};
+    var madeProgress = true;
 
-    for (final originalOp in ops) {
-      final op = await _readOp(originalOp.id);
-      if (op == null || !_isTaskOp(op)) {
-        continue;
-      }
-      if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
-        continue;
-      }
+    while (madeProgress) {
+      madeProgress = false;
+      for (final originalOp in ops) {
+        if (handledIds.contains(originalOp.id)) continue;
+        final op = await _readOp(originalOp.id);
+        if (op == null || !_isTaskOp(op)) {
+          handledIds.add(originalOp.id);
+          continue;
+        }
+        if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
+          continue;
+        }
+        if (op.operation == 'create_task' && !await _claimTaskCreate(op)) {
+          continue;
+        }
+        handledIds.add(op.id);
+        madeProgress = true;
 
-      try {
-        await _replay(op);
-        await _database.pendingOpsDao.deleteOp(op.id);
-        applied += 1;
-      } on TaskRemoteError catch (error) {
-        if (_isSuccessfulMissingDelete(op, error)) {
-          await _applyDeleteSideEffect(op);
+        try {
+          await _replay(op);
           await _database.pendingOpsDao.deleteOp(op.id);
           applied += 1;
-        } else if (_isRetryableStatus(error.statusCode)) {
-          await _scheduleRetry(op, error.statusCode.toString(), error.message);
-        } else {
-          await _blockOp(op, error.statusCode.toString(), error.message);
+        } on TaskRemoteError catch (error) {
+          if (_isSuccessfulMissingDelete(op, error)) {
+            await _applyDeleteSideEffect(op);
+            await _database.pendingOpsDao.deleteOp(op.id);
+            applied += 1;
+          } else if (_isRetryableStatus(error.statusCode)) {
+            await _scheduleRetry(
+              op,
+              error.statusCode.toString(),
+              error.message,
+            );
+          } else {
+            await _blockOp(op, error.statusCode.toString(), error.message);
+          }
+        } on _PendingOpBlocked {
+          continue;
+        } on Object catch (error) {
+          await _scheduleRetry(
+            op,
+            error.runtimeType.toString(),
+            error.toString(),
+          );
         }
-      } on _PendingOpBlocked {
-        continue;
-      } on Object catch (error) {
-        await _scheduleRetry(
-          op,
-          error.runtimeType.toString(),
-          error.toString(),
-        );
       }
     }
 
@@ -149,7 +165,11 @@ class PendingOpsReplayer {
         'AND task_list_id = ?',
         [dto.id, _accountId, tempId],
       );
-      await _replacePendingReference(tempId, dto.id);
+      await _replacePendingReference(
+        tempId,
+        dto.id,
+        completedCreateOpId: op.id,
+      );
       await _database.taskListsDao.deleteTaskList(_accountId, tempId);
     });
   }
@@ -204,6 +224,7 @@ class PendingOpsReplayer {
       taskListId: op.taskListId!,
       tempTaskId: tempId,
       serverTask: dto,
+      completedCreateOpId: op.id,
     );
   }
 
@@ -504,13 +525,13 @@ class PendingOpsReplayer {
     required String taskListId,
     required String tempTaskId,
     required TaskDto serverTask,
+    required String completedCreateOpId,
   }) async {
     await _database.transaction(() async {
       final localTask =
           await (_database.select(_database.tasks)..where(
                 (row) =>
                     row.accountId.equals(_accountId) &
-                    row.taskListId.equals(taskListId) &
                     row.id.equals(tempTaskId),
               ))
               .getSingleOrNull();
@@ -537,15 +558,27 @@ class PendingOpsReplayer {
         'UPDATE tasks SET parent = ? WHERE account_id = ? AND parent = ?',
         [serverTask.id, _accountId, tempTaskId],
       );
-      await _replacePendingReference(tempTaskId, serverTask.id);
-      await _database.tasksDao.deleteTask(_accountId, taskListId, tempTaskId);
+      await _replacePendingReference(
+        tempTaskId,
+        serverTask.id,
+        completedCreateOpId: completedCreateOpId,
+      );
+      await _database.tasksDao.deleteTask(
+        _accountId,
+        localTask?.taskListId ?? taskListId,
+        tempTaskId,
+      );
     });
   }
 
   Future<void> _replacePendingReference(
     String oldValue,
-    String newValue,
-  ) async {
+    String newValue, {
+    required String completedCreateOpId,
+  }) async {
+    final ops = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
     await _database.customStatement(
       'UPDATE pending_ops SET task_list_id = ? WHERE account_id = ? '
       'AND task_list_id = ?',
@@ -561,21 +594,33 @@ class PendingOpsReplayer {
       [newValue, _accountId, oldValue],
     );
 
-    final ops = await (_database.select(
-      _database.pendingOps,
-    )..where((row) => row.accountId.equals(_accountId))).get();
     for (final op in ops) {
       final request = _request(op);
       final rewritten = _replaceJsonReference(request, oldValue, newValue);
       final rewrittenJson = jsonEncode(rewritten);
-      if (rewrittenJson == op.requestJson) {
+      final referenceChanged =
+          op.taskListId == oldValue ||
+          op.taskId == oldValue ||
+          op.localTempId == oldValue ||
+          rewrittenJson != op.requestJson;
+      final unblock =
+          op.id != completedCreateOpId &&
+          referenceChanged &&
+          op.nextAttemptAtUtc?.startsWith('9999-12-31') == true;
+      if (rewrittenJson == op.requestJson && !unblock) {
         continue;
       }
       await (_database.update(
         _database.pendingOps,
       )..where((row) => row.id.equals(op.id))).write(
         PendingOpsCompanion(
-          requestJson: Value(rewrittenJson),
+          requestJson: rewrittenJson == op.requestJson
+              ? const Value.absent()
+              : Value(rewrittenJson),
+          state: unblock ? const Value('pending') : const Value.absent(),
+          nextAttemptAtUtc: unblock ? const Value(null) : const Value.absent(),
+          lastErrorCode: unblock ? const Value(null) : const Value.absent(),
+          lastErrorMessage: unblock ? const Value(null) : const Value.absent(),
           updatedAtUtc: Value(_now()),
         ),
       );
@@ -620,25 +665,57 @@ class PendingOpsReplayer {
     PendingOp op,
     String errorCode,
     String errorMessage,
-  ) {
+  ) async {
     final nextAttempt = _nextAttempt(op.attemptCount);
-    return _database.pendingOpsDao.updateAttempt(
+    await _database.pendingOpsDao.updateAttempt(
       id: op.id,
       attemptCount: op.attemptCount + 1,
       nextAttemptAtUtc: nextAttempt,
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
     );
+    if (op.operation == 'create_task') {
+      await _setPendingOpState(op.id, 'retry');
+    }
   }
 
-  Future<void> _blockOp(PendingOp op, String errorCode, String errorMessage) {
-    return _database.pendingOpsDao.updateAttempt(
+  Future<void> _blockOp(
+    PendingOp op,
+    String errorCode,
+    String errorMessage,
+  ) async {
+    await _database.pendingOpsDao.updateAttempt(
       id: op.id,
       attemptCount: op.attemptCount + 1,
       nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
     );
+    if (op.operation == 'create_task') {
+      await _setPendingOpState(op.id, 'failed');
+    }
+  }
+
+  Future<bool> _claimTaskCreate(PendingOp op) async {
+    final query = _database.update(_database.pendingOps)
+      ..where(
+        (row) =>
+            row.id.equals(op.id) &
+            row.state.equals(op.state) &
+            row.attemptCount.equals(op.attemptCount) &
+            row.requestJson.equals(op.requestJson) &
+            row.updatedAtUtc.equals(op.updatedAtUtc),
+      );
+    return await query.write(
+          const PendingOpsCompanion(state: Value('in_progress')),
+        ) ==
+        1;
+  }
+
+  Future<void> _setPendingOpState(String id, String state) {
+    return (_database.update(_database.pendingOps)
+          ..where((row) => row.id.equals(id)))
+        .write(PendingOpsCompanion(state: Value(state)));
   }
 
   DateTime _nextAttempt(int attemptCount) {

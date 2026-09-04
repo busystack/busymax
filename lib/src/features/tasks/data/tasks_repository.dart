@@ -824,27 +824,38 @@ class TasksRepository {
       return;
     }
     final now = _now();
-    final baseline = await _baselineRow(taskListId, taskId);
-    await _writeLocalTask(
-      taskListId,
-      taskId,
-      TasksCompanion(
-        pendingDelete: const Value(true),
-        localDirty: const Value(true),
-        updatedLocalAtUtc: Value(now),
-      ),
-    );
-    await _enqueue(
-      operation: 'delete_task',
-      taskListId: taskListId,
-      taskId: taskId,
-      request: const {},
-      baselineUpdatedUtc: baseline?.updatedUtc,
-      baselineRawJson: baseline?.rawJson,
-      createdAtUtc: now,
-    );
+    var queuedRemoteDelete = false;
+    await _database.transaction(() async {
+      final pendingCreate = await _pendingUnsentTaskCreate(taskId);
+      if (pendingCreate != null) {
+        await _cancelPendingTaskCreation(pendingCreate);
+        return;
+      }
+      final baseline = await _baselineRow(taskListId, taskId);
+      await _writeLocalTask(
+        taskListId,
+        taskId,
+        TasksCompanion(
+          pendingDelete: const Value(true),
+          localDirty: const Value(true),
+          updatedLocalAtUtc: Value(now),
+        ),
+      );
+      await _enqueue(
+        operation: 'delete_task',
+        taskListId: taskListId,
+        taskId: taskId,
+        request: const {},
+        baselineUpdatedUtc: baseline?.updatedUtc,
+        baselineRawJson: baseline?.rawJson,
+        createdAtUtc: now,
+      );
+      queuedRemoteDelete = true;
+    });
     await _rebuildTaskNotifications();
-    _onMutationQueued?.call();
+    if (queuedRemoteDelete) {
+      _onMutationQueued?.call();
+    }
   }
 
   Future<void> moveTask(TaskMoveInput input) async {
@@ -2342,7 +2353,7 @@ class TasksRepository {
   }) async {
     final operationId = _uuid.v4();
     await _database.transaction(() async {
-      final predecessor = await _latestPendingTaskEdit(
+      final predecessor = await _latestPendingTaskOperation(
         operation: operation,
         taskListId: taskListId,
         taskId: taskId,
@@ -2368,41 +2379,101 @@ class TasksRepository {
     return operationId;
   }
 
-  Future<PendingOp?> _latestPendingTaskEdit({
+  Future<PendingOp?> _latestPendingTaskOperation({
     required String operation,
     required String? taskListId,
     required String? taskId,
   }) async {
-    if ((operation != 'patch_task' && operation != 'update_task') ||
+    if (!_taskMutationOperations.contains(operation) ||
         taskListId == null ||
         taskId == null) {
       return null;
     }
+    final pendingCreate = await _pendingTaskCreate(taskId);
+    final pendingLocalId = pendingCreate?.localTempId ?? pendingCreate?.taskId;
     final query = _database.select(_database.pendingOps)
       ..where(
         (row) =>
             row.accountId.equals(_accountId) &
             row.entityType.equals('task') &
-            row.taskListId.equals(taskListId) &
-            row.taskId.equals(taskId) &
-            (row.operation.equals('patch_task') |
-                row.operation.equals('update_task')),
+            row.operation.isIn(_taskMutationPredecessorOperations) &
+            (pendingLocalId == null
+                ? row.taskListId.equals(taskListId) & row.taskId.equals(taskId)
+                : row.taskId.equals(pendingLocalId) |
+                      row.localTempId.equals(pendingLocalId)),
       )
       ..orderBy([
         (row) => OrderingTerm.desc(row.createdAtUtc),
         (row) => OrderingTerm.desc(row.updatedAtUtc),
       ]);
-    final edits = await query.get();
+    final operations = await query.get();
     final predecessorIds = {
-      for (final edit in edits)
-        if (edit.dependsOnOpId != null) edit.dependsOnOpId!,
+      for (final operation in operations)
+        if (operation.dependsOnOpId != null) operation.dependsOnOpId!,
     };
-    for (final edit in edits) {
-      if (!predecessorIds.contains(edit.id)) {
-        return edit;
+    for (final operation in operations) {
+      if (!predecessorIds.contains(operation.id)) {
+        return operation;
       }
     }
-    return edits.isEmpty ? null : edits.first;
+    return operations.isEmpty ? null : operations.first;
+  }
+
+  Future<PendingOp?> _pendingTaskCreate(String taskId) {
+    final query = _database.select(_database.pendingOps)
+      ..where(
+        (row) =>
+            row.accountId.equals(_accountId) &
+            row.entityType.equals('task') &
+            row.operation.equals('create_task') &
+            (row.taskId.equals(taskId) | row.localTempId.equals(taskId)),
+      )
+      ..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)]);
+    return query.get().then((operations) => operations.firstOrNull);
+  }
+
+  Future<PendingOp?> _pendingUnsentTaskCreate(String taskId) async {
+    final create = await _pendingTaskCreate(taskId);
+    return create != null &&
+            create.state == 'pending' &&
+            create.attemptCount == 0
+        ? create
+        : null;
+  }
+
+  Future<void> _cancelPendingTaskCreation(PendingOp create) async {
+    final localTaskId = create.localTempId ?? create.taskId;
+    if (localTaskId == null) return;
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final discardedIds = <String>{create.id};
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final operation in operations) {
+        final targetsLocalTask =
+            (operation.entityType == 'task' ||
+                operation.entityType == 'task_checklist_item') &&
+            (operation.taskId == localTaskId ||
+                operation.localTempId == localTaskId);
+        if (discardedIds.contains(operation.id) ||
+            (!targetsLocalTask &&
+                !discardedIds.contains(operation.dependsOnOpId))) {
+          continue;
+        }
+        discardedIds.add(operation.id);
+        changed = true;
+      }
+    }
+    await (_database.delete(
+      _database.pendingOps,
+    )..where((row) => row.id.isIn(discardedIds))).go();
+    await (_database.delete(_database.tasks)..where(
+          (row) =>
+              row.accountId.equals(_accountId) & row.id.equals(localTaskId),
+        ))
+        .go();
   }
 
   Future<Task?> _baselineRow(String taskListId, String taskId) {
@@ -2539,6 +2610,18 @@ class TasksRepository {
 
   String _now() => _nowUtc().toIso8601String();
 }
+
+const _taskMutationOperations = {
+  'patch_task',
+  'update_task',
+  'move_task',
+  'delete_task',
+};
+
+const _taskMutationPredecessorOperations = {
+  'create_task',
+  ..._taskMutationOperations,
+};
 
 TaskChecklistItemEntity taskChecklistItemFromDto(TaskChecklistItemDto dto) {
   final raw = <String, Object?>{

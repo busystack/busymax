@@ -62,6 +62,104 @@ void main() {
     expect(mutationQueuedCalls, 1);
   });
 
+  test('new task mutations form a chain rooted at its creation', () async {
+    var tick = 0;
+    repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, tick++),
+    );
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(title: 'Draft'),
+    );
+    final task = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+
+    await repository.patchTask(
+      'list-1',
+      task.id,
+      const TaskPatchInput({'title': 'Patched'}),
+    );
+    await repository.updateTaskFull(
+      'list-1',
+      task.id,
+      TaskPutInput({'title': 'Updated'}),
+    );
+    await repository.moveTask(
+      TaskMoveInput(sourceTaskListId: 'list-1', taskId: task.id),
+    );
+
+    final operations = await database.select(database.pendingOps).get();
+    final create = operations.singleWhere(
+      (operation) => operation.operation == 'create_task',
+    );
+    final patch = operations.singleWhere(
+      (operation) => operation.operation == 'patch_task',
+    );
+    final update = operations.singleWhere(
+      (operation) => operation.operation == 'update_task',
+    );
+    final move = operations.singleWhere(
+      (operation) => operation.operation == 'move_task',
+    );
+    expect(patch.dependsOnOpId, create.id);
+    expect(update.dependsOnOpId, patch.id);
+    expect(move.dependsOnOpId, update.id);
+  });
+
+  test('deleting an unsent task cancels its pending operation chain', () async {
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(title: 'Draft'),
+    );
+    final task = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+    await repository.patchTask(
+      'list-1',
+      task.id,
+      const TaskPatchInput({'title': 'Changed'}),
+    );
+    await repository.moveTask(
+      TaskMoveInput(sourceTaskListId: 'list-1', taskId: task.id),
+    );
+
+    await repository.deleteTask('list-1', task.id);
+
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
+  });
+
+  test('deleting an attempted create waits for its server identity', () async {
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(title: 'Draft'),
+    );
+    final task = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+    final create = await database.select(database.pendingOps).getSingle();
+    await (database.update(
+      database.pendingOps,
+    )..where((row) => row.id.equals(create.id))).write(
+      const PendingOpsCompanion(state: Value('retry'), attemptCount: Value(1)),
+    );
+
+    await repository.deleteTask('list-1', task.id);
+
+    final operations = await database.select(database.pendingOps).get();
+    final delete = operations.singleWhere(
+      (operation) => operation.operation == 'delete_task',
+    );
+    expect(operations, hasLength(2));
+    expect(delete.dependsOnOpId, create.id);
+  });
+
   test('Google subtask queues a dependent hierarchy move', () async {
     await database.tasksDao.upsertTask(_task(id: 'parent', position: '1'));
 
