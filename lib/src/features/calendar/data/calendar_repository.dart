@@ -700,6 +700,13 @@ class CalendarRepository {
       final existing = await (_database.select(
         _database.calendarSources,
       )..where((row) => row.id.equals(id))).getSingleOrNull();
+      final pendingPatchFields = existing == null
+          ? const <String>{}
+          : await _pendingCalendarPatchFields(existing.id);
+      final preservePendingColor =
+          pendingPatchFields.contains('backgroundColor') ||
+          pendingPatchFields.contains('foregroundColor') ||
+          pendingPatchFields.contains('colorId');
       final preservePendingRemoval =
           existing != null && await _hasActiveCalendarRemoval(existing.id);
       final isDeleted = preservePendingRemoval || source.isDeleted;
@@ -711,17 +718,37 @@ class CalendarRepository {
               accountId: accountId,
               provider: source.provider.storageValue,
               providerCalendarId: source.providerCalendarId,
-              summary: source.summary,
-              description: Value(source.description),
+              summary: pendingPatchFields.contains('summary')
+                  ? existing!.summary
+                  : source.summary,
+              description: Value(
+                pendingPatchFields.contains('description')
+                    ? existing!.description
+                    : source.description,
+              ),
               primaryCalendar: Value(source.primaryCalendar),
               selected: Value(existing?.selected ?? source.selected),
               remindersEnabled: Value(existing?.remindersEnabled ?? true),
               hidden: Value(isDeleted || source.hidden),
               readOnly: Value(source.readOnly),
-              backgroundColor: Value(source.backgroundColor),
-              foregroundColor: Value(source.foregroundColor),
-              colorId: Value(source.colorId),
-              timeZone: Value(source.timeZone),
+              backgroundColor: Value(
+                preservePendingColor
+                    ? existing!.backgroundColor
+                    : source.backgroundColor,
+              ),
+              foregroundColor: Value(
+                preservePendingColor
+                    ? existing!.foregroundColor
+                    : source.foregroundColor,
+              ),
+              colorId: Value(
+                preservePendingColor ? existing!.colorId : source.colorId,
+              ),
+              timeZone: Value(
+                pendingPatchFields.contains('timeZone')
+                    ? existing!.timeZone
+                    : source.timeZone,
+              ),
               accessRole: Value(source.accessRole),
               dataOwner: Value(source.dataOwner),
               isRemovable: Value(source.isRemovable),
@@ -3027,6 +3054,31 @@ class CalendarRepository {
               row.state.equals('pending'),
         ))
         .get();
+  }
+
+  Future<Set<String>> _pendingCalendarPatchFields(String sourceId) async {
+    final operations =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.calendarSourceId.equals(sourceId) &
+                  row.operationType.equals('calendar.patch') &
+                  row.state.equals('pending'),
+            ))
+            .get();
+    const projectedFields = <String>{
+      'summary',
+      'description',
+      'timeZone',
+      'backgroundColor',
+      'foregroundColor',
+      'colorId',
+    };
+    return {
+      for (final operation in operations)
+        ..._calendarPendingRequest(
+          operation,
+        ).keys.where(projectedFields.contains),
+    };
   }
 
   Future<bool> _hasActiveCalendarRemoval(String sourceId) async {

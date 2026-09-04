@@ -80,7 +80,7 @@ class CalendarPendingOpsReplayer {
 
       try {
         await _replay(op);
-        await _database.pendingOpsDao.deleteOp(op.id);
+        await _acknowledge(op);
         applied += 1;
       } on GoogleCalendarApiError catch (error) {
         if (_isSuccessfulMissingDelete(op, error.statusCode)) {
@@ -1463,9 +1463,19 @@ class CalendarPendingOpsReplayer {
     PendingOp op,
     String errorCode,
     String errorMessage,
-  ) {
+  ) async {
     final nextAttempt = _nextAttempt(op.attemptCount);
-    return _database.pendingOpsDao.updateAttempt(
+    if (_requiresRevisionMatch(op)) {
+      await _database.pendingOpsDao.updateAttemptIfUnchanged(
+        snapshot: op,
+        attemptCount: op.attemptCount + 1,
+        nextAttemptAtUtc: nextAttempt,
+        lastErrorCode: errorCode,
+        lastErrorMessage: errorMessage,
+      );
+      return;
+    }
+    await _database.pendingOpsDao.updateAttempt(
       id: op.id,
       attemptCount: op.attemptCount + 1,
       nextAttemptAtUtc: nextAttempt,
@@ -1474,24 +1484,63 @@ class CalendarPendingOpsReplayer {
     );
   }
 
-  Future<void> _blockOp(
+  Future<bool> _blockOp(
     PendingOp op,
     String errorCode,
     String errorMessage,
   ) async {
+    final blockedUntil = DateTime.utc(9999, 12, 31);
+    final updated = _requiresRevisionMatch(op)
+        ? await _database.pendingOpsDao.updateAttemptIfUnchanged(
+            snapshot: op,
+            attemptCount: op.attemptCount + 1,
+            nextAttemptAtUtc: blockedUntil,
+            lastErrorCode: errorCode,
+            lastErrorMessage: errorMessage,
+          )
+        : await _updateAttempt(
+            op,
+            nextAttemptAtUtc: blockedUntil,
+            errorCode: errorCode,
+            errorMessage: errorMessage,
+          );
+    if (!updated) return false;
+    await _repository.restoreSourceAfterRemovalFailure(op);
+    return true;
+  }
+
+  Future<bool> _updateAttempt(
+    PendingOp op, {
+    required DateTime nextAttemptAtUtc,
+    required String errorCode,
+    required String errorMessage,
+  }) async {
     await _database.pendingOpsDao.updateAttempt(
       id: op.id,
       attemptCount: op.attemptCount + 1,
-      nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
+      nextAttemptAtUtc: nextAttemptAtUtc,
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
     );
-    await _repository.restoreSourceAfterRemovalFailure(op);
+    return true;
+  }
+
+  Future<void> _acknowledge(PendingOp op) async {
+    if (_requiresRevisionMatch(op)) {
+      await _database.pendingOpsDao.deleteOpIfUnchanged(op);
+      return;
+    }
+    await _database.pendingOpsDao.deleteOp(op.id);
+  }
+
+  bool _requiresRevisionMatch(PendingOp op) {
+    return _operationType(op) == 'calendar.patch';
   }
 
   Future<void> _blockConflict(PendingOp op, String message) async {
-    await _blockOp(op, 'conflict', message);
-    await _onConflictBlocked?.call(message);
+    if (await _blockOp(op, 'conflict', message)) {
+      await _onConflictBlocked?.call(message);
+    }
     throw const _PendingOpBlocked();
   }
 

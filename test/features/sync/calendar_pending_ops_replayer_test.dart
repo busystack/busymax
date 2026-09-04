@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_provider_capabilities.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
@@ -1418,6 +1419,61 @@ void main() {
   });
 
   test(
+    'calendar patch edited in flight remains queued and is replayed',
+    () async {
+      final repository = CalendarRepository(database: database);
+      const sourceId = 'account|google|cal-1';
+      await repository.renameLocalSource(sourceId, 'First rename');
+      final patchGate = Completer<void>();
+      client.calendarPatchGate = patchGate;
+
+      CalendarPendingOpsReplayer replayer() => CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      );
+
+      final firstReplay = replayer().replayDueOps();
+      await _waitFor(
+        () => client.calls.contains('updateCalendar:cal-1:First rename'),
+      );
+
+      await repository.renameLocalSource(sourceId, 'Second rename');
+      patchGate.complete();
+
+      expect(await firstReplay, 1);
+      final pendingAfterFirst = await database.pendingOpsDao
+          .pendingOpsForReplay('account', _later);
+      expect(pendingAfterFirst, hasLength(1));
+      expect(
+        jsonDecode(pendingAfterFirst.single.requestJson),
+        containsPair('summary', 'Second rename'),
+      );
+      expect(
+        (await database.select(database.calendarSources).getSingle()).summary,
+        'Second rename',
+      );
+
+      client.calendarPatchGate = null;
+      expect(await replayer().replayDueOps(), 1);
+
+      expect(client.calls, [
+        'updateCalendar:cal-1:First rename',
+        'updateCalendar:cal-1:Second rename',
+      ]);
+      expect(
+        await database.pendingOpsDao.pendingOpsForReplay('account', _later),
+        isEmpty,
+      );
+      expect(
+        (await database.select(database.calendarSources).getSingle()).summary,
+        'Second rename',
+      );
+    },
+  );
+
+  test(
     'personal Google calendar patch updates the CalendarList entry',
     () async {
       await database.pendingOpsDao.enqueue(
@@ -1569,6 +1625,63 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'calendar color edited in flight remains queued and is replayed',
+    () async {
+      final repository = CalendarRepository(database: database);
+      const sourceId = 'account|google|cal-1';
+      final firstColor = googleCalendarColorChoices[0];
+      final secondColor = googleCalendarColorChoices[1];
+      await repository.setSourceColor(sourceId, firstColor);
+      final patchGate = Completer<void>();
+      client.calendarPatchGate = patchGate;
+
+      CalendarPendingOpsReplayer replayer() => CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      );
+
+      final firstReplay = replayer().replayDueOps();
+      await _waitFor(() => client.calendarMutations.length == 1);
+
+      await repository.setSourceColor(sourceId, secondColor);
+      patchGate.complete();
+
+      expect(await firstReplay, 1);
+      final pendingAfterFirst = await database.pendingOpsDao
+          .pendingOpsForReplay('account', _later);
+      expect(pendingAfterFirst, hasLength(1));
+      expect(
+        jsonDecode(pendingAfterFirst.single.requestJson),
+        containsPair('backgroundColor', secondColor.backgroundColor),
+      );
+      expect(
+        (await database.select(database.calendarSources).getSingle())
+            .backgroundColor,
+        secondColor.backgroundColor,
+      );
+
+      client.calendarPatchGate = null;
+      expect(await replayer().replayDueOps(), 1);
+
+      expect(
+        client.calendarMutations.map((mutation) => mutation.backgroundColor),
+        [firstColor.backgroundColor, secondColor.backgroundColor],
+      );
+      expect(
+        await database.pendingOpsDao.pendingOpsForReplay('account', _later),
+        isEmpty,
+      );
+      expect(
+        (await database.select(database.calendarSources).getSingle())
+            .backgroundColor,
+        secondColor.backgroundColor,
+      );
+    },
+  );
 
   test(
     'Google calendar delete rejected with 403 restores the source',
@@ -2099,6 +2212,7 @@ class _FakeCalendarClient
   final calls = <String>[];
   final createdMutations = <CalendarEventMutation>[];
   final updatedMutations = <CalendarEventMutation>[];
+  final calendarMutations = <CalendarMutation>[];
   final guestUpdatePolicies = <CalendarGuestUpdatePolicy>[];
   final invitationResponses = <CalendarInvitationResponse>[];
   int _createdCount = 0;
@@ -2112,6 +2226,7 @@ class _FakeCalendarClient
   Object? calendarDeleteError;
   GoogleCalendarApiError? calendarListDeleteError;
   Completer<void>? createEventGate;
+  Completer<void>? calendarPatchGate;
 
   @override
   BusyProvider get provider => BusyProvider.google;
@@ -2364,6 +2479,8 @@ class _FakeCalendarClient
     CalendarMutation mutation,
   ) async {
     calls.add('updateCalendar:$calendarId:${mutation.summary}');
+    calendarMutations.add(mutation);
+    await calendarPatchGate?.future;
     return CalendarSourceDto(
       provider: BusyProvider.google,
       providerCalendarId: calendarId,
@@ -2378,6 +2495,8 @@ class _FakeCalendarClient
     CalendarMutation mutation,
   ) async {
     calls.add('updateCalendarListEntry:$calendarId:${mutation.summary}');
+    calendarMutations.add(mutation);
+    await calendarPatchGate?.future;
     return CalendarSourceDto(
       provider: BusyProvider.google,
       providerCalendarId: calendarId,

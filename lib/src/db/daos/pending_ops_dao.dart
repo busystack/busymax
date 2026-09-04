@@ -31,6 +31,20 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
     return query.go();
   }
 
+  /// Deletes [snapshot] only when the queued payload still matches the
+  /// revision that a replayer actually sent.
+  Future<bool> deleteOpIfUnchanged(PendingOp snapshot) async {
+    final query = delete(pendingOps)
+      ..where(
+        (row) =>
+            row.id.equals(snapshot.id) &
+            row.requestJson.equals(snapshot.requestJson) &
+            row.updatedAtUtc.equals(snapshot.updatedAtUtc) &
+            row.attemptCount.equals(snapshot.attemptCount),
+      );
+    return await query.go() == 1;
+  }
+
   Future<PendingOp?> getOp(String id) {
     final query = select(pendingOps)..where((row) => row.id.equals(id));
     return query.getSingleOrNull();
@@ -76,5 +90,34 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
         updatedAtUtc: Value(DateTime.now().toUtc().toIso8601String()),
       ),
     );
+  }
+
+  /// Records a failed attempt only if the queued payload has not been edited
+  /// since [snapshot] was read by the replayer.
+  Future<bool> updateAttemptIfUnchanged({
+    required PendingOp snapshot,
+    required int attemptCount,
+    required DateTime nextAttemptAtUtc,
+    String? lastErrorCode,
+    String? lastErrorMessage,
+  }) async {
+    final query = update(pendingOps)
+      ..where(
+        (row) =>
+            row.id.equals(snapshot.id) &
+            row.requestJson.equals(snapshot.requestJson) &
+            row.updatedAtUtc.equals(snapshot.updatedAtUtc) &
+            row.attemptCount.equals(snapshot.attemptCount),
+      );
+    final updated = await query.write(
+      PendingOpsCompanion(
+        attemptCount: Value(attemptCount),
+        nextAttemptAtUtc: Value(nextAttemptAtUtc.toIso8601String()),
+        lastErrorCode: Value(lastErrorCode),
+        lastErrorMessage: Value(lastErrorMessage),
+        updatedAtUtc: Value(DateTime.now().toUtc().toIso8601String()),
+      ),
+    );
+    return updated == 1;
   }
 }
