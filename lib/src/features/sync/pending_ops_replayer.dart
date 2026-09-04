@@ -8,6 +8,7 @@ import '../tasks/domain/task_remote_client.dart';
 import '../tasks/domain/task_remote_error.dart';
 import '../tasks/domain/task_remote_models.dart';
 import 'conflict_detector.dart';
+import 'pending_ops_replay_coordinator.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
 import '../tasks/domain/task_checklist_item.dart';
@@ -34,7 +35,15 @@ class PendingOpsReplayer {
   final Random _random;
   final DateTime Function() _nowUtc;
 
-  Future<int> replayDueOps() async {
+  Future<int> replayDueOps() {
+    return serializePendingOpsReplay(
+      database: _database,
+      accountId: _accountId,
+      replay: _replayDueOps,
+    );
+  }
+
+  Future<int> _replayDueOps() async {
     final ops = await _database.pendingOpsDao.pendingOpsForReplay(
       _accountId,
       _nowUtc(),

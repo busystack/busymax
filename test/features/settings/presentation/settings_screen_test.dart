@@ -1020,7 +1020,6 @@ ProviderContainer _container({
       if (activeAccountIdOverride != _useDefaultActiveAccountId)
         activeAccountProvider.overrideWithValue(activeAccountIdOverride),
       localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
-      syncEngineProvider.overrideWithValue(null),
       buildConfigProvider.overrideWithValue(buildConfig),
       if (useFlutterHeader)
         linuxHeaderBarServiceProvider.overrideWith((ref) {

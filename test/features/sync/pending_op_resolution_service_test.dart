@@ -9,7 +9,6 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
-import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
@@ -18,20 +17,20 @@ import 'package:busymax/src/providers/busy_provider.dart';
 void main() {
   late AppDatabase database;
   late _FakeTaskRemoteClient apiClient;
-  late _FakeSyncEngine syncEngine;
   late PendingOpResolutionService service;
+  late int taskSyncCalls;
   late int calendarSyncCalls;
 
   setUp(() async {
     database = AppDatabase(NativeDatabase.memory());
     apiClient = _FakeTaskRemoteClient();
-    syncEngine = _FakeSyncEngine();
+    taskSyncCalls = 0;
     calendarSyncCalls = 0;
     service = PendingOpResolutionService(
       database: database,
       apiClient: apiClient,
       accountId: 'account',
-      syncEngine: syncEngine,
+      syncTasks: () async => taskSyncCalls += 1,
       syncCalendar: () async => calendarSyncCalls += 1,
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
@@ -69,7 +68,7 @@ void main() {
       expect(task.pendingDelete, isFalse);
       expect(task.pendingMove, isFalse);
       expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
-      expect(syncEngine.incrementalSyncCalls, 1);
+      expect(taskSyncCalls, 1);
     },
   );
 
@@ -97,7 +96,7 @@ void main() {
       expect(task.localDirty, isFalse);
       expect(task.pendingDelete, isFalse);
       expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
-      expect(syncEngine.incrementalSyncCalls, 1);
+      expect(taskSyncCalls, 1);
     },
   );
 
@@ -122,7 +121,7 @@ void main() {
 
       expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
       expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
-      expect(syncEngine.incrementalSyncCalls, 1);
+      expect(taskSyncCalls, 1);
     },
   );
 
@@ -149,7 +148,7 @@ void main() {
       expect(list.localDirty, isFalse);
       expect(list.pendingDelete, isFalse);
       expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
-      expect(syncEngine.incrementalSyncCalls, 1);
+      expect(taskSyncCalls, 1);
     },
   );
 
@@ -179,7 +178,7 @@ void main() {
 
       expect(await database.taskListsDao.listTaskLists('account'), isEmpty);
       expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
-      expect(syncEngine.incrementalSyncCalls, 1);
+      expect(taskSyncCalls, 1);
     },
   );
 
@@ -211,7 +210,7 @@ void main() {
       )).single;
       expect(task.localDirty, isTrue);
       expect(await database.pendingOpsDao.getOp('op-1'), isNot(equals(null)));
-      expect(syncEngine.incrementalSyncCalls, 0);
+      expect(taskSyncCalls, 0);
     },
   );
 
@@ -242,7 +241,7 @@ void main() {
       )).single;
       expect(list.localDirty, isTrue);
       expect(await database.pendingOpsDao.getOp('op-1'), isNot(equals(null)));
-      expect(syncEngine.incrementalSyncCalls, 0);
+      expect(taskSyncCalls, 0);
     },
   );
 
@@ -282,7 +281,7 @@ void main() {
       expect(sourceTasks.single.pendingMove, isFalse);
       expect(destinationTasks, isEmpty);
       expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
-      expect(syncEngine.incrementalSyncCalls, 1);
+      expect(taskSyncCalls, 1);
     },
   );
 
@@ -318,7 +317,7 @@ void main() {
       expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
       expect(await database.tasksDao.listTasks('account', 'list-2'), isEmpty);
       expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
-      expect(syncEngine.incrementalSyncCalls, 1);
+      expect(taskSyncCalls, 1);
     },
   );
 
@@ -345,7 +344,7 @@ void main() {
     expect(task.localDirty, isFalse);
     expect(task.pendingMove, isFalse);
     expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
-    expect(syncEngine.incrementalSyncCalls, 1);
+    expect(taskSyncCalls, 1);
   });
 
   test('discard blocked calendar removal restores the source', () async {
@@ -380,7 +379,7 @@ void main() {
     expect(source.hidden, isFalse);
     expect(await database.pendingOpsDao.getOp('op-1'), equals(null));
     expect(calendarSyncCalls, 1);
-    expect(syncEngine.incrementalSyncCalls, 0);
+    expect(taskSyncCalls, 0);
   });
 
   test(
@@ -400,7 +399,7 @@ void main() {
       expect(await database.select(database.calendarEvents).get(), isEmpty);
       expect(await database.select(database.pendingOps).get(), isEmpty);
       expect(calendarSyncCalls, 0);
-      expect(syncEngine.incrementalSyncCalls, 0);
+      expect(taskSyncCalls, 0);
       expect(sourceId, isNotEmpty);
     },
   );
@@ -441,7 +440,7 @@ void main() {
       expect(await database.select(database.calendarEvents).get(), isEmpty);
       expect(await database.select(database.pendingOps).get(), isEmpty);
       expect(calendarSyncCalls, 0);
-      expect(syncEngine.incrementalSyncCalls, 0);
+      expect(taskSyncCalls, 0);
     },
   );
 
@@ -468,8 +467,58 @@ void main() {
     expect(source.summary, 'Provider name');
     expect(await database.select(database.pendingOps).get(), isEmpty);
     expect(calendarSyncCalls, 1);
-    expect(syncEngine.incrementalSyncCalls, 0);
+    expect(taskSyncCalls, 0);
   });
+
+  test(
+    'retry routes task synchronization through the shared callback',
+    () async {
+      var taskSyncCalls = 0;
+      final coordinatedService = PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async => taskSyncCalls += 1,
+        syncCalendar: () async => calendarSyncCalls += 1,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await _enqueueBlockedOp(
+        database,
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+      );
+
+      await coordinatedService.retryNow('op-1');
+
+      expect(taskSyncCalls, 1);
+      expect(calendarSyncCalls, 0);
+    },
+  );
+
+  test(
+    'retry routes event synchronization through the calendar callback',
+    () async {
+      var taskSyncCalls = 0;
+      final coordinatedService = PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async => taskSyncCalls += 1,
+        syncCalendar: () async => calendarSyncCalls += 1,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await _enqueueBlockedOp(
+        database,
+        entityType: 'event',
+        operation: 'patch',
+        operationType: 'event.patch',
+      );
+
+      await coordinatedService.retryNow('op-1');
+
+      expect(calendarSyncCalls, 1);
+      expect(taskSyncCalls, 0);
+    },
+  );
 }
 
 class _FakeTaskRemoteClient implements TaskRemoteClient {
@@ -501,18 +550,6 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeSyncEngine implements SyncEngine {
-  var incrementalSyncCalls = 0;
-
-  @override
-  Future<void> fullSync() async {}
-
-  @override
-  Future<void> incrementalSync() async {
-    incrementalSyncCalls += 1;
-  }
 }
 
 Future<void> _insertAccount(AppDatabase database) {

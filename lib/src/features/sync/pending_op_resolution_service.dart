@@ -6,27 +6,26 @@ import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
 import '../tasks/domain/task_remote_client.dart';
 import '../tasks/domain/task_remote_error.dart';
-import 'sync_engine.dart';
 
 class PendingOpResolutionService {
   PendingOpResolutionService({
     required AppDatabase database,
     TaskRemoteClient? apiClient,
     required String accountId,
-    SyncEngine? syncEngine,
+    required Future<void> Function() syncTasks,
     Future<void> Function()? syncCalendar,
     DateTime Function()? nowUtc,
   }) : _database = database,
        _apiClient = apiClient,
        _accountId = accountId,
-       _syncEngine = syncEngine,
+       _syncTasks = syncTasks,
        _syncCalendar = syncCalendar,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
   final TaskRemoteClient? _apiClient;
   final String _accountId;
-  final SyncEngine? _syncEngine;
+  final Future<void> Function() _syncTasks;
   final Future<void> Function()? _syncCalendar;
   final DateTime Function() _nowUtc;
 
@@ -84,20 +83,14 @@ class PendingOpResolutionService {
   }
 
   Future<void> _syncAfterResolution(PendingOp op) async {
-    if (op.entityType == 'calendar') {
+    if (op.entityType == 'calendar' || op.entityType == 'event') {
       final syncCalendar = _syncCalendar;
       if (syncCalendar != null) {
         await syncCalendar();
         return;
       }
     }
-    final syncEngine = _syncEngine;
-    if (syncEngine == null) {
-      throw StateError(
-        'No synchronization path is available for this operation.',
-      );
-    }
-    await syncEngine.incrementalSync();
+    await _syncTasks();
   }
 
   TaskRemoteClient get _requiredTaskClient {

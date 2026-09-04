@@ -16,6 +16,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../recurrence/domain/event_recurrence_codec.dart';
 import '../recurrence/domain/recurrence_rule.dart';
+import 'pending_ops_replay_coordinator.dart';
 
 class CalendarPendingOpsReplayer {
   CalendarPendingOpsReplayer({
@@ -41,7 +42,15 @@ class CalendarPendingOpsReplayer {
   final Random _random;
   final CalendarRepository _repository;
 
-  Future<int> replayDueOps() async {
+  Future<int> replayDueOps() {
+    return serializePendingOpsReplay(
+      database: _database,
+      accountId: _accountId,
+      replay: _replayDueOps,
+    );
+  }
+
+  Future<int> _replayDueOps() async {
     final dueOps = await _database.pendingOpsDao.pendingOpsForReplay(
       _accountId,
       _nowUtc(),

@@ -572,6 +572,10 @@ final davAccountSyncEngineFactoryProvider =
       );
     });
 
+final accountSyncCoordinatorProvider = Provider<AccountSyncCoordinator>((ref) {
+  return AccountSyncCoordinator();
+});
+
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
   final connectivity = ref.watch(networkConnectivityMonitorProvider);
@@ -619,9 +623,12 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
       }
     },
   );
-  return ConnectivityAwareAccountSyncOperations(
-    inner: routing,
-    requireNetwork: connectivity.requireNetwork,
+  return CoordinatedAccountSyncOperations(
+    coordinator: ref.watch(accountSyncCoordinatorProvider),
+    inner: ConnectivityAwareAccountSyncOperations(
+      inner: routing,
+      requireNetwork: connectivity.requireNetwork,
+    ),
   );
 });
 
@@ -858,24 +865,6 @@ final tasksRepositoryForAccountProvider =
       );
     });
 
-final Provider<SyncEngine?> syncEngineProvider = Provider<SyncEngine?>((ref) {
-  final accountId = ref.watch(activeAccountProvider);
-  final apiClient = ref.watch(googleTasksApiClientProvider);
-  final account = ref.watch(selectedAccountProvider);
-  if (accountId == null || apiClient == null || account?.id != accountId) {
-    return null;
-  }
-  return SyncEngine(
-    database: ref.watch(databaseProvider),
-    apiClient: apiClient,
-    accountId: accountId,
-    fullRefreshOnly: account!.provider == BusyProvider.microsoft,
-    onConflictBlocked: ref
-        .watch(desktopNotificationServiceProvider)
-        .notifyConflict,
-  );
-});
-
 final pendingMutationSyncRequesterProvider =
     Provider<PendingMutationSyncRequester?>((ref) {
       final accountId = ref.watch(activeAccountProvider);
@@ -942,7 +931,9 @@ final pendingOpResolutionServiceProvider =
         database: ref.watch(databaseProvider),
         apiClient: ref.watch(googleTasksApiClientProvider),
         accountId: accountId,
-        syncEngine: ref.watch(syncEngineProvider),
+        syncTasks: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncTasks(accountId, full: false),
         syncCalendar: () => ref
             .read(accountSyncOperationsProvider)
             .syncCalendar(accountId, full: false),

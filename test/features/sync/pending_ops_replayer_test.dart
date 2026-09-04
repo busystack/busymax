@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -152,6 +153,44 @@ void main() {
     final lists = await database.taskListsDao.listTaskLists('account');
     expect(lists.map((list) => list.id), contains('list-server'));
     expect(lists.map((list) => list.id), isNot(contains('local-tasklist-1')));
+  });
+
+  test('concurrent replayers dispatch a queued task create once', () async {
+    await database.tasksDao.upsertTask(
+      _task('list-1', 'local-task-1', title: 'Draft'),
+    );
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'create_task',
+      taskListId: 'list-1',
+      taskId: 'local-task-1',
+      localTempId: 'local-task-1',
+      request: {
+        'body': {'title': 'Draft'},
+      },
+    );
+    final createGate = Completer<void>();
+    apiClient.createTaskGate = createGate;
+
+    PendingOpsReplayer replayer() => PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+
+    final first = replayer().replayDueOps();
+    await _waitFor(() => apiClient.calls.length == 1);
+    final second = replayer().replayDueOps();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(apiClient.calls, ['create_task:list-1']);
+
+    createGate.complete();
+    expect(await first, 1);
+    expect(await second, 0);
+    expect(apiClient.calls, ['create_task:list-1']);
   });
 
   test(
@@ -1157,6 +1196,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   GoogleTasksApiError? moveTaskError;
   TaskListDto? remoteTaskList;
   TaskDto? remoteTask;
+  Completer<void>? createTaskGate;
   bool persistTaskPatches = false;
   int _taskPatchRevision = 0;
   TasksPageDto remoteTasksPage = const TasksPageDto(items: [], rawJson: {});
@@ -1206,6 +1246,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   }) async {
     calls.add('create_task:$taskListId');
     createParentTaskIds.add(parentTaskId);
+    await createTaskGate?.future;
     return _taskDto('task-server', title: create.fields['title'].toString());
   }
 
@@ -1511,6 +1552,15 @@ TaskDto _taskDto(
       if (parent != null) 'parent': parent,
     },
   );
+}
+
+Future<void> _waitFor(bool Function() condition) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 2));
+  while (DateTime.now().isBefore(deadline)) {
+    if (condition()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  fail('Timed out waiting for condition.');
 }
 
 const _now = '2026-06-04T00:00:00.000Z';

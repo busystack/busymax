@@ -717,7 +717,6 @@ Future<void> _pumpApp(
         signedInSyncRunnerProvider.overrideWithValue(
           onSignedIn ?? (accountId, initial) async {},
         ),
-        syncEngineProvider.overrideWithValue(null),
         linuxHeaderBarServiceProvider.overrideWith((ref) {
           final service = LinuxHeaderBarService(isLinux: false);
           ref.onDispose(service.dispose);

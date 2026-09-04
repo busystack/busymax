@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
@@ -75,6 +76,39 @@ void main() {
       expect(client.guestUpdatePolicies.single, CalendarGuestUpdatePolicy.send);
     },
   );
+
+  test('concurrent replayers dispatch a queued event create once', () async {
+    await CalendarRepository(database: database).createLocalEvent(
+      EventEditorDraft.newEvent(
+        accountId: 'account',
+        sourceId: 'account|google|cal-1',
+        providerCalendarId: 'cal-1',
+        start: DateTime.utc(2026, 6, 8, 9),
+        end: DateTime.utc(2026, 6, 8, 10),
+      ).copyWith(title: 'Planning'),
+    );
+    final createGate = Completer<void>();
+    client.createEventGate = createGate;
+
+    CalendarPendingOpsReplayer replayer() => CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 8),
+    );
+
+    final first = replayer().replayDueOps();
+    await _waitFor(() => client.calls.length == 1);
+    final second = replayer().replayDueOps();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(client.calls, ['createEvent:cal-1:Planning']);
+
+    createGate.complete();
+    expect(await first, 1);
+    expect(await second, 0);
+    expect(client.calls, ['createEvent:cal-1:Planning']);
+  });
 
   test('event replay preserves a do-not-send guest update choice', () async {
     await CalendarRepository(database: database).createLocalEvent(
@@ -2077,6 +2111,7 @@ class _FakeCalendarClient
   GoogleCalendarApiError? deleteError;
   Object? calendarDeleteError;
   GoogleCalendarApiError? calendarListDeleteError;
+  Completer<void>? createEventGate;
 
   @override
   BusyProvider get provider => BusyProvider.google;
@@ -2107,6 +2142,7 @@ class _FakeCalendarClient
     calls.add('createEvent:$calendarId:${mutation.title}');
     createdMutations.add(mutation);
     guestUpdatePolicies.add(guestUpdatePolicy);
+    await createEventGate?.future;
     _createdCount += 1;
     return _event(
       'server-event-$_createdCount',
@@ -2358,4 +2394,13 @@ class _FakeMicrosoftCalendarClient extends _FakeCalendarClient {
   @override
   CalendarProviderCapabilities get capabilities =>
       microsoftCalendarProviderCapabilities;
+}
+
+Future<void> _waitFor(bool Function() condition) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 2));
+  while (DateTime.now().isBefore(deadline)) {
+    if (condition()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  fail('Timed out waiting for condition.');
 }
