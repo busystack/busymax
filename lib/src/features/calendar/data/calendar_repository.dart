@@ -17,6 +17,8 @@ import '../../../dav/mutation/dav_pending_operations.dart';
 import '../../../dav/mutation/dav_projection_mutations.dart';
 import '../../../dav/storage/dav_object_repository.dart';
 import '../../../db/app_database.dart';
+import '../../../google_calendar/google_calendar_mapper.dart';
+import '../../../microsoft_calendar/microsoft_calendar_mapper.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
@@ -819,6 +821,183 @@ class CalendarRepository {
       op.accountId,
     );
     await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> discardPendingEventCreation(PendingOp op) async {
+    if (_calendarOperationType(op) != 'event.create') return;
+    final eventId = op.eventId;
+    if (eventId == null) return;
+    final accountOperations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(op.accountId))).get();
+    final discardedIds = <String>{op.id};
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final operation in accountOperations) {
+        if (discardedIds.contains(operation.id) ||
+            (operation.eventId != eventId &&
+                !discardedIds.contains(operation.dependsOnOpId))) {
+          continue;
+        }
+        discardedIds.add(operation.id);
+        changed = true;
+      }
+    }
+    final createdEventIds = {
+      for (final operation in accountOperations)
+        if (discardedIds.contains(operation.id) &&
+            _calendarOperationType(operation) == 'event.create' &&
+            operation.eventId != null)
+          operation.eventId!,
+    };
+    await _database.transaction(() async {
+      for (final operation in accountOperations) {
+        if (!discardedIds.contains(operation.id) ||
+            operation.entityType != 'event' ||
+            operation.eventId == null ||
+            createdEventIds.contains(operation.eventId)) {
+          continue;
+        }
+        await _restoreEventProjectionAfterDiscard(
+          operation,
+          ignoredOperationIds: discardedIds,
+        );
+      }
+      await (_database.delete(
+        _database.pendingOps,
+      )..where((row) => row.id.isIn(discardedIds))).go();
+      await (_database.delete(_database.calendarEvents)..where(
+            (row) =>
+                row.accountId.equals(op.accountId) &
+                row.id.isIn(createdEventIds),
+          ))
+          .go();
+    });
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      op.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> restoreEventAfterMutationDiscard(PendingOp op) async {
+    if (op.entityType != 'event' ||
+        _calendarOperationType(op) == 'event.create') {
+      return;
+    }
+    await _database.transaction(
+      () =>
+          _restoreEventProjectionAfterDiscard(op, ignoredOperationIds: {op.id}),
+    );
+    await _notificationScheduleService().rebuildUpcomingEventNotifications(
+      op.accountId,
+    );
+    await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> _restoreEventProjectionAfterDiscard(
+    PendingOp op, {
+    required Set<String> ignoredOperationIds,
+  }) async {
+    final eventId = op.eventId;
+    if (eventId == null) return;
+    final target = await (_database.select(
+      _database.calendarEvents,
+    )..where((row) => row.id.equals(eventId))).getSingleOrNull();
+    if (target == null) return;
+    final request = _jsonMap(op.requestJson);
+    final seriesProviderEventId = request[calendarEventTargetProviderIdKey]
+        ?.toString();
+    final affectedEvents = seriesProviderEventId == null
+        ? [target]
+        : await (_database.select(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(target.accountId) &
+                    row.provider.equals(target.provider) &
+                    row.providerCalendarId.equals(target.providerCalendarId) &
+                    (row.id.equals(target.id) |
+                        row.providerEventId.equals(seriesProviderEventId) |
+                        row.providerRecurringEventId.equals(
+                          seriesProviderEventId,
+                        )),
+              ))
+              .get();
+    final affectedIds = {for (final event in affectedEvents) event.id};
+    final remainingOperations =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(op.accountId) &
+                  row.entityType.equals('event') &
+                  row.id.isNotIn(ignoredOperationIds) &
+                  row.eventId.isIn(affectedIds),
+            ))
+            .get();
+    if (remainingOperations.isNotEmpty) return;
+
+    for (final event in affectedEvents) {
+      final operationBaseline = event.id == eventId
+          ? _jsonMap(op.baselineRawJson)
+          : const <String, Object?>{};
+      final baseline = operationBaseline.isNotEmpty
+          ? operationBaseline
+          : _jsonMap(event.baselineRawJson);
+      if (baseline.isEmpty) {
+        throw StateError('The event recovery baseline is unavailable.');
+      }
+      final provider = BusyProviderCodec.requireStorageValue(event.provider);
+      baseline.putIfAbsent('id', () => event.providerEventId);
+      switch (provider) {
+        case BusyProvider.google:
+          if (event.providerRecurringEventId case final recurringId?) {
+            baseline.putIfAbsent('recurringEventId', () => recurringId);
+          }
+          if (event.providerOriginalStartKey case final originalStart?) {
+            baseline.putIfAbsent(
+              'originalStartTime',
+              () => originalStart.length == 10
+                  ? {'date': originalStart}
+                  : {'dateTime': originalStart},
+            );
+          }
+        case BusyProvider.microsoft:
+          if (event.providerRecurringEventId case final recurringId?) {
+            baseline.putIfAbsent('seriesMasterId', () => recurringId);
+          }
+          if (event.providerOriginalStartKey case final originalStart?) {
+            baseline.putIfAbsent('originalStart', () => originalStart);
+          }
+        case BusyProvider.appleICloud ||
+            BusyProvider.nextcloud ||
+            BusyProvider.webCal:
+          break;
+      }
+      final restored = switch (provider) {
+        BusyProvider.google => googleCalendarEventFromJson(
+          event.providerCalendarId,
+          baseline,
+        ),
+        BusyProvider.microsoft => microsoftCalendarEventFromJson(
+          event.providerCalendarId,
+          baseline,
+        ),
+        BusyProvider.appleICloud ||
+        BusyProvider.nextcloud ||
+        BusyProvider.webCal => throw StateError(
+          'Provider event recovery is unavailable for ${provider.storageValue}.',
+        ),
+      };
+      final restoredId = CalendarRepository.eventId(
+        accountId: event.accountId,
+        provider: provider,
+        providerCalendarId: restored.providerCalendarId,
+        providerEventId: restored.providerEventId,
+        providerOriginalStartKey: restored.providerOriginalStartKey,
+      );
+      if (restoredId != event.id) {
+        throw StateError('The event recovery baseline identity changed.');
+      }
+      await upsertEvent(accountId: event.accountId, event: restored);
+    }
   }
 
   Future<void> restoreSourceAfterPatchDiscard(PendingOp op) async {

@@ -13,7 +13,7 @@ class PendingOpResolutionService {
     TaskRemoteClient? apiClient,
     required String accountId,
     required Future<void> Function() syncTasks,
-    Future<void> Function()? syncCalendar,
+    required Future<void> Function() syncCalendar,
     DateTime Function()? nowUtc,
   }) : _database = database,
        _apiClient = apiClient,
@@ -26,7 +26,7 @@ class PendingOpResolutionService {
   final TaskRemoteClient? _apiClient;
   final String _accountId;
   final Future<void> Function() _syncTasks;
-  final Future<void> Function()? _syncCalendar;
+  final Future<void> Function() _syncCalendar;
   final DateTime Function() _nowUtc;
 
   Future<void> retryNow(String opId) async {
@@ -66,6 +66,16 @@ class PendingOpResolutionService {
       return false;
     }
 
+    if (op.entityType == 'event') {
+      final repository = CalendarRepository(database: _database, now: _nowUtc);
+      if (_operationType(op) == 'event.create') {
+        await repository.discardPendingEventCreation(op);
+        return false;
+      }
+      await repository.restoreEventAfterMutationDiscard(op);
+      return true;
+    }
+
     if (op.entityType == 'task' && op.taskListId != null && op.taskId != null) {
       if (op.operation == 'move_task') {
         await _refreshOrRemoveMovedTask(op);
@@ -84,11 +94,8 @@ class PendingOpResolutionService {
 
   Future<void> _syncAfterResolution(PendingOp op) async {
     if (op.entityType == 'calendar' || op.entityType == 'event') {
-      final syncCalendar = _syncCalendar;
-      if (syncCalendar != null) {
-        await syncCalendar();
-        return;
-      }
+      await _syncCalendar();
+      return;
     }
     await _syncTasks();
   }

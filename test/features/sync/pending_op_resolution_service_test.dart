@@ -470,6 +470,94 @@ void main() {
     expect(taskSyncCalls, 0);
   });
 
+  test('discard blocked event creation removes its local projection', () async {
+    final repository = _calendarRepository(database);
+    await repository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar@example.com',
+        summary: 'Calendar',
+      ),
+    );
+    final sourceId = CalendarRepository.sourceId(
+      accountId: 'account',
+      provider: BusyProvider.google,
+      providerCalendarId: 'calendar@example.com',
+    );
+    final operationId = await repository.createLocalEvent(
+      EventEditorDraft.newEvent(
+        accountId: 'account',
+        sourceId: sourceId,
+        providerCalendarId: 'calendar@example.com',
+        start: DateTime.utc(2026, 6, 5, 9),
+        end: DateTime.utc(2026, 6, 5, 10),
+      ).copyWith(title: 'Unsent event'),
+    );
+    await _blockOperation(database, operationId);
+
+    await service.discard(operationId);
+
+    expect(await database.select(database.calendarEvents).get(), isEmpty);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(calendarSyncCalls, 0);
+    expect(taskSyncCalls, 0);
+  });
+
+  test('discard blocked event patch restores its provider baseline', () async {
+    final repository = _calendarRepository(database);
+    await repository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar@example.com',
+        summary: 'Calendar',
+      ),
+    );
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar@example.com',
+        providerEventId: 'event-1',
+        title: 'Provider title',
+        startDateTime: '2026-06-05T09:00:00.000Z',
+        startTimeZone: 'UTC',
+        endDateTime: '2026-06-05T10:00:00.000Z',
+        endTimeZone: 'UTC',
+        organizerJson: {'self': true},
+        updatedAtServer: '2026-06-04T00:00:00.000Z',
+        rawJson: {
+          'id': 'event-1',
+          'summary': 'Provider title',
+          'start': {'dateTime': '2026-06-05T09:00:00.000Z', 'timeZone': 'UTC'},
+          'end': {'dateTime': '2026-06-05T10:00:00.000Z', 'timeZone': 'UTC'},
+          'organizer': {'self': true},
+          'updated': '2026-06-04T00:00:00.000Z',
+        },
+      ),
+    );
+    final event = await database.select(database.calendarEvents).getSingle();
+    final detail = await repository.loadEventDetail(event.id);
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(
+        detail!,
+      ).copyWith(title: 'Optimistic title'),
+    );
+    final operation = await database.select(database.pendingOps).getSingle();
+    await _blockOperation(database, operation.id);
+
+    await service.discard(operation.id);
+
+    final restored = await database.select(database.calendarEvents).getSingle();
+    expect(restored.title, 'Provider title');
+    expect(restored.syncStatus, 'synced');
+    expect(restored.isDeleted, isFalse);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(calendarSyncCalls, 1);
+    expect(taskSyncCalls, 0);
+  });
+
   test(
     'retry routes task synchronization through the shared callback',
     () async {
