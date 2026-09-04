@@ -28,6 +28,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/connectivity/network_connectivity_service.dart';
 import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
+import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/notification_scheduler.dart';
 import '../features/sync/account_sync_operations.dart';
 import '../features/sync/all_accounts_sync_scheduler.dart';
@@ -564,8 +565,12 @@ final davAccountSyncEngineFactoryProvider =
         secretStore: ref.read(secretStoreProvider),
         httpClient: ref.read(baseHttpClientProvider),
         accountId: accountId,
-        rebuildNotifications: (accountId, affectedObjectIds) =>
-            ref.read(notificationSchedulerProvider).checkNow(),
+        rebuildNotifications: (accountId, _) async {
+          await NotificationScheduleService(
+            database: ref.read(databaseProvider),
+          ).rebuildUpcomingNotifications(accountId);
+          await ref.read(notificationSchedulerProvider).checkNow();
+        },
         reportPendingMutationFailure: (accountId, error) => ref
             .read(desktopNotificationServiceProvider)
             .notifySyncFailure(error),
