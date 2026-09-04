@@ -70,6 +70,7 @@ class CalendarEventMutation {
     this.hideAttendees,
     this.allowNewTimeProposals,
     this.providerEventId,
+    this.transactionId,
     this.providerRaw,
   });
 
@@ -101,5 +102,6 @@ class CalendarEventMutation {
   final bool? hideAttendees;
   final bool? allowNewTimeProposals;
   final String? providerEventId;
+  final String? transactionId;
   final Map<String, Object?>? providerRaw;
 }

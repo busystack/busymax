@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
+import 'package:busymax/src/calendar_providers/calendar_create_identity.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -385,6 +386,10 @@ void main() {
         request[calendarEventGuestUpdatePolicyKey],
         CalendarGuestUpdatePolicy.doNotSend.name,
       );
+      expect(
+        request[calendarEventGoogleCreateIdKey],
+        googleCalendarCreateEventId(operation.id),
+      );
       expect(createRequest['requestId'], isNotEmpty);
       expect(createRequest['conferenceSolutionKey'], {'type': 'hangoutsMeet'});
       expect(jsonDecode(event.conferenceJson!), conference);
@@ -419,6 +424,8 @@ void main() {
     );
 
     final event = await database.select(database.calendarEvents).getSingle();
+    final operation = await database.select(database.pendingOps).getSingle();
+    final request = jsonDecode(operation.requestJson) as Map<String, Object?>;
     expect(jsonDecode(event.rawJson!), {
       'importance': 'high',
       'responseRequested': false,
@@ -426,6 +433,10 @@ void main() {
       'allowNewTimeProposals': false,
       'isOrganizer': true,
     });
+    expect(
+      request[calendarEventMicrosoftTransactionIdKey],
+      microsoftCalendarCreateTransactionId(operation.id),
+    );
   });
 
   test(

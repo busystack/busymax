@@ -3,8 +3,9 @@ import 'dart:math';
 
 import 'package:drift/drift.dart';
 
-import '../../calendar_providers/calendar_mutation.dart';
+import '../../calendar_providers/calendar_create_identity.dart';
 import '../../calendar_providers/calendar_description.dart';
+import '../../calendar_providers/calendar_mutation.dart';
 import '../../calendar_providers/calendar_sync_dto.dart';
 import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../core/time/provider_date_time.dart';
@@ -342,16 +343,61 @@ class CalendarPendingOpsReplayer {
 
   Future<void> _createEvent(PendingOp op) async {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
-    final request = _request(op);
-    final event = await _client.createEvent(
-      calendarId: providerCalendarId,
-      mutation: _eventMutation(
-        request,
-        fallbackTimeZone: await _fallbackTimeZone(op),
-      ),
-      guestUpdatePolicy: _guestUpdatePolicy(request),
-    );
+    final request = await _eventCreateRequest(op);
+    final googleEventId = _client.provider == BusyProvider.google
+        ? request[calendarEventGoogleCreateIdKey]?.toString()
+        : null;
+    late final CalendarEventDto event;
+    try {
+      event = await _client.createEvent(
+        calendarId: providerCalendarId,
+        mutation: _eventMutation(
+          request,
+          fallbackTimeZone: await _fallbackTimeZone(op),
+          providerEventId: googleEventId,
+          transactionId: request[calendarEventMicrosoftTransactionIdKey]
+              ?.toString(),
+        ),
+        guestUpdatePolicy: _guestUpdatePolicy(request),
+      );
+    } on GoogleCalendarApiError catch (error) {
+      if (_client.provider != BusyProvider.google ||
+          googleEventId == null ||
+          error.statusCode != 409) {
+        rethrow;
+      }
+      event = await _client.getEvent(
+        calendarId: providerCalendarId,
+        eventId: googleEventId,
+      );
+    }
     await _replaceLocalEvent(op, event);
+  }
+
+  Future<Map<String, Object?>> _eventCreateRequest(PendingOp op) async {
+    final request = _request(op);
+    final identity = switch (_client.provider) {
+      BusyProvider.google => (
+        key: calendarEventGoogleCreateIdKey,
+        value: googleCalendarCreateEventId(op.id),
+      ),
+      BusyProvider.microsoft => (
+        key: calendarEventMicrosoftTransactionIdKey,
+        value: microsoftCalendarCreateTransactionId(op.id),
+      ),
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
+    };
+    if (identity == null ||
+        request[identity.key]?.toString().trim().isNotEmpty == true) {
+      return request;
+    }
+    request[identity.key] = identity.value;
+    await (_database.update(_database.pendingOps)
+          ..where((row) => row.id.equals(op.id)))
+        .write(PendingOpsCompanion(requestJson: Value(jsonEncode(request))));
+    return request;
   }
 
   Future<void> _patchEvent(PendingOp op) async {
@@ -1288,6 +1334,7 @@ class CalendarPendingOpsReplayer {
     Map<String, Object?> request, {
     String? fallbackTimeZone,
     String? providerEventId,
+    String? transactionId,
     Map<String, Object?>? providerRaw,
   }) {
     final clearFields = _eventClearFields(request);
@@ -1338,6 +1385,7 @@ class CalendarPendingOpsReplayer {
       hideAttendees: request['hideAttendees'] as bool?,
       allowNewTimeProposals: request['allowNewTimeProposals'] as bool?,
       providerEventId: providerEventId,
+      transactionId: transactionId,
       providerRaw: providerRaw,
     );
   }

@@ -4,8 +4,9 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_colors.dart';
+import '../../../calendar_providers/calendar_create_identity.dart';
+import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../calendar_providers/calendar_sync_dto.dart';
 import '../../../core/time/provider_date_time.dart';
@@ -1114,17 +1115,29 @@ class CalendarRepository {
       providerCalendarId: draft.providerCalendarId,
       providerEventId: localEventId,
     );
-    final requestJson = jsonEncode(
-      _eventRequest(
-        draft,
-        provider,
-        isCreate: true,
-        startTimeZone: startTimeZone,
-        endTimeZone: endTimeZone,
-        conference: conferenceRequest,
-        guestUpdatePolicy: guestUpdatePolicy,
-      ),
+    final request = _eventRequest(
+      draft,
+      provider,
+      isCreate: true,
+      startTimeZone: startTimeZone,
+      endTimeZone: endTimeZone,
+      conference: conferenceRequest,
+      guestUpdatePolicy: guestUpdatePolicy,
     );
+    switch (provider) {
+      case BusyProvider.google:
+        request[calendarEventGoogleCreateIdKey] = googleCalendarCreateEventId(
+          operationId,
+        );
+      case BusyProvider.microsoft:
+        request[calendarEventMicrosoftTransactionIdKey] =
+            microsoftCalendarCreateTransactionId(operationId);
+      case BusyProvider.appleICloud:
+      case BusyProvider.nextcloud:
+      case BusyProvider.webCal:
+        break;
+    }
+    final requestJson = jsonEncode(request);
     await _database.transaction(() async {
       await _database
           .into(_database.calendarEvents)

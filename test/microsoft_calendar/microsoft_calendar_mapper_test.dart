@@ -148,4 +148,12 @@ void main() {
     expect(body['isOnlineMeeting'], isTrue);
     expect(body['onlineMeetingProvider'], 'teamsForBusiness');
   });
+
+  test('Microsoft event create serializes the transaction ID', () {
+    final body = microsoftEventMutationToJson(
+      const CalendarEventMutation(transactionId: 'transaction-1'),
+    );
+
+    expect(body['transactionId'], 'transaction-1');
+  });
 }

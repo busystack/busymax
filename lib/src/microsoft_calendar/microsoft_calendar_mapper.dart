@@ -121,6 +121,7 @@ Map<String, Object?> microsoftEventMutationToJson(
     'responseRequested': mutation.responseRequested,
     'hideAttendees': mutation.hideAttendees,
     'allowNewTimeProposals': mutation.allowNewTimeProposals,
+    'transactionId': mutation.transactionId,
     if (mutation.reminders is Map) ..._reminderPatch(mutation.reminders!),
     if (_onlineMeetingProvider(mutation.conference) != null) ...{
       'isOnlineMeeting': true,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
+import 'package:busymax/src/calendar_providers/calendar_create_identity.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_provider_capabilities.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
@@ -69,7 +70,10 @@ void main() {
         isEmpty,
       );
       final rows = await database.select(database.calendarEvents).get();
-      expect(rows.single.providerEventId, 'server-event-1');
+      expect(
+        rows.single.providerEventId,
+        client.createdMutations.single.providerEventId,
+      );
       expect(rows.single.startTimeZone, 'America/Vancouver');
       expect(rows.single.endTimeZone, 'America/Vancouver');
       expect(client.createdMutations.single.startTimeZone, 'America/Vancouver');
@@ -109,6 +113,121 @@ void main() {
     expect(await first, 1);
     expect(await second, 0);
     expect(client.calls, ['createEvent:cal-1:Planning']);
+  });
+
+  test('Google create retry reuses its ID and reconciles a 409', () async {
+    final repository = CalendarRepository(database: database);
+    final operationId = await repository.createLocalEvent(
+      EventEditorDraft.newEvent(
+        accountId: 'account',
+        sourceId: 'account|google|cal-1',
+        providerCalendarId: 'cal-1',
+        start: DateTime.utc(2026, 6, 8, 9),
+        end: DateTime.utc(2026, 6, 8, 10),
+      ).copyWith(title: 'Planning'),
+    );
+    final expectedEventId = googleCalendarCreateEventId(operationId);
+    final queued = await database.pendingOpsDao.getOp(operationId);
+    expect(
+      jsonDecode(queued!.requestJson),
+      containsPair(calendarEventGoogleCreateIdKey, expectedEventId),
+    );
+    client.createEventResponseError = StateError('response lost');
+
+    final firstApplied = await CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 8),
+    ).replayDueOps();
+    final secondApplied = await CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 9),
+    ).replayDueOps();
+
+    expect(firstApplied, 0);
+    expect(secondApplied, 1);
+    expect(
+      client.createdMutations.map((mutation) => mutation.providerEventId),
+      [expectedEventId, expectedEventId],
+    );
+    expect(client.distinctCreatedEventCount, 1);
+    expect(client.calls, [
+      'createEvent:cal-1:Planning',
+      'createEvent:cal-1:Planning',
+      'getEvent:cal-1:$expectedEventId',
+    ]);
+    final local = await database.select(database.calendarEvents).getSingle();
+    expect(local.providerEventId, expectedEventId);
+    expect(await database.pendingOpsDao.getOp(operationId), equals(null));
+  });
+
+  test('Microsoft create retry reuses its transaction ID', () async {
+    final repository = CalendarRepository(database: database);
+    await repository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-ms',
+        summary: 'Microsoft calendar',
+      ),
+    );
+    final operationId = await repository.createLocalEvent(
+      EventEditorDraft.newEvent(
+        accountId: 'account',
+        sourceId: 'account|microsoft|cal-ms',
+        providerCalendarId: 'cal-ms',
+        start: DateTime.utc(2026, 6, 8, 9),
+        end: DateTime.utc(2026, 6, 8, 10),
+      ).copyWith(title: 'Planning'),
+    );
+    final expectedTransactionId = microsoftCalendarCreateTransactionId(
+      operationId,
+    );
+    final queued = await database.pendingOpsDao.getOp(operationId);
+    expect(
+      jsonDecode(queued!.requestJson),
+      containsPair(
+        calendarEventMicrosoftTransactionIdKey,
+        expectedTransactionId,
+      ),
+    );
+    final microsoftClient = _FakeMicrosoftCalendarClient()
+      ..createEventResponseError = StateError('response lost');
+
+    final firstApplied = await CalendarPendingOpsReplayer(
+      database: database,
+      client: microsoftClient,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 8),
+    ).replayDueOps();
+    final secondApplied = await CalendarPendingOpsReplayer(
+      database: database,
+      client: microsoftClient,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 9),
+    ).replayDueOps();
+
+    expect(firstApplied, 0);
+    expect(secondApplied, 1);
+    expect(
+      microsoftClient.createdMutations.map(
+        (mutation) => mutation.transactionId,
+      ),
+      [expectedTransactionId, expectedTransactionId],
+    );
+    expect(microsoftClient.distinctCreatedEventCount, 1);
+    expect(microsoftClient.calls, [
+      'createEvent:cal-ms:Planning',
+      'createEvent:cal-ms:Planning',
+    ]);
+    final local = await (database.select(
+      database.calendarEvents,
+    )..where((row) => row.provider.equals('microsoft'))).getSingle();
+    expect(local.providerEventId, 'server-event-1');
+    expect(await database.pendingOpsDao.getOp(operationId), equals(null));
   });
 
   test('event replay preserves a do-not-send guest update choice', () async {
@@ -789,10 +908,7 @@ void main() {
     var deleteRequest =
         jsonDecode(deleteOperation.requestJson) as Map<String, Object?>;
     expect(deleteRequest[calendarEventCopyConfirmedKey], isTrue);
-    expect(
-      deleteRequest[calendarEventCopyDestinationEventIdKey],
-      contains('server-event-1'),
-    );
+    expect(deleteRequest[calendarEventCopyDestinationEventIdKey], isNotEmpty);
 
     client.calls.clear();
     final deleted = await CalendarPendingOpsReplayer(
@@ -2215,6 +2331,7 @@ class _FakeCalendarClient
   final calendarMutations = <CalendarMutation>[];
   final guestUpdatePolicies = <CalendarGuestUpdatePolicy>[];
   final invitationResponses = <CalendarInvitationResponse>[];
+  final Map<String, CalendarEventDto> _createdEventsByIdentity = {};
   int _createdCount = 0;
   int transientUpdateFailures = 0;
   CalendarEventDto? syncEvent;
@@ -2227,6 +2344,9 @@ class _FakeCalendarClient
   GoogleCalendarApiError? calendarListDeleteError;
   Completer<void>? createEventGate;
   Completer<void>? calendarPatchGate;
+  Object? createEventResponseError;
+
+  int get distinctCreatedEventCount => _createdEventsByIdentity.length;
 
   @override
   BusyProvider get provider => BusyProvider.google;
@@ -2258,14 +2378,39 @@ class _FakeCalendarClient
     createdMutations.add(mutation);
     guestUpdatePolicies.add(guestUpdatePolicy);
     await createEventGate?.future;
+    final identity = provider == BusyProvider.google
+        ? mutation.providerEventId
+        : mutation.transactionId;
+    final existing = identity == null
+        ? null
+        : _createdEventsByIdentity[identity];
+    if (existing != null) {
+      if (provider == BusyProvider.google) {
+        throw const GoogleCalendarApiError(
+          statusCode: 409,
+          code: 'ALREADY_EXISTS',
+          message: 'The requested identifier already exists.',
+        );
+      }
+      return existing;
+    }
     _createdCount += 1;
-    return _event(
-      'server-event-$_createdCount',
+    final event = _event(
+      provider == BusyProvider.google && identity != null
+          ? identity
+          : 'server-event-$_createdCount',
       title: mutation.title ?? '',
       providerCalendarId: calendarId,
       startTimeZone: mutation.startTimeZone,
       endTimeZone: mutation.endTimeZone,
     );
+    if (identity != null) {
+      _createdEventsByIdentity[identity] = event;
+    }
+    final responseError = createEventResponseError;
+    createEventResponseError = null;
+    if (responseError != null) throw responseError;
+    return event;
   }
 
   @override
@@ -2321,7 +2466,12 @@ class _FakeCalendarClient
     required String eventId,
   }) async {
     calls.add('getEvent:$calendarId:$eventId');
-    return remoteEvent ?? _event(eventId, title: 'Base');
+    final remote = remoteEvent;
+    if (remote != null) return remote;
+    for (final created in _createdEventsByIdentity.values) {
+      if (created.providerEventId == eventId) return created;
+    }
+    return _event(eventId, title: 'Base');
   }
 
   @override
@@ -2398,7 +2548,7 @@ class _FakeCalendarClient
     String? endTimeZone,
   }) {
     return CalendarEventDto(
-      provider: BusyProvider.google,
+      provider: provider,
       providerCalendarId: providerCalendarId,
       providerEventId: id,
       etagOrChangeKey: etagOrChangeKey,
