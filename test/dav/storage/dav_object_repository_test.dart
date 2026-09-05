@@ -75,7 +75,12 @@ void main() {
         isTrue,
       );
       expect(events.first.remindersJson, contains('AUDIO'));
-      expect(events.every((event) => event.projectionVersion == 2), isTrue);
+      expect(
+        events.every(
+          (event) => event.projectionVersion == davProjectionVersion,
+        ),
+        isTrue,
+      );
       final movedProjection =
           jsonDecode(
                 events.singleWhere((event) => event.title == 'Moved').rawJson!,

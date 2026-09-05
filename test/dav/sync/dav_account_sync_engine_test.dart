@@ -39,6 +39,31 @@ void main() {
         requests.add(request);
         expect(request.headers['authorization'], startsWith('Basic '));
         if (unauthorized) return http.Response('', 401);
+        if (request.method == 'OPTIONS') {
+          return http.Response(
+            '',
+            200,
+            headers: {'dav': '1, calendar-access, sync-collection'},
+          );
+        }
+        if (request.method == 'PROPFIND') {
+          if (request.body.contains('<d:current-user-principal/>')) {
+            return _discoveryMultistatus(_currentPrincipalResponse);
+          }
+          if (request.body.contains('<c:calendar-home-set/>')) {
+            return _discoveryMultistatus(_principalPropertiesResponse);
+          }
+          return _discoveryMultistatus(
+            '''<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+            <d:response><d:href>$_collectionHref</d:href><d:propstat><d:prop>
+            <d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Work</d:displayname>
+            <d:current-user-privilege-set><d:privilege><d:read/></d:privilege><d:privilege><d:write/></d:privilege></d:current-user-privilege-set>
+            <c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/></c:supported-calendar-component-set>
+            <d:supported-report-set><d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+            <d:supported-report><d:report><c:calendar-multiget/></d:report></d:supported-report></d:supported-report-set>
+            </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>''',
+          );
+        }
         if (request.method == 'REPORT' &&
             request.body.contains('sync-collection')) {
           syncReports += 1;
@@ -134,6 +159,7 @@ void main() {
       notificationObjects.clear();
 
       final replayed = await engine().synchronize();
+      expect(replayed.discoveryRefreshed, isTrue);
       expect(replayed.pendingOperationsApplied, 1);
       expect(replayed.followUpCollectionsSynchronized, 1);
       expect(await database.select(database.pendingOps).get(), isEmpty);

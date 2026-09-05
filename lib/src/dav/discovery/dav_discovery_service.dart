@@ -143,6 +143,7 @@ final class DavDiscoveryService {
         false,
         inventoryResponse.requestUri,
         correlationId,
+        principalProperties,
       ),
     ];
     // A principal may advertise more than one home. Keep the first as the
@@ -189,6 +190,7 @@ final class DavDiscoveryService {
           false,
           listed.requestUri,
           correlationId,
+          principalProperties,
         ),
       );
       for (final collection in discovered) {
@@ -305,6 +307,7 @@ final class DavDiscoveryService {
               true,
               listed.requestUri,
               correlationId,
+              properties,
             ),
           );
           for (final collection in discovered) {
@@ -404,6 +407,7 @@ final class DavDiscoveryService {
     bool delegated,
     Uri responseUri,
     String correlationId,
+    DavMultistatus principalProperties,
   ) {
     Set<String> privileges(Uri? target) {
       if (target == null) return const {};
@@ -434,10 +438,10 @@ final class DavDiscoveryService {
       scheduleInboxHref: inbox,
       scheduleOutboxHref: outbox,
       scheduleDefaultCalendarHref: _optionalHrefProperty(
-        inventory,
+        principalProperties,
         caldavNamespace,
         'schedule-default-calendar-URL',
-        responseUri: responseUri,
+        responseUri: principal,
         correlationId: correlationId,
       ),
       homePrivileges: privileges(home),
@@ -1046,6 +1050,7 @@ const _principalPropertiesPropfind = '''<?xml version="1.0" encoding="utf-8"?>
   <d:prop>
     <c:calendar-home-set/><c:calendar-user-address-set/>
     <c:schedule-inbox-URL/><c:schedule-outbox-URL/>
+    <c:schedule-default-calendar-URL/>
     <d:current-user-privilege-set/><cs:calendar-proxy-read-for/><cs:calendar-proxy-write-for/>
   </d:prop>
 </d:propfind>''';

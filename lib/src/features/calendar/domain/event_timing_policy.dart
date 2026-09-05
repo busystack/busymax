@@ -11,16 +11,28 @@ bool canEditEventTiming({
   bool? isOrganizer,
   bool locked = false,
   bool? guestsCanModify,
+  bool isFederated = false,
 }) =>
     canEdit &&
     provider != BusyProvider.webCal &&
     (provider != BusyProvider.microsoft || isOrganizer != false) &&
+    (provider != BusyProvider.nextcloud ||
+        isFederated ||
+        isOrganizer != false) &&
     (provider != BusyProvider.google ||
         (!locked && (isOrganizer == true || guestsCanModify == true)));
 
 bool detailAllowsTimingEdit(CalendarEventDetail detail) {
   final organizer = detail.organizer;
   final raw = detail.raw;
+  if (detail.provider == BusyProvider.nextcloud &&
+      detail.attendees is List &&
+      (detail.attendees as List).isNotEmpty &&
+      raw is Map &&
+      raw['canManageAttendees'] != true &&
+      raw['federated'] != true) {
+    return false;
+  }
   return !detail.isDeleted &&
       !detail.isCancelled &&
       canEditEventTiming(
@@ -28,12 +40,13 @@ bool detailAllowsTimingEdit(CalendarEventDetail detail) {
         canEdit: true,
         isOrganizer: switch (detail.provider) {
           BusyProvider.google => organizer is Map && organizer['self'] == true,
-          BusyProvider.microsoft =>
+          BusyProvider.microsoft || BusyProvider.nextcloud =>
             raw is Map ? raw['isOrganizer'] as bool? : null,
           _ => null,
         },
         locked: detail.locked,
         guestsCanModify: detail.guestsCanModify,
+        isFederated: raw is Map && raw['federated'] == true,
       );
 }
 

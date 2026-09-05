@@ -13,6 +13,51 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+
+  @override
+  String get nextcloudInboxEmpty => 'No scheduling messages.';
+
+  @override
+  String get nextcloudAcknowledge => 'Acknowledge message';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+
+  @override
+  String get nextcloudAvailability => 'Include this collection in availability';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'No busy periods reported for this interval';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'Busy periods';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'Server scheduling status';
+
+  @override
   String get nextcloudImportFollowUp =>
       'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
 
@@ -59,9 +104,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get nextcloudCalendarEnabled => 'Enabled on the server';
-
-  @override
-  String get nextcloudAvailability => 'Include this collection in availability';
 
   @override
   String get nextcloudCalendarTimezone =>

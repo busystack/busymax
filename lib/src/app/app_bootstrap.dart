@@ -24,6 +24,7 @@ import '../dav/storage/dav_settings_repository.dart';
 import '../dav/nextcloud/nextcloud_collection_service.dart';
 import '../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../dav/nextcloud/nextcloud_trash_service.dart';
+import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
@@ -872,6 +873,13 @@ final nextcloudSharingServiceProvider =
 final nextcloudTrashServiceProvider =
     Provider.family<NextcloudTrashService, String>(
       (ref, accountId) => NextcloudTrashService(
+        ref.watch(nextcloudCollectionServiceProvider(accountId)),
+      ),
+    );
+
+final nextcloudSchedulingServiceProvider =
+    Provider.family<NextcloudSchedulingService, String>(
+      (ref, accountId) => NextcloudSchedulingService(
         ref.watch(nextcloudCollectionServiceProvider(accountId)),
       ),
     );

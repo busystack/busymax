@@ -459,6 +459,8 @@ final class DavConditionalMutationService {
     String Function()? memberIdFactory,
     DateTime Function()? nowUtc,
     this.maximumConditionalAttempts = 3,
+    this.implicitScheduling = false,
+    this.schedulingValidator,
   }) : _remoteClient = remoteClient,
        _conflictAnalyzer = conflictAnalyzer,
        _memberIdFactory = memberIdFactory ?? const Uuid().v4,
@@ -469,6 +471,12 @@ final class DavConditionalMutationService {
   final String Function() _memberIdFactory;
   final DateTime Function() _nowUtc;
   final int maximumConditionalAttempts;
+  final bool implicitScheduling;
+  final void Function({String? baseline, String? candidate})?
+  schedulingValidator;
+
+  bool _sameIntendedObject(String intended, String current) =>
+      _sameSemanticObject(intended, current, scheduling: implicitScheduling);
 
   Future<DavMutationResult> create({
     required Uri collectionUri,
@@ -483,6 +491,9 @@ final class DavConditionalMutationService {
         ? capabilities.canCreateTask
         : false;
     if (!allowed) throw _readOnlyError(correlationId);
+    if (!object.suppressScheduling) {
+      schedulingValidator?.call(candidate: object.rawIcs);
+    }
     final remote = object.suppressScheduling
         ? (_remoteClient is DavSilentMutationRemoteClient
               ? (_remoteClient as DavSilentMutationRemoteClient)
@@ -536,9 +547,22 @@ final class DavConditionalMutationService {
           correlationId: correlationId,
         );
         if (!canonical.missing &&
-            _sameIntendedObject(object.rawIcs, canonical.rawIcsBody!)) {
+            (_sameIntendedObject(object.rawIcs, canonical.rawIcsBody!) ||
+                (implicitScheduling &&
+                    _sameResourceIdentity(
+                      object.rawIcs,
+                      canonical.rawIcsBody!,
+                    )))) {
           return DavMutationResult.succeeded(canonical);
         }
+        // A successful PUT is not a filename collision. If the canonical
+        // resource disappeared or changed identity, preserve an explicit
+        // conflict; never create another meeting to compensate.
+        return DavMutationResult.conflict(
+          _retryLimitConflict(const {'CREATE'}),
+          remoteObject: canonical,
+          localCandidateRawIcs: object.rawIcs,
+        );
       } on DavException catch (error) {
         if (!_isUnknownOutcome(error)) rethrow;
         final resolved = await remote.fetch(
@@ -574,6 +598,7 @@ final class DavConditionalMutationService {
     required DavMutationPatch patch,
     required CollectionCapabilities capabilities,
     required String correlationId,
+    bool reconcileFirst = false,
   }) async {
     final event = patch.target.componentType.toUpperCase() == 'VEVENT';
     if (baselineEtag.isEmpty ||
@@ -584,7 +609,44 @@ final class DavConditionalMutationService {
     var comparisonBaseline = baselineRawIcs;
     var candidate = patch.applyTo(baselineRawIcs, nowUtc: _nowUtc());
     DavFetchedMember? lastCurrent;
+    if (reconcileFirst) {
+      final current = await _remoteClient.fetch(
+        hrefKey: hrefKey,
+        uri: uri,
+        correlationId: correlationId,
+      );
+      if (current.missing) {
+        return DavMutationResult.conflict(
+          _resourceMissingConflict(patch.changedProperties),
+          remoteObject: current,
+          localCandidateRawIcs: candidate,
+        );
+      }
+      if (_sameIntendedObject(candidate, current.rawIcsBody!)) {
+        return DavMutationResult.succeeded(current);
+      }
+      final analysis = _conflictAnalyzer.analyzeUpdate(
+        baselineRawIcs: baselineRawIcs,
+        currentRemoteRawIcs: current.rawIcsBody!,
+        localPatch: patch,
+        nowUtc: _nowUtc(),
+      );
+      if (!analysis.canRetryWithRemoteEtag) {
+        return DavMutationResult.conflict(
+          analysis,
+          remoteObject: current,
+          localCandidateRawIcs: candidate,
+        );
+      }
+      expectedEtag = current.etag!;
+      comparisonBaseline = current.rawIcsBody!;
+      candidate = analysis.mergedRawIcs!;
+    }
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
+      schedulingValidator?.call(
+        baseline: comparisonBaseline,
+        candidate: candidate,
+      );
       try {
         final response = await _remoteClient.conditionalPut(
           uri: uri,
@@ -852,6 +914,7 @@ final class DavConditionalMutationService {
     var comparisonBaseline = baselineRawIcs;
     DavFetchedMember? lastCurrent;
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
+      schedulingValidator?.call(baseline: comparisonBaseline);
       try {
         final response = await _remoteClient.conditionalDelete(
           uri: uri,
@@ -919,12 +982,49 @@ Uri _memberUri(Uri collectionUri, String memberName) {
   return base.resolve(memberName);
 }
 
-bool _sameIntendedObject(String intended, String current) {
+bool _sameSemanticObject(
+  String intended,
+  String current, {
+  bool scheduling = false,
+}) {
   try {
-    final intendedSemantic = IcalSemanticDocument.parse(intended);
-    final currentSemantic = IcalSemanticDocument.parse(current);
+    String normalized(String raw) {
+      if (!scheduling) return raw;
+      final document = IcalDocument.parse(raw);
+      for (final component in document.calendarComponents) {
+        for (final property in component.properties.where(
+          (p) => p.name == 'ATTENDEE' || p.name == 'ORGANIZER',
+        )) {
+          if (property.parameters.any((p) => p.name == 'SCHEDULE-STATUS')) {
+            property.parameters.removeWhere((p) => p.name == 'SCHEDULE-STATUS');
+            property.isDirty = true;
+          }
+        }
+      }
+      return document.serialize();
+    }
+
+    final intendedSemantic = IcalSemanticDocument.parse(normalized(intended));
+    final currentSemantic = IcalSemanticDocument.parse(normalized(current));
     return intendedSemantic.primaryUid == currentSemantic.primaryUid &&
         intendedSemantic.semanticHash == currentSemantic.semanticHash;
+  } on DavException {
+    return false;
+  }
+}
+
+bool _sameResourceIdentity(String intended, String current) {
+  try {
+    final a = IcalSemanticDocument.parse(intended);
+    final b = IcalSemanticDocument.parse(current);
+    return a.primaryUid != null &&
+        a.primaryUid == b.primaryUid &&
+        b.components.isNotEmpty &&
+        b.components.every(
+          (c) =>
+              c.uid == a.primaryUid &&
+              c.componentType == a.components.first.componentType,
+        );
   } on DavException {
     return false;
   }

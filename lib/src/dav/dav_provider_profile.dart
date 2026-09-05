@@ -1,6 +1,6 @@
 import '../providers/busy_provider.dart';
 
-const davProviderProfileVersion = 3;
+const davProviderProfileVersion = 4;
 
 final class DavProviderProfile {
   const DavProviderProfile({
@@ -75,7 +75,7 @@ DavProviderProfile davProviderProfile(
     calendarEnabled: true,
     tasksEnabled: true,
     allowCollectionMutations: true,
-    allowSchedulingMutations: false,
+    allowSchedulingMutations: true,
     allowMove: true,
   ),
   BusyProvider.google ||

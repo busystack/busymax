@@ -501,6 +501,8 @@ String _utcIcal(DateTime value) {
 
 const _editableProperties = {
   'SUMMARY',
+  'ORGANIZER',
+  'ATTENDEE',
   'DESCRIPTION',
   'LOCATION',
   'GEO',

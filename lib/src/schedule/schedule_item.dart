@@ -66,6 +66,9 @@ class CalendarScheduleItem implements ScheduleItem {
     this.guestsCanModify,
     this.locked = false,
     this.currentUserResponse,
+    this.canSendReply = false,
+    this.timingEditable = true,
+    this.isFederated = false,
     this.colorHex,
     this.categories = const [],
     this.reminderMinutesBeforeStart = const [],
@@ -88,6 +91,7 @@ class CalendarScheduleItem implements ScheduleItem {
   final EventTimingBaseline? timingBaseline;
 
   bool get canReschedule =>
+      timingEditable &&
       start != null &&
       end != null &&
       end!.isAfter(start!) &&
@@ -97,6 +101,7 @@ class CalendarScheduleItem implements ScheduleItem {
         isOrganizer: isOrganizer,
         locked: locked,
         guestsCanModify: guestsCanModify,
+        isFederated: isFederated,
       );
   @override
   final String title;
@@ -134,8 +139,14 @@ class CalendarScheduleItem implements ScheduleItem {
   bool get canRespondToInvitation {
     return isOrganizer == false &&
         currentUserResponse != null &&
-        (provider == BusyProvider.google || provider == BusyProvider.microsoft);
+        (provider == BusyProvider.google ||
+            provider == BusyProvider.microsoft ||
+            (provider == BusyProvider.nextcloud && canSendReply));
   }
+
+  final bool canSendReply;
+  final bool timingEditable;
+  final bool isFederated;
 
   @override
   ScheduleItemKind get kind => ScheduleItemKind.calendarEvent;

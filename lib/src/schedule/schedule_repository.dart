@@ -428,6 +428,9 @@ class ScheduleRepository {
       final sourceWritable =
           source != null && !source.readOnly && !source.isDeleted;
       final collection = row.readTableOrNull(_database.davCollections);
+      final scheduling =
+          _jsonMapFromString(collection?.safeDisplayMetadataJson) ??
+          const <String, Object?>{};
       final davCapabilities = collection == null
           ? null
           : collectionCapabilitiesFromStored(collection);
@@ -461,6 +464,18 @@ class ScheduleRepository {
           organizer: organizer,
           joinMeetingUrl: _eventJoinMeetingUrl(provider, conference, raw),
           isOrganizer: isOrganizer,
+          isFederated:
+              provider == BusyProvider.nextcloud &&
+              scheduling['federated'] == true,
+          canSendReply:
+              provider == BusyProvider.nextcloud &&
+              scheduling['canReply'] == true &&
+              collectionCapabilitiesFromStored(collection!).canUpdateEvent,
+          timingEditable:
+              provider != BusyProvider.nextcloud ||
+              attendees.isEmpty ||
+              (isOrganizer == true && scheduling['canInvite'] == true) ||
+              scheduling['federated'] == true,
           guestsCanModify: provider == BusyProvider.google
               ? raw['guestsCanModify'] == true
               : null,
@@ -1257,10 +1272,9 @@ bool? _eventIsOrganizer(
 ) {
   return switch (provider) {
     BusyProvider.google => organizer?['self'] as bool?,
-    BusyProvider.microsoft => raw['isOrganizer'] as bool?,
-    BusyProvider.appleICloud ||
-    BusyProvider.nextcloud ||
-    BusyProvider.webCal => null,
+    BusyProvider.microsoft ||
+    BusyProvider.nextcloud => raw['isOrganizer'] as bool?,
+    BusyProvider.appleICloud || BusyProvider.webCal => null,
   };
 }
 
@@ -1270,6 +1284,11 @@ bool _eventAllowsFullEditing(
   Map<String, Object?> raw,
 ) {
   if (provider == BusyProvider.webCal) return false;
+  if (provider == BusyProvider.nextcloud &&
+      isOrganizer == false &&
+      raw['federated'] != true) {
+    return false;
+  }
   if (provider != BusyProvider.google) return true;
   return raw['locked'] != true &&
       (isOrganizer == true || raw['guestsCanModify'] == true);
@@ -1280,7 +1299,7 @@ String? _eventCurrentUserResponse(
   List<Map<String, Object?>> attendees,
   Map<String, Object?> raw,
 ) {
-  if (provider == BusyProvider.google) {
+  if (provider == BusyProvider.google || provider == BusyProvider.nextcloud) {
     for (final attendee in attendees) {
       if (attendee['self'] == true) {
         return attendee['responseStatus']?.toString();

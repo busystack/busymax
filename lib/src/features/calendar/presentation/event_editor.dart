@@ -23,6 +23,7 @@ import 'event_description_editor.dart';
 import 'event_editor_draft.dart';
 import '../domain/event_timing_policy.dart';
 import 'event_guest_delivery_dialog.dart';
+import '../../../dav/presentation/nextcloud_scheduling_dialog.dart';
 
 Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   BuildContext context, {
@@ -165,7 +166,8 @@ BusyProvider? _guestDeliveryProvider(
 ) {
   final destination = _providerForDraft(draft, sources);
   if (destination == BusyProvider.google ||
-      destination == BusyProvider.microsoft) {
+      destination == BusyProvider.microsoft ||
+      destination == BusyProvider.nextcloud) {
     return destination;
   }
   final source = move?.source.provider;
@@ -389,7 +391,8 @@ class _EventEditorState extends State<EventEditor> {
     final provider = currentSource.provider;
     final schedulingReadOnly =
         provider == BusyProvider.appleICloud ||
-        provider == BusyProvider.nextcloud;
+        (provider == BusyProvider.nextcloud &&
+            currentSource.davEffectivePermissions['canInvite'] != true);
     final recurringOccurrence = _draft.providerRecurringEventId != null;
     final timeFieldsValid = _draft.allDay || (_startTimeValid && _endTimeValid);
     final recurringScopeValid =
@@ -558,6 +561,20 @@ class _EventEditorState extends State<EventEditor> {
                   readOnly: schedulingReadOnly || !_draft.canManageAttendees,
                 ),
               ),
+            if (provider == BusyProvider.nextcloud &&
+                currentSource.davCollectionId != null &&
+                currentSource.davEffectivePermissions['canQueryFreeBusy'] ==
+                    true &&
+                _draft.attendees.isNotEmpty)
+              TextButton(
+                onPressed: () => showLinuxNextcloudSchedulingDialog(
+                  context,
+                  accountId: currentSource!.accountId,
+                  collectionId: currentSource.davCollectionId!,
+                  draft: _draft,
+                ),
+                child: Text(l10n.nextcloudAvailability),
+              ),
             if ((provider == BusyProvider.google ||
                     provider == BusyProvider.microsoft) &&
                 _draft.isOrganizer != false)
@@ -566,7 +583,9 @@ class _EventEditorState extends State<EventEditor> {
                 filled: true,
                 children: _meetingRows(provider, currentSource),
               ),
-            if (provider == BusyProvider.microsoft || schedulingReadOnly)
+            if (provider == BusyProvider.microsoft ||
+                provider == BusyProvider.nextcloud ||
+                schedulingReadOnly)
               BusyMaxGroupedList(
                 title: l10n.organizationSection,
                 filled: true,

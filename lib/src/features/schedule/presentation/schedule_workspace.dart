@@ -2148,9 +2148,19 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   ) async {
     if (!item.canRespondToInvitation) return;
     try {
+      RecurringEventMutationScope? scope;
+      if (item.provider == BusyProvider.nextcloud &&
+          item.providerRecurringEventId != null) {
+        scope = await _chooseRecurringEventMutationScope(
+          item.provider,
+          editing: true,
+          supportsFollowingOverride: false,
+        );
+        if (scope == null || !mounted) return;
+      }
       final accountId = await ref
           .read(calendarRepositoryProvider)
-          .respondToLocalEvent(item.id, response);
+          .respondToLocalEvent(item.id, response, recurringScope: scope);
       _requestCalendarMutationSync(accountId);
       if (mounted) setState(() {});
     } on Object catch (error) {

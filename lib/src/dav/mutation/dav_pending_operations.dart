@@ -16,6 +16,7 @@ import '../ical/ical_semantics.dart';
 import '../ical/ical_timezone.dart';
 import '../storage/dav_collection_capabilities.dart';
 import '../storage/dav_object_repository.dart';
+import '../nextcloud/nextcloud_scheduling_policy.dart';
 import '../sync/dav_collection_remote_client.dart';
 import 'dav_conditional_mutation_service.dart';
 import 'dav_mutation_patch.dart';
@@ -71,7 +72,8 @@ final class DavPendingOperationQueue {
     String? dependsOnOperationId,
   }) async {
     final context = await _context(accountId, collectionId);
-    if (object.suppressScheduling && context.provider != BusyProvider.nextcloud) {
+    if (object.suppressScheduling &&
+        context.provider != BusyProvider.nextcloud) {
       throw _invalidPendingOperation();
     }
     final capabilities = collectionCapabilitiesFromStored(context.collection);
@@ -96,12 +98,18 @@ final class DavPendingOperationQueue {
     );
     final parsed = IcalSemanticDocument.parse(object.rawIcs);
     if (parsed.primaryUid != object.uid ||
-        parsed.components.every(
+        parsed.components.any(
           (component) => component.componentType != object.componentType,
         )) {
       throw _invalidPendingOperation();
     }
     _validateTaskTemporalRange(parsed);
+    await _validateScheduling(
+      context,
+      null,
+      object.rawIcs,
+      silent: object.suppressScheduling,
+    );
     final id = _idFactory();
     final now = _nowUtc().toUtc().toIso8601String();
     await _database.pendingOpsDao.enqueue(
@@ -184,6 +192,7 @@ final class DavPendingOperationQueue {
         existing,
         materializedPatch,
         baselineEtag: etag,
+        nowUtc: nowUtc,
       );
       if (coalesced != null) {
         // Coalesced operations are always replayed against the original
@@ -193,12 +202,19 @@ final class DavPendingOperationQueue {
           nowUtc: nowUtc,
         );
         _validateTaskTemporalRange(IcalSemanticDocument.parse(candidate));
+        await _validateScheduling(
+          context,
+          context.object.rawIcsBody,
+          candidate,
+        );
         await (_database.update(
           _database.pendingOps,
         )..where((row) => row.id.equals(existing.id))).write(
           PendingOpsCompanion(
             mutationPatchJson: Value(coalesced.toJsonString()),
             mutationPatchSchemaVersion: Value(coalesced.schemaVersion),
+            targetComponentKey: Value(_componentKeyJson(coalesced.target)),
+            mutationScope: Value(coalesced.scope.name),
             dependsOnOpId: existing.dependsOnOpId == null
                 ? Value(dependsOnOperationId)
                 : const Value.absent(),
@@ -215,6 +231,7 @@ final class DavPendingOperationQueue {
       nowUtc: nowUtc,
     );
     _validateTaskTemporalRange(IcalSemanticDocument.parse(candidate));
+    await _validateScheduling(context, context.object.rawIcsBody, candidate);
 
     final id = _idFactory();
     final now = nowUtc.toIso8601String();
@@ -331,6 +348,12 @@ final class DavPendingOperationQueue {
     final materialized = patch.materialize(nowUtc);
     final updatedRaw = materialized.applyTo(object.rawIcs, nowUtc: nowUtc);
     _validateTaskTemporalRange(IcalSemanticDocument.parse(updatedRaw));
+    await _validateScheduling(
+      await _context(operation.accountId, _required(operation.davCollectionId)),
+      object.rawIcs,
+      updatedRaw,
+      silent: object.suppressScheduling,
+    );
     await (_database.update(
       _database.pendingOps,
     )..where((row) => row.id.equals(operation.id))).write(
@@ -417,6 +440,7 @@ final class DavPendingOperationQueue {
       await _database.pendingOpsDao.deleteOp(existingOperation.id);
     }
     final semantic = IcalSemanticDocument.parse(context.object.rawIcsBody);
+    await _validateScheduling(context, context.object.rawIcsBody, null);
     if (!_containsTarget(semantic, target)) throw _invalidPendingOperation();
     final id = _idFactory();
     final now = _nowUtc().toUtc().toIso8601String();
@@ -539,6 +563,18 @@ final class DavPendingOperationQueue {
     if (!_containsTarget(semantic, target)) throw _invalidPendingOperation();
     final nowUtc = _nowUtc().toUtc();
     final materializedPatch = postMovePatch?.materialize(nowUtc);
+    if (source.provider == BusyProvider.nextcloud && event) {
+      final policy = await NextcloudSchedulingPolicy.load(
+        _database,
+        source.collection,
+      );
+      policy.validateMoveTo(
+        await NextcloudSchedulingPolicy.load(_database, destination.collection),
+        intendedSourceRaw,
+        materializedPatch?.applyTo(intendedSourceRaw, nowUtc: nowUtc) ??
+            intendedSourceRaw,
+      );
+    }
     if (materializedPatch != null) {
       if (!_sameTarget(materializedPatch.target, target)) {
         throw _invalidPendingOperation();
@@ -614,6 +650,23 @@ final class DavPendingOperationQueue {
       account: account,
       collection: collection,
       provider: provider,
+    );
+  }
+
+  Future<void> _validateScheduling(
+    _DavContext context,
+    String? baseline,
+    String? candidate, {
+    bool silent = false,
+  }) async {
+    if (context.provider != BusyProvider.nextcloud) return;
+    (await NextcloudSchedulingPolicy.load(
+      _database,
+      context.collection,
+    )).validateChange(
+      baseline: baseline,
+      candidate: candidate,
+      silentImport: silent,
     );
   }
 
@@ -893,6 +946,39 @@ final class DavPendingOperationsReplayer {
       _database.accounts,
     )..where((row) => row.id.equals(_accountId))).getSingle();
     final capabilities = collectionCapabilitiesFromStored(collection);
+    if (account.provider == 'nextcloud') {
+      final policy = await NextcloudSchedulingPolicy.load(
+        _database,
+        collection,
+      );
+      switch (op.operationType) {
+        case 'dav.create':
+          final created = _decodeCreate(op.requestJson);
+          policy.validateChange(
+            candidate: created.rawIcs,
+            silentImport: created.suppressScheduling,
+          );
+        case 'dav.update':
+          final baseline = _required(op.baselineRawIcs);
+          policy.validateChange(
+            baseline: baseline,
+            candidate: _decodePatch(op).applyTo(baseline, nowUtc: _nowUtc()),
+          );
+        case 'dav.delete':
+          policy.validateChange(baseline: _required(op.baselineRawIcs));
+        case 'dav.move':
+          final source = await _requiredObject(op, collection);
+          final destination = await _requiredDestinationCollection(op);
+          policy.validateMoveTo(
+            await NextcloudSchedulingPolicy.load(_database, destination),
+            source.rawIcsBody,
+            _decodeOptionalMovePatch(
+                  op,
+                )?.applyTo(source.rawIcsBody, nowUtc: _nowUtc()) ??
+                source.rawIcsBody,
+          );
+      }
+    }
     final service = await _serviceFactory(
       account: account,
       collection: collection,
@@ -923,6 +1009,7 @@ final class DavPendingOperationsReplayer {
         patch: _decodePatch(op),
         capabilities: capabilities,
         correlationId: correlationId,
+        reconcileFirst: op.attemptCount > 0 || op.state == 'in_progress',
       ),
       'dav.delete' => service.delete(
         hrefKey: _required(op.davMemberHref),
@@ -961,13 +1048,25 @@ final class DavPendingOperationsReplayer {
     )..where((row) => row.id.equals(_accountId))).getSingle();
     final provider = BusyProviderCodec.requireStorageValue(account.provider);
     final canonical = result.canonicalObject;
-    if (op.operationType == 'dav.create' && op.davObjectId != null && canonical != null && canonical.hrefKey != op.davMemberHref) {
+    if (op.operationType == 'dav.create' &&
+        op.davObjectId != null &&
+        canonical != null &&
+        canonical.hrefKey != op.davMemberHref) {
       // A filename collision may allocate another member name, but it must
       // not give an imported recurrence set a second local object identity.
-      await (_database.update(_database.davObjects)..where((r) =>
-        r.id.equals(op.davObjectId!) & r.accountId.equals(_accountId) &
-        r.collectionId.equals(_required(op.davCollectionId)) & r.etag.isNull())).write(
-          DavObjectsCompanion(hrefKey: Value(canonical.hrefKey), requestUri: Value(canonical.requestUri.toString())));
+      await (_database.update(_database.davObjects)..where(
+            (r) =>
+                r.id.equals(op.davObjectId!) &
+                r.accountId.equals(_accountId) &
+                r.collectionId.equals(_required(op.davCollectionId)) &
+                r.etag.isNull(),
+          ))
+          .write(
+            DavObjectsCompanion(
+              hrefKey: Value(canonical.hrefKey),
+              requestUri: Value(canonical.requestUri.toString()),
+            ),
+          );
     }
     late final Set<String> affected;
     if (op.operationType == 'dav.move') {
@@ -1516,6 +1615,7 @@ DavMutationPatch? _coalesceUnsentUpdate(
   PendingOp existing,
   DavMutationPatch patch, {
   required String baselineEtag,
+  required DateTime nowUtc,
 }) {
   if (existing.operationType != 'dav.update' ||
       existing.state != DavPendingState.pending.storageValue ||
@@ -1525,8 +1625,53 @@ DavMutationPatch? _coalesceUnsentUpdate(
     return null;
   }
   final previous = DavMutationPatch.fromJsonString(existing.mutationPatchJson!);
-  if (!_sameTarget(previous.target, patch.target)) {
-    return null;
+  if (!_sameTarget(previous.target, patch.target) ||
+      (previous.scope != patch.scope &&
+          !(previous.scope == DavMutationScope.occurrence &&
+              patch.scope == DavMutationScope.recurrenceException))) {
+    if (previous.target.uid != patch.target.uid ||
+        previous.target.componentType != patch.target.componentType ||
+        existing.baselineRawIcs == null) {
+      return null;
+    }
+    // Multiple offline occurrence edits still lock and replay one backing
+    // resource. Materialize each delta against the effective local candidate.
+    final beforeRaw = previous.applyTo(
+      existing.baselineRawIcs!,
+      nowUtc: nowUtc,
+    );
+    final before = IcalSemanticDocument.parse(beforeRaw);
+    final after = IcalSemanticDocument.parse(
+      patch.applyTo(beforeRaw, nowUtc: nowUtc),
+    );
+    String key(IcalSemanticComponent component) =>
+        '${component.componentType}\u0000${component.uid}\u0000${component.recurrenceIdKey ?? ''}';
+    final beforeByKey = {for (final c in before.components) key(c): c};
+    final afterByKey = {for (final c in after.components) key(c): c};
+    final changes = <DavPatchOperation>[];
+    for (final identity in {...beforeByKey.keys, ...afterByKey.keys}) {
+      final old = beforeByKey[identity], updated = afterByKey[identity];
+      if (old?.semanticHash == updated?.semanticHash) continue;
+      if (old != null) {
+        changes.add(
+          DavPatchOperation.removeComponent(
+            componentKey: IcalComponentKey(
+              componentType: old.componentType,
+              uid: old.uid!,
+              recurrenceIdKey: old.recurrenceIdKey,
+            ),
+          ),
+        );
+      }
+      if (updated != null) {
+        changes.add(DavPatchOperation.addComponent(updated.documentComponent));
+      }
+    }
+    return DavMutationPatch(
+      target: previous.target,
+      scope: DavMutationScope.object,
+      operations: [...previous.operations, ...changes],
+    );
   }
   final sameScope = previous.scope == patch.scope;
   final editsLocallyAddedOccurrence =
@@ -1603,7 +1748,7 @@ DavNewObject _decodeCreate(String source) {
     }
     final semantic = IcalSemanticDocument.parse(rawIcs);
     if (semantic.primaryUid != uid ||
-        semantic.components.every(
+        semantic.components.any(
           (component) => component.componentType != componentType,
         )) {
       throw _invalidPendingOperation();

@@ -144,6 +144,11 @@ final class DavXmlParser {
 
   final DavXmlLimits limits;
 
+  /// Scheduling responses use a different root than multistatus, but require
+  /// the same DTD/entity rejection and bounded document parsing.
+  XmlDocument parseDocument(Uint8List bytes, {String? correlationId}) =>
+      _parseDocument(bytes, correlationId);
+
   Set<DavPropertyName> parseDavError(Uint8List bytes, {String? correlationId}) {
     final document = _parseDocument(bytes, correlationId);
     final root = document.rootElement;

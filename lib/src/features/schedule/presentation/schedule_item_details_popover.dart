@@ -405,6 +405,20 @@ List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
             '${context.l10n.yourResponse}: '
             '${_responseStatusLabel(context, response)}',
       ),
+    if (item.canSendReply)
+      _ScheduleDetailRow(
+        icon: Icons.info_outline,
+        text: context.l10n.nextcloudAttendeeRestrictions,
+        maxLines: null,
+      ),
+    for (final attendee in item.attendees)
+      if (attendee['scheduleStatus'] != null)
+        _ScheduleDetailRow(
+          icon: Icons.mark_email_read_outlined,
+          text:
+              '${context.l10n.nextcloudSchedulingStatus}: ${attendee['email'] ?? ''} · ${attendee['scheduleStatus']}',
+          maxLines: null,
+        ),
     if (attendeeResponses.isNotEmpty)
       _ScheduleDetailRow(
         icon: Icons.groups_outlined,

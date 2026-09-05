@@ -13,10 +13,42 @@ import '../ical/ical_document.dart';
 import '../ical/ical_recurrence.dart';
 import '../ical/ical_semantics.dart';
 import '../ical/ical_timezone.dart';
+import '../nextcloud/nextcloud_scheduling_policy.dart';
+import 'dav_collection_capabilities.dart';
 
 const davRawObjectParserVersion = 1;
-const davProjectionVersion = 2;
+const davProjectionVersion = 3;
 const davSyncStateSchemaVersion = 1;
+
+Map<String, Object?> nextcloudParticipantProjection(
+  Map<String, Object?> raw,
+  NextcloudSchedulingPolicy policy,
+) {
+  final address = raw['value']?.toString() ?? '';
+  final parameters = {
+    for (final p in raw['parameters'] as List? ?? const [])
+      if (p is Map && p['values'] is List)
+        p['name']: (p['values'] as List).firstOrNull?.toString(),
+  };
+  final normalized = normalizeCalendarAddress(address);
+  return {
+    ...raw,
+    'email': normalized.startsWith('mailto:')
+        ? normalized.substring(7)
+        : address,
+    'displayName': parameters['CN'],
+    'optional': parameters['ROLE'] == 'OPT-PARTICIPANT',
+    'self': policy.ownsAddress(address),
+    'responseStatus': switch (parameters['PARTSTAT']) {
+      'ACCEPTED' => 'accepted',
+      'TENTATIVE' => 'tentative',
+      'DECLINED' => 'declined',
+      _ => 'needsAction',
+    },
+    if (parameters['SCHEDULE-STATUS'] != null)
+      'scheduleStatus': parameters['SCHEDULE-STATUS'],
+  };
+}
 
 final class DavPreparedObject {
   const DavPreparedObject._({
@@ -969,6 +1001,9 @@ final class DavObjectRepository {
     required IcalSemanticDocument semantic,
     required Map<String, String> componentIds,
   }) async {
+    final scheduling = commit.provider == BusyProvider.nextcloud
+        ? await NextcloudSchedulingPolicy.load(_database, collection)
+        : null;
     final sourceId = 'dav-calendar-${commit.collectionId}';
     final source = await (_database.select(
       _database.calendarSources,
@@ -991,6 +1026,55 @@ final class DavObjectRepository {
         );
     final now = commit.completedAtUtc.toUtc().millisecondsSinceEpoch;
     for (final projected in projections) {
+      final attendees = scheduling == null
+          ? projected.attendeesJson
+          : jsonEncode([
+              for (final raw
+                  in (jsonDecode(projected.attendeesJson) as List)
+                      .whereType<Map>())
+                nextcloudParticipantProjection(
+                  Map<String, Object?>.from(raw),
+                  scheduling,
+                ),
+            ]);
+      final organizer = scheduling == null || projected.organizerJson == null
+          ? projected.organizerJson
+          : jsonEncode(
+              nextcloudParticipantProjection(
+                Map<String, Object?>.from(
+                  jsonDecode(projected.organizerJson!) as Map,
+                ),
+                scheduling,
+              ),
+            );
+      final organizerAddress = organizer == null
+          ? null
+          : (jsonDecode(organizer) as Map)['value']?.toString();
+      final ownOrganizer =
+          scheduling == null ||
+              organizerAddress == null ||
+              scheduling.addresses.isEmpty
+          ? null
+          : scheduling.ownsAddress(organizerAddress);
+      final selfAttendee = (jsonDecode(attendees) as List).whereType<Map>().any(
+        (a) => a['self'] == true,
+      );
+      final rawProjection = scheduling == null
+          ? projected.rawJson
+          : jsonEncode({
+              ...Map<String, Object?>.from(
+                jsonDecode(projected.rawJson) as Map,
+              ),
+              'isOrganizer': ownOrganizer,
+              'canManageAttendees':
+                  scheduling.canInvite &&
+                  (organizerAddress == null || ownOrganizer == true),
+              'canRespond':
+                  scheduling.canReply &&
+                  selfAttendee &&
+                  collectionCapabilitiesFromStored(collection).canUpdateEvent,
+              'federated': scheduling.federated,
+            });
       final componentId =
           componentIds[_componentKey(
             'VEVENT',
@@ -1040,9 +1124,9 @@ final class DavObjectRepository {
               endTimeZone: Value(projected.endTimeZone),
               recurrenceJson: Value(projected.recurrenceJson),
               remindersJson: Value(projected.remindersJson),
-              attendeesJson: Value(projected.attendeesJson),
+              attendeesJson: Value(attendees),
               categoriesJson: Value(projected.categoriesJson),
-              organizerJson: Value(projected.organizerJson),
+              organizerJson: Value(organizer),
               colorHex: Value(collection.color),
               visibility: Value(projected.visibility),
               transparencyOrShowAs: Value(projected.transparency),
@@ -1050,13 +1134,13 @@ final class DavObjectRepository {
               attachmentsJson: Value(projected.attachmentsJson),
               isCancelled: Value(projected.cancelled),
               isDeleted: const Value(false),
-              rawJson: Value(projected.rawJson),
+              rawJson: Value(rawProjection),
               createdAtServer: Value(projected.createdAtServer),
               updatedAtServer: Value(projected.updatedAtServer),
               createdAtLocal: now,
               updatedAtLocal: now,
               syncStatus: const Value('synced'),
-              baselineRawJson: Value(projected.rawJson),
+              baselineRawJson: Value(rawProjection),
             ),
           );
     }

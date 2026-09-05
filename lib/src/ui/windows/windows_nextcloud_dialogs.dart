@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'windows_nextcloud_scheduling_dialog.dart';
 import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -182,6 +183,17 @@ class _WindowsNextcloudCollectionDialogState
                 if (state == null && !model.busy)
                   Button(onPressed: model.load, child: Text(l10n.retry)),
                 if (state != null) ...[
+                  if (state.collection.collection.eventProjectionEnabled)
+                    Button(
+                      onPressed: model.busy
+                          ? null
+                          : () => showWindowsNextcloudSchedulingDialog(
+                              context,
+                              accountId: widget.accountId,
+                              collectionId: widget.collectionId,
+                            ),
+                      child: Text(l10n.nextcloudSchedulingInbox),
+                    ),
                   Text('${state.collection.collection.displayName} · $role'),
                   if (state.collection.collection.ownerHref case final owner?)
                     SelectableText(owner),

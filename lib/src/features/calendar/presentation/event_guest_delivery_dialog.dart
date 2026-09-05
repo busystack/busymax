@@ -15,6 +15,18 @@ Future<CalendarGuestUpdatePolicy?> showCalendarGuestDeliveryDialog(
   required CalendarGuestDeliveryAction action,
   LinuxHeaderBarService? headerBarService,
 }) async {
+  if (provider == BusyProvider.nextcloud) {
+    final saving = action == CalendarGuestDeliveryAction.save;
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: context.l10n.notifyGuestsTitle,
+      message: context.l10n.nextcloudSchedulingPending,
+      confirmLabel: saving ? context.l10n.save : context.l10n.sendCancellation,
+      destructive: !saving,
+      headerBarService: headerBarService,
+    );
+    return confirmed ? CalendarGuestUpdatePolicy.send : null;
+  }
   if (provider == BusyProvider.microsoft) {
     final saving = action == CalendarGuestDeliveryAction.save;
     final confirmed = await showBusyMaxConfirm(

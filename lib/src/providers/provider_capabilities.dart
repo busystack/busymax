@@ -56,6 +56,7 @@ const providerProfiles = <BusyProvider, ProviderProfileCapabilities>{
     expectedServices: {ProviderServiceType.calendar, ProviderServiceType.tasks},
     allowsTaskCollectionMutations: true,
     allowsCalendarCollectionMutations: true,
+    allowsSchedulingMutations: true,
   ),
 };
 

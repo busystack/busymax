@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'nextcloud_scheduling_dialog.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -176,6 +177,17 @@ class _LinuxNextcloudCollectionDialogState
                 if (state == null && !model.busy)
                   TextButton(onPressed: model.load, child: Text(l10n.retry)),
                 if (state != null) ...[
+                  if (state.collection.collection.eventProjectionEnabled)
+                    TextButton(
+                      onPressed: model.busy
+                          ? null
+                          : () => showLinuxNextcloudSchedulingDialog(
+                              context,
+                              accountId: widget.accountId,
+                              collectionId: widget.collectionId,
+                            ),
+                      child: Text(l10n.nextcloudSchedulingInbox),
+                    ),
                   Text('${state.collection.collection.displayName} · $role'),
                   if (state.collection.collection.ownerHref case final owner?)
                     SelectableText(owner),

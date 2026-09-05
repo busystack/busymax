@@ -4,8 +4,11 @@ import '../ical/ical_document.dart';
 import '../ical/ical_recurrence.dart';
 import '../ical/ical_semantics.dart';
 import '../ical/ical_task_alarm.dart';
+import '../ical/ical_timezone.dart';
 import 'dav_conditional_mutation_service.dart';
 import 'dav_mutation_patch.dart';
+import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../nextcloud/nextcloud_scheduling_mutations.dart';
 
 final class DavEventMutationInput {
   const DavEventMutationInput({
@@ -27,6 +30,11 @@ final class DavEventMutationInput {
     this.categoriesChanged = false,
     this.classification,
     this.transparency,
+    this.attendees = const [],
+    this.attendeesChanged = false,
+    this.organizerAddress,
+    this.schedulingOrganizer = false,
+    this.mutationAtUtc,
   });
 
   final String title;
@@ -47,6 +55,11 @@ final class DavEventMutationInput {
   final bool categoriesChanged;
   final String? classification;
   final String? transparency;
+  final List<EventAttendeeDraft> attendees;
+  final bool attendeesChanged;
+  final String? organizerAddress;
+  final bool schedulingOrganizer;
+  final DateTime? mutationAtUtc;
 }
 
 DavNewObject buildDavEventObject(
@@ -75,7 +88,16 @@ DavNewObject buildDavEventObject(
     location: _nonEmpty(input.location),
   );
   final operations = <DavPatchOperation>[
-    if (input.locationPoint != null) DavPatchOperation.setRaw('GEO', input.locationPoint!.icalValue),
+    if (input.attendees.isNotEmpty) ...[
+      DavPatchOperation.setRaw('ORGANIZER', input.organizerAddress),
+      DavPatchOperation.replaceRepeatedRaw(
+        'ATTENDEE',
+        nextcloudAttendeeValues(input.attendees, null),
+      ),
+      DavPatchOperation.setRaw('SEQUENCE', '0'),
+    ],
+    if (input.locationPoint != null)
+      DavPatchOperation.setRaw('GEO', input.locationPoint!.icalValue),
     if (_classification(input.classification) case final value?)
       DavPatchOperation.setRaw('CLASS', value),
     if (_transparency(input.transparency) case final value?)
@@ -129,8 +151,11 @@ DavMutationPatch? buildDavEventUpdatePatch({
       DavPatchOperation.setText('LOCATION', _nonEmpty(input.location)),
     );
   }
-  if (input.locationChanged || (current.location ?? '') != (input.location ?? '')) {
-    operations.add(DavPatchOperation.setRaw('GEO', input.locationPoint?.icalValue));
+  if (input.locationChanged ||
+      (current.location ?? '') != (input.location ?? '')) {
+    operations.add(
+      DavPatchOperation.setRaw('GEO', input.locationPoint?.icalValue),
+    );
   }
   final start = _eventTemporal(
     input.start,
@@ -186,6 +211,19 @@ DavMutationPatch? buildDavEventUpdatePatch({
   if (input.remindersChanged) {
     operations.addAll(_eventAlarmUpdateOperations(current, input.reminders));
   }
+  if (input.attendeesChanged) {
+    operations.add(
+      DavPatchOperation.replaceRepeatedRaw(
+        'ATTENDEE',
+        nextcloudAttendeeValues(input.attendees, current.documentComponent),
+      ),
+    );
+    if (current.organizers.isEmpty && input.attendees.isNotEmpty) {
+      operations.add(
+        DavPatchOperation.setRaw('ORGANIZER', input.organizerAddress),
+      );
+    }
+  }
   if (timingOnly) {
     operations.removeWhere(
       (operation) =>
@@ -193,6 +231,17 @@ DavMutationPatch? buildDavEventUpdatePatch({
     );
   }
   if (operations.isEmpty) return null;
+  if (input.schedulingOrganizer &&
+      (current.attendees.isNotEmpty || input.attendees.isNotEmpty)) {
+    operations.addAll(
+      nextcloudSchedulingStamps(
+        baseline: current,
+        changes: operations,
+        nowUtc: input.mutationAtUtc ?? DateTime.now().toUtc(),
+        organizer: true,
+      ),
+    );
+  }
   return DavMutationPatch(
     target: target,
     scope: target.recurrenceIdKey == null
@@ -276,61 +325,58 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
         ? input.endTimeZone
         : input.endTimeZone ?? input.startTimeZone,
   );
-  final sequence = master.single.sequence;
-  final component = IcalComponent(
-    name: 'VEVENT',
-    children: [
-      _property('UID', uid),
-      _property(
-        'RECURRENCE-ID',
-        recurrence.raw,
-        parameters: thisAndFuture
-            ? _withThisAndFuture(recurrence.parameters)
-            : recurrence.parameters,
-      ),
-      _property('DTSTAMP', _utcIcal(timestamp)),
-      if (sequence != null) _property('SEQUENCE', '${sequence + 1}'),
-      _property('DTSTART', start.value, parameters: start.parameters),
-      _property('DTEND', end.value, parameters: end.parameters),
-      if (timingOnly)
-        ...master.single.documentComponent.children.where(
-          (child) =>
-              child is! IcalProperty ||
-              !{
-                'UID',
-                'RECURRENCE-ID',
-                'DTSTAMP',
-                'SEQUENCE',
-                'DTSTART',
-                'DTEND',
-                'DURATION',
-                'RRULE',
-                'RDATE',
-                'EXDATE',
-                'EXRULE',
-              }.contains(child.name),
-        ),
-      if (!timingOnly) ...[
-        _property('SUMMARY', encodeIcalText(input.title.trim())),
-        if (_nonEmpty(input.description) case final description?)
-          _property('DESCRIPTION', encodeIcalText(description)),
-        if (_nonEmpty(input.location) case final location?)
-          _property('LOCATION', encodeIcalText(location)),
-        if (_nonEmpty(input.location) == null && input.locationChanged) _property('LOCATION', ''),
-        if (input.locationPoint != null) _property('GEO', input.locationPoint!.icalValue),
-        if (_classification(input.classification) case final value?)
-          _property('CLASS', value),
-        if (_transparency(input.transparency) case final value?)
-          _property('TRANSP', value),
-        if (input.categories.isNotEmpty)
-          _property('CATEGORIES', _categories(input.categories)),
-        ..._eventAlarmComponents(input.reminders),
-      ],
-    ],
-    originalBeginLine: 'BEGIN:VEVENT',
-    originalEndLine: 'END:VEVENT',
-    structurallyDirty: true,
+  // Start with the effective raw occurrence, including inherited range
+  // exceptions, participant parameters, alarms and unknown extensions.
+  final component = detachedDavEventOccurrence(
+    baselineRawIcs: baselineRawIcs,
+    uid: uid,
+    occurrenceKey: occurrenceKey,
+    thisAndFuture: thisAndFuture,
   );
+  final temporary = IcalDocument.create(
+    components: [
+      ...semantic.timeZones.map((zone) => zone.deepCopy()),
+      component,
+    ],
+  );
+  final target = IcalComponentKey(
+    componentType: 'VEVENT',
+    uid: uid,
+    recurrenceIdKey: icalRecurrenceIdKey(
+      component.firstProperty('RECURRENCE-ID'),
+    ),
+  );
+  final update = buildDavEventUpdatePatch(
+    target: target,
+    baselineRawIcs: temporary.serialize(),
+    input: input,
+    timingOnly: timingOnly,
+  );
+  final prepared = update == null
+      ? temporary
+      : IcalDocument.parse(
+          update.applyTo(temporary.serialize(), nowUtc: timestamp),
+        );
+  final patcher = IcalDocumentPatcher(prepared);
+  // Ensure a venue clear remains an inheritance barrier for this exception.
+  if (!timingOnly &&
+      input.locationChanged &&
+      _nonEmpty(input.location) == null) {
+    patcher.replaceSingletonRaw(target, 'LOCATION', '');
+  }
+  patcher.replaceSingletonRaw(
+    target,
+    'DTSTART',
+    start.value,
+    parameters: start.parameters,
+  );
+  patcher.replaceSingletonRaw(
+    target,
+    'DTEND',
+    end.value,
+    parameters: end.parameters,
+  );
+  patcher.replaceSingletonRaw(target, 'DTSTAMP', _utcIcal(timestamp));
   return DavMutationPatch(
     target: IcalComponentKey(
       componentType: 'VEVENT',
@@ -338,8 +384,117 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
       recurrenceIdKey: recurrence.key,
     ),
     scope: DavMutationScope.occurrence,
-    operations: [DavPatchOperation.addComponent(component)],
+    operations: [
+      DavPatchOperation.addComponent(patcher.requireComponent(target)),
+    ],
   );
+}
+
+/// Materializes one real occurrence without flattening its backing series.
+/// Used by edits, occurrence replies and cancellations. No identities are
+/// invented and native endpoint timezones/floating dates are retained.
+IcalComponent detachedDavEventOccurrence({
+  required String baselineRawIcs,
+  required String uid,
+  required String occurrenceKey,
+  bool thisAndFuture = false,
+}) {
+  final semantic = IcalSemanticDocument.parse(baselineRawIcs);
+  final identity = _recurrenceIdentity(occurrenceKey);
+  final recurrenceProperty = _property(
+    'RECURRENCE-ID',
+    identity.raw,
+    parameters: identity.parameters,
+  );
+  final recurrence = parseIcalTemporal(recurrenceProperty);
+  if (recurrence == null) throw _invalidMutation();
+  final resolver = IcalTimeZoneResolver.fromDocument(semantic);
+  final instant = resolver.toUtc(recurrence);
+  final occurrence = IcalRecurrenceExpander()
+      .expand(
+        semantic,
+        rangeStartUtc: instant.subtract(const Duration(days: 2)),
+        rangeEndUtc: instant.add(const Duration(days: 2)),
+      )
+      .where(
+        (o) =>
+            o.master.uid == uid &&
+            o.recurrenceId.recurrenceKey == recurrence.recurrenceKey,
+      )
+      .firstOrNull;
+  if (occurrence == null) throw _invalidMutation();
+  final result = occurrence.master.documentComponent.deepCopy();
+  for (final override in [occurrence.inheritedOverride, occurrence.override]) {
+    if (override == null) continue;
+    final names = override.documentComponent.properties
+        .map((p) => p.name)
+        .toSet();
+    // An explicit venue replaces the inherited GEO even when it has no pin.
+    if (names.contains('LOCATION')) names.add('GEO');
+    result.children.removeWhere(
+      (node) => node is IcalProperty && names.contains(node.name),
+    );
+    result.children.addAll(
+      override.documentComponent.properties.map((p) => p.deepCopy()),
+    );
+    if (override.documentComponent.components.isNotEmpty) {
+      final types = override.documentComponent.components
+          .map((c) => c.name)
+          .toSet();
+      result.children.removeWhere(
+        (node) => node is IcalComponent && types.contains(node.name),
+      );
+      result.children.addAll(
+        override.documentComponent.components.map((c) => c.deepCopy()),
+      );
+    }
+  }
+  result.children.removeWhere(
+    (node) =>
+        node is IcalProperty &&
+        {
+          'DTSTART',
+          'DTEND',
+          'DURATION',
+          'RECURRENCE-ID',
+          'RRULE',
+          'RDATE',
+          'EXDATE',
+          'EXRULE',
+        }.contains(node.name),
+  );
+  List<IcalParameter> parameters(IcalTemporalValue value) => [
+    if (value.isDate)
+      const IcalParameter(name: 'VALUE', values: ['DATE'], wasQuoted: false),
+    if (value.kind == IcalTemporalKind.tzidDateTime)
+      IcalParameter(
+        name: 'TZID',
+        values: [value.timeZoneId!],
+        wasQuoted: false,
+      ),
+  ];
+  result.children.addAll([
+    _property(
+      'RECURRENCE-ID',
+      identity.raw,
+      parameters: thisAndFuture
+          ? _withThisAndFuture(identity.parameters)
+          : identity.parameters,
+    ),
+    _property(
+      'DTSTART',
+      occurrence.start.rawValue,
+      parameters: parameters(occurrence.start),
+    ),
+    if (occurrence.end != null)
+      _property(
+        'DTEND',
+        occurrence.end!.rawValue,
+        parameters: parameters(occurrence.end!),
+      ),
+  ]);
+  result.structurallyDirty = true;
+  return result;
 }
 
 /// Cancels exactly one generated or overridden recurrence instance. A new
@@ -350,6 +505,7 @@ DavMutationPatch buildDavEventOccurrenceCancellationPatch({
   required String occurrenceKey,
   required String baselineRawIcs,
   bool thisAndFuture = false,
+  bool schedulingOrganizer = false,
   DateTime Function()? nowUtc,
 }) {
   final semantic = IcalSemanticDocument.parse(baselineRawIcs);
@@ -381,6 +537,13 @@ DavMutationPatch buildDavEventOccurrenceCancellationPatch({
       scope: DavMutationScope.occurrence,
       operations: [
         DavPatchOperation.setRaw('STATUS', 'CANCELLED'),
+        if (schedulingOrganizer)
+          ...nextcloudSchedulingStamps(
+            baseline: component,
+            changes: [DavPatchOperation.setRaw('STATUS', 'CANCELLED')],
+            nowUtc: (nowUtc ?? DateTime.now)(),
+            organizer: true,
+          ),
         if (thisAndFuture && component.recurrenceRange != 'THISANDFUTURE')
           DavPatchOperation.setRaw(
             'RECURRENCE-ID',
@@ -398,6 +561,38 @@ DavMutationPatch buildDavEventOccurrenceCancellationPatch({
   );
   if (master.length != 1) throw _invalidMutation();
   final timestamp = (nowUtc ?? (() => DateTime.now().toUtc()))().toUtc();
+  if (schedulingOrganizer) {
+    final component = detachedDavEventOccurrence(
+      baselineRawIcs: baselineRawIcs,
+      uid: uid,
+      occurrenceKey: occurrenceKey,
+      thisAndFuture: thisAndFuture,
+    );
+    final document = IcalDocument.create(components: [component]);
+    final key = IcalComponentKey(
+      componentType: 'VEVENT',
+      uid: uid,
+      recurrenceIdKey: icalRecurrenceIdKey(
+        component.firstProperty('RECURRENCE-ID'),
+      ),
+    );
+    final patcher = IcalDocumentPatcher(document);
+    patcher.replaceSingletonRaw(key, 'STATUS', 'CANCELLED');
+    patcher.replaceSingletonRaw(
+      key,
+      'SEQUENCE',
+      '${(int.tryParse(component.firstProperty('SEQUENCE')?.rawValue ?? '') ?? 0) + 1}',
+    );
+    patcher.replaceSingletonRaw(key, 'DTSTAMP', _utcIcal(timestamp));
+    patcher.replaceSingletonRaw(key, 'LAST-MODIFIED', _utcIcal(timestamp));
+    return DavMutationPatch(
+      target: key,
+      scope: DavMutationScope.occurrence,
+      operations: [
+        DavPatchOperation.addComponent(patcher.requireComponent(key)),
+      ],
+    );
+  }
   final sequence = master.single.sequence;
   final component = IcalComponent(
     name: 'VEVENT',
@@ -478,7 +673,8 @@ DavNewObject buildDavTaskObject(
         'LOCATION',
         _nonEmpty(fields['location']?.toString()),
       ),
-    if (GeographicPoint.fromJson(fields['locationPoint']) case final point?) DavPatchOperation.setRaw('GEO', point.icalValue),
+    if (GeographicPoint.fromJson(fields['locationPoint']) case final point?)
+      DavPatchOperation.setRaw('GEO', point.icalValue),
     if (fields.containsKey('taskUrl'))
       DavPatchOperation.setRaw('URL', _taskUrl(fields['taskUrl'])),
     if (fields.containsKey('taskClassification'))
@@ -600,7 +796,12 @@ DavMutationPatch? buildDavTaskUpdatePatch({
     );
   }
   if (fields.containsKey('locationPoint') || fields.containsKey('location')) {
-    operations.add(DavPatchOperation.setRaw('GEO', GeographicPoint.fromJson(fields['locationPoint'])?.icalValue));
+    operations.add(
+      DavPatchOperation.setRaw(
+        'GEO',
+        GeographicPoint.fromJson(fields['locationPoint'])?.icalValue,
+      ),
+    );
   }
   if (fields.containsKey('taskUrl')) {
     operations.add(
@@ -768,7 +969,8 @@ DavMutationPatch buildDavRecurringTaskCompletionPatch({
         _property('DESCRIPTION', encodeIcalText(description)),
       if (_nonEmpty(master.location) case final location?)
         _property('LOCATION', encodeIcalText(location)),
-      if (master.documentComponent.firstProperty('GEO') case final geo?) geo.deepCopy(),
+      if (master.documentComponent.firstProperty('GEO') case final geo?)
+        geo.deepCopy(),
       if (_nonEmpty(master.url) case final url?) _property('URL', url),
       if (master.priority case final priority?)
         _property('PRIORITY', '$priority'),

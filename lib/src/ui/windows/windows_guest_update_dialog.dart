@@ -13,6 +13,27 @@ Future<CalendarGuestUpdatePolicy?> showWindowsGuestUpdateDialog(
 }) {
   final l10n = AppLocalizations.of(context);
   final saving = action == WindowsGuestUpdateAction.save;
+  if (provider == BusyProvider.nextcloud) {
+    return showDialog<CalendarGuestUpdatePolicy>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => ContentDialog(
+        title: Text(l10n.notifyGuestsTitle),
+        content: Text(l10n.nextcloudSchedulingPending),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, CalendarGuestUpdatePolicy.send),
+            child: Text(saving ? l10n.save : l10n.sendCancellation),
+          ),
+        ],
+      ),
+    );
+  }
   if (provider == BusyProvider.microsoft) {
     return showDialog<CalendarGuestUpdatePolicy>(
       context: context,

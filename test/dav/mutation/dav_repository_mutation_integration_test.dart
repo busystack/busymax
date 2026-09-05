@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -52,6 +54,7 @@ void main() {
   test(
     'timing-only occurrence exception retains guests, alarms and opaque provider fields',
     () async {
+      await _seedScheduling(database, 'owner@example.test');
       final baseline = _recurringEventResource().replaceFirst(
         'X-SERIES-KEEP:opaque',
         'X-SERIES-KEEP:opaque\r\nATTENDEE;CN=Guest:mailto:guest@example.test\r\n'
@@ -364,6 +367,166 @@ void main() {
 
       expect(await database.select(database.calendarEvents).get(), isEmpty);
       expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test(
+    'Nextcloud meeting creation retains participant parameters while pending',
+    () async {
+      await _seedScheduling(database, 'owner@example.test');
+      await calendarRepository.createLocalEvent(
+        _newEventDraft().copyWith(
+          title: 'Meeting',
+          attendees: const [
+            EventAttendeeDraft(
+              email: 'guest@example.test',
+              displayName: 'Guest',
+              optional: true,
+            ),
+          ],
+        ),
+      );
+      final event = await database.select(database.calendarEvents).getSingle();
+      final detail = (await calendarRepository.loadEventDetail(event.id))!;
+      final draft = EventEditorDraft.fromEventDetail(detail);
+      expect(draft.attendees.single.email, 'guest@example.test');
+      expect(draft.attendees.single.optional, isTrue);
+      expect(draft.isOrganizer, isTrue);
+      expect(event.syncStatus, 'pending');
+      final operation = await database.select(database.pendingOps).getSingle();
+      final request = jsonDecode(operation.requestJson) as Map;
+      expect(request.toString(), contains('mailto:owner@example.test'));
+      expect(request.toString(), contains('ROLE=OPT-PARTICIPANT'));
+      expect(request['suppressScheduling'], isNot(true));
+    },
+  );
+
+  test(
+    'Nextcloud occurrence reply persists only self response and requires scope',
+    () async {
+      await _seedScheduling(database, 'guest@example.test');
+      final baseline = _recurringEventResource().replaceFirst(
+        'X-SERIES-KEEP:opaque',
+        'X-SERIES-KEEP:opaque\r\nORGANIZER:mailto:owner@example.test\r\n'
+            'ATTENDEE;CN=Guest;ROLE=OPT-PARTICIPANT;PARTSTAT=NEEDS-ACTION;X-KEEP=yes:mailto:guest@example.test',
+      );
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: '${_collectionHref}reply.ics',
+          etag: '"meeting"',
+          body: baseline,
+        ),
+      ]);
+      final event = (await database.select(database.calendarEvents).get())
+          .singleWhere((e) => e.occurrenceKey!.contains('2026-08-10T09:00:00'));
+      await expectLater(
+        calendarRepository.respondToLocalEvent(
+          event.id,
+          CalendarInvitationResponse.accept,
+        ),
+        throwsUnsupportedError,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      await calendarRepository.respondToLocalEvent(
+        event.id,
+        CalendarInvitationResponse.accept,
+        recurringScope: RecurringEventMutationScope.singleOccurrence,
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      final candidate = IcalSemanticDocument.parse(
+        DavMutationPatch.fromJsonString(
+          operation.mutationPatchJson!,
+        ).applyTo(baseline, nowUtc: _now),
+      );
+      final exception = candidate.components.singleWhere(
+        (c) => c.recurrenceId?.rawValue == '20260810T090000Z',
+      );
+      expect(
+        exception.documentComponent
+            .firstProperty('ATTENDEE')!
+            .parameterValue('PARTSTAT'),
+        'ACCEPTED',
+      );
+      expect(
+        exception.documentComponent
+            .firstProperty('ATTENDEE')!
+            .parameterValue('X-KEEP'),
+        'yes',
+      );
+      expect(
+        exception.documentComponent
+            .firstProperty('ATTENDEE')!
+            .parameterValue('ROLE'),
+        'OPT-PARTICIPANT',
+      );
+      expect(exception.sequence, candidate.components.first.sequence);
+      expect(
+        candidate.components.first.documentComponent
+            .firstProperty('ATTENDEE')!
+            .parameterValue('PARTSTAT'),
+        'NEEDS-ACTION',
+      );
+      expect(operation.operationType, 'dav.update');
+      expect(
+        (await database.select(database.calendarEvents).get()).where(
+          (e) => e.syncStatus == 'pending',
+        ),
+        isNotEmpty,
+      );
+    },
+  );
+
+  test(
+    'several offline occurrence edits serialize as one resource mutation',
+    () async {
+      final baseline = _recurringEventResource();
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: '${_collectionHref}offline-series.ics',
+          etag: '"series"',
+          body: baseline,
+        ),
+      ]);
+      for (final (day, title) in [
+        (10, 'First change'),
+        (9, 'Second change'),
+        (10, 'First revised'),
+      ]) {
+        final event = (await database.select(database.calendarEvents).get())
+            .singleWhere(
+              (e) => e.occurrenceKey!.contains(
+                '2026-08-${day.toString().padLeft(2, '0')}T09:00:00',
+              ),
+            );
+        final detail = (await calendarRepository.loadEventDetail(event.id))!;
+        await calendarRepository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail).copyWith(
+            title: title,
+            recurringMutationScope:
+                RecurringEventMutationScope.singleOccurrence,
+          ),
+        );
+      }
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.baselineEtag, '"series"');
+      final saved = IcalSemanticDocument.parse(
+        DavMutationPatch.fromJsonString(
+          pending.mutationPatchJson!,
+        ).applyTo(baseline, nowUtc: _now),
+      );
+      expect(
+        saved.components
+            .singleWhere((c) => c.recurrenceId?.rawValue == '20260810T090000Z')
+            .summary,
+        'First revised',
+      );
+      expect(
+        saved.components
+            .singleWhere((c) => c.recurrenceId?.rawValue == '20260809T090000Z')
+            .summary,
+        'Second change',
+      );
+      expect(saved.components.first.summary, 'Server series');
     },
   );
 
@@ -1441,6 +1604,44 @@ Future<void> _seedDavAccount(AppDatabase database) async {
           rawJson: '{}',
           createdLocalAtUtc: now,
           updatedLocalAtUtc: now,
+        ),
+      );
+}
+
+Future<void> _seedScheduling(AppDatabase database, String email) async {
+  final principal = Uri.parse(
+    'https://cloud.example.test/remote.php/dav/principals/users/alex/',
+  );
+  final home = Uri.parse(
+    'https://cloud.example.test/remote.php/dav/calendars/alex/',
+  );
+  await database
+      .into(database.davAccountServices)
+      .insertOnConflictUpdate(
+        DavAccountServicesCompanion.insert(
+          accountId: _accountId,
+          canonicalServiceUri: 'https://cloud.example.test/remote.php/dav/',
+          canonicalOrigin: 'https://cloud.example.test',
+          principalHref: Value(principal.toString()),
+          calendarHomeHref: Value(home.toString()),
+          capabilitiesJson: Value(
+            jsonEncode({
+              'serverFeatures': ['calendar-auto-schedule'],
+              'principalContexts': [
+                DavPrincipalContext(
+                  principalHref: principal,
+                  calendarHomeHref: home,
+                  calendarUserAddresses: [Uri.parse('mailto:$email')],
+                  scheduleOutboxHref: home.resolve('outbox/'),
+                  scheduleInboxHref: home.resolve('inbox/'),
+                  outboxPrivileges: {
+                    '{urn:ietf:params:xml:ns:caldav}schedule-send',
+                  },
+                ).toJson(),
+              ],
+            }),
+          ),
+          discoveredAtUtc: _now.toIso8601String(),
         ),
       );
 }

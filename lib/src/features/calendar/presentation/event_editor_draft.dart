@@ -24,6 +24,34 @@ class EventAttendeeDraft {
   });
 
   factory EventAttendeeDraft.fromJson(Map<String, Object?> json) {
+    if (json['value'] case final String address) {
+      final parameters = {
+        for (final p in json['parameters'] as List? ?? const [])
+          if (p is Map && p['values'] is List)
+            p['name']: (p['values'] as List).firstOrNull?.toString(),
+      };
+      String decoded(String value) {
+        try {
+          return Uri.decodeComponent(value);
+        } on FormatException {
+          return value;
+        }
+      }
+
+      return EventAttendeeDraft(
+        email: address.toLowerCase().startsWith('mailto:')
+            ? decoded(address.substring(7))
+            : address,
+        displayName: parameters['CN'],
+        optional: parameters['ROLE'] == 'OPT-PARTICIPANT',
+        self: json['self'] == true,
+        organizer: json['organizer'] == true,
+        responseStatus:
+            json['responseStatus']?.toString() ??
+            parameters['PARTSTAT'] ??
+            'NEEDS-ACTION',
+      );
+    }
     final emailAddress = switch (json['emailAddress']) {
       final Map value => value.cast<String, Object?>(),
       _ => const <String, Object?>{},
@@ -176,9 +204,8 @@ class EventEditorDraft {
     final isOrganizer = switch (detail.provider) {
       BusyProvider.google => _jsonBool(organizer?['self']),
       BusyProvider.microsoft => _jsonBool(raw['isOrganizer']),
-      BusyProvider.appleICloud ||
-      BusyProvider.nextcloud ||
-      BusyProvider.webCal => null,
+      BusyProvider.nextcloud => _jsonBool(raw['isOrganizer']),
+      BusyProvider.appleICloud || BusyProvider.webCal => null,
     };
     final hideAttendees = switch (detail.provider) {
       BusyProvider.google =>
@@ -236,10 +263,11 @@ class EventEditorDraft {
       hideAttendees: hideAttendees,
       allowNewTimeProposals: _jsonBool(raw['allowNewTimeProposals']),
       isOrganizer: isOrganizer,
-      canManageAttendees:
-          detail.provider != BusyProvider.google ||
-          isOrganizer == true ||
-          detail.guestsCanInviteOthers,
+      canManageAttendees: detail.provider == BusyProvider.nextcloud
+          ? raw['canManageAttendees'] == true
+          : detail.provider != BusyProvider.google ||
+                isOrganizer == true ||
+                detail.guestsCanInviteOthers,
     );
   }
 
@@ -334,7 +362,8 @@ class EventEditorDraft {
   final String? location;
   final GeographicPoint? locationPoint;
   final LocationChange locationChange;
-  GeographicPoint? get effectiveLocationPoint => locationChange.changed ? locationChange.selection?.point : locationPoint;
+  GeographicPoint? get effectiveLocationPoint =>
+      locationChange.changed ? locationChange.selection?.point : locationPoint;
   final String? description;
   final String? descriptionContentType;
   final String? descriptionHtml;
@@ -445,7 +474,11 @@ class EventEditorDraft {
       endTimeZone: endTimeZone ?? this.endTimeZone,
       location: clearLocation ? null : location ?? this.location,
       locationPoint: locationPoint,
-      locationChange: locationChange ?? (clearLocation || (location != null && location != this.location) ? const LocationChange.clear() : this.locationChange),
+      locationChange:
+          locationChange ??
+          (clearLocation || (location != null && location != this.location)
+              ? const LocationChange.clear()
+              : this.locationChange),
       description: clearDescription ? null : description ?? this.description,
       descriptionContentType: clearDescription
           ? null

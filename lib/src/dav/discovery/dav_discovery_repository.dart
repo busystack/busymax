@@ -7,6 +7,7 @@ import '../../db/app_database.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_provider_profile.dart';
 import 'dav_discovery_models.dart';
+import '../nextcloud/nextcloud_scheduling_policy.dart';
 
 final class DavDiscoveryRepository {
   DavDiscoveryRepository({
@@ -144,6 +145,29 @@ final class DavDiscoveryRepository {
                 updatedAtUtc: now,
               ),
             );
+        if (result.provider == BusyProvider.nextcloud) {
+          final stored = await (_database.select(
+            _database.davCollections,
+          )..where((r) => r.id.equals(id))).getSingle();
+          final policy = await NextcloudSchedulingPolicy.load(
+            _database,
+            stored,
+          );
+          await (_database.update(
+            _database.davCollections,
+          )..where((r) => r.id.equals(id))).write(
+            DavCollectionsCompanion(
+              safeDisplayMetadataJson: Value(
+                jsonEncode({
+                  ...Map<String, Object?>.from(
+                    jsonDecode(stored.safeDisplayMetadataJson ?? '{}') as Map,
+                  ),
+                  ...policy.projection,
+                }),
+              ),
+            ),
+          );
+        }
         await _upsertProjections(
           result: result,
           collectionId: id,

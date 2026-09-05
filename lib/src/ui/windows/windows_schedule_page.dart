@@ -846,16 +846,72 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       context: context,
       builder: (dialogContext) => ContentDialog(
         title: Text(item.title),
-        content: Text(
-          [
-            time,
-            ?item.sourceName,
-            ?item.accountDisplayName,
-            if (item case CalendarScheduleItem(:final location?)) location,
-            if (item case CalendarScheduleItem(:final description?))
-              description,
-            if (item case TaskScheduleItem(:final notes?)) notes,
-          ].where((value) => value.trim().isNotEmpty).join('\n'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SelectableText(
+                [
+                  time,
+                  ?item.sourceName,
+                  ?item.accountDisplayName,
+                  if (item case CalendarScheduleItem(:final location?))
+                    location,
+                  if (item case CalendarScheduleItem(:final description?))
+                    description,
+                  if (item case TaskScheduleItem(:final notes?)) notes,
+                ].where((value) => value.trim().isNotEmpty).join('\n'),
+              ),
+              if (item is CalendarScheduleItem) ...[
+                if (item.canSendReply) Text(l10n.nextcloudAttendeeRestrictions),
+                if (item.organizer != null)
+                  SelectableText(
+                    '${l10n.organizer}: ${item.organizer!['displayName'] ?? item.organizer!['email'] ?? item.organizer!['value'] ?? ''}',
+                  ),
+                for (final attendee in item.attendees) ...[
+                  SelectableText(
+                    '${attendee['displayName'] ?? attendee['email'] ?? attendee['value'] ?? ''} · ${attendee['responseStatus'] ?? ''}',
+                  ),
+                  if (attendee['scheduleStatus'] != null)
+                    SelectableText(
+                      '${l10n.nextcloudSchedulingStatus}: ${attendee['scheduleStatus']}',
+                    ),
+                ],
+                if (item.canRespondToInvitation) ...[
+                  if (item.provider == BusyProvider.nextcloud)
+                    Text(l10n.nextcloudSchedulingPending),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (response, label) in [
+                        (
+                          CalendarInvitationResponse.accept,
+                          l10n.acceptInvitation,
+                        ),
+                        (
+                          CalendarInvitationResponse.tentative,
+                          l10n.tentativeInvitation,
+                        ),
+                        (
+                          CalendarInvitationResponse.decline,
+                          l10n.declineInvitation,
+                        ),
+                      ])
+                        Button(
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            unawaited(_respondToInvitation(item, response));
+                          },
+                          child: Text(label),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ],
+          ),
         ),
         actions: [
           if (item.capabilities.canEdit)
@@ -908,6 +964,52 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       return;
     }
     if (changed && mounted) _reload();
+  }
+
+  Future<void> _respondToInvitation(
+    CalendarScheduleItem item,
+    CalendarInvitationResponse response,
+  ) async {
+    if (!item.canRespondToInvitation) return;
+    final l10n = AppLocalizations.of(context);
+    try {
+      RecurringEventMutationScope? scope;
+      if (item.provider == BusyProvider.nextcloud &&
+          item.providerRecurringEventId != null) {
+        scope = await showWindowsRecurringEventMutationScope(
+          context,
+          item.provider,
+          supportsFollowingOverride: false,
+        );
+        if (scope == null || !mounted) return;
+      }
+      final accountId = await ref
+          .read(calendarRepositoryProvider)
+          .respondToLocalEvent(item.id, response, recurringScope: scope);
+      ref
+          .read(
+            pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+          )
+          .request();
+      if (mounted) _reload();
+    } on Object {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => ContentDialog(
+          content: InfoBar(
+            title: Text(l10n.operationFailed),
+            severity: InfoBarSeverity.error,
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.close),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _export(ScheduleItem item) async {

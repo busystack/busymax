@@ -133,6 +133,84 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @nextcloudSchedulingInbox.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduling inbox'**
+  String get nextcloudSchedulingInbox;
+
+  /// No description provided for @nextcloudInboxExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.'**
+  String get nextcloudInboxExplanation;
+
+  /// No description provided for @nextcloudInboxEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No scheduling messages.'**
+  String get nextcloudInboxEmpty;
+
+  /// No description provided for @nextcloudAcknowledge.
+  ///
+  /// In en, this message translates to:
+  /// **'Acknowledge message'**
+  String get nextcloudAcknowledge;
+
+  /// No description provided for @nextcloudAcknowledgeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this scheduling message from the inbox? The calendar event will be kept.'**
+  String get nextcloudAcknowledgeConfirm;
+
+  /// No description provided for @nextcloudAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Include this collection in availability'**
+  String get nextcloudAvailability;
+
+  /// No description provided for @nextcloudAvailabilityUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Availability unknown'**
+  String get nextcloudAvailabilityUnknown;
+
+  /// No description provided for @nextcloudAvailabilityFree.
+  ///
+  /// In en, this message translates to:
+  /// **'No busy periods reported for this interval'**
+  String get nextcloudAvailabilityFree;
+
+  /// No description provided for @nextcloudAvailabilityBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Busy periods'**
+  String get nextcloudAvailabilityBusy;
+
+  /// No description provided for @nextcloudSchedulingPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.'**
+  String get nextcloudSchedulingPending;
+
+  /// No description provided for @nextcloudAttendeeRestrictions.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.'**
+  String get nextcloudAttendeeRestrictions;
+
+  /// No description provided for @nextcloudMeetingMoveUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.'**
+  String get nextcloudMeetingMoveUnsupported;
+
+  /// No description provided for @nextcloudSchedulingStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Server scheduling status'**
+  String get nextcloudSchedulingStatus;
+
   /// No description provided for @nextcloudImportFollowUp.
   ///
   /// In en, this message translates to:
@@ -216,12 +294,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enabled on the server'**
   String get nextcloudCalendarEnabled;
-
-  /// No description provided for @nextcloudAvailability.
-  ///
-  /// In en, this message translates to:
-  /// **'Include this collection in availability'**
-  String get nextcloudAvailability;
 
   /// No description provided for @nextcloudCalendarTimezone.
   ///

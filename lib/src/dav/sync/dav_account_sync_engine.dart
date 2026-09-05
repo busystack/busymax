@@ -17,6 +17,8 @@ import '../http/dav_http_transport.dart';
 import '../mutation/dav_conditional_mutation_service.dart';
 import '../mutation/dav_pending_operations.dart';
 import '../storage/dav_object_repository.dart';
+import '../storage/dav_collection_capabilities.dart';
+import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_remote_client.dart';
 import 'dav_sync_engine.dart';
 
@@ -192,7 +194,26 @@ final class DavAccountSyncEngine {
 
     try {
       cancellationToken.throwIfCancelled();
-      if (full || await _discoveryIsDue()) {
+      // Permissions and delegated scheduling identities can change while
+      // edits are offline. Refresh the complete inventory before replay; a
+      // failed discovery keeps every queued operation and cached source.
+      final pendingNextcloud =
+          provider == BusyProvider.nextcloud &&
+          (await (_database.select(_database.pendingOps)
+                    ..where(
+                      (r) =>
+                          r.accountId.equals(_accountId) &
+                          r.operationType.like('dav.%') &
+                          r.state.isIn(const [
+                            'pending',
+                            'retry',
+                            'in_progress',
+                          ]),
+                    )
+                    ..limit(1))
+                  .get())
+              .isNotEmpty;
+      if (full || pendingNextcloud || await _discoveryIsDue()) {
         discoveryRefreshed = true;
         final discovery =
             await DavDiscoveryService(
@@ -254,16 +275,22 @@ final class DavAccountSyncEngine {
           onPermanentFailure: (operation, error) async {
             await _reportPendingMutationFailure?.call(_accountId, error);
           },
-          serviceFactory: ({required account, required collection}) async =>
-              DavConditionalMutationService(
-                remoteClient: DavMutationHttpClient(
-                  transport: transport,
-                  accountId: _accountId,
-                  collectionId: collection.id,
-                  credential: loaded.basic,
-                ),
-                nowUtc: _nowUtc,
+          serviceFactory: ({required account, required collection}) async {
+            final policy = provider == BusyProvider.nextcloud
+                ? await NextcloudSchedulingPolicy.load(_database, collection)
+                : null;
+            return DavConditionalMutationService(
+              implicitScheduling: provider == BusyProvider.nextcloud,
+              schedulingValidator: policy?.validateChange,
+              remoteClient: DavMutationHttpClient(
+                transport: transport,
+                accountId: _accountId,
+                collectionId: collection.id,
+                credential: loaded.basic,
               ),
+              nowUtc: _nowUtc,
+            );
+          },
         ).replayDueOperations();
         affected.addAll(replay.affectedObjectIds);
       }
@@ -431,18 +458,31 @@ final class DavAccountSyncEngine {
             _policy.inventoryMaxAge;
   }
 
-  Future<List<DavCollection>> _selectedCollections() {
-    return (_database.select(_database.davCollections)..where(
-          (row) =>
-              row.accountId.equals(_accountId) &
-              row.deleted.equals(false) &
-              row.serverMissing.equals(false) &
-              ((row.eventProjectionEnabled.equals(true) &
-                      row.eventsSelected.equals(true)) |
-                  (row.taskProjectionEnabled.equals(true) &
-                      row.tasksSelected.equals(true))),
-        ))
-        .get();
+  Future<List<DavCollection>> _selectedCollections() async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((r) => r.id.equals(_accountId))).getSingle();
+    final collections =
+        await (_database.select(_database.davCollections)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.deleted.equals(false) &
+                  row.serverMissing.equals(false),
+            ))
+            .get();
+    return collections
+        .where(
+          (collection) =>
+              (collection.eventProjectionEnabled &&
+                  collection.eventsSelected) ||
+              (collection.taskProjectionEnabled && collection.tasksSelected) ||
+              (account.provider == 'nextcloud' &&
+                  collectionCapabilitiesFromStored(collection).canRead &&
+                  (jsonDecode(collection.resourceTypesJson) as List).contains(
+                    '{urn:ietf:params:xml:ns:caldav}schedule-inbox',
+                  )),
+        )
+        .toList();
   }
 
   Future<_CollectionBatchResult> _synchronizeCollections(
