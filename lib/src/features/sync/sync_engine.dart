@@ -51,13 +51,15 @@ class SyncEngine {
       return;
     }
 
-    final account = await (_database.select(
-      _database.accounts,
-    )..where((row) => row.id.equals(_accountId))).getSingleOrNull();
-    final lastSync = account?.lastSuccessfulSyncAtUtc == null
+    final lastSuccessfulRun = await _database.syncRunsDao.latestSuccessfulRun(
+      _accountId,
+    );
+    // A completion-time checkpoint can skip changes made to an early list
+    // while later lists are still being synchronized.
+    final checkpoint = lastSuccessfulRun == null
         ? null
-        : DateTime.parse(account!.lastSuccessfulSyncAtUtc!).toUtc();
-    final updatedMin = lastSync?.subtract(const Duration(minutes: 2));
+        : DateTime.parse(lastSuccessfulRun.startedAtUtc).toUtc();
+    final updatedMin = checkpoint?.subtract(const Duration(minutes: 2));
 
     await _runSync(
       mode: 'incremental',
@@ -113,7 +115,7 @@ class SyncEngine {
       ).rebuildUpcomingTaskNotifications(_accountId);
 
       final finishedAt = _now();
-      await _updateAccountSyncTimestamps(mode, finishedAt);
+      await _updateAccountSyncCompletion(mode, finishedAt);
       await _database.syncRunsDao.finishRun(
         id: runId,
         finishedAtUtc: DateTime.parse(finishedAt),
@@ -337,7 +339,7 @@ class SyncEngine {
     }
   }
 
-  Future<void> _updateAccountSyncTimestamps(String mode, String timestamp) {
+  Future<void> _updateAccountSyncCompletion(String mode, String timestamp) {
     final update = _database.update(_database.accounts)
       ..where((row) => row.id.equals(_accountId));
     return update.write(

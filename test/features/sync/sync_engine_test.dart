@@ -71,13 +71,19 @@ void main() {
     expect(tasks.single.serverMissing, isTrue);
   });
 
-  test('incremental sync uses updatedMin with two minute overlap', () async {
+  test('incremental sync checkpoints from the successful run start', () async {
     await (database.update(
       database.accounts,
     )..where((row) => row.id.equals('account'))).write(
       const AccountsCompanion(
-        lastSuccessfulSyncAtUtc: Value('2026-06-04T00:10:00.000Z'),
+        lastSuccessfulSyncAtUtc: Value('2026-06-04T00:15:00.000Z'),
       ),
+    );
+    await _insertSuccessfulRun(
+      database,
+      id: 'previous-run',
+      startedAtUtc: '2026-06-04T00:10:00.000Z',
+      finishedAtUtc: '2026-06-04T00:15:00.000Z',
     );
     apiClient.taskListsPages = [
       TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
@@ -90,10 +96,14 @@ void main() {
       database: database,
       apiClient: apiClient,
       accountId: 'account',
-      nowUtc: () => DateTime.utc(2026, 6, 4),
+      nowUtc: () => DateTime.utc(2026, 6, 4, 0, 20),
     ).incrementalSync();
 
     expect(apiClient.lastUpdatedMin, DateTime.utc(2026, 6, 4, 0, 8));
+    final account = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals('account'))).getSingle();
+    expect(account.lastSuccessfulSyncAtUtc, '2026-06-04T00:20:00.000Z');
   });
 
   test(
@@ -103,8 +113,14 @@ void main() {
         database.accounts,
       )..where((row) => row.id.equals('account'))).write(
         const AccountsCompanion(
-          lastSuccessfulSyncAtUtc: Value('2026-06-04T00:10:00.000Z'),
+          lastSuccessfulSyncAtUtc: Value('2026-06-04T00:15:00.000Z'),
         ),
+      );
+      await _insertSuccessfulRun(
+        database,
+        id: 'previous-run',
+        startedAtUtc: '2026-06-04T00:10:00.000Z',
+        finishedAtUtc: '2026-06-04T00:15:00.000Z',
       );
       await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
       await database.taskListsDao.upsertTaskList(
@@ -653,6 +669,24 @@ class FakeTaskRemoteClient
     String taskListId,
     TaskListPut replacement,
   ) => throw UnimplementedError();
+}
+
+Future<void> _insertSuccessfulRun(
+  AppDatabase database, {
+  required String id,
+  required String startedAtUtc,
+  required String finishedAtUtc,
+}) {
+  return database.syncRunsDao.insertRun(
+    SyncRunsCompanion.insert(
+      id: id,
+      accountId: 'account',
+      mode: 'incremental',
+      startedAtUtc: startedAtUtc,
+      finishedAtUtc: Value(finishedAtUtc),
+      status: 'success',
+    ),
+  );
 }
 
 Future<void> _insertAccount(AppDatabase database) {
