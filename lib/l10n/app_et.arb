@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "Sündmuse aega ei saanud muuta. Salvestatud aeg jäi muutmata.",
+  "scheduleRescheduleStale": "Sündmus muutus lohistamise ajal. Palun proovi uuesti.",
+  "scheduleRescheduleNotificationsFailed": "Uus aeg salvestati, kuid meeldetuletusi ei saanud värskendada.",
   "moveUp": "Liiguta üles",
   "moveDown": "Liiguta alla",
   "@@locale": "et",

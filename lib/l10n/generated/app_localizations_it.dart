@@ -13,6 +13,23 @@ class AppLocalizationsIt extends AppLocalizations {
   AppLocalizationsIt([String locale = 'it']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Impossibile riprogrammare l’evento. L’orario salvato non è stato modificato.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Questo evento è cambiato durante il trascinamento. Riprova.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Il nuovo orario è stato salvato, ma non è stato possibile aggiornare i promemoria.';
+
+  @override
   String get moveUp => 'Sposta su';
 
   @override

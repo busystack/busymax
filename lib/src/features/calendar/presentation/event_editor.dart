@@ -21,6 +21,7 @@ import '../data/calendar_repository.dart';
 import '../domain/event_move_policy.dart';
 import 'event_description_editor.dart';
 import 'event_editor_draft.dart';
+import '../domain/event_timing_policy.dart';
 import 'event_guest_delivery_dialog.dart';
 
 Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
@@ -1063,7 +1064,9 @@ class _EventEditorState extends State<EventEditor> {
   ) {
     if (!_isMovingTo(destination)) {
       return scope != RecurringEventMutationScope.thisAndFuture ||
-          supportsThisAndFollowingEventMutation(destination.provider);
+          (draft.originalDetail == null
+              ? supportsThisAndFollowingEventMutation(destination.provider)
+              : eventSupportsThisAndFollowing(draft.originalDetail!));
     }
     if (scope == RecurringEventMutationScope.singleOccurrence) return true;
     if (scope == RecurringEventMutationScope.thisAndFuture) return false;

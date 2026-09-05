@@ -133,6 +133,30 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// Proposed event interval while dragging.
+  ///
+  /// In en, this message translates to:
+  /// **'{start} – {end}'**
+  String scheduleProposedRange(String start, String end);
+
+  /// No description provided for @scheduleRescheduleFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The event could not be rescheduled. Its stored time has not been changed.'**
+  String get scheduleRescheduleFailed;
+
+  /// No description provided for @scheduleRescheduleStale.
+  ///
+  /// In en, this message translates to:
+  /// **'This event changed while you were dragging. Please try again.'**
+  String get scheduleRescheduleStale;
+
+  /// No description provided for @scheduleRescheduleNotificationsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The new time was saved, but reminders could not be refreshed.'**
+  String get scheduleRescheduleNotificationsFailed;
+
   /// No description provided for @moveUp.
   ///
   /// In en, this message translates to:

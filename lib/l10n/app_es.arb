@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "No se pudo reprogramar el evento. Su horario guardado no ha cambiado.",
+  "scheduleRescheduleStale": "Este evento cambió mientras lo arrastrabas. Inténtalo de nuevo.",
+  "scheduleRescheduleNotificationsFailed": "Se guardó el nuevo horario, pero no se pudieron actualizar los recordatorios.",
   "moveUp": "Mover hacia arriba",
   "moveDown": "Mover hacia abajo",
   "@@locale": "es",

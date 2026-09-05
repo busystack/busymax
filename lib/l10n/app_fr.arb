@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "Impossible de replanifier l’événement. Son horaire enregistré n’a pas été modifié.",
+  "scheduleRescheduleStale": "Cet événement a été modifié pendant le déplacement. Veuillez réessayer.",
+  "scheduleRescheduleNotificationsFailed": "Le nouvel horaire a été enregistré, mais les rappels n’ont pas pu être actualisés.",
   "moveUp": "Monter",
   "moveDown": "Descendre",
   "@@locale": "fr",

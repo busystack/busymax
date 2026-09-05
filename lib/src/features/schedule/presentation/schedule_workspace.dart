@@ -29,6 +29,9 @@ import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_commands.dart';
 import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';
+import '../../../schedule/schedule_event_rescheduling.dart';
+import '../../../ui/common/schedule/schedule_interactions.dart';
+import '../../calendar/domain/event_timing_policy.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
 import '../../../schedule/schedule_repository.dart';
@@ -517,6 +520,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                   canCreateTask: canCreateTask,
                                 ),
                               ),
+                              onRangeCreated: writableSources.isNotEmpty
+                                  ? (interval) => unawaited(
+                                      _openNewEvent(
+                                        visibleSources,
+                                        interval.start,
+                                        end: interval.end,
+                                      ),
+                                    )
+                                  : null,
+                              onReschedule: _rescheduleEvent,
                               onCreateAtDay: (day, {anchorContext}) =>
                                   unawaited(
                                     _openCreateChoice(
@@ -1495,8 +1508,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   Future<void> _openNewEvent(
     List<CalendarSourceEntity> sources,
-    DateTime start,
-  ) async {
+    DateTime start, {
+    DateTime? end,
+  }) async {
     final writableSources = writableCalendarSources(sources);
     if (writableSources.isEmpty) {
       return;
@@ -1508,7 +1522,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         sourceId: source.id,
         providerCalendarId: source.providerCalendarId,
         start: start,
-        end: start.add(const Duration(hours: 1)),
+        end: end ?? start.add(const Duration(hours: 1)),
+      ).copyWith(
+        startTimeZone: ref.read(localTimeZoneProvider),
+        endTimeZone: ref.read(localTimeZoneProvider),
       ),
       writableSources,
     );
@@ -1919,6 +1936,54 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
+  Future<void> _rescheduleEvent(
+    ScheduleRescheduleRequest request,
+    bool Function() isActive,
+  ) async {
+    try {
+      final result = await ScheduleReschedulingCoordinator(
+        repository: ref.read(calendarRepositoryProvider),
+        chooseScope: (detail, following) => _chooseRecurringEventMutationScope(
+          detail.provider,
+          editing: true,
+          supportsFollowingOverride: following,
+        ),
+        chooseGuestUpdates: (draft) => showCalendarGuestDeliveryDialog(
+          context,
+          provider: request.item.provider,
+          action: CalendarGuestDeliveryAction.save,
+          headerBarService: ref.read(linuxHeaderBarServiceProvider),
+        ),
+        requestSync: (accountId) async => ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+            )
+            .request(),
+      ).commit(request, isActive: () => mounted && isActive());
+      if (!mounted) return;
+      setState(() {});
+      if (result == ScheduleRescheduleResult.savedWithNotificationFailure) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.scheduleRescheduleNotificationsFailed),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is StaleEventTiming
+                ? context.l10n.scheduleRescheduleStale
+                : context.l10n.scheduleRescheduleFailed,
+          ),
+        ),
+      );
+      setState(() {});
+    }
+  }
+
   void _requestCalendarMutationSync(String accountId) {
     unawaited(() async {
       await _syncCalendarMutation(accountId);
@@ -2114,9 +2179,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   Future<RecurringEventMutationScope?> _chooseRecurringEventMutationScope(
-    BusyProvider provider,
-  ) {
-    final supportsFollowing = supportsThisAndFollowingEventMutation(provider);
+    BusyProvider provider, {
+    bool editing = false,
+    bool? supportsFollowingOverride,
+  }) {
+    final supportsFollowing =
+        supportsFollowingOverride ??
+        supportsThisAndFollowingEventMutation(provider);
     return showBusyMaxModalEditorDialog<RecurringEventMutationScope>(
       context,
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
@@ -2124,7 +2193,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       builder: (dialogContext) => BusyMaxModalEditorScaffold(
         title: context.l10n.recurringEventScope,
         cancelLabel: context.l10n.cancel,
-        saveLabel: context.l10n.delete,
+        saveLabel: editing ? context.l10n.save : context.l10n.delete,
         onCancel: () => Navigator.of(dialogContext).pop(),
         onSave: null,
         children: [
@@ -2484,6 +2553,8 @@ class _ScheduleBody extends StatelessWidget {
     required this.onMonthSelected,
     required this.onWeekSelected,
     required this.onEmptySlot,
+    required this.onRangeCreated,
+    required this.onReschedule,
     required this.onCreateAtDay,
     required this.onNewEvent,
     required this.onNewTask,
@@ -2522,6 +2593,8 @@ class _ScheduleBody extends StatelessWidget {
   final ValueChanged<DateTime> onMonthSelected;
   final ValueChanged<DateTime> onWeekSelected;
   final ValueChanged<DateTime> onEmptySlot;
+  final ValueChanged<ScheduleInterval>? onRangeCreated;
+  final ScheduleRescheduleCallback onReschedule;
   final ScheduleDayCreateCallback onCreateAtDay;
   final VoidCallback onNewEvent;
   final VoidCallback onNewTask;
@@ -2581,6 +2654,8 @@ class _ScheduleBody extends StatelessWidget {
         items: items,
         onDaySelected: onDaySelected,
         onEmptySlot: onEmptySlot,
+        onRangeCreated: onRangeCreated,
+        onReschedule: onReschedule,
         onItemSelected: onItemSelected,
         onTaskCompletionChanged: onTaskCompletionChanged,
       ),
@@ -2594,6 +2669,8 @@ class _ScheduleBody extends StatelessWidget {
         items: items,
         onDaySelected: onDaySelected,
         onEmptySlot: onEmptySlot,
+        onRangeCreated: onRangeCreated,
+        onReschedule: onReschedule,
         onItemSelected: onItemSelected,
         onTaskCompletionChanged: onTaskCompletionChanged,
       ),
@@ -2607,6 +2684,7 @@ class _ScheduleBody extends StatelessWidget {
           firstWeekday: firstWeekday,
           onDaySelected: onDaySelected,
           onCreateAtDay: onCreateAtDay,
+          onReschedule: onReschedule,
           onItemSelected: onItemSelected,
           onTaskCompletionChanged: onTaskCompletionChanged,
         ),

@@ -7,6 +7,9 @@ import '../../calendar_providers/calendar_mutation.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/domain/event_move_policy.dart';
+import '../../features/calendar/domain/event_timing_policy.dart';
+import '../../schedule/schedule_event_rescheduling.dart';
+import '../../core/time/provider_date_time.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
@@ -23,6 +26,7 @@ Future<bool> showWindowsEventEditorDialog(
   WidgetRef ref, {
   String? eventId,
   DateTime? initialStart,
+  ScheduleInterval? initialInterval,
 }) async {
   final repository = ref.read(calendarRepositoryProvider);
   final detail = eventId == null
@@ -86,6 +90,7 @@ Future<bool> showWindowsEventEditorDialog(
         );
   var start =
       originalDraft?.start ??
+      initialInterval?.start ??
       requestedStart ??
       DateTime.now().add(const Duration(hours: 1));
   start = DateTime(
@@ -95,10 +100,18 @@ Future<bool> showWindowsEventEditorDialog(
     start.hour,
     start.minute,
   );
-  var end = originalDraft?.end ?? start.add(const Duration(hours: 1));
+  var end =
+      originalDraft?.end ??
+      initialInterval?.end ??
+      start.add(const Duration(hours: 1));
   var allDay = originalDraft?.allDay ?? false;
-  var selectedTimeZone =
-      selectedSource.timeZone ?? ref.read(localTimeZoneProvider) ?? 'Etc/UTC';
+  var selectedTimeZone = initialInterval != null
+      ? ref.read(localTimeZoneProvider)
+      : selectedSource.timeZone ?? ref.read(localTimeZoneProvider) ?? 'Etc/UTC';
+  if (originalDraft == null && initialInterval != null) {
+    start = providerInstantInTimeZone(initialInterval.start, selectedTimeZone);
+    end = providerInstantInTimeZone(initialInterval.end, selectedTimeZone);
+  }
   var recurrence = EventRecurrenceCodec.decode(
     selectedSource.provider,
     originalDraft?.recurrence,
@@ -833,9 +846,12 @@ Future<bool> showWindowsEventEditorDialog(
                                   );
                           if (originalDraft?.providerRecurringEventId != null) {
                             final scope =
-                                await _chooseRecurringEventMutationScope(
+                                await showWindowsRecurringEventMutationScope(
                                   dialogContext,
                                   selectedSource.provider,
+                                  supportsFollowingOverride: detail == null
+                                      ? null
+                                      : eventSupportsThisAndFollowing(detail),
                                 );
                             if (scope == null) {
                               if (dialogContext.mounted) {
@@ -1228,12 +1244,15 @@ Future<bool> _confirmDiscardEventChanges(BuildContext context) async {
       false;
 }
 
-Future<RecurringEventMutationScope?> _chooseRecurringEventMutationScope(
+Future<RecurringEventMutationScope?> showWindowsRecurringEventMutationScope(
   BuildContext context,
-  BusyProvider provider,
-) {
+  BusyProvider provider, {
+  bool? supportsFollowingOverride,
+}) {
   final l10n = AppLocalizations.of(context);
-  final supportsFollowing = supportsThisAndFollowingEventMutation(provider);
+  final supportsFollowing =
+      supportsFollowingOverride ??
+      supportsThisAndFollowingEventMutation(provider);
   return showDialog<RecurringEventMutationScope>(
     context: context,
     barrierDismissible: false,

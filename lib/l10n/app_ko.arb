@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "일정 시간을 변경하지 못했습니다. 저장된 시간은 변경되지 않았습니다.",
+  "scheduleRescheduleStale": "드래그하는 동안 이 일정이 변경되었습니다. 다시 시도해 주세요.",
+  "scheduleRescheduleNotificationsFailed": "새 시간은 저장되었지만 알림을 갱신하지 못했습니다.",
   "moveUp": "위로 이동",
   "moveDown": "아래로 이동",
   "@@locale": "ko",

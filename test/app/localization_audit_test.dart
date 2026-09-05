@@ -86,6 +86,7 @@ void main() {
       'appTitle',
       'apacheLicenseName',
       'dateTimeDisplay',
+      'scheduleProposedRange', // Locale-formatted endpoints with punctuation only.
       'etag',
       'formatBoldShortLabel',
       'formatItalicShortLabel',

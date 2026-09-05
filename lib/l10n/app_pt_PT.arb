@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "Não foi possível reagendar o evento. O horário guardado não foi alterado.",
+  "scheduleRescheduleStale": "Este evento foi alterado durante o arrastamento. Tente novamente.",
+  "scheduleRescheduleNotificationsFailed": "O novo horário foi guardado, mas não foi possível atualizar os lembretes.",
   "moveUp": "Mover para cima",
   "moveDown": "Mover para baixo",
   "@@locale": "pt_PT",

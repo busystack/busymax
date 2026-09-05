@@ -9,7 +9,10 @@ import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_item.dart';
-import '../../../schedule/schedule_projection.dart';
+import '../../../schedule/schedule_event_rescheduling.dart';
+import '../../../ui/common/schedule/schedule_interactions.dart';
+import '../../../ui/common/schedule/schedule_preview_label.dart';
+import '../../../ui/common/schedule/schedule_planner_events.dart';
 import '../../../schedule/schedule_range.dart';
 import 'schedule_event_block.dart';
 import 'schedule_item_chip.dart';
@@ -35,6 +38,8 @@ class ScheduleDayWeekView extends StatefulWidget {
     required this.onTaskCompletionChanged,
     this.dayStartMinute = defaultScheduleDayStartMinute,
     this.dayEndMinute = defaultScheduleDayEndMinute,
+    this.onRangeCreated,
+    this.onReschedule,
   });
 
   final ScheduleRange range;
@@ -48,6 +53,8 @@ class ScheduleDayWeekView extends StatefulWidget {
   onTaskCompletionChanged;
   final int dayStartMinute;
   final int dayEndMinute;
+  final ValueChanged<ScheduleInterval>? onRangeCreated;
+  final ScheduleRescheduleCallback? onReschedule;
 
   @override
   State<ScheduleDayWeekView> createState() => _ScheduleDayWeekViewState();
@@ -56,6 +63,7 @@ class ScheduleDayWeekView extends StatefulWidget {
 class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   late final icv.EventsController _controller;
   final _plannerKey = GlobalKey<icv.EventsPlannerState>();
+  final _interactionKey = GlobalKey<ScheduleInteractionRegionState>();
   var _fullDayBarHeight = _fullDayBarDefaultHeight;
   var _heightPerMinute = _defaultHeightPerMinute;
 
@@ -111,6 +119,8 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
     final planner = icv.EventsPlanner(
       key: _plannerKey,
       controller: _controller,
+      textDirection: Directionality.of(context),
+      automaticAdjustHorizontalScrollToDay: false,
       initialDate: _plannerStartDate(widget),
       daysShowed: widget.daysShowed,
       maxPreviousDays: 730,
@@ -118,10 +128,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
       heightPerMinute: _heightPerMinute,
       initialVerticalScrollOffset: visibleMinutes.start * _heightPerMinute,
       daySeparationWidth: 1,
-      dayEventsArranger: const icv.SideEventArranger(
-        paddingLeft: 4,
-        paddingRight: 4,
-      ),
+      dayEventsArranger: const SchedulePlannerEventArranger(),
       onDayChange: (day) => widget.onDaySelected(_day(day)),
       daysHeaderParam: icv.DaysHeaderParam(
         daysHeaderHeight: widget.daysShowed == 1 ? 0 : 50,
@@ -132,6 +139,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         topLeftCellBuilder: (_) => const SizedBox.shrink(),
       ),
       fullDayParam: icv.FullDayParam(
+        showMultiDayEvents: false,
         fullDayEventsBarVisibility: showFullDayBar,
         fullDayEventsBarHeight: fullDayBarHeight,
         fullDayEventHeight: showFullDayBar ? 24 : 0,
@@ -159,12 +167,13 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
           );
         },
         fullDayEventBuilder: (event, width) {
-          final group = _groupFrom(event);
+          final group = schedulePlannerGroup(event);
           if (group != null) {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: _SameSlotItemsStrip(
                 items: group.items,
+                representedDate: event.startTime,
                 height: 24,
                 width: width,
                 compact: true,
@@ -173,14 +182,15 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
               ),
             );
           }
-          final item = _itemFrom(event);
+          final item = schedulePlannerItem(event);
           if (item == null) {
             return const SizedBox.shrink();
           }
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: ScheduleItemChip(
+            child: _PlannerItemChip(
               item: item,
+              representedDate: event.startTime,
               height: 24,
               width: width,
               compact: true,
@@ -212,10 +222,11 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
           drawVerticalLeftLine: true,
         ),
         dayEventBuilder: (event, height, width, heightPerMinute) {
-          final group = _groupFrom(event);
+          final group = schedulePlannerGroup(event);
           if (group != null) {
             return _SameSlotItemsStrip(
               items: group.items,
+              representedDate: event.startTime,
               height: height,
               width: width,
               compact: height < 36,
@@ -223,12 +234,13 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
               onTaskCompletionChanged: widget.onTaskCompletionChanged,
             );
           }
-          final item = _itemFrom(event);
+          final item = schedulePlannerItem(event);
           if (item == null) {
             return const SizedBox.shrink();
           }
-          return ScheduleItemChip(
+          return _PlannerItemChip(
             item: item,
+            representedDate: event.startTime,
             height: height,
             width: width,
             compact: height < 36,
@@ -298,34 +310,55 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         },
       ),
     );
-    if (!showFullDayBar) {
-      return planner;
-    }
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        planner,
-        Positioned(
-          top:
-              daysHeaderHeight +
-              fullDayBarHeight -
-              _allDayResizeHandleHeight / 2,
-          left: _timesIndicatorsWidth,
-          right: 0,
-          child: Center(
-            child: _AllDayResizeHandle(
-              onTap: _toggleFullDayBarHeight,
-              onVerticalDragUpdate: (delta) {
-                setState(() {
-                  _fullDayBarHeight = (_fullDayBarHeight + delta)
-                      .clamp(_fullDayBarMinHeight, _fullDayBarMaxHeight)
-                      .toDouble();
-                });
-              },
-            ),
-          ),
+    return ScheduleInteractionRegion(
+      key: _interactionKey,
+      coordinates: SchedulePlannerCoordinates(
+        key: _plannerKey,
+        headerHeight: daysHeaderHeight,
+        allDayHeight: fullDayBarHeight,
+      ),
+      onRangeCreated: widget.onRangeCreated,
+      onEmptySlot: widget.onEmptySlot,
+      onReschedule: widget.onReschedule,
+      previewColor: colorScheme.primary,
+      previewBuilder: (context, interval, allDay) => Padding(
+        padding: const EdgeInsets.all(4),
+        child: Text(
+          schedulePreviewLabel(context, interval, allDay),
+          style: Theme.of(context).textTheme.labelSmall,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
-      ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          planner,
+          if (showFullDayBar)
+            Positioned(
+              top:
+                  daysHeaderHeight +
+                  fullDayBarHeight -
+                  _allDayResizeHandleHeight / 2,
+              left: _timesIndicatorsWidth,
+              right: 0,
+              child: Center(
+                child: ScheduleInteractionBlocker(
+                  child: _AllDayResizeHandle(
+                    onTap: _toggleFullDayBarHeight,
+                    onVerticalDragUpdate: (delta) {
+                      setState(() {
+                        _fullDayBarHeight = (_fullDayBarHeight + delta)
+                            .clamp(_fullDayBarMinHeight, _fullDayBarMaxHeight)
+                            .toDouble();
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -338,7 +371,11 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   }
 
   void _reloadEvents() {
-    final events = _ScheduleIcvEvent.fromItems(context, widget.items);
+    final events = SchedulePlannerEvents.fromItems(
+      widget.items,
+      brightness: Theme.of(context).brightness,
+      groupLabel: context.l10n.scheduleItemCount,
+    );
     _controller.updateCalendarData((calendarData) {
       calendarData.clearAll();
       calendarData.addEvents(events);
@@ -347,7 +384,7 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
 
   void _jumpToDate(DateTime date) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+      if (!mounted || (_interactionKey.currentState?.active ?? false)) {
         return;
       }
       _plannerKey.currentState?.jumpToDate(date);
@@ -623,12 +660,13 @@ class _FullDayEventTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final group = _groupFrom(event);
+    final group = schedulePlannerGroup(event);
     if (group != null) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: _SameSlotItemsStrip(
           items: group.items,
+          representedDate: event.startTime,
           height: 24,
           width: width,
           compact: true,
@@ -637,14 +675,15 @@ class _FullDayEventTile extends StatelessWidget {
         ),
       );
     }
-    final item = _itemFrom(event);
+    final item = schedulePlannerItem(event);
     if (item == null) {
       return const SizedBox.shrink();
     }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: ScheduleItemChip(
+      child: _PlannerItemChip(
         item: item,
+        representedDate: event.startTime,
         height: 24,
         width: width,
         compact: true,
@@ -725,6 +764,7 @@ class _AllDayResizeHandle extends StatelessWidget {
 class _SameSlotItemsStrip extends StatefulWidget {
   const _SameSlotItemsStrip({
     required this.items,
+    required this.representedDate,
     required this.height,
     required this.width,
     required this.compact,
@@ -733,6 +773,7 @@ class _SameSlotItemsStrip extends StatefulWidget {
   });
 
   final List<ScheduleItem> items;
+  final DateTime representedDate;
   final double height;
   final double width;
   final bool compact;
@@ -790,8 +831,9 @@ class _SameSlotItemsStripState extends State<_SameSlotItemsStrip> {
             child: Row(
               children: [
                 for (var index = 0; index < widget.items.length; index++) ...[
-                  ScheduleItemChip(
+                  _PlannerItemChip(
                     item: widget.items[index],
+                    representedDate: widget.representedDate,
                     height: height,
                     width: chipWidth,
                     compact: widget.compact,
@@ -819,124 +861,6 @@ class _SameSlotItemsStripState extends State<_SameSlotItemsStrip> {
   }
 }
 
-class _ScheduleIcvEvent {
-  const _ScheduleIcvEvent._();
-
-  static List<icv.Event> fromItems(
-    BuildContext context,
-    List<ScheduleItem> items,
-  ) {
-    final grouped = <String, List<({icv.Event event, ScheduleItem item})>>{};
-    final ungrouped = <icv.Event>[];
-    for (final item in items) {
-      final event = fromItem(context, item);
-      if (event == null) {
-        continue;
-      }
-      if (event.isFullDay) {
-        ungrouped.add(event);
-        continue;
-      }
-      grouped
-          .putIfAbsent(
-            _slotKey(event),
-            () => <({icv.Event event, ScheduleItem item})>[],
-          )
-          .add((event: event, item: item));
-    }
-
-    return [
-      ...ungrouped,
-      for (final entries in grouped.values)
-        if (entries.length == 1)
-          entries.single.event
-        else
-          entries.first.event.copyWith(
-            title: entries.first.item.title,
-            description: context.l10n.scheduleItemCount(entries.length),
-            data: _ScheduleSlotGroup([for (final entry in entries) entry.item]),
-            eventType: _ScheduleSlotGroup,
-          ),
-    ];
-  }
-
-  static icv.Event? fromItem(BuildContext context, ScheduleItem item) {
-    final start = item.start;
-    if (start == null) {
-      return null;
-    }
-    final color = ScheduleProjection.colorForItem(
-      item,
-      Theme.of(context).colorScheme.brightness,
-    );
-    if (item.allDay) {
-      final startDay = _day(start);
-      final endDay = item.end == null ? null : _day(item.end!);
-      final inclusiveEnd = endDay?.subtract(const Duration(days: 1));
-      final displayEnd = _endOfDay(
-        inclusiveEnd != null && !inclusiveEnd.isBefore(startDay)
-            ? inclusiveEnd
-            : startDay,
-      );
-      return icv.Event(
-        startTime: startDay,
-        endTime: displayEnd,
-        isFullDay: true,
-        title: item.title,
-        description: ScheduleProjection.sourceLabelForScheduleItem(item),
-        color: color,
-        textColor: _foregroundFor(color),
-        data: item,
-        eventType: item.kind,
-      );
-    }
-
-    final end = item.end != null && item.end!.isAfter(start)
-        ? item.end!
-        : start.add(const Duration(minutes: 30));
-    return icv.Event(
-      startTime: start,
-      endTime: end,
-      title: item.title,
-      description: ScheduleProjection.sourceLabelForScheduleItem(item),
-      color: color,
-      textColor: _foregroundFor(color),
-      data: item,
-      eventType: item.kind,
-    );
-  }
-}
-
-class _ScheduleSlotGroup {
-  const _ScheduleSlotGroup(this.items);
-
-  final List<ScheduleItem> items;
-}
-
-ScheduleItem? _itemFrom(icv.Event event) {
-  return event.data is ScheduleItem ? event.data! as ScheduleItem : null;
-}
-
-_ScheduleSlotGroup? _groupFrom(icv.Event event) {
-  return event.data is _ScheduleSlotGroup
-      ? event.data! as _ScheduleSlotGroup
-      : null;
-}
-
-String _slotKey(icv.Event event) {
-  final end = event.endTime?.microsecondsSinceEpoch ?? -1;
-  return [
-    event.columnIndex,
-    event.isFullDay,
-    event.startTime.microsecondsSinceEpoch,
-    end,
-  ].join('|');
-}
-
-Color _foregroundFor(Color color) {
-  return color.computeLuminance() > 0.54 ? Colors.black : Colors.white;
-}
-
 String _formatHour(BuildContext context, TimeOfDay value) {
   return MaterialLocalizations.of(context).formatTimeOfDay(
     value,
@@ -945,13 +869,6 @@ String _formatHour(BuildContext context, TimeOfDay value) {
 }
 
 DateTime _day(DateTime value) => DateTime(value.year, value.month, value.day);
-
-DateTime _endOfDay(DateTime value) {
-  final day = _day(value);
-  return day
-      .add(const Duration(days: 1))
-      .subtract(const Duration(milliseconds: 1));
-}
 
 bool _hasRenderedFullDayEvents(
   BuildContext context,
@@ -963,7 +880,10 @@ bool _hasRenderedFullDayEvents(
     end: visibleStart.add(Duration(days: widget.daysShowed)),
   );
   return widget.items.any((item) {
-    final event = _ScheduleIcvEvent.fromItem(context, item);
+    final event = SchedulePlannerEvents.fromItem(
+      item,
+      Theme.of(context).brightness,
+    );
     return event != null &&
         event.isFullDay &&
         _fullDayEventIntersectsRange(event, visibleRange);
@@ -975,4 +895,44 @@ bool _fullDayEventIntersectsRange(icv.Event event, ScheduleRange range) {
   final inclusiveEnd = event.endTime == null ? start : _day(event.endTime!);
   final exclusiveEnd = inclusiveEnd.add(const Duration(days: 1));
   return start.isBefore(range.end) && exclusiveEnd.isAfter(range.start);
+}
+
+class _PlannerItemChip extends StatelessWidget {
+  const _PlannerItemChip({
+    required this.item,
+    required this.representedDate,
+    required this.height,
+    required this.width,
+    required this.compact,
+    required this.onTap,
+    this.onTaskCompletionChanged,
+  });
+  final ScheduleItem item;
+  final DateTime representedDate;
+  final double height;
+  final double width;
+  final bool compact;
+  final void Function(BuildContext context, [Offset? globalPosition]) onTap;
+  final ValueChanged<bool>? onTaskCompletionChanged;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: width,
+    height: height,
+    child: ScheduleEventInteraction(
+      key: ValueKey(
+        'planner-${item.accountId}-${item.sourceId}-${item.id}-${representedDate.toIso8601String()}',
+      ),
+      item: item,
+      representedDate: representedDate,
+      dateOnly: item.allDay,
+      child: ScheduleItemChip(
+        item: item,
+        height: height,
+        width: width,
+        compact: compact,
+        onTap: onTap,
+        onTaskCompletionChanged: onTaskCompletionChanged,
+      ),
+    ),
+  );
 }

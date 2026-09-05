@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "Không thể đổi lịch sự kiện. Thời gian đã lưu không thay đổi.",
+  "scheduleRescheduleStale": "Sự kiện này đã thay đổi trong khi bạn kéo. Vui lòng thử lại.",
+  "scheduleRescheduleNotificationsFailed": "Đã lưu thời gian mới nhưng không thể cập nhật lời nhắc.",
   "moveUp": "Di chuyển lên",
   "moveDown": "Di chuyển xuống",
   "@@locale": "vi",

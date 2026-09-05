@@ -39,6 +39,8 @@ import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 import '../../../support/memory_settings_store.dart';
+import '../../../support/schedule_planner_gesture_suite.dart';
+import '../../../support/schedule_date_gesture_suite.dart';
 
 Widget _emptyPlanner(DateTime day, {required int days}) => ScheduleDayWeekView(
   range: days == 1 ? ScheduleRange.day(day) : ScheduleRange.week(day),
@@ -71,6 +73,51 @@ class _TestScheduleItems implements ScheduleRepository {
 }
 
 void main() {
+  scheduleDateGestureTests(
+    'Linux',
+    (scenario) => localizedTestApp(
+      child: Scaffold(
+        body: ScheduleMonthView(
+          range: ScheduleRange.month(PlannerGestureScenario.day),
+          selectedDate: PlannerGestureScenario.day,
+          items: scenario.items,
+          firstWeekday: DateTime.monday,
+          onDaySelected: (_) {},
+          onCreateAtDay: (_, {anchorContext}) {},
+          onItemSelected: (_, item, [_]) => scenario.opened.add(item),
+          onTaskCompletionChanged: (_, value) => scenario.completed.add(value),
+          onReschedule: scenario.save,
+        ),
+      ),
+    ),
+  );
+  schedulePlannerGestureTests(
+    'Linux',
+    (scenario) => localizedTestApp(
+      child: Scaffold(
+        body: Directionality(
+          textDirection: scenario.rtl
+              ? ui.TextDirection.rtl
+              : ui.TextDirection.ltr,
+          child: ScheduleDayWeekView(
+            range: scenario.days == 1
+                ? ScheduleRange.day(PlannerGestureScenario.day)
+                : ScheduleRange.week(PlannerGestureScenario.day),
+            selectedDate: PlannerGestureScenario.day,
+            daysShowed: scenario.days,
+            items: scenario.items,
+            onDaySelected: (_) {},
+            onEmptySlot: scenario.clicks.add,
+            onRangeCreated: scenario.selections.add,
+            onReschedule: scenario.save,
+            onItemSelected: (_, item, [_]) => scenario.opened.add(item),
+            onTaskCompletionChanged: (_, value) =>
+                scenario.completed.add(value),
+          ),
+        ),
+      ),
+    ),
+  );
   for (final use24Hours in [false, true]) {
     testWidgets(
       'planner current-time and ruler labels retain minutes (24h=$use24Hours)',
@@ -228,14 +275,22 @@ void main() {
             button.defaultStyleOf(context).foregroundColor!.resolve({}),
             theme.resources.textOnAccentFillColorPrimary,
           );
-          expect(find.byType(fluent.HyperlinkButton), findsNWidgets(6));
+          expect(
+            find.byType(fluent.HyperlinkButton).hitTestable(),
+            findsNWidgets(6),
+          );
           await tester.tap(header);
           await tester.pumpAndSettle();
           expect(
             AppSettings.fromJson(store.value).scheduleViewMode,
             ScheduleViewMode.day,
           );
-          expect(find.byType(icv.EventsPlanner), findsNothing);
+          expect(
+            tester
+                .widget<icv.EventsPlanner>(find.byType(icv.EventsPlanner))
+                .daysShowed,
+            1,
+          );
           expect(find.byType(fluent.HyperlinkButton), findsNothing);
           expect(tester.takeException(), isNull);
         },
@@ -984,8 +1039,11 @@ void main() {
     expect(source, contains('fullDayEventsBuilder: (events, width)'));
     expect(source, contains("ValueKey('schedule-all-day-scroll')"));
     expect(source, contains("ValueKey('schedule-all-day-resize-handle')"));
-    expect(source, contains('final displayEnd = _endOfDay('));
-    expect(source, contains('endTime: displayEnd'));
+    final adapters = File(
+      'lib/src/ui/common/schedule/schedule_planner_events.dart',
+    ).readAsStringSync();
+    expect(adapters, contains('final displayEnd = _endOfDay('));
+    expect(adapters, contains('endTime: displayEnd'));
     expect(source, contains('final visibleStart = _plannerStartDate(widget);'));
     expect(source, contains('final visibleRange = ScheduleRange('));
     expect(
@@ -4239,7 +4297,7 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains('_hasRenderedFullDayEvents(context, widget)'));
-      expect(source, contains('_ScheduleIcvEvent.fromItem(context, item)'));
+      expect(source, contains('SchedulePlannerEvents.fromItem('));
       expect(source, contains('_fullDayEventIntersectsRange'));
       expect(source, isNot(contains('_allDayItemIntersectsRange')));
       expect(source, contains('textAlign: TextAlign.center'));

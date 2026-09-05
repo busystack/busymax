@@ -13,6 +13,23 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Не удалось перенести событие. Его сохранённое время не изменилось.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Событие изменилось во время перетаскивания. Повторите попытку.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Новое время сохранено, но обновить напоминания не удалось.';
+
+  @override
   String get moveUp => 'Переместить вверх';
 
   @override

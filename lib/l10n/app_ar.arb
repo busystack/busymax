@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "⁨{start}⁩ – ⁨{end}⁩",
+  "scheduleRescheduleFailed": "تعذّر تغيير موعد الحدث. لم يتغيّر وقته المحفوظ.",
+  "scheduleRescheduleStale": "تغيّر هذا الحدث أثناء السحب. يُرجى المحاولة مجددًا.",
+  "scheduleRescheduleNotificationsFailed": "تم حفظ الوقت الجديد، لكن تعذّر تحديث التذكيرات.",
   "moveUp": "نقل لأعلى",
   "moveDown": "نقل لأسفل",
   "@@locale": "ar",

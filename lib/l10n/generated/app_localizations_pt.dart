@@ -13,6 +13,23 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'The event could not be rescheduled. Its stored time has not been changed.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'This event changed while you were dragging. Please try again.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'The new time was saved, but reminders could not be refreshed.';
+
+  @override
   String get moveUp => 'Move up';
 
   @override
@@ -2693,6 +2710,23 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Não foi possível reagendar o evento. O horário guardado não foi alterado.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Este evento foi alterado durante o arrastamento. Tente novamente.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'O novo horário foi guardado, mas não foi possível atualizar os lembretes.';
 
   @override
   String get moveUp => 'Mover para cima';

@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "⁨{start}⁩ – ⁨{end}⁩",
+  "scheduleRescheduleFailed": "تغییر زمان رویداد ممکن نشد. زمان ذخیره‌شده تغییر نکرده است.",
+  "scheduleRescheduleStale": "این رویداد هنگام کشیدن تغییر کرد. لطفاً دوباره تلاش کنید.",
+  "scheduleRescheduleNotificationsFailed": "زمان جدید ذخیره شد، اما یادآوری‌ها به‌روز نشدند.",
   "moveUp": "انتقال به بالا",
   "moveDown": "انتقال به پایین",
   "@@locale": "fa",

@@ -13,6 +13,20 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed => '无法调整日程时间。已保存的时间未更改。';
+
+  @override
+  String get scheduleRescheduleStale => '拖动期间此日程已更改。请重试。';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed => '新时间已保存，但无法更新提醒。';
+
+  @override
   String get moveUp => '上移';
 
   @override
@@ -2590,6 +2604,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed => '无法调整日程时间。已保存的时间未更改。';
+
+  @override
+  String get scheduleRescheduleStale => '拖动期间此日程已更改。请重试。';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed => '新时间已保存，但无法更新提醒。';
+
+  @override
   String get moveUp => '上移';
 
   @override
@@ -5165,6 +5193,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed => '無法調整行程時間。已儲存的時間未變更。';
+
+  @override
+  String get scheduleRescheduleStale => '拖曳期間此行程已變更。請重試。';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed => '新時間已儲存，但無法更新提醒。';
 
   @override
   String get moveUp => '上移';

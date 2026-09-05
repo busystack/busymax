@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "Не удалось перенести событие. Его сохранённое время не изменилось.",
+  "scheduleRescheduleStale": "Событие изменилось во время перетаскивания. Повторите попытку.",
+  "scheduleRescheduleNotificationsFailed": "Новое время сохранено, но обновить напоминания не удалось.",
   "moveUp": "Переместить вверх",
   "moveDown": "Переместить вниз",
   "@@locale": "ru",

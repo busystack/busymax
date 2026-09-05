@@ -13,6 +13,21 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed => '予定の日時を変更できませんでした。保存済みの日時は変更されていません。';
+
+  @override
+  String get scheduleRescheduleStale => 'ドラッグ中にこの予定が変更されました。もう一度お試しください。';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      '新しい日時は保存されましたが、リマインダーを更新できませんでした。';
+
+  @override
   String get moveUp => '上に移動';
 
   @override

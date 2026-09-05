@@ -13,6 +13,23 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Der Termin konnte nicht verschoben werden. Seine gespeicherte Zeit wurde nicht geändert.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Dieser Termin wurde während des Ziehens geändert. Bitte versuche es erneut.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Die neue Zeit wurde gespeichert, aber die Erinnerungen konnten nicht aktualisiert werden.';
+
+  @override
   String get moveUp => 'Nach oben verschieben';
 
   @override

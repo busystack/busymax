@@ -1,4 +1,9 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "@scheduleProposedRange": {"description": "Proposed event interval while dragging.", "placeholders": {"start": {"type": "String"}, "end": {"type": "String"}}},
+  "scheduleRescheduleFailed": "The event could not be rescheduled. Its stored time has not been changed.",
+  "scheduleRescheduleStale": "This event changed while you were dragging. Please try again.",
+  "scheduleRescheduleNotificationsFailed": "The new time was saved, but reminders could not be refreshed.",
   "moveUp": "Move up",
   "moveDown": "Move down",
   "@@locale": "en",

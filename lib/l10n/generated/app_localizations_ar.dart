@@ -13,6 +13,23 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '⁨$start⁩ – ⁨$end⁩';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'تعذّر تغيير موعد الحدث. لم يتغيّر وقته المحفوظ.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'تغيّر هذا الحدث أثناء السحب. يُرجى المحاولة مجددًا.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'تم حفظ الوقت الجديد، لكن تعذّر تحديث التذكيرات.';
+
+  @override
   String get moveUp => 'نقل لأعلى';
 
   @override

@@ -13,6 +13,23 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '⁨$start⁩ – ⁨$end⁩';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'تغییر زمان رویداد ممکن نشد. زمان ذخیره‌شده تغییر نکرده است.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'این رویداد هنگام کشیدن تغییر کرد. لطفاً دوباره تلاش کنید.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'زمان جدید ذخیره شد، اما یادآوری‌ها به‌روز نشدند.';
+
+  @override
   String get moveUp => 'انتقال به بالا';
 
   @override

@@ -13,6 +13,23 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'The event could not be rescheduled. Its stored time has not been changed.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'This event changed while you were dragging. Please try again.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'The new time was saved, but reminders could not be refreshed.';
+
+  @override
   String get moveUp => 'Move up';
 
   @override

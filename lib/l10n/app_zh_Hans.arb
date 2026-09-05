@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "无法调整日程时间。已保存的时间未更改。",
+  "scheduleRescheduleStale": "拖动期间此日程已更改。请重试。",
+  "scheduleRescheduleNotificationsFailed": "新时间已保存，但无法更新提醒。",
   "moveUp": "上移",
   "moveDown": "下移",
   "@@locale": "zh_Hans",

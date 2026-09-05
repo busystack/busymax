@@ -13,6 +13,23 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Sündmuse aega ei saanud muuta. Salvestatud aeg jäi muutmata.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Sündmus muutus lohistamise ajal. Palun proovi uuesti.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Uus aeg salvestati, kuid meeldetuletusi ei saanud värskendada.';
+
+  @override
   String get moveUp => 'Liiguta üles';
 
   @override

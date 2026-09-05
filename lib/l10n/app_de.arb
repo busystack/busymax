@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "Der Termin konnte nicht verschoben werden. Seine gespeicherte Zeit wurde nicht geändert.",
+  "scheduleRescheduleStale": "Dieser Termin wurde während des Ziehens geändert. Bitte versuche es erneut.",
+  "scheduleRescheduleNotificationsFailed": "Die neue Zeit wurde gespeichert, aber die Erinnerungen konnten nicht aktualisiert werden.",
   "moveUp": "Nach oben verschieben",
   "moveDown": "Nach unten verschieben",
   "@@locale": "de",

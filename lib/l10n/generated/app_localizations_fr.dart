@@ -13,6 +13,23 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Impossible de replanifier l’événement. Son horaire enregistré n’a pas été modifié.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Cet événement a été modifié pendant le déplacement. Veuillez réessayer.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Le nouvel horaire a été enregistré, mais les rappels n’ont pas pu être actualisés.';
+
+  @override
   String get moveUp => 'Monter';
 
   @override

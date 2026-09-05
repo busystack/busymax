@@ -13,6 +13,23 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Không thể đổi lịch sự kiện. Thời gian đã lưu không thay đổi.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Sự kiện này đã thay đổi trong khi bạn kéo. Vui lòng thử lại.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Đã lưu thời gian mới nhưng không thể cập nhật lời nhắc.';
+
+  @override
   String get moveUp => 'Di chuyển lên';
 
   @override

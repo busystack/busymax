@@ -13,6 +13,23 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Tapahtumaa ei voitu siirtää. Sen tallennettu aika ei muuttunut.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Tapahtuma muuttui vetämisen aikana. Yritä uudelleen.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Uusi aika tallennettiin, mutta muistutuksia ei voitu päivittää.';
+
+  @override
   String get moveUp => 'Siirrä ylös';
 
   @override

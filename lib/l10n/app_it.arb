@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "Impossibile riprogrammare l’evento. L’orario salvato non è stato modificato.",
+  "scheduleRescheduleStale": "Questo evento è cambiato durante il trascinamento. Riprova.",
+  "scheduleRescheduleNotificationsFailed": "Il nuovo orario è stato salvato, ma non è stato possibile aggiornare i promemoria.",
   "moveUp": "Sposta su",
   "moveDown": "Sposta giù",
   "@@locale": "it",

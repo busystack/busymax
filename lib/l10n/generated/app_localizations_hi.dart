@@ -13,6 +13,23 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'इवेंट का समय नहीं बदला जा सका। उसका सहेजा गया समय नहीं बदला है।';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'खींचते समय यह इवेंट बदल गया। कृपया फिर से कोशिश करें।';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'नया समय सहेज लिया गया, लेकिन रिमाइंडर अपडेट नहीं हो सके।';
+
+  @override
   String get moveUp => 'ऊपर ले जाएँ';
 
   @override

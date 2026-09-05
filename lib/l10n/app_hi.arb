@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "इवेंट का समय नहीं बदला जा सका। उसका सहेजा गया समय नहीं बदला है।",
+  "scheduleRescheduleStale": "खींचते समय यह इवेंट बदल गया। कृपया फिर से कोशिश करें।",
+  "scheduleRescheduleNotificationsFailed": "नया समय सहेज लिया गया, लेकिन रिमाइंडर अपडेट नहीं हो सके।",
   "moveUp": "ऊपर ले जाएँ",
   "moveDown": "नीचे ले जाएँ",
   "@@locale": "hi",

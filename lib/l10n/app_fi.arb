@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "Tapahtumaa ei voitu siirtää. Sen tallennettu aika ei muuttunut.",
+  "scheduleRescheduleStale": "Tapahtuma muuttui vetämisen aikana. Yritä uudelleen.",
+  "scheduleRescheduleNotificationsFailed": "Uusi aika tallennettiin, mutta muistutuksia ei voitu päivittää.",
   "moveUp": "Siirrä ylös",
   "moveDown": "Siirrä alas",
   "@@locale": "fi",

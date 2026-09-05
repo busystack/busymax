@@ -13,6 +13,22 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      '일정 시간을 변경하지 못했습니다. 저장된 시간은 변경되지 않았습니다.';
+
+  @override
+  String get scheduleRescheduleStale => '드래그하는 동안 이 일정이 변경되었습니다. 다시 시도해 주세요.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      '새 시간은 저장되었지만 알림을 갱신하지 못했습니다.';
+
+  @override
   String get moveUp => '위로 이동';
 
   @override

@@ -1,4 +1,8 @@
 {
+  "scheduleProposedRange": "{start} – {end}",
+  "scheduleRescheduleFailed": "無法調整行程時間。已儲存的時間未變更。",
+  "scheduleRescheduleStale": "拖曳期間此行程已變更。請重試。",
+  "scheduleRescheduleNotificationsFailed": "新時間已儲存，但無法更新提醒。",
   "moveUp": "上移",
   "moveDown": "下移",
   "@@locale": "zh_Hant",
