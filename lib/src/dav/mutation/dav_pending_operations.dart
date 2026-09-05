@@ -67,15 +67,29 @@ final class DavPendingOperationQueue {
     required String collectionId,
     required DavNewObject object,
     String? localProjectionId,
+    String? localObjectId,
     String? dependsOnOperationId,
   }) async {
     final context = await _context(accountId, collectionId);
+    if (object.suppressScheduling && context.provider != BusyProvider.nextcloud) {
+      throw _invalidPendingOperation();
+    }
     final capabilities = collectionCapabilitiesFromStored(context.collection);
     final isEvent = _componentIsEvent(object.componentType);
     final canCreate = isEvent
         ? capabilities.canCreateEvent
         : capabilities.canCreateTask;
     if (!canCreate) throw _permissionError();
+    if (localObjectId != null) {
+      final local = await _objectContext(
+        accountId,
+        collectionId,
+        localObjectId,
+      );
+      if (local.object.etag != null || local.object.primaryUid != object.uid) {
+        throw _invalidPendingOperation();
+      }
+    }
     final memberUri = _memberUri(
       Uri.parse(context.collection.requestUri),
       object.initialMemberName,
@@ -99,6 +113,7 @@ final class DavPendingOperationQueue {
         operation: 'dav_create',
         operationType: const Value('dav.create'),
         davCollectionId: Value(collectionId),
+        davObjectId: Value(localObjectId),
         davCollectionHref: Value(context.collection.hrefKey),
         davMemberHref: Value(memberUri.path),
         mutationPatchSchemaVersion: const Value(
@@ -124,6 +139,7 @@ final class DavPendingOperationQueue {
           'initialMemberName': object.initialMemberName,
           'rawIcs': object.rawIcs,
           'componentType': object.componentType.toUpperCase(),
+          if (object.suppressScheduling) 'suppressScheduling': true,
         }),
         state: Value(DavPendingState.pending.storageValue),
         createdAtUtc: now,
@@ -149,6 +165,11 @@ final class DavPendingOperationQueue {
       throw _permissionError();
     }
     final etag = context.object.etag;
+    final unsent = await _activeObjectOperation(objectId);
+    if (etag == null && unsent != null && isDavCreateLocallyEditable(unsent)) {
+      await _writeCreatePatch(unsent, patch);
+      return unsent.id;
+    }
     if (etag == null || etag.isEmpty || context.object.serverDeleted) {
       throw _invalidPendingOperation();
     }
@@ -237,6 +258,9 @@ final class DavPendingOperationQueue {
     final context = await _objectContext(accountId, collectionId, objectId);
     final existing = await _activeObjectOperation(objectId);
     if (existing == null) return context.object.rawIcsBody;
+    if (isDavCreateLocallyEditable(existing)) {
+      return _decodeCreate(existing.requestJson).rawIcs;
+    }
     final safelyEditable =
         existing.operationType == 'dav.update' &&
         existing.state == DavPendingState.pending.storageValue &&
@@ -247,6 +271,28 @@ final class DavPendingOperationQueue {
     return _decodePatch(
       existing,
     ).applyTo(existing.baselineRawIcs!, nowUtc: _nowUtc().toUtc());
+  }
+
+  /// Reading an export is safe even while an immutable operation is replaying.
+  Future<String> exportRawIcsForObject({
+    required String accountId,
+    required String collectionId,
+    required String objectId,
+  }) async {
+    final context = await _objectContext(accountId, collectionId, objectId);
+    final operation = await _activeObjectOperation(objectId);
+    if (operation?.operationType == 'dav.create') {
+      return _decodeCreate(operation!.requestJson).rawIcs;
+    }
+    if (operation?.operationType == 'dav.update') {
+      return _decodePatch(
+        operation!,
+      ).applyTo(_required(operation.baselineRawIcs), nowUtc: _nowUtc().toUtc());
+    }
+    if (operation?.operationType == 'dav.move') {
+      return _moveCandidateRaw(operation!, _nowUtc());
+    }
+    return context.object.rawIcsBody;
   }
 
   /// Applies a typed patch to a create that is still entirely local.
@@ -267,6 +313,14 @@ final class DavPendingOperationQueue {
       localProjectionId: localProjectionId,
     );
     if (operation == null) return false;
+    await _writeCreatePatch(operation, patch);
+    return true;
+  }
+
+  Future<void> _writeCreatePatch(
+    PendingOp operation,
+    DavMutationPatch patch,
+  ) async {
     final object = _decodeCreate(operation.requestJson);
     if (patch.target.componentType.toUpperCase() !=
             object.componentType.toUpperCase() ||
@@ -288,6 +342,7 @@ final class DavPendingOperationQueue {
             'initialMemberName': object.initialMemberName,
             'rawIcs': updatedRaw,
             'componentType': object.componentType.toUpperCase(),
+            if (object.suppressScheduling) 'suppressScheduling': true,
           }),
         ),
         state: Value(DavPendingState.pending.storageValue),
@@ -299,7 +354,6 @@ final class DavPendingOperationQueue {
         updatedAtUtc: Value(nowUtc.toIso8601String()),
       ),
     );
-    return true;
   }
 
   /// Cancels a create only while it is provably unsent.
@@ -334,6 +388,22 @@ final class DavPendingOperationQueue {
       throw _permissionError();
     }
     final etag = context.object.etag;
+    final unsent = await _activeObjectOperation(objectId);
+    if (etag == null && unsent != null && isDavCreateLocallyEditable(unsent)) {
+      await _database.transaction(() async {
+        await _database.pendingOpsDao.deleteOp(unsent.id);
+        await (_database.delete(
+          _database.calendarEvents,
+        )..where((r) => r.davObjectId.equals(objectId))).go();
+        await (_database.delete(
+          _database.tasks,
+        )..where((r) => r.davObjectId.equals(objectId))).go();
+        await (_database.delete(
+          _database.davObjects,
+        )..where((r) => r.id.equals(objectId))).go();
+      });
+      return unsent.id;
+    }
     if (etag == null || etag.isEmpty || context.object.serverDeleted) {
       throw _invalidPendingOperation();
     }
@@ -843,6 +913,7 @@ final class DavPendingOperationsReplayer {
         object: _decodeCreate(op.requestJson),
         capabilities: capabilities,
         correlationId: correlationId,
+        reconcileFirst: op.attemptCount > 0 || op.state == 'in_progress',
       ),
       'dav.update' => service.update(
         hrefKey: _required(op.davMemberHref),
@@ -890,6 +961,14 @@ final class DavPendingOperationsReplayer {
     )..where((row) => row.id.equals(_accountId))).getSingle();
     final provider = BusyProviderCodec.requireStorageValue(account.provider);
     final canonical = result.canonicalObject;
+    if (op.operationType == 'dav.create' && op.davObjectId != null && canonical != null && canonical.hrefKey != op.davMemberHref) {
+      // A filename collision may allocate another member name, but it must
+      // not give an imported recurrence set a second local object identity.
+      await (_database.update(_database.davObjects)..where((r) =>
+        r.id.equals(op.davObjectId!) & r.accountId.equals(_accountId) &
+        r.collectionId.equals(_required(op.davCollectionId)) & r.etag.isNull())).write(
+          DavObjectsCompanion(hrefKey: Value(canonical.hrefKey), requestUri: Value(canonical.requestUri.toString())));
+    }
     late final Set<String> affected;
     if (op.operationType == 'dav.move') {
       if (canonical == null) throw _invalidPendingOperation();
@@ -942,20 +1021,74 @@ final class DavPendingOperationsReplayer {
     if (op.operationType == 'dav.create') {
       final resolutions = LocationResolutionRepository(_database);
       if (op.eventId != null) {
-        final old = await (_database.select(_database.calendarEvents)..where((r) => r.accountId.equals(_accountId) & r.id.equals(op.eventId!))).getSingleOrNull();
+        final old =
+            await (_database.select(_database.calendarEvents)..where(
+                  (r) =>
+                      r.accountId.equals(_accountId) & r.id.equals(op.eventId!),
+                ))
+                .getSingleOrNull();
         if (old != null && old.icalUid != null) {
-          final rows = await (_database.select(_database.calendarEvents)..where((r) => r.accountId.equals(_accountId) & r.calendarSourceId.equals(old.calendarSourceId) & r.icalUid.equals(old.icalUid!) & r.davObjectId.isNotNull())).get();
+          final rows =
+              await (_database.select(_database.calendarEvents)..where(
+                    (r) =>
+                        r.accountId.equals(_accountId) &
+                        r.calendarSourceId.equals(old.calendarSourceId) &
+                        r.icalUid.equals(old.icalUid!) &
+                        r.davObjectId.isNotNull(),
+                  ))
+                  .get();
           for (final row in rows) {
-            await resolutions.transfer(LocationItemIdentity(kind: LocationItemKind.event, accountId: _accountId, sourceId: old.calendarSourceId, itemId: old.id), LocationItemIdentity(kind: LocationItemKind.event, accountId: _accountId, sourceId: row.calendarSourceId, itemId: row.id));
+            await resolutions.transfer(
+              LocationItemIdentity(
+                kind: LocationItemKind.event,
+                accountId: _accountId,
+                sourceId: old.calendarSourceId,
+                itemId: old.id,
+              ),
+              LocationItemIdentity(
+                kind: LocationItemKind.event,
+                accountId: _accountId,
+                sourceId: row.calendarSourceId,
+                itemId: row.id,
+              ),
+            );
           }
         }
       }
       if (op.taskId != null) {
-        final old = await (_database.select(_database.tasks)..where((r) => r.accountId.equals(_accountId) & r.id.equals(op.taskId!) & r.davCollectionId.equals(op.davCollectionId!))).getSingleOrNull();
+        final old =
+            await (_database.select(_database.tasks)..where(
+                  (r) =>
+                      r.accountId.equals(_accountId) &
+                      r.id.equals(op.taskId!) &
+                      r.davCollectionId.equals(op.davCollectionId!),
+                ))
+                .getSingleOrNull();
         if (old != null && old.icalUid != null) {
-          final rows = await (_database.select(_database.tasks)..where((r) => r.accountId.equals(_accountId) & r.taskListId.equals(old.taskListId) & r.icalUid.equals(old.icalUid!) & r.davObjectId.isNotNull())).get();
+          final rows =
+              await (_database.select(_database.tasks)..where(
+                    (r) =>
+                        r.accountId.equals(_accountId) &
+                        r.taskListId.equals(old.taskListId) &
+                        r.icalUid.equals(old.icalUid!) &
+                        r.davObjectId.isNotNull(),
+                  ))
+                  .get();
           for (final row in rows) {
-            await resolutions.transfer(LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: old.taskListId, itemId: old.id), LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: row.taskListId, itemId: row.id));
+            await resolutions.transfer(
+              LocationItemIdentity(
+                kind: LocationItemKind.task,
+                accountId: _accountId,
+                sourceId: old.taskListId,
+                itemId: old.id,
+              ),
+              LocationItemIdentity(
+                kind: LocationItemKind.task,
+                accountId: _accountId,
+                sourceId: row.taskListId,
+                itemId: row.id,
+              ),
+            );
           }
         }
       }
@@ -1464,6 +1597,10 @@ DavNewObject _decodeCreate(String source) {
     final uid = _jsonString(json, 'uid');
     final rawIcs = _jsonString(json, 'rawIcs');
     final componentType = _jsonString(json, 'componentType').toUpperCase();
+    if (json.containsKey('suppressScheduling') &&
+        json['suppressScheduling'] is! bool) {
+      throw _invalidPendingOperation();
+    }
     final semantic = IcalSemanticDocument.parse(rawIcs);
     if (semantic.primaryUid != uid ||
         semantic.components.every(
@@ -1476,6 +1613,7 @@ DavNewObject _decodeCreate(String source) {
       initialMemberName: _jsonString(json, 'initialMemberName'),
       rawIcs: rawIcs,
       componentType: componentType,
+      suppressScheduling: json['suppressScheduling'] == true,
     );
   } on DavException {
     rethrow;

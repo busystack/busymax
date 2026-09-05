@@ -53,24 +53,44 @@ abstract interface class DavMutationRemoteClient {
   });
 }
 
-final class DavMutationHttpClient implements DavMutationRemoteClient {
+/// An explicitly scoped request policy, never a transport-wide header. Normal
+/// edits and other providers continue to use their existing scheduling path.
+abstract interface class DavSilentMutationRemoteClient {
+  DavMutationRemoteClient withoutScheduling();
+}
+
+final class DavMutationHttpClient
+    implements DavMutationRemoteClient, DavSilentMutationRemoteClient {
   DavMutationHttpClient({
     required DavHttpTransport transport,
     required String accountId,
     required String collectionId,
     required DavBasicCredential credential,
     DavXmlParser xmlParser = const DavXmlParser(),
+    bool suppressScheduling = false,
   }) : _transport = transport,
        _accountId = accountId,
        _collectionId = collectionId,
        _credential = credential,
-       _xmlParser = xmlParser;
+       _xmlParser = xmlParser,
+       _suppressScheduling = suppressScheduling;
 
   final DavHttpTransport _transport;
   final String _accountId;
   final String _collectionId;
   final DavBasicCredential _credential;
   final DavXmlParser _xmlParser;
+  final bool _suppressScheduling;
+
+  @override
+  DavMutationRemoteClient withoutScheduling() => DavMutationHttpClient(
+    transport: _transport,
+    accountId: _accountId,
+    collectionId: _collectionId,
+    credential: _credential,
+    xmlParser: _xmlParser,
+    suppressScheduling: true,
+  );
 
   @override
   Future<DavConditionalResponse> conditionalPut({
@@ -96,6 +116,7 @@ final class DavMutationHttpClient implements DavMutationRemoteClient {
         headers: {
           if (ifNoneMatch) 'if-none-match': '*',
           if (ifMatch != null) 'if-match': ifMatch,
+          if (_suppressScheduling) 'x-nc-scheduling': 'false',
         },
       ),
       credential: _credential,
@@ -336,12 +357,14 @@ final class DavNewObject {
     required this.initialMemberName,
     required this.rawIcs,
     required this.componentType,
+    this.suppressScheduling = false,
   });
 
   final String uid;
   final String initialMemberName;
   final String rawIcs;
   final String componentType;
+  final bool suppressScheduling;
 }
 
 final class DavNewObjectFactory {
@@ -452,6 +475,7 @@ final class DavConditionalMutationService {
     required DavNewObject object,
     required CollectionCapabilities capabilities,
     required String correlationId,
+    bool reconcileFirst = false,
   }) async {
     final allowed = object.componentType == 'VEVENT'
         ? capabilities.canCreateEvent
@@ -459,12 +483,43 @@ final class DavConditionalMutationService {
         ? capabilities.canCreateTask
         : false;
     if (!allowed) throw _readOnlyError(correlationId);
+    final remote = object.suppressScheduling
+        ? (_remoteClient is DavSilentMutationRemoteClient
+              ? (_remoteClient as DavSilentMutationRemoteClient)
+                    .withoutScheduling()
+              : throw const DavException(
+                  kind: DavErrorKind.unsupportedComponent,
+                  code: 'DavSilentImportUnsupported',
+                  safeMessage:
+                      'This transport cannot suppress scheduling for an import.',
+                ))
+        : _remoteClient;
     var memberName = object.initialMemberName;
+    if (reconcileFirst) {
+      final uri = _memberUri(collectionUri, memberName);
+      final existing = await remote.fetch(
+        hrefKey: uri.path,
+        uri: uri,
+        correlationId: correlationId,
+      );
+      if (!existing.missing) {
+        if (_sameIntendedObject(object.rawIcs, existing.rawIcsBody!)) {
+          return DavMutationResult.succeeded(existing);
+        }
+        // An uncertain create must not allocate a second name or send another
+        // invitation after finding a different resource at its original href.
+        return DavMutationResult.conflict(
+          _retryLimitConflict(const {'CREATE'}),
+          remoteObject: existing,
+          localCandidateRawIcs: object.rawIcs,
+        );
+      }
+    }
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
       final uri = _memberUri(collectionUri, memberName);
       final hrefKey = uri.path;
       try {
-        final response = await _remoteClient.conditionalPut(
+        final response = await remote.conditionalPut(
           uri: uri,
           rawIcs: object.rawIcs,
           correlationId: correlationId,
@@ -475,7 +530,7 @@ final class DavConditionalMutationService {
           continue;
         }
         if (response.status == DavConditionalStatus.missing) continue;
-        final canonical = await _remoteClient.fetch(
+        final canonical = await remote.fetch(
           hrefKey: hrefKey,
           uri: uri,
           correlationId: correlationId,
@@ -486,7 +541,7 @@ final class DavConditionalMutationService {
         }
       } on DavException catch (error) {
         if (!_isUnknownOutcome(error)) rethrow;
-        final resolved = await _remoteClient.fetch(
+        final resolved = await remote.fetch(
           hrefKey: hrefKey,
           uri: uri,
           correlationId: correlationId,
@@ -495,7 +550,11 @@ final class DavConditionalMutationService {
           if (_sameIntendedObject(object.rawIcs, resolved.rawIcsBody!)) {
             return DavMutationResult.succeeded(resolved);
           }
-          memberName = '${_memberIdFactory()}.ics';
+          return DavMutationResult.conflict(
+            _retryLimitConflict(const {'CREATE'}),
+            remoteObject: resolved,
+            localCandidateRawIcs: object.rawIcs,
+          );
         }
       }
     }

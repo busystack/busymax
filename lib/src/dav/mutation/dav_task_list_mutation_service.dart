@@ -157,8 +157,9 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
     final result = await _administration.update(collectionId, {
       const DavPropertyName(davNamespace, 'displayname'): displayName,
     });
-    if (result == NextcloudMutationOutcome.refreshPending)
+    if (result == NextcloudMutationOutcome.refreshPending) {
       throw const NextcloudRefreshPending();
+    }
   }
 
   Future<NextcloudMutationOutcome> setTaskListMetadata(
@@ -180,8 +181,9 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
   Future<void> deleteTaskList(String collectionId) async {
     await _requiredTaskCollection(collectionId);
     final result = await _administration.remove(collectionId);
-    if (result == NextcloudMutationOutcome.refreshPending)
+    if (result == NextcloudMutationOutcome.refreshPending) {
       throw const NextcloudRefreshPending();
+    }
   }
 
   Future<_DavTaskListContext> _loadContext({

@@ -144,16 +144,18 @@ class NextcloudAdminFixture {
   Future<http.Response> respond(http.Request request) async {
     requests.add(request);
     if (request.method == 'PROPFIND') {
-      if (request.body.contains('principal-collection-set'))
+      if (request.body.contains('principal-collection-set')) {
         return multi(
           request.url.path,
           '<d:principal-collection-set><d:href>/remote.php/dav/principals/users/</d:href><d:href>/remote.php/dav/principals/groups/</d:href></d:principal-collection-set>',
         );
-      if (request.url.path == home)
+      }
+      if (request.url.path == home) {
         return multi(
           home,
           '<d:current-user-privilege-set><d:privilege><d:${denyParent ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set>',
         );
+      }
       return multi(
         request.url.path,
         '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>$displayName</d:displayname><d:owner><d:href>/remote.php/dav/principals/users/alex/</d:href></d:owner><d:current-user-privilege-set><d:privilege><d:read/></d:privilege>${denyMetadata ? '' : '<d:privilege><d:write-properties/></d:privilege>'}</d:current-user-privilege-set><a:calendar-color>#3584e4</a:calendar-color><a:calendar-order>2</a:calendar-order><oc:calendar-enabled>1</oc:calendar-enabled><c:schedule-calendar-transp><c:opaque/></c:schedule-calendar-transp><cs:allowed-sharing-modes><cs:can-be-shared/><cs:can-be-published/></cs:allowed-sharing-modes><oc:invite>${shares.entries.map((s) => '<oc:user><d:href>${s.key}</d:href><oc:common-name>Bob</oc:common-name><oc:access><oc:${s.value ? 'read-write' : 'read'}/></oc:access><oc:invite-accepted/></oc:user>').join()}</oc:invite>${published ? '<cs:publish-url><d:href>https://cloud.example.test/published/server-selected</d:href></cs:publish-url>' : ''}',
@@ -165,8 +167,9 @@ class NextcloudAdminFixture {
           .firstWhere((e) => e.name.local == 'prop')
           .childElements;
       if (omitPropertyResults) return multi(request.url.path, '');
-      if (failedProperty != null)
+      if (failedProperty != null) {
         return multi(request.url.path, '<a:$failedProperty/>', status: 403);
+      }
       for (final p in properties) {
         if (p.name.local == 'displayname') displayName = p.innerText;
       }
@@ -188,8 +191,9 @@ class NextcloudAdminFixture {
     if (request.method == 'REPORT' && request.body.contains('calendar-query')) {
       final task = request.body.contains('VTODO');
       final path = '${bin}objects/${task ? 42 : 41}.ics';
-      if (restored.contains(path))
+      if (restored.contains(path)) {
         return http.Response('<d:multistatus $nextcloudXmlNamespaces/>', 207);
+      }
       final component = task ? 'VTODO' : 'VEVENT';
       final raw =
           'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-${task ? 'task' : 'event'}\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\nEND:$component\r\nEND:VCALENDAR\r\n';

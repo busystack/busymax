@@ -47,8 +47,9 @@ final class NextcloudTrashService {
 
   Future<NextcloudTrashListing> list() async {
     final context = await collections.openContext();
-    if (!context.features.contains('nc-calendar-trashbin'))
+    if (!context.features.contains('nc-calendar-trashbin')) {
       throw nextcloudOperationError(405, 'DavTrashUnsupported');
+    }
     final rows =
         await (collections.database.select(collections.database.davCollections)
               ..where(
@@ -64,8 +65,9 @@ final class NextcloudTrashService {
           ),
         )
         .toList();
-    if (bins.isEmpty)
+    if (bins.isEmpty) {
       throw nextcloudOperationError(404, 'DavTrashNotDiscovered');
+    }
     final items = <String, NextcloudTrashItem>{};
     int? retention;
     for (final bin in bins) {
@@ -86,26 +88,30 @@ final class NextcloudTrashService {
           xml:
               '<c:calendar-query $nextcloudXmlNamespaces><d:prop><d:getetag/><c:calendar-data/><nc:deleted-at/><nc:calendar-uri/><nc:source-calendar-uri/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="$component"/></c:comp-filter></c:filter></c:calendar-query>',
         );
-        if (response.statusCode != 207)
+        if (response.statusCode != 207) {
           throw nextcloudOperationError(
             response.statusCode,
             'DavTrashReadFailed',
           );
+        }
         final data = const DavXmlParser().parseMultistatus(response.bodyBytes);
-        if (data.errorConditions.isNotEmpty)
+        if (data.errorConditions.isNotEmpty) {
           throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
+        }
         for (final row in data.responses) {
-          if ((row.statusCode ?? 200) >= 400)
+          if ((row.statusCode ?? 200) >= 400) {
             throw nextcloudOperationError(
               row.statusCode!,
               'DavTrashReadFailed',
             );
+          }
           final href = context.resolve(row.href, response.requestUri);
           final raw = row
               .successfulProperty(caldavNamespace, 'calendar-data')
               ?.text;
-          if (raw == null)
+          if (raw == null) {
             throw nextcloudOperationError(502, 'DavTrashReadIncomplete');
+          }
           final document = IcalSemanticDocument.parse(raw);
           final content = document.components
               .where((c) => c.componentType == component)
@@ -140,8 +146,9 @@ final class NextcloudTrashService {
       )) {
         final deletedMetadata =
             jsonDecode(row.safeDisplayMetadataJson ?? '{}') as Map;
-        if (deletedMetadata['calendarHomeHref'] != metadata['calendarHomeHref'])
+        if (deletedMetadata['calendarHomeHref'] != metadata['calendarHomeHref']) {
           continue;
+        }
         final kind = switch (row.supportedComponentMask & 3) {
           3 => NextcloudTrashKind.mixedCollection,
           2 => NextcloudTrashKind.taskList,
@@ -171,8 +178,9 @@ final class NextcloudTrashService {
     NextcloudTrashItem item, {
     required bool permanent,
   }) async {
-    if (item.accountId != collections.accountId)
+    if (item.accountId != collections.accountId) {
       throw nextcloudOperationError(403, 'DavTrashIdentityMismatch');
+    }
     // Re-list after confirmation: expired or changed entries cannot be replayed
     // against a guessed href, UID, account or replacement collection.
     final current = (await list()).items
@@ -183,10 +191,12 @@ final class NextcloudTrashService {
               r.trashBinHref == item.trashBinHref,
         )
         .firstOrNull;
-    if (current == null)
+    if (current == null) {
       throw nextcloudOperationError(410, 'DavTrashItemExpired');
-    if (item.etag != null && current.etag != item.etag)
+    }
+    if (item.etag != null && current.etag != item.etag) {
       throw nextcloudOperationError(412, 'DavTrashItemChanged');
+    }
     final context = await collections.openContext();
     final source = context.resolve(current.href.toString(), context.authority);
     final destination = context.resolve(
@@ -205,18 +215,20 @@ final class NextcloudTrashService {
           if (permanent) 'X-NC-CalDAV-No-Trashbin': '1',
         },
       );
-      if (response.statusCode < 200 || response.statusCode >= 300)
+      if (response.statusCode < 200 || response.statusCode >= 300) {
         throw nextcloudOperationError(
           response.statusCode,
           permanent ? 'DavTrashDeleteFailed' : 'DavTrashRestoreFailed',
         );
+      }
     } on DavException catch (error) {
       if (!{
         DavErrorKind.timeout,
         DavErrorKind.network,
         DavErrorKind.server,
-      }.contains(error.kind))
+      }.contains(error.kind)) {
         rethrow;
+      }
       // Never repeat a MOVE with an uncertain outcome or fabricate a new UID.
       await collections.refreshResult();
       throw nextcloudOperationError(409, 'DavTrashOutcomeUnknown');

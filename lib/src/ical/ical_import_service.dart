@@ -5,12 +5,23 @@ import '../dav/dav_errors.dart';
 import '../dav/ical/ical_document.dart';
 import '../dav/ical/ical_semantics.dart';
 import '../dav/ical/ical_timezone.dart';
+import '../dav/nextcloud/nextcloud_native_import.dart';
+import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/presentation/event_editor_draft.dart';
 import '../features/recurrence/domain/event_recurrence_codec.dart';
 import '../providers/busy_provider.dart';
 import 'ical_ingestion.dart';
+
+final class IcalImportSelection {
+  const IcalImportSelection(this.destination, {this.newCopies = false});
+  final CalendarSourceEntity destination;
+  final bool newCopies;
+  NativeImportDuplicates get duplicatePolicy => newCopies
+      ? NativeImportDuplicates.newCopies
+      : NativeImportDuplicates.skip;
+}
 
 final class IcalImportPreview {
   const IcalImportPreview({
@@ -24,6 +35,8 @@ final class IcalImportPreview {
   final int eventCount;
   final int invalidEventCount;
   final Set<String> fieldsThatWillBeOmitted;
+  NextcloudNativeImportPreview get nativePreview =>
+      NextcloudNativeImportPreview.parse(ingestion.document);
 }
 
 final class IcalImportSkippedSet {
@@ -40,6 +53,7 @@ final class IcalImportReport {
     required this.unsupportedRecurrenceSets,
     required this.invalidEvents,
     required this.fieldsIntentionallyOmitted,
+    this.followUpPending = false,
   });
 
   final int queued;
@@ -47,17 +61,21 @@ final class IcalImportReport {
   final List<IcalImportSkippedSet> unsupportedRecurrenceSets;
   final int invalidEvents;
   final Set<String> fieldsIntentionallyOmitted;
+  final bool followUpPending;
 }
 
 final class IcalImportService {
   IcalImportService({
     required AppDatabase database,
     required CalendarRepository calendarRepository,
+    Future<void> Function(String accountId)? onNativeImported,
   }) : _database = database,
-       _calendarRepository = calendarRepository;
+       _calendarRepository = calendarRepository,
+       _onNativeImported = onNativeImported;
 
   final AppDatabase _database;
   final CalendarRepository _calendarRepository;
+  final Future<void> Function(String)? _onNativeImported;
 
   IcalImportPreview parsePreview(List<int> bytes) {
     final ingestion = IcalIngestion.parseBytes(
@@ -105,7 +123,8 @@ final class IcalImportService {
     final rows =
         await (_database.select(_database.calendarSources)..where(
               (row) =>
-                  row.readOnly.equals(false) &
+                  (row.readOnly.equals(false) |
+                      row.provider.equals('nextcloud')) &
                   row.isDeleted.equals(false) &
                   row.provider.equals(BusyProvider.webCal.storageValue).not(),
             ))
@@ -120,19 +139,100 @@ final class IcalImportService {
               .get())
         if (op.calendarSourceId != null) op.calendarSourceId!,
     };
-    return [
+    final collections =
+        await (_database.select(_database.davCollections)..where(
+              (r) => r.deleted.equals(false) & r.serverMissing.equals(false),
+            ))
+            .get();
+    final native = {for (final c in collections) c.id: c};
+    final sources = [
       for (final row in rows)
         CalendarSourceEntity.fromRow(
           row,
+          davCollection: native[row.davCollectionId],
           pendingCreate: pendingIds.contains(row.id),
         ),
+    ];
+    final accounts = await (_database.select(
+      _database.accounts,
+    )..where((r) => r.provider.equals('nextcloud'))).get();
+    return [
+      ...sources.where(
+        (s) =>
+            s.capabilities.canCreateEvents ||
+            (s.davCollectionId != null &&
+                native[s.davCollectionId] != null &&
+                collectionCapabilitiesFromStored(
+                  native[s.davCollectionId]!,
+                ).canCreateTask),
+      ),
+      for (final collection in collections)
+        if (accounts.any((a) => a.id == collection.accountId) &&
+            !sources.any((s) => s.davCollectionId == collection.id) &&
+            collectionCapabilitiesFromStored(collection).canCreateTask)
+          CalendarSourceEntity(
+            id: 'dav-import-${collection.id}',
+            accountId: collection.accountId,
+            provider: BusyProvider.nextcloud,
+            providerCalendarId: collection.hrefKey,
+            summary: collection.displayName,
+            selected: true,
+            hidden: false,
+            readOnly: collection.readOnly,
+            isDeleted: false,
+            davCollectionId: collection.id,
+            davEffectivePermissions: davSourcePermissionProjection(collection),
+          ),
     ];
   }
 
   Future<IcalImportReport> importPreview({
     required IcalImportPreview preview,
     required CalendarSourceEntity destination,
+    NativeImportDuplicates nativeDuplicates = NativeImportDuplicates.skip,
+    bool normalizeNativeSchedulingMethod = false,
   }) async {
+    if (destination.provider == BusyProvider.nextcloud &&
+        destination.davCollectionId != null) {
+      final results = await NextcloudNativeImportService(_database).import(
+        accountId: destination.accountId,
+        collectionId: destination.davCollectionId!,
+        preview: preview.nativePreview,
+        duplicates: nativeDuplicates,
+        normalizeSchedulingMethod: normalizeNativeSchedulingMethod,
+      );
+      var followUpPending = false;
+      if (results.any((r) => r.status == NativeImportItemStatus.queued)) {
+        try {
+          await _onNativeImported?.call(destination.accountId);
+        } on Object {
+          followUpPending = true;
+        }
+      }
+      return IcalImportReport(
+        queued: results
+            .where((r) => r.status == NativeImportItemStatus.queued)
+            .length,
+        followUpPending: followUpPending,
+        duplicatesSkipped: results
+            .where((r) => r.status == NativeImportItemStatus.duplicate)
+            .length,
+        unsupportedRecurrenceSets: [
+          for (final result in results)
+            if (result.status == NativeImportItemStatus.unsupported ||
+                result.status == NativeImportItemStatus.failed)
+              IcalImportSkippedSet(
+                uid: result.uid,
+                reason: result.code ?? 'IcalImportFailed',
+              ),
+        ],
+        invalidEvents: 0,
+        fieldsIntentionallyOmitted: {
+          if (preview.nativePreview.schedulingMethod != null)
+            'scheduling method',
+        },
+      );
+    }
     if (!destination.capabilities.canCreateEvents ||
         destination.provider == BusyProvider.webCal) {
       throw ArgumentError('The selected calendar is not writable.');
@@ -345,7 +445,16 @@ _PreparedImportDraft _prepareDraft(
           endTimeZone: endTimeZone,
           description: master.description,
           location: master.location,
-          locationChange: master.locationPoint == null ? const LocationChange.unchanged() : LocationChange.replace(LocationResult(label: master.location ?? '', point: master.locationPoint!, source: 'ical', attribution: 'Imported iCalendar GEO')),
+          locationChange: master.locationPoint == null
+              ? const LocationChange.unchanged()
+              : LocationChange.replace(
+                  LocationResult(
+                    label: master.location ?? '',
+                    point: master.locationPoint!,
+                    source: 'ical',
+                    attribution: 'Imported iCalendar GEO',
+                  ),
+                ),
           recurrence: recurrence,
           recurrenceChanged: recurrence != null,
           reminders: reminders,

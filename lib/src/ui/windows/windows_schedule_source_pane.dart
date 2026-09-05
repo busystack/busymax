@@ -620,10 +620,11 @@ class _WindowsScheduleSourcePaneState
       await operation();
       if (mounted) widget.onSourcesChanged();
     } on NextcloudRefreshPending {
-      if (mounted)
+      if (mounted) {
         await _showMessage(
           AppLocalizations.of(context).nextcloudRefreshPending,
         );
+      }
     } on Object {
       if (mounted) {
         await _showMessage(AppLocalizations.of(context).operationFailed);

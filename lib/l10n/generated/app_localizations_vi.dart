@@ -13,6 +13,22 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get nextcloudImportFollowUp =>
+      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Import as new copies with new identities';
+
+  @override
   String get nextcloudCollectionSettings => 'Collection settings';
 
   @override

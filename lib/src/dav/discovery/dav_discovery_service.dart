@@ -194,8 +194,9 @@ final class DavDiscoveryService {
       for (final collection in discovered) {
         if (!collections.any(
           (existing) => existing.hrefKey == collection.hrefKey,
-        ))
+        )) {
           collections.add(collection);
+        }
       }
     }
     if (_profile.provider == BusyProvider.nextcloud &&

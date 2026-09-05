@@ -453,9 +453,19 @@ class CalendarRepository {
     final detail = await loadEventDetail(eventId);
     if (detail == null) throw StateError('The event is no longer available.');
     if (detail.davCollectionId == null) return null;
-    final document = await loadEventTimeZoneDocument(detail);
-    if (document == null)
+    final document = detail.davObjectId == null
+        ? await loadEventTimeZoneDocument(detail)
+        : await DavPendingOperationQueue(
+            database: _database,
+            nowUtc: () => _now().toUtc(),
+          ).exportRawIcsForObject(
+            accountId: detail.accountId,
+            collectionId: detail.davCollectionId!,
+            objectId: detail.davObjectId!,
+          );
+    if (document == null) {
       throw StateError('The authoritative calendar resource is unavailable.');
+    }
     return document;
   }
 
@@ -497,10 +507,11 @@ class CalendarRepository {
   NextcloudCollectionService _requiredNextcloudCollections(
     CalendarSource source,
   ) {
-    if (_nextcloudCollections == null || source.davCollectionId == null)
+    if (_nextcloudCollections == null || source.davCollectionId == null) {
       throw UnsupportedError(
         'Nextcloud collection administration is unavailable.',
       );
+    }
     return _nextcloudCollections(source.accountId);
   }
 
@@ -620,8 +631,9 @@ class CalendarRepository {
         source.davCollectionId!,
         {const DavPropertyName(davNamespace, 'displayname'): title},
       );
-      if (result == NextcloudMutationOutcome.refreshPending)
+      if (result == NextcloudMutationOutcome.refreshPending) {
         throw const NextcloudRefreshPending();
+      }
       return;
     }
     if (title.isEmpty) {
@@ -690,8 +702,9 @@ class CalendarRepository {
             const DavPropertyName(appleIcalNamespace, 'calendar-color'):
                 choice.backgroundColor,
           });
-      if (result == NextcloudMutationOutcome.refreshPending)
+      if (result == NextcloudMutationOutcome.refreshPending) {
         throw const NextcloudRefreshPending();
+      }
       return;
     }
     if (!supportedChoice) {
@@ -757,8 +770,9 @@ class CalendarRepository {
       final result = await _requiredNextcloudCollections(
         source,
       ).remove(source.davCollectionId!);
-      if (result == NextcloudMutationOutcome.refreshPending)
+      if (result == NextcloudMutationOutcome.refreshPending) {
         throw const NextcloudRefreshPending();
+      }
       return;
     }
     final removalMode = entity.capabilities.removalMode;

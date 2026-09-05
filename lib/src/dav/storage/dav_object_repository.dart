@@ -392,6 +392,64 @@ final class DavObjectRepository {
     });
   }
 
+  /// Gives a native import the same raw resource identity and bounded
+  /// projection used by synchronization. A null ETag is explicitly unconfirmed;
+  /// the caller must attach its conditional create in the same transaction.
+  Future<String> projectPendingImport({
+    required String accountId,
+    required String collectionId,
+    required DavPreparedObject object,
+    required DateTime nowUtc,
+  }) async {
+    if (object.etag != null ||
+        await objectByHref(collectionId, object.hrefKey) != null) {
+      throw ArgumentError(
+        'A pending import must be a new unconfirmed resource.',
+      );
+    }
+    final collection = await (_database.select(
+      _database.davCollections,
+    )..where((r) => r.id.equals(collectionId))).getSingle();
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((r) => r.id.equals(accountId))).getSingle();
+    if (collection.accountId != accountId ||
+        account.provider != BusyProvider.nextcloud.storageValue) {
+      throw ArgumentError('Invalid native import destination.');
+    }
+    final range = _projectionRange(await cursor(collectionId), nowUtc);
+    final context = DavCollectionCommit(
+      accountId: accountId,
+      collectionId: collectionId,
+      provider: BusyProvider.nextcloud,
+      objects: const [],
+      deletedHrefKeys: const {},
+      completeMembership: false,
+      membershipHrefKeys: const {},
+      finalCursorKind: 'snapshot_generation',
+      finalCursorValue: '0',
+      baselineGeneration: 0,
+      completedAtUtc: nowUtc,
+      projectionRangeStartUtc: range.start,
+      projectionRangeEndUtc: range.end,
+    );
+    final id = await _upsertPreparedObject(
+      commit: context,
+      collection: collection,
+      prepared: object,
+    );
+    await (_database.update(_database.calendarEvents)
+          ..where((r) => r.davObjectId.equals(id)))
+        .write(const CalendarEventsCompanion(syncStatus: Value('pending')));
+    await (_database.update(
+      _database.tasks,
+    )..where((r) => r.davObjectId.equals(id))).write(
+      const TasksCompanion(localDirty: Value(true), localCreated: Value(true)),
+    );
+    await _resolveProjectedTaskParents(collectionId);
+    return id;
+  }
+
   /// Stores the server-confirmed representation from a conditional mutation
   /// without advancing the collection sync cursor. A follow-up incremental
   /// sync remains responsible for obtaining the provider's next opaque token.
@@ -772,6 +830,7 @@ final class DavObjectRepository {
 
     if (rawChanged ||
         semanticChanged ||
+        (existing?.etag == null && prepared.etag != null) ||
         existing?.parserVersion != davRawObjectParserVersion ||
         existing?.serverDeleted == true ||
         commit.forceReprojection) {
@@ -851,11 +910,31 @@ final class DavObjectRepository {
   }) async {
     final resolutions = LocationResolutionRepository(_database);
     final remembered = await resolutions.capture(davObjectId: objectId);
-    await _replaceProjectionsBody(commit: commit, collection: collection, objectId: objectId, etag: etag, semantic: semantic, componentIds: componentIds);
-    await resolutions.restore(remembered, accountId: commit.accountId, sourceId: semantic.components.firstOrNull?.componentType == 'VTODO' ? 'dav-task-list-${commit.collectionId}' : 'dav-calendar-${commit.collectionId}');
+    await _replaceProjectionsBody(
+      commit: commit,
+      collection: collection,
+      objectId: objectId,
+      etag: etag,
+      semantic: semantic,
+      componentIds: componentIds,
+    );
+    await resolutions.restore(
+      remembered,
+      accountId: commit.accountId,
+      sourceId: semantic.components.firstOrNull?.componentType == 'VTODO'
+          ? 'dav-task-list-${commit.collectionId}'
+          : 'dav-calendar-${commit.collectionId}',
+    );
   }
 
-  Future<void> _replaceProjectionsBody({required DavCollectionCommit commit, required DavCollection collection, required String objectId, required String? etag, required IcalSemanticDocument semantic, required Map<String, String> componentIds}) async {
+  Future<void> _replaceProjectionsBody({
+    required DavCollectionCommit commit,
+    required DavCollection collection,
+    required String objectId,
+    required String? etag,
+    required IcalSemanticDocument semantic,
+    required Map<String, String> componentIds,
+  }) async {
     await _deleteProjections(objectId);
     if (semantic.components.isEmpty) return;
     final componentType = semantic.components.first.componentType;
@@ -1088,8 +1167,12 @@ final class DavObjectRepository {
                 component.percentComplete ?? master.percentComplete,
               ),
               taskLocation: Value(effectiveIcalLocation([component, master])),
-              locationLatitude: Value(effectiveIcalLocationPoint([component, master])?.latitude),
-              locationLongitude: Value(effectiveIcalLocationPoint([component, master])?.longitude),
+              locationLatitude: Value(
+                effectiveIcalLocationPoint([component, master])?.latitude,
+              ),
+              locationLongitude: Value(
+                effectiveIcalLocationPoint([component, master])?.longitude,
+              ),
               taskUrl: Value(component.url ?? master.url),
               taskClassification: Value(
                 component.classification ?? master.classification,
@@ -1161,6 +1244,13 @@ final class DavObjectRepository {
     DavCollectionCommit commit, {
     bool ignorePendingOperations = false,
   }) async {
+    // An entirely local resource cannot be a server tombstone merely because
+    // an inventory doesn't list it yet. Keep its pending create and projection.
+    if (!ignorePendingOperations &&
+        object.etag == null &&
+        await _hasActivePendingOperation(object.id)) {
+      return;
+    }
     final now = commit.completedAtUtc.toUtc().toIso8601String();
     await (_database.update(
       _database.davObjects,

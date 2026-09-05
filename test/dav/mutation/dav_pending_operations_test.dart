@@ -210,7 +210,14 @@ void main() {
     );
     await database
         .update(database.davCollections)
-        .write(const DavCollectionsCompanion(readOnly: Value(true)));
+        .write(
+          const DavCollectionsCompanion(
+            readOnly: Value(true),
+            currentUserPrivilegesJson: Value(
+              '["{DAV:}read","{DAV:}write-properties"]',
+            ),
+          ),
+        );
     var writes = 0;
     final remote = _FakeMutationRemote(
       put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {

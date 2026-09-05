@@ -89,8 +89,9 @@ class _WindowsNextcloudCollectionDialogState
   Future<void> _close() async {
     if (model.busy) return;
     final l10n = AppLocalizations.of(context);
-    if (model.dirty && !await _confirm(l10n.discardChanges, l10n.discard))
+    if (model.dirty && !await _confirm(l10n.discardChanges, l10n.discard)) {
       return;
+    }
     if (mounted) Navigator.pop(context);
   }
 
@@ -260,11 +261,12 @@ class _WindowsNextcloudCollectionDialogState
                                       if (await _confirm(
                                         l10n.nextcloudRevokeShare,
                                         l10n.nextcloudRevokeShare,
-                                      ))
+                                      )) {
                                         await model.share(
                                           share.recipient,
                                           null,
                                         );
+                                      }
                                     },
                               child: Text(l10n.nextcloudRevokeShare),
                             ),
@@ -321,8 +323,9 @@ class _WindowsNextcloudCollectionDialogState
                                   await _confirm(
                                     l10n.nextcloudPublishWarning,
                                     l10n.nextcloudPublish,
-                                  ))
+                                  )) {
                                 await model.publish(publish);
+                              }
                             },
                       child: Text(
                         state.publishUrl == null
@@ -392,17 +395,19 @@ class _WindowsNextcloudTrashState
       final result = await ref
           .read(nextcloudTrashServiceProvider(widget.accountId))
           .list();
-      if (mounted)
+      if (mounted) {
         setState(() {
           listing = result;
           refreshPending = false;
         });
+      }
     } on Object catch (caught) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           failed = true;
           error = caught;
         });
+      }
     }
     if (mounted) setState(() => busy = false);
   }
@@ -453,11 +458,12 @@ class _WindowsNextcloudTrashState
       );
       if (!refreshPending) await _load();
     } on Object catch (caught) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           failed = true;
           error = caught;
         });
+      }
     }
     if (mounted) setState(() => busy = false);
   }

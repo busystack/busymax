@@ -133,6 +133,30 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @nextcloudImportFollowUp.
+  ///
+  /// In en, this message translates to:
+  /// **'The imported resources were saved locally. Reminder refresh is pending; do not import them again.'**
+  String get nextcloudImportFollowUp;
+
+  /// No description provided for @nextcloudNativeImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.'**
+  String get nextcloudNativeImport;
+
+  /// No description provided for @nextcloudImportMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.'**
+  String get nextcloudImportMethod;
+
+  /// No description provided for @nextcloudImportCopies.
+  ///
+  /// In en, this message translates to:
+  /// **'Import as new copies with new identities'**
+  String get nextcloudImportCopies;
+
   /// No description provided for @nextcloudCollectionSettings.
   ///
   /// In en, this message translates to:

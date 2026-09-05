@@ -1,4 +1,8 @@
 {
+"nextcloudImportFollowUp": "The imported resources were saved locally. Reminder refresh is pending; do not import them again.",
+"nextcloudNativeImport": "Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.",
+"nextcloudImportMethod": "This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.",
+"nextcloudImportCopies": "Import as new copies with new identities",
 "nextcloudCollectionSettings": "Collection settings",
 "nextcloudSharing": "Sharing",
 "nextcloudOwned": "Owned",

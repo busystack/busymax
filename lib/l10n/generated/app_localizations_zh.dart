@@ -13,6 +13,22 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get nextcloudImportFollowUp =>
+      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Import as new copies with new identities';
+
+  @override
   String get nextcloudCollectionSettings => 'Collection settings';
 
   @override
@@ -2782,6 +2798,22 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get nextcloudImportFollowUp =>
+      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Import as new copies with new identities';
+
+  @override
   String get nextcloudCollectionSettings => 'Collection settings';
 
   @override
@@ -5549,6 +5581,22 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Import as new copies with new identities';
 
   @override
   String get nextcloudCollectionSettings => 'Collection settings';

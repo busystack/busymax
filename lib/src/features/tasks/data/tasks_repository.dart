@@ -178,7 +178,10 @@ class TaskEntity {
       icalPriority: row.icalPriority,
       percentComplete: row.percentComplete,
       taskLocation: row.taskLocation,
-      locationPoint: GeographicPoint.tryParse(latitude: row.locationLatitude, longitude: row.locationLongitude),
+      locationPoint: GeographicPoint.tryParse(
+        latitude: row.locationLatitude,
+        longitude: row.locationLongitude,
+      ),
       taskUrl: row.taskUrl,
       taskClassification: row.taskClassification,
       taskPinned: row.taskPinned,
@@ -320,13 +323,17 @@ class TaskCreateInput {
       if (dueUtc != null) 'due': dueUtc,
       if (trimmedCategories.isNotEmpty) 'categories': trimmedCategories,
       ...fields,
-      if (locationChange.changed) 'locationPoint': locationChange.selection?.point.toJson(),
+      if (locationChange.changed)
+        'locationPoint': locationChange.selection?.point.toJson(),
     };
   }
 }
 
 class TaskPatchInput {
-  const TaskPatchInput(this.fields, {this.locationChange = const LocationChange.unchanged()});
+  const TaskPatchInput(
+    this.fields, {
+    this.locationChange = const LocationChange.unchanged(),
+  });
 
   final Map<String, Object?> fields;
   final LocationChange locationChange;
@@ -558,7 +565,11 @@ class TasksRepository {
     if (taskList.davCollectionId != null) {
       return _createDavTask(taskList, input);
     }
-    if (input.locationChange.changed) throw UnsupportedError('This task collection does not support locations.');
+    if (input.locationChange.changed) {
+      throw UnsupportedError(
+        'This task collection does not support locations.',
+      );
+    }
     final now = _now();
     final localId = 'local-task-${_uuid.v4()}';
     final fields = input.toFields();
@@ -779,13 +790,30 @@ class TasksRepository {
   ) async {
     final taskList = await _requiredTaskList(taskListId);
     if (taskList.davCollectionId != null) {
-      final fields = {...input.fields, if (input.locationChange.changed) 'locationPoint': input.locationChange.selection?.point.toJson()};
+      final fields = {
+        ...input.fields,
+        if (input.locationChange.changed)
+          'locationPoint': input.locationChange.selection?.point.toJson(),
+      };
       await _updateDavTaskWithHierarchy(taskList, taskId, fields);
       final row = await _requiredTask(taskListId, taskId);
-      await LocationResolutionRepository(_database).apply(LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: taskListId, itemId: row.id), row.taskLocation ?? '', input.locationChange);
+      await LocationResolutionRepository(_database).apply(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: _accountId,
+          sourceId: taskListId,
+          itemId: row.id,
+        ),
+        row.taskLocation ?? '',
+        input.locationChange,
+      );
       return;
     }
-    if (input.locationChange.changed) throw UnsupportedError('This task collection does not support locations.');
+    if (input.locationChange.changed) {
+      throw UnsupportedError(
+        'This task collection does not support locations.',
+      );
+    }
     final now = _now();
     await _database.transaction(() async {
       final baseline = await _baselineRow(taskListId, taskId);
@@ -973,7 +1001,7 @@ class TasksRepository {
       database: _database,
       idFactory: _uuid.v4,
       nowUtc: _nowUtc,
-    ).editableRawIcsForObject(
+    ).exportRawIcsForObject(
       accountId: _accountId,
       collectionId: taskList.davCollectionId!,
       objectId: objectId,
@@ -1035,7 +1063,16 @@ class TasksRepository {
         ),
       );
       await _patchLocalTask(taskList.id, localId, fields, now);
-      await LocationResolutionRepository(_database).apply(LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: taskList.id, itemId: localId), fields['location']?.toString() ?? '', input.locationChange);
+      await LocationResolutionRepository(_database).apply(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: _accountId,
+          sourceId: taskList.id,
+          itemId: localId,
+        ),
+        fields['location']?.toString() ?? '',
+        input.locationChange,
+      );
       await DavPendingOperationQueue(
         database: _database,
         idFactory: _uuid.v4,
@@ -2187,8 +2224,18 @@ class TasksRepository {
         taskLocation: fields.containsKey('location')
             ? Value(_trimmedOrNull(fields['location']))
             : const Value.absent(),
-        locationLatitude: fields.containsKey('locationPoint') || fields.containsKey('location') ? Value(GeographicPoint.fromJson(fields['locationPoint'])?.latitude) : const Value.absent(),
-        locationLongitude: fields.containsKey('locationPoint') || fields.containsKey('location') ? Value(GeographicPoint.fromJson(fields['locationPoint'])?.longitude) : const Value.absent(),
+        locationLatitude:
+            fields.containsKey('locationPoint') ||
+                fields.containsKey('location')
+            ? Value(GeographicPoint.fromJson(fields['locationPoint'])?.latitude)
+            : const Value.absent(),
+        locationLongitude:
+            fields.containsKey('locationPoint') ||
+                fields.containsKey('location')
+            ? Value(
+                GeographicPoint.fromJson(fields['locationPoint'])?.longitude,
+              )
+            : const Value.absent(),
         taskUrl: fields.containsKey('taskUrl')
             ? Value(_trimmedOrNull(fields['taskUrl']))
             : const Value.absent(),

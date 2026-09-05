@@ -305,8 +305,9 @@ bool _isShared(DavCollection collection, DavAccountService? service) {
   String? effectivePrincipal = service?.principalHref;
   try {
     final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
-    if (metadata is Map && metadata['principalHref'] is String)
+    if (metadata is Map && metadata['principalHref'] is String) {
       effectivePrincipal = metadata['principalHref'] as String;
+    }
     if (metadata is Map && metadata['shared'] is bool) {
       return metadata['shared']! as bool;
     }

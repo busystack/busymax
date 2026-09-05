@@ -114,8 +114,9 @@ final class NextcloudSharingService {
       final uri = Uri.tryParse(href);
       if (uri != null &&
           const {'http', 'https', 'webcal'}.contains(uri.scheme) &&
-          uri.userInfo.isEmpty)
+          uri.userInfo.isEmpty) {
         publishUrl = uri;
+      }
     }
     final canAdminister =
         state.role != NextcloudCollectionRole.shared &&
@@ -157,12 +158,14 @@ final class NextcloudSharingService {
       for (final element
           in property?.element.descendantElements ?? const <XmlElement>[]) {
         if (element.name.namespaceUri == davNamespace &&
-            element.name.local == 'href')
+            element.name.local == 'href') {
           targets.add(context.resolve(element.innerText.trim(), root));
+        }
       }
     }
-    if (targets.isEmpty || targets.length > 16)
+    if (targets.isEmpty || targets.length > 16) {
       throw nextcloudOperationError(403, 'DavPrincipalSearchUnavailable');
+    }
     final found = <String, NextcloudShareRecipient>{};
     for (final target in targets) {
       final response = await context.send(
@@ -172,14 +175,16 @@ final class NextcloudSharingService {
         xml:
             '<d:principal-property-search $nextcloudXmlNamespaces><d:property-search><d:prop><d:displayname/></d:prop><d:match>${escapeDavXmlText(text)}</d:match></d:property-search><d:prop><d:displayname/><d:principal-URL/><c:calendar-user-type/></d:prop></d:principal-property-search>',
       );
-      if (response.statusCode != 207)
+      if (response.statusCode != 207) {
         throw nextcloudOperationError(
           response.statusCode,
           'DavPrincipalSearchDenied',
         );
+      }
       final result = const DavXmlParser().parseMultistatus(response.bodyBytes);
-      if (result.errorConditions.isNotEmpty)
+      if (result.errorConditions.isNotEmpty) {
         throw nextcloudOperationError(502, 'DavPrincipalSearchIncomplete');
+      }
       for (final entry in result.responses) {
         if ((entry.statusCode ?? 200) >= 400) continue;
         final href =
@@ -195,8 +200,9 @@ final class NextcloudSharingService {
             .replaceFirst(RegExp(r'/+$'), '');
         // Derive the scheme from the returned principal path, not a user name.
         if (!relative.startsWith('principals/users/') &&
-            !relative.startsWith('principals/groups/'))
+            !relative.startsWith('principals/groups/')) {
           continue;
+        }
         final scheme = 'principal:$relative';
         final label = entry
             .successfulProperty(davNamespace, 'displayname')
@@ -225,8 +231,9 @@ final class NextcloudSharingService {
     NextcloudShareRecipient recipient, {
     required bool? writable,
   }) async {
-    if (!_knownRecipients.contains(recipient.href))
+    if (!_knownRecipients.contains(recipient.href)) {
       throw nextcloudOperationError(403, 'DavPrincipalNotResolved');
+    }
     final context = await collections.openContext();
     final state = await load(id, context: context);
     if (!state.canShare) throw nextcloudOperationError(403, 'DavSharingDenied');
@@ -239,21 +246,24 @@ final class NextcloudSharingService {
         Uri.parse(state.collection.collection.requestUri),
         xml: xml,
       );
-      if (response.statusCode < 200 || response.statusCode >= 300)
+      if (response.statusCode < 200 || response.statusCode >= 300) {
         throw nextcloudOperationError(response.statusCode, 'DavSharingFailed');
+      }
     } on DavException catch (error) {
       if (!{
         DavErrorKind.network,
         DavErrorKind.timeout,
         DavErrorKind.server,
-      }.contains(error.kind))
+      }.contains(error.kind)) {
         rethrow;
+      }
       final refreshed = await load(id, context: context);
       final actual = refreshed.shares
           .where((s) => s.recipient.href == recipient.href)
           .firstOrNull;
-      if (writable == null ? actual != null : actual?.writable != writable)
+      if (writable == null ? actual != null : actual?.writable != writable) {
         throw nextcloudOperationError(409, 'DavCollectionOutcomeUnknown');
+      }
     }
     try {
       await load(id, context: context);
@@ -269,10 +279,12 @@ final class NextcloudSharingService {
   ) async {
     final context = await collections.openContext();
     final state = await load(id, context: context);
-    if (!state.canPublish)
+    if (!state.canPublish) {
       throw nextcloudOperationError(403, 'DavPublishingDenied');
-    if ((state.publishUrl != null) == published)
+    }
+    if ((state.publishUrl != null) == published) {
       return NextcloudMutationOutcome.committed;
+    }
     final action = published ? 'publish-calendar' : 'unpublish-calendar';
     try {
       final response = await context.send(
@@ -280,26 +292,30 @@ final class NextcloudSharingService {
         Uri.parse(state.collection.collection.requestUri),
         xml: '<cs:$action $nextcloudXmlNamespaces/>',
       );
-      if (response.statusCode < 200 || response.statusCode >= 300)
+      if (response.statusCode < 200 || response.statusCode >= 300) {
         throw nextcloudOperationError(
           response.statusCode,
           'DavPublishingFailed',
         );
+      }
     } on DavException catch (error) {
       if (!{
         DavErrorKind.network,
         DavErrorKind.timeout,
         DavErrorKind.server,
-      }.contains(error.kind))
+      }.contains(error.kind)) {
         rethrow;
+      }
       final refreshed = await load(id, context: context);
-      if ((refreshed.publishUrl != null) != published)
+      if ((refreshed.publishUrl != null) != published) {
         throw nextcloudOperationError(409, 'DavCollectionOutcomeUnknown');
+      }
     }
     try {
       final refreshed = await load(id, context: context);
-      if ((refreshed.publishUrl != null) != published)
+      if ((refreshed.publishUrl != null) != published) {
         return NextcloudMutationOutcome.refreshPending;
+      }
     } on Object {
       return NextcloudMutationOutcome.refreshPending;
     }

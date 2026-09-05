@@ -1532,11 +1532,12 @@ Future<void> _changeCalendarColor(
         .setSourceColor(source.id, choice);
     _requestCalendarMutationSync(ref, source.accountId);
   } on NextcloudRefreshPending {
-    if (context.mounted)
+    if (context.mounted) {
       _showCalendarMutationFailure(
         context,
         context.l10n.nextcloudRefreshPending,
       );
+    }
   } on Object catch (error) {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1581,11 +1582,12 @@ Future<void> _renameCalendar(
         .renameLocalSource(source.id, title.trim());
     _requestCalendarMutationSync(ref, source.accountId);
   } on NextcloudRefreshPending {
-    if (context.mounted)
+    if (context.mounted) {
       _showCalendarMutationFailure(
         context,
         context.l10n.nextcloudRefreshPending,
       );
+    }
   } on Object catch (error) {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1634,11 +1636,12 @@ Future<void> _deleteCalendar(
     await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
     _requestCalendarMutationSync(ref, source.accountId);
   } on NextcloudRefreshPending {
-    if (context.mounted)
+    if (context.mounted) {
       _showCalendarMutationFailure(
         context,
         context.l10n.nextcloudRefreshPending,
       );
+    }
   } on Object catch (error) {
     if (context.mounted) {
       final message =

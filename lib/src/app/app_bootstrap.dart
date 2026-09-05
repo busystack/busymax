@@ -786,6 +786,20 @@ final icalImportServiceProvider = Provider<IcalImportService>((ref) {
   return IcalImportService(
     database: ref.watch(databaseProvider),
     calendarRepository: ref.watch(calendarRepositoryProvider),
+    onNativeImported: (accountId) async {
+      try {
+        await NotificationScheduleService(
+          database: ref.read(databaseProvider),
+        ).rebuildUpcomingNotifications(accountId);
+        await ref.read(notificationSchedulerProvider).checkNow();
+      } finally {
+        ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+            )
+            .request();
+      }
+    },
   );
 });
 

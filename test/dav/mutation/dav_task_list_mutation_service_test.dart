@@ -205,8 +205,9 @@ void main() {
       database,
       secrets,
       MockClient((incoming) async {
-        if (incoming.method == 'PROPFIND')
+        if (incoming.method == 'PROPFIND') {
           return _adminProbe(incoming, shared: true);
+        }
         request = incoming;
         return http.Response('', HttpStatus.noContent);
       }),
@@ -230,8 +231,9 @@ void main() {
       database,
       secrets,
       MockClient((request) async {
-        if (request.method == 'PROPFIND')
+        if (request.method == 'PROPFIND') {
           return _adminProbe(request, parentWritable: false);
+        }
         requests += 1;
         return http.Response('', HttpStatus.noContent);
       }),
