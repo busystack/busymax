@@ -8,6 +8,7 @@ import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -202,6 +203,138 @@ void main() {
       expect(
         await database.select(database.davCollections).get(),
         hasLength(1),
+      );
+    },
+  );
+
+  test(
+    'removed collection rebuilds reminders without object-level changes',
+    () async {
+      const eventId = 'nextcloud-event';
+      await database
+          .into(database.calendarEvents)
+          .insert(
+            CalendarEventsCompanion.insert(
+              id: eventId,
+              accountId: 'account',
+              calendarSourceId: 'dav-calendar-collection',
+              provider: 'nextcloud',
+              providerCalendarId: _collectionHref,
+              providerEventId: 'event@example.test',
+              title: 'Removed event',
+              startDateTime: const Value('2026-08-09T09:00:00.000Z'),
+              startTimeZone: const Value('UTC'),
+              endDateTime: const Value('2026-08-09T10:00:00.000Z'),
+              endTimeZone: const Value('UTC'),
+              createdAtLocal: _now.millisecondsSinceEpoch,
+              updatedAtLocal: _now.millisecondsSinceEpoch,
+            ),
+          );
+      await database
+          .into(database.tasks)
+          .insert(
+            TasksCompanion.insert(
+              accountId: 'account',
+              taskListId: 'dav-task-list-collection',
+              id: 'nextcloud-task',
+              davCollectionId: const Value('collection'),
+              title: 'Removed task',
+              taskAlarmsJson: const Value(
+                '[{"trigger":{"kind":"absolute",'
+                '"dateTime":"2026-08-09T08:30:00.000Z"}}]',
+              ),
+              rawJson: '{}',
+              createdLocalAtUtc: _now.toIso8601String(),
+              updatedLocalAtUtc: _now.toIso8601String(),
+            ),
+          );
+      await database.batch(
+        (batch) => batch.insertAll(database.notificationSchedule, [
+          for (final reminder in const [
+            (
+              id: 'event|nextcloud-event|display:30',
+              sourceType: 'event',
+              sourceId: eventId,
+              title: 'Removed event',
+            ),
+            (
+              id: 'task|account|dav-task-list-collection|nextcloud-task',
+              sourceType: 'task',
+              sourceId: 'nextcloud-task',
+              title: 'Removed task',
+            ),
+          ])
+            NotificationScheduleCompanion.insert(
+              id: reminder.id,
+              accountId: 'account',
+              sourceType: reminder.sourceType,
+              sourceId: reminder.sourceId,
+              scheduledAtUtc: DateTime.utc(
+                2026,
+                8,
+                9,
+                8,
+                30,
+              ).millisecondsSinceEpoch,
+              title: reminder.title,
+              createdAtLocal: _now.millisecondsSinceEpoch,
+              updatedAtLocal: _now.millisecondsSinceEpoch,
+            ),
+        ]),
+      );
+      var requestIndex = 0;
+      final client = MockClient((request) async {
+        final response = switch (requestIndex) {
+          0 => http.Response(
+            '',
+            200,
+            headers: {
+              'dav': '1, 3, calendar-access, sync-collection',
+              'allow': 'OPTIONS, PROPFIND, REPORT, GET, PUT, DELETE',
+            },
+          ),
+          1 => _discoveryMultistatus(_currentPrincipalResponse),
+          2 => _discoveryMultistatus(_principalPropertiesResponse),
+          3 => _discoveryMultistatus(_emptyInventoryResponse),
+          _ => throw StateError('Unexpected discovery request.'),
+        };
+        requestIndex += 1;
+        return response;
+      });
+      var rebuildCalls = 0;
+      final result = await DavAccountSyncEngine(
+        database: database,
+        secretStore: secrets,
+        httpClient: client,
+        accountId: 'account',
+        correlationIdFactory: () => 'removed-collection',
+        nowUtc: () => _now,
+        rebuildNotifications: (accountId, affectedObjectIds) async {
+          rebuildCalls += 1;
+          expect(accountId, 'account');
+          expect(affectedObjectIds, isEmpty);
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => _now,
+          ).rebuildUpcomingNotifications(accountId);
+        },
+      ).synchronize(full: true);
+
+      expect(requestIndex, 4);
+      expect(result.discoveryRefreshed, isTrue);
+      expect(result.affectedObjectIds, isEmpty);
+      expect(rebuildCalls, 1);
+      expect(
+        (await database.select(database.calendarSources).getSingle()).isDeleted,
+        isTrue,
+      );
+      expect(
+        (await database.select(database.taskLists).getSingle()).serverMissing,
+        isTrue,
+      );
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
       );
     },
   );
@@ -415,3 +548,33 @@ SUMMARY:$summary\r
 END:VEVENT\r
 END:VCALENDAR\r
 ''';
+
+http.Response _discoveryMultistatus(String body) => http.Response(
+  body,
+  207,
+  headers: {'content-type': 'application/xml; charset=utf-8'},
+);
+
+const _currentPrincipalResponse = '''<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:"><d:response>
+ <d:href>/cloud/.well-known/caldav</d:href><d:propstat><d:prop>
+  <d:current-user-principal><d:href>/cloud/remote.php/dav/principals/users/alex/</d:href></d:current-user-principal>
+ </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+</d:response></d:multistatus>''';
+
+const _principalPropertiesResponse = '''<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+ <d:response><d:href>/cloud/remote.php/dav/principals/users/alex/</d:href>
+  <d:propstat><d:prop>
+   <c:calendar-home-set><d:href>/cloud/remote.php/dav/calendars/alex/</d:href></c:calendar-home-set>
+  </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+ </d:response>
+</d:multistatus>''';
+
+const _emptyInventoryResponse = '''<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+ <d:response><d:href>/cloud/remote.php/dav/calendars/alex/</d:href>
+  <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+ </d:response>
+</d:multistatus>''';

@@ -174,6 +174,7 @@ final class DavAccountSyncEngine {
     final objectRepository = DavObjectRepository(database: _database);
     final discoveryRepository = DavDiscoveryRepository(database: _database);
     var discoveryRefreshed = false;
+    var notificationProjectionsChanged = false;
     final affected = <String>{};
     final failures = <DavException>[];
 
@@ -193,7 +194,8 @@ final class DavAccountSyncEngine {
               correlationId: _correlationIdFactory(),
               cancellationToken: cancellationToken,
             );
-        await discoveryRepository.commitSuccessfulInventory(discovery);
+        notificationProjectionsChanged = await discoveryRepository
+            .commitSuccessfulInventory(discovery);
       }
 
       final collections = await _selectedCollections();
@@ -282,7 +284,7 @@ final class DavAccountSyncEngine {
         failures.addAll(followUpResults.failures);
       }
 
-      if (affected.isNotEmpty) {
+      if (affected.isNotEmpty || notificationProjectionsChanged) {
         await _rebuildNotifications?.call(_accountId, affected);
       }
       if (failures.isNotEmpty) {

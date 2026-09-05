@@ -819,6 +819,85 @@ void main() {
     },
   );
 
+  for (final dependentOperation in ['delete_task', 'move_task']) {
+    final action = dependentOperation == 'delete_task' ? 'delete' : 'move';
+    test(
+      'existing task edit followed by $action does not self-conflict',
+      () async {
+        const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+        final baselineRawJson = jsonEncode({
+          'id': 'task-1',
+          'title': 'Base title',
+          'updated': baselineUpdatedUtc,
+        });
+        apiClient
+          ..persistTaskPatches = true
+          ..remoteTask = _taskDto(
+            'task-1',
+            title: 'Base title',
+            updated: DateTime.parse(baselineUpdatedUtc),
+          );
+        await database.tasksDao.upsertTask(
+          _task(
+            'list-1',
+            'task-1',
+            title: 'Base title',
+            updatedUtc: baselineUpdatedUtc,
+            rawJson: baselineRawJson,
+          ),
+        );
+        var localEdit = 0;
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++localEdit),
+        );
+
+        await repository.patchTask(
+          'list-1',
+          'task-1',
+          const TaskPatchInput({'title': 'Local title'}),
+        );
+        if (dependentOperation == 'delete_task') {
+          await repository.deleteTask('list-1', 'task-1');
+        } else {
+          await repository.moveTask(
+            const TaskMoveInput(
+              sourceTaskListId: 'list-1',
+              taskId: 'task-1',
+              previousSiblingTaskId: 'task-0',
+            ),
+          );
+        }
+
+        final queued = await database.pendingOpsDao.pendingOpsForReplay(
+          'account',
+          _later,
+        );
+        expect(queued, hasLength(2));
+        final edit = queued.singleWhere(
+          (operation) => operation.operation == 'patch_task',
+        );
+        final dependent = queued.singleWhere(
+          (operation) => operation.operation == dependentOperation,
+        );
+        expect(dependent.dependsOnOpId, edit.id);
+
+        final applied = await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps();
+
+        expect(applied, 2);
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+        expect(apiClient.calls, ['patch_task:task-1', '${action}_task:task-1']);
+      },
+    );
+  }
+
   test(
     'earlier local patch does not hide a genuine conflict on a later field',
     () async {

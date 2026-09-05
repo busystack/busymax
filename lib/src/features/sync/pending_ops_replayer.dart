@@ -278,8 +278,11 @@ class PendingOpsReplayer {
     final acknowledgedFields = _request(completedOp).keys;
     for (final dependent in dependents) {
       final baseline = _jsonObject(dependent.baselineRawJson ?? '{}');
+      final usesWholeTaskConflictBoundary =
+          dependent.operation == 'move_task' ||
+          dependent.operation == 'delete_task';
       // Keep the original timestamp and untouched fields so a provider edit to
-      // a different field is still detected by the dependent operation.
+      // a different field is still detected by a dependent field-level edit.
       for (final field in acknowledgedFields) {
         baseline[field] = serverTask.rawJson[field];
       }
@@ -288,6 +291,10 @@ class PendingOpsReplayer {
       )..where((row) => row.id.equals(dependent.id))).write(
         PendingOpsCompanion(
           baselineRawJson: Value(jsonEncode(baseline)),
+          // Whole-task checks must advance past the acknowledged local write.
+          baselineUpdatedUtc: usesWholeTaskConflictBoundary
+              ? Value(serverTask.updated?.toUtc().toIso8601String())
+              : const Value.absent(),
           updatedAtUtc: Value(_now()),
         ),
       );
