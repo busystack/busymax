@@ -13,11 +13,109 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get windowsSupport => 'Hỗ trợ';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Giấy phép bên thứ ba';
+
+  @override
+  String get windowsSearch => 'Tìm kiếm';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Người dùng đã tắt trong Cài đặt Windows.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Đã tắt theo chính sách Windows.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Khả dụng sau khi cài đặt BusyMax từ gói MSIX.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Lời nhắc sẽ dừng khi thoát hẳn BusyMax. Hãy để ứng dụng chạy trong nền để nhận lời nhắc.';
+
+  @override
+  String get windowsProductVersionLabel => 'Phiên bản sản phẩm';
+
+  @override
+  String get windowsPackageVersionLabel => 'Phiên bản gói Windows';
+
+  @override
+  String get windowsUnpackaged => 'Chưa đóng gói';
+
+  @override
+  String get windowsAgendaLoadMore => 'Tải thêm mục lịch biểu';
+
+  @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'Thứ Hai',
+      'TU': 'Thứ Ba',
+      'WE': 'Thứ Tư',
+      'TH': 'Thứ Năm',
+      'FR': 'Thứ Sáu',
+      'SA': 'Thứ Bảy',
+      'SU': 'Chủ Nhật',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return 'vào các ngày $first và $second';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency vào các ngày $firstDay và $secondDay của $month';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency vào ngày $day của $firstMonth và $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency vào các ngày $firstDay và $secondDay của $firstMonth và $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency vào các ngày $days của $firstMonth và $secondMonth';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      'Kết nối tài khoản Google, Microsoft, Apple iCloud Calendar hoặc Nextcloud.';
 
   @override
   String get googlePermissionsConsentNotice =>
@@ -41,7 +139,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      'Thêm mọi tài khoản bạn muốn sử dụng. BusyMax đồng bộ lịch, sự kiện, danh sách công việc và công việc được hỗ trợ từ từng tài khoản.';
 
   @override
   String get onboardingPreferencesStepTitle => 'Chọn cài đặt hệ thống';
@@ -118,6 +216,43 @@ class AppLocalizationsVi extends AppLocalizations {
   String get calendars => 'Lịch';
 
   @override
+  String get newCalendar => 'Lịch mới';
+
+  @override
+  String get calendarColor => 'Màu lịch';
+
+  @override
+  String calendarColorOption(int number) {
+    return 'Màu $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'Nhà cung cấp này không hỗ trợ quản lý lịch trong BusyMax.';
+
+  @override
+  String get primaryCalendarCannotDelete => 'Không thể xóa lịch chính.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'Không thể tạo lịch: $error';
+  }
+
+  @override
+  String get calendarCreatedRefreshPending =>
+      'Lịch đã được tạo nhưng BusyMax không thể làm mới tài khoản. Lịch sẽ xuất hiện sau lần đồng bộ tiếp theo.';
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'Không thể cập nhật lịch: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'Không thể xóa lịch: $error';
+  }
+
+  @override
   String get newEvent => 'Sự kiện mới';
 
   @override
@@ -140,7 +275,11 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count mục khác';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '+$countString mục khác';
   }
 
   @override
@@ -180,6 +319,101 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get trayOpenBusyMax => 'Mở BusyMax';
+
+  @override
+  String get trayShowBusyMax => 'Hiển thị BusyMax';
+
+  @override
+  String get trayNewEvent => 'Sự kiện mới…';
+
+  @override
+  String get trayNewTask => 'Công việc mới…';
+
+  @override
+  String get trayToday => 'Hôm nay';
+
+  @override
+  String get trayAllDay => 'Cả ngày';
+
+  @override
+  String get trayNow => 'Bây giờ';
+
+  @override
+  String get trayCalendarEvent => 'Sự kiện lịch';
+
+  @override
+  String get trayUntitledEvent => 'Sự kiện chưa có tiêu đề';
+
+  @override
+  String get trayNothingElseToday => 'Hôm nay không còn gì khác';
+
+  @override
+  String trayTasksDueToday(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count công việc đến hạn hôm nay',
+      one: '1 công việc đến hạn hôm nay',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trayOpenTodayAgenda => 'Mở lịch hôm nay';
+
+  @override
+  String get traySyncNow => 'Đồng bộ ngay';
+
+  @override
+  String get traySyncing => 'Đang đồng bộ…';
+
+  @override
+  String get trayNotConnected => 'Chưa kết nối';
+
+  @override
+  String get trayNotYetSynced => 'Chưa đồng bộ';
+
+  @override
+  String get trayLastSyncedJustNow => 'Vừa đồng bộ';
+
+  @override
+  String trayLastSyncedMinutesAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Đồng bộ $count phút trước',
+      one: 'Đồng bộ 1 phút trước',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Đồng bộ $count giờ trước',
+      one: 'Đồng bộ 1 giờ trước',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedDaysAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Đồng bộ $count ngày trước',
+      one: 'Đồng bộ 1 ngày trước',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get traySettings => 'Cài đặt';
+
+  @override
+  String get trayQuitBusyMax => 'Thoát BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'Tải thêm công việc quá hạn';
@@ -261,130 +495,129 @@ class AppLocalizationsVi extends AppLocalizations {
   String get guests => 'Khách mời';
 
   @override
-  String get noGuests => 'Không có khách mời';
+  String get noGuests => 'Không có khách';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => 'Bắt buộc';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => 'Tùy chọn';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => 'Cuộc họp';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => 'Thêm Google Meet';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => 'Thêm cuộc họp Microsoft Teams';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => 'Đã thêm cuộc họp trực tuyến';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => 'Yêu cầu phản hồi';
 
   @override
-  String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+  String get requestResponsesDescription => 'Yêu cầu khách trả lời lời mời.';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => 'Ẩn danh sách khách';
 
   @override
   String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+      'Khách không thể xem những người khác được mời.';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => 'Cho phép đề xuất thời gian mới';
 
   @override
   String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+      'Khách có thể đề xuất thời gian họp khác.';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => 'Thông báo cho khách?';
 
   @override
   String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+      'Cuộc họp này có khách. Gửi lời mời hoặc cập nhật sự kiện khi lưu?';
 
   @override
   String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+      'Cuộc họp này có khách. Gửi thông báo hủy khi xóa?';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => 'Gửi cập nhật';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => 'Gửi thông báo hủy';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => 'Không gửi';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => 'Lưu cuộc họp?';
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+      'Microsoft sẽ gửi lời mời hoặc cập nhật sự kiện cho khách.';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => 'Xóa cuộc họp?';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+      'Microsoft sẽ gửi thông báo hủy cho khách.';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => 'Người tổ chức';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => 'Phản hồi của bạn';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => 'Phản hồi của khách';
 
   @override
-  String get respond => 'Respond';
+  String get respond => 'Phản hồi';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => 'Chấp nhận';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => 'Tạm thời';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => 'Từ chối';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => 'Tham gia cuộc họp';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => 'Đã chấp nhận';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => 'Tạm thời';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => 'Đã từ chối';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => 'Đang chờ phản hồi';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => 'Chưa phản hồi';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => 'Người tổ chức';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return 'Không thể gửi phản hồi: $error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => 'Không thể mở liên kết cuộc họp.';
 
   @override
   String get description => 'Mô tả';
@@ -430,10 +663,14 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: 'Trước $minutes phút',
+      other: 'Trước $minutesString phút',
       one: 'Trước 1 phút',
     );
     return '$_temp0';
@@ -444,10 +681,14 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: 'Trước $hours giờ',
+      other: 'Trước $hoursString giờ',
       one: 'Trước 1 giờ',
     );
     return '$_temp0';
@@ -455,10 +696,15 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: 'Trước $days ngày',
+      other: 'Trước $daysString ngày',
       one: 'Trước 1 ngày',
     );
     return '$_temp0';
@@ -645,7 +891,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Chỉ thêm phiên bản hệ điều hành Linux và ngôn ngữ, khu vực của ứng dụng. Không bao gồm nhật ký, dữ liệu tài khoản, tên tệp hoặc thông tin chẩn đoán khác.';
+      'Chỉ thêm tên và phiên bản hệ điều hành cùng ngôn ngữ, khu vực của ứng dụng. Không bao gồm nhật ký, dữ liệu tài khoản, tên tệp hoặc thông tin chẩn đoán khác.';
 
   @override
   String get feedbackCategoryRequired => 'Hãy chọn một danh mục.';
@@ -735,7 +981,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      'Thao tác này xóa khỏi thiết bị các công việc, lịch, sự kiện, lời nhắc và thay đổi ngoại tuyến đang chờ được lưu trong bộ nhớ đệm. Các thay đổi chưa đồng bộ sẽ mất. Bản sao lịch, sự kiện, danh sách công việc và công việc ở nhà cung cấp không bị xóa.';
 
   @override
   String get revokeGoogleAccess =>
@@ -761,17 +1007,17 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return 'Không thể tạo danh sách công việc: $error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return 'Không thể đổi tên danh sách công việc: $error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return 'Không thể xóa danh sách công việc: $error';
   }
 
   @override
@@ -797,15 +1043,15 @@ class AppLocalizationsVi extends AppLocalizations {
   String get deleteList => 'Xóa danh sách';
 
   @override
-  String get unshare => 'Bỏ chia sẽ';
+  String get unshare => 'Ngừng chia sẻ';
 
   @override
   String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+      'Danh sách công việc này ở chế độ chỉ đọc và không thể đổi tên.';
 
   @override
   String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+      'Bạn không thể xóa danh sách công việc này với quyền hiện tại.';
 
   @override
   String get builtInMicrosoftList => 'Tích hợp sẵn';
@@ -821,12 +1067,12 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return 'Xóa “$title” và tất cả công việc trong đó?';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return 'Ngừng chia sẻ “$title” khỏi tài khoản này?';
   }
 
   @override
@@ -951,75 +1197,92 @@ class AppLocalizationsVi extends AppLocalizations {
   String get openStatus => 'Chưa hoàn thành';
 
   @override
-  String get doneStatus => 'Đã hoàn thành';
+  String get doneStatus => 'Đã xong';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => 'Trạng thái';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => 'Không có trạng thái';
 
   @override
-  String get taskStatusNeedsAction => 'Needs action';
+  String get taskStatusNeedsAction => 'Cần xử lý';
 
   @override
-  String get taskStatusInProcess => 'In process';
+  String get taskStatusInProcess => 'Đang thực hiện';
 
   @override
-  String get taskStatusCompleted => 'Hoàn thành';
+  String get taskStatusCompleted => 'Đã hoàn thành';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => 'Đã hủy';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return 'Đã hoàn thành $percentString%';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => 'Ngày hoàn thành';
 
   @override
-  String get priority => 'Priority';
+  String get priority => 'Mức độ ưu tiên';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => 'Không có mức độ ưu tiên';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Ưu tiên $priorityString · Cao';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Ưu tiên $priorityString · Trung bình';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Ưu tiên $priorityString · Thấp';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => 'URL công việc';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => 'Nhập URL tuyệt đối, bao gồm lược đồ.';
 
   @override
-  String get classification => 'Classification';
+  String get classification => 'Phân loại';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => 'Khi chia sẻ, hiển thị toàn bộ công việc';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential =>
+      'Khi chia sẻ, chỉ hiển thị trạng thái bận';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => 'Khi chia sẻ, ẩn công việc này';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => 'Ghim công việc';
 
   @override
   String get notes => 'Ghi chú';
@@ -1058,82 +1321,86 @@ class AppLocalizationsVi extends AppLocalizations {
   String get addReminder => 'Thêm lời nhắc';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => 'Lời nhắc';
 
   @override
-  String get noReminders => 'No reminders';
+  String get noReminders => 'Không có lời nhắc';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => 'Chỉnh sửa lời nhắc';
 
   @override
-  String get beforeTaskStarts => 'Before the task starts';
+  String get beforeTaskStarts => 'Trước khi công việc bắt đầu';
 
   @override
-  String get beforeTaskDue => 'Before the task is due';
+  String get beforeTaskDue => 'Trước hạn chót của công việc';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => 'Sau khi công việc bắt đầu';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => 'Sau hạn chót của công việc';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => 'Theo ngày bắt đầu công việc';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => 'Theo ngày đến hạn công việc';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => 'Thời gian trong ngày';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => 'Vào ngày và giờ cụ thể';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => 'Số lượng';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => 'Đơn vị';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => 'Giây';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => 'Phút';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => 'Giờ';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => 'Ngày';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => 'Tuần';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => 'Khi công việc bắt đầu';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => 'Khi công việc đến hạn';
 
   @override
   String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+      'Loại lời nhắc này được giữ lại nhưng không thể chỉnh sửa thời gian.';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => 'Giữ lời nhắc liên quan?';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Ngày này có $countString lời nhắc liên quan. Giữ chúng ở ngày và giờ hiện tại?';
   }
 
   @override
-  String get discardRelatedReminders => 'Discard reminders';
+  String get discardRelatedReminders => 'Xóa lời nhắc';
 
   @override
-  String get keepRelatedReminders => 'Keep reminders';
+  String get keepRelatedReminders => 'Giữ lời nhắc';
 
   @override
   String get addGuest => 'Thêm khách mời';
@@ -1169,121 +1436,179 @@ class AppLocalizationsVi extends AppLocalizations {
   String get repeatYearly => 'Hằng năm';
 
   @override
-  String get repeatEvery => 'Lặp lại mỗi';
+  String get repeatEvery => 'Khoảng lặp lại';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => 'Lặp lại vào';
 
   @override
-  String get repeatEnd => 'Kết thúc lập lại';
+  String get repeatEnd => 'Kết thúc lặp lại';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => 'Không bao giờ';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => 'Vào ngày';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => 'Sau một số lần xuất hiện';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => 'Số lần lặp';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => 'Ngày trong tháng';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => 'Tháng';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => 'Vị trí ngày trong tuần';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => 'Ngày cụ thể';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => 'Thứ nhất';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => 'Thứ hai';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => 'Thứ ba';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => 'Thứ tư';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => 'Thứ năm';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => 'Áp chót';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => 'Cuối cùng';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => 'Ngày';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => 'Ngày trong tuần';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => 'Ngày cuối tuần';
+
+  @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'Thứ Hai',
+      'TU': 'Thứ Ba',
+      'WE': 'Thứ Tư',
+      'TH': 'Thứ Năm',
+      'FR': 'Thứ Sáu',
+      'SA': 'Thứ Bảy',
+      'SU': 'Chủ Nhật',
+      'day': 'ngày',
+      'weekday': 'ngày trong tuần',
+      'weekend': 'ngày cuối tuần',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Mỗi $countString ngày';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Mỗi $countString tuần';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Mỗi $countString tháng';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Mỗi $countString năm';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'on $days';
+    return 'vào $days';
   }
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'on day $days';
+    return 'vào ngày $days trong tháng';
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'vào $days đầu tiên',
+      'second': 'vào $days thứ hai',
+      'third': 'vào $days thứ ba',
+      'fourth': 'vào $days thứ tư',
+      'fifth': 'vào $days thứ năm',
+      'secondToLast': 'vào $days áp chót',
+      'last': 'vào $days cuối cùng',
+      'other': 'vào $days',
+    });
+    return '$_temp0';
   }
 
   @override
   String repeatInMonthsSummary(String months) {
-    return 'in $months';
+    return 'vào $months';
   }
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count lần';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString lần',
+    );
+    return '$_temp0';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return 'cho đến $date';
+    return 'đến $date';
   }
 
   @override
   String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+      'Quy tắc lặp lại này sử dụng các tùy chọn mà trình chỉnh sửa này không thay đổi.';
+
+  @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'Không thể sử dụng kiểu lặp lại này với $provider.';
+  }
 
   @override
   String get importance => 'Mức độ quan trọng';
@@ -1338,21 +1663,21 @@ class AppLocalizationsVi extends AppLocalizations {
   String get subtasks => 'Công việc con';
 
   @override
-  String get duplicateTask => 'Duplicate task';
+  String get duplicateTask => 'Nhân bản công việc';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => 'Đã nhân bản công việc.';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return 'Không thể nhân bản công việc: $error';
   }
 
   @override
-  String get hideSubtasks => 'Hide subtasks';
+  String get hideSubtasks => 'Ẩn công việc phụ';
 
   @override
-  String get hideClosedSubtasks => 'Hide closed subtasks';
+  String get hideClosedSubtasks => 'Ẩn công việc phụ đã đóng';
 
   @override
   String get moveToTop => 'Chuyển lên đầu';
@@ -1381,7 +1706,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get updated => 'Đã cập nhật';
 
   @override
-  String get parent => 'Công việc cha';
+  String get parent => 'Công việc chính';
 
   @override
   String get position => 'Vị trí';
@@ -1408,7 +1733,11 @@ class AppLocalizationsVi extends AppLocalizations {
   String get sync => 'Đồng bộ';
 
   @override
-  String get manualFullSync => 'Đồng bộ toàn bộ thủ công';
+  String get forceFullResync => 'Buộc đồng bộ hóa lại toàn bộ';
+
+  @override
+  String get forceFullResyncDescription =>
+      'Tải lại toàn bộ dữ liệu từ mọi tài khoản đã kết nối. Chỉ sử dụng tùy chọn này để khắc phục sự cố đồng bộ hóa.';
 
   @override
   String get runInBackgroundWhenClosed => 'Tiếp tục chạy khi đóng cửa sổ';
@@ -1454,6 +1783,9 @@ class AppLocalizationsVi extends AppLocalizations {
   String get eventReminders => 'Lời nhắc sự kiện';
 
   @override
+  String get onState => 'Bật';
+
+  @override
   String get taskReminders => 'Lời nhắc công việc';
 
   @override
@@ -1482,6 +1814,18 @@ class AppLocalizationsVi extends AppLocalizations {
   String get notifications => 'Thông báo';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Thông báo Windows không khả dụng';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'Bản chạy phát triển chưa đóng gói này không thể dùng thông báo Windows. Hãy cài đặt MSIX được ký để thử nghiệm nhằm kiểm tra lời nhắc.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax không thể khởi tạo thông báo Windows. Lời nhắc sẽ không xuất hiện cho đến khi sự cố cài đặt này được khắc phục.';
+
+  @override
   String get appearance => 'Giao diện';
 
   @override
@@ -1489,6 +1833,9 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get themeSystem => 'Hệ thống';
+
+  @override
+  String get settingsSystem => 'Hệ thống';
 
   @override
   String get themeLight => 'Sáng';
@@ -1567,7 +1914,11 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return 'số_lần_thử=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'số_lần_thử=$countString';
   }
 
   @override
@@ -1620,10 +1971,14 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Có $count công việc đến hạn hôm nay.',
+      other: 'Có $countString công việc đến hạn hôm nay.',
       one: 'Có một công việc đến hạn hôm nay.',
     );
     return '$_temp0';
@@ -1648,7 +2003,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get notificationSnoozeAction => 'Báo lại sau 10 phút';
 
   @override
-  String get notificationDismissAction => 'Bỏ qua';
+  String get notificationDismissAction => 'Đóng';
 
   @override
   String get notificationDetailsHidden =>
@@ -1674,7 +2029,11 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return 'Tuần $number';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'Tuần $numberString';
   }
 
   @override
@@ -1682,10 +2041,14 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count mục',
+      other: '$countString mục',
       one: '1 mục',
     );
     return '$_temp0';
@@ -1704,14 +2067,14 @@ class AppLocalizationsVi extends AppLocalizations {
   String get noLocationsFound => 'Không tìm thấy địa điểm';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => 'Trường này là bắt buộc.';
 
   @override
   String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+      'Kết nối lịch và công việc từ một trong các nhà cung cấp sau.';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'Lịch Apple iCloud';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -1720,198 +2083,220 @@ class AppLocalizationsVi extends AppLocalizations {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'Công việc Nextcloud';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => 'Thêm tài khoản Lịch Apple iCloud';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => 'Thêm tài khoản Nextcloud';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => 'Đang kết nối với Apple iCloud…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => 'Đang chờ ủy quyền Nextcloud…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => 'Kết nối Lịch Apple iCloud';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'Email tài khoản Apple';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'Mật khẩu dành riêng cho ứng dụng';
 
   @override
   String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+      'Tạo mật khẩu dành riêng cho ứng dụng sau khi bật xác thực hai yếu tố cho tài khoản Apple.';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      'Đặt lại mật khẩu tài khoản Apple sẽ thu hồi các mật khẩu dành riêng cho ứng dụng.';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => 'Kết nối Nextcloud';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'Máy chủ Nextcloud hoặc địa chỉ CalDAV';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      'Nhập URL máy chủ Nextcloud hoặc dán địa chỉ CalDAV chính được sao chép từ Nextcloud.';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax sẽ mở trình duyệt. Phê duyệt quyền truy cập ở đó rồi quay lại BusyMax.';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => 'Kết nối';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => 'Hủy kết nối';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      'Tài khoản đã bị xóa cục bộ nhưng không thể thu hồi mật khẩu ứng dụng Nextcloud.';
 
   @override
   String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+      'Dữ liệu lịch và công việc được lưu trong bộ nhớ đệm cục bộ để sử dụng ngoại tuyến.';
 
   @override
   String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+      'Kết nối lại tài khoản này để tiếp tục đồng bộ.';
 
   @override
   String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+      'Tài khoản này tạm thời không khả dụng.';
 
   @override
   String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+      'Quyền máy chủ đã thay đổi. Các chỉnh sửa đang chờ bị tạm dừng.';
 
   @override
   String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+      'Máy chủ hoặc hồ sơ nhà cung cấp này không được hỗ trợ.';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => 'Lịch và danh sách công việc';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => 'Sự kiện lịch';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => 'Công việc';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => 'Chỉ đọc';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => 'Đang chờ cục bộ';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => 'Bị chặn do xung đột';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => 'Bị chặn cho đến khi kết nối lại';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => 'Thao tác không thành công';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => 'Giữ phiên bản máy chủ';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => 'Xem lại và áp dụng lại thay đổi cục bộ';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => 'Nhân bản thành mục mới';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => 'Trạng thái kết nối';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => 'Đã kết nối';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => 'Đang kết nối…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => 'Đã đăng xuất';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return 'Lần đồng bộ thành công gần nhất: $time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => 'Chưa đồng bộ';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => 'Làm mới lịch và danh sách công việc';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return 'Máy chủ: $host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => 'Lịch sự kiện';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => 'Danh sách công việc';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => 'Sự kiện và công việc';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => 'Có thể ghi';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => 'Đã chia sẻ';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return 'Đồng bộ lần cuối: $time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return 'Sự cố đồng bộ: $code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => 'Xung đột đồng bộ';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return 'Máy chủ đã thay đổi: $time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return 'Chỉnh sửa cục bộ: $summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => 'Không thể giải quyết xung đột.';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => 'Phạm vi sự kiện lặp lại';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => 'Toàn bộ chuỗi';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'Sự kiện này';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'Sự kiện này và các sự kiện tiếp theo';
+
+  @override
+  String get thisAndFutureUnavailable => 'Nhà cung cấp này không hỗ trợ.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'Không thể di chuyển an toàn sự kiện này và các sự kiện tiếp theo. Hãy chọn sự kiện này hoặc toàn bộ chuỗi.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'Quy tắc lặp lại không có sẵn trên thiết bị. Hãy chỉ di chuyển sự kiện này.';
+
+  @override
+  String get copyEventAndDeleteOriginal => 'Sao chép sự kiện và xóa bản gốc?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax không thể di chuyển trực tiếp sự kiện này từ $source sang $destination. Ứng dụng sẽ tạo bản sao trước và chỉ xóa bản gốc sau khi sao chép thành công. ID sự kiện sẽ thay đổi; trạng thái phản hồi của người tham dự có thể bị đặt lại và lời mời hoặc thông báo hủy có thể được gửi; liên kết cuộc họp, tệp đính kèm, lời nhắc, trường riêng của nhà cung cấp và ngoại lệ lặp lại có thể không được chuyển sang.';
+  }
+
+  @override
+  String get copyAndDelete => 'Sao chép và xóa';
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      'Chọn áp dụng thay đổi này cho toàn bộ chuỗi, chỉ sự kiện này hay sự kiện này và các sự kiện tiếp theo.';
 
   @override
   String get taskDueBeforeStart =>
@@ -1927,6 +2312,198 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Đặt tên tùy chỉnh';
+
+  @override
+  String get setAction => 'Đặt';
+
+  @override
+  String get removeFromMyCalendars => 'Xóa khỏi lịch của tôi';
+
+  @override
+  String get removeAction => 'Xóa';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Xóa “$title” khỏi danh sách Google Calendar của bạn? Lịch dùng chung và các sự kiện trong đó sẽ không bị xóa.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'Không thể xóa hoặc gỡ lịch này khỏi tài khoản.';
+
+  @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Hãy chờ các thay đổi đang chờ của lịch này đồng bộ xong trước khi xóa hoặc gỡ lịch.';
+
+  @override
+  String get calendarSubscriptions => 'Gói đăng ký lịch';
+
+  @override
+  String get calendarSubscriptionsDescription =>
+      'Thêm lịch chỉ đọc được làm mới từ URL WebCal bảo mật.';
+
+  @override
+  String get addCalendarSubscription => 'Thêm gói đăng ký lịch';
+
+  @override
+  String get subscriptionName => 'Tên cục bộ';
+
+  @override
+  String get subscriptionUrl => 'URL gói đăng ký';
+
+  @override
+  String get subscriptionUrlHelp =>
+      'Nhập URL HTTPS hoặc webcal. BusyMax giữ URL đầy đủ trong bộ nhớ an toàn.';
+
+  @override
+  String get subscriptionUrlInvalid =>
+      'Nhập URL HTTPS hoặc webcal hợp lệ không có thông tin người dùng hoặc phân đoạn.';
+
+  @override
+  String get subscriptionColor => 'Màu cục bộ';
+
+  @override
+  String get subscriptionColorHelp => 'Sử dụng màu sáu chữ số như #3584E4.';
+
+  @override
+  String get subscriptionColorInvalid => 'Nhập màu thập lục phân sáu chữ số.';
+
+  @override
+  String get subscriptionRefreshMode => 'Tần suất làm mới';
+
+  @override
+  String get subscriptionAutomatic => 'Tự động';
+
+  @override
+  String get subscriptionHourly => 'Hàng giờ';
+
+  @override
+  String get subscriptionSixHours => 'Mỗi sáu giờ';
+
+  @override
+  String get subscriptionDaily => 'Hàng ngày';
+
+  @override
+  String subscriptionSafeOrigin(String origin) {
+    return 'Nguồn: $origin';
+  }
+
+  @override
+  String get subscriptionSafeOriginUnavailable =>
+      'Nhập URL hợp lệ để xem trước nguồn an toàn.';
+
+  @override
+  String get subscriptionReadOnly => 'Gói đăng ký chỉ đọc';
+
+  @override
+  String get subscriptionNeverRefreshed => 'Chưa làm mới';
+
+  @override
+  String subscriptionLastRefresh(String time) {
+    return 'Lần làm mới thành công gần nhất: $time';
+  }
+
+  @override
+  String subscriptionNextRefresh(String time) {
+    return 'Lần làm mới tiếp theo: $time';
+  }
+
+  @override
+  String get subscriptionStatusHealthy => 'Đã cập nhật';
+
+  @override
+  String subscriptionStatusIssue(String code) {
+    return 'Sự cố làm mới: $code';
+  }
+
+  @override
+  String get refreshNow => 'Làm mới ngay';
+
+  @override
+  String get unsubscribe => 'Hủy đăng ký';
+
+  @override
+  String unsubscribeCalendarTitle(String name) {
+    return 'Hủy đăng ký “$name”?';
+  }
+
+  @override
+  String get unsubscribeCalendarConfirmation =>
+      'Thao tác này xóa gói đăng ký cục bộ và các sự kiện đã lưu trong bộ nhớ đệm. Lịch đã xuất bản không thay đổi.';
+
+  @override
+  String get addSubscriptionAction => 'Thêm gói đăng ký';
+
+  @override
+  String subscriptionOperationFailed(String error) {
+    return 'Gói đăng ký lịch không thành công: $error';
+  }
+
+  @override
+  String get subscriptions => 'Gói đăng ký';
+
+  @override
+  String get calendarImport => 'Nhập lịch';
+
+  @override
+  String get calendarImportDescription =>
+      'Chọn tệp, xem lại các sự kiện rồi chọn lịch có thể ghi để nhận chúng.';
+
+  @override
+  String get importIcsFile => 'Nhập tệp .ics';
+
+  @override
+  String get importIcsPreview => 'Nhập sự kiện lịch';
+
+  @override
+  String importEventsFound(int count) {
+    return 'Bộ sự kiện có thể nhập: $count';
+  }
+
+  @override
+  String importInvalidEvents(int count) {
+    return 'Sự kiện không hợp lệ: $count';
+  }
+
+  @override
+  String importFieldsOmitted(String fields) {
+    return 'Cố ý bỏ qua: $fields';
+  }
+
+  @override
+  String get noWritableCalendars => 'Không có lịch đích có thể ghi.';
+
+  @override
+  String get importDestinationCalendar => 'Lịch đích';
+
+  @override
+  String get importIcsConfirm => 'Nhập sự kiện';
+
+  @override
+  String get importIcsComplete => 'Đã nhập xong';
+
+  @override
+  String importQueued(int count) {
+    return 'Đã nhập hoặc xếp hàng: $count';
+  }
+
+  @override
+  String importDuplicatesSkipped(int count) {
+    return 'Đã bỏ qua bản sao: $count';
+  }
+
+  @override
+  String importUnsupportedSets(int count) {
+    return 'Bộ lặp lại không được hỗ trợ: $count';
+  }
+
+  @override
+  String importIcsFailed(String error) {
+    return 'Không thể nhập tệp lịch: $error';
+  }
+
+  @override
   String get networkOffline => 'Ngoại tuyến';
 
   @override
@@ -1936,4 +2513,139 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'Bạn đang ngoại tuyến. Hãy kết nối Internet rồi thử lại.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'vào các ngày $days trong tháng';
+  }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(String day) {
+    return '$day';
+  }
+
+  @override
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first và $second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first và $second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first và $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first và $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency vào ngày $day $month';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency vào các ngày $days của $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency vào ngày $day của $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency vào các ngày $days của $months';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'đầu tiên',
+      'second': 'thứ hai',
+      'third': 'thứ ba',
+      'fourth': 'thứ tư',
+      'fifth': 'thứ năm',
+      'secondToLast': 'áp chót',
+      'last': 'cuối cùng',
+      'other': '',
+    });
+    return '$frequency vào $days $_temp0 của $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'đầu tiên',
+      'second': 'thứ hai',
+      'third': 'thứ ba',
+      'fourth': 'thứ tư',
+      'fifth': 'thứ năm',
+      'secondToLast': 'áp chót',
+      'last': 'cuối cùng',
+      'other': '',
+    });
+    return '$frequency vào $days $_temp0 của $months';
+  }
 }

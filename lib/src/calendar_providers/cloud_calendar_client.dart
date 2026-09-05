@@ -49,6 +49,14 @@ abstract interface class CloudCalendarClient {
         CalendarGuestUpdatePolicy.send,
   });
 
+  Future<CalendarEventDto> moveEvent({
+    required String sourceCalendarId,
+    required String eventId,
+    required String destinationCalendarId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  });
+
   Future<CalendarEventDto?> respondToEvent({
     required String calendarId,
     required String eventId,
@@ -77,4 +85,15 @@ abstract interface class CloudCalendarClient {
     required DateTime rangeStart,
     required DateTime rangeEnd,
   });
+}
+
+/// User-specific calendar-list operations supported by providers that expose
+/// calendar metadata separately from the signed-in user's personalization.
+abstract interface class CalendarListManagementClient {
+  Future<CalendarSourceDto> updateCalendarListEntry(
+    String calendarId,
+    CalendarMutation mutation,
+  );
+
+  Future<void> deleteCalendarListEntry(String calendarId);
 }

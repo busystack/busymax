@@ -516,6 +516,7 @@ const _editableProperties = {
   'COMPLETED',
   'CATEGORIES',
   'RELATED-TO',
+  'RECURRENCE-ID',
   'RRULE',
   'RDATE',
   'EXDATE',

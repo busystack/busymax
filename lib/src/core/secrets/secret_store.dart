@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,15 +11,45 @@ import '../logging/redacting_logger.dart';
 
 const secretRecordSchemaVersion = 1;
 
-enum CredentialKind { oauth, appleAppSpecificPassword, nextcloudAppPassword }
+enum CredentialKind {
+  oauth,
+  appleAppSpecificPassword,
+  nextcloudAppPassword,
+  webCalSubscription,
+}
 
 extension CredentialKindValue on CredentialKind {
   String get storageValue => switch (this) {
     CredentialKind.oauth => 'oauth',
     CredentialKind.appleAppSpecificPassword => 'apple_app_specific_password',
     CredentialKind.nextcloudAppPassword => 'nextcloud_app_password',
+    CredentialKind.webCalSubscription => 'webcal_subscription',
   };
 }
+
+CredentialKind credentialKindForProvider(BusyProvider provider) =>
+    switch (provider) {
+      BusyProvider.google || BusyProvider.microsoft => CredentialKind.oauth,
+      BusyProvider.appleICloud => CredentialKind.appleAppSpecificPassword,
+      BusyProvider.nextcloud => CredentialKind.nextcloudAppPassword,
+      BusyProvider.webCal => CredentialKind.webCalSubscription,
+    };
+
+bool credentialKindMatchesProvider(
+  BusyProvider provider,
+  CredentialKind kind,
+) => credentialKindForProvider(provider) == kind;
+
+CredentialKind _credentialKindFromSecretStorage(Object? value) =>
+    switch (value) {
+      'oauth' => CredentialKind.oauth,
+      'apple_app_specific_password' => CredentialKind.appleAppSpecificPassword,
+      'nextcloud_app_password' => CredentialKind.nextcloudAppPassword,
+      'webcal_subscription' => CredentialKind.webCalSubscription,
+      _ => throw SecretStoreCorruptException(
+        'Unsupported credential kind $value.',
+      ),
+    };
 
 sealed class SecretRecord {
   const SecretRecord({required this.provider, required this.kind});
@@ -39,8 +68,14 @@ sealed class SecretRecord {
     final provider = BusyProviderCodec.requireStorageValue(
       json['provider']?.toString(),
     );
-    return switch (json['kind']) {
-      'oauth' => OAuthSecretRecord(
+    final kind = _credentialKindFromSecretStorage(json['kind']);
+    if (!credentialKindMatchesProvider(provider, kind)) {
+      throw const SecretStoreCorruptException(
+        'The credential provider and kind do not match.',
+      );
+    }
+    return switch (kind) {
+      CredentialKind.oauth => OAuthSecretRecord(
         provider: provider,
         tokenSet: OAuthTokenSet(
           accessToken: _requiredSecretString(json, 'accessToken'),
@@ -53,19 +88,29 @@ sealed class SecretRecord {
           scopes: _stringList(json['scopes']).toSet(),
         ),
       ),
-      'apple_app_specific_password' => AppleICloudSecretRecord(
+      CredentialKind.appleAppSpecificPassword => AppleICloudSecretRecord(
         username: _requiredSecretString(json, 'username'),
         appSpecificPassword: _requiredSecretString(json, 'appSpecificPassword'),
       ),
-      'nextcloud_app_password' => NextcloudSecretRecord(
+      CredentialKind.nextcloudAppPassword => NextcloudSecretRecord(
         canonicalServer: Uri.parse(
           _requiredSecretString(json, 'canonicalServer'),
         ),
         loginName: _requiredSecretString(json, 'loginName'),
         appPassword: _requiredSecretString(json, 'appPassword'),
       ),
-      final Object? value => throw SecretStoreCorruptException(
-        'Unsupported credential kind $value.',
+      CredentialKind.webCalSubscription => WebCalSecretRecord(
+        normalizedSubscriptionUri: _requiredSecretString(
+          json,
+          'normalizedSubscriptionUri',
+        ),
+        validatorTargetUri: switch (_optionalSecretString(
+          json,
+          'validatorTargetUri',
+        )) {
+          final value? => Uri.parse(value),
+          null => null,
+        },
       ),
     };
   }
@@ -76,11 +121,14 @@ sealed class SecretRecord {
 }
 
 final class OAuthSecretRecord extends SecretRecord {
-  const OAuthSecretRecord({required super.provider, required this.tokenSet})
-    : assert(
-        provider == BusyProvider.google || provider == BusyProvider.microsoft,
-      ),
-      super(kind: CredentialKind.oauth);
+  OAuthSecretRecord({required super.provider, required this.tokenSet})
+    : super(kind: CredentialKind.oauth) {
+    if (!credentialKindMatchesProvider(provider, kind)) {
+      throw const SecretStoreCorruptException(
+        'OAuth credentials require a Google or Microsoft provider.',
+      );
+    }
+  }
 
   final OAuthTokenSet tokenSet;
 
@@ -168,6 +216,49 @@ final class NextcloudSecretRecord extends SecretRecord {
   };
 }
 
+final class WebCalSecretRecord extends SecretRecord {
+  WebCalSecretRecord({
+    required this.normalizedSubscriptionUri,
+    this.validatorTargetUri,
+  }) : super(
+         provider: BusyProvider.webCal,
+         kind: CredentialKind.webCalSubscription,
+       ) {
+    _requireSafeSubscriptionUri(Uri.parse(normalizedSubscriptionUri));
+    final target = validatorTargetUri;
+    if (target != null) _requireSafeSubscriptionUri(target);
+  }
+
+  final String normalizedSubscriptionUri;
+  final Uri? validatorTargetUri;
+
+  @override
+  Map<String, Object?> toJson() => {
+    'schemaVersion': secretRecordSchemaVersion,
+    'kind': kind.storageValue,
+    'provider': provider.storageValue,
+    'normalizedSubscriptionUri': normalizedSubscriptionUri,
+    if (validatorTargetUri != null)
+      'validatorTargetUri': validatorTargetUri.toString(),
+  };
+
+  WebCalSecretRecord copyWithValidatorTarget(Uri? value) => WebCalSecretRecord(
+    normalizedSubscriptionUri: normalizedSubscriptionUri,
+    validatorTargetUri: value,
+  );
+}
+
+void _requireSafeSubscriptionUri(Uri value) {
+  if (value.scheme != 'https' ||
+      value.host.isEmpty ||
+      value.userInfo.isNotEmpty ||
+      value.hasFragment) {
+    throw const SecretStoreCorruptException(
+      'A WebCal credential contains an invalid subscription URI.',
+    );
+  }
+}
+
 abstract interface class SecretStore {
   Future<String?> readActiveAccountId();
   Future<void> setActiveAccountId(String accountId);
@@ -219,12 +310,36 @@ extension OAuthSecretStoreAccess on SecretStore {
   }
 }
 
+class SecretStoragePresentation {
+  const SecretStoragePresentation({
+    required this.backendDomain,
+    required this.runtimeBackend,
+    required this.unavailableMessage,
+  });
+
+  static const generic = SecretStoragePresentation(
+    backendDomain: 'busymax.secure_storage',
+    runtimeBackend: 'platform-credential-storage',
+    unavailableMessage:
+        'Secure credential storage is temporarily unavailable. Check your '
+        'operating system credential storage and try again.',
+  );
+
+  final String backendDomain;
+  final String runtimeBackend;
+  final String unavailableMessage;
+}
+
 class SecureSecretStore implements SecretStore {
-  SecureSecretStore(this._storage, {RedactingLogger? logger})
-    : _logger = logger ?? RedactingLogger(Logger('SecureSecretStore'));
+  SecureSecretStore(
+    this._storage, {
+    RedactingLogger? logger,
+    this.presentation = SecretStoragePresentation.generic,
+  }) : _logger = logger ?? RedactingLogger(Logger('SecureSecretStore'));
 
   final FlutterSecureStorage _storage;
   final RedactingLogger _logger;
+  final SecretStoragePresentation presentation;
   var _loggedRuntime = false;
 
   static const activeAccountKey = 'busymax.secret.active_account_id';
@@ -361,8 +476,7 @@ class SecureSecretStore implements SecretStore {
     }
     _loggedRuntime = true;
     _logger.info(
-      'Secret storage runtime: backend=flutter-secure-storage '
-      'snap=${_isRunningInSnap()} secret_backend=${_secretBackendLabel()}',
+      'Secret storage runtime: backend=${presentation.runtimeBackend}',
     );
   }
 
@@ -372,11 +486,11 @@ class SecureSecretStore implements SecretStore {
   ) {
     _logger.warning(
       'Secret storage $operation failed: '
-      '${sanitizedFlutterSecureStorageError(error)}',
+      '${sanitizedFlutterSecureStorageError(error, backendDomain: presentation.backendDomain)}',
     );
-    return const SecretStoreException(
+    return SecretStoreException(
       'SecretStoreUnavailable',
-      secretStorageUnavailableMessage,
+      presentation.unavailableMessage,
     );
   }
 }
@@ -450,12 +564,26 @@ class SecretStoreCredentialMismatchException extends SecretStoreException {
 }
 
 const secretStorageUnavailableMessage =
-    'Secure credential storage is locked. Unlock your system keyring and try again.';
+    'Secure credential storage is temporarily unavailable. Check your operating system credential storage and try again.';
 
-String sanitizedFlutterSecureStorageError(PlatformException error) {
-  final message = redactForLog(error.message).replaceAll(RegExp(r'\s+'), ' ');
-  return 'domain=flutter_secure_storage_linux code=${error.code} '
-      'message=${message.trim()} details_type=${error.details.runtimeType}';
+String sanitizedFlutterSecureStorageError(
+  PlatformException error, {
+  String backendDomain = 'busymax.secure_storage',
+}) {
+  String safeIdentifier(String value, String fallback) {
+    final normalized = value.trim();
+    return normalized.length <= 96 &&
+            RegExp(r'^[A-Za-z0-9_.-]+$').hasMatch(normalized)
+        ? normalized
+        : fallback;
+  }
+
+  // Platform messages and details are intentionally omitted. Backends may
+  // include key names, paths, or credential-provider output in those fields.
+  final domain = safeIdentifier(backendDomain, 'busymax.secure_storage');
+  final code = safeIdentifier(error.code, 'backend-error');
+  return 'domain=$domain code=$code '
+      'details_type=${error.details.runtimeType}';
 }
 
 SecretRecord _decodeCredential(String serialized) {
@@ -504,13 +632,3 @@ const _legacyOAuthFieldNames = <String>[
   'token_type',
   'scope',
 ];
-
-bool _isRunningInSnap() => Platform.environment['SNAP']?.isNotEmpty ?? false;
-
-String _secretBackendLabel() {
-  final backend = Platform.environment['SECRET_BACKEND'];
-  if (backend == null || backend.isEmpty) {
-    return '<unset>';
-  }
-  return backend == 'file' ? 'file' : '<set>';
-}

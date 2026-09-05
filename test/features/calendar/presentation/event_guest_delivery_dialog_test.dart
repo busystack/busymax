@@ -1,3 +1,4 @@
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
@@ -114,6 +115,86 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(await result, CalendarGuestUpdatePolicy.doNotSend);
+  });
+
+  testWidgets('copy-delete move explains the provider boundary before saving', (
+    tester,
+  ) async {
+    Future<EventEditorDialogResult?>? result;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                result = showBusyMaxEventEditorDialog(
+                  context,
+                  initialDraft: EventEditorDraft.existing(
+                    eventId: 'event-1',
+                    accountId: 'microsoft-account',
+                    sourceId: 'calendar-1',
+                    providerCalendarId: 'provider-calendar-1',
+                    title: 'Planning',
+                    allDay: false,
+                    start: DateTime.utc(2026, 6, 8, 9),
+                    end: DateTime.utc(2026, 6, 8, 10),
+                  ),
+                  sources: const [
+                    CalendarSourceEntity(
+                      id: 'calendar-1',
+                      accountId: 'microsoft-account',
+                      provider: BusyProvider.microsoft,
+                      providerCalendarId: 'provider-calendar-1',
+                      summary: 'Work',
+                      selected: true,
+                      hidden: false,
+                      readOnly: false,
+                      isDeleted: false,
+                    ),
+                    CalendarSourceEntity(
+                      id: 'calendar-2',
+                      accountId: 'microsoft-account',
+                      provider: BusyProvider.microsoft,
+                      providerCalendarId: 'provider-calendar-2',
+                      summary: 'Personal',
+                      selected: true,
+                      hidden: false,
+                      readOnly: false,
+                      isDeleted: false,
+                    ),
+                  ],
+                  accounts: const [],
+                );
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final calendarRow = tester.widget<BusyMaxComboRow<String>>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxComboRow<String> && widget.title == 'Calendar',
+      ),
+    );
+    calendarRow.onSelected('calendar-2');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Copy event and delete original?'), findsOneWidget);
+    expect(find.textContaining('Microsoft · Work'), findsOneWidget);
+    expect(find.textContaining('Microsoft · Personal'), findsOneWidget);
+    expect(find.textContaining('only after the copy succeeds'), findsOneWidget);
+    await tester.tap(find.text('Copy and delete'));
+    await tester.pumpAndSettle();
+
+    final editorResult = await result;
+    expect(editorResult?.draft?.sourceId, 'calendar-2');
   });
 
   testWidgets('Microsoft delete explains that a cancellation will be sent', (

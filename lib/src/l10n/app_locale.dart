@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../../l10n/generated/app_localizations.dart';
+
 /// A locale that can be selected explicitly in BusyMax.
 ///
 /// Language names are endonyms on purpose: users should be able to find their
@@ -26,7 +28,7 @@ const busyMaxLocaleOptions = <BusyMaxLocaleOption>[
   BusyMaxLocaleOption(locale: Locale('it'), endonym: 'Italiano'),
   BusyMaxLocaleOption(locale: Locale('ja'), endonym: '日本語'),
   BusyMaxLocaleOption(locale: Locale('ko'), endonym: '한국어'),
-  BusyMaxLocaleOption(locale: Locale('pt'), endonym: 'Português'),
+  BusyMaxLocaleOption(locale: Locale('pt', 'PT'), endonym: 'Português'),
   BusyMaxLocaleOption(locale: Locale('ru'), endonym: 'Русский'),
   BusyMaxLocaleOption(locale: Locale('vi'), endonym: 'Tiếng Việt'),
   BusyMaxLocaleOption(
@@ -38,6 +40,18 @@ const busyMaxLocaleOptions = <BusyMaxLocaleOption>[
     endonym: '繁體中文',
   ),
 ];
+
+/// Locales exposed by BusyMax after removing generator-only fallbacks.
+///
+/// Flutter's localization generator requires a base `pt` catalog before it
+/// will generate `pt_PT`. BusyMax deliberately exposes only European
+/// Portuguese so generic Portuguese and Brazilian Portuguese are not silently
+/// resolved to the pt-PT catalog.
+final busyMaxSupportedLocales = AppLocalizations.supportedLocales
+    .where(
+      (locale) => locale.languageCode != 'pt' || locale.countryCode == 'PT',
+    )
+    .toList(growable: false);
 
 const _traditionalChineseRegions = {'HK', 'MO', 'TW'};
 const _simplifiedChineseRegions = {'CN', 'MY', 'SG'};
@@ -119,6 +133,9 @@ Locale resolveBusyMaxLocales(
   ];
   final normalizedRequested = requestedLocales
       ?.map(_normalizeChineseLocale)
+      .where(
+        (locale) => locale.languageCode != 'pt' || locale.countryCode == 'PT',
+      )
       .toList(growable: false);
   return basicLocaleListResolution(normalizedRequested, orderedSupported);
 }

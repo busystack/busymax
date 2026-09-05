@@ -11,11 +11,17 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
+import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../l10n/l10n.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import '../../../webcal/webcal_subscription_service.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../accounts/domain/account_collection_creation_capabilities.dart';
+import '../../calendar/data/calendar_collection_creation_service.dart';
 import '../../calendar/data/calendar_repository.dart';
+import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/domain/task_capabilities.dart';
@@ -62,10 +68,19 @@ class ScheduleSidebar extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
               children: [
-                for (final account in accounts)
+                for (final account in accounts.where(
+                  (account) => !account.isSubscription,
+                ))
                   _AccountSourcesGroup(
                     key: ValueKey(('schedule-account', account.id)),
                     account: account,
+                  ),
+                if (accounts.any((account) => account.isSubscription))
+                  _SubscriptionSourcesGroup(
+                    accounts: [
+                      for (final account in accounts)
+                        if (account.isSubscription) account,
+                    ],
                   ),
               ],
             ),
@@ -85,6 +100,7 @@ class _SourceRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final providerWebUri = scheduleCalendarProviderWebUri(account, source);
+    final capabilities = source.capabilities;
     return _CompactSourceRow(
       title: source.summary,
       leading: _SourceDot(
@@ -106,6 +122,7 @@ class _SourceRow extends ConsumerWidget {
           },
         ),
         menuButton: BusyMaxMenuButton<String>(
+          key: ValueKey(('calendar-options', source.id)),
           tooltip: context.l10n.options,
           highlightWhenOpen: false,
           onSelected: (value) {
@@ -117,14 +134,9 @@ class _SourceRow extends ConsumerWidget {
                   unawaited(_openProviderWeb(providerWebUri));
                 }
               case 'toggle-reminders':
-                unawaited(
-                  ref
-                      .read(calendarRepositoryProvider)
-                      .setSourceRemindersEnabled(
-                        source.id,
-                        !source.remindersEnabled,
-                      ),
-                );
+                unawaited(_setCalendarRemindersEnabled(context, ref, source));
+              case 'color':
+                unawaited(_changeCalendarColor(context, ref, source));
               case 'rename':
                 unawaited(_renameCalendar(context, ref, source));
               case 'delete':
@@ -145,23 +157,38 @@ class _SourceRow extends ConsumerWidget {
               ),
             BusyMaxMenuEntry(
               value: 'toggle-reminders',
-              label: context.l10n.eventReminders,
-              icon: Icons.notifications_outlined,
-              selected: source.remindersEnabled,
+              label:
+                  '${context.l10n.eventReminders} — '
+                  '${source.remindersEnabled ? context.l10n.onState : context.l10n.off}',
+              icon: source.remindersEnabled
+                  ? Icons.notifications_outlined
+                  : Icons.notifications_off_outlined,
+            ),
+            BusyMaxMenuEntry(
+              value: 'color',
+              label: context.l10n.calendarColor,
+              icon: Icons.palette_outlined,
+              enabled: capabilities.canChangeCalendarColor,
+              tooltip: _calendarColorRestriction(context, source),
             ),
             BusyMaxMenuEntry(
               value: 'rename',
-              label: context.l10n.rename,
+              label: capabilities.renameMode == CalendarRenameMode.personal
+                  ? context.l10n.setCustomCalendarName
+                  : context.l10n.rename,
               icon: Icons.edit_outlined,
-              enabled: !source.readOnly,
-              tooltip: source.readOnly ? context.l10n.readOnlyCalendar : null,
+              enabled: capabilities.canRenameCalendar,
+              tooltip: _calendarRenameRestriction(context, source),
             ),
             BusyMaxMenuEntry(
               value: 'delete',
-              label: context.l10n.delete,
+              label:
+                  capabilities.removalMode == CalendarRemovalMode.removeFromList
+                  ? context.l10n.removeFromMyCalendars
+                  : context.l10n.delete,
               icon: YaruIcons.trash,
-              enabled: !source.readOnly,
-              tooltip: source.readOnly ? context.l10n.readOnlyCalendar : null,
+              enabled: capabilities.canRemoveCalendar,
+              tooltip: _calendarDeleteRestriction(context, source),
               destructive: true,
             ),
           ],
@@ -288,6 +315,8 @@ class _AccountSourcesGroup extends ConsumerStatefulWidget {
 
 class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
   var _expanded = true;
+  var _creatingCalendar = false;
+  var _creatingTaskList = false;
 
   @override
   void didUpdateWidget(covariant _AccountSourcesGroup oldWidget) {
@@ -300,6 +329,27 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
   @override
   Widget build(BuildContext context) {
     final account = widget.account;
+    final networkAvailability =
+        ref.watch(networkAvailabilityProvider).valueOrNull ??
+        ref.read(networkConnectivityMonitorProvider).availability;
+    final capabilities = AccountCollectionCreationCapabilities.resolve(
+      account: account,
+      networkAvailability: networkAvailability,
+      calendarCreationRunning: _creatingCalendar,
+      taskListCreationRunning: _creatingTaskList,
+    );
+    final headerActions = <_AccountHeaderCollectionAction>[
+      if (capabilities.supportsCalendarCreation)
+        _AccountHeaderCollectionAction(
+          action: AccountHeaderCollectionAction.newCalendar,
+          enabled: capabilities.calendarActionEnabled,
+        ),
+      if (capabilities.supportsTaskListCreation)
+        _AccountHeaderCollectionAction(
+          action: AccountHeaderCollectionAction.newTaskList,
+          enabled: capabilities.taskListActionEnabled,
+        ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -307,6 +357,8 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
           account: account,
           expanded: _expanded,
           onToggleExpanded: _toggleExpanded,
+          actions: headerActions,
+          onActionSelected: _handleCollectionAction,
         ),
         if (_expanded) ...[
           _AccountCalendarSources(account: account),
@@ -343,6 +395,137 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
   void _toggleExpanded() {
     setState(() => _expanded = !_expanded);
   }
+
+  Future<void> _handleCollectionAction(
+    AccountHeaderCollectionAction action,
+  ) async {
+    switch (action) {
+      case AccountHeaderCollectionAction.newCalendar:
+        if (_creatingCalendar) return;
+        setState(() => _creatingCalendar = true);
+        try {
+          await _createAccountCalendar(context, ref, widget.account);
+        } finally {
+          if (mounted) setState(() => _creatingCalendar = false);
+        }
+      case AccountHeaderCollectionAction.newTaskList:
+        if (_creatingTaskList) return;
+        setState(() => _creatingTaskList = true);
+        try {
+          await _createAccountTaskList(context, ref, widget.account);
+        } finally {
+          if (mounted) setState(() => _creatingTaskList = false);
+        }
+    }
+  }
+}
+
+class _SubscriptionSourcesGroup extends ConsumerWidget {
+  const _SubscriptionSourcesGroup({required this.accounts});
+
+  final List<AccountEntity> accounts;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accountById = {for (final account in accounts) account.id: account};
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: BusyMaxSpacing.md,
+            top: BusyMaxSpacing.md,
+            end: BusyMaxSpacing.md,
+            bottom: BusyMaxSpacing.xs,
+          ),
+          child: Text(
+            context.l10n.subscriptions,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
+        StreamBuilder<List<CalendarSourceEntity>>(
+          stream: ref
+              .watch(calendarRepositoryProvider)
+              .watchSourcesForAccounts(accountById.keys.toList()),
+          builder: (context, snapshot) {
+            final sources = (snapshot.data ?? const <CalendarSourceEntity>[])
+                .where((source) => source.provider == BusyProvider.webCal);
+            return Column(
+              children: [
+                for (final source in sources)
+                  _SubscriptionSourceRow(
+                    key: ValueKey(('subscription-source', source.id)),
+                    source: source,
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _SubscriptionSourceRow extends ConsumerWidget {
+  const _SubscriptionSourceRow({super.key, required this.source});
+
+  final CalendarSourceEntity source;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _CompactSourceRow(
+      title: '${source.summary} · ${context.l10n.readOnlySharedCollection}',
+      leading: _SourceDot(seed: source.id, colorHex: source.backgroundColor),
+      trailing: _SourceRowActions(
+        visibilityButton: _SourceVisibilityButton(
+          value: source.selected && !source.hidden,
+          semanticLabel: source.summary,
+          onChanged: (value) => ref
+              .read(calendarRepositoryProvider)
+              .setSourceSelected(source.id, value),
+        ),
+        menuButton: BusyMaxMenuButton<String>(
+          tooltip: context.l10n.options,
+          highlightWhenOpen: false,
+          onSelected: (value) {
+            switch (value) {
+              case 'refresh':
+                unawaited(_refreshSubscriptionSource(context, ref, source));
+              case 'rename':
+                unawaited(_renameSubscriptionSource(context, ref, source));
+              case 'color':
+                unawaited(_colorSubscriptionSource(context, ref, source));
+              case 'unsubscribe':
+                unawaited(_unsubscribeSource(context, ref, source));
+            }
+          },
+          entries: [
+            BusyMaxMenuEntry(
+              value: 'refresh',
+              label: context.l10n.refreshNow,
+              icon: YaruIcons.refresh,
+            ),
+            BusyMaxMenuEntry(
+              value: 'rename',
+              label: context.l10n.rename,
+              icon: Icons.edit_outlined,
+            ),
+            BusyMaxMenuEntry(
+              value: 'color',
+              label: context.l10n.calendarColor,
+              icon: Icons.palette_outlined,
+            ),
+            BusyMaxMenuEntry(
+              value: 'unsubscribe',
+              label: context.l10n.unsubscribe,
+              icon: YaruIcons.trash,
+              destructive: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AccountHeaderRow extends StatelessWidget {
@@ -350,16 +533,28 @@ class _AccountHeaderRow extends StatelessWidget {
     required this.account,
     required this.expanded,
     required this.onToggleExpanded,
+    required this.actions,
+    required this.onActionSelected,
   });
 
   final AccountEntity account;
   final bool expanded;
   final VoidCallback onToggleExpanded;
+  final List<_AccountHeaderCollectionAction> actions;
+  final ValueChanged<AccountHeaderCollectionAction> onActionSelected;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final secondaryLabel = account.secondaryLabel;
+    final secondaryLabel = _accountHeaderSecondaryLabel(account);
+    final hasSecondaryLabel =
+        secondaryLabel != null && secondaryLabel.isNotEmpty;
+    final providerName = _accountProviderName(context, account.provider);
+    final accountSemanticsLabel = [
+      providerName,
+      account.displayLabel,
+      if (hasSecondaryLabel) secondaryLabel,
+    ].join(', ');
     return Padding(
       padding: const EdgeInsetsDirectional.only(
         start: BusyMaxSpacing.md,
@@ -370,29 +565,100 @@ class _AccountHeaderRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  account.displayLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                if (secondaryLabel != null && secondaryLabel.isNotEmpty)
-                  Text(
-                    secondaryLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+            child: Semantics(
+              key: ValueKey(('account-identity', account.id)),
+              container: true,
+              label: accountSemanticsLabel,
+              child: ExcludeSemantics(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (hasSecondaryLabel)
+                      Text(
+                        account.displayLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            hasSecondaryLabel
+                                ? secondaryLabel
+                                : account.displayLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: hasSecondaryLabel
+                                ? Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  )
+                                : Theme.of(context).textTheme.labelLarge,
+                          ),
+                        ),
+                        const SizedBox(width: BusyMaxSpacing.xs),
+                        _AccountProviderIndicator(
+                          key: ValueKey((
+                            'account-provider-indicator',
+                            account.id,
+                          )),
+                          provider: account.provider,
+                          providerName: providerName,
+                        ),
+                      ],
                     ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(width: BusyMaxSpacing.xs),
+          if (actions.isNotEmpty) ...[
+            BusyMaxMenuButton<AccountHeaderCollectionAction>(
+              key: ValueKey(('account-collection-options', account.id)),
+              tooltip: context.l10n.options,
+              highlightWhenOpen: false,
+              triggerBuilder: (context, trigger) => trigger.anchor(
+                child: Semantics(
+                  expanded: trigger.isOpen,
+                  button: true,
+                  child: BusyMaxHeaderIconButton(
+                    tooltip: context.l10n.options,
+                    iconSize: BusyMaxSizes.sidebarActionIcon,
+                    icon: const Icon(YaruIcons.view_more),
+                    focusNode: trigger.focusNode,
+                    onPressed: trigger.onPressed,
+                    foregroundColor: colorScheme.onSurfaceVariant,
+                    backgroundColor: busyMaxSubtleButtonBackground(context),
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                  ),
+                ),
+              ),
+              onSelected: onActionSelected,
+              entries: [
+                for (final item in actions)
+                  BusyMaxMenuEntry(
+                    value: item.action,
+                    label: switch (item.action) {
+                      AccountHeaderCollectionAction.newCalendar =>
+                        '${context.l10n.newCalendar}…',
+                      AccountHeaderCollectionAction.newTaskList =>
+                        '${context.l10n.newTaskList}…',
+                    },
+                    icon: YaruIcons.plus,
+                    enabled: item.enabled,
+                  ),
+              ],
+            ),
+            const SizedBox(width: BusyMaxSpacing.xs),
+          ],
           BusyMaxHeaderIconButton(
+            key: ValueKey(('account-collapse', account.id)),
             tooltip: expanded
                 ? MaterialLocalizations.of(context).expandedIconTapHint
                 : MaterialLocalizations.of(context).collapsedIconTapHint,
@@ -416,6 +682,86 @@ class _AccountHeaderRow extends StatelessWidget {
   }
 }
 
+String? _accountHeaderSecondaryLabel(AccountEntity account) {
+  final secondaryLabel = account.secondaryLabel;
+  if (secondaryLabel != null && secondaryLabel.isNotEmpty) {
+    return secondaryLabel;
+  }
+  if (account.provider != BusyProvider.nextcloud) return null;
+
+  final authority = Uri.tryParse(account.authority);
+  if (authority == null || authority.host.isEmpty) return null;
+
+  final scheme = authority.scheme.toLowerCase();
+  final hasDefaultPort =
+      (scheme == 'https' && authority.port == 443) ||
+      (scheme == 'http' && authority.port == 80);
+  if (!authority.hasPort || hasDefaultPort) return authority.host;
+
+  final host = authority.host.contains(':')
+      ? '[${authority.host}]'
+      : authority.host;
+  return '$host:${authority.port}';
+}
+
+class _AccountProviderIndicator extends StatelessWidget {
+  const _AccountProviderIndicator({
+    super.key,
+    required this.provider,
+    required this.providerName,
+  });
+
+  static const double _diameter = 16;
+
+  final BusyProvider provider;
+  final String providerName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: providerName,
+      excludeFromSemantics: true,
+      child: SizedBox.square(
+        dimension: _diameter,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: theme.colorScheme.surfaceContainerHighest,
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Center(
+            child: Text(
+              _accountProviderLetter(provider),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _accountProviderLetter(BusyProvider provider) => switch (provider) {
+  BusyProvider.google => 'G',
+  BusyProvider.microsoft => 'M',
+  BusyProvider.nextcloud => 'N',
+  BusyProvider.appleICloud => 'A',
+  BusyProvider.webCal => 'W',
+};
+
+String _accountProviderName(BuildContext context, BusyProvider provider) =>
+    switch (provider) {
+      BusyProvider.google => context.l10n.googleProvider,
+      BusyProvider.microsoft => context.l10n.microsoftProvider,
+      BusyProvider.nextcloud => context.l10n.nextcloudProvider,
+      BusyProvider.appleICloud => context.l10n.appleICloudProvider,
+      BusyProvider.webCal => 'WebCal',
+    };
+
 class _AccountCalendarSources extends ConsumerWidget {
   const _AccountCalendarSources({required this.account});
 
@@ -437,14 +783,13 @@ class _AccountCalendarSources extends ConsumerWidget {
       ]),
       builder: (context, snapshot) {
         final sources = snapshot.data ?? const <CalendarSourceEntity>[];
-        if (sources.isEmpty) {
-          return BusyMaxActionRow(
-            title: context.l10n.noCalendarsSynced,
-            leading: const Icon(YaruIcons.calendar),
-          );
-        }
         return Column(
           children: [
+            if (sources.isEmpty)
+              BusyMaxActionRow(
+                title: context.l10n.noCalendarsSynced,
+                leading: const Icon(YaruIcons.calendar),
+              ),
             for (final source in sources)
               _SourceRow(
                 key: ValueKey((
@@ -549,6 +894,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
           },
         ),
         menuButton: BusyMaxMenuButton<String>(
+          key: ValueKey(('task-list-options', list.accountId, list.id)),
           tooltip: context.l10n.options,
           highlightWhenOpen: false,
           onSelected: (value) {
@@ -559,6 +905,8 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 if (providerWebUri != null) {
                   unawaited(_openProviderWeb(providerWebUri));
                 }
+              case 'toggle-reminders':
+                unawaited(_setTaskListRemindersEnabled(context, ref, list));
               case 'rename':
                 unawaited(_renameTaskList(context, ref, list));
               case 'delete':
@@ -577,6 +925,15 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 label: context.l10n.openInProvider,
                 icon: Icons.open_in_browser_outlined,
               ),
+            BusyMaxMenuEntry(
+              value: 'toggle-reminders',
+              label:
+                  '${context.l10n.taskReminders} — '
+                  '${list.remindersEnabled ? context.l10n.onState : context.l10n.off}',
+              icon: list.remindersEnabled
+                  ? Icons.notifications_outlined
+                  : Icons.notifications_off_outlined,
+            ),
             BusyMaxMenuEntry(
               value: 'rename',
               label: context.l10n.rename,
@@ -614,6 +971,7 @@ String scheduleTaskListLabel(
     BusyProvider.microsoft => context.l10n.microsoftTodoProvider,
     BusyProvider.appleICloud => context.l10n.appleICloudTasksProvider,
     BusyProvider.nextcloud => context.l10n.nextcloudTasksProvider,
+    BusyProvider.webCal => 'WebCal',
   };
   final title = list.title.trim();
   if (title.isEmpty ||
@@ -651,6 +1009,7 @@ Uri? scheduleCalendarProviderWebUri(
     ),
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
+    BusyProvider.webCal => null,
   };
 }
 
@@ -661,6 +1020,7 @@ Uri? scheduleTaskProviderWebUri(AccountEntity account) {
     BusyProvider.microsoft => Uri.https('to-do.office.com', '/tasks/'),
     BusyProvider.appleICloud => null,
     BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
+    BusyProvider.webCal => null,
   };
 }
 
@@ -801,6 +1161,193 @@ String? _taskListDeleteRestriction(
   return context.l10n.taskListCannotDelete;
 }
 
+String? _calendarRenameRestriction(
+  BuildContext context,
+  CalendarSourceEntity source,
+) {
+  if (source.capabilities.canRenameCalendar) return null;
+  if (!calendarManagementCapabilities(source.provider).supportsRename) {
+    return context.l10n.calendarManagementUnsupported;
+  }
+  return context.l10n.readOnlyCalendar;
+}
+
+String? _calendarColorRestriction(
+  BuildContext context,
+  CalendarSourceEntity source,
+) {
+  if (source.capabilities.canChangeCalendarColor) return null;
+  if (!calendarManagementCapabilities(source.provider).supportsColor) {
+    return context.l10n.calendarManagementUnsupported;
+  }
+  return context.l10n.readOnlyCalendar;
+}
+
+String? _calendarDeleteRestriction(
+  BuildContext context,
+  CalendarSourceEntity source,
+) {
+  if (source.capabilities.canRemoveCalendar) return null;
+  if (!calendarManagementCapabilities(source.provider).supportsDelete) {
+    return context.l10n.calendarManagementUnsupported;
+  }
+  if (source.primaryCalendar) {
+    return context.l10n.primaryCalendarCannotDelete;
+  }
+  return context.l10n.calendarCannotRemove;
+}
+
+enum AccountHeaderCollectionAction { newCalendar, newTaskList }
+
+final class _AccountHeaderCollectionAction {
+  const _AccountHeaderCollectionAction({
+    required this.action,
+    required this.enabled,
+  });
+
+  final AccountHeaderCollectionAction action;
+  final bool enabled;
+}
+
+Future<void> _createAccountCalendar(
+  BuildContext context,
+  WidgetRef ref,
+  AccountEntity account,
+) async {
+  final title = await showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.newCalendar,
+    label: context.l10n.title,
+    actionLabel: context.l10n.create,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (!context.mounted || title == null || title.trim().isEmpty) return;
+  try {
+    final result = await ref
+        .read(calendarCollectionCreationServiceProvider)
+        .createCalendar(accountId: account.id, title: title);
+    if (context.mounted &&
+        result.outcome ==
+            CalendarCollectionCreationOutcome.createdRefreshPending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.calendarCreatedRefreshPending)),
+      );
+    }
+  } on Object catch (error) {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.calendarCreateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
+  }
+}
+
+Future<void> _createAccountTaskList(
+  BuildContext context,
+  WidgetRef ref,
+  AccountEntity account,
+) async {
+  final title = await showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.newTaskList,
+    label: context.l10n.title,
+    actionLabel: context.l10n.create,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (!context.mounted || title == null || title.trim().isEmpty) return;
+  try {
+    await ref
+        .read(taskListsRepositoryForAccountProvider(account.id))
+        .createTaskList(title);
+  } on Object catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.taskListCreateFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+  }
+}
+
+Future<void> _setCalendarRemindersEnabled(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .setSourceRemindersEnabled(source.id, !source.remindersEnabled);
+  } on Object {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.operationFailed);
+    }
+  }
+}
+
+Future<void> _setTaskListRemindersEnabled(
+  BuildContext context,
+  WidgetRef ref,
+  TaskListEntity list,
+) async {
+  try {
+    await ref
+        .read(taskListsRepositoryForAccountProvider(list.accountId))
+        .setRemindersEnabled(list.id, !list.remindersEnabled);
+  } on Object {
+    if (context.mounted) {
+      _showCalendarMutationFailure(context, context.l10n.operationFailed);
+    }
+  }
+}
+
+Future<void> _changeCalendarColor(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final choice = await showCalendarColorDialog(
+    context,
+    provider: source.provider,
+    currentBackgroundColor: source.backgroundColor,
+    currentColorId: source.colorId,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (!context.mounted || choice == null) return;
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .setSourceColor(source.id, choice);
+    _requestCalendarMutationSync(ref, source.accountId);
+  } on Object catch (error) {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.calendarUpdateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
+  }
+}
+
 Future<void> _renameCalendar(
   BuildContext context,
   WidgetRef ref,
@@ -808,9 +1355,13 @@ Future<void> _renameCalendar(
 ) async {
   final title = await showBusyMaxTextPrompt(
     context,
-    title: context.l10n.rename,
+    title: source.capabilities.renameMode == CalendarRenameMode.personal
+        ? context.l10n.setCustomCalendarName
+        : context.l10n.rename,
     label: context.l10n.title,
-    actionLabel: context.l10n.rename,
+    actionLabel: source.capabilities.renameMode == CalendarRenameMode.personal
+        ? context.l10n.setAction
+        : context.l10n.rename,
     initialValue: source.summary,
     headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
@@ -820,9 +1371,24 @@ Future<void> _renameCalendar(
       title.trim() == source.summary) {
     return;
   }
-  await ref
-      .read(calendarRepositoryProvider)
-      .renameLocalSource(source.id, title.trim());
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .renameLocalSource(source.id, title.trim());
+    _requestCalendarMutationSync(ref, source.accountId);
+  } on Object catch (error) {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.calendarUpdateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
+  }
 }
 
 Future<void> _deleteCalendar(
@@ -830,18 +1396,53 @@ Future<void> _deleteCalendar(
   WidgetRef ref,
   CalendarSourceEntity source,
 ) async {
+  final removeFromList =
+      source.capabilities.removalMode == CalendarRemovalMode.removeFromList;
   final confirmed = await showBusyMaxConfirm(
     context,
-    title: context.l10n.delete,
-    message: context.l10n.deleteCalendarConfirmation(source.summary),
-    confirmLabel: context.l10n.delete,
+    title: removeFromList
+        ? context.l10n.removeFromMyCalendars
+        : context.l10n.delete,
+    message: removeFromList
+        ? context.l10n.removeCalendarConfirmation(source.summary)
+        : context.l10n.deleteCalendarConfirmation(source.summary),
+    confirmLabel: removeFromList
+        ? context.l10n.removeAction
+        : context.l10n.delete,
     destructive: true,
     headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;
   }
-  await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
+  try {
+    await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
+    _requestCalendarMutationSync(ref, source.accountId);
+  } on Object catch (error) {
+    if (context.mounted) {
+      final message =
+          error is CalendarMutationNotAllowed &&
+              error.reason == CalendarMutationDenialReason.pendingChanges
+          ? context.l10n.calendarPendingChangesPreventRemoval
+          : context.l10n.calendarDeleteFailed(
+              syncFailureMessage(
+                error,
+                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+              ),
+            );
+      _showCalendarMutationFailure(context, message);
+    }
+  }
+}
+
+void _requestCalendarMutationSync(WidgetRef ref, String accountId) {
+  ref
+      .read(pendingCalendarMutationSyncRequesterForAccountProvider(accountId))
+      .request();
+}
+
+void _showCalendarMutationFailure(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
 
 Future<void> _renameTaskList(
@@ -927,4 +1528,118 @@ Future<void> _deleteTaskList(
       );
     }
   }
+}
+
+Future<WebCalSubscriptionEntity?> _subscriptionForSource(
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final subscriptions = await ref
+      .read(webCalSubscriptionServiceProvider)
+      .listSubscriptions();
+  return subscriptions
+      .where((subscription) => subscription.calendarSourceId == source.id)
+      .firstOrNull;
+}
+
+Future<void> _refreshSubscriptionSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  try {
+    final subscription = await _subscriptionForSource(ref, source);
+    if (subscription == null) return;
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .refreshSubscription(subscription.id, force: true);
+  } on Object catch (error) {
+    if (context.mounted) _showWebCalError(context, error);
+  }
+}
+
+Future<void> _renameSubscriptionSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final name = await showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.rename,
+    label: context.l10n.subscriptionName,
+    actionLabel: context.l10n.rename,
+    initialValue: source.summary,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (name == null || !context.mounted) return;
+  try {
+    final subscription = await _subscriptionForSource(ref, source);
+    if (subscription == null) return;
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .renameSubscription(subscription.id, name);
+  } on Object catch (error) {
+    if (context.mounted) _showWebCalError(context, error);
+  }
+}
+
+Future<void> _colorSubscriptionSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final color = await showBusyMaxTextPrompt(
+    context,
+    title: context.l10n.calendarColor,
+    label: context.l10n.subscriptionColor,
+    actionLabel: context.l10n.save,
+    initialValue: source.backgroundColor,
+    message: context.l10n.subscriptionColorHelp,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (color == null || !context.mounted) return;
+  try {
+    final subscription = await _subscriptionForSource(ref, source);
+    if (subscription == null) return;
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .changeSubscriptionColor(subscription.id, color);
+  } on Object catch (error) {
+    if (context.mounted) _showWebCalError(context, error);
+  }
+}
+
+Future<void> _unsubscribeSource(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+) async {
+  final confirmed = await showBusyMaxConfirm(
+    context,
+    title: context.l10n.unsubscribeCalendarTitle(source.summary),
+    message: context.l10n.unsubscribeCalendarConfirmation,
+    confirmLabel: context.l10n.unsubscribe,
+    destructive: true,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+  );
+  if (!confirmed || !context.mounted) return;
+  try {
+    final subscription = await _subscriptionForSource(ref, source);
+    if (subscription == null) return;
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .unsubscribe(subscription.id);
+  } on Object catch (error) {
+    if (context.mounted) _showWebCalError(context, error);
+  }
+}
+
+void _showWebCalError(BuildContext context, Object error) {
+  final code = switch (error) {
+    WebCalSubscriptionException(:final code) => code,
+    _ => 'WebCalOperationFailed',
+  };
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(context.l10n.subscriptionOperationFailed(code))),
+  );
 }

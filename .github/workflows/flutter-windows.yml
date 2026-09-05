@@ -1,0 +1,325 @@
+name: Flutter Windows
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - 'Release/**'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.4'
+          cache: true
+
+      - name: Enable Windows desktop
+        shell: pwsh
+        run: flutter config --enable-windows-desktop
+
+      - name: Install pinned Pester
+        shell: pwsh
+        run: >-
+          Install-Module Pester -RequiredVersion 5.7.1
+          -Scope CurrentUser -Force -AllowClobber
+
+      - name: Create explicitly non-production CI identity
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/windows | Out-Null
+          @{
+            production = $false
+            identityName = 'BusyStack.BusyMax.CI'
+            publisher = 'CN=BusyMax CI Package'
+            publisherDisplayName = 'BusyMax CI'
+            msixVersion = '1.0.0.0'
+            previousMsixVersion = ''
+            privacyPolicyUrl = 'https://busystack.org/privacy'
+            supportUrl = 'https://busystack.org/support'
+            homepageUrl = 'https://busystack.org'
+            googleOAuthClientId = 'busymax-ci-google-client-id'
+            googleOAuthClientSecret = ''
+            microsoftOAuthClientId = 'busymax-ci-microsoft-client-id'
+            microsoftOAuthAuthorityTenant = 'common'
+            fakeData = $false
+            developmentBackend = $false
+          } | ConvertTo-Json | Set-Content `
+            -LiteralPath build/windows/store-ci.json -Encoding utf8NoBOM
+
+      - name: Verify x64 Windows build host
+        shell: pwsh
+        run: |
+          if ($env:OS -ne 'Windows_NT' -or
+              -not [Environment]::Is64BitOperatingSystem) {
+            throw 'BusyMax Windows builds require 64-bit Windows.'
+          }
+
+      - name: Verify pinned Flutter version
+        shell: pwsh
+        run: |
+          $version = (flutter --version --machine |
+            ConvertFrom-Json).frameworkVersion
+          if ($version -ne '3.44.4') {
+            throw "BusyMax requires Flutter 3.44.4; found $version."
+          }
+
+      - name: Verify Visual Studio C++ toolchain
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} `
+            'Microsoft Visual Studio\Installer\vswhere.exe'
+          $installation = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+          if ([string]::IsNullOrWhiteSpace($installation)) {
+            throw 'Visual Studio C++ x64 desktop tools were not found.'
+          }
+
+      - name: Verify Windows SDK packaging tools
+        shell: pwsh
+        run: |
+          . ./tool/windows/common.ps1
+          $kitsBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $sdk = Get-BusyMaxWindowsSdkDirectory -KitsBin $kitsBin
+          if ($null -eq $sdk) {
+            throw 'Windows SDK 10.0.26100.0 or newer is required.'
+          }
+          foreach ($tool in @('makeappx.exe', 'signtool.exe')) {
+            if (-not (Test-Path -LiteralPath `
+                (Join-Path $sdk.FullName "x64\$tool"))) {
+              throw "$tool was not found in Windows SDK $($sdk.Name)."
+            }
+          }
+
+      - name: Verify combined Windows build prerequisites
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force `
+            -Path build/windows/test-results | Out-Null
+          $environment = ./tool/windows/check_prerequisites.ps1
+          $environment | ConvertTo-Json | Set-Content `
+            -LiteralPath build/windows/test-results/windows-environment.json `
+            -Encoding utf8NoBOM
+          $environment | Format-List
+
+      - name: Validate non-production CI identity
+        shell: pwsh
+        run: >-
+          ./tool/windows/validate_release_config.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci | Format-List
+
+      - name: Run pinned Pester contract tests
+        shell: pwsh
+        run: >-
+          ./tool/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage PesterTests
+
+      - name: Restore dependencies and generate sources
+        shell: pwsh
+        run: >-
+          ./tool/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage SourceGeneration
+
+      - name: Check formatting, analysis, and platform boundaries
+        shell: pwsh
+        run: >-
+          ./tool/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage StaticAnalysis
+
+      - name: Run Dart and Flutter tests
+        id: flutter-tests
+        shell: pwsh
+        run: >-
+          ./tool/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage FlutterTests
+
+      - name: Report failing Flutter tests
+        if: ${{ failure() && steps.flutter-tests.conclusion == 'failure' }}
+        shell: pwsh
+        run: |
+          $report = 'build/windows/test-results/flutter-tests.jsonl'
+          if (-not (Test-Path -LiteralPath $report -PathType Leaf)) {
+            Write-Host '::error title=Windows Flutter tests failed::The machine test report was not created.'
+            exit 0
+          }
+          $names = @{}
+          $failedIds = [System.Collections.Generic.HashSet[int]]::new()
+          $runnerErrors = [System.Collections.Generic.List[string]]::new()
+          $doneSuccess = $null
+          foreach ($line in Get-Content -LiteralPath $report) {
+            try { $event = $line | ConvertFrom-Json } catch { continue }
+            if ($event.type -eq 'testStart') {
+              $names[[int]$event.test.id] = [string]$event.test.name
+            }
+            if ($event.type -eq 'testDone' -and
+                $event.result -notin @('success', 'skipped')) {
+              $failedIds.Add([int]$event.testID) | Out-Null
+            }
+            if ($event.type -eq 'error') {
+              if ($null -ne $event.testID) {
+                $failedIds.Add([int]$event.testID) | Out-Null
+              }
+              $summary = ([string]$event.error -split '\r?\n', 2)[0]
+              if (-not [string]::IsNullOrWhiteSpace($summary)) {
+                $runnerErrors.Add($summary) | Out-Null
+              }
+            }
+            if ($event.type -eq 'done') {
+              $doneSuccess = $event.success
+            }
+          }
+          if ($failedIds.Count -eq 0) {
+            $summary = "No failing test ID was present; machine success=$doneSuccess."
+            if ($runnerErrors.Count -gt 0) {
+              $summary += " Runner error: $($runnerErrors[0])"
+            }
+            $safeSummary = $summary.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Host "::error title=Windows Flutter tests failed::$safeSummary"
+          }
+          foreach ($testId in $failedIds) {
+            $name = if ($names.ContainsKey($testId)) {
+              $names[$testId]
+            } else {
+              "Unknown test ID $testId"
+            }
+            $safeName = $name.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Host "::error title=Windows Flutter test failed::$safeName"
+          }
+
+      - name: Compile Windows x64 release
+        id: windows-compile
+        shell: pwsh
+        run: >-
+          ./tool/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage WindowsCompile
+
+      - name: Report Windows compiler failures
+        if: ${{ failure() && steps.windows-compile.conclusion == 'failure' }}
+        shell: pwsh
+        run: |
+          $log = 'build/windows/test-results/windows-build.log'
+          if (-not (Test-Path -LiteralPath $log -PathType Leaf)) {
+            Write-Host '::error title=Windows release compilation failed::The compiler log was not created.'
+            exit 0
+          }
+          $diagnostics = @(Get-Content -LiteralPath $log |
+            Where-Object {
+              $_ -match '(?i)(cmake error|fatal error|error C\d+|LNK\d+|ninja:.*failed|error:)'
+            } | Select-Object -Unique -First 20)
+          if ($diagnostics.Count -eq 0) {
+            $diagnostics = @(Get-Content -LiteralPath $log |
+              Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+              Select-Object -Last 1)
+          }
+          foreach ($diagnostic in $diagnostics) {
+            $safe = ([string]$diagnostic).Replace('%', '%25')
+            $safe = $safe.Replace("`r", '%0D').Replace("`n", '%0A')
+            if ($safe.Length -gt 1000) { $safe = $safe.Substring(0, 1000) }
+            Write-Host "::error title=Windows release compilation failed::$safe"
+          }
+
+      - name: Run native C++ tests
+        id: native-tests
+        shell: pwsh
+        run: >-
+          ./tool/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage NativeTests
+
+      - name: Report native C++ test failures
+        if: ${{ failure() && steps.native-tests.conclusion == 'failure' }}
+        shell: pwsh
+        run: |
+          $logs = @(Get-ChildItem -Path 'build/windows/test-results' `
+            -Filter 'native-*.log' -File -ErrorAction SilentlyContinue)
+          if ($logs.Count -eq 0) {
+            Write-Host '::error title=Windows native tests failed::No native-test log was created.'
+            exit 0
+          }
+          $diagnostics = @($logs | ForEach-Object {
+            Get-Content -LiteralPath $_.FullName
+          } | Where-Object {
+            $_ -match '(?i)(cmake error|fatal error|error C\d+|LNK\d+|ninja:.*failed|FAILED|tests failed|exception)'
+          } | Select-Object -Unique -First 20)
+          if ($diagnostics.Count -eq 0) {
+            $diagnostics = @($logs | ForEach-Object {
+              Get-Content -LiteralPath $_.FullName
+            } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+              Select-Object -Last 10)
+          }
+          foreach ($diagnostic in $diagnostics) {
+            $safe = ([string]$diagnostic).Replace('%', '%25')
+            $safe = $safe.Replace("`r", '%0D').Replace("`n", '%0A')
+            if ($safe.Length -gt 1000) { $safe = $safe.Substring(0, 1000) }
+            Write-Host "::error title=Windows native tests failed::$safe"
+          }
+
+      - name: Pack and inspect exact MSIX
+        id: package
+        shell: pwsh
+        run: >-
+          ./tool/windows/build_release.ps1
+          -ConfigPath build/windows/store-ci.json
+          -Ci -Stage Package
+
+      - name: Report exact-MSIX packaging failures
+        if: ${{ failure() && steps.package.conclusion == 'failure' }}
+        shell: pwsh
+        run: |
+          $log = 'build/windows/test-results/package-store.log'
+          if (-not (Test-Path -LiteralPath $log -PathType Leaf)) {
+            Write-Host '::error title=Exact MSIX packaging failed::The package log was not created.'
+            exit 0
+          }
+          $diagnostics = @(Get-Content -LiteralPath $log |
+            Where-Object {
+              $_ -match '(?i)(makeappx.*error|error APPX|throw|exception|failed|missing|prohibited|unexpected|does not|differs|invalid|cannot|could not|refusing)'
+            } | Select-Object -Unique -First 20)
+          if ($diagnostics.Count -eq 0) {
+            $diagnostics = @(Get-Content -LiteralPath $log |
+              Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+              Select-Object -Last 10)
+          }
+          foreach ($diagnostic in $diagnostics) {
+            $safe = ([string]$diagnostic).Replace('%', '%25')
+            $safe = $safe.Replace("`r", '%0D').Replace("`n", '%0A')
+            if ($safe.Length -gt 1000) { $safe = $safe.Substring(0, 1000) }
+            Write-Host "::error title=Exact MSIX packaging failed::$safe"
+          }
+
+      - name: Upload Windows test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: busymax-windows-x64-test-reports
+          path: build/windows/test-results/**
+          if-no-files-found: warn
+
+      - name: Upload unsigned CI MSIX and package evidence
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: busymax-windows-x64-ci
+          path: |
+            build/windows/store/*.msix
+            build/windows/store/staging/AppxManifest.xml
+            build/windows/store/*inventory.json
+            build/windows/store/*metadata.json
+          if-no-files-found: error

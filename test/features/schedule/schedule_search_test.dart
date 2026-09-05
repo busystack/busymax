@@ -83,6 +83,66 @@ void main() {
     },
   );
 
+  test('all-task query is not limited by year or an arbitrary page', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: BusyProvider.google);
+    await _insertTaskList(database);
+    await _insertTask(
+      database,
+      id: 'past',
+      title: 'Past task',
+      dueUtc: '2020-01-02',
+    );
+    await _insertTask(
+      database,
+      id: 'future',
+      title: 'Future task',
+      dueUtc: '2040-03-04',
+    );
+    for (var index = 0; index < 501; index += 1) {
+      await _insertTask(
+        database,
+        id: 'undated-$index',
+        title: 'Undated $index',
+      );
+    }
+
+    final tasks = await ScheduleRepository(database).listAllTasks(
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeCalendarEvents: false,
+        showCompletedTasks: true,
+        showNoDateTasks: true,
+      ),
+    );
+
+    expect(tasks, hasLength(503));
+    expect(tasks.map((item) => item.id), containsAll(['past', 'future']));
+    expect(tasks.where((item) => item.start == null), hasLength(501));
+  });
+
+  test(
+    'repository ensures calendar projection coverage before reading',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final requestedRange = ScheduleRange.day(DateTime(2035, 8, 29));
+      ScheduleRange? ensuredRange;
+      final repository = ScheduleRepository(
+        database,
+        ensureProjectionCoverage: (range) async => ensuredRange = range,
+      );
+
+      await repository.listItems(
+        range: requestedRange,
+        filters: const ScheduleFilters(includeTasks: false),
+      );
+
+      expect(ensuredRange, requestedRange);
+    },
+  );
+
   test(
     'Microsoft all-day calendar event appears from Graph dateTime fields',
     () async {
@@ -137,6 +197,48 @@ void main() {
       expect(event.categories, ['Holiday', 'Company']);
     },
   );
+
+  test('events from a deleted calendar source are excluded', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
+    final calendarRepository = CalendarRepository(database: database);
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'calendar',
+        summary: 'Deleted calendar',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Pending local edit',
+        startDateTime: '2026-06-11T09:00:00.000Z',
+        endDateTime: '2026-06-11T10:00:00.000Z',
+      ),
+    );
+    await (database.update(database.calendarSources)
+          ..where((row) => row.providerCalendarId.equals('calendar')))
+        .write(const CalendarSourcesCompanion(isDeleted: Value(true)));
+    await (database.update(database.calendarEvents)
+          ..where((row) => row.providerEventId.equals('event')))
+        .write(const CalendarEventsCompanion(syncStatus: Value('pending')));
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+
+    expect(items, isEmpty);
+  });
 
   test('Microsoft timed calendar event projects its display times', () async {
     final database = AppDatabase(NativeDatabase.memory());
@@ -388,10 +490,85 @@ void main() {
 
     expect(event.organizer?['email'], 'organizer@example.com');
     expect(event.isOrganizer, isFalse);
+    expect(event.guestsCanModify, isFalse);
+    expect(event.locked, isFalse);
+    expect(event.capabilities.canEdit, isFalse);
     expect(event.currentUserResponse, 'tentative');
     expect(event.canRespondToInvitation, isTrue);
     expect(event.joinMeetingUrl, 'https://meet.google.com/abc-defg-hij');
   });
+
+  test(
+    'Google event editability honors organizer, guest, and lock state',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertScheduleAccount(database, provider: BusyProvider.google);
+      final calendarRepository = CalendarRepository(database: database);
+      await calendarRepository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          summary: 'Work',
+        ),
+      );
+      for (final event in const [
+        CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'owned',
+          title: 'Owned event',
+          startDateTime: '2026-06-11T09:00:00-07:00',
+          endDateTime: '2026-06-11T10:00:00-07:00',
+          organizerJson: {'self': true},
+          rawJson: {'id': 'owned'},
+        ),
+        CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'guest-editable',
+          title: 'Guest-editable event',
+          startDateTime: '2026-06-11T11:00:00-07:00',
+          endDateTime: '2026-06-11T12:00:00-07:00',
+          organizerJson: {'self': false},
+          rawJson: {'id': 'guest-editable', 'guestsCanModify': true},
+        ),
+        CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar',
+          providerEventId: 'locked',
+          title: 'Locked event',
+          startDateTime: '2026-06-11T13:00:00-07:00',
+          endDateTime: '2026-06-11T14:00:00-07:00',
+          organizerJson: {'self': true},
+          rawJson: {'id': 'locked', 'locked': true},
+        ),
+      ]) {
+        await calendarRepository.upsertEvent(
+          accountId: 'account',
+          event: event,
+        );
+      }
+
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 11)),
+        filters: const ScheduleFilters(
+          accountIds: {'account'},
+          includeTasks: false,
+        ),
+      );
+      final byTitle = {
+        for (final item in items.whereType<CalendarScheduleItem>())
+          item.title: item,
+      };
+
+      expect(byTitle['Owned event']!.capabilities.canEdit, isTrue);
+      expect(byTitle['Guest-editable event']!.capabilities.canEdit, isTrue);
+      expect(byTitle['Locked event']!.capabilities.canEdit, isFalse);
+      expect(byTitle['Locked event']!.capabilities.canDelete, isTrue);
+    },
+  );
 
   test('Microsoft invitation and Teams data reach the schedule item', () async {
     final database = AppDatabase(NativeDatabase.memory());

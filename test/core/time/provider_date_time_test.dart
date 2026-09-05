@@ -39,4 +39,22 @@ void main() {
     expect(providerDateTimeAsLocal('2026-06-04', 'UTC'), DateTime(2026, 6, 4));
     expect(providerDateTimeIsInstant('2026-06-04', 'UTC'), isFalse);
   });
+
+  test('editor wall time respects UTC, offsets, and IANA zones', () {
+    expect(
+      providerDateTimeAsWallTime('2026-06-08T09:00:00Z', 'UTC'),
+      DateTime.utc(2026, 6, 8, 9),
+    );
+    expect(
+      providerDateTimeAsWallTime(
+        '2026-06-08T09:00:00-07:00',
+        'America/Vancouver',
+      ),
+      DateTime(2026, 6, 8, 9),
+    );
+    expect(
+      providerDateTimeAsWallTime('2026-06-08T16:00:00Z', 'America/Vancouver'),
+      DateTime(2026, 6, 8, 9),
+    );
+  });
 }

@@ -19,6 +19,7 @@ final class DavEventMutationInput {
     this.recurrence,
     this.recurrenceChanged = false,
     this.reminders,
+    this.remindersChanged = false,
     this.categories = const [],
     this.categoriesChanged = false,
     this.classification,
@@ -36,6 +37,7 @@ final class DavEventMutationInput {
   final Object? recurrence;
   final bool recurrenceChanged;
   final Object? reminders;
+  final bool remindersChanged;
   final List<String> categories;
   final bool categoriesChanged;
   final String? classification;
@@ -75,7 +77,7 @@ DavNewObject buildDavEventObject(
     if (input.categories.isNotEmpty)
       DavPatchOperation.setRaw('CATEGORIES', _categories(input.categories)),
     ..._recurrenceOperations(input.recurrence),
-    ..._alarmOperations(reminderMinutes(input.reminders), startIndex: 0),
+    ..._eventAlarmOperations(input.reminders, startIndex: 0),
   ];
   if (operations.isEmpty) return initial;
   final patch = DavMutationPatch(
@@ -169,31 +171,8 @@ DavMutationPatch? buildDavEventUpdatePatch({
   if (input.recurrenceChanged) {
     operations.addAll(_recurrenceOperations(input.recurrence));
   }
-  final desiredReminders = reminderMinutes(input.reminders);
-  final editableAlarm = _editableDisplayAlarm(current);
-  if (!_sameIntegers(editableAlarm.minutes, desiredReminders)) {
-    if (editableAlarm.index != null) {
-      operations.add(
-        DavPatchOperation.replaceAlarm(
-          alarmIndex: editableAlarm.index!,
-          alarm: desiredReminders.isEmpty
-              ? null
-              : _displayAlarm(desiredReminders.first),
-        ),
-      );
-      for (var index = 1; index < desiredReminders.length; index += 1) {
-        operations.add(
-          DavPatchOperation.replaceAlarm(
-            alarmIndex: current.alarms.length + index - 1,
-            alarm: _displayAlarm(desiredReminders[index]),
-          ),
-        );
-      }
-    } else {
-      operations.addAll(
-        _alarmOperations(desiredReminders, startIndex: current.alarms.length),
-      );
-    }
+  if (input.remindersChanged) {
+    operations.addAll(_eventAlarmUpdateOperations(current, input.reminders));
   }
   if (operations.isEmpty) return null;
   return DavMutationPatch(
@@ -213,6 +192,7 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
   required String occurrenceKey,
   required String baselineRawIcs,
   required DavEventMutationInput input,
+  bool thisAndFuture = false,
   DateTime Function()? nowUtc,
 }) {
   final semantic = IcalSemanticDocument.parse(baselineRawIcs);
@@ -224,13 +204,44 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
   );
   if (master.length != 1) throw _invalidMutation();
   final recurrence = _recurrenceIdentity(occurrenceKey);
-  if (semantic.components.any(
+  final existing = semantic.components.where(
     (component) =>
         component.componentType == 'VEVENT' &&
         component.uid == uid &&
-        component.recurrenceIdKey == recurrence.key,
-  )) {
+        _recurrenceValueKey(component) == recurrence.key,
+  );
+  if (existing.length > 1 || (existing.isNotEmpty && !thisAndFuture)) {
     throw _invalidMutation();
+  }
+  if (existing.isNotEmpty) {
+    final current = existing.single;
+    final target = IcalComponentKey(
+      componentType: 'VEVENT',
+      uid: uid,
+      recurrenceIdKey: current.recurrenceIdKey,
+    );
+    final update = buildDavEventUpdatePatch(
+      target: target,
+      baselineRawIcs: baselineRawIcs,
+      input: input,
+    );
+    final recurrenceProperty = current.documentComponent.firstProperty(
+      'RECURRENCE-ID',
+    );
+    if (recurrenceProperty == null) throw _invalidMutation();
+    return DavMutationPatch(
+      target: target,
+      scope: DavMutationScope.occurrence,
+      operations: [
+        ...?update?.operations,
+        if (current.recurrenceRange != 'THISANDFUTURE')
+          DavPatchOperation.setRaw(
+            'RECURRENCE-ID',
+            recurrenceProperty.rawValue,
+            parameters: _withThisAndFuture(recurrenceProperty.parameters),
+          ),
+      ],
+    );
   }
   final timestamp = (nowUtc ?? (() => DateTime.now().toUtc()))().toUtc();
   final start = _eventTemporal(
@@ -251,7 +262,9 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
       _property(
         'RECURRENCE-ID',
         recurrence.raw,
-        parameters: recurrence.parameters,
+        parameters: thisAndFuture
+            ? _withThisAndFuture(recurrence.parameters)
+            : recurrence.parameters,
       ),
       _property('DTSTAMP', _utcIcal(timestamp)),
       if (sequence != null) _property('SEQUENCE', '${sequence + 1}'),
@@ -268,8 +281,7 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
         _property('TRANSP', value),
       if (input.categories.isNotEmpty)
         _property('CATEGORIES', _categories(input.categories)),
-      for (final minutes in reminderMinutes(input.reminders))
-        _displayAlarm(minutes),
+      ..._eventAlarmComponents(input.reminders),
     ],
     originalBeginLine: 'BEGIN:VEVENT',
     originalEndLine: 'END:VEVENT',
@@ -293,6 +305,7 @@ DavMutationPatch buildDavEventOccurrenceCancellationPatch({
   required String uid,
   required String occurrenceKey,
   required String baselineRawIcs,
+  bool thisAndFuture = false,
   DateTime Function()? nowUtc,
 }) {
   final semantic = IcalSemanticDocument.parse(baselineRawIcs);
@@ -301,7 +314,7 @@ DavMutationPatch buildDavEventOccurrenceCancellationPatch({
     (component) =>
         component.componentType == 'VEVENT' &&
         component.uid == uid &&
-        component.recurrenceIdKey == recurrence.key,
+        _recurrenceValueKey(component) == recurrence.key,
   );
   final target = IcalComponentKey(
     componentType: 'VEVENT',
@@ -310,10 +323,27 @@ DavMutationPatch buildDavEventOccurrenceCancellationPatch({
   );
   if (existing.length > 1) throw _invalidMutation();
   if (existing.length == 1) {
+    final component = existing.single;
+    final recurrenceProperty = component.documentComponent.firstProperty(
+      'RECURRENCE-ID',
+    );
+    if (recurrenceProperty == null) throw _invalidMutation();
     return DavMutationPatch(
-      target: target,
+      target: IcalComponentKey(
+        componentType: 'VEVENT',
+        uid: uid,
+        recurrenceIdKey: component.recurrenceIdKey,
+      ),
       scope: DavMutationScope.occurrence,
-      operations: [DavPatchOperation.setRaw('STATUS', 'CANCELLED')],
+      operations: [
+        DavPatchOperation.setRaw('STATUS', 'CANCELLED'),
+        if (thisAndFuture && component.recurrenceRange != 'THISANDFUTURE')
+          DavPatchOperation.setRaw(
+            'RECURRENCE-ID',
+            recurrenceProperty.rawValue,
+            parameters: _withThisAndFuture(recurrenceProperty.parameters),
+          ),
+      ],
     );
   }
   final master = semantic.components.where(
@@ -332,7 +362,9 @@ DavMutationPatch buildDavEventOccurrenceCancellationPatch({
       _property(
         'RECURRENCE-ID',
         recurrence.raw,
-        parameters: recurrence.parameters,
+        parameters: thisAndFuture
+            ? _withThisAndFuture(recurrence.parameters)
+            : recurrence.parameters,
       ),
       _property('DTSTAMP', _utcIcal(timestamp)),
       if (sequence != null) _property('SEQUENCE', '${sequence + 1}'),
@@ -826,6 +858,9 @@ List<int> reminderMinutes(Object? reminders) {
       }
     }
   }
+  if (map['minutes'] is List) {
+    values.addAll((map['minutes']! as List).whereType<int>());
+  }
   return values.where((value) => value >= 0).toSet().toList()..sort();
 }
 
@@ -981,16 +1016,109 @@ String _graphRecurrenceToRrule(Map recurrence) {
   return parts.join(';');
 }
 
-List<DavPatchOperation> _alarmOperations(
-  List<int> minutes, {
+List<DavPatchOperation> _eventAlarmOperations(
+  Object? reminders, {
   required int startIndex,
-}) => [
-  for (var index = 0; index < minutes.length; index += 1)
-    DavPatchOperation.replaceAlarm(
-      alarmIndex: startIndex + index,
-      alarm: _displayAlarm(minutes[index]),
-    ),
-];
+}) {
+  final alarms = _eventAlarmComponents(reminders);
+  return [
+    for (var index = 0; index < alarms.length; index += 1)
+      DavPatchOperation.replaceAlarm(
+        alarmIndex: startIndex + index,
+        alarm: alarms[index],
+      ),
+  ];
+}
+
+List<DavPatchOperation> _eventAlarmUpdateOperations(
+  IcalSemanticComponent current,
+  Object? reminders,
+) {
+  final projected = _projectedEventAlarms(reminders);
+  if (projected != null) {
+    return [
+      for (
+        var index = 0;
+        index < current.alarms.length && index < projected.length;
+        index += 1
+      )
+        DavPatchOperation.replaceAlarm(
+          alarmIndex: index,
+          alarm: projected[index],
+        ),
+      for (
+        var index = current.alarms.length - 1;
+        index >= projected.length;
+        index -= 1
+      )
+        DavPatchOperation.replaceAlarm(alarmIndex: index, alarm: null),
+      for (
+        var index = current.alarms.length;
+        index < projected.length;
+        index += 1
+      )
+        DavPatchOperation.replaceAlarm(
+          alarmIndex: index,
+          alarm: projected[index],
+        ),
+    ];
+  }
+
+  final desiredReminders = reminderMinutes(reminders);
+  final editableAlarms = _editableDisplayAlarms(current);
+  final currentReminders = [for (final alarm in editableAlarms) alarm.minutes];
+  if (_sameIntegers(currentReminders, desiredReminders)) return const [];
+  return [
+    for (
+      var index = 0;
+      index < editableAlarms.length && index < desiredReminders.length;
+      index += 1
+    )
+      DavPatchOperation.replaceAlarm(
+        alarmIndex: editableAlarms[index].index,
+        alarm: _displayAlarm(desiredReminders[index]),
+      ),
+    for (
+      var index = editableAlarms.length - 1;
+      index >= desiredReminders.length;
+      index -= 1
+    )
+      DavPatchOperation.replaceAlarm(
+        alarmIndex: editableAlarms[index].index,
+        alarm: null,
+      ),
+    for (
+      var index = editableAlarms.length;
+      index < desiredReminders.length;
+      index += 1
+    )
+      DavPatchOperation.replaceAlarm(
+        alarmIndex: current.alarms.length + index - editableAlarms.length,
+        alarm: _displayAlarm(desiredReminders[index]),
+      ),
+  ];
+}
+
+List<IcalComponent> _eventAlarmComponents(Object? reminders) {
+  return _projectedEventAlarms(reminders) ??
+      [
+        for (final minutes in reminderMinutes(reminders))
+          _displayAlarm(minutes),
+      ];
+}
+
+List<IcalComponent>? _projectedEventAlarms(Object? reminders) {
+  if (reminders is! Map || !reminders.containsKey('alarms')) return null;
+  final values = reminders['alarms'];
+  if (values is! List) throw _invalidMutation();
+  return [
+    for (final value in values)
+      if (value is Map)
+        IcalTaskAlarm.fromJson(value.cast<String, Object?>()).toComponent()
+      else
+        throw _invalidMutation(),
+  ];
+}
 
 IcalComponent _displayAlarm(int minutes) => IcalComponent(
   name: 'VALARM',
@@ -1004,9 +1132,10 @@ IcalComponent _displayAlarm(int minutes) => IcalComponent(
   structurallyDirty: true,
 );
 
-({int? index, List<int> minutes}) _editableDisplayAlarm(
+List<({int index, int minutes})> _editableDisplayAlarms(
   IcalSemanticComponent component,
 ) {
+  final result = <({int index, int minutes})>[];
   for (var index = 0; index < component.alarms.length; index += 1) {
     final alarm = component.alarms[index];
     if (alarm.firstProperty('ACTION')?.rawValue.toUpperCase() != 'DISPLAY') {
@@ -1017,10 +1146,10 @@ IcalComponent _displayAlarm(int minutes) => IcalComponent(
         ? null
         : RegExp(r'^-PT([0-9]+)M$').firstMatch(trigger);
     if (match != null) {
-      return (index: index, minutes: [int.parse(match.group(1)!)]);
+      result.add((index: index, minutes: int.parse(match.group(1)!)));
     }
   }
-  return (index: null, minutes: const []);
+  return result;
 }
 
 ({int? index, List<int> minutes}) _editableTaskDisplayAlarm(
@@ -1512,6 +1641,33 @@ _RecurrenceIdentity _recurrenceIdentity(String occurrenceKey) {
   if (key == null) throw _invalidMutation();
   return (raw: raw, parameters: parameters, key: key);
 }
+
+String? _recurrenceValueKey(IcalSemanticComponent component) {
+  final property = component.documentComponent.firstProperty('RECURRENCE-ID');
+  if (property == null) return null;
+  return icalRecurrenceIdKey(
+    IcalProperty(
+      group: property.group,
+      name: property.name,
+      parameters: [
+        for (final parameter in property.parameters)
+          if (parameter.name.toUpperCase() != 'RANGE') parameter,
+      ],
+      rawValue: property.rawValue,
+      originalPhysicalLines: const [],
+    ),
+  );
+}
+
+List<IcalParameter> _withThisAndFuture(List<IcalParameter> parameters) => [
+  for (final parameter in parameters)
+    if (parameter.name.toUpperCase() != 'RANGE') parameter,
+  const IcalParameter(
+    name: 'RANGE',
+    values: ['THISANDFUTURE'],
+    wasQuoted: false,
+  ),
+];
 
 typedef _RecurrenceIdentity = ({
   String raw,

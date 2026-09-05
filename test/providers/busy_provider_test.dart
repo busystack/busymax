@@ -6,18 +6,20 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('provider identity has exactly four stable storage values', () {
+  test('provider identity has stable storage values', () {
     expect(BusyProvider.values, [
       BusyProvider.google,
       BusyProvider.microsoft,
       BusyProvider.appleICloud,
       BusyProvider.nextcloud,
+      BusyProvider.webCal,
     ]);
     expect(BusyProvider.values.map((provider) => provider.storageValue), [
       'google',
       'microsoft',
       'apple_icloud',
       'nextcloud',
+      'webcal',
     ]);
   });
 

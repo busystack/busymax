@@ -44,4 +44,17 @@ class SyncRunsDao extends DatabaseAccessor<AppDatabase>
       ..limit(limit);
     return query.get();
   }
+
+  Future<SyncRun?> latestSuccessfulRun(String accountId) {
+    final query = select(syncRuns)
+      ..where(
+        (row) =>
+            row.accountId.equals(accountId) &
+            row.status.equals('success') &
+            row.finishedAtUtc.isNotNull(),
+      )
+      ..orderBy([(row) => OrderingTerm.desc(row.startedAtUtc)])
+      ..limit(1);
+    return query.getSingleOrNull();
+  }
 }

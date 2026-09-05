@@ -8,6 +8,7 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../accounts/data/accounts_repository.dart';

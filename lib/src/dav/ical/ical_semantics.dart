@@ -67,6 +67,7 @@ final class IcalSemanticComponent {
     required this.uid,
     required this.recurrenceIdKey,
     required this.recurrenceId,
+    required this.recurrenceRange,
     required this.summary,
     required this.description,
     required this.location,
@@ -123,6 +124,10 @@ final class IcalSemanticComponent {
         component.firstProperty('RECURRENCE-ID'),
       ),
       recurrenceId: parseIcalTemporal(component.firstProperty('RECURRENCE-ID')),
+      recurrenceRange: component
+          .firstProperty('RECURRENCE-ID')
+          ?.parameterValue('RANGE')
+          ?.toUpperCase(),
       summary: _text(component, 'SUMMARY'),
       description: _text(component, 'DESCRIPTION'),
       location: _text(component, 'LOCATION'),
@@ -160,6 +165,7 @@ final class IcalSemanticComponent {
   final String? uid;
   final String? recurrenceIdKey;
   final IcalTemporalValue? recurrenceId;
+  final String? recurrenceRange;
   final String? summary;
   final String? description;
   final String? location;
@@ -251,7 +257,15 @@ final class IcalSemanticDocument {
   });
 
   factory IcalSemanticDocument.parse(String rawIcs) {
-    final document = IcalDocument.parse(rawIcs);
+    return IcalSemanticDocument.fromDocument(IcalDocument.parse(rawIcs));
+  }
+
+  /// Builds the CalDAV semantic view from an already parsed document.
+  ///
+  /// This retains the existing one-component-type, one-UID recurrence-set
+  /// invariant. Multi-UID calendar ingestion must split a snapshot into
+  /// recurrence-set documents before using this factory.
+  factory IcalSemanticDocument.fromDocument(IcalDocument document) {
     final semanticComponents = <IcalSemanticComponent>[];
     final timeZones = <IcalComponent>[];
     for (final component in document.calendarComponents) {

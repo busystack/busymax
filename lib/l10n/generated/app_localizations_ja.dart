@@ -13,11 +13,107 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get windowsSupport => 'サポート';
+
+  @override
+  String get windowsThirdPartyLicenses => 'サードパーティ ライセンス';
+
+  @override
+  String get windowsSearch => '検索';
+
+  @override
+  String get windowsStartupDisabledByUser => 'Windows の設定でユーザーにより無効にされています。';
+
+  @override
+  String get windowsStartupDisabledByPolicy => 'Windows ポリシーにより無効にされています。';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'BusyMax を MSIX パッケージからインストールすると利用できます。';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'BusyMax を完全に終了するとリマインダーも停止します。受け取るにはバックグラウンドで実行したままにしてください。';
+
+  @override
+  String get windowsProductVersionLabel => '製品バージョン';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows パッケージ バージョン';
+
+  @override
+  String get windowsUnpackaged => 'パッケージ化されていません';
+
+  @override
+  String get windowsAgendaLoadMore => '予定をさらに読み込む';
+
+  @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': '月曜日',
+      'TU': '火曜日',
+      'WE': '水曜日',
+      'TH': '木曜日',
+      'FR': '金曜日',
+      'SA': '土曜日',
+      'SU': '日曜日',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return '$first、$second';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency$monthの$firstDayと$secondDay';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency$firstMonthと$secondMonthの$day';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency$firstMonthと$secondMonthの$firstDayと$secondDay';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency$firstMonthと$secondMonthの$days';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      'Google、Microsoft、Apple iCloud Calendar、または Nextcloud のアカウントを接続します。';
 
   @override
   String get googlePermissionsConsentNotice =>
@@ -41,7 +137,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      '使用するすべてのアカウントを追加します。BusyMax は各アカウントの対応するカレンダー、予定、タスクリスト、タスクを同期します。';
 
   @override
   String get onboardingPreferencesStepTitle => 'システム設定を選択';
@@ -118,6 +214,43 @@ class AppLocalizationsJa extends AppLocalizations {
   String get calendars => 'カレンダー';
 
   @override
+  String get newCalendar => '新しいカレンダー';
+
+  @override
+  String get calendarColor => 'カレンダーの色';
+
+  @override
+  String calendarColorOption(int number) {
+    return '色 $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'このプロバイダーのカレンダー管理は BusyMax ではサポートされていません。';
+
+  @override
+  String get primaryCalendarCannotDelete => 'メインカレンダーは削除できません。';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'カレンダーを作成できませんでした: $error';
+  }
+
+  @override
+  String get calendarCreatedRefreshPending =>
+      'カレンダーは作成されましたが、BusyMax はアカウントを更新できませんでした。次回の同期後に表示されます。';
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'カレンダーを更新できませんでした: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'カレンダーを削除できませんでした: $error';
+  }
+
+  @override
   String get newEvent => '新しい予定';
 
   @override
@@ -140,7 +273,11 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '他 $count 件';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '他 $countString 件';
   }
 
   @override
@@ -176,6 +313,101 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get trayOpenBusyMax => 'BusyMax を開く';
+
+  @override
+  String get trayShowBusyMax => 'BusyMax を表示';
+
+  @override
+  String get trayNewEvent => '新しい予定…';
+
+  @override
+  String get trayNewTask => '新しいタスク…';
+
+  @override
+  String get trayToday => '今日';
+
+  @override
+  String get trayAllDay => '終日';
+
+  @override
+  String get trayNow => '今';
+
+  @override
+  String get trayCalendarEvent => 'カレンダーの予定';
+
+  @override
+  String get trayUntitledEvent => '無題の予定';
+
+  @override
+  String get trayNothingElseToday => '今日はこれ以上ありません';
+
+  @override
+  String trayTasksDueToday(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '今日が期限のタスクは $count 件',
+      one: '今日が期限のタスクは 1 件',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trayOpenTodayAgenda => '今日の予定表を開く';
+
+  @override
+  String get traySyncNow => '今すぐ同期';
+
+  @override
+  String get traySyncing => '同期中…';
+
+  @override
+  String get trayNotConnected => '未接続';
+
+  @override
+  String get trayNotYetSynced => 'まだ同期されていません';
+
+  @override
+  String get trayLastSyncedJustNow => 'たった今同期';
+
+  @override
+  String trayLastSyncedMinutesAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 分前に同期',
+      one: '1 分前に同期',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 時間前に同期',
+      one: '1 時間前に同期',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedDaysAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 日前に同期',
+      one: '1 日前に同期',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get traySettings => '設定';
+
+  @override
+  String get trayQuitBusyMax => 'BusyMax を終了';
 
   @override
   String get agendaLoadMoreOverdue => '期限切れのタスクをさらに読み込む';
@@ -260,127 +492,122 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noGuests => 'ゲストなし';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => '必須';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => '任意';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => '会議';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => 'Google Meet を追加';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => 'Microsoft Teams 会議を追加';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => 'オンライン会議を追加しました';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => '返信をリクエスト';
 
   @override
-  String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+  String get requestResponsesDescription => 'ゲストに招待への返信を依頼します。';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => 'ゲストリストを非表示';
 
   @override
-  String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+  String get hideGuestListDescription => 'ゲストには他の招待者が表示されません。';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => '新しい日時の提案を許可';
 
   @override
-  String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+  String get allowNewTimeProposalsDescription => 'ゲストは別の会議時間を提案できます。';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => 'ゲストに通知しますか？';
 
   @override
-  String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+  String get notifyGuestsSaveMessage => 'この会議にはゲストがいます。保存時に招待または予定の更新を送信しますか？';
 
   @override
-  String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+  String get notifyGuestsDeleteMessage => 'この会議にはゲストがいます。削除時にキャンセルを送信しますか？';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => '更新を送信';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => 'キャンセルを送信';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => '送信しない';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => '会議を保存しますか？';
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+      'Microsoft からゲストに招待または予定の更新が送信されます。';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => '会議を削除しますか？';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+      'Microsoft からゲストにキャンセルが送信されます。';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => '主催者';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => '自分の返信';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => 'ゲストの返信';
 
   @override
-  String get respond => 'Respond';
+  String get respond => '返信';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => '承諾';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => '仮承諾';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => '辞退';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => '会議に参加';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => '承諾済み';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => '仮承諾';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => '辞退済み';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => '返信待ち';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => '未返信';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => '主催者';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return '返信を送信できませんでした: $error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => '会議リンクを開けませんでした。';
 
   @override
   String get description => '説明';
@@ -426,10 +653,14 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: '$minutes分前',
+      other: '$minutesString分前',
       one: '1分前',
     );
     return '$_temp0';
@@ -440,10 +671,14 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: '$hours時間前',
+      other: '$hoursString時間前',
       one: '1時間前',
     );
     return '$_temp0';
@@ -451,10 +686,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: '$days日前',
+      other: '$daysString日前',
       one: '1日前',
     );
     return '$_temp0';
@@ -636,7 +876,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Linux オペレーティングシステムのバージョンとアプリのロケールのみが追加されます。ログ、アカウントデータ、ファイル名、その他の診断情報は含まれません。';
+      'オペレーティングシステムの名前とバージョン、およびアプリのロケールのみが追加されます。ログ、アカウントデータ、ファイル名、その他の診断情報は含まれません。';
 
   @override
   String get feedbackCategoryRequired => 'カテゴリーを選択してください。';
@@ -718,12 +958,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return 'BusyMax から $account を削除しますか？';
+    return '$account を BusyMax から削除しますか？';
   }
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      'このデバイスから、キャッシュされたタスク、カレンダー、予定、リマインダー、保留中のオフライン変更を削除します。同期されていない変更は失われます。プロバイダー側のカレンダー、予定、タスクリスト、タスクのコピーは削除されません。';
 
   @override
   String get revokeGoogleAccess => 'この Google アカウントへの BusyMax のアクセス権も取り消す';
@@ -746,17 +986,17 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return 'タスクリストを作成できませんでした: $error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return 'タスクリストの名前を変更できませんでした: $error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return 'タスクリストを削除できませんでした: $error';
   }
 
   @override
@@ -784,12 +1024,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get unshare => '共有を解除';
 
   @override
-  String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+  String get readOnlyTaskListCannotRename => 'このタスクリストは読み取り専用のため、名前を変更できません。';
 
   @override
-  String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+  String get taskListCannotDelete => '現在の権限ではこのタスクリストを削除できません。';
 
   @override
   String get builtInMicrosoftList => '組み込み';
@@ -805,12 +1043,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return '「$title」とそのすべてのタスクを削除しますか？';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return 'このアカウントとの「$title」の共有を解除しますか？';
   }
 
   @override
@@ -935,13 +1173,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get doneStatus => '完了';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => 'ステータス';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => 'ステータスなし';
 
   @override
-  String get taskStatusNeedsAction => 'アクションが必要';
+  String get taskStatusNeedsAction => '要対応';
 
   @override
   String get taskStatusInProcess => '進行中';
@@ -950,57 +1188,73 @@ class AppLocalizationsJa extends AppLocalizations {
   String get taskStatusCompleted => '完了';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => 'キャンセル済み';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString% 完了';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => '完了日';
 
   @override
   String get priority => '優先度';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => '優先度なし';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '優先度 $priorityString · 高';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '優先度 $priorityString · 中';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '優先度 $priorityString · 低';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => 'タスク URL';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => 'スキームを含む絶対 URL を入力してください。';
 
   @override
-  String get classification => 'Classification';
+  String get classification => '分類';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => '共有時にタスク全体を表示';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential => '共有時に空き状況のみ表示';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => '共有時にこのタスクを非表示';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => 'タスクをピン留め';
 
   @override
   String get notes => 'メモ';
@@ -1039,82 +1293,85 @@ class AppLocalizationsJa extends AppLocalizations {
   String get addReminder => 'リマインダーを追加';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => 'リマインダー';
 
   @override
-  String get noReminders => 'No reminders';
+  String get noReminders => 'リマインダーなし';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => 'リマインダーを編集';
 
   @override
-  String get beforeTaskStarts => 'Before the task starts';
+  String get beforeTaskStarts => 'タスクの開始前';
 
   @override
-  String get beforeTaskDue => 'Before the task is due';
+  String get beforeTaskDue => 'タスクの期限前';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => 'タスクの開始後';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => 'タスクの期限後';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => 'タスクの開始日に対して';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => 'タスクの期限日に対して';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => '時刻';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => '日時を指定';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => '数値';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => '単位';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => '秒';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => '分';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => '時間';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => '日';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => '週';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => 'タスクの開始時';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => 'タスクの期限時刻';
 
   @override
-  String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+  String get unsupportedReminder => 'このリマインダーの種類は保持されますが、時刻は編集できません。';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => '関連するリマインダーを保持しますか？';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'この日付には関連するリマインダーが $countString 件あります。現在の日付と時刻を保持しますか？';
   }
 
   @override
-  String get discardRelatedReminders => 'Discard reminders';
+  String get discardRelatedReminders => 'リマインダーを破棄';
 
   @override
-  String get keepRelatedReminders => 'Keep reminders';
+  String get keepRelatedReminders => 'リマインダーを保持';
 
   @override
   String get addGuest => 'ゲストを追加';
@@ -1150,121 +1407,179 @@ class AppLocalizationsJa extends AppLocalizations {
   String get repeatYearly => '毎年';
 
   @override
-  String get repeatEvery => '毎日繰り返す';
+  String get repeatEvery => '繰り返し間隔';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => '繰り返す曜日';
 
   @override
-  String get repeatEnd => '繰り返し終了';
+  String get repeatEnd => '繰り返しを終了';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => 'なし';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => '指定日まで';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => '指定回数後';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => '繰り返し回数';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => '月の日';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => '月';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => '曜日の順番';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => '特定の曜日';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => '第 1';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => '第 2';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => '第 3';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => '第 4';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => '第 5';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => '最後から 2 番目';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => '最後';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => '日';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => '平日';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => '週末';
+
+  @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': '月曜日',
+      'TU': '火曜日',
+      'WE': '水曜日',
+      'TH': '木曜日',
+      'FR': '金曜日',
+      'SA': '土曜日',
+      'SU': '日曜日',
+      'day': '日',
+      'weekday': '平日',
+      'weekend': '週末',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString 日ごと';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString 週間ごと';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString か月ごと';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString 年ごと';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'on $days';
+    return '$days';
   }
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'on day $days';
+    return '$days';
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第1$days',
+      'second': '第2$days',
+      'third': '第3$days',
+      'fourth': '第4$days',
+      'fifth': '第5$days',
+      'secondToLast': '最後から2番目の$days',
+      'last': '最後の$days',
+      'other': '$days',
+    });
+    return '$_temp0';
   }
 
   @override
   String repeatInMonthsSummary(String months) {
-    return 'in $months';
+    return '$months に';
   }
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count回';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString 回',
+    );
+    return '$_temp0';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return '$dateまで';
+    return '$date まで';
   }
 
   @override
   String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+      'この繰り返しルールには、このエディターで変更されないオプションが含まれています。';
+
+  @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'この繰り返しは $provider では使用できません。';
+  }
 
   @override
   String get importance => '重要度';
@@ -1319,21 +1634,21 @@ class AppLocalizationsJa extends AppLocalizations {
   String get subtasks => 'サブタスク';
 
   @override
-  String get duplicateTask => 'Duplicate task';
+  String get duplicateTask => 'タスクを複製';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => 'タスクを複製しました。';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return 'タスクを複製できませんでした: $error';
   }
 
   @override
   String get hideSubtasks => 'サブタスクを非表示';
 
   @override
-  String get hideClosedSubtasks => 'Hide closed subtasks';
+  String get hideClosedSubtasks => '完了したサブタスクを非表示';
 
   @override
   String get moveToTop => '一番上に移動';
@@ -1389,7 +1704,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sync => '同期';
 
   @override
-  String get manualFullSync => '手動ですべて同期';
+  String get forceFullResync => '完全な再同期を強制';
+
+  @override
+  String get forceFullResyncDescription =>
+      '接続されているすべてのアカウントからデータを完全に再読み込みします。同期の問題を解決する場合にのみ使用してください。';
 
   @override
   String get runInBackgroundWhenClosed => 'ウィンドウを閉じてもバックグラウンドで実行を続ける';
@@ -1434,6 +1753,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get eventReminders => '予定のリマインダー';
 
   @override
+  String get onState => 'オン';
+
+  @override
   String get taskReminders => 'タスクのリマインダー';
 
   @override
@@ -1461,6 +1783,17 @@ class AppLocalizationsJa extends AppLocalizations {
   String get notifications => '通知';
 
   @override
+  String get windowsNotificationsUnavailable => 'Windows 通知を利用できません';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'このパッケージ化されていない開発実行では Windows 通知を使用できません。リマインダーをテストするには、テスト署名済み MSIX をインストールしてください。';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax は Windows 通知を初期化できませんでした。このインストールの問題が解決するまで、リマインダーは表示されません。';
+
+  @override
   String get appearance => '外観';
 
   @override
@@ -1468,6 +1801,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get themeSystem => 'システム';
+
+  @override
+  String get settingsSystem => 'システム';
 
   @override
   String get themeLight => 'ライト';
@@ -1543,7 +1879,11 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return '試行回数=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '試行回数=$countString';
   }
 
   @override
@@ -1595,10 +1935,14 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '今日が期限のタスクが$count件あります。',
+      other: '今日が期限のタスクが$countString件あります。',
       one: '今日が期限のタスクが1件あります。',
     );
     return '$_temp0';
@@ -1648,7 +1992,11 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return '第$number週';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return '第$numberString週';
   }
 
   @override
@@ -1656,10 +2004,14 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count件',
+      other: '$countString件',
       one: '1件',
     );
     return '$_temp0';
@@ -1678,14 +2030,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noLocationsFound => '場所が見つかりません';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => 'このフィールドは必須です。';
 
   @override
-  String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+  String get providerConnectionDescription => '次のいずれかのプロバイダーからカレンダーとタスクを接続します。';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'Apple iCloud カレンダー';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -1694,198 +2045,216 @@ class AppLocalizationsJa extends AppLocalizations {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'Nextcloud タスク';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => 'Apple iCloud カレンダーアカウントを追加';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => 'Nextcloud アカウントを追加';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => 'Apple iCloud に接続中…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => 'Nextcloud の認証を待機中…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => 'Apple iCloud カレンダーを接続';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'Apple アカウントのメールアドレス';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'App 用パスワード';
 
   @override
   String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+      'Apple アカウントで 2 要素認証を有効にした後、App 用パスワードを作成してください。';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      'Apple アカウントのパスワードをリセットすると、App 用パスワードが無効になります。';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => 'Nextcloud を接続';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'Nextcloud サーバーまたは CalDAV アドレス';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      'Nextcloud サーバーの URL を入力するか、Nextcloud からコピーしたプライマリ CalDAV アドレスを貼り付けてください。';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax がブラウザーを開きます。そこでアクセスを許可してから BusyMax に戻ってください。';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => '接続';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => '接続をキャンセル';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      'アカウントはローカルから削除されましたが、Nextcloud の App パスワードを無効にできませんでした。';
 
   @override
   String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+      'オフラインで使用できるよう、カレンダーとタスクのデータはローカルにキャッシュされます。';
 
   @override
-  String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+  String get davReauthenticationRequired => '同期を再開するには、このアカウントを再接続してください。';
 
   @override
-  String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+  String get davTemporarilyUnavailable => 'このアカウントは一時的に利用できません。';
 
   @override
-  String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+  String get davPermissionChanged => 'サーバーの権限が変更されました。保留中の編集は一時停止されています。';
 
   @override
-  String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+  String get davUnsupportedServer => 'このサーバーまたはプロバイダー プロファイルはサポートされていません。';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => 'カレンダーとタスクリスト';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => 'カレンダーの予定';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => 'タスク';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => '読み取り専用';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => 'ローカルで保留中';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => '競合によりブロック';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => '再接続するまでブロック';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => '操作に失敗';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => 'サーバーのバージョンを保持';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => 'ローカル変更を確認して再適用';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => '新しいアイテムとして複製';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => '接続状態';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => '接続済み';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => '接続中…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => 'サインアウト済み';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return '最後に成功した同期: $time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => 'まだ同期されていません';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => 'カレンダーとタスクリストを更新';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return 'サーバー: $host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => '予定カレンダー';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => 'タスクリスト';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => '予定とタスク';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => '書き込み可能';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => '共有';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return '最後の同期: $time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return '同期の問題: $code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => '同期の競合';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return 'サーバーでの変更: $time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return 'ローカル編集: $summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => '競合を解決できませんでした。';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => '繰り返し予定の範囲';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => '予定全体';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'この予定';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'この予定とこれ以降の予定';
+
+  @override
+  String get thisAndFutureUnavailable => 'このプロバイダーではサポートされていません。';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'この予定とこれ以降の予定を安全に移動することはできません。この予定または予定全体を選択してください。';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      '繰り返しルールがローカルにありません。代わりにこの予定だけを移動してください。';
+
+  @override
+  String get copyEventAndDeleteOriginal => '予定をコピーして元の予定を削除しますか？';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax はこの予定を $source から $destination へ直接移動できません。先にコピーを作成し、コピーが成功した場合にのみ元の予定を削除します。予定 ID は変更されます。出席者の回答状況がリセットされ、招待やキャンセルが送信される場合があります。また、会議リンク、添付ファイル、リマインダー、プロバイダー固有のフィールド、繰り返しの例外は引き継がれない場合があります。';
+  }
+
+  @override
+  String get copyAndDelete => 'コピーして削除';
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      'この変更を予定全体、この予定のみ、この予定とこれ以降の予定のどれに適用するか選択してください。';
 
   @override
   String get taskDueBeforeStart => '期限を開始より前に設定することはできません。';
@@ -1899,6 +2268,197 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'カスタム名を設定';
+
+  @override
+  String get setAction => '設定';
+
+  @override
+  String get removeFromMyCalendars => 'マイカレンダーから削除';
+
+  @override
+  String get removeAction => '削除';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return '「$title」を Google カレンダーのリストから削除しますか？共有カレンダーとその予定は削除されません。';
+  }
+
+  @override
+  String get calendarCannotRemove => 'このカレンダーはこのアカウントから削除または解除できません。';
+
+  @override
+  String get calendarPendingChangesPreventRemoval =>
+      '削除または解除する前に、このカレンダーの保留中の変更が同期されるまで待ってください。';
+
+  @override
+  String get calendarSubscriptions => 'カレンダーの登録';
+
+  @override
+  String get calendarSubscriptionsDescription =>
+      '安全な WebCal URL から更新される読み取り専用カレンダーを追加します。';
+
+  @override
+  String get addCalendarSubscription => 'カレンダー登録を追加';
+
+  @override
+  String get subscriptionName => 'ローカル名';
+
+  @override
+  String get subscriptionUrl => '登録 URL';
+
+  @override
+  String get subscriptionUrlHelp =>
+      'HTTPS または webcal URL を入力してください。BusyMax は完全な URL を安全なストレージに保存します。';
+
+  @override
+  String get subscriptionUrlInvalid =>
+      'ユーザー情報やフラグメントを含まない有効な HTTPS または webcal URL を入力してください。';
+
+  @override
+  String get subscriptionColor => 'ローカルの色';
+
+  @override
+  String get subscriptionColorHelp => '#3584E4 のような 6 桁の色を使用してください。';
+
+  @override
+  String get subscriptionColorInvalid => '6 桁の 16 進数カラーを入力してください。';
+
+  @override
+  String get subscriptionRefreshMode => '更新頻度';
+
+  @override
+  String get subscriptionAutomatic => '自動';
+
+  @override
+  String get subscriptionHourly => '毎時';
+
+  @override
+  String get subscriptionSixHours => '6 時間ごと';
+
+  @override
+  String get subscriptionDaily => '毎日';
+
+  @override
+  String subscriptionSafeOrigin(String origin) {
+    return 'ソース: $origin';
+  }
+
+  @override
+  String get subscriptionSafeOriginUnavailable =>
+      '安全なオリジンをプレビューするには有効な URL を入力してください。';
+
+  @override
+  String get subscriptionReadOnly => '読み取り専用の登録';
+
+  @override
+  String get subscriptionNeverRefreshed => 'まだ更新されていません';
+
+  @override
+  String subscriptionLastRefresh(String time) {
+    return '最後に成功した更新: $time';
+  }
+
+  @override
+  String subscriptionNextRefresh(String time) {
+    return '次回の更新: $time';
+  }
+
+  @override
+  String get subscriptionStatusHealthy => '最新';
+
+  @override
+  String subscriptionStatusIssue(String code) {
+    return '更新の問題: $code';
+  }
+
+  @override
+  String get refreshNow => '今すぐ更新';
+
+  @override
+  String get unsubscribe => '登録を解除';
+
+  @override
+  String unsubscribeCalendarTitle(String name) {
+    return '「$name」の登録を解除しますか？';
+  }
+
+  @override
+  String get unsubscribeCalendarConfirmation =>
+      'ローカル登録とキャッシュされた予定を削除します。公開されているカレンダーは変更されません。';
+
+  @override
+  String get addSubscriptionAction => '登録を追加';
+
+  @override
+  String subscriptionOperationFailed(String error) {
+    return 'カレンダー登録に失敗: $error';
+  }
+
+  @override
+  String get subscriptions => '登録';
+
+  @override
+  String get calendarImport => 'カレンダーをインポート';
+
+  @override
+  String get calendarImportDescription =>
+      'ファイルを選択して予定を確認し、受け入れ先の書き込み可能なカレンダーを選択します。';
+
+  @override
+  String get importIcsFile => '.ics ファイルをインポート';
+
+  @override
+  String get importIcsPreview => 'カレンダーの予定をインポート';
+
+  @override
+  String importEventsFound(int count) {
+    return 'インポート可能な予定セット: $count';
+  }
+
+  @override
+  String importInvalidEvents(int count) {
+    return '無効な予定: $count';
+  }
+
+  @override
+  String importFieldsOmitted(String fields) {
+    return '意図的に省略: $fields';
+  }
+
+  @override
+  String get noWritableCalendars => '書き込み可能な移行先カレンダーがありません。';
+
+  @override
+  String get importDestinationCalendar => '移行先カレンダー';
+
+  @override
+  String get importIcsConfirm => '予定をインポート';
+
+  @override
+  String get importIcsComplete => 'インポート完了';
+
+  @override
+  String importQueued(int count) {
+    return 'インポート済みまたはキュー済み: $count';
+  }
+
+  @override
+  String importDuplicatesSkipped(int count) {
+    return '重複をスキップ: $count';
+  }
+
+  @override
+  String importUnsupportedSets(int count) {
+    return 'サポートされない繰り返しセット: $count';
+  }
+
+  @override
+  String importIcsFailed(String error) {
+    return 'カレンダーファイルをインポートできませんでした: $error';
+  }
+
+  @override
   String get networkOffline => 'オフライン';
 
   @override
@@ -1906,4 +2466,139 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get networkOfflineTryAgain => 'オフラインです。インターネットに接続して、もう一度お試しください。';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return '$days';
+  }
+
+  @override
+  String get repeatSummarySeparator => '';
+
+  @override
+  String repeatMonthDayValue(String day) {
+    return '$day日';
+  }
+
+  @override
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first、$second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first、$second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$firstと$second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$firstと$second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first、$rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency$month$day';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency$monthの$days';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency$monthsの$day';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency$monthsの$days';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第1$days',
+      'second': '第2$days',
+      'third': '第3$days',
+      'fourth': '第4$days',
+      'fifth': '第5$days',
+      'secondToLast': '最後から2番目の$days',
+      'last': '最後の$days',
+      'other': '$days',
+    });
+    return '$frequency$monthの$_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '第1$days',
+      'second': '第2$days',
+      'third': '第3$days',
+      'fourth': '第4$days',
+      'fifth': '第5$days',
+      'secondToLast': '最後から2番目の$days',
+      'last': '最後の$days',
+      'other': '$days',
+    });
+    return '$frequency$monthsの$_temp0';
+  }
 }

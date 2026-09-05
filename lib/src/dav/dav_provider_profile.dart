@@ -37,7 +37,9 @@ final class DavProviderProfile {
       BusyProvider.nextcloud =>
         _sameOrigin(destination, accountAuthority) &&
             _preservesInstallationPath(destination, accountAuthority),
-      BusyProvider.google || BusyProvider.microsoft => false,
+      BusyProvider.google ||
+      BusyProvider.microsoft ||
+      BusyProvider.webCal => false,
     };
   }
 }
@@ -76,7 +78,9 @@ DavProviderProfile davProviderProfile(
     allowSchedulingMutations: false,
     allowMove: true,
   ),
-  BusyProvider.google || BusyProvider.microsoft => throw ArgumentError.value(
+  BusyProvider.google ||
+  BusyProvider.microsoft ||
+  BusyProvider.webCal => throw ArgumentError.value(
     provider,
     'provider',
     'The provider does not use the DAV transport.',

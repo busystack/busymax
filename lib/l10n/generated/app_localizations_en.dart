@@ -13,6 +13,103 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get windowsSupport => 'Support';
+
+  @override
+  String get windowsThirdPartyLicenses => 'Third-party licenses';
+
+  @override
+  String get windowsSearch => 'Search';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Disabled by the user in Windows Settings.';
+
+  @override
+  String get windowsStartupDisabledByPolicy => 'Disabled by Windows policy.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'Available after BusyMax is installed from an MSIX package.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'Reminders stop when BusyMax is fully quit. Keep it running in the background to receive them.';
+
+  @override
+  String get windowsProductVersionLabel => 'Product version';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows package version';
+
+  @override
+  String get windowsUnpackaged => 'Unpackaged';
+
+  @override
+  String get windowsAgendaLoadMore => 'Load more agenda items';
+
+  @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'Monday',
+      'TU': 'Tuesday',
+      'WE': 'Wednesday',
+      'TH': 'Thursday',
+      'FR': 'Friday',
+      'SA': 'Saturday',
+      'SU': 'Sunday',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return 'on days $first and $second';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency on days $firstDay and $secondDay of $month';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency on day $day of $firstMonth and $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency on days $firstDay and $secondDay of $firstMonth and $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency on days $days of $firstMonth and $secondMonth';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
@@ -118,6 +215,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendars => 'Calendars';
 
   @override
+  String get newCalendar => 'New calendar';
+
+  @override
+  String get calendarColor => 'Calendar color';
+
+  @override
+  String calendarColorOption(int number) {
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'Color $numberString';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'This provider does not support calendar management in BusyMax.';
+
+  @override
+  String get primaryCalendarCannotDelete =>
+      'The primary calendar cannot be deleted.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'Could not create the calendar: $error';
+  }
+
+  @override
+  String get calendarCreatedRefreshPending =>
+      'The calendar was created, but BusyMax could not refresh the account. It will appear after the next sync.';
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'Could not update the calendar: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'Could not delete the calendar: $error';
+  }
+
+  @override
   String get newEvent => 'New event';
 
   @override
@@ -140,7 +279,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count more';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '+$countString more';
   }
 
   @override
@@ -178,6 +321,117 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trayOpenBusyMax => 'Open BusyMax';
+
+  @override
+  String get trayShowBusyMax => 'Show BusyMax';
+
+  @override
+  String get trayNewEvent => 'New event…';
+
+  @override
+  String get trayNewTask => 'New task…';
+
+  @override
+  String get trayToday => 'Today';
+
+  @override
+  String get trayAllDay => 'All day';
+
+  @override
+  String get trayNow => 'Now';
+
+  @override
+  String get trayCalendarEvent => 'Calendar event';
+
+  @override
+  String get trayUntitledEvent => 'Untitled event';
+
+  @override
+  String get trayNothingElseToday => 'Nothing else today';
+
+  @override
+  String trayTasksDueToday(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString tasks due today',
+      one: '1 task due today',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trayOpenTodayAgenda => 'Open today’s agenda';
+
+  @override
+  String get traySyncNow => 'Sync now';
+
+  @override
+  String get traySyncing => 'Syncing…';
+
+  @override
+  String get trayNotConnected => 'Not connected';
+
+  @override
+  String get trayNotYetSynced => 'Not yet synced';
+
+  @override
+  String get trayLastSyncedJustNow => 'Last synced just now';
+
+  @override
+  String trayLastSyncedMinutesAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Last synced $countString minutes ago',
+      one: 'Last synced 1 minute ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedHoursAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Last synced $countString hours ago',
+      one: 'Last synced 1 hour ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedDaysAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Last synced $countString days ago',
+      one: 'Last synced 1 day ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get traySettings => 'Settings';
+
+  @override
+  String get trayQuitBusyMax => 'Quit BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'Load more overdue tasks';
@@ -428,10 +682,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: '$minutes minutes before',
+      other: '$minutesString minutes before',
       one: '1 minute before',
     );
     return '$_temp0';
@@ -442,10 +700,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: '$hours hours before',
+      other: '$hoursString hours before',
       one: '1 hour before',
     );
     return '$_temp0';
@@ -453,10 +715,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: '$days days before',
+      other: '$daysString days before',
       one: '1 day before',
     );
     return '$_temp0';
@@ -641,7 +908,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Adds only your Linux operating-system version and application locale. No logs, account data, file names, or other diagnostics are included.';
+      'Adds only your operating-system name and version and application locale. No logs, account data, file names, or other diagnostics are included.';
 
   @override
   String get feedbackCategoryRequired => 'Select a category.';
@@ -957,7 +1224,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get taskStatusNeedsAction => 'Needs action';
 
   @override
-  String get taskStatusInProcess => 'In process';
+  String get taskStatusInProcess => 'In progress';
 
   @override
   String get taskStatusCompleted => 'Completed';
@@ -967,7 +1234,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString% completed';
   }
 
   @override
@@ -981,17 +1252,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priority $priorityString · High';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priority $priorityString · Medium';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'Priority $priorityString · Low';
   }
 
   @override
@@ -1120,7 +1403,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'This date has $countString related reminders. Keep them at their current date and time?';
   }
 
   @override
@@ -1163,7 +1450,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get repeatYearly => 'Yearly';
 
   @override
-  String get repeatEvery => 'Repeat every';
+  String get repeatEvery => 'Interval';
 
   @override
   String get repeatOn => 'Repeat on';
@@ -1226,23 +1513,57 @@ class AppLocalizationsEn extends AppLocalizations {
   String get repeatWeekendDay => 'Weekend day';
 
   @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'Monday',
+      'TU': 'Tuesday',
+      'WE': 'Wednesday',
+      'TH': 'Thursday',
+      'FR': 'Friday',
+      'SA': 'Saturday',
+      'SU': 'Sunday',
+      'day': 'day',
+      'weekday': 'weekday',
+      'weekend': 'weekend day',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Every $countString days';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Every $countString weeks';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Every $countString months';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Every $countString years';
   }
 
   @override
@@ -1256,8 +1577,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'on the first $days',
+      'second': 'on the second $days',
+      'third': 'on the third $days',
+      'fourth': 'on the fourth $days',
+      'fifth': 'on the fifth $days',
+      'secondToLast': 'on the second to last $days',
+      'last': 'on the last $days',
+      'other': 'on $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -1267,7 +1598,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count times';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString times',
+      one: '$countString time',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -1278,6 +1619,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'This recurrence rule uses options that this editor does not change.';
+
+  @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'This recurrence cannot be used with $provider.';
+  }
 
   @override
   String get importance => 'Importance';
@@ -1402,7 +1748,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sync => 'Sync';
 
   @override
-  String get manualFullSync => 'Manual full sync';
+  String get forceFullResync => 'Force full resync';
+
+  @override
+  String get forceFullResyncDescription =>
+      'Completely reload data from every connected account. Use this only to troubleshoot synchronization problems.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -1449,6 +1799,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventReminders => 'Event reminders';
 
   @override
+  String get onState => 'On';
+
+  @override
   String get taskReminders => 'Task reminders';
 
   @override
@@ -1476,6 +1829,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifications => 'Notifications';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'Windows notifications are unavailable';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'This unpackaged development run cannot use Windows notifications. Install the test-signed MSIX to test reminders.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax could not initialize Windows notifications. Reminders will not appear until this installation problem is resolved.';
+
+  @override
   String get appearance => 'Appearance';
 
   @override
@@ -1483,6 +1848,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get themeSystem => 'System';
+
+  @override
+  String get settingsSystem => 'System';
 
   @override
   String get themeLight => 'Light';
@@ -1560,7 +1928,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return 'attempts=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'attempts=$countString';
   }
 
   @override
@@ -1613,10 +1985,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count tasks are due today.',
+      other: '$countString tasks are due today.',
       one: 'One task is due today.',
     );
     return '$_temp0';
@@ -1667,7 +2043,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return 'Week $number';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'Week $numberString';
   }
 
   @override
@@ -1675,10 +2055,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count items',
+      other: '$countString items',
       one: '1 item',
     );
     return '$_temp0';
@@ -1897,14 +2281,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get entireSeries => 'Entire series';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'This event';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'This and following events';
+
+  @override
+  String get thisAndFutureUnavailable => 'Not supported by this provider.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'This and following events cannot be moved safely. Choose this event or the entire series.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'The recurrence rule is not available locally. Move this event instead.';
+
+  @override
+  String get copyEventAndDeleteOriginal => 'Copy event and delete original?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax cannot move this event directly from $source to $destination. It will create the copy first and delete the original only after the copy succeeds. Event IDs will change; attendee response statuses may reset and invitations or cancellations may be sent; conference links, attachments, reminders, provider-specific fields, and recurrence exceptions may not carry over.';
+  }
+
+  @override
+  String get copyAndDelete => 'Copy and delete';
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      'Choose whether this change applies to the entire series, only this occurrence, or this and following events.';
 
   @override
   String get taskDueBeforeStart => 'Due must not be before start.';
@@ -1919,6 +2325,219 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => 'Set custom name';
+
+  @override
+  String get setAction => 'Set';
+
+  @override
+  String get removeFromMyCalendars => 'Remove from my calendars';
+
+  @override
+  String get removeAction => 'Remove';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Remove \"$title\" from your Google Calendar list? The shared calendar and its events will not be deleted.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'This calendar cannot be deleted or removed from this account.';
+
+  @override
+  String get calendarPendingChangesPreventRemoval =>
+      'Wait for this calendar’s pending changes to finish syncing before deleting or removing it.';
+
+  @override
+  String get calendarSubscriptions => 'Calendar subscriptions';
+
+  @override
+  String get calendarSubscriptionsDescription =>
+      'Add read-only calendars that refresh from a secure WebCal URL.';
+
+  @override
+  String get addCalendarSubscription => 'Add calendar subscription';
+
+  @override
+  String get subscriptionName => 'Local name';
+
+  @override
+  String get subscriptionUrl => 'Subscription URL';
+
+  @override
+  String get subscriptionUrlHelp =>
+      'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.';
+
+  @override
+  String get subscriptionUrlInvalid =>
+      'Enter a valid HTTPS or webcal URL without user information or a fragment.';
+
+  @override
+  String get subscriptionColor => 'Local color';
+
+  @override
+  String get subscriptionColorHelp => 'Use a six-digit color such as #3584E4.';
+
+  @override
+  String get subscriptionColorInvalid => 'Enter a six-digit hexadecimal color.';
+
+  @override
+  String get subscriptionRefreshMode => 'Refresh frequency';
+
+  @override
+  String get subscriptionAutomatic => 'Automatic';
+
+  @override
+  String get subscriptionHourly => 'Hourly';
+
+  @override
+  String get subscriptionSixHours => 'Every six hours';
+
+  @override
+  String get subscriptionDaily => 'Daily';
+
+  @override
+  String subscriptionSafeOrigin(String origin) {
+    return 'Source: $origin';
+  }
+
+  @override
+  String get subscriptionSafeOriginUnavailable =>
+      'Enter a valid URL to preview its safe origin.';
+
+  @override
+  String get subscriptionReadOnly => 'Read-only subscription';
+
+  @override
+  String get subscriptionNeverRefreshed => 'Not refreshed yet';
+
+  @override
+  String subscriptionLastRefresh(String time) {
+    return 'Last successful refresh: $time';
+  }
+
+  @override
+  String subscriptionNextRefresh(String time) {
+    return 'Next refresh: $time';
+  }
+
+  @override
+  String get subscriptionStatusHealthy => 'Up to date';
+
+  @override
+  String subscriptionStatusIssue(String code) {
+    return 'Refresh issue: $code';
+  }
+
+  @override
+  String get refreshNow => 'Refresh now';
+
+  @override
+  String get unsubscribe => 'Unsubscribe';
+
+  @override
+  String unsubscribeCalendarTitle(String name) {
+    return 'Unsubscribe from “$name”?';
+  }
+
+  @override
+  String get unsubscribeCalendarConfirmation =>
+      'This removes the local subscription and its cached events. The published calendar is not changed.';
+
+  @override
+  String get addSubscriptionAction => 'Add subscription';
+
+  @override
+  String subscriptionOperationFailed(String error) {
+    return 'Calendar subscription failed: $error';
+  }
+
+  @override
+  String get subscriptions => 'Subscriptions';
+
+  @override
+  String get calendarImport => 'Calendar import';
+
+  @override
+  String get calendarImportDescription =>
+      'Select a file, review its events, then choose the writable calendar that should receive them.';
+
+  @override
+  String get importIcsFile => 'Import .ics file';
+
+  @override
+  String get importIcsPreview => 'Import calendar events';
+
+  @override
+  String importEventsFound(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Importable event sets: $countString';
+  }
+
+  @override
+  String importInvalidEvents(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Invalid events: $countString';
+  }
+
+  @override
+  String importFieldsOmitted(String fields) {
+    return 'Intentionally omitted: $fields';
+  }
+
+  @override
+  String get noWritableCalendars =>
+      'No writable destination calendar is available.';
+
+  @override
+  String get importDestinationCalendar => 'Destination calendar';
+
+  @override
+  String get importIcsConfirm => 'Import events';
+
+  @override
+  String get importIcsComplete => 'Import complete';
+
+  @override
+  String importQueued(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Imported or queued: $countString';
+  }
+
+  @override
+  String importDuplicatesSkipped(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Duplicates skipped: $countString';
+  }
+
+  @override
+  String importUnsupportedSets(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Unsupported recurrence sets: $countString';
+  }
+
+  @override
+  String importIcsFailed(String error) {
+    return 'Could not import the calendar file: $error';
+  }
+
+  @override
   String get networkOffline => 'Offline';
 
   @override
@@ -1928,4 +2547,139 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'You’re offline. Connect to the internet and try again.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'on days $days';
+  }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(String day) {
+    return '$day';
+  }
+
+  @override
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first and $second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first and $second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first and $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first and $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency on $month $day';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency on days $days of $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency on day $day of $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency on days $days of $months';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'on the first $days of $month',
+      'second': 'on the second $days of $month',
+      'third': 'on the third $days of $month',
+      'fourth': 'on the fourth $days of $month',
+      'fifth': 'on the fifth $days of $month',
+      'secondToLast': 'on the second to last $days of $month',
+      'last': 'on the last $days of $month',
+      'other': 'on $days of $month',
+    });
+    return '$frequency $_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'on the first $days of $months',
+      'second': 'on the second $days of $months',
+      'third': 'on the third $days of $months',
+      'fourth': 'on the fourth $days of $months',
+      'fifth': 'on the fifth $days of $months',
+      'secondToLast': 'on the second to last $days of $months',
+      'last': 'on the last $days of $months',
+      'other': 'on $days of $months',
+    });
+    return '$frequency $_temp0';
+  }
 }

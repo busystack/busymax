@@ -2,12 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
-import 'package:intl/intl.dart';
 
 import '../../../app/app_settings.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
@@ -484,7 +484,6 @@ class _PlannerDayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
-    final locale = Localizations.localeOf(context).toLanguageTag();
     return Container(
       alignment: Alignment.center,
       decoration: BoxDecoration(
@@ -497,7 +496,11 @@ class _PlannerDayHeader extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            DateFormat.E(locale).format(day),
+            localizedWeekdayLabel(
+              Localizations.localeOf(context).toLanguageTag(),
+              day,
+              abbreviated: true,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(

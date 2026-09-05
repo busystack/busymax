@@ -23,6 +23,7 @@ CalendarSourceDto microsoftCalendarSourceFromJson(Map<String, Object?> json) {
     ),
     colorId: json['color']?.toString(),
     accessRole: canEdit is bool && canEdit ? 'writer' : 'reader',
+    isRemovable: json['isRemovable'] as bool?,
     isDeleted: json['@removed'] != null,
     rawJson: json,
   );
@@ -88,7 +89,7 @@ CalendarEventDto microsoftCalendarEventFromJson(
 Map<String, Object?> microsoftCalendarMutationToJson(
   CalendarMutation mutation,
 ) {
-  return _compact({'name': mutation.summary});
+  return _compact({'name': mutation.summary, 'color': mutation.colorId});
 }
 
 Map<String, Object?> microsoftEventMutationToJson(
@@ -120,6 +121,7 @@ Map<String, Object?> microsoftEventMutationToJson(
     'responseRequested': mutation.responseRequested,
     'hideAttendees': mutation.hideAttendees,
     'allowNewTimeProposals': mutation.allowNewTimeProposals,
+    'transactionId': mutation.transactionId,
     if (mutation.reminders is Map) ..._reminderPatch(mutation.reminders!),
     if (_onlineMeetingProvider(mutation.conference) != null) ...{
       'isOnlineMeeting': true,

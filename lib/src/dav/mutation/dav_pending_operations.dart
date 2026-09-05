@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../calendar_providers/calendar_mutation.dart';
 import '../../db/app_database.dart';
 import '../../features/accounts/domain/account_connection_state.dart';
 import '../../providers/busy_provider.dart';
@@ -393,8 +394,11 @@ final class DavPendingOperationQueue {
       objectId,
     );
     final destination = await _context(accountId, destinationCollectionId);
-    if (source.provider != BusyProvider.nextcloud ||
-        destination.provider != BusyProvider.nextcloud ||
+    final providerSupportsMove =
+        source.provider == BusyProvider.nextcloud ||
+        source.provider == BusyProvider.appleICloud;
+    if (!providerSupportsMove ||
+        destination.provider != source.provider ||
         source.collection.id == destination.collection.id) {
       throw _invalidPendingOperation();
     }
@@ -732,6 +736,17 @@ final class DavPendingOperationsReplayer {
       if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
         continue;
       }
+      if (_copyConfirmationMissing(op)) {
+        final error = const DavException(
+          kind: DavErrorKind.protocol,
+          code: 'DavEventCopyNotConfirmed',
+          safeMessage:
+              'The destination event was not confirmed, so the original was kept.',
+        );
+        await _markFailed(op, error);
+        await _reportPermanentFailure(op, error);
+        continue;
+      }
       try {
         await _markInProgress(op);
         final result = await _replay(op);
@@ -920,6 +935,7 @@ final class DavPendingOperationsReplayer {
               completedAtUtc: _nowUtc(),
             );
     }
+    await _confirmDependentCopyDeletes(op, canonical?.hrefKey);
     await _database.pendingOpsDao.deleteOp(op.id);
     if (op.operationType == 'dav.create') {
       if (op.eventId != null) {
@@ -943,6 +959,30 @@ final class DavPendingOperationsReplayer {
     }
     await _setAccountState(AccountConnectionState.connected);
     return affected;
+  }
+
+  Future<void> _confirmDependentCopyDeletes(
+    PendingOp completedCreate,
+    String? destinationHref,
+  ) async {
+    if (completedCreate.operationType != 'dav.create' ||
+        completedCreate.eventId == null) {
+      return;
+    }
+    final dependents = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.dependsOnOpId.equals(completedCreate.id))).get();
+    for (final dependent in dependents) {
+      final request = _requestObject(dependent);
+      if (request[calendarEventCopyConfirmationRequiredKey] != true) continue;
+      request[calendarEventCopyConfirmedKey] = true;
+      if (destinationHref != null) {
+        request[calendarEventCopyDestinationEventIdKey] = destinationHref;
+      }
+      await (_database.update(_database.pendingOps)
+            ..where((row) => row.id.equals(dependent.id)))
+          .write(PendingOpsCompanion(requestJson: Value(jsonEncode(request))));
+    }
   }
 
   Future<void> _recordConflict(PendingOp op, DavMutationResult result) async {
@@ -1127,6 +1167,19 @@ final class DavPendingOperationsReplayer {
 
   Future<bool> _opExists(String id) async =>
       await _database.pendingOpsDao.getOp(id) != null;
+
+  bool _copyConfirmationMissing(PendingOp op) {
+    final request = _requestObject(op);
+    return request[calendarEventCopyConfirmationRequiredKey] == true &&
+        request[calendarEventCopyConfirmedKey] != true;
+  }
+
+  Map<String, Object?> _requestObject(PendingOp op) {
+    final decoded = jsonDecode(op.requestJson);
+    return decoded is Map
+        ? Map<String, Object?>.from(decoded)
+        : <String, Object?>{};
+  }
 
   Future<DavCollection> _requiredCollection(PendingOp op) async {
     final id = _required(op.davCollectionId);

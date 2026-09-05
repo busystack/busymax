@@ -123,12 +123,16 @@ class NotificationScheduler {
         result = await _notifications.notifyEventReminder(
           row.title,
           row.body,
+          stableId: row.id,
+          payload: _activationPayload(row),
           onAction: (action) => _handleReminderAction(row, action),
         );
       } else if (row.sourceType == 'task') {
         result = await _notifications.notifyTaskReminder(
           row.title,
           row.body,
+          stableId: row.id,
+          payload: _activationPayload(row),
           onAction: (action) => _handleReminderAction(row, action),
         );
       } else {
@@ -150,6 +154,13 @@ class NotificationScheduler {
       }
     }
   }
+
+  Map<String, String> _activationPayload(NotificationScheduleData row) => {
+    'notificationScheduleId': row.id,
+    'itemKind': row.sourceType,
+    'accountId': row.accountId,
+    'itemId': row.sourceId,
+  };
 
   Future<void> _scheduleNextDueCheck() async {
     _dueTimer?.cancel();
@@ -256,6 +267,38 @@ class NotificationScheduler {
     _deferredUntilUtc.remove(row.id);
     _disabledNotificationIds.remove(row.id);
     await checkNow();
+  }
+
+  /// Routes a process-independent desktop activation through the same action
+  /// path used for an in-process notification callback.
+  Future<void> handleActivation({
+    required String notificationScheduleId,
+    required String action,
+  }) async {
+    final row =
+        await (_database.select(_database.notificationSchedule)
+              ..where((table) => table.id.equals(notificationScheduleId)))
+            .getSingleOrNull();
+    if (row == null) return;
+    final parsedAction = switch (action) {
+      'default' || 'open' => ReminderNotificationAction.open,
+      'snooze' => ReminderNotificationAction.snooze,
+      'dismiss' => ReminderNotificationAction.dismiss,
+      _ => null,
+    };
+    if (parsedAction == null) return;
+
+    // Snooze and dismiss are safe under duplicate Windows toast delivery.
+    if (parsedAction == ReminderNotificationAction.dismiss &&
+        row.dismissedAtUtc != null) {
+      return;
+    }
+    if (parsedAction == ReminderNotificationAction.snooze &&
+        row.snoozedUntilUtc != null &&
+        row.snoozedUntilUtc! > _nowUtc().millisecondsSinceEpoch) {
+      return;
+    }
+    await _handleReminderAction(row, parsedAction);
   }
 
   Future<List<String>> _signedInAccountIds() async {

@@ -30,6 +30,12 @@ final class NetworkConnectivityMonitor {
         connectivityChanges ?? platform.onConnectivityChanged;
   }
 
+  /// Keeps network requests enabled without querying a platform status API.
+  NetworkConnectivityMonitor.withoutPlatformObservation()
+    : initialCheckTimeout = const Duration(seconds: 5),
+      _checkConnectivity = _unknownConnectivityCheck,
+      _connectivityChanges = const Stream<List<ConnectivityResult>>.empty();
+
   final Duration initialCheckTimeout;
   late final ConnectivityCheck _checkConnectivity;
   late final Stream<List<ConnectivityResult>> _connectivityChanges;
@@ -185,6 +191,8 @@ final class NetworkConnectivityMonitor {
     await _changes.close();
   }
 }
+
+Future<List<ConnectivityResult>> _unknownConnectivityCheck() async => const [];
 
 final class ConnectivityAwareHttpClient extends http.BaseClient {
   ConnectivityAwareHttpClient({

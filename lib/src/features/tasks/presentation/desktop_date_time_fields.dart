@@ -7,6 +7,7 @@ import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/core/time/local_time_zone.dart';
 import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/l10n/l10n.dart';
+import 'package:busymax/src/l10n/localized_formatters.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
 import 'package:busymax/src/features/tasks/presentation/time_zone_selection_dialog.dart';
@@ -445,7 +446,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
 
   Widget _buildDateModeHeader(BuildContext context) {
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final monthLabel = DateFormat.MMMM(locale).format(_displayedMonth);
+    final monthLabel = localizedMonthHeading(locale, _displayedMonth);
     final colorScheme = Theme.of(context).colorScheme;
     final direction = Directionality.of(context);
 

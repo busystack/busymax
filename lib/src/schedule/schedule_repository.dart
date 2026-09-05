@@ -17,9 +17,13 @@ import 'schedule_range.dart';
 import 'schedule_sorting.dart';
 
 class ScheduleRepository {
-  const ScheduleRepository(this._database);
+  const ScheduleRepository(
+    this._database, {
+    Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
+  }) : _ensureProjectionCoverage = ensureProjectionCoverage;
 
   final AppDatabase _database;
+  final Future<void> Function(ScheduleRange range)? _ensureProjectionCoverage;
 
   Future<ScheduleTaskTarget?> findTaskTarget({
     required String accountId,
@@ -101,6 +105,9 @@ class ScheduleRepository {
     required ScheduleRange range,
     ScheduleFilters filters = const ScheduleFilters(),
   }) async {
+    if (filters.includeCalendarEvents) {
+      await _ensureProjectionCoverage?.call(range);
+    }
     final context = await _accountContext(filters);
     if (context == null) {
       return const [];
@@ -136,6 +143,41 @@ class ScheduleRepository {
               .toList();
     filtered.sort(compareScheduleItems);
     return filtered;
+  }
+
+  /// Lists every visible task without applying a calendar date window.
+  ///
+  /// The Tasks workspace is a complete task collection, unlike the Schedule
+  /// workspace, whose projections are intentionally bounded by a visible
+  /// range. Keeping this query here also ensures every platform observes the
+  /// same account, source, completion, search, and hierarchy rules.
+  Future<List<TaskScheduleItem>> listAllTasks({
+    ScheduleFilters filters = const ScheduleFilters(
+      includeCalendarEvents: false,
+      showCompletedTasks: true,
+      showNoDateTasks: true,
+    ),
+  }) async {
+    if (!filters.includeTasks) return const [];
+    final context = await _accountContext(filters);
+    if (context == null) return const [];
+
+    // `_taskItems` ignores this range when `searching` is true. Here that flag
+    // deliberately requests the same unbounded query used by global search.
+    final items = await _taskItems(
+      ScheduleRange.day(DateTime.now()),
+      filters,
+      true,
+      context.accountIds,
+      context.providers,
+      context.accountDisplayNames,
+      context.accountEmails,
+    );
+    final tasks = items.whereType<TaskScheduleItem>().where((item) {
+      return filters.query.trim().isEmpty ||
+          matchesScheduleQuery(item, filters.query);
+    }).toList()..sort(compareScheduleItems);
+    return ScheduleProjection.arrangeHierarchy(tasks);
   }
 
   Future<ScheduleTaskBucketPage> listOverdueTasks({
@@ -348,7 +390,11 @@ class ScheduleRepository {
           ])
           ..where(_database.calendarEvents.accountId.isIn(accountIds))
           ..where(_database.calendarEvents.isDeleted.equals(false))
-          ..where(_database.calendarEvents.isCancelled.equals(false));
+          ..where(_database.calendarEvents.isCancelled.equals(false))
+          ..where(
+            _database.calendarSources.isDeleted.isNull() |
+                _database.calendarSources.isDeleted.equals(false),
+          );
     if (filters.sourceFilterActive) {
       query.where(
         _database.calendarEvents.calendarSourceId.isIn(filters.sourceIds),
@@ -369,6 +415,9 @@ class ScheduleRepository {
       final organizer = _jsonMapFromString(event.organizerJson);
       final conference = _jsonValueFromString(event.conferenceJson);
       final raw = _jsonMapFromString(event.rawJson) ?? const {};
+      final isOrganizer = _eventIsOrganizer(provider, organizer, raw);
+      final sourceWritable =
+          source != null && !source.readOnly && !source.isDeleted;
       if (!searching && !_intersects(range, start, end)) {
         continue;
       }
@@ -391,7 +440,11 @@ class ScheduleRepository {
           attendees: attendees,
           organizer: organizer,
           joinMeetingUrl: _eventJoinMeetingUrl(provider, conference, raw),
-          isOrganizer: _eventIsOrganizer(provider, organizer, raw),
+          isOrganizer: isOrganizer,
+          guestsCanModify: provider == BusyProvider.google
+              ? raw['guestsCanModify'] == true
+              : null,
+          locked: provider == BusyProvider.google && raw['locked'] == true,
           currentUserResponse: _eventCurrentUserResponse(
             provider,
             attendees,
@@ -413,9 +466,12 @@ class ScheduleRepository {
           sourceName: source?.summary,
           accountDisplayName: accountDisplayNames[event.accountId],
           accountEmail: accountEmails[event.accountId],
-          capabilities: source != null && !source.readOnly && !source.isDeleted
-              ? ScheduleItemCapabilities.editable
-              : ScheduleItemCapabilities.readOnly,
+          capabilities: ScheduleItemCapabilities(
+            canEdit:
+                sourceWritable &&
+                _eventAllowsFullEditing(provider, isOrganizer, raw),
+            canDelete: sourceWritable,
+          ),
         ),
       );
     }
@@ -1171,8 +1227,21 @@ bool? _eventIsOrganizer(
   return switch (provider) {
     BusyProvider.google => organizer?['self'] as bool?,
     BusyProvider.microsoft => raw['isOrganizer'] as bool?,
-    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    BusyProvider.appleICloud ||
+    BusyProvider.nextcloud ||
+    BusyProvider.webCal => null,
   };
+}
+
+bool _eventAllowsFullEditing(
+  BusyProvider provider,
+  bool? isOrganizer,
+  Map<String, Object?> raw,
+) {
+  if (provider == BusyProvider.webCal) return false;
+  if (provider != BusyProvider.google) return true;
+  return raw['locked'] != true &&
+      (isOrganizer == true || raw['guestsCanModify'] == true);
 }
 
 String? _eventCurrentUserResponse(
@@ -1221,7 +1290,9 @@ String? _eventJoinMeetingUrl(
   final fallback = switch (provider) {
     BusyProvider.google => raw['hangoutLink']?.toString().trim(),
     BusyProvider.microsoft => raw['onlineMeetingUrl']?.toString().trim(),
-    BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+    BusyProvider.appleICloud ||
+    BusyProvider.nextcloud ||
+    BusyProvider.webCal => null,
   };
   return _isWebUrl(fallback) ? fallback : null;
 }
@@ -1265,7 +1336,8 @@ List<int> _eventReminderMinutes(
                 _ => const <Object?>[],
               },
       BusyProvider.appleICloud ||
-      BusyProvider.nextcloud => switch (map['minutes'] ?? map['overrides']) {
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => switch (map['minutes'] ?? map['overrides']) {
         final List<Object?> values => values,
         final int value => [value],
         _ => const <Object?>[],

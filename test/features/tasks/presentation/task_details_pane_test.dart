@@ -44,6 +44,7 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
   BusyProvider.microsoft => 'https://login.microsoftonline.com/common',
   BusyProvider.appleICloud => 'https://caldav.icloud.com',
   BusyProvider.nextcloud => 'https://cloud.example.test',
+  BusyProvider.webCal => 'https://calendar.example.test',
 };
 
 void main() {

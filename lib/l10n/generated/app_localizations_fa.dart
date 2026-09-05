@@ -13,11 +13,109 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get windowsSupport => 'پشتیبانی';
+
+  @override
+  String get windowsThirdPartyLicenses => 'مجوزهای شخص ثالث';
+
+  @override
+  String get windowsSearch => 'جستجو';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'کاربر این گزینه را در تنظیمات Windows غیرفعال کرده است.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'با خط‌مشی Windows غیرفعال شده است.';
+
+  @override
+  String get windowsStartupUnavailable =>
+      'پس از نصب BusyMax از بستهٔ MSIX در دسترس است.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'با خروج کامل از BusyMax یادآورها متوقف می‌شوند. برای دریافت آن‌ها برنامه را در پس‌زمینه فعال نگه دارید.';
+
+  @override
+  String get windowsProductVersionLabel => 'نسخهٔ محصول';
+
+  @override
+  String get windowsPackageVersionLabel => 'نسخهٔ بستهٔ Windows';
+
+  @override
+  String get windowsUnpackaged => 'بدون بسته';
+
+  @override
+  String get windowsAgendaLoadMore => 'بارگیری موارد بیشتر دستور کار';
+
+  @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'دوشنبه',
+      'TU': 'سه‌شنبه',
+      'WE': 'چهارشنبه',
+      'TH': 'پنجشنبه',
+      'FR': 'جمعه',
+      'SA': 'شنبه',
+      'SU': 'یکشنبه',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return 'در روزهای $first و $second ماه';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency در روزهای $firstDay و $secondDay ماه $month';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency در روز $day ماه‌های $firstMonth و $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency در روزهای $firstDay و $secondDay ماه‌های $firstMonth و $secondMonth';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency در روزهای $days ماه‌های $firstMonth و $secondMonth';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      'حساب‌های Google، Microsoft، Apple iCloud Calendar یا Nextcloud را متصل کنید.';
 
   @override
   String get googlePermissionsConsentNotice =>
@@ -41,7 +139,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      'همهٔ حساب‌هایی را که می‌خواهید استفاده کنید اضافه کنید. BusyMax تقویم‌ها، رویدادها، فهرست‌های کار و کارهای پشتیبانی‌شده را از هر حساب همگام می‌کند.';
 
   @override
   String get onboardingPreferencesStepTitle => 'انتخاب تنظیمات سیستم';
@@ -118,6 +216,47 @@ class AppLocalizationsFa extends AppLocalizations {
   String get calendars => 'تقویم‌ها';
 
   @override
+  String get newCalendar => 'تقویم جدید';
+
+  @override
+  String get calendarColor => 'رنگ تقویم';
+
+  @override
+  String calendarColorOption(int number) {
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return 'رنگ $numberString';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      'این ارائه‌دهنده از مدیریت تقویم در BusyMax پشتیبانی نمی‌کند.';
+
+  @override
+  String get primaryCalendarCannotDelete => 'تقویم اصلی را نمی‌توان حذف کرد.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return 'ایجاد تقویم ممکن نشد: ⁨$error⁩';
+  }
+
+  @override
+  String get calendarCreatedRefreshPending =>
+      'تقویم ایجاد شد، اما BusyMax نتوانست حساب را تازه‌سازی کند. پس از همگام‌سازی بعدی نمایش داده می‌شود.';
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return 'به‌روزرسانی تقویم ممکن نشد: ⁨$error⁩';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return 'حذف تقویم ممکن نشد: ⁨$error⁩';
+  }
+
+  @override
   String get newEvent => 'رویداد جدید';
 
   @override
@@ -183,6 +322,117 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get trayOpenBusyMax => 'باز کردن BusyMax';
+
+  @override
+  String get trayShowBusyMax => 'نمایش BusyMax';
+
+  @override
+  String get trayNewEvent => 'رویداد جدید…';
+
+  @override
+  String get trayNewTask => 'کار جدید…';
+
+  @override
+  String get trayToday => 'امروز';
+
+  @override
+  String get trayAllDay => 'تمام‌روز';
+
+  @override
+  String get trayNow => 'اکنون';
+
+  @override
+  String get trayCalendarEvent => 'رویداد تقویم';
+
+  @override
+  String get trayUntitledEvent => 'رویداد بدون عنوان';
+
+  @override
+  String get trayNothingElseToday => 'امروز مورد دیگری نیست';
+
+  @override
+  String trayTasksDueToday(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString کار امروز سررسید دارند',
+      one: '۱ کار امروز سررسید دارد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trayOpenTodayAgenda => 'باز کردن برنامهٔ امروز';
+
+  @override
+  String get traySyncNow => 'همگام‌سازی اکنون';
+
+  @override
+  String get traySyncing => 'در حال همگام‌سازی…';
+
+  @override
+  String get trayNotConnected => 'متصل نیست';
+
+  @override
+  String get trayNotYetSynced => 'هنوز همگام نشده';
+
+  @override
+  String get trayLastSyncedJustNow => 'همین الان همگام شد';
+
+  @override
+  String trayLastSyncedMinutesAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString دقیقه پیش همگام شد',
+      one: '۱ دقیقه پیش همگام شد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedHoursAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString ساعت پیش همگام شد',
+      one: '۱ ساعت پیش همگام شد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedDaysAgo(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString روز پیش همگام شد',
+      one: '۱ روز پیش همگام شد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get traySettings => 'تنظیمات';
+
+  @override
+  String get trayQuitBusyMax => 'خروج از BusyMax';
 
   @override
   String get agendaLoadMoreOverdue => 'بارگیری کارهای عقب‌افتادهٔ بیشتر';
@@ -264,130 +514,130 @@ class AppLocalizationsFa extends AppLocalizations {
   String get guests => 'مهمانان';
 
   @override
-  String get noGuests => 'بدون مهمان';
+  String get noGuests => 'فهرست مهمانان خالی است';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => 'ضروری';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => 'اختیاری';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => 'جلسه';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => 'افزودن Google Meet';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => 'افزودن جلسهٔ Microsoft Teams';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => 'جلسهٔ آنلاین افزوده شد';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => 'درخواست پاسخ';
 
   @override
   String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+      'از مهمانان بخواهید به دعوت‌نامه پاسخ دهند.';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => 'پنهان کردن فهرست مهمانان';
 
   @override
   String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+      'مهمانان نمی‌توانند ببینند چه افراد دیگری دعوت شده‌اند.';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => 'اجازهٔ پیشنهاد زمان‌های جدید';
 
   @override
   String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+      'مهمانان می‌توانند زمان دیگری برای جلسه پیشنهاد کنند.';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => 'مهمانان اطلاع داده شوند؟';
 
   @override
   String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+      'این جلسه مهمان دارد. هنگام ذخیره، دعوت‌نامه یا به‌روزرسانی رویداد برای آن‌ها ارسال شود؟';
 
   @override
   String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+      'این جلسه مهمان دارد. هنگام حذف، لغو جلسه ارسال شود؟';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => 'ارسال به‌روزرسانی‌ها';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => 'ارسال لغو';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => 'ارسال نکن';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => 'جلسه ذخیره شود؟';
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+      'Microsoft دعوت‌نامه یا به‌روزرسانی رویداد را برای مهمانان ارسال می‌کند.';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => 'جلسه حذف شود؟';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+      'Microsoft لغو جلسه را برای مهمانان ارسال می‌کند.';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => 'برگزارکننده';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => 'پاسخ شما';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => 'پاسخ مهمانان';
 
   @override
-  String get respond => 'Respond';
+  String get respond => 'پاسخ دادن';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => 'پذیرفتن';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => 'موقت';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => 'رد کردن';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => 'پیوستن به جلسه';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => 'پذیرفته‌شده';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => 'موقت';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => 'ردشده';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => 'در انتظار پاسخ';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => 'بی‌پاسخ';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => 'برگزارکننده';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return 'ارسال پاسخ شما ممکن نیست: ⁨$error⁩';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => 'باز کردن پیوند جلسه ممکن نیست.';
 
   @override
   String get description => 'توضیحات';
@@ -521,7 +771,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String tasksInList(String title) {
-    return 'کارهای ⁨$title⁩';
+    return 'کارهای ⁨⁨$title⁩⁩';
   }
 
   @override
@@ -662,7 +912,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'فقط نسخهٔ سیستم‌عامل Linux و تنظیمات منطقه‌ای برنامه افزوده می‌شود. هیچ گزارش، دادهٔ حساب، نام پرونده یا اطلاعات تشخیصی دیگری افزوده نمی‌شود.';
+      'فقط نام و نسخهٔ سیستم‌عامل و تنظیمات منطقه‌ای برنامه افزوده می‌شود. هیچ گزارش، دادهٔ حساب، نام پرونده یا اطلاعات تشخیصی دیگری افزوده نمی‌شود.';
 
   @override
   String get feedbackCategoryRequired => 'یک دسته‌بندی انتخاب کنید.';
@@ -700,7 +950,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String feedbackSuccess(String id) {
-    return 'بازخورد ارسال شد. شناسهٔ پیگیری: ⁨$id⁩';
+    return 'بازخورد ارسال شد. شناسهٔ پیگیری: ⁨⁨$id⁩⁩';
   }
 
   @override
@@ -748,12 +998,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return 'حذف ⁨$account⁩ از BusyMax؟';
+    return '⁨⁨$account⁩⁩ از BusyMax حذف شود؟';
   }
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      'این کار، کارها، تقویم‌ها، رویدادها، یادآورها و تغییرات آفلاین در انتظار را که در این دستگاه ذخیره شده‌اند حذف می‌کند. تغییرات همگام‌نشده از بین می‌روند. نسخه‌های تقویم‌ها، رویدادها، فهرست‌های کار و کارها نزد ارائه‌دهنده حذف نمی‌شوند.';
 
   @override
   String get revokeGoogleAccess =>
@@ -778,17 +1028,17 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return 'ایجاد فهرست کار ممکن نیست: ⁨$error⁩';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return 'تغییر نام فهرست کار ممکن نیست: ⁨$error⁩';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return 'حذف فهرست کار ممکن نیست: ⁨$error⁩';
   }
 
   @override
@@ -817,11 +1067,11 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+      'این فهرست کار فقط‌خواندنی است و نمی‌توان نام آن را تغییر داد.';
 
   @override
   String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+      'این فهرست کار با مجوزهای فعلی شما قابل حذف نیست.';
 
   @override
   String get builtInMicrosoftList => 'داخلی';
@@ -832,17 +1082,17 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return '«⁨$title⁩» از Google Tasks حذف شود؟';
+    return '‏«⁨⁨$title⁩⁩» از Google Tasks حذف شود؟';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return '‏«⁨$title⁩» و همهٔ کارهای آن حذف شوند؟';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return 'اشتراک‌گذاری «⁨$title⁩» از این حساب لغو شود؟';
   }
 
   @override
@@ -874,17 +1124,17 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String exportedFile(String path) {
-    return 'در ⁨$path⁩ خروجی گرفته شد';
+    return 'در ⁨⁨$path⁩⁩ خروجی گرفته شد';
   }
 
   @override
   String exportFailed(String error) {
-    return 'خروجی گرفتن ناموفق بود: ⁨$error⁩';
+    return 'خروجی گرفتن ناموفق بود: ⁨⁨$error⁩⁩';
   }
 
   @override
   String refreshFailed(String error) {
-    return 'تازه‌سازی ناموفق بود: ⁨$error⁩';
+    return 'تازه‌سازی ناموفق بود: ⁨⁨$error⁩⁩';
   }
 
   @override
@@ -927,12 +1177,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String duePrefix(String date) {
-    return 'سررسید: ⁨$date⁩';
+    return 'سررسید: ⁨⁨$date⁩⁩';
   }
 
   @override
   String dateTimeDisplay(String date, String time) {
-    return '⁨$date⁩ · ⁨$time⁩';
+    return '⁨⁨$date⁩⁩ · ⁨⁨$time⁩⁩';
   }
 
   @override
@@ -970,13 +1220,13 @@ class AppLocalizationsFa extends AppLocalizations {
   String get doneStatus => 'انجام‌شده';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => 'وضعیت';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => 'بدون وضعیت';
 
   @override
-  String get taskStatusNeedsAction => 'نیاز به اقدام';
+  String get taskStatusNeedsAction => 'نیازمند اقدام';
 
   @override
   String get taskStatusInProcess => 'در حال انجام';
@@ -985,57 +1235,74 @@ class AppLocalizationsFa extends AppLocalizations {
   String get taskStatusCompleted => 'انجام‌شده';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => 'لغوشده';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString٪ تکمیل‌شده';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => 'تاریخ تکمیل';
 
   @override
   String get priority => 'اولویت';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => 'بدون اولویت';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'اولویت $priorityString · زیاد';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'اولویت $priorityString · متوسط';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return 'اولویت $priorityString · کم';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => 'URL کار';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => 'یک URL مطلق شامل طرح آن وارد کنید.';
 
   @override
-  String get classification => 'Classification';
+  String get classification => 'دسته‌بندی';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => 'هنگام اشتراک‌گذاری، کل کار نشان داده شود';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential =>
+      'هنگام اشتراک‌گذاری، فقط مشغول بودن نشان داده شود';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => 'هنگام اشتراک‌گذاری، این کار پنهان شود';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => 'سنجاق کردن کار';
 
   @override
   String get notes => 'یادداشت‌ها';
@@ -1074,82 +1341,86 @@ class AppLocalizationsFa extends AppLocalizations {
   String get addReminder => 'افزودن یادآور';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => 'یادآورها';
 
   @override
-  String get noReminders => 'بدون یادآوری';
+  String get noReminders => 'بدون یادآور';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => 'ویرایش یادآور';
 
   @override
-  String get beforeTaskStarts => 'قبل از شروع کار';
+  String get beforeTaskStarts => 'پیش از شروع کار';
 
   @override
-  String get beforeTaskDue => 'قبل از موعد انجام کار';
+  String get beforeTaskDue => 'پیش از سررسید کار';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => 'پس از شروع کار';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => 'پس از سررسید کار';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => 'نسبت به تاریخ شروع کار';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => 'نسبت به تاریخ سررسید کار';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => 'زمان روز';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => 'در تاریخ و زمان مشخص';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => 'مقدار';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => 'واحد';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => 'ثانیه';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => 'دقیقه';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => 'ساعت';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => 'روز';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => 'هفته';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => 'هنگام شروع کار';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => 'هنگام سررسید کار';
 
   @override
   String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+      'نوع این یادآور حفظ می‌شود، اما زمان آن قابل ویرایش نیست.';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => 'یادآورهای مرتبط نگه داشته شوند؟';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'این تاریخ $countString یادآور مرتبط دارد. آن‌ها در تاریخ و زمان فعلی نگه داشته شوند؟';
   }
 
   @override
-  String get discardRelatedReminders => 'حذف یادآوری‌ها';
+  String get discardRelatedReminders => 'دور انداختن یادآورها';
 
   @override
-  String get keepRelatedReminders => 'نگه‌داشتن یادآوری‌ها';
+  String get keepRelatedReminders => 'نگه‌داشتن یادآورها';
 
   @override
   String get addGuest => 'افزودن مهمان';
@@ -1185,86 +1456,120 @@ class AppLocalizationsFa extends AppLocalizations {
   String get repeatYearly => 'سالانه';
 
   @override
-  String get repeatEvery => 'تکرار هر';
+  String get repeatEvery => 'فاصلهٔ تکرار';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => 'تکرار در';
 
   @override
   String get repeatEnd => 'پایان تکرار';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => 'هرگز';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => 'در تاریخ';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => 'پس از تعداد مشخصی تکرار';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => 'تعداد تکرار';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => 'روزهای ماه';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => 'ماه‌ها';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => 'جایگاه روز هفته';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => 'روزهای مشخص';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => 'اول';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => 'دوم';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => 'سوم';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => 'چهارم';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => 'پنجم';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => 'یکی مانده به آخر';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => 'آخر';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => 'روز';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => 'روز هفته';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => 'روز آخر هفته';
+
+  @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': 'دوشنبه',
+      'TU': 'سه‌شنبه',
+      'WE': 'چهارشنبه',
+      'TH': 'پنجشنبه',
+      'FR': 'جمعه',
+      'SA': 'شنبه',
+      'SU': 'یکشنبه',
+      'day': 'روز',
+      'weekday': 'روز هفته',
+      'weekend': 'روز آخر هفته',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'هر $countString روز';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'هر $countString هفته';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'هر $countString ماه';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'هر $countString سال';
   }
 
   @override
@@ -1274,12 +1579,22 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'در روز $days';
+    return 'در روز $days ماه';
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'در اولین $days',
+      'second': 'در دومین $days',
+      'third': 'در سومین $days',
+      'fourth': 'در چهارمین $days',
+      'fifth': 'در پنجمین $days',
+      'secondToLast': 'در یکی‌مانده‌به‌آخرین $days',
+      'last': 'در آخرین $days',
+      'other': 'در $days',
+    });
+    return '$_temp0';
   }
 
   @override
@@ -1289,17 +1604,32 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count بار';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString بار',
+      one: '$countString بار',
+    );
+    return '$_temp0';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return 'تا $date';
+    return 'تا ⁨$date⁩';
   }
 
   @override
   String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+      'این قانون تکرار از گزینه‌هایی استفاده می‌کند که این ویرایشگر تغییر نمی‌دهد.';
+
+  @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return 'این تکرار را نمی‌توان با ⁨$provider⁩ استفاده کرد.';
+  }
 
   @override
   String get importance => 'اهمیت';
@@ -1354,21 +1684,21 @@ class AppLocalizationsFa extends AppLocalizations {
   String get subtasks => 'زیرکارها';
 
   @override
-  String get duplicateTask => 'تکراری‌سازی وظیفه';
+  String get duplicateTask => 'تکرار کار';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => 'کار تکرار شد.';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return 'تکرار کار ممکن نیست: ⁨$error⁩';
   }
 
   @override
-  String get hideSubtasks => 'مخفی‌سازی زیروظیفه‌ها';
+  String get hideSubtasks => 'پنهان کردن زیروظیفه‌ها';
 
   @override
-  String get hideClosedSubtasks => 'مخفی‌سازی زیروظیفه‌های بسته‌شده';
+  String get hideClosedSubtasks => 'پنهان کردن زیروظیفه‌های بسته‌شده';
 
   @override
   String get moveToTop => 'انتقال به بالاترین جایگاه';
@@ -1381,7 +1711,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String deleteTaskConfirmation(String title) {
-    return '«⁨$title⁩» حذف شود؟';
+    return '«⁨⁨$title⁩⁩» حذف شود؟';
   }
 
   @override
@@ -1424,7 +1754,11 @@ class AppLocalizationsFa extends AppLocalizations {
   String get sync => 'همگام‌سازی';
 
   @override
-  String get manualFullSync => 'همگام‌سازی کامل دستی';
+  String get forceFullResync => 'اجبار به همگام‌سازی مجدد کامل';
+
+  @override
+  String get forceFullResyncDescription =>
+      'همهٔ داده‌های هر حساب متصل را به‌طور کامل دوباره بارگیری می‌کند. فقط برای عیب‌یابی مشکلات همگام‌سازی از این گزینه استفاده کنید.';
 
   @override
   String get runInBackgroundWhenClosed => 'ادامهٔ اجرا پس از بسته شدن پنجره';
@@ -1453,7 +1787,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String syncFailed(String error) {
-    return 'همگام‌سازی ناموفق بود: ⁨$error⁩';
+    return 'همگام‌سازی ناموفق بود: ⁨⁨$error⁩⁩';
   }
 
   @override
@@ -1467,6 +1801,9 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get eventReminders => 'یادآورهای رویداد';
+
+  @override
+  String get onState => 'روشن';
 
   @override
   String get taskReminders => 'یادآورهای کار';
@@ -1497,6 +1834,18 @@ class AppLocalizationsFa extends AppLocalizations {
   String get notifications => 'اعلان‌ها';
 
   @override
+  String get windowsNotificationsUnavailable =>
+      'اعلان‌های Windows در دسترس نیستند';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      'این اجرای توسعه‌ای بسته‌بندی‌نشده نمی‌تواند از اعلان‌های Windows استفاده کند. برای آزمایش یادآورها، MSIX امضاشدهٔ آزمایشی را نصب کنید.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax نتوانست اعلان‌های Windows را راه‌اندازی کند. تا برطرف شدن این مشکل نصب، یادآورها نمایش داده نمی‌شوند.';
+
+  @override
   String get appearance => 'ظاهر';
 
   @override
@@ -1504,6 +1853,9 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get themeSystem => 'سیستم';
+
+  @override
+  String get settingsSystem => 'سیستم';
 
   @override
   String get themeLight => 'روشن';
@@ -1544,7 +1896,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String discoveryRevision(String revision) {
-    return 'بازبینی Discovery: ⁨$revision⁩';
+    return 'بازبینی Discovery: ⁨⁨$revision⁩⁩';
   }
 
   @override
@@ -1573,12 +1925,12 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String pendingOpListId(String id) {
-    return 'فهرست=⁨$id⁩';
+    return 'فهرست=⁨⁨$id⁩⁩';
   }
 
   @override
   String pendingOpTaskId(String id) {
-    return 'کار=⁨$id⁩';
+    return 'کار=⁨⁨$id⁩⁩';
   }
 
   @override
@@ -1624,7 +1976,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String syncFailureNotificationBody(String message) {
-    return 'همگام‌سازی پس‌زمینه ناموفق بود. ⁨$message⁩';
+    return 'همگام‌سازی پس‌زمینه ناموفق بود. ⁨⁨$message⁩⁩';
   }
 
   @override
@@ -1632,7 +1984,7 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return 'یک تغییر محلی در انتظار مسدود شد. ⁨$summary⁩';
+    return 'یک تغییر محلی در انتظار مسدود شد. ⁨⁨$summary⁩⁩';
   }
 
   @override
@@ -1673,7 +2025,7 @@ class AppLocalizationsFa extends AppLocalizations {
   String get notificationSnoozeAction => 'تعویق ۱۰ دقیقه‌ای';
 
   @override
-  String get notificationDismissAction => 'رد کردن';
+  String get notificationDismissAction => 'بستن';
 
   @override
   String get notificationDetailsHidden =>
@@ -1738,14 +2090,14 @@ class AppLocalizationsFa extends AppLocalizations {
   String get noLocationsFound => 'مکانی پیدا نشد';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => 'این فیلد الزامی است.';
 
   @override
   String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+      'تقویم‌ها و کارها را از یکی از این ارائه‌دهندگان متصل کنید.';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'تقویم Apple iCloud';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -1754,198 +2106,220 @@ class AppLocalizationsFa extends AppLocalizations {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'کارهای Nextcloud';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => 'افزودن حساب تقویم Apple iCloud';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => 'افزودن حساب Nextcloud';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => 'در حال اتصال به Apple iCloud…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => 'در انتظار تأیید Nextcloud…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => 'اتصال تقویم Apple iCloud';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'ایمیل حساب Apple';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => 'گذرواژهٔ اختصاصی برنامه';
 
   @override
   String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+      'پس از فعال کردن احراز هویت دومرحله‌ای برای حساب Apple، یک گذرواژهٔ اختصاصی برنامه بسازید.';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      'بازنشانی گذرواژهٔ حساب Apple، گذرواژه‌های اختصاصی برنامه را باطل می‌کند.';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => 'اتصال Nextcloud';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'سرور Nextcloud یا نشانی CalDAV';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      'URL سرور Nextcloud خود را وارد کنید یا نشانی اصلی CalDAV را که از Nextcloud کپی کرده‌اید بچسبانید.';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax مرورگر شما را باز می‌کند. آنجا دسترسی را تأیید کنید و سپس به BusyMax برگردید.';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => 'اتصال';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => 'لغو اتصال';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      'حساب به‌صورت محلی حذف شد، اما ابطال گذرواژهٔ برنامهٔ Nextcloud ممکن نیست.';
 
   @override
   String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+      'داده‌های تقویم و کار برای استفادهٔ آفلاین به‌صورت محلی ذخیره می‌شوند.';
 
   @override
   String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+      'برای ادامهٔ همگام‌سازی، این حساب را دوباره متصل کنید.';
 
   @override
-  String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+  String get davTemporarilyUnavailable => 'این حساب موقتاً در دسترس نیست.';
 
   @override
   String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+      'مجوزهای سرور تغییر کرده‌اند. ویرایش‌های در انتظار متوقف شده‌اند.';
 
   @override
   String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+      'این سرور یا نمایهٔ ارائه‌دهنده پشتیبانی نمی‌شود.';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => 'تقویم‌ها و فهرست‌های کار';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => 'رویدادهای تقویم';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => 'کارها';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => 'فقط‌خواندنی';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => 'در انتظار محلی';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => 'مسدودشده به‌دلیل تعارض';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => 'تا اتصال دوباره مسدود است';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => 'عملیات ناموفق بود';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => 'نگه‌داشتن نسخهٔ سرور';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => 'بررسی و اعمال دوبارهٔ تغییر محلی';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => 'تکرار به‌عنوان مورد جدید';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => 'وضعیت اتصال';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => 'متصل';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => 'در حال اتصال…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => 'خارج‌شده';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return 'آخرین همگام‌سازی موفق: ⁨$time⁩';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => 'هنوز همگام نشده';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => 'تازه‌سازی تقویم‌ها و فهرست‌های کار';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return 'سرور: ⁨$host⁩';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => 'تقویم رویدادها';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => 'فهرست کار';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => 'رویدادها و کارها';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => 'قابل نوشتن';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => 'اشتراکی';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return 'آخرین همگام‌سازی: ⁨$time⁩';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return 'مشکل همگام‌سازی: ⁨$code⁩';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => 'تعارض‌های همگام‌سازی';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return 'تغییر سرور: ⁨$time⁩';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return 'ویرایش محلی: ⁨$summary⁩';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => 'حل تعارض ممکن نیست.';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => 'دامنهٔ رویداد تکرارشونده';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => 'کل مجموعه';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => 'این رویداد';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => 'این رویداد و رویدادهای بعدی';
+
+  @override
+  String get thisAndFutureUnavailable =>
+      'این ارائه‌دهنده از آن پشتیبانی نمی‌کند.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      'انتقال امن این رویداد و رویدادهای بعدی ممکن نیست. این رویداد یا کل مجموعه را انتخاب کنید.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      'قاعدهٔ تکرار به‌صورت محلی در دسترس نیست. به‌جای آن فقط این رویداد را منتقل کنید.';
+
+  @override
+  String get copyEventAndDeleteOriginal => 'رویداد کپی و نسخهٔ اصلی حذف شود؟';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax نمی‌تواند این رویداد را مستقیماً از ⁨$source⁩ به ⁨$destination⁩ منتقل کند. ابتدا کپی را ایجاد می‌کند و فقط پس از موفقیت کپی، نسخهٔ اصلی را حذف می‌کند. شناسه‌های رویداد تغییر می‌کنند؛ ممکن است وضعیت پاسخ شرکت‌کنندگان بازنشانی شود و دعوت‌نامه یا لغو ارسال شود؛ و شاید پیوندهای جلسه، پیوست‌ها، یادآورها، فیلدهای ویژهٔ ارائه‌دهنده و استثناهای تکرار منتقل نشوند.';
+  }
+
+  @override
+  String get copyAndDelete => 'کپی و حذف';
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      'انتخاب کنید این تغییر برای کل مجموعه، فقط این رویداد، یا این رویداد و رویدادهای بعدی اعمال شود.';
 
   @override
   String get taskDueBeforeStart => 'زمان سررسید نباید پیش از زمان شروع باشد.';
@@ -1956,7 +2330,219 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String deleteCalendarConfirmation(String title) {
-    return '«⁨$title⁩» حذف شود؟';
+    return '«⁨⁨$title⁩⁩» حذف شود؟';
+  }
+
+  @override
+  String get setCustomCalendarName => 'تنظیم نام سفارشی';
+
+  @override
+  String get setAction => 'تنظیم';
+
+  @override
+  String get removeFromMyCalendars => 'حذف از تقویم‌های من';
+
+  @override
+  String get removeAction => 'حذف';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return '«⁨$title⁩» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.';
+  }
+
+  @override
+  String get calendarCannotRemove =>
+      'این تقویم را نمی‌توان از این حساب حذف یا جدا کرد.';
+
+  @override
+  String get calendarPendingChangesPreventRemoval =>
+      'پیش از حذف یا جدا کردن این تقویم، صبر کنید تغییرات در انتظار آن همگام شوند.';
+
+  @override
+  String get calendarSubscriptions => 'اشتراک‌های تقویم';
+
+  @override
+  String get calendarSubscriptionsDescription =>
+      'تقویم‌های فقط‌خواندنی را اضافه کنید که از یک URL امن WebCal تازه می‌شوند.';
+
+  @override
+  String get addCalendarSubscription => 'افزودن اشتراک تقویم';
+
+  @override
+  String get subscriptionName => 'نام محلی';
+
+  @override
+  String get subscriptionUrl => 'URL اشتراک';
+
+  @override
+  String get subscriptionUrlHelp =>
+      'یک URL از نوع HTTPS یا webcal وارد کنید. BusyMax URL کامل را در فضای ذخیره‌سازی امن نگه می‌دارد.';
+
+  @override
+  String get subscriptionUrlInvalid =>
+      'یک URL معتبر HTTPS یا webcal بدون اطلاعات کاربر یا قطعه وارد کنید.';
+
+  @override
+  String get subscriptionColor => 'رنگ محلی';
+
+  @override
+  String get subscriptionColorHelp => 'یک رنگ شش‌رقمی مانند #3584E4 وارد کنید.';
+
+  @override
+  String get subscriptionColorInvalid => 'یک رنگ هگزادسیمال شش‌رقمی وارد کنید.';
+
+  @override
+  String get subscriptionRefreshMode => 'دفعات تازه‌سازی';
+
+  @override
+  String get subscriptionAutomatic => 'خودکار';
+
+  @override
+  String get subscriptionHourly => 'ساعتی';
+
+  @override
+  String get subscriptionSixHours => 'هر شش ساعت';
+
+  @override
+  String get subscriptionDaily => 'روزانه';
+
+  @override
+  String subscriptionSafeOrigin(String origin) {
+    return 'مبدأ: ⁨$origin⁩';
+  }
+
+  @override
+  String get subscriptionSafeOriginUnavailable =>
+      'برای پیش‌نمایش مبدأ امن، یک URL معتبر وارد کنید.';
+
+  @override
+  String get subscriptionReadOnly => 'اشتراک فقط‌خواندنی';
+
+  @override
+  String get subscriptionNeverRefreshed => 'هنوز تازه نشده';
+
+  @override
+  String subscriptionLastRefresh(String time) {
+    return 'آخرین تازه‌سازی موفق: ⁨$time⁩';
+  }
+
+  @override
+  String subscriptionNextRefresh(String time) {
+    return 'تازه‌سازی بعدی: ⁨$time⁩';
+  }
+
+  @override
+  String get subscriptionStatusHealthy => 'به‌روز';
+
+  @override
+  String subscriptionStatusIssue(String code) {
+    return 'مشکل تازه‌سازی: ⁨$code⁩';
+  }
+
+  @override
+  String get refreshNow => 'تازه‌سازی اکنون';
+
+  @override
+  String get unsubscribe => 'لغو اشتراک';
+
+  @override
+  String unsubscribeCalendarTitle(String name) {
+    return 'اشتراک «⁨$name⁩» لغو شود؟';
+  }
+
+  @override
+  String get unsubscribeCalendarConfirmation =>
+      'این کار اشتراک محلی و رویدادهای ذخیره‌شدهٔ آن را حذف می‌کند. تقویم منتشرشده تغییر نمی‌کند.';
+
+  @override
+  String get addSubscriptionAction => 'افزودن اشتراک';
+
+  @override
+  String subscriptionOperationFailed(String error) {
+    return 'اشتراک تقویم ناموفق بود: ⁨$error⁩';
+  }
+
+  @override
+  String get subscriptions => 'اشتراک‌ها';
+
+  @override
+  String get calendarImport => 'درون‌ریزی تقویم';
+
+  @override
+  String get calendarImportDescription =>
+      'یک فایل انتخاب کنید، رویدادهای آن را بررسی کنید و سپس تقویم قابل نوشتنی را که باید آن‌ها را دریافت کند انتخاب کنید.';
+
+  @override
+  String get importIcsFile => 'درون‌ریزی فایل .ics';
+
+  @override
+  String get importIcsPreview => 'درون‌ریزی رویدادهای تقویم';
+
+  @override
+  String importEventsFound(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'مجموعه رویدادهای قابل درون‌ریزی: $countString';
+  }
+
+  @override
+  String importInvalidEvents(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'رویدادهای نامعتبر: $countString';
+  }
+
+  @override
+  String importFieldsOmitted(String fields) {
+    return 'عمداً حذف‌شده: ⁨$fields⁩';
+  }
+
+  @override
+  String get noWritableCalendars => 'تقویم مقصد قابل نوشتنی موجود نیست.';
+
+  @override
+  String get importDestinationCalendar => 'تقویم مقصد';
+
+  @override
+  String get importIcsConfirm => 'درون‌ریزی رویدادها';
+
+  @override
+  String get importIcsComplete => 'درون‌ریزی کامل شد';
+
+  @override
+  String importQueued(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'درون‌ریزی‌شده یا در صف: $countString';
+  }
+
+  @override
+  String importDuplicatesSkipped(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'تکراری‌ها رد شدند: $countString';
+  }
+
+  @override
+  String importUnsupportedSets(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'مجموعه‌های تکرار پشتیبانی‌نشده: $countString';
+  }
+
+  @override
+  String importIcsFailed(String error) {
+    return 'درون‌ریزی فایل تقویم ممکن نیست: ⁨$error⁩';
   }
 
   @override
@@ -1969,4 +2555,139 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get networkOfflineTryAgain =>
       'آفلاین هستید. به اینترنت متصل شوید و دوباره تلاش کنید.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return 'در روزهای $days ماه';
+  }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(String day) {
+    return '$day';
+  }
+
+  @override
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first و $second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first و $second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first و $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first و $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first، $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency در روز $day ماه $month';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency در روزهای $days ماه $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency در روز $day ماه‌های $months';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency در روزهای $days ماه‌های $months';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'اولین',
+      'second': 'دومین',
+      'third': 'سومین',
+      'fourth': 'چهارمین',
+      'fifth': 'پنجمین',
+      'secondToLast': 'یکی‌مانده‌به‌آخرین',
+      'last': 'آخرین',
+      'other': '',
+    });
+    return '$frequency در $_temp0 $days ماه $month';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': 'اولین',
+      'second': 'دومین',
+      'third': 'سومین',
+      'fourth': 'چهارمین',
+      'fifth': 'پنجمین',
+      'secondToLast': 'یکی‌مانده‌به‌آخرین',
+      'last': 'آخرین',
+      'other': '',
+    });
+    return '$frequency در $_temp0 $days ماه‌های $months';
+  }
 }

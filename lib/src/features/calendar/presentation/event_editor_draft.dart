@@ -1,3 +1,4 @@
+import '../../../core/time/provider_date_time.dart';
 import '../../../providers/busy_provider.dart';
 import '../data/calendar_event_detail.dart';
 
@@ -6,6 +7,9 @@ enum RecurringEventMutationScope {
   singleOccurrence,
   thisAndFuture,
 }
+
+bool supportsThisAndFollowingEventMutation(BusyProvider provider) =>
+    provider != BusyProvider.microsoft;
 
 class EventAttendeeDraft {
   const EventAttendeeDraft({
@@ -103,7 +107,9 @@ class EventEditorDraft {
     required this.title,
     required this.allDay,
     this.eventId,
+    this.originalDetail,
     this.providerRecurringEventId,
+    this.eventType,
     this.recurringMutationScope,
     this.start,
     this.end,
@@ -116,6 +122,7 @@ class EventEditorDraft {
     this.recurrence,
     this.recurrenceChanged = false,
     this.reminders,
+    this.remindersChanged = false,
     this.attendees = const [],
     this.attendeesChanged = false,
     this.importance,
@@ -130,6 +137,7 @@ class EventEditorDraft {
     this.hideAttendees,
     this.allowNewTimeProposals,
     this.isOrganizer,
+    this.canManageAttendees = true,
   });
 
   factory EventEditorDraft.newEvent({
@@ -164,7 +172,9 @@ class EventEditorDraft {
     final isOrganizer = switch (detail.provider) {
       BusyProvider.google => _jsonBool(organizer?['self']),
       BusyProvider.microsoft => _jsonBool(raw['isOrganizer']),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
     };
     final hideAttendees = switch (detail.provider) {
       BusyProvider.google =>
@@ -172,26 +182,32 @@ class EventEditorDraft {
             ? !(raw['guestsCanSeeOtherGuests'] as bool)
             : null,
       BusyProvider.microsoft => _jsonBool(raw['hideAttendees']),
-      BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => null,
     };
 
     return EventEditorDraft.existing(
       eventId: detail.id,
+      originalDetail: detail,
       accountId: detail.accountId,
       sourceId: detail.sourceId,
       providerCalendarId: detail.providerCalendarId,
       providerRecurringEventId: detail.providerRecurringEventId,
+      eventType: detail.eventType,
       title: detail.title,
       allDay: detail.allDay,
       start: _eventEditorDateTime(
         allDay: detail.allDay,
         date: detail.startDate,
         dateTime: detail.startDateTime,
+        timeZone: detail.startTimeZone,
       ),
       end: _eventEditorDateTime(
         allDay: detail.allDay,
         date: detail.endDate,
         dateTime: detail.endDateTime,
+        timeZone: detail.endTimeZone,
       ),
       startTimeZone: detail.startTimeZone,
       endTimeZone: detail.endTimeZone,
@@ -215,11 +231,16 @@ class EventEditorDraft {
       hideAttendees: hideAttendees,
       allowNewTimeProposals: _jsonBool(raw['allowNewTimeProposals']),
       isOrganizer: isOrganizer,
+      canManageAttendees:
+          detail.provider != BusyProvider.google ||
+          isOrganizer == true ||
+          detail.guestsCanInviteOthers,
     );
   }
 
   factory EventEditorDraft.existing({
     required String eventId,
+    CalendarEventDetail? originalDetail,
     required String accountId,
     required String sourceId,
     required String providerCalendarId,
@@ -229,6 +250,7 @@ class EventEditorDraft {
     DateTime? end,
     String? location,
     String? providerRecurringEventId,
+    String? eventType,
     RecurringEventMutationScope? recurringMutationScope,
     String? description,
     String? descriptionContentType,
@@ -249,13 +271,16 @@ class EventEditorDraft {
     bool? hideAttendees,
     bool? allowNewTimeProposals,
     bool? isOrganizer,
+    bool canManageAttendees = true,
   }) {
     return EventEditorDraft(
       eventId: eventId,
+      originalDetail: originalDetail,
       accountId: accountId,
       sourceId: sourceId,
       providerCalendarId: providerCalendarId,
       providerRecurringEventId: providerRecurringEventId,
+      eventType: eventType,
       recurringMutationScope: recurringMutationScope,
       title: title,
       allDay: allDay,
@@ -281,11 +306,14 @@ class EventEditorDraft {
       hideAttendees: hideAttendees,
       allowNewTimeProposals: allowNewTimeProposals,
       isOrganizer: isOrganizer,
+      canManageAttendees: canManageAttendees,
     );
   }
 
   final String? eventId;
+  final CalendarEventDetail? originalDetail;
   final String? providerRecurringEventId;
+  final String? eventType;
   final RecurringEventMutationScope? recurringMutationScope;
   final String accountId;
   final String sourceId;
@@ -305,6 +333,9 @@ class EventEditorDraft {
   /// True only after the editor deliberately changes the hydrated value.
   final bool recurrenceChanged;
   final Object? reminders;
+
+  /// True only after the editor deliberately changes the hydrated value.
+  final bool remindersChanged;
   final List<EventAttendeeDraft> attendees;
 
   /// True only after the editor deliberately changes the hydrated list.
@@ -323,6 +354,7 @@ class EventEditorDraft {
   final bool? hideAttendees;
   final bool? allowNewTimeProposals;
   final bool? isOrganizer;
+  final bool canManageAttendees;
 
   bool get canSave {
     final start = this.start;
@@ -355,6 +387,7 @@ class EventEditorDraft {
     Object? recurrence,
     bool? recurrenceChanged,
     Object? reminders,
+    bool? remindersChanged,
     List<EventAttendeeDraft>? attendees,
     bool? attendeesChanged,
     String? importance,
@@ -369,6 +402,7 @@ class EventEditorDraft {
     bool? hideAttendees,
     bool? allowNewTimeProposals,
     bool? isOrganizer,
+    bool? canManageAttendees,
     RecurringEventMutationScope? recurringMutationScope,
     bool clearLocation = false,
     bool clearDescription = false,
@@ -383,7 +417,9 @@ class EventEditorDraft {
   }) {
     return EventEditorDraft(
       eventId: eventId,
+      originalDetail: originalDetail,
       providerRecurringEventId: providerRecurringEventId,
+      eventType: eventType,
       recurringMutationScope: clearRecurringMutationScope
           ? null
           : recurringMutationScope ?? this.recurringMutationScope,
@@ -409,6 +445,9 @@ class EventEditorDraft {
           recurrenceChanged ??
           (this.recurrenceChanged || recurrence != null || clearRecurrence),
       reminders: clearReminders ? null : reminders ?? this.reminders,
+      remindersChanged:
+          remindersChanged ??
+          (this.remindersChanged || reminders != null || clearReminders),
       attendees: attendees ?? this.attendees,
       attendeesChanged:
           attendeesChanged ?? (this.attendeesChanged || attendees != null),
@@ -428,6 +467,7 @@ class EventEditorDraft {
       allowNewTimeProposals:
           allowNewTimeProposals ?? this.allowNewTimeProposals,
       isOrganizer: isOrganizer ?? this.isOrganizer,
+      canManageAttendees: canManageAttendees ?? this.canManageAttendees,
     );
   }
 
@@ -435,7 +475,9 @@ class EventEditorDraft {
   bool operator ==(Object other) {
     return other is EventEditorDraft &&
         other.eventId == eventId &&
+        other.originalDetail == originalDetail &&
         other.providerRecurringEventId == providerRecurringEventId &&
+        other.eventType == eventType &&
         other.recurringMutationScope == recurringMutationScope &&
         other.accountId == accountId &&
         other.sourceId == sourceId &&
@@ -453,6 +495,7 @@ class EventEditorDraft {
         other.recurrence == recurrence &&
         other.recurrenceChanged == recurrenceChanged &&
         other.reminders == reminders &&
+        other.remindersChanged == remindersChanged &&
         _listEquals(other.attendees, attendees) &&
         other.attendeesChanged == attendeesChanged &&
         other.importance == importance &&
@@ -466,13 +509,16 @@ class EventEditorDraft {
         other.responseRequested == responseRequested &&
         other.hideAttendees == hideAttendees &&
         other.allowNewTimeProposals == allowNewTimeProposals &&
-        other.isOrganizer == isOrganizer;
+        other.isOrganizer == isOrganizer &&
+        other.canManageAttendees == canManageAttendees;
   }
 
   @override
   int get hashCode => Object.hashAll([
     eventId,
+    originalDetail,
     providerRecurringEventId,
+    eventType,
     recurringMutationScope,
     accountId,
     sourceId,
@@ -490,6 +536,7 @@ class EventEditorDraft {
     recurrence,
     recurrenceChanged,
     reminders,
+    remindersChanged,
     Object.hashAll(attendees),
     attendeesChanged,
     importance,
@@ -504,6 +551,7 @@ class EventEditorDraft {
     hideAttendees,
     allowNewTimeProposals,
     isOrganizer,
+    canManageAttendees,
   ]);
 }
 
@@ -526,25 +574,11 @@ DateTime? _eventEditorDateTime({
   required bool allDay,
   required String? date,
   required String? dateTime,
+  required String? timeZone,
 }) {
   final value = allDay ? date ?? dateTime : dateTime;
   if (value == null || value.isEmpty) return null;
-  if (allDay) {
-    return DateTime.tryParse(
-      value.length >= 10 ? value.substring(0, 10) : value,
-    );
-  }
-  final offsetWallTime = _parseOffsetWallDateTime(value);
-  if (offsetWallTime != null) return offsetWallTime;
-  final parsed = DateTime.tryParse(value);
-  if (parsed == null) return null;
-  return parsed.isUtc ? parsed.toLocal() : parsed;
-}
-
-DateTime? _parseOffsetWallDateTime(String value) {
-  if (!RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value)) return null;
-  final wallTime = value.replaceFirst(RegExp(r'[+-]\d{2}:?\d{2}$'), '');
-  return DateTime.tryParse(wallTime);
+  return providerDateTimeAsWallTime(value, timeZone);
 }
 
 Map<String, Object?> _jsonMap(Object? value) {

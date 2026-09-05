@@ -1,14 +1,31 @@
 {
   "@@locale": "vi",
+  "windowsSupport": "Hỗ trợ",
+  "windowsThirdPartyLicenses": "Giấy phép bên thứ ba",
+  "windowsSearch": "Tìm kiếm",
+  "windowsStartupDisabledByUser": "Người dùng đã tắt trong Cài đặt Windows.",
+  "windowsStartupDisabledByPolicy": "Đã tắt theo chính sách Windows.",
+  "windowsStartupUnavailable": "Khả dụng sau khi cài đặt BusyMax từ gói MSIX.",
+  "windowsReminderExitNotice": "Lời nhắc sẽ dừng khi thoát hẳn BusyMax. Hãy để ứng dụng chạy trong nền để nhận lời nhắc.",
+  "windowsProductVersionLabel": "Phiên bản sản phẩm",
+  "windowsPackageVersionLabel": "Phiên bản gói Windows",
+  "windowsUnpackaged": "Chưa đóng gói",
+  "windowsAgendaLoadMore": "Tải thêm mục lịch biểu",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{Thứ Hai} TU{Thứ Ba} WE{Thứ Tư} TH{Thứ Năm} FR{Thứ Sáu} SA{Thứ Bảy} SU{Chủ Nhật} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "vào các ngày {first} và {second}",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} vào các ngày {firstDay} và {secondDay} của {month}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} vào ngày {day} của {firstMonth} và {secondMonth}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} vào các ngày {firstDay} và {secondDay} của {firstMonth} và {secondMonth}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} vào các ngày {days} của {firstMonth} và {secondMonth}",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "connectGoogleAccount": "Kết nối tài khoản Google, Microsoft, Apple iCloud Calendar hoặc Nextcloud.",
   "googlePermissionsConsentNotice": "Trên màn hình cấp quyền của Google, hãy chọn cả quyền truy cập Lịch và Công việc.",
   "googlePermissionsRequiredRetry": "Cần có quyền truy cập Google Calendar và Google Tasks. Vui lòng thử lại và chọn cả hai hộp kiểm.",
   "finishSetup": "Hoàn tất thiết lập",
   "continueSetup": "Tiếp tục",
   "onboardingSetupTitle": "Thiết lập BusyMax",
   "onboardingAccountsStepTitle": "Kết nối tài khoản",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "onboardingAccountsStepDescription": "Thêm mọi tài khoản bạn muốn sử dụng. BusyMax đồng bộ lịch, sự kiện, danh sách công việc và công việc được hỗ trợ từ từng tài khoản.",
   "onboardingPreferencesStepTitle": "Chọn cài đặt hệ thống",
   "onboardingPreferencesStepDescription": "Thiết lập cách ứng dụng hoạt động trên máy tính, lời nhắc, mức độ chi tiết của thông báo và giao diện trước khi mở lịch biểu.",
   "signInWithGoogle": "Đăng nhập bằng Google",
@@ -33,6 +50,43 @@
   "calendarTasks": "Công việc",
   "calendar": "Lịch",
   "calendars": "Lịch",
+  "newCalendar": "Lịch mới",
+  "calendarColor": "Màu lịch",
+  "calendarColorOption": "Màu {number}",
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarManagementUnsupported": "Nhà cung cấp này không hỗ trợ quản lý lịch trong BusyMax.",
+  "primaryCalendarCannotDelete": "Không thể xóa lịch chính.",
+  "calendarCreateFailed": "Không thể tạo lịch: {error}",
+  "calendarCreatedRefreshPending": "Lịch đã được tạo nhưng BusyMax không thể làm mới tài khoản. Lịch sẽ xuất hiện sau lần đồng bộ tiếp theo.",
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarUpdateFailed": "Không thể cập nhật lịch: {error}",
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarDeleteFailed": "Không thể xóa lịch: {error}",
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "newEvent": "Sự kiện mới",
   "refreshCalendar": "Làm mới lịch",
   "openInProvider": "Mở trong dịch vụ",
@@ -52,6 +106,55 @@
   "scheduleNoSearchResultsDescription": "Thử tìm kiếm khác hoặc xóa các bộ lọc hiện tại.",
   "refresh": "Làm mới",
   "trayOpenBusyMax": "Mở BusyMax",
+  "trayShowBusyMax": "Hiển thị BusyMax",
+  "trayNewEvent": "Sự kiện mới…",
+  "trayNewTask": "Công việc mới…",
+  "trayToday": "Hôm nay",
+  "trayAllDay": "Cả ngày",
+  "trayNow": "Bây giờ",
+  "trayCalendarEvent": "Sự kiện lịch",
+  "trayUntitledEvent": "Sự kiện chưa có tiêu đề",
+  "trayNothingElseToday": "Hôm nay không còn gì khác",
+  "trayTasksDueToday": "{count, plural, =1{1 công việc đến hạn hôm nay} other{{count} công việc đến hạn hôm nay}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "Mở lịch hôm nay",
+  "traySyncNow": "Đồng bộ ngay",
+  "traySyncing": "Đang đồng bộ…",
+  "trayNotConnected": "Chưa kết nối",
+  "trayNotYetSynced": "Chưa đồng bộ",
+  "trayLastSyncedJustNow": "Vừa đồng bộ",
+  "trayLastSyncedMinutesAgo": "{count, plural, =1{Đồng bộ 1 phút trước} other{Đồng bộ {count} phút trước}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, =1{Đồng bộ 1 giờ trước} other{Đồng bộ {count} giờ trước}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, =1{Đồng bộ 1 ngày trước} other{Đồng bộ {count} ngày trước}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traySettings": "Cài đặt",
+  "trayQuitBusyMax": "Thoát BusyMax",
   "agendaLoadMoreOverdue": "Tải thêm công việc quá hạn",
   "agendaLoadMoreNoDate": "Tải thêm công việc không có ngày",
   "viewDay": "Ngày",
@@ -78,7 +181,7 @@
   "doesNotRepeat": "Không lặp lại",
   "defaultReminder": "Lời nhắc mặc định",
   "guests": "Khách mời",
-  "noGuests": "Không có khách mời",
+  "noGuests": "Không có khách",
   "description": "Mô tả",
   "availabilityShowAs": "Tình trạng rảnh/bận / Hiển thị là",
   "busy": "Bận",
@@ -154,7 +257,7 @@
   "feedbackDetailedMessage": "Nội dung chi tiết",
   "feedbackReplyEmail": "Địa chỉ email để nhận phản hồi (không bắt buộc)",
   "feedbackIncludeTechnicalDetails": "Bao gồm chi tiết kỹ thuật",
-  "feedbackTechnicalDetailsDisclosure": "Chỉ thêm phiên bản hệ điều hành Linux và ngôn ngữ, khu vực của ứng dụng. Không bao gồm nhật ký, dữ liệu tài khoản, tên tệp hoặc thông tin chẩn đoán khác.",
+  "feedbackTechnicalDetailsDisclosure": "Chỉ thêm tên và phiên bản hệ điều hành cùng ngôn ngữ, khu vực của ứng dụng. Không bao gồm nhật ký, dữ liệu tài khoản, tên tệp hoặc thông tin chẩn đoán khác.",
   "feedbackCategoryRequired": "Hãy chọn một danh mục.",
   "feedbackSubjectLengthError": "Chủ đề phải có từ 3 đến 120 ký tự.",
   "feedbackMessageLengthError": "Nội dung phải có từ 10 đến 5.000 ký tự.",
@@ -180,7 +283,7 @@
   "removingAccount": "Đang xóa tài khoản…",
   "removeAccountDescription": "Dừng đồng bộ và xóa dữ liệu của tài khoản này khỏi thiết bị.",
   "removeAccountTitle": "Xóa {account} khỏi BusyMax?",
-  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
+  "removeAccountConfirmation": "Thao tác này xóa khỏi thiết bị các công việc, lịch, sự kiện, lời nhắc và thay đổi ngoại tuyến đang chờ được lưu trong bộ nhớ đệm. Các thay đổi chưa đồng bộ sẽ mất. Bản sao lịch, sự kiện, danh sách công việc và công việc ở nhà cung cấp không bị xóa.",
   "revokeGoogleAccess": "Đồng thời thu hồi quyền truy cập của BusyMax vào tài khoản Google này",
   "revokeGoogleAccessDescription": "Bạn sẽ cần cấp lại quyền truy cập trước khi kết nối lại.",
   "removeAccountAction": "Xóa tài khoản",
@@ -233,7 +336,7 @@
   "primarySection": "Chính",
   "statusSection": "Trạng thái",
   "openStatus": "Chưa hoàn thành",
-  "doneStatus": "Đã hoàn thành",
+  "doneStatus": "Đã xong",
   "notes": "Ghi chú",
   "dueDate": "Ngày đến hạn",
   "clearDueDate": "Xóa ngày đến hạn",
@@ -282,7 +385,7 @@
   "id": "ID",
   "etag": "ETag",
   "updated": "Đã cập nhật",
-  "parent": "Công việc cha",
+  "parent": "Công việc chính",
   "position": "Vị trí",
   "webLink": "Liên kết web",
   "assignment": "Phân công",
@@ -291,7 +394,8 @@
   "synced": "Đã đồng bộ",
   "account": "Tài khoản",
   "sync": "Đồng bộ",
-  "manualFullSync": "Đồng bộ toàn bộ thủ công",
+  "forceFullResync": "Buộc đồng bộ hóa lại toàn bộ",
+  "forceFullResyncDescription": "Tải lại toàn bộ dữ liệu từ mọi tài khoản đã kết nối. Chỉ sử dụng tùy chọn này để khắc phục sự cố đồng bộ hóa.",
   "runInBackgroundWhenClosed": "Tiếp tục chạy khi đóng cửa sổ",
   "showTrayIcon": "Hiện biểu tượng khay hệ thống",
   "startMinimizedToTray": "Khởi động thu nhỏ vào khay hệ thống",
@@ -305,6 +409,7 @@
   "notifyConflicts": "Thông báo khi có xung đột",
   "notifyDueToday": "Thông báo công việc đến hạn hôm nay",
   "eventReminders": "Lời nhắc sự kiện",
+  "onState": "Bật",
   "taskReminders": "Lời nhắc công việc",
   "notificationDetailLevel": "Mức độ chi tiết của thông báo",
   "notificationDetailPrivate": "Riêng tư",
@@ -314,9 +419,13 @@
   "quietHoursStart": "Bắt đầu giờ yên tĩnh",
   "quietHoursEnd": "Kết thúc giờ yên tĩnh",
   "notifications": "Thông báo",
+  "windowsNotificationsUnavailable": "Thông báo Windows không khả dụng",
+  "windowsNotificationsUnpackaged": "Bản chạy phát triển chưa đóng gói này không thể dùng thông báo Windows. Hãy cài đặt MSIX được ký để thử nghiệm nhằm kiểm tra lời nhắc.",
+  "windowsNotificationsInstalledFailure": "BusyMax không thể khởi tạo thông báo Windows. Lời nhắc sẽ không xuất hiện cho đến khi sự cố cài đặt này được khắc phục.",
   "appearance": "Giao diện",
   "theme": "Chủ đề",
   "themeSystem": "Hệ thống",
+  "settingsSystem": "Hệ thống",
   "themeLight": "Sáng",
   "themeDark": "Tối",
   "themeFamily": "Họ chủ đề",
@@ -361,7 +470,7 @@
   "taskReminderNotificationBody": "Công việc sắp đến hạn.",
   "notificationOpenAction": "Mở",
   "notificationSnoozeAction": "Báo lại sau 10 phút",
-  "notificationDismissAction": "Bỏ qua",
+  "notificationDismissAction": "Đóng",
   "notificationDetailsHidden": "Chi tiết bị ẩn theo cài đặt quyền riêng tư.",
   "previousMonth": "Tháng trước",
   "nextMonth": "Tháng sau",
@@ -376,50 +485,50 @@
   "selectTimeZone": "Chọn múi giờ",
   "searchLocations": "Tìm kiếm địa điểm",
   "noLocationsFound": "Không tìm thấy địa điểm",
-  "requiredField": "This field is required.",
-  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
-  "appleICloudProvider": "Apple iCloud Calendar",
+  "requiredField": "Trường này là bắt buộc.",
+  "providerConnectionDescription": "Kết nối lịch và công việc từ một trong các nhà cung cấp sau.",
+  "appleICloudProvider": "Lịch Apple iCloud",
   "nextcloudProvider": "Nextcloud",
   "appleICloudTasksProvider": "Apple iCloud",
-  "nextcloudTasksProvider": "Nextcloud Tasks",
-  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
-  "addNextcloudAccount": "Add Nextcloud account",
-  "waitingForAppleICloud": "Connecting to Apple iCloud…",
-  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
-  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
-  "appleAccountEmail": "Apple Account email",
-  "appleAppSpecificPassword": "App-specific password",
-  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
-  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
-  "connectNextcloudTitle": "Connect Nextcloud",
-  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
-  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
-  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
-  "connectAccountAction": "Connect",
-  "cancelAccountConnection": "Cancel connection",
-  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
-  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
-  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
-  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
-  "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Calendars and task lists",
-  "calendarContent": "Calendar events",
-  "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only",
-  "pendingLocally": "Pending locally",
-  "conflictBlocked": "Blocked by conflict",
-  "authenticationBlocked": "Blocked until reconnect",
-  "operationFailed": "Operation failed",
-  "keepServerVersion": "Keep server version",
-  "reapplyLocalChange": "Review and reapply local change",
-  "duplicateLocalItem": "Duplicate as new item",
+  "nextcloudTasksProvider": "Công việc Nextcloud",
+  "addAppleICloudAccount": "Thêm tài khoản Lịch Apple iCloud",
+  "addNextcloudAccount": "Thêm tài khoản Nextcloud",
+  "waitingForAppleICloud": "Đang kết nối với Apple iCloud…",
+  "waitingForNextcloud": "Đang chờ ủy quyền Nextcloud…",
+  "connectAppleICloudTitle": "Kết nối Lịch Apple iCloud",
+  "appleAccountEmail": "Email tài khoản Apple",
+  "appleAppSpecificPassword": "Mật khẩu dành riêng cho ứng dụng",
+  "appleAppSpecificPasswordHelp": "Tạo mật khẩu dành riêng cho ứng dụng sau khi bật xác thực hai yếu tố cho tài khoản Apple.",
+  "appleAppSpecificPasswordResetWarning": "Đặt lại mật khẩu tài khoản Apple sẽ thu hồi các mật khẩu dành riêng cho ứng dụng.",
+  "connectNextcloudTitle": "Kết nối Nextcloud",
+  "nextcloudServerUrl": "Máy chủ Nextcloud hoặc địa chỉ CalDAV",
+  "nextcloudServerUrlHelp": "Nhập URL máy chủ Nextcloud hoặc dán địa chỉ CalDAV chính được sao chép từ Nextcloud.",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax sẽ mở trình duyệt. Phê duyệt quyền truy cập ở đó rồi quay lại BusyMax.",
+  "connectAccountAction": "Kết nối",
+  "cancelAccountConnection": "Hủy kết nối",
+  "nextcloudAccountRemovedRevokeFailed": "Tài khoản đã bị xóa cục bộ nhưng không thể thu hồi mật khẩu ứng dụng Nextcloud.",
+  "davCachedOfflineNotice": "Dữ liệu lịch và công việc được lưu trong bộ nhớ đệm cục bộ để sử dụng ngoại tuyến.",
+  "davReauthenticationRequired": "Kết nối lại tài khoản này để tiếp tục đồng bộ.",
+  "davTemporarilyUnavailable": "Tài khoản này tạm thời không khả dụng.",
+  "davPermissionChanged": "Quyền máy chủ đã thay đổi. Các chỉnh sửa đang chờ bị tạm dừng.",
+  "davUnsupportedServer": "Máy chủ hoặc hồ sơ nhà cung cấp này không được hỗ trợ.",
+  "collectionSettings": "Lịch và danh sách công việc",
+  "calendarContent": "Sự kiện lịch",
+  "taskContent": "Công việc",
+  "readOnlySharedCollection": "Chỉ đọc",
+  "pendingLocally": "Đang chờ cục bộ",
+  "conflictBlocked": "Bị chặn do xung đột",
+  "authenticationBlocked": "Bị chặn cho đến khi kết nối lại",
+  "operationFailed": "Thao tác không thành công",
+  "keepServerVersion": "Giữ phiên bản máy chủ",
+  "reapplyLocalChange": "Xem lại và áp dụng lại thay đổi cục bộ",
+  "duplicateLocalItem": "Nhân bản thành mục mới",
   "deleteCalendarConfirmation": "Xóa “{title}”?",
-  "davConnectionState": "Connection state",
-  "davConnected": "Connected",
-  "davConnecting": "Connecting…",
-  "davSignedOut": "Signed out",
-  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "davConnectionState": "Trạng thái kết nối",
+  "davConnected": "Đã kết nối",
+  "davConnecting": "Đang kết nối…",
+  "davSignedOut": "Đã đăng xuất",
+  "davLastSuccessfulSync": "Lần đồng bộ thành công gần nhất: {time}",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -427,9 +536,9 @@
       }
     }
   },
-  "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh calendars and task lists",
-  "nextcloudServerHost": "Server: {host}",
+  "davNeverSynced": "Chưa đồng bộ",
+  "refreshCollections": "Làm mới lịch và danh sách công việc",
+  "nextcloudServerHost": "Máy chủ: {host}",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -437,12 +546,12 @@
       }
     }
   },
-  "collectionSupportsEvents": "Event calendar",
-  "collectionSupportsTasks": "Task list",
-  "collectionSupportsEventsAndTasks": "Events and tasks",
-  "writableCollection": "Writable",
-  "sharedCollection": "Shared",
-  "collectionLastSynced": "Last synchronized: {time}",
+  "collectionSupportsEvents": "Lịch sự kiện",
+  "collectionSupportsTasks": "Danh sách công việc",
+  "collectionSupportsEventsAndTasks": "Sự kiện và công việc",
+  "writableCollection": "Có thể ghi",
+  "sharedCollection": "Đã chia sẻ",
+  "collectionLastSynced": "Đồng bộ lần cuối: {time}",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -450,7 +559,7 @@
       }
     }
   },
-  "collectionSyncError": "Sync issue: {code}",
+  "collectionSyncError": "Sự cố đồng bộ: {code}",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -458,8 +567,8 @@
       }
     }
   },
-  "syncConflicts": "Synchronization conflicts",
-  "remoteChangedAt": "Server changed: {time}",
+  "syncConflicts": "Xung đột đồng bộ",
+  "remoteChangedAt": "Máy chủ đã thay đổi: {time}",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -467,7 +576,7 @@
       }
     }
   },
-  "localPendingEdit": "Local edit: {summary}",
+  "localPendingEdit": "Chỉnh sửa cục bộ: {summary}",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -475,144 +584,366 @@
       }
     }
   },
-  "conflictResolutionFailed": "The conflict could not be resolved.",
-  "recurringEventScope": "Recurring event scope",
-  "entireSeries": "Entire series",
-  "singleOccurrence": "This occurrence",
-  "thisAndFutureUnavailable": "This and future (not available)",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "conflictResolutionFailed": "Không thể giải quyết xung đột.",
+  "recurringEventScope": "Phạm vi sự kiện lặp lại",
+  "entireSeries": "Toàn bộ chuỗi",
+  "singleOccurrence": "Sự kiện này",
+  "thisAndFollowingEvents": "Sự kiện này và các sự kiện tiếp theo",
+  "thisAndFutureUnavailable": "Nhà cung cấp này không hỗ trợ.",
+  "thisAndFutureMoveUnavailable": "Không thể di chuyển an toàn sự kiện này và các sự kiện tiếp theo. Hãy chọn sự kiện này hoặc toàn bộ chuỗi.",
+  "entireSeriesMoveUnavailable": "Quy tắc lặp lại không có sẵn trên thiết bị. Hãy chỉ di chuyển sự kiện này.",
+  "copyEventAndDeleteOriginal": "Sao chép sự kiện và xóa bản gốc?",
+  "copyEventMoveWarning": "BusyMax không thể di chuyển trực tiếp sự kiện này từ {source} sang {destination}. Ứng dụng sẽ tạo bản sao trước và chỉ xóa bản gốc sau khi sao chép thành công. ID sự kiện sẽ thay đổi; trạng thái phản hồi của người tham dự có thể bị đặt lại và lời mời hoặc thông báo hủy có thể được gửi; liên kết cuộc họp, tệp đính kèm, lời nhắc, trường riêng của nhà cung cấp và ngoại lệ lặp lại có thể không được chuyển sang.",
+  "copyAndDelete": "Sao chép và xóa",
+  "chooseRecurringEventScope": "Chọn áp dụng thay đổi này cho toàn bộ chuỗi, chỉ sự kiện này hay sự kiện này và các sự kiện tiếp theo.",
   "taskDueBeforeStart": "Hạn chót không được trước thời gian bắt đầu.",
   "taskStartDueTimeModeMismatch": "Đặt giờ cho cả thời gian bắt đầu và hạn chót, hoặc đặt công việc là cả ngày.",
-  "taskListCreateFailed": "Could not create the task list: {error}",
-  "taskListRenameFailed": "Could not rename the task list: {error}",
-  "taskListDeleteFailed": "Could not delete the task list: {error}",
-  "unshare": "Bỏ chia sẽ",
-  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
-  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
-  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "taskStatus": "Status",
-  "taskStatusNone": "No status",
-  "taskStatusNeedsAction": "Needs action",
-  "taskStatusInProcess": "In process",
-  "taskStatusCompleted": "Hoàn thành",
-  "taskStatusCancelled": "Cancelled",
-  "completionPercent": "{percent}% completed",
-  "completionDate": "Completion date",
-  "priority": "Priority",
-  "priorityNone": "No priority",
-  "priorityHighValue": "Priority {priority} · High",
-  "priorityMediumValue": "Priority {priority} · Medium",
-  "priorityLowValue": "Priority {priority} · Low",
-  "taskUrl": "URL",
-  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
-  "classification": "Classification",
-  "classificationPublic": "When shared, show the full task",
-  "classificationConfidential": "When shared, show only busy",
-  "classificationPrivate": "When shared, hide this task",
-  "pinTask": "Pin task",
-  "reminders": "Reminders",
-  "noReminders": "No reminders",
-  "editReminder": "Edit reminder",
-  "beforeTaskStarts": "Before the task starts",
-  "beforeTaskDue": "Before the task is due",
-  "afterTaskStarts": "After the task starts",
-  "afterTaskDue": "After the task is due",
-  "relativeToTaskStart": "Relative to the task start date",
-  "relativeToTaskDue": "Relative to the task due date",
-  "reminderTimeOfDay": "Time of day",
-  "absoluteReminder": "At a date and time",
-  "reminderAmount": "Amount",
-  "reminderUnitSeconds": "Seconds",
-  "reminderUnitMinutes": "Minutes",
-  "reminderUnitHours": "Hours",
-  "reminderUnitDays": "Days",
-  "reminderUnitWeeks": "Weeks",
-  "reminderAtTaskStart": "At the task start",
-  "reminderAtTaskDue": "At the task due time",
-  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
-  "relatedRemindersTitle": "Keep related reminders?",
-  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
-  "discardRelatedReminders": "Discard reminders",
-  "keepRelatedReminders": "Keep reminders",
-  "repeatEvery": "Lặp lại mỗi",
-  "repeatOn": "Repeat on",
-  "repeatEnd": "Kết thúc lập lại",
-  "repeatNever": "Never",
-  "repeatUntil": "On date",
-  "repeatAfter": "After a number of occurrences",
-  "repeatCount": "Occurrences",
-  "repeatDayOfMonth": "Days of month",
-  "repeatMonths": "Months",
-  "repeatOrdinal": "Weekday position",
-  "repeatSpecificDays": "Specific days",
-  "repeatFirst": "First",
-  "repeatSecond": "Second",
-  "repeatThird": "Third",
-  "repeatFourth": "Fourth",
-  "repeatFifth": "Fifth",
-  "repeatSecondToLast": "Second to last",
-  "repeatLast": "Last",
-  "repeatAnyDay": "Day",
-  "repeatWeekday": "Weekday",
-  "repeatWeekendDay": "Weekend day",
-  "repeatEveryDays": "Every {count} days",
-  "repeatEveryWeeks": "Every {count} weeks",
-  "repeatEveryMonths": "Every {count} months",
-  "repeatEveryYears": "Every {count} years",
-  "repeatOnDaysSummary": "on {days}",
-  "repeatOnMonthDaysSummary": "on day {days}",
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "repeatInMonthsSummary": "in {months}",
-  "repeatTimesSummary": "{count} lần",
-  "repeatUntilSummary": "cho đến {date}",
-  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
-  "duplicateTask": "Duplicate task",
-  "taskDuplicated": "Task duplicated.",
-  "taskDuplicateFailed": "Could not duplicate the task: {error}",
-  "hideSubtasks": "Hide subtasks",
-  "hideClosedSubtasks": "Hide closed subtasks",
-  "reminderUnit": "Unit",
-  "attendeeRequired": "Required",
-  "attendeeOptional": "Optional",
-  "meetingSection": "Meeting",
-  "addGoogleMeet": "Add Google Meet",
-  "addTeamsMeeting": "Add Microsoft Teams meeting",
-  "onlineMeetingAdded": "Online meeting added",
-  "requestResponses": "Request responses",
-  "requestResponsesDescription": "Ask guests to respond to the invitation.",
-  "hideGuestList": "Hide guest list",
-  "hideGuestListDescription": "Guests cannot see who else was invited.",
-  "allowNewTimeProposals": "Allow new time proposals",
-  "allowNewTimeProposalsDescription": "Guests can suggest a different meeting time.",
-  "notifyGuestsTitle": "Notify guests?",
-  "notifyGuestsSaveMessage": "This meeting has guests. Send invitations or event updates when it is saved?",
-  "notifyGuestsDeleteMessage": "This meeting has guests. Send a cancellation when it is deleted?",
-  "sendUpdates": "Send updates",
-  "sendCancellation": "Send cancellation",
-  "doNotSend": "Don’t send",
-  "microsoftNotifyGuestsSaveTitle": "Save meeting?",
-  "microsoftNotifyGuestsSaveMessage": "Microsoft will send invitations or event updates to guests.",
-  "microsoftNotifyGuestsDeleteTitle": "Delete meeting?",
-  "microsoftNotifyGuestsDeleteMessage": "Microsoft will send a cancellation to guests.",
-  "organizer": "Organizer",
-  "yourResponse": "Your response",
-  "guestResponses": "Guest responses",
-  "respond": "Respond",
-  "acceptInvitation": "Accept",
-  "tentativeInvitation": "Tentative",
-  "declineInvitation": "Decline",
-  "joinMeeting": "Join meeting",
-  "responseAccepted": "Accepted",
-  "responseTentative": "Tentative",
-  "responseDeclined": "Declined",
-  "responseNeedsAction": "Awaiting response",
-  "responseNotResponded": "Not responded",
-  "responseOrganizer": "Organizer",
-  "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
-  "joinMeetingFailed": "Could not open the meeting link.",
+  "taskListCreateFailed": "Không thể tạo danh sách công việc: {error}",
+  "taskListRenameFailed": "Không thể đổi tên danh sách công việc: {error}",
+  "taskListDeleteFailed": "Không thể xóa danh sách công việc: {error}",
+  "unshare": "Ngừng chia sẻ",
+  "readOnlyTaskListCannotRename": "Danh sách công việc này ở chế độ chỉ đọc và không thể đổi tên.",
+  "taskListCannotDelete": "Bạn không thể xóa danh sách công việc này với quyền hiện tại.",
+  "deleteTaskListConfirmation": "Xóa “{title}” và tất cả công việc trong đó?",
+  "unshareTaskListConfirmation": "Ngừng chia sẻ “{title}” khỏi tài khoản này?",
+  "taskStatus": "Trạng thái",
+  "taskStatusNone": "Không có trạng thái",
+  "taskStatusNeedsAction": "Cần xử lý",
+  "taskStatusInProcess": "Đang thực hiện",
+  "taskStatusCompleted": "Đã hoàn thành",
+  "taskStatusCancelled": "Đã hủy",
+  "completionPercent": "Đã hoàn thành {percent}%",
+  "completionDate": "Ngày hoàn thành",
+  "priority": "Mức độ ưu tiên",
+  "priorityNone": "Không có mức độ ưu tiên",
+  "priorityHighValue": "Ưu tiên {priority} · Cao",
+  "priorityMediumValue": "Ưu tiên {priority} · Trung bình",
+  "priorityLowValue": "Ưu tiên {priority} · Thấp",
+  "taskUrl": "URL công việc",
+  "invalidTaskUrl": "Nhập URL tuyệt đối, bao gồm lược đồ.",
+  "classification": "Phân loại",
+  "classificationPublic": "Khi chia sẻ, hiển thị toàn bộ công việc",
+  "classificationConfidential": "Khi chia sẻ, chỉ hiển thị trạng thái bận",
+  "classificationPrivate": "Khi chia sẻ, ẩn công việc này",
+  "pinTask": "Ghim công việc",
+  "reminders": "Lời nhắc",
+  "noReminders": "Không có lời nhắc",
+  "editReminder": "Chỉnh sửa lời nhắc",
+  "beforeTaskStarts": "Trước khi công việc bắt đầu",
+  "beforeTaskDue": "Trước hạn chót của công việc",
+  "afterTaskStarts": "Sau khi công việc bắt đầu",
+  "afterTaskDue": "Sau hạn chót của công việc",
+  "relativeToTaskStart": "Theo ngày bắt đầu công việc",
+  "relativeToTaskDue": "Theo ngày đến hạn công việc",
+  "reminderTimeOfDay": "Thời gian trong ngày",
+  "absoluteReminder": "Vào ngày và giờ cụ thể",
+  "reminderAmount": "Số lượng",
+  "reminderUnitSeconds": "Giây",
+  "reminderUnitMinutes": "Phút",
+  "reminderUnitHours": "Giờ",
+  "reminderUnitDays": "Ngày",
+  "reminderUnitWeeks": "Tuần",
+  "reminderAtTaskStart": "Khi công việc bắt đầu",
+  "reminderAtTaskDue": "Khi công việc đến hạn",
+  "unsupportedReminder": "Loại lời nhắc này được giữ lại nhưng không thể chỉnh sửa thời gian.",
+  "relatedRemindersTitle": "Giữ lời nhắc liên quan?",
+  "relatedRemindersDescription": "Ngày này có {count} lời nhắc liên quan. Giữ chúng ở ngày và giờ hiện tại?",
+  "discardRelatedReminders": "Xóa lời nhắc",
+  "keepRelatedReminders": "Giữ lời nhắc",
+  "repeatEvery": "Khoảng lặp lại",
+  "repeatOn": "Lặp lại vào",
+  "repeatEnd": "Kết thúc lặp lại",
+  "repeatNever": "Không bao giờ",
+  "repeatUntil": "Vào ngày",
+  "repeatAfter": "Sau một số lần xuất hiện",
+  "repeatCount": "Số lần lặp",
+  "repeatDayOfMonth": "Ngày trong tháng",
+  "repeatMonths": "Tháng",
+  "repeatOrdinal": "Vị trí ngày trong tuần",
+  "repeatSpecificDays": "Ngày cụ thể",
+  "repeatFirst": "Thứ nhất",
+  "repeatSecond": "Thứ hai",
+  "repeatThird": "Thứ ba",
+  "repeatFourth": "Thứ tư",
+  "repeatFifth": "Thứ năm",
+  "repeatSecondToLast": "Áp chót",
+  "repeatLast": "Cuối cùng",
+  "repeatAnyDay": "Ngày",
+  "repeatWeekday": "Ngày trong tuần",
+  "repeatWeekendDay": "Ngày cuối tuần",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{Thứ Hai} TU{Thứ Ba} WE{Thứ Tư} TH{Thứ Năm} FR{Thứ Sáu} SA{Thứ Bảy} SU{Chủ Nhật} day{ngày} weekday{ngày trong tuần} weekend{ngày cuối tuần} other{{day}}}",
+  "repeatEveryDays": "Mỗi {count} ngày",
+  "repeatEveryWeeks": "Mỗi {count} tuần",
+  "repeatEveryMonths": "Mỗi {count} tháng",
+  "repeatEveryYears": "Mỗi {count} năm",
+  "repeatOnDaysSummary": "vào {days}",
+  "repeatOnMonthDaysSummary": "vào ngày {days} trong tháng",
+  "repeatOnOrdinalSummary": "{position, select, first{vào {days} đầu tiên} second{vào {days} thứ hai} third{vào {days} thứ ba} fourth{vào {days} thứ tư} fifth{vào {days} thứ năm} secondToLast{vào {days} áp chót} last{vào {days} cuối cùng} other{vào {days}}}",
+  "repeatInMonthsSummary": "vào {months}",
+  "repeatTimesSummary": "{count, plural, other{{count} lần}}",
+  "repeatUntilSummary": "đến {date}",
+  "unsupportedRecurrencePreserved": "Quy tắc lặp lại này sử dụng các tùy chọn mà trình chỉnh sửa này không thay đổi.",
+  "recurrenceUnsupportedByProvider": "Không thể sử dụng kiểu lặp lại này với {provider}.",
+  "duplicateTask": "Nhân bản công việc",
+  "taskDuplicated": "Đã nhân bản công việc.",
+  "taskDuplicateFailed": "Không thể nhân bản công việc: {error}",
+  "hideSubtasks": "Ẩn công việc phụ",
+  "hideClosedSubtasks": "Ẩn công việc phụ đã đóng",
+  "reminderUnit": "Đơn vị",
+  "attendeeRequired": "Bắt buộc",
+  "attendeeOptional": "Tùy chọn",
+  "meetingSection": "Cuộc họp",
+  "addGoogleMeet": "Thêm Google Meet",
+  "addTeamsMeeting": "Thêm cuộc họp Microsoft Teams",
+  "onlineMeetingAdded": "Đã thêm cuộc họp trực tuyến",
+  "requestResponses": "Yêu cầu phản hồi",
+  "requestResponsesDescription": "Yêu cầu khách trả lời lời mời.",
+  "hideGuestList": "Ẩn danh sách khách",
+  "hideGuestListDescription": "Khách không thể xem những người khác được mời.",
+  "allowNewTimeProposals": "Cho phép đề xuất thời gian mới",
+  "allowNewTimeProposalsDescription": "Khách có thể đề xuất thời gian họp khác.",
+  "notifyGuestsTitle": "Thông báo cho khách?",
+  "notifyGuestsSaveMessage": "Cuộc họp này có khách. Gửi lời mời hoặc cập nhật sự kiện khi lưu?",
+  "notifyGuestsDeleteMessage": "Cuộc họp này có khách. Gửi thông báo hủy khi xóa?",
+  "sendUpdates": "Gửi cập nhật",
+  "sendCancellation": "Gửi thông báo hủy",
+  "doNotSend": "Không gửi",
+  "microsoftNotifyGuestsSaveTitle": "Lưu cuộc họp?",
+  "microsoftNotifyGuestsSaveMessage": "Microsoft sẽ gửi lời mời hoặc cập nhật sự kiện cho khách.",
+  "microsoftNotifyGuestsDeleteTitle": "Xóa cuộc họp?",
+  "microsoftNotifyGuestsDeleteMessage": "Microsoft sẽ gửi thông báo hủy cho khách.",
+  "organizer": "Người tổ chức",
+  "yourResponse": "Phản hồi của bạn",
+  "guestResponses": "Phản hồi của khách",
+  "respond": "Phản hồi",
+  "acceptInvitation": "Chấp nhận",
+  "tentativeInvitation": "Tạm thời",
+  "declineInvitation": "Từ chối",
+  "joinMeeting": "Tham gia cuộc họp",
+  "responseAccepted": "Đã chấp nhận",
+  "responseTentative": "Tạm thời",
+  "responseDeclined": "Đã từ chối",
+  "responseNeedsAction": "Đang chờ phản hồi",
+  "responseNotResponded": "Chưa phản hồi",
+  "responseOrganizer": "Người tổ chức",
+  "invitationResponseFailed": "Không thể gửi phản hồi: {error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "Không thể mở liên kết cuộc họp.",
+  "setCustomCalendarName": "Đặt tên tùy chỉnh",
+  "setAction": "Đặt",
+  "removeFromMyCalendars": "Xóa khỏi lịch của tôi",
+  "removeAction": "Xóa",
+  "removeCalendarConfirmation": "Xóa “{title}” khỏi danh sách Google Calendar của bạn? Lịch dùng chung và các sự kiện trong đó sẽ không bị xóa.",
+  "calendarCannotRemove": "Không thể xóa hoặc gỡ lịch này khỏi tài khoản.",
+  "calendarPendingChangesPreventRemoval": "Hãy chờ các thay đổi đang chờ của lịch này đồng bộ xong trước khi xóa hoặc gỡ lịch.",
+  "calendarSubscriptions": "Gói đăng ký lịch",
+  "calendarSubscriptionsDescription": "Thêm lịch chỉ đọc được làm mới từ URL WebCal bảo mật.",
+  "addCalendarSubscription": "Thêm gói đăng ký lịch",
+  "subscriptionName": "Tên cục bộ",
+  "subscriptionUrl": "URL gói đăng ký",
+  "subscriptionUrlHelp": "Nhập URL HTTPS hoặc webcal. BusyMax giữ URL đầy đủ trong bộ nhớ an toàn.",
+  "subscriptionUrlInvalid": "Nhập URL HTTPS hoặc webcal hợp lệ không có thông tin người dùng hoặc phân đoạn.",
+  "subscriptionColor": "Màu cục bộ",
+  "subscriptionColorHelp": "Sử dụng màu sáu chữ số như #3584E4.",
+  "subscriptionColorInvalid": "Nhập màu thập lục phân sáu chữ số.",
+  "subscriptionRefreshMode": "Tần suất làm mới",
+  "subscriptionAutomatic": "Tự động",
+  "subscriptionHourly": "Hàng giờ",
+  "subscriptionSixHours": "Mỗi sáu giờ",
+  "subscriptionDaily": "Hàng ngày",
+  "subscriptionSafeOrigin": "Nguồn: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "Nhập URL hợp lệ để xem trước nguồn an toàn.",
+  "subscriptionReadOnly": "Gói đăng ký chỉ đọc",
+  "subscriptionNeverRefreshed": "Chưa làm mới",
+  "subscriptionLastRefresh": "Lần làm mới thành công gần nhất: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "Lần làm mới tiếp theo: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "Đã cập nhật",
+  "subscriptionStatusIssue": "Sự cố làm mới: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "Làm mới ngay",
+  "unsubscribe": "Hủy đăng ký",
+  "unsubscribeCalendarTitle": "Hủy đăng ký “{name}”?",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "Thao tác này xóa gói đăng ký cục bộ và các sự kiện đã lưu trong bộ nhớ đệm. Lịch đã xuất bản không thay đổi.",
+  "addSubscriptionAction": "Thêm gói đăng ký",
+  "subscriptionOperationFailed": "Gói đăng ký lịch không thành công: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "Gói đăng ký",
+  "calendarImport": "Nhập lịch",
+  "calendarImportDescription": "Chọn tệp, xem lại các sự kiện rồi chọn lịch có thể ghi để nhận chúng.",
+  "importIcsFile": "Nhập tệp .ics",
+  "importIcsPreview": "Nhập sự kiện lịch",
+  "importEventsFound": "Bộ sự kiện có thể nhập: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importInvalidEvents": "Sự kiện không hợp lệ: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importFieldsOmitted": "Cố ý bỏ qua: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "Không có lịch đích có thể ghi.",
+  "importDestinationCalendar": "Lịch đích",
+  "importIcsConfirm": "Nhập sự kiện",
+  "importIcsComplete": "Đã nhập xong",
+  "importQueued": "Đã nhập hoặc xếp hàng: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "Đã bỏ qua bản sao: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importUnsupportedSets": "Bộ lặp lại không được hỗ trợ: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importIcsFailed": "Không thể nhập tệp lịch: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "networkOffline": "Ngoại tuyến",
   "networkOfflineDescription": "Các thay đổi sẽ được đồng bộ khi kết nối được khôi phục.",
-  "networkOfflineTryAgain": "Bạn đang ngoại tuyến. Hãy kết nối Internet rồi thử lại."
+  "networkOfflineTryAgain": "Bạn đang ngoại tuyến. Hãy kết nối Internet rồi thử lại.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "vào các ngày {days} trong tháng",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatSummarySeparator": " ",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatWeekdayListPair": "{first} và {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} và {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} và {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} và {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} vào ngày {day} {month}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} vào ngày {day} của {months}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} vào các ngày {days} của {months}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} vào {days} {position, select, first{đầu tiên} second{thứ hai} third{thứ ba} fourth{thứ tư} fifth{thứ năm} secondToLast{áp chót} last{cuối cùng} other{}} của {months}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} vào các ngày {days} của {month}",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency} vào {days} {position, select, first{đầu tiên} second{thứ hai} third{thứ ba} fourth{thứ tư} fifth{thứ năm} secondToLast{áp chót} last{cuối cùng} other{}} của {month}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  }
 }

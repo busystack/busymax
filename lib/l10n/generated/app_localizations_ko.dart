@@ -13,11 +13,108 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get windowsSupport => '지원';
+
+  @override
+  String get windowsThirdPartyLicenses => '타사 라이선스';
+
+  @override
+  String get windowsSearch => '검색';
+
+  @override
+  String get windowsStartupDisabledByUser =>
+      'Windows 설정에서 사용자가 사용하지 않도록 설정했습니다.';
+
+  @override
+  String get windowsStartupDisabledByPolicy =>
+      'Windows 정책에 의해 사용하지 않도록 설정되었습니다.';
+
+  @override
+  String get windowsStartupUnavailable => 'BusyMax를 MSIX 패키지로 설치하면 사용할 수 있습니다.';
+
+  @override
+  String get windowsReminderExitNotice =>
+      'BusyMax를 완전히 종료하면 미리 알림이 중지됩니다. 받으려면 백그라운드에서 계속 실행하세요.';
+
+  @override
+  String get windowsProductVersionLabel => '제품 버전';
+
+  @override
+  String get windowsPackageVersionLabel => 'Windows 패키지 버전';
+
+  @override
+  String get windowsUnpackaged => '패키지되지 않음';
+
+  @override
+  String get windowsAgendaLoadMore => '일정 항목 더 불러오기';
+
+  @override
+  String repeatWeeklyDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': '월요일',
+      'TU': '화요일',
+      'WE': '수요일',
+      'TH': '목요일',
+      'FR': '금요일',
+      'SA': '토요일',
+      'SU': '일요일',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String repeatOnTwoMonthDaysSummary(String first, String second) {
+    return '$first과 $second';
+  }
+
+  @override
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency $month의 $firstDay과 $secondDay';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  ) {
+    return '$frequency $firstMonth과 $secondMonth의 $day';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  ) {
+    return '$frequency $firstMonth과 $secondMonth의 $firstDay과 $secondDay';
+  }
+
+  @override
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  ) {
+    return '$frequency $firstMonth과 $secondMonth의 $days';
+  }
+
+  @override
   String get appTitle => 'BusyMax';
 
   @override
   String get connectGoogleAccount =>
-      'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.';
+      'Google, Microsoft, Apple iCloud Calendar 또는 Nextcloud 계정을 연결하세요.';
 
   @override
   String get googlePermissionsConsentNotice =>
@@ -41,7 +138,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
+      '사용할 모든 계정을 추가하세요. BusyMax는 각 계정의 지원되는 캘린더, 일정, 할 일 목록 및 할 일을 동기화합니다.';
 
   @override
   String get onboardingPreferencesStepTitle => '시스템 설정 선택';
@@ -118,6 +215,43 @@ class AppLocalizationsKo extends AppLocalizations {
   String get calendars => '캘린더';
 
   @override
+  String get newCalendar => '새 캘린더';
+
+  @override
+  String get calendarColor => '캘린더 색상';
+
+  @override
+  String calendarColorOption(int number) {
+    return '색상 $number';
+  }
+
+  @override
+  String get calendarManagementUnsupported =>
+      '이 공급자는 BusyMax에서 캘린더 관리를 지원하지 않습니다.';
+
+  @override
+  String get primaryCalendarCannotDelete => '기본 캘린더는 삭제할 수 없습니다.';
+
+  @override
+  String calendarCreateFailed(String error) {
+    return '캘린더를 만들 수 없습니다: $error';
+  }
+
+  @override
+  String get calendarCreatedRefreshPending =>
+      '캘린더가 생성되었지만 BusyMax에서 계정을 새로 고치지 못했습니다. 다음 동기화 후에 표시됩니다.';
+
+  @override
+  String calendarUpdateFailed(String error) {
+    return '캘린더를 업데이트할 수 없습니다: $error';
+  }
+
+  @override
+  String calendarDeleteFailed(String error) {
+    return '캘린더를 삭제할 수 없습니다: $error';
+  }
+
+  @override
   String get newEvent => '새 일정';
 
   @override
@@ -140,7 +274,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String moreItems(int count) {
-    return '+$count개 더 보기';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '+$countString개 더 보기';
   }
 
   @override
@@ -175,6 +313,101 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get trayOpenBusyMax => 'BusyMax 열기';
+
+  @override
+  String get trayShowBusyMax => 'BusyMax 표시';
+
+  @override
+  String get trayNewEvent => '새 일정…';
+
+  @override
+  String get trayNewTask => '새 할 일…';
+
+  @override
+  String get trayToday => '오늘';
+
+  @override
+  String get trayAllDay => '종일';
+
+  @override
+  String get trayNow => '지금';
+
+  @override
+  String get trayCalendarEvent => '캘린더 일정';
+
+  @override
+  String get trayUntitledEvent => '제목 없는 일정';
+
+  @override
+  String get trayNothingElseToday => '오늘은 더 이상 없음';
+
+  @override
+  String trayTasksDueToday(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '오늘 마감인 할 일 $count개',
+      one: '오늘 마감인 할 일 1개',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trayOpenTodayAgenda => '오늘 일정 열기';
+
+  @override
+  String get traySyncNow => '지금 동기화';
+
+  @override
+  String get traySyncing => '동기화 중…';
+
+  @override
+  String get trayNotConnected => '연결되지 않음';
+
+  @override
+  String get trayNotYetSynced => '아직 동기화되지 않음';
+
+  @override
+  String get trayLastSyncedJustNow => '방금 동기화됨';
+
+  @override
+  String trayLastSyncedMinutesAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count분 전에 동기화됨',
+      one: '1분 전에 동기화됨',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count시간 전에 동기화됨',
+      one: '1시간 전에 동기화됨',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trayLastSyncedDaysAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count일 전에 동기화됨',
+      one: '1일 전에 동기화됨',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get traySettings => '설정';
+
+  @override
+  String get trayQuitBusyMax => 'BusyMax 종료';
 
   @override
   String get agendaLoadMoreOverdue => '기한이 지난 할 일 더 불러오기';
@@ -259,127 +492,123 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noGuests => '참석자 없음';
 
   @override
-  String get attendeeRequired => 'Required';
+  String get attendeeRequired => '필수';
 
   @override
-  String get attendeeOptional => 'Optional';
+  String get attendeeOptional => '선택사항';
 
   @override
-  String get meetingSection => 'Meeting';
+  String get meetingSection => '회의';
 
   @override
-  String get addGoogleMeet => 'Add Google Meet';
+  String get addGoogleMeet => 'Google Meet 추가';
 
   @override
-  String get addTeamsMeeting => 'Add Microsoft Teams meeting';
+  String get addTeamsMeeting => 'Microsoft Teams 회의 추가';
 
   @override
-  String get onlineMeetingAdded => 'Online meeting added';
+  String get onlineMeetingAdded => '온라인 회의가 추가됨';
 
   @override
-  String get requestResponses => 'Request responses';
+  String get requestResponses => '응답 요청';
 
   @override
-  String get requestResponsesDescription =>
-      'Ask guests to respond to the invitation.';
+  String get requestResponsesDescription => '참석자에게 초대에 응답하도록 요청합니다.';
 
   @override
-  String get hideGuestList => 'Hide guest list';
+  String get hideGuestList => '참석자 목록 숨기기';
 
   @override
-  String get hideGuestListDescription =>
-      'Guests cannot see who else was invited.';
+  String get hideGuestListDescription => '참석자는 다른 초대 대상자를 볼 수 없습니다.';
 
   @override
-  String get allowNewTimeProposals => 'Allow new time proposals';
+  String get allowNewTimeProposals => '새 시간 제안 허용';
 
   @override
-  String get allowNewTimeProposalsDescription =>
-      'Guests can suggest a different meeting time.';
+  String get allowNewTimeProposalsDescription => '참석자가 다른 회의 시간을 제안할 수 있습니다.';
 
   @override
-  String get notifyGuestsTitle => 'Notify guests?';
+  String get notifyGuestsTitle => '참석자에게 알릴까요?';
 
   @override
   String get notifyGuestsSaveMessage =>
-      'This meeting has guests. Send invitations or event updates when it is saved?';
+      '이 회의에는 참석자가 있습니다. 저장할 때 초대 또는 일정 업데이트를 보낼까요?';
 
   @override
-  String get notifyGuestsDeleteMessage =>
-      'This meeting has guests. Send a cancellation when it is deleted?';
+  String get notifyGuestsDeleteMessage => '이 회의에는 참석자가 있습니다. 삭제할 때 취소를 보낼까요?';
 
   @override
-  String get sendUpdates => 'Send updates';
+  String get sendUpdates => '업데이트 보내기';
 
   @override
-  String get sendCancellation => 'Send cancellation';
+  String get sendCancellation => '취소 보내기';
 
   @override
-  String get doNotSend => 'Don’t send';
+  String get doNotSend => '보내지 않음';
 
   @override
-  String get microsoftNotifyGuestsSaveTitle => 'Save meeting?';
+  String get microsoftNotifyGuestsSaveTitle => '회의를 저장할까요?';
 
   @override
   String get microsoftNotifyGuestsSaveMessage =>
-      'Microsoft will send invitations or event updates to guests.';
+      'Microsoft에서 참석자에게 초대 또는 일정 업데이트를 보냅니다.';
 
   @override
-  String get microsoftNotifyGuestsDeleteTitle => 'Delete meeting?';
+  String get microsoftNotifyGuestsDeleteTitle => '회의를 삭제할까요?';
 
   @override
   String get microsoftNotifyGuestsDeleteMessage =>
-      'Microsoft will send a cancellation to guests.';
+      'Microsoft에서 참석자에게 취소를 보냅니다.';
 
   @override
-  String get organizer => 'Organizer';
+  String get organizer => '주최자';
 
   @override
-  String get yourResponse => 'Your response';
+  String get yourResponse => '내 응답';
 
   @override
-  String get guestResponses => 'Guest responses';
+  String get guestResponses => '참석자 응답';
 
   @override
-  String get respond => 'Respond';
+  String get respond => '응답';
 
   @override
-  String get acceptInvitation => 'Accept';
+  String get acceptInvitation => '수락';
 
   @override
-  String get tentativeInvitation => 'Tentative';
+  String get tentativeInvitation => '미정';
 
   @override
-  String get declineInvitation => 'Decline';
+  String get declineInvitation => '거절';
 
   @override
-  String get joinMeeting => 'Join meeting';
+  String get joinMeeting => '회의 참가';
 
   @override
-  String get responseAccepted => 'Accepted';
+  String get responseAccepted => '수락됨';
 
   @override
-  String get responseTentative => 'Tentative';
+  String get responseTentative => '미정';
 
   @override
-  String get responseDeclined => 'Declined';
+  String get responseDeclined => '거절됨';
 
   @override
-  String get responseNeedsAction => 'Awaiting response';
+  String get responseNeedsAction => '응답 대기 중';
 
   @override
-  String get responseNotResponded => 'Not responded';
+  String get responseNotResponded => '응답하지 않음';
 
   @override
-  String get responseOrganizer => 'Organizer';
+  String get responseOrganizer => '주최자';
 
   @override
   String invitationResponseFailed(String error) {
-    return 'Could not send your response: $error';
+    return '응답을 보낼 수 없습니다: $error';
   }
 
   @override
-  String get joinMeetingFailed => 'Could not open the meeting link.';
+  String get joinMeetingFailed => '회의 링크를 열 수 없습니다.';
 
   @override
   String get description => '설명';
@@ -425,10 +654,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String reminderMinutesBefore(int minutes) {
+    final intl.NumberFormat minutesNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String minutesString = minutesNumberFormat.format(minutes);
+
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: '$minutes분 전',
+      other: '$minutesString분 전',
       one: '1분 전',
     );
     return '$_temp0';
@@ -439,10 +672,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String reminderHoursBefore(int hours) {
+    final intl.NumberFormat hoursNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String hoursString = hoursNumberFormat.format(hours);
+
     String _temp0 = intl.Intl.pluralLogic(
       hours,
       locale: localeName,
-      other: '$hours시간 전',
+      other: '$hoursString시간 전',
       one: '1시간 전',
     );
     return '$_temp0';
@@ -450,10 +687,15 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String reminderDaysBefore(int days) {
+    final intl.NumberFormat daysNumberFormat = intl.NumberFormat.decimalPattern(
+      localeName,
+    );
+    final String daysString = daysNumberFormat.format(days);
+
     String _temp0 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: '$days일 전',
+      other: '$daysString일 전',
       one: '1일 전',
     );
     return '$_temp0';
@@ -636,7 +878,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get feedbackTechnicalDetailsDisclosure =>
-      'Linux 운영 체제 버전과 앱 로캘만 추가됩니다. 로그, 계정 데이터, 파일 이름 또는 기타 진단 정보는 포함되지 않습니다.';
+      '운영 체제 이름과 버전 및 앱 로캘만 추가됩니다. 로그, 계정 데이터, 파일 이름 또는 기타 진단 정보는 포함되지 않습니다.';
 
   @override
   String get feedbackCategoryRequired => '범주를 선택하세요.';
@@ -718,12 +960,12 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String removeAccountTitle(String account) {
-    return 'BusyMax에서 $account 계정을 삭제할까요?';
+    return '$account을(를) BusyMax에서 삭제할까요?';
   }
 
   @override
   String get removeAccountConfirmation =>
-      'This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.';
+      '이 작업은 이 기기에서 캐시된 할 일, 캘린더, 일정, 알림 및 보류 중인 오프라인 변경사항을 삭제합니다. 동기화되지 않은 변경사항은 손실됩니다. 제공업체의 캘린더, 일정, 할 일 목록 및 할 일 사본은 삭제되지 않습니다.';
 
   @override
   String get revokeGoogleAccess => '이 Google 계정에 대한 BusyMax의 액세스 권한도 취소';
@@ -746,17 +988,17 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String taskListCreateFailed(String error) {
-    return 'Could not create the task list: $error';
+    return '할 일 목록을 만들 수 없습니다: $error';
   }
 
   @override
   String taskListRenameFailed(String error) {
-    return 'Could not rename the task list: $error';
+    return '할 일 목록 이름을 바꿀 수 없습니다: $error';
   }
 
   @override
   String taskListDeleteFailed(String error) {
-    return 'Could not delete the task list: $error';
+    return '할 일 목록을 삭제할 수 없습니다: $error';
   }
 
   @override
@@ -785,11 +1027,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get readOnlyTaskListCannotRename =>
-      'This task list is read-only and cannot be renamed.';
+      '이 할 일 목록은 읽기 전용이므로 이름을 바꿀 수 없습니다.';
 
   @override
-  String get taskListCannotDelete =>
-      'This task list cannot be deleted with your current permissions.';
+  String get taskListCannotDelete => '현재 권한으로는 이 할 일 목록을 삭제할 수 없습니다.';
 
   @override
   String get builtInMicrosoftList => '기본 제공';
@@ -800,17 +1041,17 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String deleteListConfirmation(String title) {
-    return 'Google Tasks에서 “$title” 목록을 삭제할까요?';
+    return 'Google Tasks에서 “$title”을(를) 삭제할까요?';
   }
 
   @override
   String deleteTaskListConfirmation(String title) {
-    return 'Delete \"$title\" and all of its tasks?';
+    return '“$title” 및 모든 할 일을 삭제할까요?';
   }
 
   @override
   String unshareTaskListConfirmation(String title) {
-    return 'Unshare \"$title\" from this account?';
+    return '이 계정에서 “$title” 공유를 해제할까요?';
   }
 
   @override
@@ -935,72 +1176,88 @@ class AppLocalizationsKo extends AppLocalizations {
   String get doneStatus => '완료';
 
   @override
-  String get taskStatus => 'Status';
+  String get taskStatus => '상태';
 
   @override
-  String get taskStatusNone => 'No status';
+  String get taskStatusNone => '상태 없음';
 
   @override
-  String get taskStatusNeedsAction => 'Needs action';
+  String get taskStatusNeedsAction => '조치 필요';
 
   @override
-  String get taskStatusInProcess => 'In process';
+  String get taskStatusInProcess => '진행 중';
 
   @override
-  String get taskStatusCompleted => '완료됨';
+  String get taskStatusCompleted => '완료';
 
   @override
-  String get taskStatusCancelled => 'Cancelled';
+  String get taskStatusCancelled => '취소됨';
 
   @override
   String completionPercent(int percent) {
-    return '$percent% completed';
+    final intl.NumberFormat percentNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String percentString = percentNumberFormat.format(percent);
+
+    return '$percentString% 완료';
   }
 
   @override
-  String get completionDate => 'Completion date';
+  String get completionDate => '완료 날짜';
 
   @override
-  String get priority => '우선 순위';
+  String get priority => '우선순위';
 
   @override
-  String get priorityNone => 'No priority';
+  String get priorityNone => '우선순위 없음';
 
   @override
   String priorityHighValue(int priority) {
-    return 'Priority $priority · High';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '우선순위 $priorityString · 높음';
   }
 
   @override
   String priorityMediumValue(int priority) {
-    return 'Priority $priority · Medium';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '우선순위 $priorityString · 중간';
   }
 
   @override
   String priorityLowValue(int priority) {
-    return 'Priority $priority · Low';
+    final intl.NumberFormat priorityNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String priorityString = priorityNumberFormat.format(priority);
+
+    return '우선순위 $priorityString · 낮음';
   }
 
   @override
-  String get taskUrl => 'URL';
+  String get taskUrl => '할 일 URL';
 
   @override
-  String get invalidTaskUrl => 'Enter an absolute URL, including its scheme.';
+  String get invalidTaskUrl => '스킴을 포함한 절대 URL을 입력하세요.';
 
   @override
-  String get classification => 'Classification';
+  String get classification => '분류';
 
   @override
-  String get classificationPublic => 'When shared, show the full task';
+  String get classificationPublic => '공유할 때 전체 할 일 표시';
 
   @override
-  String get classificationConfidential => 'When shared, show only busy';
+  String get classificationConfidential => '공유할 때 바쁨 상태만 표시';
 
   @override
-  String get classificationPrivate => 'When shared, hide this task';
+  String get classificationPrivate => '공유할 때 이 할 일 숨기기';
 
   @override
-  String get pinTask => 'Pin task';
+  String get pinTask => '할 일 고정';
 
   @override
   String get notes => '메모';
@@ -1036,85 +1293,88 @@ class AppLocalizationsKo extends AppLocalizations {
   String get reminder => '미리 알림';
 
   @override
-  String get addReminder => '미리 알림 추가';
+  String get addReminder => '알림 추가';
 
   @override
-  String get reminders => 'Reminders';
+  String get reminders => '알림';
 
   @override
-  String get noReminders => 'No reminders';
+  String get noReminders => '알림 없음';
 
   @override
-  String get editReminder => 'Edit reminder';
+  String get editReminder => '알림 수정';
 
   @override
-  String get beforeTaskStarts => 'Before the task starts';
+  String get beforeTaskStarts => '할 일 시작 전';
 
   @override
-  String get beforeTaskDue => 'Before the task is due';
+  String get beforeTaskDue => '할 일 마감 전';
 
   @override
-  String get afterTaskStarts => 'After the task starts';
+  String get afterTaskStarts => '할 일 시작 후';
 
   @override
-  String get afterTaskDue => 'After the task is due';
+  String get afterTaskDue => '할 일 마감 후';
 
   @override
-  String get relativeToTaskStart => 'Relative to the task start date';
+  String get relativeToTaskStart => '할 일 시작일 기준';
 
   @override
-  String get relativeToTaskDue => 'Relative to the task due date';
+  String get relativeToTaskDue => '할 일 마감일 기준';
 
   @override
-  String get reminderTimeOfDay => 'Time of day';
+  String get reminderTimeOfDay => '시간';
 
   @override
-  String get absoluteReminder => 'At a date and time';
+  String get absoluteReminder => '날짜 및 시간에';
 
   @override
-  String get reminderAmount => 'Amount';
+  String get reminderAmount => '수량';
 
   @override
-  String get reminderUnit => 'Unit';
+  String get reminderUnit => '단위';
 
   @override
-  String get reminderUnitSeconds => 'Seconds';
+  String get reminderUnitSeconds => '초';
 
   @override
-  String get reminderUnitMinutes => 'Minutes';
+  String get reminderUnitMinutes => '분';
 
   @override
-  String get reminderUnitHours => 'Hours';
+  String get reminderUnitHours => '시간';
 
   @override
-  String get reminderUnitDays => 'Days';
+  String get reminderUnitDays => '일';
 
   @override
-  String get reminderUnitWeeks => 'Weeks';
+  String get reminderUnitWeeks => '주';
 
   @override
-  String get reminderAtTaskStart => 'At the task start';
+  String get reminderAtTaskStart => '할 일 시작 시';
 
   @override
-  String get reminderAtTaskDue => 'At the task due time';
+  String get reminderAtTaskDue => '할 일 마감 시';
 
   @override
-  String get unsupportedReminder =>
-      'This reminder type is preserved but its time cannot be edited.';
+  String get unsupportedReminder => '이 알림 유형은 유지되지만 시간을 수정할 수 없습니다.';
 
   @override
-  String get relatedRemindersTitle => 'Keep related reminders?';
+  String get relatedRemindersTitle => '관련 알림을 유지할까요?';
 
   @override
   String relatedRemindersDescription(int count) {
-    return 'This date has $count related reminders. Keep them at their current date and time?';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '이 날짜에 관련 알림이 $countString개 있습니다. 현재 날짜와 시간에 유지할까요?';
   }
 
   @override
-  String get discardRelatedReminders => 'Discard reminders';
+  String get discardRelatedReminders => '알림 삭제';
 
   @override
-  String get keepRelatedReminders => 'Keep reminders';
+  String get keepRelatedReminders => '알림 유지';
 
   @override
   String get addGuest => '참석자 추가';
@@ -1150,121 +1410,179 @@ class AppLocalizationsKo extends AppLocalizations {
   String get repeatYearly => '매년';
 
   @override
-  String get repeatEvery => '반복 주기';
+  String get repeatEvery => '반복 간격';
 
   @override
-  String get repeatOn => 'Repeat on';
+  String get repeatOn => '반복 요일';
 
   @override
   String get repeatEnd => '반복 종료';
 
   @override
-  String get repeatNever => 'Never';
+  String get repeatNever => '안 함';
 
   @override
-  String get repeatUntil => 'On date';
+  String get repeatUntil => '날짜까지';
 
   @override
-  String get repeatAfter => 'After a number of occurrences';
+  String get repeatAfter => '지정한 횟수 후';
 
   @override
-  String get repeatCount => 'Occurrences';
+  String get repeatCount => '반복 횟수';
 
   @override
-  String get repeatDayOfMonth => 'Days of month';
+  String get repeatDayOfMonth => '월의 날짜';
 
   @override
-  String get repeatMonths => 'Months';
+  String get repeatMonths => '월';
 
   @override
-  String get repeatOrdinal => 'Weekday position';
+  String get repeatOrdinal => '요일 순서';
 
   @override
-  String get repeatSpecificDays => 'Specific days';
+  String get repeatSpecificDays => '특정 요일';
 
   @override
-  String get repeatFirst => 'First';
+  String get repeatFirst => '첫 번째';
 
   @override
-  String get repeatSecond => 'Second';
+  String get repeatSecond => '두 번째';
 
   @override
-  String get repeatThird => 'Third';
+  String get repeatThird => '세 번째';
 
   @override
-  String get repeatFourth => 'Fourth';
+  String get repeatFourth => '네 번째';
 
   @override
-  String get repeatFifth => 'Fifth';
+  String get repeatFifth => '다섯 번째';
 
   @override
-  String get repeatSecondToLast => 'Second to last';
+  String get repeatSecondToLast => '끝에서 두 번째';
 
   @override
-  String get repeatLast => 'Last';
+  String get repeatLast => '마지막';
 
   @override
-  String get repeatAnyDay => 'Day';
+  String get repeatAnyDay => '요일';
 
   @override
-  String get repeatWeekday => 'Weekday';
+  String get repeatWeekday => '평일';
 
   @override
-  String get repeatWeekendDay => 'Weekend day';
+  String get repeatWeekendDay => '주말';
+
+  @override
+  String repeatOrdinalDaySummary(String dayKey, String day) {
+    String _temp0 = intl.Intl.selectLogic(dayKey, {
+      'MO': '월요일',
+      'TU': '화요일',
+      'WE': '수요일',
+      'TH': '목요일',
+      'FR': '금요일',
+      'SA': '토요일',
+      'SU': '일요일',
+      'day': '날',
+      'weekday': '평일',
+      'weekend': '주말',
+      'other': '$day',
+    });
+    return '$_temp0';
+  }
 
   @override
   String repeatEveryDays(int count) {
-    return 'Every $count days';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString일마다';
   }
 
   @override
   String repeatEveryWeeks(int count) {
-    return 'Every $count weeks';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString주마다';
   }
 
   @override
   String repeatEveryMonths(int count) {
-    return 'Every $count months';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString개월마다';
   }
 
   @override
   String repeatEveryYears(int count) {
-    return 'Every $count years';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString년마다';
   }
 
   @override
   String repeatOnDaysSummary(String days) {
-    return 'on $days';
+    return '$days에';
   }
 
   @override
   String repeatOnMonthDaysSummary(String days) {
-    return 'on day $days';
+    return '$days';
   }
 
   @override
-  String repeatOnOrdinalSummary(String ordinal, String days) {
-    return 'on the $ordinal $days';
+  String repeatOnOrdinalSummary(String position, String days) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '첫 번째 $days',
+      'second': '두 번째 $days',
+      'third': '세 번째 $days',
+      'fourth': '네 번째 $days',
+      'fifth': '다섯 번째 $days',
+      'secondToLast': '끝에서 두 번째 $days',
+      'last': '마지막 $days',
+      'other': '$days',
+    });
+    return '$_temp0';
   }
 
   @override
   String repeatInMonthsSummary(String months) {
-    return 'in $months';
+    return '$months에';
   }
 
   @override
   String repeatTimesSummary(int count) {
-    return '$count회';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString회',
+    );
+    return '$_temp0';
   }
 
   @override
   String repeatUntilSummary(String date) {
-    return 'until $date';
+    return '$date까지';
   }
 
   @override
   String get unsupportedRecurrencePreserved =>
-      'This recurrence rule uses options that this editor does not change.';
+      '이 반복 규칙에는 이 편집기에서 변경하지 않는 옵션이 사용됩니다.';
+
+  @override
+  String recurrenceUnsupportedByProvider(String provider) {
+    return '이 반복은 $provider에서 사용할 수 없습니다.';
+  }
 
   @override
   String get importance => '중요도';
@@ -1319,21 +1637,21 @@ class AppLocalizationsKo extends AppLocalizations {
   String get subtasks => '하위 할 일';
 
   @override
-  String get duplicateTask => 'Duplicate task';
+  String get duplicateTask => '할 일 복제';
 
   @override
-  String get taskDuplicated => 'Task duplicated.';
+  String get taskDuplicated => '할 일이 복제되었습니다.';
 
   @override
   String taskDuplicateFailed(String error) {
-    return 'Could not duplicate the task: $error';
+    return '할 일을 복제할 수 없습니다: $error';
   }
 
   @override
-  String get hideSubtasks => 'Hide subtasks';
+  String get hideSubtasks => '하위 할 일 숨기기';
 
   @override
-  String get hideClosedSubtasks => 'Hide closed subtasks';
+  String get hideClosedSubtasks => '완료된 하위 할 일 숨기기';
 
   @override
   String get moveToTop => '맨 위로 이동';
@@ -1389,7 +1707,11 @@ class AppLocalizationsKo extends AppLocalizations {
   String get sync => '동기화';
 
   @override
-  String get manualFullSync => '수동 전체 동기화';
+  String get forceFullResync => '전체 재동기화 강제 실행';
+
+  @override
+  String get forceFullResyncDescription =>
+      '연결된 모든 계정의 데이터를 완전히 다시 불러옵니다. 동기화 문제를 해결할 때만 사용하세요.';
 
   @override
   String get runInBackgroundWhenClosed => '창을 닫아도 계속 실행';
@@ -1434,6 +1756,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get eventReminders => '일정 미리 알림';
 
   @override
+  String get onState => '켬';
+
+  @override
   String get taskReminders => '할 일 미리 알림';
 
   @override
@@ -1461,6 +1786,17 @@ class AppLocalizationsKo extends AppLocalizations {
   String get notifications => '알림';
 
   @override
+  String get windowsNotificationsUnavailable => 'Windows 알림을 사용할 수 없음';
+
+  @override
+  String get windowsNotificationsUnpackaged =>
+      '패키징되지 않은 이 개발 실행에서는 Windows 알림을 사용할 수 없습니다. 미리 알림을 테스트하려면 테스트 서명된 MSIX를 설치하세요.';
+
+  @override
+  String get windowsNotificationsInstalledFailure =>
+      'BusyMax에서 Windows 알림을 초기화하지 못했습니다. 이 설치 문제가 해결될 때까지 미리 알림이 표시되지 않습니다.';
+
+  @override
   String get appearance => '화면 모양';
 
   @override
@@ -1468,6 +1804,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get themeSystem => '시스템';
+
+  @override
+  String get settingsSystem => '시스템';
 
   @override
   String get themeLight => '라이트';
@@ -1543,7 +1882,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String pendingOpAttempts(int count) {
-    return '시도=$count';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '시도=$countString';
   }
 
   @override
@@ -1587,7 +1930,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String conflictNotificationBody(String summary) {
-    return '보류 중인 로컬 변경 사항이 차단되었습니다. $summary';
+    return '보류 중인 로컬 변경사항이 차단되었습니다. $summary';
   }
 
   @override
@@ -1595,10 +1938,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String dueTodayNotificationBody(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '오늘 마감인 할 일이 $count개 있습니다.',
+      other: '오늘 마감인 할 일이 $countString개 있습니다.',
       one: '오늘 마감인 할 일이 1개 있습니다.',
     );
     return '$_temp0';
@@ -1623,7 +1970,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get notificationSnoozeAction => '10분 후 다시 알림';
 
   @override
-  String get notificationDismissAction => '해제';
+  String get notificationDismissAction => '닫기';
 
   @override
   String get notificationDetailsHidden => '개인정보 보호 설정에 따라 세부 정보가 숨겨졌습니다.';
@@ -1648,7 +1995,11 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String weekNumberTooltip(int number) {
-    return '$number주차';
+    final intl.NumberFormat numberNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String numberString = numberNumberFormat.format(number);
+
+    return '$numberString주차';
   }
 
   @override
@@ -1656,10 +2007,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String scheduleItemCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '항목 $count개',
+      other: '항목 $countString개',
       one: '항목 1개',
     );
     return '$_temp0';
@@ -1675,17 +2030,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get searchLocations => '위치 검색';
 
   @override
-  String get noLocationsFound => '위치를 찾을 수 없습니다';
+  String get noLocationsFound => '위치를 찾을 수 없음';
 
   @override
-  String get requiredField => 'This field is required.';
+  String get requiredField => '이 필드는 필수입니다.';
 
   @override
-  String get providerConnectionDescription =>
-      'Connect calendars and tasks from one of these providers.';
+  String get providerConnectionDescription => '다음 제공업체 중 하나에서 캘린더와 할 일을 연결하세요.';
 
   @override
-  String get appleICloudProvider => 'Apple iCloud Calendar';
+  String get appleICloudProvider => 'Apple iCloud 캘린더';
 
   @override
   String get nextcloudProvider => 'Nextcloud';
@@ -1694,198 +2048,215 @@ class AppLocalizationsKo extends AppLocalizations {
   String get appleICloudTasksProvider => 'Apple iCloud';
 
   @override
-  String get nextcloudTasksProvider => 'Nextcloud Tasks';
+  String get nextcloudTasksProvider => 'Nextcloud 할 일';
 
   @override
-  String get addAppleICloudAccount => 'Add Apple iCloud Calendar account';
+  String get addAppleICloudAccount => 'Apple iCloud 캘린더 계정 추가';
 
   @override
-  String get addNextcloudAccount => 'Add Nextcloud account';
+  String get addNextcloudAccount => 'Nextcloud 계정 추가';
 
   @override
-  String get waitingForAppleICloud => 'Connecting to Apple iCloud…';
+  String get waitingForAppleICloud => 'Apple iCloud에 연결 중…';
 
   @override
-  String get waitingForNextcloud => 'Waiting for Nextcloud authorization…';
+  String get waitingForNextcloud => 'Nextcloud 인증 대기 중…';
 
   @override
-  String get connectAppleICloudTitle => 'Connect Apple iCloud Calendar';
+  String get connectAppleICloudTitle => 'Apple iCloud 캘린더 연결';
 
   @override
-  String get appleAccountEmail => 'Apple Account email';
+  String get appleAccountEmail => 'Apple 계정 이메일';
 
   @override
-  String get appleAppSpecificPassword => 'App-specific password';
+  String get appleAppSpecificPassword => '앱 전용 암호';
 
   @override
   String get appleAppSpecificPasswordHelp =>
-      'Create an app-specific password after enabling two-factor authentication for your Apple Account.';
+      'Apple 계정에서 이중 인증을 활성화한 후 앱 전용 암호를 생성하세요.';
 
   @override
   String get appleAppSpecificPasswordResetWarning =>
-      'Resetting your Apple Account password revokes app-specific passwords.';
+      'Apple 계정 암호를 재설정하면 앱 전용 암호가 취소됩니다.';
 
   @override
-  String get connectNextcloudTitle => 'Connect Nextcloud';
+  String get connectNextcloudTitle => 'Nextcloud 연결';
 
   @override
-  String get nextcloudServerUrl => 'Nextcloud server or CalDAV address';
+  String get nextcloudServerUrl => 'Nextcloud 서버 또는 CalDAV 주소';
 
   @override
   String get nextcloudServerUrlHelp =>
-      'Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.';
+      'Nextcloud 서버 URL을 입력하거나 Nextcloud에서 복사한 기본 CalDAV 주소를 붙여넣으세요.';
 
   @override
   String get nextcloudBrowserAuthorizationHelp =>
-      'BusyMax will open your browser. Approve access there, then return to BusyMax.';
+      'BusyMax가 브라우저를 엽니다. 그곳에서 액세스를 승인한 다음 BusyMax로 돌아오세요.';
 
   @override
-  String get connectAccountAction => 'Connect';
+  String get connectAccountAction => '연결';
 
   @override
-  String get cancelAccountConnection => 'Cancel connection';
+  String get cancelAccountConnection => '연결 취소';
 
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
-      'The account was removed locally, but its Nextcloud app password could not be revoked.';
+      '계정은 로컬에서 삭제되었지만 Nextcloud 앱 암호를 취소할 수 없습니다.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
+  String get davCachedOfflineNotice => '오프라인 사용을 위해 캘린더 및 할 일 데이터가 로컬에 캐시됩니다.';
 
   @override
-  String get davReauthenticationRequired =>
-      'Reconnect this account to resume synchronization.';
+  String get davReauthenticationRequired => '동기화를 재개하려면 이 계정을 다시 연결하세요.';
 
   @override
-  String get davTemporarilyUnavailable =>
-      'This account is temporarily unavailable.';
+  String get davTemporarilyUnavailable => '이 계정은 일시적으로 사용할 수 없습니다.';
 
   @override
-  String get davPermissionChanged =>
-      'Server permissions changed. Pending edits are paused.';
+  String get davPermissionChanged => '서버 권한이 변경되었습니다. 보류 중인 편집이 일시 중지되었습니다.';
 
   @override
-  String get davUnsupportedServer =>
-      'This server or provider profile is not supported.';
+  String get davUnsupportedServer => '이 서버 또는 제공업체 프로필은 지원되지 않습니다.';
 
   @override
-  String get collectionSettings => 'Calendars and task lists';
+  String get collectionSettings => '캘린더 및 할 일 목록';
 
   @override
-  String get calendarContent => 'Calendar events';
+  String get calendarContent => '캘린더 일정';
 
   @override
-  String get taskContent => 'Tasks';
+  String get taskContent => '할 일';
 
   @override
-  String get readOnlySharedCollection => 'Read-only';
+  String get readOnlySharedCollection => '읽기 전용';
 
   @override
-  String get pendingLocally => 'Pending locally';
+  String get pendingLocally => '로컬에서 보류 중';
 
   @override
-  String get conflictBlocked => 'Blocked by conflict';
+  String get conflictBlocked => '충돌로 차단됨';
 
   @override
-  String get authenticationBlocked => 'Blocked until reconnect';
+  String get authenticationBlocked => '다시 연결할 때까지 차단됨';
 
   @override
-  String get operationFailed => 'Operation failed';
+  String get operationFailed => '작업 실패';
 
   @override
-  String get keepServerVersion => 'Keep server version';
+  String get keepServerVersion => '서버 버전 유지';
 
   @override
-  String get reapplyLocalChange => 'Review and reapply local change';
+  String get reapplyLocalChange => '로컬 변경사항 검토 후 다시 적용';
 
   @override
-  String get duplicateLocalItem => 'Duplicate as new item';
+  String get duplicateLocalItem => '새 항목으로 복제';
 
   @override
-  String get davConnectionState => 'Connection state';
+  String get davConnectionState => '연결 상태';
 
   @override
-  String get davConnected => 'Connected';
+  String get davConnected => '연결됨';
 
   @override
-  String get davConnecting => 'Connecting…';
+  String get davConnecting => '연결 중…';
 
   @override
-  String get davSignedOut => 'Signed out';
+  String get davSignedOut => '로그아웃됨';
 
   @override
   String davLastSuccessfulSync(String time) {
-    return 'Last successful sync: $time';
+    return '마지막으로 성공한 동기화: $time';
   }
 
   @override
-  String get davNeverSynced => 'Not synchronized yet';
+  String get davNeverSynced => '아직 동기화되지 않음';
 
   @override
-  String get refreshCollections => 'Refresh calendars and task lists';
+  String get refreshCollections => '캘린더 및 할 일 목록 새로 고침';
 
   @override
   String nextcloudServerHost(String host) {
-    return 'Server: $host';
+    return '서버: $host';
   }
 
   @override
-  String get collectionSupportsEvents => 'Event calendar';
+  String get collectionSupportsEvents => '일정 캘린더';
 
   @override
-  String get collectionSupportsTasks => 'Task list';
+  String get collectionSupportsTasks => '할 일 목록';
 
   @override
-  String get collectionSupportsEventsAndTasks => 'Events and tasks';
+  String get collectionSupportsEventsAndTasks => '일정 및 할 일';
 
   @override
-  String get writableCollection => 'Writable';
+  String get writableCollection => '쓰기 가능';
 
   @override
-  String get sharedCollection => 'Shared';
+  String get sharedCollection => '공유됨';
 
   @override
   String collectionLastSynced(String time) {
-    return 'Last synchronized: $time';
+    return '마지막 동기화: $time';
   }
 
   @override
   String collectionSyncError(String code) {
-    return 'Sync issue: $code';
+    return '동기화 문제: $code';
   }
 
   @override
-  String get syncConflicts => 'Synchronization conflicts';
+  String get syncConflicts => '동기화 충돌';
 
   @override
   String remoteChangedAt(String time) {
-    return 'Server changed: $time';
+    return '서버 변경: $time';
   }
 
   @override
   String localPendingEdit(String summary) {
-    return 'Local edit: $summary';
+    return '로컬 편집: $summary';
   }
 
   @override
-  String get conflictResolutionFailed => 'The conflict could not be resolved.';
+  String get conflictResolutionFailed => '충돌을 해결할 수 없습니다.';
 
   @override
-  String get recurringEventScope => 'Recurring event scope';
+  String get recurringEventScope => '반복 일정 범위';
 
   @override
-  String get entireSeries => 'Entire series';
+  String get entireSeries => '전체 시리즈';
 
   @override
-  String get singleOccurrence => 'This occurrence';
+  String get singleOccurrence => '이 일정';
 
   @override
-  String get thisAndFutureUnavailable => 'This and future (not available)';
+  String get thisAndFollowingEvents => '이 일정 및 향후 일정';
+
+  @override
+  String get thisAndFutureUnavailable => '이 제공업체에서는 지원되지 않습니다.';
+
+  @override
+  String get thisAndFutureMoveUnavailable =>
+      '이 일정과 이후 일정을 안전하게 이동할 수 없습니다. 이 일정 또는 전체 반복 일정을 선택하세요.';
+
+  @override
+  String get entireSeriesMoveUnavailable =>
+      '반복 규칙을 로컬에서 사용할 수 없습니다. 이 일정만 이동하세요.';
+
+  @override
+  String get copyEventAndDeleteOriginal => '일정을 복사하고 원본을 삭제할까요?';
+
+  @override
+  String copyEventMoveWarning(String source, String destination) {
+    return 'BusyMax는 이 일정을 $source에서 $destination(으)로 직접 이동할 수 없습니다. 먼저 복사본을 만들고 복사가 성공한 뒤에만 원본을 삭제합니다. 일정 ID가 변경되고 참석자 응답 상태가 초기화되며 초대 또는 취소가 전송될 수 있습니다. 회의 링크, 첨부 파일, 미리 알림, 제공업체별 필드 및 반복 예외는 이전되지 않을 수 있습니다.';
+  }
+
+  @override
+  String get copyAndDelete => '복사 후 삭제';
 
   @override
   String get chooseRecurringEventScope =>
-      'Choose whether this change applies to the entire series or only this occurrence.';
+      '이 변경을 전체 시리즈, 이 일정만 또는 이 일정과 이후 일정에 적용할지 선택하세요.';
 
   @override
   String get taskDueBeforeStart => '마감은 시작보다 빠를 수 없습니다.';
@@ -1900,6 +2271,197 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get setCustomCalendarName => '맞춤 이름 설정';
+
+  @override
+  String get setAction => '설정';
+
+  @override
+  String get removeFromMyCalendars => '내 캘린더에서 삭제';
+
+  @override
+  String get removeAction => '삭제';
+
+  @override
+  String removeCalendarConfirmation(String title) {
+    return 'Google Calendar 목록에서 \"$title\"을(를) 삭제할까요? 공유 캘린더와 일정은 삭제되지 않습니다.';
+  }
+
+  @override
+  String get calendarCannotRemove => '이 캘린더는 이 계정에서 삭제하거나 제거할 수 없습니다.';
+
+  @override
+  String get calendarPendingChangesPreventRemoval =>
+      '삭제하거나 제거하기 전에 이 캘린더의 보류 중인 변경사항이 동기화될 때까지 기다리세요.';
+
+  @override
+  String get calendarSubscriptions => '캘린더 구독';
+
+  @override
+  String get calendarSubscriptionsDescription =>
+      '보안 WebCal URL에서 새로 고침되는 읽기 전용 캘린더를 추가하세요.';
+
+  @override
+  String get addCalendarSubscription => '캘린더 구독 추가';
+
+  @override
+  String get subscriptionName => '로컬 이름';
+
+  @override
+  String get subscriptionUrl => '구독 URL';
+
+  @override
+  String get subscriptionUrlHelp =>
+      'HTTPS 또는 webcal URL을 입력하세요. BusyMax는 전체 URL을 안전한 저장소에 보관합니다.';
+
+  @override
+  String get subscriptionUrlInvalid =>
+      '사용자 정보나 프래그먼트가 없는 올바른 HTTPS 또는 webcal URL을 입력하세요.';
+
+  @override
+  String get subscriptionColor => '로컬 색상';
+
+  @override
+  String get subscriptionColorHelp => '#3584E4와 같은 6자리 색상을 사용하세요.';
+
+  @override
+  String get subscriptionColorInvalid => '6자리 16진수 색상을 입력하세요.';
+
+  @override
+  String get subscriptionRefreshMode => '새로 고침 빈도';
+
+  @override
+  String get subscriptionAutomatic => '자동';
+
+  @override
+  String get subscriptionHourly => '매시간';
+
+  @override
+  String get subscriptionSixHours => '6시간마다';
+
+  @override
+  String get subscriptionDaily => '매일';
+
+  @override
+  String subscriptionSafeOrigin(String origin) {
+    return '소스: $origin';
+  }
+
+  @override
+  String get subscriptionSafeOriginUnavailable =>
+      '안전한 원본을 미리 보려면 올바른 URL을 입력하세요.';
+
+  @override
+  String get subscriptionReadOnly => '읽기 전용 구독';
+
+  @override
+  String get subscriptionNeverRefreshed => '아직 새로 고치지 않음';
+
+  @override
+  String subscriptionLastRefresh(String time) {
+    return '마지막으로 성공한 새로 고침: $time';
+  }
+
+  @override
+  String subscriptionNextRefresh(String time) {
+    return '다음 새로 고침: $time';
+  }
+
+  @override
+  String get subscriptionStatusHealthy => '최신 상태';
+
+  @override
+  String subscriptionStatusIssue(String code) {
+    return '새로 고침 문제: $code';
+  }
+
+  @override
+  String get refreshNow => '지금 새로 고침';
+
+  @override
+  String get unsubscribe => '구독 취소';
+
+  @override
+  String unsubscribeCalendarTitle(String name) {
+    return '“$name” 구독을 취소할까요?';
+  }
+
+  @override
+  String get unsubscribeCalendarConfirmation =>
+      '로컬 구독과 캐시된 일정을 제거합니다. 게시된 캘린더는 변경되지 않습니다.';
+
+  @override
+  String get addSubscriptionAction => '구독 추가';
+
+  @override
+  String subscriptionOperationFailed(String error) {
+    return '캘린더 구독 실패: $error';
+  }
+
+  @override
+  String get subscriptions => '구독';
+
+  @override
+  String get calendarImport => '캘린더 가져오기';
+
+  @override
+  String get calendarImportDescription =>
+      '파일을 선택하고 일정을 검토한 다음 이를 받을 쓰기 가능한 캘린더를 선택하세요.';
+
+  @override
+  String get importIcsFile => '.ics 파일 가져오기';
+
+  @override
+  String get importIcsPreview => '캘린더 일정 가져오기';
+
+  @override
+  String importEventsFound(int count) {
+    return '가져올 수 있는 일정 세트: $count';
+  }
+
+  @override
+  String importInvalidEvents(int count) {
+    return '잘못된 일정: $count';
+  }
+
+  @override
+  String importFieldsOmitted(String fields) {
+    return '의도적으로 생략됨: $fields';
+  }
+
+  @override
+  String get noWritableCalendars => '쓰기 가능한 대상 캘린더가 없습니다.';
+
+  @override
+  String get importDestinationCalendar => '대상 캘린더';
+
+  @override
+  String get importIcsConfirm => '일정 가져오기';
+
+  @override
+  String get importIcsComplete => '가져오기 완료';
+
+  @override
+  String importQueued(int count) {
+    return '가져왔거나 대기열에 추가됨: $count';
+  }
+
+  @override
+  String importDuplicatesSkipped(int count) {
+    return '중복 건너뜀: $count';
+  }
+
+  @override
+  String importUnsupportedSets(int count) {
+    return '지원되지 않는 반복 세트: $count';
+  }
+
+  @override
+  String importIcsFailed(String error) {
+    return '캘린더 파일을 가져올 수 없습니다: $error';
+  }
+
+  @override
   String get networkOffline => '오프라인';
 
   @override
@@ -1907,4 +2469,139 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get networkOfflineTryAgain => '오프라인 상태입니다. 인터넷에 연결한 후 다시 시도하세요.';
+
+  @override
+  String repeatOnMonthDaysSummaryMultiple(String days) {
+    return '$days';
+  }
+
+  @override
+  String get repeatSummarySeparator => ' ';
+
+  @override
+  String repeatMonthDayValue(String day) {
+    return '$day일';
+  }
+
+  @override
+  String repeatWeekdayListPair(String first, String second) {
+    return '$first과 $second';
+  }
+
+  @override
+  String repeatWeekdayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatMonthDayListPair(String first, String second) {
+    return '$first과 $second';
+  }
+
+  @override
+  String repeatMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthValue(String month, String monthKey) {
+    String _temp0 = intl.Intl.selectLogic(monthKey, {'other': '$month'});
+    return '$_temp0';
+  }
+
+  @override
+  String repeatYearlyMonthDayListPair(String first, String second) {
+    return '$first과 $second';
+  }
+
+  @override
+  String repeatYearlyMonthDayListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyMonthListPair(String first, String second) {
+    return '$first과 $second';
+  }
+
+  @override
+  String repeatYearlyMonthListStart(String first, String rest) {
+    return '$first, $rest';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  ) {
+    return '$frequency $month $day';
+  }
+
+  @override
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  ) {
+    return '$frequency $month의 $days';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  ) {
+    return '$frequency $months의 $day';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  ) {
+    return '$frequency $months의 $days';
+  }
+
+  @override
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '첫 번째 $days',
+      'second': '두 번째 $days',
+      'third': '세 번째 $days',
+      'fourth': '네 번째 $days',
+      'fifth': '다섯 번째 $days',
+      'secondToLast': '끝에서 두 번째 $days',
+      'last': '마지막 $days',
+      'other': '$days',
+    });
+    return '$frequency $month의 $_temp0';
+  }
+
+  @override
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(position, {
+      'first': '첫 번째 $days',
+      'second': '두 번째 $days',
+      'third': '세 번째 $days',
+      'fourth': '네 번째 $days',
+      'fifth': '다섯 번째 $days',
+      'secondToLast': '끝에서 두 번째 $days',
+      'last': '마지막 $days',
+      'other': '$days',
+    });
+    return '$frequency $months의 $_temp0';
+  }
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -8,7 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import '../config/build_config.dart';
-import '../core/time/local_time_zone.dart';
+import '../calendar_providers/cloud_calendar_client.dart';
 import '../db/app_database.dart';
 import '../dav/auth/dav_account_onboarding_service.dart';
 import '../dav/auth/nextcloud_app_password_revoker.dart';
@@ -17,16 +16,20 @@ import '../dav/dav_provider_profile.dart';
 import '../dav/discovery/dav_discovery_service.dart';
 import '../dav/http/dav_http_transport.dart';
 import '../dav/mutation/dav_conflict_repository.dart';
+import '../dav/mutation/dav_calendar_collection_mutation_service.dart';
 import '../dav/mutation/dav_pending_operations.dart';
 import '../dav/mutation/dav_task_list_mutation_service.dart';
 import '../dav/sync/dav_account_sync_engine.dart';
 import '../dav/storage/dav_settings_repository.dart';
 import '../features/calendar/data/calendar_repository.dart';
+import '../features/calendar/data/calendar_collection_creation_service.dart';
+import '../ical/ical_import_service.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/connectivity/network_connectivity_service.dart';
 import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
+import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/notification_scheduler.dart';
 import '../features/sync/account_sync_operations.dart';
 import '../features/sync/all_accounts_sync_scheduler.dart';
@@ -38,29 +41,28 @@ import '../features/sync/sync_failure_notification_policy.dart';
 import '../features/task_lists/data/task_lists_repository.dart';
 import '../features/tasks/data/tasks_repository.dart';
 import '../features/tasks/domain/task_remote_client.dart';
+import '../features/tray/data/tray_presentation_service.dart';
 import '../google_tasks/api/google_tasks_api_client.dart';
 import '../google_tasks/http/authenticated_http_client.dart';
 import '../google_tasks/http/retrying_http_client.dart';
 import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
-import 'package:busymax/src/core/secrets/portal_encrypted_secret_store.dart';
 import '../google_calendar/google_calendar_api_client.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
-import '../platform/linux_window_service.dart';
-import '../platform/linux_autostart_service.dart';
+import '../platform/common/desktop_services.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
-import 'app_router.dart';
+import '../webcal/webcal_http_client.dart';
+import '../webcal/webcal_subscription_service.dart';
 import 'app_settings.dart';
 
 export '../app/app_settings.dart';
-export '../platform/linux_header_bar_provider.dart';
 
 final buildConfigProvider = Provider<BuildConfig>(
   (ref) => BuildConfig.fromEnvironment(),
@@ -188,11 +190,6 @@ final feedbackSubmissionServiceProvider = Provider<FeedbackSubmissionService>((
 });
 
 final secretStoreProvider = Provider<SecretStore>((ref) {
-  if (Platform.isLinux && (Platform.environment['SNAP']?.isNotEmpty ?? false)) {
-    // flutter_secure_storage_linux warms up direct libsecret first, so
-    // SECRET_BACKEND=file cannot avoid a locked keyring inside strict snaps.
-    return PortalEncryptedSecretStore();
-  }
   return SecureSecretStore(ref.watch(secureStorageProvider));
 });
 
@@ -233,14 +230,13 @@ final authenticatedHttpClientProvider = Provider<http.Client>((ref) {
 });
 
 final desktopNotificationBackendProvider = Provider<DesktopNotificationBackend>(
-  (ref) {
-    final backend = FreedesktopNotificationBackend();
-    ref.onDispose(() {
-      unawaited(backend.close());
-    });
-    return backend;
-  },
+  (ref) => const DisabledDesktopNotificationBackend(),
 );
+
+final desktopNotificationReadinessProvider =
+    StateProvider<DesktopNotificationReadiness>(
+      (ref) => const DesktopNotificationReadiness.initializing(),
+    );
 
 final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   (ref) {
@@ -253,17 +249,49 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   },
 );
 
-final linuxWindowServiceProvider = Provider<LinuxWindowService>(
-  (ref) => const LinuxWindowService(),
+final desktopWindowServiceProvider = Provider<DesktopWindowService>(
+  (ref) => const NoOpDesktopWindowService(),
 );
 
-final linuxAutostartServiceProvider = Provider<LinuxAutostartService>(
-  (ref) => LinuxAutostartService(),
+/// Sanitized platform adapter health only; never contains menu labels or user
+/// content.
+final desktopTrayDiagnosticProvider = StateProvider<String?>((ref) => null);
+
+final linuxWindowServiceProvider = desktopWindowServiceProvider;
+
+final desktopActivationServiceProvider = Provider<DesktopActivationService>(
+  (ref) => const NoOpDesktopActivationService(),
+);
+
+final externalCalendarOpenServiceProvider = desktopActivationServiceProvider;
+
+final desktopAutostartServiceProvider = Provider<DesktopAutostartService>(
+  (ref) => const UnavailableDesktopAutostartService(),
+);
+
+final linuxAutostartServiceProvider = desktopAutostartServiceProvider;
+
+final launchAtLoginStateProvider = FutureProvider<DesktopAutostartState>(
+  (ref) => ref.watch(desktopAutostartServiceProvider).state(),
 );
 
 final launchAtLoginEnabledProvider = FutureProvider<bool>(
-  (ref) => ref.watch(linuxAutostartServiceProvider).isEnabled(),
+  (ref) async =>
+      await ref.watch(launchAtLoginStateProvider.future) ==
+      DesktopAutostartState.enabled,
 );
+
+final desktopNavigationServiceProvider = Provider<DesktopNavigationService>((
+  ref,
+) {
+  final service = QueuedDesktopNavigationService();
+  ref.onDispose(() => unawaited(service.dispose()));
+  return service;
+});
+
+final systemAppearanceSourceProvider = Provider<SystemAppearanceSource>((ref) {
+  throw StateError('A platform SystemAppearanceSource was not configured.');
+});
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
@@ -334,7 +362,9 @@ final davTaskCollectionCapabilitiesProvider =
 final selectedAccountIdProvider = StateProvider<String?>((ref) => null);
 
 final selectedAccountProvider = Provider<AccountEntity?>((ref) {
-  final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+  final accounts = (ref.watch(accountsStreamProvider).valueOrNull ?? const [])
+      .where((account) => account.isTaskCapable)
+      .toList(growable: false);
   final selectedId = ref.watch(selectedAccountIdProvider);
   if (selectedId != null) {
     for (final account in accounts) {
@@ -357,7 +387,11 @@ final selectedAccountCapabilitiesProvider =
           : adapterDefaultTaskCapabilities(account.provider);
     });
 
-final localTimeZoneProvider = Provider<String>((ref) => localIanaTimeZone());
+final localTimeZoneSourceProvider = Provider<LocalTimeZoneSource>(
+  (ref) => const FixedLocalTimeZoneSource('Etc/UTC'),
+);
+
+final localTimeZoneProvider = Provider<String>((ref) => 'Etc/UTC');
 
 final googleTasksApiClientForAccountProvider =
     Provider.family<TaskRemoteClient, String>((ref, accountId) {
@@ -448,7 +482,33 @@ final taskRemoteApiClientForAccountProvider =
         BusyProvider.google => ref.watch(
           googleTasksApiClientForAccountProvider(accountId),
         ),
-        BusyProvider.appleICloud || BusyProvider.nextcloud => null,
+        BusyProvider.appleICloud ||
+        BusyProvider.nextcloud ||
+        BusyProvider.webCal => null,
+      };
+    });
+
+final calendarRemoteApiClientForAccountProvider =
+    Provider.family<CloudCalendarClient?, String>((ref, accountId) {
+      final accounts = ref.watch(accountsStreamProvider).valueOrNull;
+      AccountEntity? account;
+      for (final candidate in accounts ?? const <AccountEntity>[]) {
+        if (candidate.id == accountId) {
+          account = candidate;
+          break;
+        }
+      }
+      if (account == null) return null;
+      return switch (account.provider) {
+        BusyProvider.google => ref.watch(
+          googleCalendarApiClientForAccountProvider(accountId),
+        ),
+        BusyProvider.microsoft => ref.watch(
+          microsoftCalendarApiClientForAccountProvider(accountId),
+        ),
+        BusyProvider.appleICloud ||
+        BusyProvider.nextcloud ||
+        BusyProvider.webCal => null,
       };
     });
 
@@ -468,6 +528,9 @@ final syncEngineForAccountFactoryProvider =
           BusyProvider.appleICloud ||
           BusyProvider.nextcloud => throw StateError(
             'DAV task accounts must use DavSynchronizationEngine.',
+          ),
+          BusyProvider.webCal => throw StateError(
+            'WebCal subscriptions do not have a task client.',
           ),
         };
 
@@ -500,6 +563,9 @@ final calendarSyncEngineForAccountFactoryProvider =
           BusyProvider.nextcloud => throw StateError(
             'DAV calendar accounts must use DavSynchronizationEngine.',
           ),
+          BusyProvider.webCal => throw StateError(
+            'WebCal subscriptions use WebCalSubscriptionService.',
+          ),
         };
         return CalendarSyncEngine(
           database: ref.read(databaseProvider),
@@ -524,13 +590,21 @@ final davAccountSyncEngineFactoryProvider =
         secretStore: ref.read(secretStoreProvider),
         httpClient: ref.read(baseHttpClientProvider),
         accountId: accountId,
-        rebuildNotifications: (accountId, affectedObjectIds) =>
-            ref.read(notificationSchedulerProvider).checkNow(),
+        rebuildNotifications: (accountId, _) async {
+          await NotificationScheduleService(
+            database: ref.read(databaseProvider),
+          ).rebuildUpcomingNotifications(accountId);
+          await ref.read(notificationSchedulerProvider).checkNow();
+        },
         reportPendingMutationFailure: (accountId, error) => ref
             .read(desktopNotificationServiceProvider)
             .notifySyncFailure(error),
       );
     });
+
+final accountSyncCoordinatorProvider = Provider<AccountSyncCoordinator>((ref) {
+  return AccountSyncCoordinator();
+});
 
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
@@ -545,16 +619,15 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   }
 
   final routing = RoutingAccountSyncOperations(
-    usesDav: (accountId) async {
-      final provider = await providerForAccount(accountId);
-      return provider == BusyProvider.appleICloud ||
-          provider == BusyProvider.nextcloud;
-    },
+    providerForAccount: providerForAccount,
     syncDav: (accountId, {required full}) async {
       await ref
           .read(davAccountSyncEngineFactoryProvider)(accountId)
           .synchronize(full: full);
     },
+    syncWebCal: (accountId, {required full}) => ref
+        .read(webCalSubscriptionServiceProvider)
+        .refreshAccount(accountId, force: full),
     syncTasksRest: (accountId, {required full}) async {
       final provider = await providerForAccount(accountId);
       final engine = ref.read(syncEngineForAccountFactoryProvider)(
@@ -580,9 +653,12 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
       }
     },
   );
-  return ConnectivityAwareAccountSyncOperations(
-    inner: routing,
-    requireNetwork: connectivity.requireNetwork,
+  return CoordinatedAccountSyncOperations(
+    coordinator: ref.watch(accountSyncCoordinatorProvider),
+    inner: ConnectivityAwareAccountSyncOperations(
+      inner: routing,
+      requireNetwork: connectivity.requireNetwork,
+    ),
   );
 });
 
@@ -613,8 +689,8 @@ final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
 
   return () async {
     await ref.read(networkConnectivityMonitorProvider).requireNetwork();
-    await runAllSignedInAccountSync(
-      listSignedInAccounts: ref
+    await runAllSyncEligibleAccountSync(
+      listSyncEligibleAccounts: ref
           .read(accountsRepositoryProvider)
           .listSyncEligibleAccounts,
       syncAccount: syncAccount,
@@ -647,8 +723,44 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
   );
 });
 
+final webCalHttpTransportProvider = Provider<WebCalHttpTransport>(
+  (ref) => IoWebCalHttpTransport(),
+);
+
+final webCalSubscriptionServiceProvider = Provider<WebCalSubscriptionService>((
+  ref,
+) {
+  return WebCalSubscriptionService(
+    database: ref.watch(databaseProvider),
+    secretStore: ref.watch(secretStoreProvider),
+    httpTransport: ref.watch(webCalHttpTransportProvider),
+    onNotificationScheduleChanged: () =>
+        ref.read(notificationSchedulerProvider).checkNow(),
+  );
+});
+
+final webCalSubscriptionsProvider =
+    StreamProvider<List<WebCalSubscriptionEntity>>((ref) {
+      return ref.watch(webCalSubscriptionServiceProvider).watchSubscriptions();
+    });
+
+final icalImportServiceProvider = Provider<IcalImportService>((ref) {
+  return IcalImportService(
+    database: ref.watch(databaseProvider),
+    calendarRepository: ref.watch(calendarRepositoryProvider),
+  );
+});
+
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
-  return ScheduleRepository(ref.watch(databaseProvider));
+  return ScheduleRepository(
+    ref.watch(databaseProvider),
+    ensureProjectionCoverage: (range) => ref
+        .read(webCalSubscriptionServiceProvider)
+        .ensureProjectionCoverage(
+          rangeStartUtc: range.start.toUtc(),
+          rangeEndUtc: range.end.toUtc(),
+        ),
+  );
 });
 
 final Provider<String?> activeAccountProvider = Provider<String?>((ref) {
@@ -678,6 +790,44 @@ final davTaskListMutationClientForAccountProvider =
         refreshAfterMutation: () => ref
             .read(accountSyncOperationsProvider)
             .syncAccount(accountId, full: true),
+        requireNetwork: ref
+            .watch(networkConnectivityMonitorProvider)
+            .requireNetwork,
+      );
+    });
+
+final davCalendarCollectionMutationClientForAccountProvider =
+    Provider.family<DavCalendarCollectionMutationClient, String>((
+      ref,
+      accountId,
+    ) {
+      return DavCalendarCollectionMutationService(
+        database: ref.watch(databaseProvider),
+        secretStore: ref.watch(secretStoreProvider),
+        httpClient: ref.watch(baseHttpClientProvider),
+        accountId: accountId,
+        refreshAfterMutation: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncAccount(accountId, full: true),
+        requireNetwork: ref
+            .watch(networkConnectivityMonitorProvider)
+            .requireNetwork,
+      );
+    });
+
+final calendarCollectionCreationServiceProvider =
+    Provider<CalendarCollectionCreator>((ref) {
+      return CalendarCollectionCreationService(
+        accountsRepository: ref.watch(accountsRepositoryProvider),
+        calendarRepository: ref.watch(calendarRepositoryProvider),
+        davClientForAccount: (accountId) => ref.read(
+          davCalendarCollectionMutationClientForAccountProvider(accountId),
+        ),
+        requestCloudSynchronization: (accountId) => ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+            )
+            .request(),
       );
     });
 
@@ -694,6 +844,8 @@ final taskListsRepositoryProvider = Provider<TaskListsRepository?>((ref) {
       davTaskListMutationClientForAccountProvider(accountId),
     ),
     onMutationQueued: ref.watch(pendingMutationSyncRequesterProvider)?.request,
+    onNotificationScheduleChanged: () =>
+        ref.read(notificationSchedulerProvider).checkNow(),
   );
 });
 
@@ -709,6 +861,8 @@ final taskListsRepositoryForAccountProvider =
         onMutationQueued: ref
             .watch(pendingMutationSyncRequesterForAccountProvider(accountId))
             .request,
+        onNotificationScheduleChanged: () =>
+            ref.read(notificationSchedulerProvider).checkNow(),
       );
     });
 
@@ -740,24 +894,6 @@ final tasksRepositoryForAccountProvider =
             ref.read(notificationSchedulerProvider).checkNow(),
       );
     });
-
-final Provider<SyncEngine?> syncEngineProvider = Provider<SyncEngine?>((ref) {
-  final accountId = ref.watch(activeAccountProvider);
-  final apiClient = ref.watch(googleTasksApiClientProvider);
-  final account = ref.watch(selectedAccountProvider);
-  if (accountId == null || apiClient == null || account?.id != accountId) {
-    return null;
-  }
-  return SyncEngine(
-    database: ref.watch(databaseProvider),
-    apiClient: apiClient,
-    accountId: accountId,
-    fullRefreshOnly: account!.provider == BusyProvider.microsoft,
-    onConflictBlocked: ref
-        .watch(desktopNotificationServiceProvider)
-        .notifyConflict,
-  );
-});
 
 final pendingMutationSyncRequesterProvider =
     Provider<PendingMutationSyncRequester?>((ref) {
@@ -798,19 +934,42 @@ final pendingMutationSyncRequesterForAccountProvider =
       return requester;
     });
 
+final pendingCalendarMutationSyncRequesterForAccountProvider =
+    Provider.family<PendingMutationSyncRequester, String>((ref, accountId) {
+      final requester = PendingMutationSyncRequester(
+        sync: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncCalendar(accountId, full: false),
+        onSyncFailure: ref
+            .watch(desktopNotificationServiceProvider)
+            .notifySyncFailure,
+        onSyncError: (error) =>
+            _markAccountReconnectRequiredForSyncError(ref, accountId, error),
+        canSync: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
+      );
+      ref.onDispose(requester.dispose);
+      return requester;
+    });
+
 final pendingOpResolutionServiceProvider =
     Provider<PendingOpResolutionService?>((ref) {
       final accountId = ref.watch(activeAccountProvider);
-      final apiClient = ref.watch(googleTasksApiClientProvider);
-      final syncEngine = ref.watch(syncEngineProvider);
-      if (accountId == null || apiClient == null || syncEngine == null) {
+      if (accountId == null) {
         return null;
       }
       return PendingOpResolutionService(
         database: ref.watch(databaseProvider),
-        apiClient: apiClient,
+        apiClient: ref.watch(googleTasksApiClientProvider),
+        calendarClient: ref.watch(
+          calendarRemoteApiClientForAccountProvider(accountId),
+        ),
         accountId: accountId,
-        syncEngine: syncEngine,
+        syncTasks: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncTasks(accountId, full: false),
+        syncCalendar: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncCalendar(accountId, full: false),
       );
     });
 
@@ -822,9 +981,9 @@ final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
   }
 
   final scheduler = AllAccountsSyncScheduler(
-    listSignedInAccounts: ref
+    listSyncEligibleAccounts: ref
         .read(accountsRepositoryProvider)
-        .listSignedInAccounts,
+        .listSyncEligibleAccounts,
     syncAccount: syncAccount,
     onSyncFailure: ref
         .watch(desktopNotificationServiceProvider)
@@ -834,15 +993,55 @@ final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
     canSync: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
   );
   scheduler.start();
-  ref.onDispose(scheduler.stop);
+  ref.onDispose(() => unawaited(scheduler.dispose()));
   return scheduler;
 });
+
+final syncSchedulerRunningProvider = StreamProvider<bool>((ref) {
+  return ref.watch(syncSchedulerProvider).watchRunning();
+});
+
+final trayPresentationServiceProvider =
+    Provider<BusyMaxTrayPresentationService>((ref) {
+      return BusyMaxTrayPresentationService(
+        accountsRepository: ref.watch(accountsRepositoryProvider),
+        calendarRepository: ref.watch(calendarRepositoryProvider),
+        scheduleRepository: ref.watch(scheduleRepositoryProvider),
+        listTaskLists: (account) => ref
+            .read(taskListsRepositoryForAccountProvider(account.id))
+            .listTaskLists(),
+        canCreateTask: (account, taskList) async {
+          if (account.provider == BusyProvider.google ||
+              account.provider == BusyProvider.microsoft) {
+            return adapterDefaultTaskCapabilities(
+              account.provider,
+            ).canCreateTasks;
+          }
+          if (account.provider != BusyProvider.nextcloud) return false;
+          final capabilities = await ref.read(
+            davTaskCollectionCapabilitiesProvider((
+              accountId: account.id,
+              taskListId: taskList.id,
+            )).future,
+          );
+          return capabilities?.canCreateTasks == true;
+        },
+        settings: () => ref.read(appSettingsControllerProvider),
+        connectivity: () =>
+            ref.read(networkConnectivityMonitorProvider).availability,
+        synchronizationRunning: () => ref.read(syncSchedulerProvider).isRunning,
+      );
+    });
 
 Future<void> _markAccountReconnectRequiredForSyncError(
   Ref ref,
   String accountId,
   Object error,
 ) async {
+  final account = await ref
+      .read(accountsRepositoryProvider)
+      .accountById(accountId);
+  if (account?.isAuthenticationAccount != true) return;
   if (syncFailureNotificationDisposition(error) !=
       SyncFailureNotificationDisposition.reconnectRequired) {
     return;
@@ -874,7 +1073,7 @@ Future<void> _openNotificationSource(
   return switch (row.sourceType) {
     'event' => _openEventNotification(ref, row),
     'task' => _openTaskNotification(ref, row),
-    _ => ref.read(linuxWindowServiceProvider).showWindow(),
+    _ => ref.read(desktopWindowServiceProvider).showWindow(),
   };
 }
 
@@ -893,7 +1092,7 @@ Future<void> _openEventNotification(
           ))
           .getSingleOrNull();
   if (event == null) {
-    await ref.read(linuxWindowServiceProvider).showWindow();
+    await ref.read(desktopWindowServiceProvider).showWindow();
     return;
   }
 
@@ -923,7 +1122,7 @@ Future<void> _openTaskNotification(
             ..limit(1))
           .getSingleOrNull();
   if (task == null) {
-    await ref.read(linuxWindowServiceProvider).showWindow();
+    await ref.read(desktopWindowServiceProvider).showWindow();
     return;
   }
 
@@ -945,7 +1144,7 @@ Future<void> _openScheduleItemFromNotification(
   required String sourceId,
   required String itemId,
 }) async {
-  await ref.read(linuxWindowServiceProvider).showWindow();
+  await ref.read(desktopWindowServiceProvider).showWindow();
   final sequenceController = ref.read(
     _notificationOpenSequenceProvider.notifier,
   );
@@ -961,7 +1160,9 @@ Future<void> _openScheduleItemFromNotification(
     sourceId: sourceId,
     itemId: itemId,
   );
-  ref.read(appRouterProvider).go('/schedule');
+  ref
+      .read(desktopNavigationServiceProvider)
+      .open(DesktopNavigationDestination.schedule);
 }
 
 DateTime? _calendarEventCommandDate(CalendarEvent event) {

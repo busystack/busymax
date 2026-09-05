@@ -1,14 +1,31 @@
 {
   "@@locale": "hi",
+  "windowsSupport": "सहायता",
+  "windowsThirdPartyLicenses": "तृतीय-पक्ष लाइसेंस",
+  "windowsSearch": "खोजें",
+  "windowsStartupDisabledByUser": "उपयोगकर्ता ने Windows सेटिंग में इसे बंद किया है।",
+  "windowsStartupDisabledByPolicy": "Windows नीति द्वारा बंद किया गया है।",
+  "windowsStartupUnavailable": "BusyMax को MSIX पैकेज से इंस्टॉल करने के बाद उपलब्ध होगा।",
+  "windowsReminderExitNotice": "BusyMax को पूरी तरह बंद करने पर रिमाइंडर रुक जाते हैं। उन्हें पाने के लिए इसे पृष्ठभूमि में चलने दें।",
+  "windowsProductVersionLabel": "उत्पाद संस्करण",
+  "windowsPackageVersionLabel": "Windows पैकेज संस्करण",
+  "windowsUnpackaged": "पैकेज रहित",
+  "windowsAgendaLoadMore": "एजेंडा के और आइटम लोड करें",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{सोमवार} TU{मंगलवार} WE{बुधवार} TH{गुरुवार} FR{शुक्रवार} SA{शनिवार} SU{रविवार} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "की {first} और {second} तारीखों को",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} {month} की {firstDay} और {secondDay} तारीखों को",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} {firstMonth} और {secondMonth} की {day} तारीख को",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} {firstMonth} और {secondMonth} की {firstDay} और {secondDay} तारीखों को",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} {firstMonth} और {secondMonth} की {days} तारीखों को",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "connectGoogleAccount": "Google, Microsoft, Apple iCloud Calendar या Nextcloud खाते कनेक्ट करें।",
   "googlePermissionsConsentNotice": "Google अनुमति स्क्रीन पर, कैलेंडर और कार्य दोनों अनुमतियाँ चुनें।",
   "googlePermissionsRequiredRetry": "Google Calendar और Google Tasks की अनुमतियाँ आवश्यक हैं। फिर से कोशिश करें और दोनों चेकबॉक्स चुनें।",
   "finishSetup": "सेटअप पूरा करें",
   "continueSetup": "जारी रखें",
   "onboardingSetupTitle": "BusyMax सेट अप करें",
   "onboardingAccountsStepTitle": "खाते कनेक्ट करें",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "onboardingAccountsStepDescription": "वे सभी खाते जोड़ें जिनका आप उपयोग करना चाहते हैं। BusyMax हर खाते से समर्थित कैलेंडर, इवेंट, कार्य सूचियाँ और कार्य सिंक करता है।",
   "onboardingPreferencesStepTitle": "सिस्टम सेटिंग्स चुनें",
   "onboardingPreferencesStepDescription": "अपना शेड्यूल खोलने से पहले डेस्कटॉप व्यवहार, रिमाइंडर, सूचनाओं के विवरण का स्तर और दिखावट सेट करें।",
   "signInWithGoogle": "Google से साइन इन करें",
@@ -29,11 +46,48 @@
   "save": "सहेजें",
   "settings": "सेटिंग्स",
   "all": "सभी",
-  "calendarEvents": "ईवेंट",
+  "calendarEvents": "इवेंट",
   "calendarTasks": "कार्य",
   "calendar": "कैलेंडर",
   "calendars": "कैलेंडर",
-  "newEvent": "नया ईवेंट",
+  "newCalendar": "नया कैलेंडर",
+  "calendarColor": "कैलेंडर का रंग",
+  "calendarColorOption": "रंग {number}",
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarManagementUnsupported": "यह प्रदाता BusyMax में कैलेंडर प्रबंधन का समर्थन नहीं करता है।",
+  "primaryCalendarCannotDelete": "प्राथमिक कैलेंडर को हटाया नहीं जा सकता।",
+  "calendarCreateFailed": "कैलेंडर नहीं बनाया जा सका: {error}",
+  "calendarCreatedRefreshPending": "कैलेंडर बन गया, लेकिन BusyMax खाते को रीफ़्रेश नहीं कर सका। यह अगली सिंक के बाद दिखाई देगा।",
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarUpdateFailed": "कैलेंडर अपडेट नहीं किया जा सका: {error}",
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarDeleteFailed": "कैलेंडर हटाया नहीं जा सका: {error}",
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "newEvent": "नया इवेंट",
   "refreshCalendar": "कैलेंडर रीफ़्रेश करें",
   "openInProvider": "सेवा में खोलें",
   "hideFromSchedule": "शेड्यूल से छिपाएँ",
@@ -41,17 +95,66 @@
   "noCalendarsSynced": "अभी तक कोई कैलेंडर सिंक नहीं हुआ है।",
   "allDay": "पूरे दिन",
   "moreItems": "+{count} और",
-  "noEventsOrTasks": "कोई ईवेंट या कार्य नहीं",
+  "noEventsOrTasks": "कोई इवेंट या कार्य नहीं",
   "scheduleLoading": "शेड्यूल लोड हो रहा है...",
   "scheduleUnavailable": "शेड्यूल उपलब्ध नहीं है",
   "scheduleNoSources": "कोई दिखाई देने वाला कैलेंडर या कार्य सूची नहीं",
   "scheduleNoSourcesDescription": "सेटिंग्स में चुनें कि क्या दिखाना है, फिर रीफ़्रेश करें।",
   "scheduleSignInRequired": "खाता कनेक्ट करें",
   "scheduleSignInDescription": "कैलेंडर और कार्य सिंक करने के लिए साइन इन करें।",
-  "scheduleNoSearchResults": "कोई मिलता-जुलता ईवेंट या कार्य नहीं",
+  "scheduleNoSearchResults": "कोई मिलता-जुलता इवेंट या कार्य नहीं",
   "scheduleNoSearchResultsDescription": "कोई दूसरी खोज आज़माएँ या मौजूदा फ़िल्टर हटाएँ।",
   "refresh": "रीफ़्रेश करें",
   "trayOpenBusyMax": "BusyMax खोलें",
+  "trayShowBusyMax": "BusyMax दिखाएँ",
+  "trayNewEvent": "नया इवेंट…",
+  "trayNewTask": "नया कार्य…",
+  "trayToday": "आज",
+  "trayAllDay": "पूरा दिन",
+  "trayNow": "अभी",
+  "trayCalendarEvent": "कैलेंडर इवेंट",
+  "trayUntitledEvent": "बिना शीर्षक का इवेंट",
+  "trayNothingElseToday": "आज और कुछ नहीं",
+  "trayTasksDueToday": "{count, plural, =1{आज 1 कार्य की नियत तारीख है} other{आज {count} कार्यों की नियत तारीख है}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "आज का एजेंडा खोलें",
+  "traySyncNow": "अभी सिंक करें",
+  "traySyncing": "सिंक हो रहा है…",
+  "trayNotConnected": "कनेक्ट नहीं है",
+  "trayNotYetSynced": "अभी तक सिंक नहीं हुआ",
+  "trayLastSyncedJustNow": "अभी-अभी सिंक हुआ",
+  "trayLastSyncedMinutesAgo": "{count, plural, =1{1 मिनट पहले सिंक हुआ} other{{count} मिनट पहले सिंक हुआ}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, =1{1 घंटे पहले सिंक हुआ} other{{count} घंटे पहले सिंक हुआ}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, =1{1 दिन पहले सिंक हुआ} other{{count} दिन पहले सिंक हुआ}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traySettings": "सेटिंग्स",
+  "trayQuitBusyMax": "BusyMax बंद करें",
   "agendaLoadMoreOverdue": "समय-सीमा पार कर चुके अतिरिक्त कार्य लोड करें",
   "agendaLoadMoreNoDate": "बिना तारीख वाले और कार्य लोड करें",
   "viewDay": "दिन",
@@ -67,10 +170,10 @@
   "sourceCalendar": "कैलेंडर",
   "sourceTaskList": "कार्य सूची",
   "createChoiceTitle": "बनाएँ",
-  "createEventAtTime": "ईवेंट",
+  "createEventAtTime": "इवेंट",
   "createTaskAtDate": "कार्य",
-  "editEvent": "ईवेंट संपादित करें",
-  "eventTitle": "ईवेंट का शीर्षक",
+  "editEvent": "इवेंट संपादित करें",
+  "eventTitle": "इवेंट का शीर्षक",
   "location": "स्थान",
   "timeSlot": "समयावधि",
   "startDateTime": "शुरू होने की तारीख/समय",
@@ -129,8 +232,8 @@
   "shortcutYearView": "वर्ष का दृश्य",
   "shortcutAgendaView": "कार्यसूची दृश्य",
   "shortcutGroupCreateAndEdit": "बनाएँ और संपादित करें",
-  "shortcutSaveItem": "ईवेंट या कार्य सहेजें",
-  "shortcutDeleteItem": "ईवेंट या कार्य मिटाएँ",
+  "shortcutSaveItem": "इवेंट या कार्य सहेजें",
+  "shortcutDeleteItem": "इवेंट या कार्य मिटाएँ",
   "shortcutGroupTaskEditing": "कार्य संपादन",
   "shortcutCancelEditing": "संपादन रद्द करें",
   "shortcutCancelEditingDescription": "कार्य संपादन या कार्य विवरण बंद करें",
@@ -154,7 +257,7 @@
   "feedbackDetailedMessage": "विस्तृत संदेश",
   "feedbackReplyEmail": "जवाब के लिए ईमेल (वैकल्पिक)",
   "feedbackIncludeTechnicalDetails": "तकनीकी विवरण शामिल करें",
-  "feedbackTechnicalDetailsDisclosure": "केवल आपके Linux ऑपरेटिंग सिस्टम का संस्करण और ऐप की भाषा व क्षेत्रीय सेटिंग जोड़ी जाती है। लॉग, खाता डेटा, फ़ाइल नाम या अन्य निदान जानकारी शामिल नहीं की जाती।",
+  "feedbackTechnicalDetailsDisclosure": "केवल आपके ऑपरेटिंग सिस्टम का नाम और संस्करण तथा ऐप की भाषा व क्षेत्रीय सेटिंग जोड़ी जाती है। लॉग, खाता डेटा, फ़ाइल नाम या अन्य निदान जानकारी शामिल नहीं की जाती।",
   "feedbackCategoryRequired": "श्रेणी चुनें।",
   "feedbackSubjectLengthError": "विषय 3 से 120 वर्णों के बीच होना चाहिए।",
   "feedbackMessageLengthError": "संदेश 10 से 5,000 वर्णों के बीच होना चाहिए।",
@@ -179,8 +282,8 @@
   "removeAccount": "खाता हटाएँ…",
   "removingAccount": "खाता हटाया जा रहा है…",
   "removeAccountDescription": "सिंक करना बंद करें और इस डिवाइस से इस खाते का डेटा हटाएँ।",
-  "removeAccountTitle": "BusyMax से {account} हटाएँ?",
-  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
+  "removeAccountTitle": "{account} को BusyMax से हटाएँ?",
+  "removeAccountConfirmation": "इससे इस डिवाइस से कैश किए गए कार्य, कैलेंडर, इवेंट, रिमाइंडर और लंबित ऑफ़लाइन बदलाव हट जाएँगे। सिंक न किए गए बदलाव खो जाएँगे। प्रदाता की कैलेंडर, इवेंट, कार्य सूची और कार्य प्रतियाँ हटाई नहीं जाएँगी।",
   "revokeGoogleAccess": "इस Google खाते से BusyMax की पहुँच भी रद्द करें",
   "revokeGoogleAccessDescription": "दोबारा कनेक्ट करने से पहले आपको फिर से पहुँच देनी होगी।",
   "removeAccountAction": "खाता हटाएँ",
@@ -196,8 +299,8 @@
   "deleteList": "सूची मिटाएँ",
   "builtInMicrosoftList": "अंतर्निहित",
   "builtInMicrosoftListCannotRenameDelete": "Microsoft To Do की अंतर्निहित सूचियों का नाम बदला या उन्हें मिटाया नहीं जा सकता।",
-  "deleteListConfirmation": "Google Tasks से “{title}” मिटाएँ?",
-  "deleteEvent": "ईवेंट मिटाएँ",
+  "deleteListConfirmation": "Google Tasks से “{title}” हटाएँ?",
+  "deleteEvent": "इवेंट मिटाएँ",
   "title": "शीर्षक",
   "create": "बनाएँ",
   "newTask": "नया कार्य",
@@ -291,7 +394,8 @@
   "synced": "सिंक किया गया",
   "account": "खाता",
   "sync": "सिंक",
-  "manualFullSync": "मैन्युअल पूर्ण सिंक",
+  "forceFullResync": "पूर्ण पुनः सिंक करें",
+  "forceFullResyncDescription": "हर कनेक्ट किए गए खाते से सभी डेटा पूरी तरह फिर से लोड करता है। इसका उपयोग केवल सिंक संबंधी समस्याओं के निवारण के लिए करें।",
   "runInBackgroundWhenClosed": "विंडो बंद होने पर भी चलते रहें",
   "showTrayIcon": "ट्रे आइकन दिखाएँ",
   "startMinimizedToTray": "ट्रे में मिनिमाइज़ होकर शुरू करें",
@@ -304,7 +408,8 @@
   "notifySyncFailures": "सिंक विफल होने की सूचनाएँ",
   "notifyConflicts": "टकराव की सूचनाएँ",
   "notifyDueToday": "आज देय कार्यों की सूचनाएँ",
-  "eventReminders": "ईवेंट रिमाइंडर",
+  "eventReminders": "इवेंट रिमाइंडर",
+  "onState": "चालू",
   "taskReminders": "कार्य रिमाइंडर",
   "notificationDetailLevel": "सूचनाओं के विवरण का स्तर",
   "notificationDetailPrivate": "निजी",
@@ -314,9 +419,13 @@
   "quietHoursStart": "शांत समय की शुरुआत",
   "quietHoursEnd": "शांत समय की समाप्ति",
   "notifications": "सूचनाएँ",
+  "windowsNotificationsUnavailable": "Windows सूचनाएँ उपलब्ध नहीं हैं",
+  "windowsNotificationsUnpackaged": "यह बिना पैकेज वाला डेवलपमेंट रन Windows सूचनाओं का उपयोग नहीं कर सकता। रिमाइंडर जाँचने के लिए परीक्षण-हस्ताक्षरित MSIX इंस्टॉल करें।",
+  "windowsNotificationsInstalledFailure": "BusyMax Windows सूचनाएँ शुरू नहीं कर सका। यह इंस्टॉलेशन समस्या हल होने तक रिमाइंडर दिखाई नहीं देंगे।",
   "appearance": "दिखावट",
   "theme": "थीम",
   "themeSystem": "सिस्टम",
+  "settingsSystem": "सिस्टम",
   "themeLight": "हल्की",
   "themeDark": "गहरी",
   "themeFamily": "थीम परिवार",
@@ -352,16 +461,16 @@
   "syncFailureNotificationTitle": "BusyMax सिंक विफल",
   "syncFailureNotificationBody": "बैकग्राउंड सिंक विफल हुआ। {message}",
   "conflictNotificationTitle": "BusyMax सिंक में टकराव",
-  "conflictNotificationBody": "एक लंबित स्थानीय बदलाव अवरुद्ध हो गया। {summary}",
+  "conflictNotificationBody": "लंबित स्थानीय बदलाव अवरुद्ध किया गया। {summary}",
   "dueTodayNotificationTitle": "आज देय कार्य",
   "dueTodayNotificationBody": "{count, plural, =1{आज एक कार्य देय है।} other{आज {count} कार्य देय हैं।}}",
-  "eventReminderNotificationTitle": "ईवेंट रिमाइंडर",
+  "eventReminderNotificationTitle": "इवेंट रिमाइंडर",
   "taskReminderNotificationTitle": "कार्य रिमाइंडर",
-  "eventReminderNotificationBody": "ईवेंट जल्द शुरू होगा।",
+  "eventReminderNotificationBody": "इवेंट जल्द शुरू होगा।",
   "taskReminderNotificationBody": "कार्य जल्द देय है।",
   "notificationOpenAction": "खोलें",
   "notificationSnoozeAction": "10 मिनट के लिए स्नूज़ करें",
-  "notificationDismissAction": "खारिज करें",
+  "notificationDismissAction": "बंद करें",
   "notificationDetailsHidden": "गोपनीयता सेटिंग्स के कारण विवरण छिपे हुए हैं।",
   "previousMonth": "पिछला महीना",
   "nextMonth": "अगला महीना",
@@ -376,50 +485,50 @@
   "selectTimeZone": "समय क्षेत्र चुनें",
   "searchLocations": "स्थान खोजें",
   "noLocationsFound": "कोई स्थान नहीं मिला",
-  "requiredField": "This field is required.",
-  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
-  "appleICloudProvider": "Apple iCloud Calendar",
+  "requiredField": "यह फ़ील्ड आवश्यक है।",
+  "providerConnectionDescription": "इनमें से किसी प्रदाता से कैलेंडर और कार्य कनेक्ट करें।",
+  "appleICloudProvider": "Apple iCloud कैलेंडर",
   "nextcloudProvider": "Nextcloud",
   "appleICloudTasksProvider": "Apple iCloud",
-  "nextcloudTasksProvider": "Nextcloud Tasks",
-  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
-  "addNextcloudAccount": "Add Nextcloud account",
-  "waitingForAppleICloud": "Connecting to Apple iCloud…",
-  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
-  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
-  "appleAccountEmail": "Apple Account email",
-  "appleAppSpecificPassword": "App-specific password",
-  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
-  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
-  "connectNextcloudTitle": "Connect Nextcloud",
-  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
-  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
-  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
-  "connectAccountAction": "Connect",
-  "cancelAccountConnection": "Cancel connection",
-  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
-  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
-  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
-  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
-  "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Calendars and task lists",
-  "calendarContent": "Calendar events",
-  "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only",
-  "pendingLocally": "Pending locally",
-  "conflictBlocked": "Blocked by conflict",
-  "authenticationBlocked": "Blocked until reconnect",
-  "operationFailed": "Operation failed",
-  "keepServerVersion": "Keep server version",
-  "reapplyLocalChange": "Review and reapply local change",
-  "duplicateLocalItem": "Duplicate as new item",
+  "nextcloudTasksProvider": "Nextcloud कार्य",
+  "addAppleICloudAccount": "Apple iCloud Calendar खाता जोड़ें",
+  "addNextcloudAccount": "Nextcloud खाता जोड़ें",
+  "waitingForAppleICloud": "Apple iCloud से कनेक्ट हो रहा है…",
+  "waitingForNextcloud": "Nextcloud प्राधिकरण की प्रतीक्षा है…",
+  "connectAppleICloudTitle": "Apple iCloud Calendar कनेक्ट करें",
+  "appleAccountEmail": "Apple खाते का ईमेल",
+  "appleAppSpecificPassword": "ऐप-विशिष्ट पासवर्ड",
+  "appleAppSpecificPasswordHelp": "Apple खाते के लिए दो-चरणीय प्रमाणीकरण चालू करने के बाद ऐप-विशिष्ट पासवर्ड बनाएँ।",
+  "appleAppSpecificPasswordResetWarning": "Apple खाते का पासवर्ड रीसेट करने से ऐप-विशिष्ट पासवर्ड रद्द हो जाते हैं।",
+  "connectNextcloudTitle": "Nextcloud कनेक्ट करें",
+  "nextcloudServerUrl": "Nextcloud सर्वर या CalDAV पता",
+  "nextcloudServerUrlHelp": "Nextcloud सर्वर URL दर्ज करें या Nextcloud से कॉपी किया गया प्राथमिक CalDAV पता चिपकाएँ।",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax आपका ब्राउज़र खोलेगा। वहाँ पहुँच की अनुमति दें और फिर BusyMax पर लौटें।",
+  "connectAccountAction": "कनेक्ट करें",
+  "cancelAccountConnection": "कनेक्शन रद्द करें",
+  "nextcloudAccountRemovedRevokeFailed": "खाता स्थानीय रूप से हटाया गया, लेकिन Nextcloud ऐप पासवर्ड रद्द नहीं किया जा सका।",
+  "davCachedOfflineNotice": "ऑफ़लाइन उपयोग के लिए कैलेंडर और कार्य डेटा स्थानीय रूप से कैश किया जाता है।",
+  "davReauthenticationRequired": "सिंक फिर से शुरू करने के लिए इस खाते को दोबारा कनेक्ट करें।",
+  "davTemporarilyUnavailable": "यह खाता अस्थायी रूप से उपलब्ध नहीं है।",
+  "davPermissionChanged": "सर्वर अनुमतियाँ बदल गई हैं। लंबित संपादन रोक दिए गए हैं।",
+  "davUnsupportedServer": "यह सर्वर या प्रदाता प्रोफ़ाइल समर्थित नहीं है।",
+  "collectionSettings": "कैलेंडर और कार्य सूचियाँ",
+  "calendarContent": "कैलेंडर इवेंट",
+  "taskContent": "कार्य",
+  "readOnlySharedCollection": "केवल-पठन",
+  "pendingLocally": "स्थानीय रूप से लंबित",
+  "conflictBlocked": "विरोध के कारण अवरुद्ध",
+  "authenticationBlocked": "दोबारा कनेक्ट होने तक अवरुद्ध",
+  "operationFailed": "कार्रवाई विफल",
+  "keepServerVersion": "सर्वर संस्करण रखें",
+  "reapplyLocalChange": "स्थानीय बदलाव की समीक्षा कर फिर लागू करें",
+  "duplicateLocalItem": "नए आइटम के रूप में कॉपी बनाएँ",
   "deleteCalendarConfirmation": "“{title}” मिटाएँ?",
-  "davConnectionState": "Connection state",
-  "davConnected": "Connected",
-  "davConnecting": "Connecting…",
-  "davSignedOut": "Signed out",
-  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "davConnectionState": "कनेक्शन की स्थिति",
+  "davConnected": "कनेक्टेड",
+  "davConnecting": "कनेक्ट हो रहा है…",
+  "davSignedOut": "साइन आउट किया गया",
+  "davLastSuccessfulSync": "अंतिम सफल सिंक: {time}",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -427,9 +536,9 @@
       }
     }
   },
-  "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh calendars and task lists",
-  "nextcloudServerHost": "Server: {host}",
+  "davNeverSynced": "अभी तक सिंक नहीं हुआ",
+  "refreshCollections": "कैलेंडर और कार्य सूचियाँ रीफ़्रेश करें",
+  "nextcloudServerHost": "सर्वर: {host}",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -437,12 +546,12 @@
       }
     }
   },
-  "collectionSupportsEvents": "Event calendar",
-  "collectionSupportsTasks": "Task list",
-  "collectionSupportsEventsAndTasks": "Events and tasks",
-  "writableCollection": "Writable",
-  "sharedCollection": "Shared",
-  "collectionLastSynced": "Last synchronized: {time}",
+  "collectionSupportsEvents": "इवेंट कैलेंडर",
+  "collectionSupportsTasks": "कार्य सूची",
+  "collectionSupportsEventsAndTasks": "इवेंट और कार्य",
+  "writableCollection": "लिखने योग्य",
+  "sharedCollection": "साझा",
+  "collectionLastSynced": "अंतिम सिंक: {time}",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -450,7 +559,7 @@
       }
     }
   },
-  "collectionSyncError": "Sync issue: {code}",
+  "collectionSyncError": "सिंक समस्या: {code}",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -458,8 +567,8 @@
       }
     }
   },
-  "syncConflicts": "Synchronization conflicts",
-  "remoteChangedAt": "Server changed: {time}",
+  "syncConflicts": "सिंक विरोध",
+  "remoteChangedAt": "सर्वर में बदलाव: {time}",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -467,7 +576,7 @@
       }
     }
   },
-  "localPendingEdit": "Local edit: {summary}",
+  "localPendingEdit": "स्थानीय संपादन: {summary}",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -475,144 +584,366 @@
       }
     }
   },
-  "conflictResolutionFailed": "The conflict could not be resolved.",
-  "recurringEventScope": "Recurring event scope",
-  "entireSeries": "Entire series",
-  "singleOccurrence": "This occurrence",
-  "thisAndFutureUnavailable": "This and future (not available)",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "conflictResolutionFailed": "विरोध का समाधान नहीं हो सका।",
+  "recurringEventScope": "दोहराए जाने वाले इवेंट का दायरा",
+  "entireSeries": "पूरी शृंखला",
+  "singleOccurrence": "यह इवेंट",
+  "thisAndFollowingEvents": "यह और इसके बाद के इवेंट",
+  "thisAndFutureUnavailable": "यह प्रदाता इसका समर्थन नहीं करता।",
+  "thisAndFutureMoveUnavailable": "इस और इसके बाद के इवेंट सुरक्षित रूप से नहीं ले जाए जा सकते। यह इवेंट या पूरी शृंखला चुनें।",
+  "entireSeriesMoveUnavailable": "दोहराव का नियम स्थानीय रूप से उपलब्ध नहीं है। इसके बजाय केवल यह इवेंट ले जाएँ।",
+  "copyEventAndDeleteOriginal": "इवेंट की कॉपी बनाकर मूल इवेंट मिटाएँ?",
+  "copyEventMoveWarning": "BusyMax इस इवेंट को {source} से {destination} में सीधे नहीं ले जा सकता। यह पहले कॉपी बनाएगा और कॉपी सफल होने के बाद ही मूल इवेंट मिटाएगा। इवेंट ID बदलेंगे; सहभागियों की प्रतिक्रिया स्थितियां रीसेट हो सकती हैं और आमंत्रण या रद्दीकरण भेजे जा सकते हैं; और कॉन्फ़्रेंस लिंक, अटैचमेंट, रिमाइंडर, प्रदाता-विशिष्ट फ़ील्ड तथा दोहराव अपवाद शायद स्थानांतरित न हों।",
+  "copyAndDelete": "कॉपी बनाएँ और मिटाएँ",
+  "chooseRecurringEventScope": "चुनें कि यह बदलाव पूरी शृंखला, केवल इस इवेंट या इस और इसके बाद के इवेंट पर लागू हो।",
   "taskDueBeforeStart": "नियत समय प्रारंभ समय से पहले नहीं हो सकता।",
   "taskStartDueTimeModeMismatch": "प्रारंभ और नियत समय दोनों सेट करें, या कार्य को पूरे दिन का बनाएँ।",
-  "taskListCreateFailed": "Could not create the task list: {error}",
-  "taskListRenameFailed": "Could not rename the task list: {error}",
-  "taskListDeleteFailed": "Could not delete the task list: {error}",
-  "unshare": "Unshare",
-  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
-  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
-  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "taskStatus": "Status",
-  "taskStatusNone": "No status",
-  "taskStatusNeedsAction": "Needs action",
-  "taskStatusInProcess": "In process",
-  "taskStatusCompleted": "Completed",
-  "taskStatusCancelled": "Cancelled",
-  "completionPercent": "{percent}% completed",
-  "completionDate": "Completion date",
-  "priority": "Priority",
-  "priorityNone": "No priority",
-  "priorityHighValue": "Priority {priority} · High",
-  "priorityMediumValue": "Priority {priority} · Medium",
-  "priorityLowValue": "Priority {priority} · Low",
-  "taskUrl": "URL",
-  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
-  "classification": "Classification",
-  "classificationPublic": "When shared, show the full task",
-  "classificationConfidential": "When shared, show only busy",
-  "classificationPrivate": "When shared, hide this task",
-  "pinTask": "Pin task",
-  "reminders": "Reminders",
-  "noReminders": "No reminders",
-  "editReminder": "Edit reminder",
-  "beforeTaskStarts": "Before the task starts",
-  "beforeTaskDue": "Before the task is due",
-  "afterTaskStarts": "After the task starts",
-  "afterTaskDue": "After the task is due",
-  "relativeToTaskStart": "Relative to the task start date",
-  "relativeToTaskDue": "Relative to the task due date",
-  "reminderTimeOfDay": "Time of day",
-  "absoluteReminder": "At a date and time",
-  "reminderAmount": "Amount",
-  "reminderUnitSeconds": "Seconds",
-  "reminderUnitMinutes": "Minutes",
-  "reminderUnitHours": "Hours",
-  "reminderUnitDays": "Days",
-  "reminderUnitWeeks": "Weeks",
-  "reminderAtTaskStart": "At the task start",
-  "reminderAtTaskDue": "At the task due time",
-  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
-  "relatedRemindersTitle": "Keep related reminders?",
-  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
-  "discardRelatedReminders": "Discard reminders",
-  "keepRelatedReminders": "Keep reminders",
-  "repeatEvery": "Repeat every",
-  "repeatOn": "Repeat on",
-  "repeatEnd": "End repeat",
-  "repeatNever": "Never",
-  "repeatUntil": "On date",
-  "repeatAfter": "After a number of occurrences",
-  "repeatCount": "Occurrences",
-  "repeatDayOfMonth": "Days of month",
-  "repeatMonths": "Months",
-  "repeatOrdinal": "Weekday position",
-  "repeatSpecificDays": "Specific days",
-  "repeatFirst": "First",
-  "repeatSecond": "Second",
-  "repeatThird": "Third",
-  "repeatFourth": "Fourth",
-  "repeatFifth": "Fifth",
-  "repeatSecondToLast": "Second to last",
-  "repeatLast": "Last",
-  "repeatAnyDay": "Day",
-  "repeatWeekday": "Weekday",
-  "repeatWeekendDay": "Weekend day",
-  "repeatEveryDays": "Every {count} days",
-  "repeatEveryWeeks": "Every {count} weeks",
-  "repeatEveryMonths": "Every {count} months",
-  "repeatEveryYears": "Every {count} years",
-  "repeatOnDaysSummary": "on {days}",
-  "repeatOnMonthDaysSummary": "on day {days}",
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "repeatInMonthsSummary": "in {months}",
-  "repeatTimesSummary": "{count} times",
-  "repeatUntilSummary": "until {date}",
-  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
-  "duplicateTask": "Duplicate task",
-  "taskDuplicated": "Task duplicated.",
-  "taskDuplicateFailed": "Could not duplicate the task: {error}",
-  "hideSubtasks": "Hide subtasks",
-  "hideClosedSubtasks": "Hide closed subtasks",
-  "reminderUnit": "Unit",
-  "attendeeRequired": "Required",
-  "attendeeOptional": "Optional",
-  "meetingSection": "Meeting",
-  "addGoogleMeet": "Add Google Meet",
-  "addTeamsMeeting": "Add Microsoft Teams meeting",
-  "onlineMeetingAdded": "Online meeting added",
-  "requestResponses": "Request responses",
-  "requestResponsesDescription": "Ask guests to respond to the invitation.",
-  "hideGuestList": "Hide guest list",
-  "hideGuestListDescription": "Guests cannot see who else was invited.",
-  "allowNewTimeProposals": "Allow new time proposals",
-  "allowNewTimeProposalsDescription": "Guests can suggest a different meeting time.",
-  "notifyGuestsTitle": "Notify guests?",
-  "notifyGuestsSaveMessage": "This meeting has guests. Send invitations or event updates when it is saved?",
-  "notifyGuestsDeleteMessage": "This meeting has guests. Send a cancellation when it is deleted?",
-  "sendUpdates": "Send updates",
-  "sendCancellation": "Send cancellation",
-  "doNotSend": "Don’t send",
-  "microsoftNotifyGuestsSaveTitle": "Save meeting?",
-  "microsoftNotifyGuestsSaveMessage": "Microsoft will send invitations or event updates to guests.",
-  "microsoftNotifyGuestsDeleteTitle": "Delete meeting?",
-  "microsoftNotifyGuestsDeleteMessage": "Microsoft will send a cancellation to guests.",
-  "organizer": "Organizer",
-  "yourResponse": "Your response",
-  "guestResponses": "Guest responses",
-  "respond": "Respond",
-  "acceptInvitation": "Accept",
-  "tentativeInvitation": "Tentative",
-  "declineInvitation": "Decline",
-  "joinMeeting": "Join meeting",
-  "responseAccepted": "Accepted",
-  "responseTentative": "Tentative",
-  "responseDeclined": "Declined",
-  "responseNeedsAction": "Awaiting response",
-  "responseNotResponded": "Not responded",
-  "responseOrganizer": "Organizer",
-  "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
-  "joinMeetingFailed": "Could not open the meeting link.",
+  "taskListCreateFailed": "कार्य सूची बनाई नहीं जा सकी: {error}",
+  "taskListRenameFailed": "कार्य सूची का नाम बदला नहीं जा सका: {error}",
+  "taskListDeleteFailed": "कार्य सूची हटाई नहीं जा सकी: {error}",
+  "unshare": "साझा करना बंद करें",
+  "readOnlyTaskListCannotRename": "यह कार्य सूची केवल-पठन है और इसका नाम नहीं बदला जा सकता।",
+  "taskListCannotDelete": "आपकी मौजूदा अनुमतियों से यह कार्य सूची हटाई नहीं जा सकती।",
+  "deleteTaskListConfirmation": "“{title}” और इसके सभी कार्य हटाएँ?",
+  "unshareTaskListConfirmation": "इस खाते से “{title}” साझा करना बंद करें?",
+  "taskStatus": "स्थिति",
+  "taskStatusNone": "कोई स्थिति नहीं",
+  "taskStatusNeedsAction": "कार्रवाई आवश्यक",
+  "taskStatusInProcess": "प्रगति में",
+  "taskStatusCompleted": "पूर्ण",
+  "taskStatusCancelled": "रद्द",
+  "completionPercent": "{percent}% पूर्ण",
+  "completionDate": "पूर्ण होने की तारीख",
+  "priority": "प्राथमिकता",
+  "priorityNone": "कोई प्राथमिकता नहीं",
+  "priorityHighValue": "प्राथमिकता {priority} · उच्च",
+  "priorityMediumValue": "प्राथमिकता {priority} · मध्यम",
+  "priorityLowValue": "प्राथमिकता {priority} · निम्न",
+  "taskUrl": "कार्य URL",
+  "invalidTaskUrl": "स्कीम सहित पूर्ण URL दर्ज करें।",
+  "classification": "वर्गीकरण",
+  "classificationPublic": "साझा होने पर पूरा कार्य दिखाएँ",
+  "classificationConfidential": "साझा होने पर केवल व्यस्तता दिखाएँ",
+  "classificationPrivate": "साझा होने पर यह कार्य छिपाएँ",
+  "pinTask": "कार्य पिन करें",
+  "reminders": "रिमाइंडर",
+  "noReminders": "कोई रिमाइंडर नहीं",
+  "editReminder": "रिमाइंडर संपादित करें",
+  "beforeTaskStarts": "कार्य शुरू होने से पहले",
+  "beforeTaskDue": "कार्य की नियत तारीख से पहले",
+  "afterTaskStarts": "कार्य शुरू होने के बाद",
+  "afterTaskDue": "कार्य की नियत तारीख के बाद",
+  "relativeToTaskStart": "कार्य शुरू होने की तारीख के सापेक्ष",
+  "relativeToTaskDue": "कार्य की नियत तारीख के सापेक्ष",
+  "reminderTimeOfDay": "दिन का समय",
+  "absoluteReminder": "तारीख और समय पर",
+  "reminderAmount": "मात्रा",
+  "reminderUnitSeconds": "सेकंड",
+  "reminderUnitMinutes": "मिनट",
+  "reminderUnitHours": "घंटे",
+  "reminderUnitDays": "दिन",
+  "reminderUnitWeeks": "सप्ताह",
+  "reminderAtTaskStart": "कार्य शुरू होने पर",
+  "reminderAtTaskDue": "कार्य की नियत तारीख पर",
+  "unsupportedReminder": "यह रिमाइंडर प्रकार सुरक्षित है, लेकिन इसका समय संपादित नहीं किया जा सकता।",
+  "relatedRemindersTitle": "संबंधित रिमाइंडर रखें?",
+  "relatedRemindersDescription": "इस तारीख पर {count} संबंधित रिमाइंडर हैं। इन्हें उनकी मौजूदा तारीख और समय पर रखें?",
+  "discardRelatedReminders": "रिमाइंडर हटाएँ",
+  "keepRelatedReminders": "रिमाइंडर रखें",
+  "repeatEvery": "दोहराव अंतराल",
+  "repeatOn": "दोहराएँ",
+  "repeatEnd": "दोहराव समाप्त करें",
+  "repeatNever": "कभी नहीं",
+  "repeatUntil": "तारीख तक",
+  "repeatAfter": "कई बार दोहराने के बाद",
+  "repeatCount": "दोहराव की संख्या",
+  "repeatDayOfMonth": "महीने के दिन",
+  "repeatMonths": "महीने",
+  "repeatOrdinal": "सप्ताह के दिन की स्थिति",
+  "repeatSpecificDays": "विशिष्ट दिन",
+  "repeatFirst": "पहला",
+  "repeatSecond": "दूसरा",
+  "repeatThird": "तीसरा",
+  "repeatFourth": "चौथा",
+  "repeatFifth": "पाँचवाँ",
+  "repeatSecondToLast": "अंतिम से दूसरा",
+  "repeatLast": "अंतिम",
+  "repeatAnyDay": "दिन",
+  "repeatWeekday": "सप्ताह का दिन",
+  "repeatWeekendDay": "सप्ताहांत का दिन",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{सोमवार} TU{मंगलवार} WE{बुधवार} TH{गुरुवार} FR{शुक्रवार} SA{शनिवार} SU{रविवार} day{दिन} weekday{सप्ताह का दिन} weekend{सप्ताहांत का दिन} other{{day}}}",
+  "repeatEveryDays": "हर {count} दिन",
+  "repeatEveryWeeks": "हर {count} सप्ताह",
+  "repeatEveryMonths": "हर {count} महीने",
+  "repeatEveryYears": "हर {count} साल",
+  "repeatOnDaysSummary": "{days} को",
+  "repeatOnMonthDaysSummary": "की {days} तारीख को",
+  "repeatOnOrdinalSummary": "{position, select, first{के पहले {days} को} second{के दूसरे {days} को} third{के तीसरे {days} को} fourth{के चौथे {days} को} fifth{के पाँचवें {days} को} secondToLast{के अंतिम से दूसरे {days} को} last{के अंतिम {days} को} other{के {days} को}}",
+  "repeatInMonthsSummary": "{months} में",
+  "repeatTimesSummary": "{count, plural, one{{count} बार} other{{count} बार}}",
+  "repeatUntilSummary": "{date} तक",
+  "unsupportedRecurrencePreserved": "यह दोहराव नियम ऐसे विकल्पों का उपयोग करता है जिन्हें यह संपादक नहीं बदलता।",
+  "recurrenceUnsupportedByProvider": "इस पुनरावृत्ति का उपयोग {provider} के साथ नहीं किया जा सकता।",
+  "duplicateTask": "कार्य की प्रतिलिपि बनाएँ",
+  "taskDuplicated": "कार्य की प्रतिलिपि बन गई।",
+  "taskDuplicateFailed": "कार्य की प्रतिलिपि नहीं बन सकी: {error}",
+  "hideSubtasks": "उपकार्य छिपाएँ",
+  "hideClosedSubtasks": "बंद उपकार्य छिपाएँ",
+  "reminderUnit": "इकाई",
+  "attendeeRequired": "ज़रूरी",
+  "attendeeOptional": "वैकल्पिक",
+  "meetingSection": "मीटिंग",
+  "addGoogleMeet": "Google Meet जोड़ें",
+  "addTeamsMeeting": "Microsoft Teams मीटिंग जोड़ें",
+  "onlineMeetingAdded": "ऑनलाइन मीटिंग जोड़ी गई",
+  "requestResponses": "जवाब माँगें",
+  "requestResponsesDescription": "अतिथियों से आमंत्रण का जवाब देने को कहें।",
+  "hideGuestList": "अतिथि सूची छिपाएँ",
+  "hideGuestListDescription": "अतिथि यह नहीं देख सकते कि और किसे आमंत्रित किया गया है।",
+  "allowNewTimeProposals": "नए समय प्रस्तावों की अनुमति दें",
+  "allowNewTimeProposalsDescription": "अतिथि मीटिंग का अलग समय सुझा सकते हैं।",
+  "notifyGuestsTitle": "अतिथियों को सूचित करें?",
+  "notifyGuestsSaveMessage": "इस मीटिंग में अतिथि हैं। सहेजते समय आमंत्रण या इवेंट अपडेट भेजें?",
+  "notifyGuestsDeleteMessage": "इस मीटिंग में अतिथि हैं। हटाते समय रद्दीकरण भेजें?",
+  "sendUpdates": "अपडेट भेजें",
+  "sendCancellation": "रद्दीकरण भेजें",
+  "doNotSend": "न भेजें",
+  "microsoftNotifyGuestsSaveTitle": "मीटिंग सहेजें?",
+  "microsoftNotifyGuestsSaveMessage": "Microsoft अतिथियों को आमंत्रण या इवेंट अपडेट भेजेगा।",
+  "microsoftNotifyGuestsDeleteTitle": "मीटिंग हटाएँ?",
+  "microsoftNotifyGuestsDeleteMessage": "Microsoft अतिथियों को रद्दीकरण भेजेगा।",
+  "organizer": "आयोजक",
+  "yourResponse": "आपका जवाब",
+  "guestResponses": "अतिथियों के जवाब",
+  "respond": "जवाब दें",
+  "acceptInvitation": "स्वीकार करें",
+  "tentativeInvitation": "अनिश्चित",
+  "declineInvitation": "अस्वीकार करें",
+  "joinMeeting": "मीटिंग में शामिल हों",
+  "responseAccepted": "स्वीकृत",
+  "responseTentative": "अनिश्चित",
+  "responseDeclined": "अस्वीकृत",
+  "responseNeedsAction": "जवाब की प्रतीक्षा है",
+  "responseNotResponded": "जवाब नहीं दिया",
+  "responseOrganizer": "आयोजक",
+  "invitationResponseFailed": "आपका जवाब भेजा नहीं जा सका: {error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "मीटिंग लिंक खोला नहीं जा सका।",
+  "setCustomCalendarName": "कस्टम नाम सेट करें",
+  "setAction": "सेट करें",
+  "removeFromMyCalendars": "मेरे कैलेंडर से हटाएँ",
+  "removeAction": "हटाएँ",
+  "removeCalendarConfirmation": "क्या \"{title}\" को आपकी Google Calendar सूची से हटाएँ? साझा कैलेंडर और उसके इवेंट नहीं मिटाए जाएँगे।",
+  "calendarCannotRemove": "इस कैलेंडर को इस खाते से हटाया या मिटाया नहीं जा सकता।",
+  "calendarPendingChangesPreventRemoval": "कैलेंडर हटाने से पहले उसके लंबित बदलावों का सिंक पूरा होने की प्रतीक्षा करें।",
+  "calendarSubscriptions": "कैलेंडर सदस्यताएँ",
+  "calendarSubscriptionsDescription": "सुरक्षित WebCal URL से रीफ़्रेश होने वाले केवल-पठन कैलेंडर जोड़ें।",
+  "addCalendarSubscription": "कैलेंडर सदस्यता जोड़ें",
+  "subscriptionName": "स्थानीय नाम",
+  "subscriptionUrl": "सदस्यता URL",
+  "subscriptionUrlHelp": "HTTPS या webcal URL दर्ज करें। BusyMax पूरा URL सुरक्षित संग्रहण में रखता है।",
+  "subscriptionUrlInvalid": "उपयोगकर्ता जानकारी या फ़्रैगमेंट के बिना मान्य HTTPS या webcal URL दर्ज करें।",
+  "subscriptionColor": "स्थानीय रंग",
+  "subscriptionColorHelp": "#3584E4 जैसे छह अंकों वाले रंग का उपयोग करें।",
+  "subscriptionColorInvalid": "छह अंकों वाला हेक्साडेसिमल रंग दर्ज करें।",
+  "subscriptionRefreshMode": "रीफ़्रेश आवृत्ति",
+  "subscriptionAutomatic": "स्वचालित",
+  "subscriptionHourly": "हर घंटे",
+  "subscriptionSixHours": "हर छह घंटे",
+  "subscriptionDaily": "हर दिन",
+  "subscriptionSafeOrigin": "स्रोत: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "सुरक्षित स्रोत का पूर्वावलोकन करने के लिए मान्य URL दर्ज करें।",
+  "subscriptionReadOnly": "केवल-पठन सदस्यता",
+  "subscriptionNeverRefreshed": "अभी तक रीफ़्रेश नहीं हुआ",
+  "subscriptionLastRefresh": "अंतिम सफल रीफ़्रेश: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "अगला रीफ़्रेश: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "अप टू डेट",
+  "subscriptionStatusIssue": "रीफ़्रेश समस्या: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "अभी रीफ़्रेश करें",
+  "unsubscribe": "सदस्यता रद्द करें",
+  "unsubscribeCalendarTitle": "“{name}” की सदस्यता रद्द करें?",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "इससे स्थानीय सदस्यता और कैश किए गए इवेंट हट जाएँगे। प्रकाशित कैलेंडर नहीं बदलेगा।",
+  "addSubscriptionAction": "सदस्यता जोड़ें",
+  "subscriptionOperationFailed": "कैलेंडर सदस्यता विफल: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "सदस्यताएँ",
+  "calendarImport": "कैलेंडर आयात",
+  "calendarImportDescription": "फ़ाइल चुनें, उसके इवेंट की समीक्षा करें और फिर वह लिखने योग्य कैलेंडर चुनें जिसे उन्हें प्राप्त करना चाहिए।",
+  "importIcsFile": ".ics फ़ाइल आयात करें",
+  "importIcsPreview": "कैलेंडर इवेंट आयात करें",
+  "importEventsFound": "आयात योग्य इवेंट सेट: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importInvalidEvents": "अमान्य इवेंट: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importFieldsOmitted": "जानबूझकर छोड़े गए: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "कोई लिखने योग्य गंतव्य कैलेंडर उपलब्ध नहीं है।",
+  "importDestinationCalendar": "गंतव्य कैलेंडर",
+  "importIcsConfirm": "इवेंट आयात करें",
+  "importIcsComplete": "आयात पूरा हुआ",
+  "importQueued": "आयातित या कतार में: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "डुप्लिकेट छोड़े गए: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importUnsupportedSets": "असमर्थित दोहराव सेट: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importIcsFailed": "कैलेंडर फ़ाइल आयात नहीं की जा सकी: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "networkOffline": "ऑफ़लाइन",
   "networkOfflineDescription": "कनेक्शन वापस आने पर बदलाव सिंक हो जाएंगे।",
-  "networkOfflineTryAgain": "आप ऑफ़लाइन हैं। इंटरनेट से कनेक्ट करें और फिर से कोशिश करें।"
+  "networkOfflineTryAgain": "आप ऑफ़लाइन हैं। इंटरनेट से कनेक्ट करें और फिर से कोशिश करें।",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "की {days} तारीखों को",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatSummarySeparator": " ",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatWeekdayListPair": "{first} और {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} और {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} और {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} और {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} {month} की {day} तारीख को",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months} की {day} तारीख को",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months} की {days} तारीखों को",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {months} के {position, select, first{पहले} second{दूसरे} third{तीसरे} fourth{चौथे} fifth{पाँचवें} secondToLast{अंतिम से दूसरे} last{अंतिम} other{}} {days} को",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} की {days} तारीखों को",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency} {month} के {position, select, first{पहले} second{दूसरे} third{तीसरे} fourth{चौथे} fifth{पाँचवें} secondToLast{अंतिम से दूसरे} last{अंतिम} other{}} {days} को",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  }
 }

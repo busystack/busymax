@@ -5,7 +5,9 @@ import 'package:uuid/uuid.dart';
 
 import '../../../db/app_database.dart';
 import '../../../dav/mutation/dav_task_list_mutation_service.dart';
-import '../../../providers/busy_provider.dart';
+import '../../accounts/data/accounts_repository.dart';
+import '../../accounts/domain/account_collection_creation_capabilities.dart';
+import '../../notifications/notification_schedule_service.dart';
 import '../../tasks/domain/task_remote_client.dart';
 import '../../tasks/domain/task_remote_models.dart';
 
@@ -17,6 +19,7 @@ class TaskListEntity {
     required this.localDirty,
     required this.pendingDelete,
     required this.rawJson,
+    this.remindersEnabled = true,
     this.updatedUtc,
     this.etag,
     this.providerListKind,
@@ -33,6 +36,7 @@ class TaskListEntity {
       localDirty: row.localDirty,
       pendingDelete: row.pendingDelete,
       rawJson: row.rawJson,
+      remindersEnabled: row.remindersEnabled,
       updatedUtc: row.updatedUtc,
       etag: row.etag,
       providerListKind: row.providerListKind,
@@ -48,6 +52,7 @@ class TaskListEntity {
   final bool localDirty;
   final bool pendingDelete;
   final String rawJson;
+  final bool remindersEnabled;
   final String? updatedUtc;
   final String? etag;
   final String? providerListKind;
@@ -69,6 +74,7 @@ class TaskListsRepository {
     TaskRemoteClient? apiClient,
     DavTaskListMutationClient? davMutationClient,
     void Function()? onMutationQueued,
+    Future<void> Function()? onNotificationScheduleChanged,
     Uuid uuid = const Uuid(),
     DateTime Function()? nowUtc,
   }) : _database = database,
@@ -76,6 +82,7 @@ class TaskListsRepository {
        _apiClient = apiClient,
        _davMutationClient = davMutationClient,
        _onMutationQueued = onMutationQueued,
+       _onNotificationScheduleChanged = onNotificationScheduleChanged,
        _uuid = uuid,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
@@ -84,6 +91,7 @@ class TaskListsRepository {
   final TaskRemoteClient? _apiClient;
   final DavTaskListMutationClient? _davMutationClient;
   final void Function()? _onMutationQueued;
+  final Future<void> Function()? _onNotificationScheduleChanged;
   final Uuid _uuid;
   final DateTime Function() _nowUtc;
 
@@ -116,9 +124,23 @@ class TaskListsRepository {
   }
 
   Future<void> createTaskList(String title) async {
-    if (await _usesNextcloudDav()) {
-      await _requiredDavMutationClient().createTaskList(title);
-      return;
+    final trimmedTitle = title.trim();
+    if (trimmedTitle.isEmpty) {
+      throw ArgumentError.value(
+        title,
+        'title',
+        'A task-list name is required.',
+      );
+    }
+    final mode = await _taskListCreationMode();
+    switch (mode) {
+      case TaskListCreationMode.nextcloudDav:
+        await _requiredDavMutationClient().createTaskList(trimmedTitle);
+        return;
+      case TaskListCreationMode.unavailable:
+        throw StateError('Task-list creation is unavailable for this account.');
+      case TaskListCreationMode.cloudPendingOperation:
+        break;
     }
     final now = _now();
     final localId = 'local-tasklist-${_uuid.v4()}';
@@ -127,8 +149,8 @@ class TaskListsRepository {
         TaskListsCompanion.insert(
           accountId: _accountId,
           id: localId,
-          title: title,
-          rawJson: jsonEncode({'id': localId, 'title': title}),
+          title: trimmedTitle,
+          rawJson: jsonEncode({'id': localId, 'title': trimmedTitle}),
           localDirty: const Value(true),
           createdLocalAtUtc: now,
           updatedLocalAtUtc: now,
@@ -138,7 +160,7 @@ class TaskListsRepository {
         operation: 'create_task_list',
         taskListId: localId,
         localTempId: localId,
-        request: {'title': title},
+        request: {'title': trimmedTitle},
         createdAtUtc: now,
       );
     });
@@ -251,6 +273,26 @@ class TaskListsRepository {
     );
   }
 
+  Future<void> setRemindersEnabled(String id, bool enabled) async {
+    final updated =
+        await (_database.update(_database.taskLists)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.id.equals(id) &
+                  row.pendingDelete.equals(false) &
+                  row.serverMissing.equals(false),
+            ))
+            .write(TaskListsCompanion(remindersEnabled: Value(enabled)));
+    if (updated != 1) {
+      throw StateError('The task list is no longer available.');
+    }
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
+  }
+
   Future<void> _updateLocalList(String id, TaskListsCompanion companion) {
     final update = _database.update(_database.taskLists)
       ..where((row) => row.accountId.equals(_accountId) & row.id.equals(id));
@@ -290,13 +332,16 @@ class TaskListsRepository {
         .getSingleOrNull();
   }
 
-  Future<bool> _usesNextcloudDav() async {
+  Future<TaskListCreationMode> _taskListCreationMode() async {
     final account = await (_database.select(
       _database.accounts,
     )..where((row) => row.id.equals(_accountId))).getSingleOrNull();
-    return account != null &&
-        BusyProviderCodec.requireStorageValue(account.provider) ==
-            BusyProvider.nextcloud;
+    if (account == null) return TaskListCreationMode.unavailable;
+    final entity = AccountEntity.fromRow(account);
+    if (!entity.tasksEnabled || !entity.isSignedIn) {
+      return TaskListCreationMode.unavailable;
+    }
+    return accountCollectionCreationModes(entity.provider).taskListMode;
   }
 
   DavTaskListMutationClient _requiredDavMutationClient() {

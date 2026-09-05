@@ -11,7 +11,8 @@ import 'google_calendar_errors.dart';
 import 'google_calendar_mapper.dart';
 import 'google_calendar_models.dart';
 
-class GoogleCalendarApiClient implements CloudCalendarClient {
+class GoogleCalendarApiClient
+    implements CloudCalendarClient, CalendarListManagementClient {
   GoogleCalendarApiClient({
     required http.Client httpClient,
     required Uri baseUri,
@@ -71,6 +72,12 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
       _uri('/calendar/v3/calendars'),
       body: googleCalendarMutationToJson(mutation),
     );
+    final calendarId = json['id']?.toString();
+    if (calendarId != null &&
+        calendarId.isNotEmpty &&
+        _hasCalendarListColor(mutation)) {
+      return _updateCalendarListColor(calendarId, mutation);
+    }
     return googleCalendarSourceFromJson(json);
   }
 
@@ -79,21 +86,63 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     String calendarId,
     CalendarMutation mutation,
   ) async {
+    var updatedGlobalMetadata = false;
+    final calendarBody = googleCalendarMutationToJson(mutation);
+    if (calendarBody.isNotEmpty) {
+      await _requestJson(
+        'PATCH',
+        _uri('/calendar/v3/calendars/${_enc(calendarId)}'),
+        body: calendarBody,
+      );
+      updatedGlobalMetadata = true;
+    }
+    if (_hasCalendarListColor(mutation)) {
+      return _updateCalendarListColor(calendarId, mutation);
+    }
+    if (!updatedGlobalMetadata) {
+      throw ArgumentError('Calendar update has no writable fields.');
+    }
+    return _getCalendarListEntry(calendarId);
+  }
+
+  Future<CalendarSourceDto> _getCalendarListEntry(String calendarId) async {
     final json = await _requestJson(
-      'PATCH',
-      _uri('/calendar/v3/calendars/${_enc(calendarId)}'),
-      body: googleCalendarMutationToJson(mutation),
+      'GET',
+      _uri('/calendar/v3/users/me/calendarList/${_enc(calendarId)}'),
     );
     return googleCalendarSourceFromJson(json);
   }
 
+  Future<CalendarSourceDto> _updateCalendarListColor(
+    String calendarId,
+    CalendarMutation mutation,
+  ) async {
+    final usesRgb =
+        mutation.backgroundColor != null || mutation.foregroundColor != null;
+    final json = await _requestJson(
+      'PATCH',
+      _uri(
+        '/calendar/v3/users/me/calendarList/${_enc(calendarId)}',
+        query: usesRgb ? const {'colorRgbFormat': 'true'} : null,
+      ),
+      body: googleCalendarListColorMutationToJson(mutation),
+    );
+    return googleCalendarSourceFromJson(json);
+  }
+
+  @override
   Future<CalendarSourceDto> updateCalendarListEntry(
     String calendarId,
     CalendarMutation mutation,
   ) async {
+    final usesRgb =
+        mutation.backgroundColor != null || mutation.foregroundColor != null;
     final json = await _requestJson(
       'PATCH',
-      _uri('/calendar/v3/users/me/calendarList/${_enc(calendarId)}'),
+      _uri(
+        '/calendar/v3/users/me/calendarList/${_enc(calendarId)}',
+        query: usesRgb ? const {'colorRgbFormat': 'true'} : null,
+      ),
       body: googleCalendarListMutationToJson(mutation),
     );
     return googleCalendarSourceFromJson(json);
@@ -108,6 +157,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     return googleCalendarSourceFromJson(json);
   }
 
+  @override
   Future<void> deleteCalendarListEntry(String calendarId) {
     return _requestEmpty(
       'DELETE',
@@ -161,6 +211,7 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
         '/calendar/v3/calendars/${_enc(calendarId)}/events',
         query: {
           'conferenceDataVersion': '1',
+          'supportsAttachments': 'true',
           'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
         },
       ),
@@ -309,17 +360,23 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
     return events;
   }
 
+  @override
   Future<CalendarEventDto> moveEvent({
     required String sourceCalendarId,
     required String eventId,
     required String destinationCalendarId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
   }) async {
     final json = await _requestJson(
       'POST',
       _uri(
         '/calendar/v3/calendars/${_enc(sourceCalendarId)}/events/'
         '${_enc(eventId)}/move',
-        query: {'destination': destinationCalendarId},
+        query: {
+          'destination': destinationCalendarId,
+          'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
+        },
       ),
     );
     return googleCalendarEventFromJson(destinationCalendarId, json);
@@ -533,6 +590,12 @@ class GoogleCalendarApiClient implements CloudCalendarClient {
       queryParameters: query == null || query.isEmpty ? null : query,
     );
   }
+}
+
+bool _hasCalendarListColor(CalendarMutation mutation) {
+  return mutation.backgroundColor != null ||
+      mutation.foregroundColor != null ||
+      mutation.colorId != null;
 }
 
 String _enc(String value) => Uri.encodeComponent(value);

@@ -542,6 +542,7 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
     this.overlayColor,
     this.fixedSize,
     this.shape,
+    this.focusNode,
   });
 
   final Widget icon;
@@ -553,6 +554,7 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
   final WidgetStateProperty<Color?>? overlayColor;
   final Size? fixedSize;
   final OutlinedBorder? shape;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -561,6 +563,7 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
       icon: icon,
       iconSize: iconSize,
       onPressed: onPressed,
+      focusNode: focusNode,
       style:
           busyMaxHeaderIconButtonStyle(
             context,
@@ -994,10 +997,12 @@ class BusyMaxPopoverIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BusyMaxSurfaceColors.of(context);
-    final foreground = destructive ? Theme.of(context).colorScheme.error : null;
+    final colorScheme = Theme.of(context).colorScheme;
+    final foreground = destructive ? colorScheme.onError : null;
+    final background = destructive ? colorScheme.error : colors.control;
     final enabled = onPressed != null;
     return Material(
-      color: enabled ? colors.control : colors.disabledControl,
+      color: enabled ? background : colors.disabledControl,
       shape: const CircleBorder(),
       child: YaruIconButton(
         icon: Icon(
@@ -2173,6 +2178,7 @@ class BusyMaxComboRow<T> extends StatelessWidget {
               BusyMaxMenuEntry(
                 value: value,
                 label: labelFor(value),
+                role: BusyMaxMenuEntryRole.radio,
                 selected: value == selected,
               ),
           ],
@@ -2336,6 +2342,7 @@ class BusyMaxMenuEntry<T> {
     this.child,
     this.shortcut,
     this.enabled = true,
+    this.role = BusyMaxMenuEntryRole.command,
     this.selected = false,
     this.tooltip,
     this.destructive = false,
@@ -2347,10 +2354,13 @@ class BusyMaxMenuEntry<T> {
   final Widget? child;
   final String? shortcut;
   final bool enabled;
+  final BusyMaxMenuEntryRole role;
   final bool selected;
   final String? tooltip;
   final bool destructive;
 }
+
+enum BusyMaxMenuEntryRole { command, radio, toggle }
 
 @immutable
 final class BusyMaxMenuSelection<T> {
@@ -2488,19 +2498,31 @@ Future<BusyMaxMenuSelection<T>?> showBusyMaxMenu<T>({
 }
 
 void _validateBusyMaxMenuEntries<T>(List<BusyMaxMenuEntry<T>> entries) {
-  final selectedCount = entries.where((entry) => entry.selected).length;
-  if (selectedCount > 1) {
+  if (entries.any(
+    (entry) => entry.role == BusyMaxMenuEntryRole.command && entry.selected,
+  )) {
     throw ArgumentError.value(
       entries,
       'entries',
-      'A single-choice menu can have only one selected entry.',
+      'Command menu entries cannot be selected.',
     );
   }
-  if (selectedCount == 1 && entries.any((entry) => !entry.enabled)) {
+  final radioEntries = entries
+      .where((entry) => entry.role == BusyMaxMenuEntryRole.radio)
+      .toList(growable: false);
+  if (radioEntries.isNotEmpty &&
+      radioEntries.where((entry) => entry.selected).length != 1) {
     throw ArgumentError.value(
       entries,
       'entries',
-      'Single-choice menu entries must all be enabled.',
+      'A single-choice menu must have exactly one selected radio entry.',
+    );
+  }
+  if (radioEntries.any((entry) => !entry.enabled)) {
+    throw ArgumentError.value(
+      entries,
+      'entries',
+      'Single-choice radio entries must all be enabled.',
     );
   }
 }
@@ -2538,6 +2560,11 @@ List<NativeMenuEntry> _nativeMenuEntries<T>(List<BusyMaxMenuEntry<T>> entries) {
         label: entry.label,
         iconName: BusyMaxGlyphs.nativeMenuIconName(entry.icon),
         enabled: entry.enabled,
+        role: switch (entry.role) {
+          BusyMaxMenuEntryRole.command => NativeMenuEntryRole.command,
+          BusyMaxMenuEntryRole.radio => NativeMenuEntryRole.radio,
+          BusyMaxMenuEntryRole.toggle => NativeMenuEntryRole.toggle,
+        },
         selected: entry.selected,
         shortcut: entry.shortcut,
       ),
@@ -2577,8 +2604,9 @@ Future<int?> _showBusyMaxFlutterMenu<T>({
     localAnchor.width,
     0,
   );
-  final hasSelectedEntry = entries.any((entry) => entry.selected);
-  final selectedIndex = entries.indexWhere((entry) => entry.selected);
+  final selectedRadioIndex = entries.indexWhere(
+    (entry) => entry.role == BusyMaxMenuEntryRole.radio && entry.selected,
+  );
   final firstEnabledIndex = entries.indexWhere((entry) => entry.enabled);
   final firstEnabledKey = focusFirst && firstEnabledIndex >= 0
       ? GlobalKey()
@@ -2597,18 +2625,28 @@ Future<int?> _showBusyMaxFlutterMenu<T>({
           child: _busyMaxFocusableFallbackEntry(
             context,
             entries[index],
-            selectionIndicator: hasSelectedEntry
-                ? ExcludeSemantics(
-                    child: IgnorePointer(
-                      child: YaruRadio<int>(
-                        value: index,
-                        groupValue: selectedIndex,
-                        onChanged: (_) {},
-                        hasFocusBorder: false,
-                      ),
-                    ),
-                  )
-                : null,
+            selectionIndicator: switch (entries[index].role) {
+              BusyMaxMenuEntryRole.command => null,
+              BusyMaxMenuEntryRole.radio => ExcludeSemantics(
+                child: IgnorePointer(
+                  child: YaruRadio<int>(
+                    value: index,
+                    groupValue: selectedRadioIndex,
+                    onChanged: (_) {},
+                    hasFocusBorder: false,
+                  ),
+                ),
+              ),
+              BusyMaxMenuEntryRole.toggle => ExcludeSemantics(
+                child: IgnorePointer(
+                  child: YaruCheckbox(
+                    value: entries[index].selected,
+                    onChanged: (_) {},
+                    hasFocusBorder: false,
+                  ),
+                ),
+              ),
+            },
             focusKey: index == firstEnabledIndex ? firstEnabledKey : null,
             routeKey: index == 0 ? routeKey : null,
           ),
@@ -2678,12 +2716,17 @@ Widget _busyMaxFocusableFallbackEntry<T>(
     entry,
     selectionIndicator: selectionIndicator,
   );
-  if (selectionIndicator != null) {
-    child = Semantics(
-      selected: entry.selected,
-      inMutuallyExclusiveGroup: true,
-      child: child,
-    );
+  switch (entry.role) {
+    case BusyMaxMenuEntryRole.command:
+      break;
+    case BusyMaxMenuEntryRole.radio:
+      child = Semantics(
+        selected: entry.selected,
+        inMutuallyExclusiveGroup: true,
+        child: child,
+      );
+    case BusyMaxMenuEntryRole.toggle:
+      child = Semantics(checked: entry.selected, child: child);
   }
   if (focusKey != null) {
     child = KeyedSubtree(key: focusKey, child: child);

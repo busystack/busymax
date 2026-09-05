@@ -18,8 +18,11 @@ final class DavDiscoveryRepository {
   final AppDatabase _database;
   final String Function() _idFactory;
 
-  Future<void> commitSuccessfulInventory(DavDiscoveryResult result) {
+  /// Returns whether discovery changed a notification-enabled projection.
+  Future<bool> commitSuccessfulInventory(DavDiscoveryResult result) {
     return _database.transaction(() async {
+      final notificationProjectionsBefore =
+          await _notificationEnabledProjectionKeys(result.accountId);
       final service = result.service;
       await _database
           .into(_database.davAccountServices)
@@ -164,7 +167,41 @@ final class DavDiscoveryRepository {
           updatedAtUtc: Value(service.discoveredAtUtc.toIso8601String()),
         ),
       );
+      final notificationProjectionsAfter =
+          await _notificationEnabledProjectionKeys(result.accountId);
+      return !_sameProjectionKeys(
+        notificationProjectionsBefore,
+        notificationProjectionsAfter,
+      );
     });
+  }
+
+  Future<Set<String>> _notificationEnabledProjectionKeys(
+    String accountId,
+  ) async {
+    final eventSources =
+        await (_database.select(_database.calendarSources)..where(
+              (row) =>
+                  row.accountId.equals(accountId) &
+                  row.davCollectionId.isNotNull() &
+                  row.remindersEnabled.equals(true) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
+    final taskLists =
+        await (_database.select(_database.taskLists)..where(
+              (row) =>
+                  row.accountId.equals(accountId) &
+                  row.davCollectionId.isNotNull() &
+                  row.remindersEnabled.equals(true) &
+                  row.pendingDelete.equals(false) &
+                  row.serverMissing.equals(false),
+            ))
+            .get();
+    return {
+      for (final source in eventSources) 'event:${source.id}',
+      for (final list in taskLists) 'task:${list.id}',
+    };
   }
 
   Future<void> recordDiscoveryFailure(String accountId, String code) async {
@@ -294,6 +331,9 @@ final class DavDiscoveryRepository {
         .write(const TaskListsCompanion(serverMissing: Value(true)));
   }
 }
+
+bool _sameProjectionKeys(Set<String> left, Set<String> right) =>
+    left.length == right.length && left.containsAll(right);
 
 String _projectionMetadata(DavCollectionDiscovery collection) => jsonEncode({
   'transport': 'caldav',

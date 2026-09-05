@@ -1240,7 +1240,21 @@ void main() {
           ),
         )
         .toList();
-    expect(restingSurfaces, hasLength(4));
+    expect(restingSurfaces, hasLength(3));
+    final destructiveSurfaces = tester
+        .widgetList<Material>(
+          find.descendant(
+            of: find.byType(BusyMaxPopoverIconButton),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Material &&
+                  widget.color == Theme.of(actionContext).colorScheme.error &&
+                  widget.shape == const CircleBorder(),
+            ),
+          ),
+        )
+        .toList();
+    expect(destructiveSurfaces, hasLength(1));
     for (final button in find.byType(BusyMaxPopoverIconButton).evaluate()) {
       expect(
         tester.getSize(find.byWidget(button.widget)),
@@ -1257,7 +1271,7 @@ void main() {
     }
     expect(
       tester.widget<Icon>(find.byIcon(YaruIcons.trash)).color,
-      Theme.of(actionContext).colorScheme.error,
+      Theme.of(actionContext).colorScheme.onError,
     );
     expect(tester.widget<Icon>(find.byIcon(YaruIcons.share)).color, isNull);
 
@@ -1566,6 +1580,48 @@ void main() {
         );
       },
     );
+
+    testWidgets('destructive popover action uses a visible semantic fill in '
+        '$brightness mode', (tester) async {
+      final theme = BusyMaxYaruTheme.build(
+        brightness: brightness,
+        accentColor: const Color(0xFF3584E4),
+      );
+      final colors = theme.extension<BusyMaxSurfaceColors>()!;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Center(
+            child: BusyMaxPopoverIconButton(
+              icon: YaruIcons.trash,
+              tooltip: 'Delete',
+              destructive: true,
+              onPressed: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final action = find.byType(BusyMaxPopoverIconButton);
+      final destructiveSurface = tester.widget<Material>(
+        find.descendant(
+          of: action,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Material &&
+                widget.color == theme.colorScheme.error &&
+                widget.shape == const CircleBorder(),
+          ),
+        ),
+      );
+      final icon = tester.widget<Icon>(find.byIcon(YaruIcons.trash));
+
+      expect(destructiveSurface.color, theme.colorScheme.error);
+      expect(destructiveSurface.color, isNot(colors.control));
+      expect(icon.color, theme.colorScheme.onError);
+    });
   }
 
   testWidgets('popover action retains Yaru keyboard-focus treatment', (
@@ -2837,6 +2893,11 @@ void main() {
     expect(source, contains('context.l10n.allTasksRefreshed'));
     expect(source, contains('setScheduleViewMode(mode)'));
     expect(source, contains('settings.scheduleViewMode'));
+    expect(
+      source,
+      contains('localizedScheduleHeading('),
+      reason: 'native header state shares the Flutter heading formatter',
+    );
     expect(source, contains('ScheduleEmptyState'));
     expect(source, isNot(contains('BusyMaxHeaderBarAction.newItem')));
     expect(source, isNot(contains('BusyMaxHeaderBarAction.openMenu')));
@@ -3778,7 +3839,7 @@ void main() {
     expect(sidebar, contains('visibilityButton: _SourceVisibilityButton'));
     expect(sidebar, contains('menuButton: BusyMaxMenuButton'));
     expect(sidebar, contains('tooltip: context.l10n.options'));
-    expect('highlightWhenOpen: false'.allMatches(sidebar), hasLength(2));
+    expect('highlightWhenOpen: false'.allMatches(sidebar), hasLength(4));
     expect(sidebar, contains('value ? context.l10n.hide : context.l10n.show'));
     expect(sidebar, isNot(contains('tooltip: context.l10n.sourceCalendar')));
     expect(sidebar, isNot(contains('tooltip: context.l10n.sourceTaskList')));
@@ -3792,6 +3853,15 @@ void main() {
     expect(sidebar, isNot(contains('YaruIcons.checkbox')));
     expect(sidebar, isNot(contains('InkWell(')));
     expect(sidebar, isNot(contains('_SourceVisibilityIndicator')));
+  });
+
+  test('sidebar does not expose the one-time calendar import action', () {
+    final sidebar = File(
+      'lib/src/features/schedule/presentation/schedule_sidebar.dart',
+    ).readAsStringSync();
+
+    expect(sidebar, isNot(contains("ValueKey('import-ics-file')")));
+    expect(sidebar, isNot(contains('showIcsImportFlow')));
   });
 
   test('schedule Create uses a native popover before refresh', () {
@@ -3848,7 +3918,9 @@ void main() {
         ),
       ),
     );
-    expect(sidebar, isNot(contains('context.l10n.create')));
+    expect(sidebar, isNot(contains('title: context.l10n.create,')));
+    expect(sidebar, contains('title: context.l10n.newCalendar'));
+    expect(sidebar, contains('actionLabel: context.l10n.create'));
     expect(sidebar, isNot(contains('PushButton.filled')));
     expect(toolbar, isNot(contains('BusyMaxShortcutLabels.create')));
     expect(toolbar, contains('tooltip: context.l10n.create'));
@@ -4069,10 +4141,7 @@ void main() {
       contains('final showPaging = mode != ScheduleViewMode.agenda'),
     );
     expect(toolbar, contains('if (showPaging)'));
-    expect(
-      toolbar,
-      contains('ScheduleViewMode.agenda => context.l10n.viewAgenda'),
-    );
+    expect(toolbar, contains('agendaLabel: context.l10n.viewAgenda'));
     expect(
       workspace,
       contains('navigationVisible: _mode != ScheduleViewMode.agenda'),
@@ -4180,7 +4249,11 @@ void main() {
     expect(mode, contains('year'));
     expect(range, contains('factory ScheduleRange.year(DateTime day)'));
     expect(workspace, contains('ScheduleRange.year(_selectedDate)'));
-    expect(workspace, contains('DateFormat.y(locale).format(selectedDate)'));
+    expect(
+      workspace,
+      contains('localizedScheduleHeading('),
+      reason: 'schedule headers use the centralized localized heading helper',
+    );
     expect(workspace, contains('ScheduleYearView('));
     expect(yearView, contains('final monthWidth ='));
     expect(yearView, contains('Wrap('));

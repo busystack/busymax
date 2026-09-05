@@ -1,7 +1,51 @@
 {
   "@@locale": "en",
+  "windowsSupport": "Support",
+  "windowsThirdPartyLicenses": "Third-party licenses",
+  "windowsSearch": "Search",
+  "windowsStartupDisabledByUser": "Disabled by the user in Windows Settings.",
+  "windowsStartupDisabledByPolicy": "Disabled by Windows policy.",
+  "windowsStartupUnavailable": "Available after BusyMax is installed from an MSIX package.",
+  "windowsReminderExitNotice": "Reminders stop when BusyMax is fully quit. Keep it running in the background to receive them.",
+  "windowsProductVersionLabel": "Product version",
+  "windowsPackageVersionLabel": "Windows package version",
+  "windowsUnpackaged": "Unpackaged",
+  "windowsAgendaLoadMore": "Load more agenda items",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} other{{day}}}",
+  "@repeatWeeklyDaySummary": {
+    "description": "Sentence-form weekday used inside a weekly recurrence summary. {dayKey} is MO through SU; {day} is the locale-formatted fallback.",
+    "placeholders": {"dayKey": {"type": "String"}, "day": {"type": "String"}}
+  },
+  "repeatOnTwoMonthDaysSummary": "on days {first} and {second}",
+  "@repeatOnTwoMonthDaysSummary": {
+    "description": "Sentence fragment for a monthly recurrence on exactly two dates.",
+    "placeholders": {"first": {"type": "String"}, "second": {"type": "String"}}
+  },
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} on days {firstDay} and {secondDay} of {month}",
+  "@repeatYearlyOnTwoMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for exactly two dates in one month.",
+    "placeholders": {"frequency": {"type": "String"}, "month": {"type": "String"}, "firstDay": {"type": "String"}, "secondDay": {"type": "String"}}
+  },
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} on day {day} of {firstMonth} and {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one date in exactly two months.",
+    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "day": {"type": "String"}}
+  },
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} on days {firstDay} and {secondDay} of {firstMonth} and {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for exactly two dates in exactly two months.",
+    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "firstDay": {"type": "String"}, "secondDay": {"type": "String"}}
+  },
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} on days {days} of {firstMonth} and {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for three or more dates in exactly two months.",
+    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "days": {"type": "String"}}
+  },
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "@connectGoogleAccount": {
+    "description": "Shown in account onboarding and settings; names the supported account providers."
+  },
   "googlePermissionsConsentNotice": "On the Google permission screen, select both Calendar and Tasks permissions.",
   "googlePermissionsRequiredRetry": "Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.",
   "finishSetup": "Finish setup",
@@ -9,6 +53,9 @@
   "onboardingSetupTitle": "Set Up BusyMax",
   "onboardingAccountsStepTitle": "Connect accounts",
   "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "@onboardingAccountsStepDescription": {
+    "description": "Onboarding explanation of the account data BusyMax synchronizes."
+  },
   "onboardingPreferencesStepTitle": "Choose system settings",
   "onboardingPreferencesStepDescription": "Set desktop behavior, reminders, notification detail, and appearance before opening your schedule.",
   "signInWithGoogle": "Sign in with Google",
@@ -33,6 +80,44 @@
   "calendarTasks": "Tasks",
   "calendar": "Calendar",
   "calendars": "Calendars",
+  "newCalendar": "New calendar",
+  "calendarColor": "Calendar color",
+  "calendarColorOption": "Color {number}",
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "calendarManagementUnsupported": "This provider does not support calendar management in BusyMax.",
+  "primaryCalendarCannotDelete": "The primary calendar cannot be deleted.",
+  "calendarCreateFailed": "Could not create the calendar: {error}",
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarCreatedRefreshPending": "The calendar was created, but BusyMax could not refresh the account. It will appear after the next sync.",
+  "calendarUpdateFailed": "Could not update the calendar: {error}",
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarDeleteFailed": "Could not delete the calendar: {error}",
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "newEvent": "New event",
   "refreshCalendar": "Refresh calendar",
   "openInProvider": "Open in provider",
@@ -41,7 +126,14 @@
   "noCalendarsSynced": "No calendars synced yet.",
   "allDay": "All day",
   "moreItems": "+{count} more",
-  "@moreItems": {"placeholders": {"count": {"type": "int"}}},
+  "@moreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "noEventsOrTasks": "No events or tasks",
   "scheduleLoading": "Loading schedule...",
   "scheduleUnavailable": "Schedule unavailable",
@@ -53,6 +145,59 @@
   "scheduleNoSearchResultsDescription": "Try a different search or clear the current filters.",
   "refresh": "Refresh",
   "trayOpenBusyMax": "Open BusyMax",
+  "trayShowBusyMax": "Show BusyMax",
+  "trayNewEvent": "New event…",
+  "trayNewTask": "New task…",
+  "trayToday": "Today",
+  "trayAllDay": "All day",
+  "trayNow": "Now",
+  "trayCalendarEvent": "Calendar event",
+  "trayUntitledEvent": "Untitled event",
+  "trayNothingElseToday": "Nothing else today",
+  "trayTasksDueToday": "{count, plural, =1{1 task due today} other{{count} tasks due today}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "Open today’s agenda",
+  "traySyncNow": "Sync now",
+  "traySyncing": "Syncing…",
+  "trayNotConnected": "Not connected",
+  "trayNotYetSynced": "Not yet synced",
+  "trayLastSyncedJustNow": "Last synced just now",
+  "trayLastSyncedMinutesAgo": "{count, plural, =1{Last synced 1 minute ago} other{Last synced {count} minutes ago}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, =1{Last synced 1 hour ago} other{Last synced {count} hours ago}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, =1{Last synced 1 day ago} other{Last synced {count} days ago}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "traySettings": "Settings",
+  "trayQuitBusyMax": "Quit BusyMax",
   "agendaLoadMoreOverdue": "Load more overdue tasks",
   "agendaLoadMoreNoDate": "Load more no-date tasks",
   "viewDay": "Day",
@@ -117,7 +262,13 @@
   "responseNotResponded": "Not responded",
   "responseOrganizer": "Organizer",
   "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "joinMeetingFailed": "Could not open the meeting link.",
   "description": "Description",
   "availabilityShowAs": "Availability / Show as",
@@ -134,12 +285,33 @@
   "formatUnderlineShortLabel": "U",
   "formatUnderlineTooltip": "Underline",
   "reminderMinutesBefore": "{minutes, plural, =1{1 minute before} other{{minutes} minutes before}}",
-  "@reminderMinutesBefore": {"placeholders": {"minutes": {"type": "int"}}},
+  "@reminderMinutesBefore": {
+    "placeholders": {
+      "minutes": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "reminderAtStart": "At start",
   "reminderHoursBefore": "{hours, plural, =1{1 hour before} other{{hours} hours before}}",
-  "@reminderHoursBefore": {"placeholders": {"hours": {"type": "int"}}},
+  "@reminderHoursBefore": {
+    "placeholders": {
+      "hours": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "reminderDaysBefore": "{days, plural, =1{1 day before} other{{days} days before}}",
-  "@reminderDaysBefore": {"placeholders": {"days": {"type": "int"}}},
+  "@reminderDaysBefore": {
+    "placeholders": {
+      "days": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "availabilityFree": "Free",
   "availabilityTentative": "Tentative",
   "availabilityOutOfOffice": "Out of office",
@@ -153,7 +325,13 @@
   "tasks": "Tasks",
   "allTasks": "All tasks",
   "tasksInList": "Tasks in {title}",
-  "@tasksInList": {"placeholders": {"title": {"type": "String"}}},
+  "@tasksInList": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "taskLists": "Task lists",
   "navigation": "Navigation",
   "mainMenu": "Main Menu",
@@ -198,7 +376,7 @@
   "feedbackDetailedMessage": "Detailed message",
   "feedbackReplyEmail": "Reply email (optional)",
   "feedbackIncludeTechnicalDetails": "Include technical details",
-  "feedbackTechnicalDetailsDisclosure": "Adds only your Linux operating-system version and application locale. No logs, account data, file names, or other diagnostics are included.",
+  "feedbackTechnicalDetailsDisclosure": "Adds only your operating-system name and version and application locale. No logs, account data, file names, or other diagnostics are included.",
   "feedbackCategoryRequired": "Select a category.",
   "feedbackSubjectLengthError": "Subject must be between 3 and 120 characters.",
   "feedbackMessageLengthError": "Message must be between 10 and 5,000 characters.",
@@ -209,7 +387,13 @@
   "feedbackRejectedError": "The server rejected the submission. Review the fields and try again.",
   "feedbackServerError": "BusyStack could not accept your feedback right now. Your feedback has not been cleared; please try again.",
   "feedbackSuccess": "Feedback sent. Reference: {id}",
-  "@feedbackSuccess": {"placeholders": {"id": {"type": "String"}}},
+  "@feedbackSuccess": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "toggleSidebar": "Toggle Sidebar",
   "showSidebar": "Show sidebar panel",
   "hideSidebar": "Hide sidebar panel",
@@ -225,7 +409,13 @@
   "removingAccount": "Removing account…",
   "removeAccountDescription": "Stop syncing and remove this account’s data from this device.",
   "removeAccountTitle": "Remove {account} from BusyMax?",
-  "@removeAccountTitle": {"placeholders": {"account": {"type": "String"}}},
+  "@removeAccountTitle": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
   "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
   "revokeGoogleAccess": "Also revoke BusyMax’s access to this Google Account",
   "revokeGoogleAccessDescription": "You will need to grant access again before reconnecting.",
@@ -234,11 +424,29 @@
   "accountRemovedGoogleRevokeFailed": "The account was removed from this device, but BusyMax could not revoke Google access. You can revoke it from your Google Account.",
   "newTaskList": "New task list",
   "taskListCreateFailed": "Could not create the task list: {error}",
-  "@taskListCreateFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@taskListCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "taskListRenameFailed": "Could not rename the task list: {error}",
-  "@taskListRenameFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@taskListRenameFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "taskListDeleteFailed": "Could not delete the task list: {error}",
-  "@taskListDeleteFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@taskListDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "signInToViewTaskLists": "Sign in to view task lists.",
   "noTaskListsSynced": "No task lists synced yet.",
   "listActions": "List actions",
@@ -252,11 +460,29 @@
   "builtInMicrosoftList": "Built-in",
   "builtInMicrosoftListCannotRenameDelete": "Built-in Microsoft To Do lists cannot be renamed or deleted.",
   "deleteListConfirmation": "Delete \"{title}\" from Google Tasks?",
-  "@deleteListConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "@deleteListConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "@deleteTaskListConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "@deleteTaskListConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "@unshareTaskListConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "@unshareTaskListConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "deleteEvent": "Delete Event",
   "title": "Title",
   "create": "Create",
@@ -267,11 +493,29 @@
   "listRefreshed": "List refreshed.",
   "allTasksRefreshed": "All accounts refreshed.",
   "exportedFile": "Exported to {path}",
-  "@exportedFile": {"placeholders": {"path": {"type": "String"}}},
+  "@exportedFile": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "exportFailed": "Export failed: {error}",
-  "@exportFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@exportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "refreshFailed": "Refresh failed: {error}",
-  "@refreshFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@refreshFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "selectOrCreateTaskList": "Select or create a task list to begin.",
   "signInToViewTasks": "Sign in to view tasks.",
   "noTasks": "No tasks.",
@@ -285,12 +529,22 @@
   "noDate": "No date",
   "completed": "Completed",
   "duePrefix": "Due {date}",
-  "@duePrefix": {"placeholders": {"date": {"type": "String"}}},
+  "@duePrefix": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "dateTimeDisplay": "{date} · {time}",
   "@dateTimeDisplay": {
     "placeholders": {
-      "date": {"type": "String"},
-      "time": {"type": "String"}
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
     }
   },
   "taskDetails": "Task details",
@@ -307,20 +561,48 @@
   "taskStatus": "Status",
   "taskStatusNone": "No status",
   "taskStatusNeedsAction": "Needs action",
-  "taskStatusInProcess": "In process",
+  "taskStatusInProcess": "In progress",
   "taskStatusCompleted": "Completed",
   "taskStatusCancelled": "Cancelled",
   "completionPercent": "{percent}% completed",
-  "@completionPercent": {"placeholders": {"percent": {"type": "int"}}},
+  "@completionPercent": {
+    "placeholders": {
+      "percent": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "completionDate": "Completion date",
   "priority": "Priority",
   "priorityNone": "No priority",
   "priorityHighValue": "Priority {priority} · High",
-  "@priorityHighValue": {"placeholders": {"priority": {"type": "int"}}},
+  "@priorityHighValue": {
+    "placeholders": {
+      "priority": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "priorityMediumValue": "Priority {priority} · Medium",
-  "@priorityMediumValue": {"placeholders": {"priority": {"type": "int"}}},
+  "@priorityMediumValue": {
+    "placeholders": {
+      "priority": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "priorityLowValue": "Priority {priority} · Low",
-  "@priorityLowValue": {"placeholders": {"priority": {"type": "int"}}},
+  "@priorityLowValue": {
+    "placeholders": {
+      "priority": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "taskUrl": "URL",
   "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
   "classification": "Classification",
@@ -345,6 +627,9 @@
   "editReminder": "Edit reminder",
   "beforeTaskStarts": "Before the task starts",
   "beforeTaskDue": "Before the task is due",
+  "@beforeTaskDue": {
+    "description": "Reminder timing relative to the task's due time/deadline, not task completion."
+  },
   "afterTaskStarts": "After the task starts",
   "afterTaskDue": "After the task is due",
   "relativeToTaskStart": "Relative to the task start date",
@@ -363,7 +648,14 @@
   "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
   "relatedRemindersTitle": "Keep related reminders?",
   "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
-  "@relatedRemindersDescription": {"placeholders": {"count": {"type": "int"}}},
+  "@relatedRemindersDescription": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "discardRelatedReminders": "Discard reminders",
   "keepRelatedReminders": "Keep reminders",
   "addGuest": "Add Guest",
@@ -377,8 +669,14 @@
   "repeatWeekly": "Weekly",
   "repeatMonthly": "Monthly",
   "repeatYearly": "Yearly",
-  "repeatEvery": "Repeat every",
+  "repeatEvery": "Interval",
+  "@repeatEvery": {
+    "description": "Standalone label for the numeric interval used by daily, weekly, monthly, and yearly recurrence."
+  },
   "repeatOn": "Repeat on",
+  "@repeatOn": {
+    "description": "Recurrence editor label introducing the selected weekdays, month days, or ordinal weekday."
+  },
   "repeatEnd": "End repeat",
   "repeatNever": "Never",
   "repeatUntil": "On date",
@@ -398,27 +696,117 @@
   "repeatAnyDay": "Day",
   "repeatWeekday": "Weekday",
   "repeatWeekendDay": "Weekend day",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} day{day} weekday{weekday} weekend{weekend day} other{{day}}}",
+  "@repeatOrdinalDaySummary": {
+    "description": "Sentence-form day label used inside ordinal recurrence summaries. {dayKey} is MO through SU, day, weekday, or weekend; {day} is the locale-formatted weekday fallback.",
+    "placeholders": {
+      "dayKey": {"type": "String"},
+      "day": {"type": "String"}
+    }
+  },
   "repeatEveryDays": "Every {count} days",
-  "@repeatEveryDays": {"placeholders": {"count": {"type": "int"}}},
+  "@repeatEveryDays": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "repeatEveryWeeks": "Every {count} weeks",
-  "@repeatEveryWeeks": {"placeholders": {"count": {"type": "int"}}},
+  "@repeatEveryWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "repeatEveryMonths": "Every {count} months",
-  "@repeatEveryMonths": {"placeholders": {"count": {"type": "int"}}},
+  "@repeatEveryMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "repeatEveryYears": "Every {count} years",
-  "@repeatEveryYears": {"placeholders": {"count": {"type": "int"}}},
+  "@repeatEveryYears": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "repeatOnDaysSummary": "on {days}",
-  "@repeatOnDaysSummary": {"placeholders": {"days": {"type": "String"}}},
+  "@repeatOnDaysSummary": {
+    "description": "Sentence fragment appended to a recurrence summary; {days} is a localized list of weekdays.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
   "repeatOnMonthDaysSummary": "on day {days}",
-  "@repeatOnMonthDaysSummary": {"placeholders": {"days": {"type": "String"}}},
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "@repeatOnOrdinalSummary": {"placeholders": {"ordinal": {"type": "String"}, "days": {"type": "String"}}},
+  "@repeatOnMonthDaysSummary": {
+    "description": "Sentence fragment appended to a recurrence summary; {days} is a localized list of day-of-month numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnOrdinalSummary": "{position, select, first{on the first {days}} second{on the second {days}} third{on the third {days}} fourth{on the fourth {days}} fifth{on the fifth {days}} secondToLast{on the second to last {days}} last{on the last {days}} other{on {days}}}",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
   "repeatInMonthsSummary": "in {months}",
-  "@repeatInMonthsSummary": {"placeholders": {"months": {"type": "String"}}},
-  "repeatTimesSummary": "{count} times",
-  "@repeatTimesSummary": {"placeholders": {"count": {"type": "int"}}},
+  "@repeatInMonthsSummary": {
+    "description": "Sentence fragment for selected recurrence months; {months} is a localized list of month names.",
+    "placeholders": {
+      "months": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatTimesSummary": "{count, plural, one{{count} time} other{{count} times}}",
+  "@repeatTimesSummary": {
+    "description": "Sentence fragment summarizing a finite recurrence count.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "repeatUntilSummary": "until {date}",
-  "@repeatUntilSummary": {"placeholders": {"date": {"type": "String"}}},
+  "@repeatUntilSummary": {
+    "description": "Sentence fragment for the recurrence end date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
+  "recurrenceUnsupportedByProvider": "This recurrence cannot be used with {provider}.",
+  "@recurrenceUnsupportedByProvider": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
   "importance": "Importance",
   "importanceLow": "Low",
   "importanceNormal": "Normal",
@@ -439,19 +827,34 @@
   "duplicateTask": "Duplicate task",
   "taskDuplicated": "Task duplicated.",
   "taskDuplicateFailed": "Could not duplicate the task: {error}",
-  "@taskDuplicateFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@taskDuplicateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "hideSubtasks": "Hide subtasks",
   "hideClosedSubtasks": "Hide closed subtasks",
   "moveToTop": "Move to top",
   "deleteTask": "Delete Task",
   "newSubtask": "New subtask",
   "deleteTaskConfirmation": "Delete \"{title}\"?",
-  "@deleteTaskConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "@deleteTaskConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "metadata": "Metadata",
   "id": "ID",
   "etag": "ETag",
   "updated": "Updated",
   "parent": "Parent",
+  "@parent": {
+    "description": "Metadata label for the immediate parent task of a subtask."
+  },
   "position": "Position",
   "webLink": "Web link",
   "assignment": "Assignment",
@@ -460,7 +863,14 @@
   "synced": "Synced",
   "account": "Account",
   "sync": "Sync",
-  "manualFullSync": "Manual full sync",
+  "forceFullResync": "Force full resync",
+  "@forceFullResync": {
+    "description": "Troubleshooting action that forces a complete resynchronization of every connected account."
+  },
+  "forceFullResyncDescription": "Completely reload data from every connected account. Use this only to troubleshoot synchronization problems.",
+  "@forceFullResyncDescription": {
+    "description": "Explanation shown above the force-full-resync troubleshooting action in Diagnostics."
+  },
   "runInBackgroundWhenClosed": "Continue running when the window is closed",
   "showTrayIcon": "Show tray icon",
   "startMinimizedToTray": "Start minimized to the tray",
@@ -470,11 +880,18 @@
   "requiresTrayIcon": "Requires the tray icon.",
   "syncComplete": "Sync complete.",
   "syncFailed": "Sync failed: {error}",
-  "@syncFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@syncFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "notifySyncFailures": "Notifications on sync failure",
   "notifyConflicts": "Notifications on conflicts",
   "notifyDueToday": "Due-today notifications",
   "eventReminders": "Event reminders",
+  "onState": "On",
   "taskReminders": "Task reminders",
   "notificationDetailLevel": "Notification detail level",
   "notificationDetailPrivate": "Private",
@@ -484,9 +901,16 @@
   "quietHoursStart": "Quiet hours start",
   "quietHoursEnd": "Quiet hours end",
   "notifications": "Notifications",
+  "windowsNotificationsUnavailable": "Windows notifications are unavailable",
+  "windowsNotificationsUnpackaged": "This unpackaged development run cannot use Windows notifications. Install the test-signed MSIX to test reminders.",
+  "windowsNotificationsInstalledFailure": "BusyMax could not initialize Windows notifications. Reminders will not appear until this installation problem is resolved.",
   "appearance": "Appearance",
   "theme": "Theme",
   "themeSystem": "System",
+  "settingsSystem": "System",
+  "@settingsSystem": {
+    "description": "Standalone noun used for the System section in the Settings sidebar and page heading."
+  },
   "themeLight": "Light",
   "themeDark": "Dark",
   "themeFamily": "Theme family",
@@ -500,7 +924,13 @@
   "apiInspectorDisabled": "Show API inspector",
   "googleTasksApi": "Google Tasks API",
   "discoveryRevision": "Discovery revision: {revision}",
-  "@discoveryRevision": {"placeholders": {"revision": {"type": "String"}}},
+  "@discoveryRevision": {
+    "placeholders": {
+      "revision": {
+        "type": "String"
+      }
+    }
+  },
   "implementedMethods": "Implemented methods",
   "supportsTasksScopes": "Supports tasks and tasks.readonly scopes",
   "requiresTasksScope": "Requires tasks scope",
@@ -509,11 +939,30 @@
   "noBlockedPendingOperations": "No blocked pending operations.",
   "operationActions": "Operation actions",
   "pendingOpListId": "list={id}",
-  "@pendingOpListId": {"placeholders": {"id": {"type": "String"}}},
+  "@pendingOpListId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "pendingOpTaskId": "task={id}",
-  "@pendingOpTaskId": {"placeholders": {"id": {"type": "String"}}},
+  "@pendingOpTaskId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "pendingOpAttempts": "attempts={count}",
-  "@pendingOpAttempts": {"placeholders": {"count": {"type": "int"}}},
+  "@pendingOpAttempts": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "retry": "Retry",
   "discard": "Discard",
   "discardChangesAction": "Discard",
@@ -528,13 +977,32 @@
   "pendingOperationDiscarded": "Pending operation discarded.",
   "syncFailureNotificationTitle": "BusyMax sync failed",
   "syncFailureNotificationBody": "Background sync failed. {message}",
-  "@syncFailureNotificationBody": {"placeholders": {"message": {"type": "String"}}},
+  "@syncFailureNotificationBody": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "conflictNotificationTitle": "BusyMax sync conflict",
   "conflictNotificationBody": "A pending local change was blocked. {summary}",
-  "@conflictNotificationBody": {"placeholders": {"summary": {"type": "String"}}},
+  "@conflictNotificationBody": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
   "dueTodayNotificationTitle": "Tasks due today",
   "dueTodayNotificationBody": "{count, plural, =1{One task is due today.} other{{count} tasks are due today.}}",
-  "@dueTodayNotificationBody": {"placeholders": {"count": {"type": "int"}}},
+  "@dueTodayNotificationBody": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "eventReminderNotificationTitle": "Event reminder",
   "taskReminderNotificationTitle": "Task reminder",
   "eventReminderNotificationBody": "Event starts soon.",
@@ -542,6 +1010,9 @@
   "notificationOpenAction": "Open",
   "notificationSnoozeAction": "Snooze 10 minutes",
   "notificationDismissAction": "Dismiss",
+  "@notificationDismissAction": {
+    "description": "Non-destructive action that closes or dismisses a desktop notification. Translate distinctly from reject, discard, or cancel."
+  },
   "notificationDetailsHidden": "Details are hidden by privacy settings.",
   "previousMonth": "Previous month",
   "nextMonth": "Next month",
@@ -550,10 +1021,24 @@
   "nextYear": "Next year",
   "openYearView": "Open year view",
   "weekNumberTooltip": "Week {number}",
-  "@weekNumberTooltip": {"placeholders": {"number": {"type": "int"}}},
+  "@weekNumberTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "resizeAllDayPanel": "Resize the all-day panel",
   "scheduleItemCount": "{count, plural, =1{1 item} other{{count} items}}",
-  "@scheduleItemCount": {"placeholders": {"count": {"type": "int"}}},
+  "@scheduleItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
   "readOnlyCalendar": "This calendar is read-only.",
   "selectTimeZone": "Select Timezone",
   "searchLocations": "Search locations",
@@ -601,36 +1086,402 @@
   "davConnecting": "Connecting…",
   "davSignedOut": "Signed out",
   "davLastSuccessfulSync": "Last successful sync: {time}",
-  "@davLastSuccessfulSync": {"placeholders": {"time": {"type": "String"}}},
+  "@davLastSuccessfulSync": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "davNeverSynced": "Not synchronized yet",
   "refreshCollections": "Refresh calendars and task lists",
   "nextcloudServerHost": "Server: {host}",
-  "@nextcloudServerHost": {"placeholders": {"host": {"type": "String"}}},
+  "@nextcloudServerHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
   "collectionSupportsEvents": "Event calendar",
   "collectionSupportsTasks": "Task list",
   "collectionSupportsEventsAndTasks": "Events and tasks",
   "writableCollection": "Writable",
   "sharedCollection": "Shared",
   "collectionLastSynced": "Last synchronized: {time}",
-  "@collectionLastSynced": {"placeholders": {"time": {"type": "String"}}},
+  "@collectionLastSynced": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "collectionSyncError": "Sync issue: {code}",
-  "@collectionSyncError": {"placeholders": {"code": {"type": "String"}}},
+  "@collectionSyncError": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "syncConflicts": "Synchronization conflicts",
   "remoteChangedAt": "Server changed: {time}",
-  "@remoteChangedAt": {"placeholders": {"time": {"type": "String"}}},
+  "@remoteChangedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "localPendingEdit": "Local edit: {summary}",
-  "@localPendingEdit": {"placeholders": {"summary": {"type": "String"}}},
+  "@localPendingEdit": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
   "conflictResolutionFailed": "The conflict could not be resolved.",
   "recurringEventScope": "Recurring event scope",
   "entireSeries": "Entire series",
-  "singleOccurrence": "This occurrence",
-  "thisAndFutureUnavailable": "This and future (not available)",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "singleOccurrence": "This event",
+  "thisAndFollowingEvents": "This and following events",
+  "thisAndFutureUnavailable": "Not supported by this provider.",
+  "thisAndFutureMoveUnavailable": "This and following events cannot be moved safely. Choose this event or the entire series.",
+  "entireSeriesMoveUnavailable": "The recurrence rule is not available locally. Move this event instead.",
+  "copyEventAndDeleteOriginal": "Copy event and delete original?",
+  "copyEventMoveWarning": "BusyMax cannot move this event directly from {source} to {destination}. It will create the copy first and delete the original only after the copy succeeds. Event IDs will change; attendee response statuses may reset and invitations or cancellations may be sent; conference links, attachments, reminders, provider-specific fields, and recurrence exceptions may not carry over.",
+  "@copyEventMoveWarning": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "copyAndDelete": "Copy and delete",
+  "chooseRecurringEventScope": "Choose whether this change applies to the entire series, only this occurrence, or this and following events.",
+  "@chooseRecurringEventScope": {
+    "description": "Explains the three recurring-event scope choices: entire series, one occurrence, or this and following events."
+  },
   "taskDueBeforeStart": "Due must not be before start.",
   "taskStartDueTimeModeMismatch": "Set times for both start and due, or make the task all day.",
   "deleteCalendarConfirmation": "Delete \"{title}\"?",
-  "@deleteCalendarConfirmation": {"placeholders": {"title": {"type": "String"}}},
+  "@deleteCalendarConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "setCustomCalendarName": "Set custom name",
+  "setAction": "Set",
+  "removeFromMyCalendars": "Remove from my calendars",
+  "removeAction": "Remove",
+  "removeCalendarConfirmation": "Remove \"{title}\" from your Google Calendar list? The shared calendar and its events will not be deleted.",
+  "@removeCalendarConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarCannotRemove": "This calendar cannot be deleted or removed from this account.",
+  "calendarPendingChangesPreventRemoval": "Wait for this calendar’s pending changes to finish syncing before deleting or removing it.",
+  "calendarSubscriptions": "Calendar subscriptions",
+  "calendarSubscriptionsDescription": "Add read-only calendars that refresh from a secure WebCal URL.",
+  "addCalendarSubscription": "Add calendar subscription",
+  "subscriptionName": "Local name",
+  "subscriptionUrl": "Subscription URL",
+  "subscriptionUrlHelp": "Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.",
+  "subscriptionUrlInvalid": "Enter a valid HTTPS or webcal URL without user information or a fragment.",
+  "subscriptionColor": "Local color",
+  "subscriptionColorHelp": "Use a six-digit color such as #3584E4.",
+  "subscriptionColorInvalid": "Enter a six-digit hexadecimal color.",
+  "subscriptionRefreshMode": "Refresh frequency",
+  "subscriptionAutomatic": "Automatic",
+  "subscriptionHourly": "Hourly",
+  "subscriptionSixHours": "Every six hours",
+  "subscriptionDaily": "Daily",
+  "subscriptionSafeOrigin": "Source: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "Enter a valid URL to preview its safe origin.",
+  "subscriptionReadOnly": "Read-only subscription",
+  "subscriptionNeverRefreshed": "Not refreshed yet",
+  "subscriptionLastRefresh": "Last successful refresh: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "Next refresh: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "Up to date",
+  "subscriptionStatusIssue": "Refresh issue: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "Refresh now",
+  "unsubscribe": "Unsubscribe",
+  "unsubscribeCalendarTitle": "Unsubscribe from “{name}”?",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "This removes the local subscription and its cached events. The published calendar is not changed.",
+  "addSubscriptionAction": "Add subscription",
+  "subscriptionOperationFailed": "Calendar subscription failed: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "Subscriptions",
+  "calendarImport": "Calendar import",
+  "calendarImportDescription": "Select a file, review its events, then choose the writable calendar that should receive them.",
+  "importIcsFile": "Import .ics file",
+  "importIcsPreview": "Import calendar events",
+  "importEventsFound": "Importable event sets: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "importInvalidEvents": "Invalid events: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "importFieldsOmitted": "Intentionally omitted: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "No writable destination calendar is available.",
+  "importDestinationCalendar": "Destination calendar",
+  "importIcsConfirm": "Import events",
+  "importIcsComplete": "Import complete",
+  "importQueued": "Imported or queued: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "Duplicates skipped: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "importUnsupportedSets": "Unsupported recurrence sets: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+      "format": "decimalPattern"
+      }
+    }
+  },
+  "importIcsFailed": "Could not import the calendar file: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "networkOffline": "Offline",
   "networkOfflineDescription": "Changes will sync when the connection is restored.",
-  "networkOfflineTryAgain": "You’re offline. Connect to the internet and try again."
+  "networkOfflineTryAgain": "You’re offline. Connect to the internet and try again.",
+  "repeatOnMonthDaysSummaryMultiple": "on days {days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatSummarySeparator": " ",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatWeekdayListPair": "{first} and {second}",
+  "@repeatWeekdayListPair": {
+    "description": "Joins the final two weekday names in a recurrence summary.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "second": {"type": "String"}
+    }
+  },
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "@repeatWeekdayListStart": {
+    "description": "Prepends a weekday name to an already localized recurrence weekday list.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "rest": {"type": "String"}
+    }
+  },
+  "repeatMonthDayListPair": "{first} and {second}",
+  "@repeatMonthDayListPair": {
+    "description": "Joins the final two day-of-month values in a monthly recurrence summary.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "second": {"type": "String"}
+    }
+  },
+  "repeatMonthDayListStart": "{first}, {rest}",
+  "@repeatMonthDayListStart": {
+    "description": "Prepends a day-of-month value to an already localized monthly recurrence day list.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "rest": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "@repeatYearlyMonthValue": {
+    "description": "Month value used in yearly recurrence sentences. Locales may select an inflected form with {monthKey}; {month} is the CLDR abbreviated month fallback.",
+    "placeholders": {
+      "month": {"type": "String"},
+      "monthKey": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthDayListPair": "{first} and {second}",
+  "@repeatYearlyMonthDayListPair": {
+    "description": "Joins the final two localized day-of-month values in a yearly recurrence summary.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "second": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "@repeatYearlyMonthDayListStart": {
+    "description": "Prepends a localized day-of-month value to an already localized yearly recurrence day list.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "rest": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthListPair": "{first} and {second}",
+  "@repeatYearlyMonthListPair": {
+    "description": "Joins the final two localized month names in a yearly recurrence summary.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "second": {"type": "String"}
+    }
+  },
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "@repeatYearlyMonthListStart": {
+    "description": "Prepends a localized month name to an already localized yearly recurrence month list.",
+    "placeholders": {
+      "first": {"type": "String"},
+      "rest": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnMonthDaySummary": "{frequency} on {month} {day}",
+  "@repeatYearlyOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one day in one month.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "day": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnMonthDaysSummary": "{frequency} on days {days} of {month}",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for multiple days in one month.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} on day {day} of {months}",
+  "@repeatYearlyInMonthsOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one day in multiple months.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "months": {"type": "String"},
+      "day": {"type": "String"}
+    }
+  },
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} on days {days} of {months}",
+  "@repeatYearlyInMonthsOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for multiple days in multiple months.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "months": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{on the first {days} of {month}} second{on the second {days} of {month}} third{on the third {days} of {month}} fourth{on the fourth {days} of {month}} fifth{on the fifth {days} of {month}} secondToLast{on the second to last {days} of {month}} last{on the last {days} of {month}} other{on {days} of {month}}}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {position, select, first{on the first {days} of {months}} second{on the second {days} of {months}} third{on the third {days} of {months}} fourth{on the fourth {days} of {months}} fifth{on the fifth {days} of {months}} secondToLast{on the second to last {days} of {months}} last{on the last {days} of {months}} other{on {days} of {months}}}",
+  "@repeatYearlyInMonthsOnOrdinalSummary": {
+    "description": "Complete yearly ordinal-weekday recurrence summary for multiple months.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "months": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  }
 }

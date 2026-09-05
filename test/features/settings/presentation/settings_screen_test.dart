@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -24,8 +25,8 @@ import 'package:busymax/src/features/settings/presentation/settings_screen.dart'
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
-import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/providers/provider_capabilities.dart';
@@ -51,6 +52,42 @@ void main() {
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
+  test('Settings defaults generic routes to System', () {
+    expect(const SettingsScreen().initialPage, SettingsPage.system);
+    expect(settingsPageFromRouteValue(null), SettingsPage.system);
+    expect(settingsPageFromRouteValue('unknown'), SettingsPage.system);
+    expect(settingsPageFromRouteValue('system'), SettingsPage.system);
+    expect(settingsPageFromRouteValue('accounts'), SettingsPage.accounts);
+  });
+
+  testWidgets('Settings opens the System page by default', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      buildConfig: _configuredBuildConfig,
+      activeAccountIdOverride: null,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpDefaultSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+    );
+
+    expect(
+      tester
+          .widget<BusyMaxSidebarNavigationTile>(
+            find.byKey(const ValueKey('settings-navigation-system')),
+          )
+          .selected,
+      isTrue,
+    );
+    expect(find.text('Theme'), findsOneWidget);
+    expect(find.text('Add Google account'), findsNothing);
   });
 
   testWidgets('Settings fallback header uses the semantic title style', (
@@ -505,11 +542,48 @@ void main() {
 
     expect(find.text('Theme'), findsOneWidget);
     expect(find.text('Current locale'), findsOneWidget);
-    expect(find.text('Manual full sync'), findsOneWidget);
+    expect(find.text('Force full resync'), findsNothing);
     expect(find.text('Launch at login'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Current locale')).dy,
+      lessThan(tester.getTopLeft(find.text('Show tray icon')).dy),
+    );
     expect(find.text('Theme family'), findsNothing);
     expect(find.text('Add Google account'), findsNothing);
   });
+
+  testWidgets('Russian System section uses a standalone noun', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      buildConfig: _configuredBuildConfig,
+      activeAccountIdOverride: null,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      locale: const Locale('ru'),
+    );
+
+    final systemNavigation = find.byKey(
+      const ValueKey('settings-navigation-system'),
+    );
+    expect(
+      find.descendant(of: systemNavigation, matching: find.text('Система')),
+      findsOneWidget,
+    );
+    expect(find.text('Системная'), findsNothing);
+
+    await tester.tap(systemNavigation);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Система'), findsNWidgets(2));
+    expect(find.text('Системная'), findsWidgets);
+  }, skip: !Platform.isLinux);
 
   testWidgets('Settings workspace uses the native window surface', (
     tester,
@@ -570,6 +644,15 @@ void main() {
     );
     expect(find.byType(YaruNavigationRail), findsNothing);
     expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+    final navigationTiles = tester
+        .widgetList<BusyMaxSidebarNavigationTile>(
+          find.byType(BusyMaxSidebarNavigationTile),
+        )
+        .toList(growable: false);
+    expect(
+      navigationTiles.first.key,
+      const ValueKey('settings-navigation-system'),
+    );
     final accountsTile = tester.widget<BusyMaxSidebarNavigationTile>(
       find.byKey(const ValueKey('settings-navigation-accounts')),
     );
@@ -635,7 +718,24 @@ void main() {
     await tester.tap(find.text('Diagnostics'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Force full resync'), findsOneWidget);
+    expect(
+      find.text(
+        'Completely reload data from every connected account. Use this only '
+        'to troubleshoot synchronization problems.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Google Tasks API'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Sync')).style,
+      tester.widget<Text>(find.text('Google Tasks API')).style,
+    );
+    final resyncSection = tester.getRect(
+      find.byKey(const ValueKey('diagnostics-full-resync-section')),
+    );
+    final diagnosticsContent = tester.getRect(find.text('Google Tasks API'));
+    expect(diagnosticsContent.top - resyncSection.bottom, BusyMaxSpacing.lg);
     expect(find.text('Accounts'), findsOneWidget);
     expect(find.text('System'), findsOneWidget);
     expect(find.text('Add Google account'), findsNothing);
@@ -745,44 +845,31 @@ void main() {
     expect(second.state.scheduleDayEndMinute, 24 * 60);
   });
 
-  testWidgets('Settings creates a new task list for the account card', (
+  testWidgets('Settings owns calendar import but not task-list creation', (
     tester,
   ) async {
-    final googleLists = _FakeTaskListsRepository();
-    final microsoftLists = _FakeTaskListsRepository();
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
       accounts: const [_googleAccount, _microsoftAccount],
       buildConfig: _configuredBuildConfig,
-      taskListRepositories: {
-        'google:g': googleLists,
-        'microsoft:m': microsoftLists,
-      },
     );
     addTearDown(container.dispose);
 
     await _pumpSettings(tester, container);
 
-    final newTaskListButtons = find.text('New task list');
-    expect(newTaskListButtons, findsNWidgets(2));
-
-    await tester.ensureVisible(newTaskListButtons.at(1));
-    await tester.tap(newTaskListButtons.at(1));
-    await tester.pumpAndSettle();
-
-    final promptField = find.descendant(
-      of: find.byType(BusyMaxPromptDialog),
-      matching: find.byType(TextField),
+    expect(find.text('New task list'), findsNothing);
+    expect(find.text('Calendar import'), findsOneWidget);
+    expect(
+      find.text(
+        'Select a file, review its events, then choose the writable calendar '
+        'that should receive them.',
+      ),
+      findsOneWidget,
     );
-    expect(promptField, findsOneWidget);
-    await tester.enterText(promptField, 'Client work');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-
-    expect(googleLists.createdTitles, isEmpty);
-    expect(microsoftLists.createdTitles, ['Client work']);
-    expect(container.read(selectedAccountIdProvider), 'google:g');
+    expect(find.byKey(const ValueKey('import-ics-file')), findsOneWidget);
+    expect(find.text('Import .ics file'), findsOneWidget);
+    expect(find.text('Remove account…'), findsNWidgets(2));
   });
 
   testWidgets('Settings lists accounts without account switching controls', (
@@ -906,7 +993,6 @@ ProviderContainer _container({
   required _FakeAuthRepository authRepository,
   required List<AccountEntity> accounts,
   BuildConfig buildConfig = _emptyBuildConfig,
-  Map<String, _FakeTaskListsRepository>? taskListRepositories,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
   bool useFlutterHeader = false,
   DavAccountOnboardingService? davOnboardingService,
@@ -934,7 +1020,6 @@ ProviderContainer _container({
       if (activeAccountIdOverride != _useDefaultActiveAccountId)
         activeAccountProvider.overrideWithValue(activeAccountIdOverride),
       localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
-      syncEngineProvider.overrideWithValue(null),
       buildConfigProvider.overrideWithValue(buildConfig),
       if (useFlutterHeader)
         linuxHeaderBarServiceProvider.overrideWith((ref) {
@@ -942,9 +1027,6 @@ ProviderContainer _container({
           ref.onDispose(service.dispose);
           return service;
         }),
-      taskListsRepositoryForAccountProvider.overrideWith((ref, accountId) {
-        return taskListRepositories?[accountId] ?? _FakeTaskListsRepository();
-      }),
     ],
   );
 }
@@ -961,6 +1043,8 @@ Future<void> _pumpSettings(
   ProviderContainer container, {
   Size? logicalSize,
   TextScaler? textScaler,
+  Locale locale = const Locale('en'),
+  SettingsPage initialPage = SettingsPage.accounts,
 }) async {
   if (logicalSize != null) {
     tester.view.devicePixelRatio = 1;
@@ -969,17 +1053,37 @@ Future<void> _pumpSettings(
     addTearDown(tester.view.resetPhysicalSize);
   }
   final settings = textScaler == null
-      ? const SettingsScreen()
+      ? SettingsScreen(initialPage: initialPage)
       : Builder(
           builder: (context) => MediaQuery(
             data: MediaQuery.of(context).copyWith(textScaler: textScaler),
-            child: const SettingsScreen(),
+            child: SettingsScreen(initialPage: initialPage),
           ),
         );
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: localizedTestApp(child: settings),
+      child: localizedTestApp(locale: locale, child: settings),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpDefaultSettings(
+  WidgetTester tester,
+  ProviderContainer container, {
+  Size? logicalSize,
+}) async {
+  if (logicalSize != null) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = logicalSize;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+  }
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: localizedTestApp(child: const SettingsScreen()),
     ),
   );
   await tester.pumpAndSettle();
@@ -993,7 +1097,11 @@ Future<GoRouter> _pumpRoutedSettings(
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
-      GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings',
+        builder: (_, _) =>
+            const SettingsScreen(initialPage: SettingsPage.accounts),
+      ),
       GoRoute(
         path: '/schedule',
         builder: (_, _) => const Text('schedule route'),
@@ -1081,18 +1189,6 @@ class _FakeAccountsRepository implements AccountsRepository {
 
   @override
   Future<List<AccountEntity>> listSignedInAccounts() async => accounts;
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeTaskListsRepository implements TaskListsRepository {
-  final createdTitles = <String>[];
-
-  @override
-  Future<void> createTaskList(String title) async {
-    createdTitles.add(title);
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

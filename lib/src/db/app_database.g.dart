@@ -7013,6 +7013,21 @@ class $TaskListsTable extends TaskLists
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _remindersEnabledMeta = const VerificationMeta(
+    'remindersEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> remindersEnabled = GeneratedColumn<bool>(
+    'reminders_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("reminders_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _lastSyncedAtUtcMeta = const VerificationMeta(
     'lastSyncedAtUtc',
   );
@@ -7067,6 +7082,7 @@ class $TaskListsTable extends TaskLists
     serverMissing,
     localDirty,
     pendingDelete,
+    remindersEnabled,
     lastSyncedAtUtc,
     createdLocalAtUtc,
     updatedLocalAtUtc,
@@ -7205,6 +7221,15 @@ class $TaskListsTable extends TaskLists
         ),
       );
     }
+    if (data.containsKey('reminders_enabled')) {
+      context.handle(
+        _remindersEnabledMeta,
+        remindersEnabled.isAcceptableOrUnknown(
+          data['reminders_enabled']!,
+          _remindersEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_synced_at_utc')) {
       context.handle(
         _lastSyncedAtUtcMeta,
@@ -7313,6 +7338,10 @@ class $TaskListsTable extends TaskLists
         DriftSqlType.bool,
         data['${effectivePrefix}pending_delete'],
       )!,
+      remindersEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}reminders_enabled'],
+      )!,
       lastSyncedAtUtc: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_synced_at_utc'],
@@ -7352,6 +7381,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
   final bool serverMissing;
   final bool localDirty;
   final bool pendingDelete;
+  final bool remindersEnabled;
   final String? lastSyncedAtUtc;
   final String createdLocalAtUtc;
   final String updatedLocalAtUtc;
@@ -7373,6 +7403,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     required this.serverMissing,
     required this.localDirty,
     required this.pendingDelete,
+    required this.remindersEnabled,
     this.lastSyncedAtUtc,
     required this.createdLocalAtUtc,
     required this.updatedLocalAtUtc,
@@ -7417,6 +7448,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     map['server_missing'] = Variable<bool>(serverMissing);
     map['local_dirty'] = Variable<bool>(localDirty);
     map['pending_delete'] = Variable<bool>(pendingDelete);
+    map['reminders_enabled'] = Variable<bool>(remindersEnabled);
     if (!nullToAbsent || lastSyncedAtUtc != null) {
       map['last_synced_at_utc'] = Variable<String>(lastSyncedAtUtc);
     }
@@ -7460,6 +7492,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       serverMissing: Value(serverMissing),
       localDirty: Value(localDirty),
       pendingDelete: Value(pendingDelete),
+      remindersEnabled: Value(remindersEnabled),
       lastSyncedAtUtc: lastSyncedAtUtc == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSyncedAtUtc),
@@ -7493,6 +7526,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       serverMissing: serializer.fromJson<bool>(json['serverMissing']),
       localDirty: serializer.fromJson<bool>(json['localDirty']),
       pendingDelete: serializer.fromJson<bool>(json['pendingDelete']),
+      remindersEnabled: serializer.fromJson<bool>(json['remindersEnabled']),
       lastSyncedAtUtc: serializer.fromJson<String?>(json['lastSyncedAtUtc']),
       createdLocalAtUtc: serializer.fromJson<String>(json['createdLocalAtUtc']),
       updatedLocalAtUtc: serializer.fromJson<String>(json['updatedLocalAtUtc']),
@@ -7519,6 +7553,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       'serverMissing': serializer.toJson<bool>(serverMissing),
       'localDirty': serializer.toJson<bool>(localDirty),
       'pendingDelete': serializer.toJson<bool>(pendingDelete),
+      'remindersEnabled': serializer.toJson<bool>(remindersEnabled),
       'lastSyncedAtUtc': serializer.toJson<String?>(lastSyncedAtUtc),
       'createdLocalAtUtc': serializer.toJson<String>(createdLocalAtUtc),
       'updatedLocalAtUtc': serializer.toJson<String>(updatedLocalAtUtc),
@@ -7543,6 +7578,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     bool? serverMissing,
     bool? localDirty,
     bool? pendingDelete,
+    bool? remindersEnabled,
     Value<String?> lastSyncedAtUtc = const Value.absent(),
     String? createdLocalAtUtc,
     String? updatedLocalAtUtc,
@@ -7570,6 +7606,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     serverMissing: serverMissing ?? this.serverMissing,
     localDirty: localDirty ?? this.localDirty,
     pendingDelete: pendingDelete ?? this.pendingDelete,
+    remindersEnabled: remindersEnabled ?? this.remindersEnabled,
     lastSyncedAtUtc: lastSyncedAtUtc.present
         ? lastSyncedAtUtc.value
         : this.lastSyncedAtUtc,
@@ -7609,6 +7646,9 @@ class TaskList extends DataClass implements Insertable<TaskList> {
       pendingDelete: data.pendingDelete.present
           ? data.pendingDelete.value
           : this.pendingDelete,
+      remindersEnabled: data.remindersEnabled.present
+          ? data.remindersEnabled.value
+          : this.remindersEnabled,
       lastSyncedAtUtc: data.lastSyncedAtUtc.present
           ? data.lastSyncedAtUtc.value
           : this.lastSyncedAtUtc,
@@ -7641,6 +7681,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
           ..write('serverMissing: $serverMissing, ')
           ..write('localDirty: $localDirty, ')
           ..write('pendingDelete: $pendingDelete, ')
+          ..write('remindersEnabled: $remindersEnabled, ')
           ..write('lastSyncedAtUtc: $lastSyncedAtUtc, ')
           ..write('createdLocalAtUtc: $createdLocalAtUtc, ')
           ..write('updatedLocalAtUtc: $updatedLocalAtUtc')
@@ -7649,7 +7690,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     accountId,
     id,
     davCollectionId,
@@ -7667,10 +7708,11 @@ class TaskList extends DataClass implements Insertable<TaskList> {
     serverMissing,
     localDirty,
     pendingDelete,
+    remindersEnabled,
     lastSyncedAtUtc,
     createdLocalAtUtc,
     updatedLocalAtUtc,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7692,6 +7734,7 @@ class TaskList extends DataClass implements Insertable<TaskList> {
           other.serverMissing == this.serverMissing &&
           other.localDirty == this.localDirty &&
           other.pendingDelete == this.pendingDelete &&
+          other.remindersEnabled == this.remindersEnabled &&
           other.lastSyncedAtUtc == this.lastSyncedAtUtc &&
           other.createdLocalAtUtc == this.createdLocalAtUtc &&
           other.updatedLocalAtUtc == this.updatedLocalAtUtc);
@@ -7715,6 +7758,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
   final Value<bool> serverMissing;
   final Value<bool> localDirty;
   final Value<bool> pendingDelete;
+  final Value<bool> remindersEnabled;
   final Value<String?> lastSyncedAtUtc;
   final Value<String> createdLocalAtUtc;
   final Value<String> updatedLocalAtUtc;
@@ -7737,6 +7781,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     this.serverMissing = const Value.absent(),
     this.localDirty = const Value.absent(),
     this.pendingDelete = const Value.absent(),
+    this.remindersEnabled = const Value.absent(),
     this.lastSyncedAtUtc = const Value.absent(),
     this.createdLocalAtUtc = const Value.absent(),
     this.updatedLocalAtUtc = const Value.absent(),
@@ -7760,6 +7805,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     this.serverMissing = const Value.absent(),
     this.localDirty = const Value.absent(),
     this.pendingDelete = const Value.absent(),
+    this.remindersEnabled = const Value.absent(),
     this.lastSyncedAtUtc = const Value.absent(),
     required String createdLocalAtUtc,
     required String updatedLocalAtUtc,
@@ -7788,6 +7834,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     Expression<bool>? serverMissing,
     Expression<bool>? localDirty,
     Expression<bool>? pendingDelete,
+    Expression<bool>? remindersEnabled,
     Expression<String>? lastSyncedAtUtc,
     Expression<String>? createdLocalAtUtc,
     Expression<String>? updatedLocalAtUtc,
@@ -7812,6 +7859,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
       if (serverMissing != null) 'server_missing': serverMissing,
       if (localDirty != null) 'local_dirty': localDirty,
       if (pendingDelete != null) 'pending_delete': pendingDelete,
+      if (remindersEnabled != null) 'reminders_enabled': remindersEnabled,
       if (lastSyncedAtUtc != null) 'last_synced_at_utc': lastSyncedAtUtc,
       if (createdLocalAtUtc != null) 'created_local_at_utc': createdLocalAtUtc,
       if (updatedLocalAtUtc != null) 'updated_local_at_utc': updatedLocalAtUtc,
@@ -7837,6 +7885,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     Value<bool>? serverMissing,
     Value<bool>? localDirty,
     Value<bool>? pendingDelete,
+    Value<bool>? remindersEnabled,
     Value<String?>? lastSyncedAtUtc,
     Value<String>? createdLocalAtUtc,
     Value<String>? updatedLocalAtUtc,
@@ -7860,6 +7909,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
       serverMissing: serverMissing ?? this.serverMissing,
       localDirty: localDirty ?? this.localDirty,
       pendingDelete: pendingDelete ?? this.pendingDelete,
+      remindersEnabled: remindersEnabled ?? this.remindersEnabled,
       lastSyncedAtUtc: lastSyncedAtUtc ?? this.lastSyncedAtUtc,
       createdLocalAtUtc: createdLocalAtUtc ?? this.createdLocalAtUtc,
       updatedLocalAtUtc: updatedLocalAtUtc ?? this.updatedLocalAtUtc,
@@ -7923,6 +7973,9 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
     if (pendingDelete.present) {
       map['pending_delete'] = Variable<bool>(pendingDelete.value);
     }
+    if (remindersEnabled.present) {
+      map['reminders_enabled'] = Variable<bool>(remindersEnabled.value);
+    }
     if (lastSyncedAtUtc.present) {
       map['last_synced_at_utc'] = Variable<String>(lastSyncedAtUtc.value);
     }
@@ -7958,6 +8011,7 @@ class TaskListsCompanion extends UpdateCompanion<TaskList> {
           ..write('serverMissing: $serverMissing, ')
           ..write('localDirty: $localDirty, ')
           ..write('pendingDelete: $pendingDelete, ')
+          ..write('remindersEnabled: $remindersEnabled, ')
           ..write('lastSyncedAtUtc: $lastSyncedAtUtc, ')
           ..write('createdLocalAtUtc: $createdLocalAtUtc, ')
           ..write('updatedLocalAtUtc: $updatedLocalAtUtc, ')
@@ -14984,6 +15038,31 @@ class $CalendarSourcesTable extends CalendarSources
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _dataOwnerMeta = const VerificationMeta(
+    'dataOwner',
+  );
+  @override
+  late final GeneratedColumn<String> dataOwner = GeneratedColumn<String>(
+    'data_owner',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isRemovableMeta = const VerificationMeta(
+    'isRemovable',
+  );
+  @override
+  late final GeneratedColumn<bool> isRemovable = GeneratedColumn<bool>(
+    'is_removable',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_removable" IN (0, 1))',
+    ),
+  );
   static const VerificationMeta _isDeletedMeta = const VerificationMeta(
     'isDeleted',
   );
@@ -15051,6 +15130,8 @@ class $CalendarSourcesTable extends CalendarSources
     colorId,
     timeZone,
     accessRole,
+    dataOwner,
+    isRemovable,
     isDeleted,
     rawJson,
     createdAtLocal,
@@ -15198,6 +15279,21 @@ class $CalendarSourcesTable extends CalendarSources
         accessRole.isAcceptableOrUnknown(data['access_role']!, _accessRoleMeta),
       );
     }
+    if (data.containsKey('data_owner')) {
+      context.handle(
+        _dataOwnerMeta,
+        dataOwner.isAcceptableOrUnknown(data['data_owner']!, _dataOwnerMeta),
+      );
+    }
+    if (data.containsKey('is_removable')) {
+      context.handle(
+        _isRemovableMeta,
+        isRemovable.isAcceptableOrUnknown(
+          data['is_removable']!,
+          _isRemovableMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_deleted')) {
       context.handle(
         _isDeletedMeta,
@@ -15309,6 +15405,14 @@ class $CalendarSourcesTable extends CalendarSources
         DriftSqlType.string,
         data['${effectivePrefix}access_role'],
       ),
+      dataOwner: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data_owner'],
+      ),
+      isRemovable: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_removable'],
+      ),
       isDeleted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_deleted'],
@@ -15352,6 +15456,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
   final String? colorId;
   final String? timeZone;
   final String? accessRole;
+  final String? dataOwner;
+  final bool? isRemovable;
   final bool isDeleted;
   final String? rawJson;
   final int createdAtLocal;
@@ -15374,6 +15480,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     this.colorId,
     this.timeZone,
     this.accessRole,
+    this.dataOwner,
+    this.isRemovable,
     required this.isDeleted,
     this.rawJson,
     required this.createdAtLocal,
@@ -15412,6 +15520,12 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     }
     if (!nullToAbsent || accessRole != null) {
       map['access_role'] = Variable<String>(accessRole);
+    }
+    if (!nullToAbsent || dataOwner != null) {
+      map['data_owner'] = Variable<String>(dataOwner);
+    }
+    if (!nullToAbsent || isRemovable != null) {
+      map['is_removable'] = Variable<bool>(isRemovable);
     }
     map['is_deleted'] = Variable<bool>(isDeleted);
     if (!nullToAbsent || rawJson != null) {
@@ -15455,6 +15569,12 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       accessRole: accessRole == null && nullToAbsent
           ? const Value.absent()
           : Value(accessRole),
+      dataOwner: dataOwner == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dataOwner),
+      isRemovable: isRemovable == null && nullToAbsent
+          ? const Value.absent()
+          : Value(isRemovable),
       isDeleted: Value(isDeleted),
       rawJson: rawJson == null && nullToAbsent
           ? const Value.absent()
@@ -15489,6 +15609,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       colorId: serializer.fromJson<String?>(json['colorId']),
       timeZone: serializer.fromJson<String?>(json['timeZone']),
       accessRole: serializer.fromJson<String?>(json['accessRole']),
+      dataOwner: serializer.fromJson<String?>(json['dataOwner']),
+      isRemovable: serializer.fromJson<bool?>(json['isRemovable']),
       isDeleted: serializer.fromJson<bool>(json['isDeleted']),
       rawJson: serializer.fromJson<String?>(json['rawJson']),
       createdAtLocal: serializer.fromJson<int>(json['createdAtLocal']),
@@ -15516,6 +15638,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       'colorId': serializer.toJson<String?>(colorId),
       'timeZone': serializer.toJson<String?>(timeZone),
       'accessRole': serializer.toJson<String?>(accessRole),
+      'dataOwner': serializer.toJson<String?>(dataOwner),
+      'isRemovable': serializer.toJson<bool?>(isRemovable),
       'isDeleted': serializer.toJson<bool>(isDeleted),
       'rawJson': serializer.toJson<String?>(rawJson),
       'createdAtLocal': serializer.toJson<int>(createdAtLocal),
@@ -15541,6 +15665,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     Value<String?> colorId = const Value.absent(),
     Value<String?> timeZone = const Value.absent(),
     Value<String?> accessRole = const Value.absent(),
+    Value<String?> dataOwner = const Value.absent(),
+    Value<bool?> isRemovable = const Value.absent(),
     bool? isDeleted,
     Value<String?> rawJson = const Value.absent(),
     int? createdAtLocal,
@@ -15569,6 +15695,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     colorId: colorId.present ? colorId.value : this.colorId,
     timeZone: timeZone.present ? timeZone.value : this.timeZone,
     accessRole: accessRole.present ? accessRole.value : this.accessRole,
+    dataOwner: dataOwner.present ? dataOwner.value : this.dataOwner,
+    isRemovable: isRemovable.present ? isRemovable.value : this.isRemovable,
     isDeleted: isDeleted ?? this.isDeleted,
     rawJson: rawJson.present ? rawJson.value : this.rawJson,
     createdAtLocal: createdAtLocal ?? this.createdAtLocal,
@@ -15609,6 +15737,10 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
       accessRole: data.accessRole.present
           ? data.accessRole.value
           : this.accessRole,
+      dataOwner: data.dataOwner.present ? data.dataOwner.value : this.dataOwner,
+      isRemovable: data.isRemovable.present
+          ? data.isRemovable.value
+          : this.isRemovable,
       isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
       rawJson: data.rawJson.present ? data.rawJson.value : this.rawJson,
       createdAtLocal: data.createdAtLocal.present
@@ -15640,6 +15772,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           ..write('colorId: $colorId, ')
           ..write('timeZone: $timeZone, ')
           ..write('accessRole: $accessRole, ')
+          ..write('dataOwner: $dataOwner, ')
+          ..write('isRemovable: $isRemovable, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('rawJson: $rawJson, ')
           ..write('createdAtLocal: $createdAtLocal, ')
@@ -15667,6 +15801,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
     colorId,
     timeZone,
     accessRole,
+    dataOwner,
+    isRemovable,
     isDeleted,
     rawJson,
     createdAtLocal,
@@ -15693,6 +15829,8 @@ class CalendarSource extends DataClass implements Insertable<CalendarSource> {
           other.colorId == this.colorId &&
           other.timeZone == this.timeZone &&
           other.accessRole == this.accessRole &&
+          other.dataOwner == this.dataOwner &&
+          other.isRemovable == this.isRemovable &&
           other.isDeleted == this.isDeleted &&
           other.rawJson == this.rawJson &&
           other.createdAtLocal == this.createdAtLocal &&
@@ -15717,6 +15855,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
   final Value<String?> colorId;
   final Value<String?> timeZone;
   final Value<String?> accessRole;
+  final Value<String?> dataOwner;
+  final Value<bool?> isRemovable;
   final Value<bool> isDeleted;
   final Value<String?> rawJson;
   final Value<int> createdAtLocal;
@@ -15740,6 +15880,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     this.colorId = const Value.absent(),
     this.timeZone = const Value.absent(),
     this.accessRole = const Value.absent(),
+    this.dataOwner = const Value.absent(),
+    this.isRemovable = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.rawJson = const Value.absent(),
     this.createdAtLocal = const Value.absent(),
@@ -15764,6 +15906,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     this.colorId = const Value.absent(),
     this.timeZone = const Value.absent(),
     this.accessRole = const Value.absent(),
+    this.dataOwner = const Value.absent(),
+    this.isRemovable = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.rawJson = const Value.absent(),
     required int createdAtLocal,
@@ -15794,6 +15938,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     Expression<String>? colorId,
     Expression<String>? timeZone,
     Expression<String>? accessRole,
+    Expression<String>? dataOwner,
+    Expression<bool>? isRemovable,
     Expression<bool>? isDeleted,
     Expression<String>? rawJson,
     Expression<int>? createdAtLocal,
@@ -15819,6 +15965,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
       if (colorId != null) 'color_id': colorId,
       if (timeZone != null) 'time_zone': timeZone,
       if (accessRole != null) 'access_role': accessRole,
+      if (dataOwner != null) 'data_owner': dataOwner,
+      if (isRemovable != null) 'is_removable': isRemovable,
       if (isDeleted != null) 'is_deleted': isDeleted,
       if (rawJson != null) 'raw_json': rawJson,
       if (createdAtLocal != null) 'created_at_local': createdAtLocal,
@@ -15845,6 +15993,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     Value<String?>? colorId,
     Value<String?>? timeZone,
     Value<String?>? accessRole,
+    Value<String?>? dataOwner,
+    Value<bool?>? isRemovable,
     Value<bool>? isDeleted,
     Value<String?>? rawJson,
     Value<int>? createdAtLocal,
@@ -15869,6 +16019,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
       colorId: colorId ?? this.colorId,
       timeZone: timeZone ?? this.timeZone,
       accessRole: accessRole ?? this.accessRole,
+      dataOwner: dataOwner ?? this.dataOwner,
+      isRemovable: isRemovable ?? this.isRemovable,
       isDeleted: isDeleted ?? this.isDeleted,
       rawJson: rawJson ?? this.rawJson,
       createdAtLocal: createdAtLocal ?? this.createdAtLocal,
@@ -15931,6 +16083,12 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
     if (accessRole.present) {
       map['access_role'] = Variable<String>(accessRole.value);
     }
+    if (dataOwner.present) {
+      map['data_owner'] = Variable<String>(dataOwner.value);
+    }
+    if (isRemovable.present) {
+      map['is_removable'] = Variable<bool>(isRemovable.value);
+    }
     if (isDeleted.present) {
       map['is_deleted'] = Variable<bool>(isDeleted.value);
     }
@@ -15969,6 +16127,8 @@ class CalendarSourcesCompanion extends UpdateCompanion<CalendarSource> {
           ..write('colorId: $colorId, ')
           ..write('timeZone: $timeZone, ')
           ..write('accessRole: $accessRole, ')
+          ..write('dataOwner: $dataOwner, ')
+          ..write('isRemovable: $isRemovable, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('rawJson: $rawJson, ')
           ..write('createdAtLocal: $createdAtLocal, ')
@@ -18777,6 +18937,2033 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
           ..write('updatedAtLocal: $updatedAtLocal, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('baselineRawJson: $baselineRawJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $IcalImportReceiptsTable extends IcalImportReceipts
+    with TableInfo<$IcalImportReceiptsTable, IcalImportReceipt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $IcalImportReceiptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _calendarSourceIdMeta = const VerificationMeta(
+    'calendarSourceId',
+  );
+  @override
+  late final GeneratedColumn<String> calendarSourceId = GeneratedColumn<String>(
+    'calendar_source_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES calendar_sources (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _icalUidMeta = const VerificationMeta(
+    'icalUid',
+  );
+  @override
+  late final GeneratedColumn<String> icalUid = GeneratedColumn<String>(
+    'ical_uid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _eventIdMeta = const VerificationMeta(
+    'eventId',
+  );
+  @override
+  late final GeneratedColumn<String> eventId = GeneratedColumn<String>(
+    'event_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _importedAtUtcMeta = const VerificationMeta(
+    'importedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> importedAtUtc = GeneratedColumn<String>(
+    'imported_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    calendarSourceId,
+    icalUid,
+    eventId,
+    importedAtUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ical_import_receipts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<IcalImportReceipt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('calendar_source_id')) {
+      context.handle(
+        _calendarSourceIdMeta,
+        calendarSourceId.isAcceptableOrUnknown(
+          data['calendar_source_id']!,
+          _calendarSourceIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_calendarSourceIdMeta);
+    }
+    if (data.containsKey('ical_uid')) {
+      context.handle(
+        _icalUidMeta,
+        icalUid.isAcceptableOrUnknown(data['ical_uid']!, _icalUidMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_icalUidMeta);
+    }
+    if (data.containsKey('event_id')) {
+      context.handle(
+        _eventIdMeta,
+        eventId.isAcceptableOrUnknown(data['event_id']!, _eventIdMeta),
+      );
+    }
+    if (data.containsKey('imported_at_utc')) {
+      context.handle(
+        _importedAtUtcMeta,
+        importedAtUtc.isAcceptableOrUnknown(
+          data['imported_at_utc']!,
+          _importedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_importedAtUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {calendarSourceId, icalUid};
+  @override
+  IcalImportReceipt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return IcalImportReceipt(
+      calendarSourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}calendar_source_id'],
+      )!,
+      icalUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ical_uid'],
+      )!,
+      eventId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_id'],
+      ),
+      importedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}imported_at_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $IcalImportReceiptsTable createAlias(String alias) {
+    return $IcalImportReceiptsTable(attachedDatabase, alias);
+  }
+}
+
+class IcalImportReceipt extends DataClass
+    implements Insertable<IcalImportReceipt> {
+  final String calendarSourceId;
+  final String icalUid;
+  final String? eventId;
+  final String importedAtUtc;
+  const IcalImportReceipt({
+    required this.calendarSourceId,
+    required this.icalUid,
+    this.eventId,
+    required this.importedAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['calendar_source_id'] = Variable<String>(calendarSourceId);
+    map['ical_uid'] = Variable<String>(icalUid);
+    if (!nullToAbsent || eventId != null) {
+      map['event_id'] = Variable<String>(eventId);
+    }
+    map['imported_at_utc'] = Variable<String>(importedAtUtc);
+    return map;
+  }
+
+  IcalImportReceiptsCompanion toCompanion(bool nullToAbsent) {
+    return IcalImportReceiptsCompanion(
+      calendarSourceId: Value(calendarSourceId),
+      icalUid: Value(icalUid),
+      eventId: eventId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(eventId),
+      importedAtUtc: Value(importedAtUtc),
+    );
+  }
+
+  factory IcalImportReceipt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return IcalImportReceipt(
+      calendarSourceId: serializer.fromJson<String>(json['calendarSourceId']),
+      icalUid: serializer.fromJson<String>(json['icalUid']),
+      eventId: serializer.fromJson<String?>(json['eventId']),
+      importedAtUtc: serializer.fromJson<String>(json['importedAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'calendarSourceId': serializer.toJson<String>(calendarSourceId),
+      'icalUid': serializer.toJson<String>(icalUid),
+      'eventId': serializer.toJson<String?>(eventId),
+      'importedAtUtc': serializer.toJson<String>(importedAtUtc),
+    };
+  }
+
+  IcalImportReceipt copyWith({
+    String? calendarSourceId,
+    String? icalUid,
+    Value<String?> eventId = const Value.absent(),
+    String? importedAtUtc,
+  }) => IcalImportReceipt(
+    calendarSourceId: calendarSourceId ?? this.calendarSourceId,
+    icalUid: icalUid ?? this.icalUid,
+    eventId: eventId.present ? eventId.value : this.eventId,
+    importedAtUtc: importedAtUtc ?? this.importedAtUtc,
+  );
+  IcalImportReceipt copyWithCompanion(IcalImportReceiptsCompanion data) {
+    return IcalImportReceipt(
+      calendarSourceId: data.calendarSourceId.present
+          ? data.calendarSourceId.value
+          : this.calendarSourceId,
+      icalUid: data.icalUid.present ? data.icalUid.value : this.icalUid,
+      eventId: data.eventId.present ? data.eventId.value : this.eventId,
+      importedAtUtc: data.importedAtUtc.present
+          ? data.importedAtUtc.value
+          : this.importedAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IcalImportReceipt(')
+          ..write('calendarSourceId: $calendarSourceId, ')
+          ..write('icalUid: $icalUid, ')
+          ..write('eventId: $eventId, ')
+          ..write('importedAtUtc: $importedAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(calendarSourceId, icalUid, eventId, importedAtUtc);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is IcalImportReceipt &&
+          other.calendarSourceId == this.calendarSourceId &&
+          other.icalUid == this.icalUid &&
+          other.eventId == this.eventId &&
+          other.importedAtUtc == this.importedAtUtc);
+}
+
+class IcalImportReceiptsCompanion extends UpdateCompanion<IcalImportReceipt> {
+  final Value<String> calendarSourceId;
+  final Value<String> icalUid;
+  final Value<String?> eventId;
+  final Value<String> importedAtUtc;
+  final Value<int> rowid;
+  const IcalImportReceiptsCompanion({
+    this.calendarSourceId = const Value.absent(),
+    this.icalUid = const Value.absent(),
+    this.eventId = const Value.absent(),
+    this.importedAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  IcalImportReceiptsCompanion.insert({
+    required String calendarSourceId,
+    required String icalUid,
+    this.eventId = const Value.absent(),
+    required String importedAtUtc,
+    this.rowid = const Value.absent(),
+  }) : calendarSourceId = Value(calendarSourceId),
+       icalUid = Value(icalUid),
+       importedAtUtc = Value(importedAtUtc);
+  static Insertable<IcalImportReceipt> custom({
+    Expression<String>? calendarSourceId,
+    Expression<String>? icalUid,
+    Expression<String>? eventId,
+    Expression<String>? importedAtUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (calendarSourceId != null) 'calendar_source_id': calendarSourceId,
+      if (icalUid != null) 'ical_uid': icalUid,
+      if (eventId != null) 'event_id': eventId,
+      if (importedAtUtc != null) 'imported_at_utc': importedAtUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  IcalImportReceiptsCompanion copyWith({
+    Value<String>? calendarSourceId,
+    Value<String>? icalUid,
+    Value<String?>? eventId,
+    Value<String>? importedAtUtc,
+    Value<int>? rowid,
+  }) {
+    return IcalImportReceiptsCompanion(
+      calendarSourceId: calendarSourceId ?? this.calendarSourceId,
+      icalUid: icalUid ?? this.icalUid,
+      eventId: eventId ?? this.eventId,
+      importedAtUtc: importedAtUtc ?? this.importedAtUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (calendarSourceId.present) {
+      map['calendar_source_id'] = Variable<String>(calendarSourceId.value);
+    }
+    if (icalUid.present) {
+      map['ical_uid'] = Variable<String>(icalUid.value);
+    }
+    if (eventId.present) {
+      map['event_id'] = Variable<String>(eventId.value);
+    }
+    if (importedAtUtc.present) {
+      map['imported_at_utc'] = Variable<String>(importedAtUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IcalImportReceiptsCompanion(')
+          ..write('calendarSourceId: $calendarSourceId, ')
+          ..write('icalUid: $icalUid, ')
+          ..write('eventId: $eventId, ')
+          ..write('importedAtUtc: $importedAtUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WebCalSubscriptionsTable extends WebCalSubscriptions
+    with TableInfo<$WebCalSubscriptionsTable, WebCalSubscription> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WebCalSubscriptionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _calendarSourceIdMeta = const VerificationMeta(
+    'calendarSourceId',
+  );
+  @override
+  late final GeneratedColumn<String> calendarSourceId = GeneratedColumn<String>(
+    'calendar_source_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES calendar_sources (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _feedFingerprintMeta = const VerificationMeta(
+    'feedFingerprint',
+  );
+  @override
+  late final GeneratedColumn<String> feedFingerprint = GeneratedColumn<String>(
+    'feed_fingerprint',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _safeOriginMeta = const VerificationMeta(
+    'safeOrigin',
+  );
+  @override
+  late final GeneratedColumn<String> safeOrigin = GeneratedColumn<String>(
+    'safe_origin',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _validatorTargetFingerprintMeta =
+      const VerificationMeta('validatorTargetFingerprint');
+  @override
+  late final GeneratedColumn<String> validatorTargetFingerprint =
+      GeneratedColumn<String>(
+        'validator_target_fingerprint',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _etagMeta = const VerificationMeta('etag');
+  @override
+  late final GeneratedColumn<String> etag = GeneratedColumn<String>(
+    'etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastModifiedMeta = const VerificationMeta(
+    'lastModified',
+  );
+  @override
+  late final GeneratedColumn<String> lastModified = GeneratedColumn<String>(
+    'last_modified',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contentTypeMeta = const VerificationMeta(
+    'contentType',
+  );
+  @override
+  late final GeneratedColumn<String> contentType = GeneratedColumn<String>(
+    'content_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _snapshotIcsBodyMeta = const VerificationMeta(
+    'snapshotIcsBody',
+  );
+  @override
+  late final GeneratedColumn<String> snapshotIcsBody = GeneratedColumn<String>(
+    'snapshot_ics_body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rawBodyHashMeta = const VerificationMeta(
+    'rawBodyHash',
+  );
+  @override
+  late final GeneratedColumn<String> rawBodyHash = GeneratedColumn<String>(
+    'raw_body_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _semanticHashMeta = const VerificationMeta(
+    'semanticHash',
+  );
+  @override
+  late final GeneratedColumn<String> semanticHash = GeneratedColumn<String>(
+    'semantic_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _refreshModeMeta = const VerificationMeta(
+    'refreshMode',
+  );
+  @override
+  late final GeneratedColumn<String> refreshMode = GeneratedColumn<String>(
+    'refresh_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _serverRefreshIntervalSecondsMeta =
+      const VerificationMeta('serverRefreshIntervalSeconds');
+  @override
+  late final GeneratedColumn<int> serverRefreshIntervalSeconds =
+      GeneratedColumn<int>(
+        'server_refresh_interval_seconds',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _nextRefreshAtUtcMeta = const VerificationMeta(
+    'nextRefreshAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> nextRefreshAtUtc = GeneratedColumn<String>(
+    'next_refresh_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastCheckedAtUtcMeta = const VerificationMeta(
+    'lastCheckedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> lastCheckedAtUtc = GeneratedColumn<String>(
+    'last_checked_at_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastSuccessfulSyncAtUtcMeta =
+      const VerificationMeta('lastSuccessfulSyncAtUtc');
+  @override
+  late final GeneratedColumn<String> lastSuccessfulSyncAtUtc =
+      GeneratedColumn<String>(
+        'last_successful_sync_at_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastChangedAtUtcMeta = const VerificationMeta(
+    'lastChangedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> lastChangedAtUtc = GeneratedColumn<String>(
+    'last_changed_at_utc',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _consecutiveFailureCountMeta =
+      const VerificationMeta('consecutiveFailureCount');
+  @override
+  late final GeneratedColumn<int> consecutiveFailureCount =
+      GeneratedColumn<int>(
+        'consecutive_failure_count',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _lastFailureCodeMeta = const VerificationMeta(
+    'lastFailureCode',
+  );
+  @override
+  late final GeneratedColumn<String> lastFailureCode = GeneratedColumn<String>(
+    'last_failure_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastFailureHttpStatusMeta =
+      const VerificationMeta('lastFailureHttpStatus');
+  @override
+  late final GeneratedColumn<int> lastFailureHttpStatus = GeneratedColumn<int>(
+    'last_failure_http_status',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<int> generation = GeneratedColumn<int>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _parserVersionMeta = const VerificationMeta(
+    'parserVersion',
+  );
+  @override
+  late final GeneratedColumn<int> parserVersion = GeneratedColumn<int>(
+    'parser_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _projectionVersionMeta = const VerificationMeta(
+    'projectionVersion',
+  );
+  @override
+  late final GeneratedColumn<int> projectionVersion = GeneratedColumn<int>(
+    'projection_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _projectionRangeStartUtcMeta =
+      const VerificationMeta('projectionRangeStartUtc');
+  @override
+  late final GeneratedColumn<String> projectionRangeStartUtc =
+      GeneratedColumn<String>(
+        'projection_range_start_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _projectionRangeEndUtcMeta =
+      const VerificationMeta('projectionRangeEndUtc');
+  @override
+  late final GeneratedColumn<String> projectionRangeEndUtc =
+      GeneratedColumn<String>(
+        'projection_range_end_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _createdAtUtcMeta = const VerificationMeta(
+    'createdAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> createdAtUtc = GeneratedColumn<String>(
+    'created_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtUtcMeta = const VerificationMeta(
+    'updatedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<String> updatedAtUtc = GeneratedColumn<String>(
+    'updated_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    accountId,
+    calendarSourceId,
+    feedFingerprint,
+    safeOrigin,
+    validatorTargetFingerprint,
+    etag,
+    lastModified,
+    contentType,
+    snapshotIcsBody,
+    rawBodyHash,
+    semanticHash,
+    refreshMode,
+    serverRefreshIntervalSeconds,
+    nextRefreshAtUtc,
+    lastCheckedAtUtc,
+    lastSuccessfulSyncAtUtc,
+    lastChangedAtUtc,
+    consecutiveFailureCount,
+    lastFailureCode,
+    lastFailureHttpStatus,
+    generation,
+    parserVersion,
+    projectionVersion,
+    projectionRangeStartUtc,
+    projectionRangeEndUtc,
+    createdAtUtc,
+    updatedAtUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'web_cal_subscriptions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<WebCalSubscription> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('calendar_source_id')) {
+      context.handle(
+        _calendarSourceIdMeta,
+        calendarSourceId.isAcceptableOrUnknown(
+          data['calendar_source_id']!,
+          _calendarSourceIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_calendarSourceIdMeta);
+    }
+    if (data.containsKey('feed_fingerprint')) {
+      context.handle(
+        _feedFingerprintMeta,
+        feedFingerprint.isAcceptableOrUnknown(
+          data['feed_fingerprint']!,
+          _feedFingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_feedFingerprintMeta);
+    }
+    if (data.containsKey('safe_origin')) {
+      context.handle(
+        _safeOriginMeta,
+        safeOrigin.isAcceptableOrUnknown(data['safe_origin']!, _safeOriginMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_safeOriginMeta);
+    }
+    if (data.containsKey('validator_target_fingerprint')) {
+      context.handle(
+        _validatorTargetFingerprintMeta,
+        validatorTargetFingerprint.isAcceptableOrUnknown(
+          data['validator_target_fingerprint']!,
+          _validatorTargetFingerprintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('etag')) {
+      context.handle(
+        _etagMeta,
+        etag.isAcceptableOrUnknown(data['etag']!, _etagMeta),
+      );
+    }
+    if (data.containsKey('last_modified')) {
+      context.handle(
+        _lastModifiedMeta,
+        lastModified.isAcceptableOrUnknown(
+          data['last_modified']!,
+          _lastModifiedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('content_type')) {
+      context.handle(
+        _contentTypeMeta,
+        contentType.isAcceptableOrUnknown(
+          data['content_type']!,
+          _contentTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('snapshot_ics_body')) {
+      context.handle(
+        _snapshotIcsBodyMeta,
+        snapshotIcsBody.isAcceptableOrUnknown(
+          data['snapshot_ics_body']!,
+          _snapshotIcsBodyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_snapshotIcsBodyMeta);
+    }
+    if (data.containsKey('raw_body_hash')) {
+      context.handle(
+        _rawBodyHashMeta,
+        rawBodyHash.isAcceptableOrUnknown(
+          data['raw_body_hash']!,
+          _rawBodyHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_rawBodyHashMeta);
+    }
+    if (data.containsKey('semantic_hash')) {
+      context.handle(
+        _semanticHashMeta,
+        semanticHash.isAcceptableOrUnknown(
+          data['semantic_hash']!,
+          _semanticHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_semanticHashMeta);
+    }
+    if (data.containsKey('refresh_mode')) {
+      context.handle(
+        _refreshModeMeta,
+        refreshMode.isAcceptableOrUnknown(
+          data['refresh_mode']!,
+          _refreshModeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_refreshModeMeta);
+    }
+    if (data.containsKey('server_refresh_interval_seconds')) {
+      context.handle(
+        _serverRefreshIntervalSecondsMeta,
+        serverRefreshIntervalSeconds.isAcceptableOrUnknown(
+          data['server_refresh_interval_seconds']!,
+          _serverRefreshIntervalSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_refresh_at_utc')) {
+      context.handle(
+        _nextRefreshAtUtcMeta,
+        nextRefreshAtUtc.isAcceptableOrUnknown(
+          data['next_refresh_at_utc']!,
+          _nextRefreshAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_nextRefreshAtUtcMeta);
+    }
+    if (data.containsKey('last_checked_at_utc')) {
+      context.handle(
+        _lastCheckedAtUtcMeta,
+        lastCheckedAtUtc.isAcceptableOrUnknown(
+          data['last_checked_at_utc']!,
+          _lastCheckedAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_successful_sync_at_utc')) {
+      context.handle(
+        _lastSuccessfulSyncAtUtcMeta,
+        lastSuccessfulSyncAtUtc.isAcceptableOrUnknown(
+          data['last_successful_sync_at_utc']!,
+          _lastSuccessfulSyncAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_changed_at_utc')) {
+      context.handle(
+        _lastChangedAtUtcMeta,
+        lastChangedAtUtc.isAcceptableOrUnknown(
+          data['last_changed_at_utc']!,
+          _lastChangedAtUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('consecutive_failure_count')) {
+      context.handle(
+        _consecutiveFailureCountMeta,
+        consecutiveFailureCount.isAcceptableOrUnknown(
+          data['consecutive_failure_count']!,
+          _consecutiveFailureCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_failure_code')) {
+      context.handle(
+        _lastFailureCodeMeta,
+        lastFailureCode.isAcceptableOrUnknown(
+          data['last_failure_code']!,
+          _lastFailureCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_failure_http_status')) {
+      context.handle(
+        _lastFailureHttpStatusMeta,
+        lastFailureHttpStatus.isAcceptableOrUnknown(
+          data['last_failure_http_status']!,
+          _lastFailureHttpStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    }
+    if (data.containsKey('parser_version')) {
+      context.handle(
+        _parserVersionMeta,
+        parserVersion.isAcceptableOrUnknown(
+          data['parser_version']!,
+          _parserVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('projection_version')) {
+      context.handle(
+        _projectionVersionMeta,
+        projectionVersion.isAcceptableOrUnknown(
+          data['projection_version']!,
+          _projectionVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('projection_range_start_utc')) {
+      context.handle(
+        _projectionRangeStartUtcMeta,
+        projectionRangeStartUtc.isAcceptableOrUnknown(
+          data['projection_range_start_utc']!,
+          _projectionRangeStartUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('projection_range_end_utc')) {
+      context.handle(
+        _projectionRangeEndUtcMeta,
+        projectionRangeEndUtc.isAcceptableOrUnknown(
+          data['projection_range_end_utc']!,
+          _projectionRangeEndUtcMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at_utc')) {
+      context.handle(
+        _createdAtUtcMeta,
+        createdAtUtc.isAcceptableOrUnknown(
+          data['created_at_utc']!,
+          _createdAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtUtcMeta);
+    }
+    if (data.containsKey('updated_at_utc')) {
+      context.handle(
+        _updatedAtUtcMeta,
+        updatedAtUtc.isAcceptableOrUnknown(
+          data['updated_at_utc']!,
+          _updatedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {accountId},
+    {calendarSourceId},
+  ];
+  @override
+  WebCalSubscription map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WebCalSubscription(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      calendarSourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}calendar_source_id'],
+      )!,
+      feedFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}feed_fingerprint'],
+      )!,
+      safeOrigin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}safe_origin'],
+      )!,
+      validatorTargetFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}validator_target_fingerprint'],
+      ),
+      etag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}etag'],
+      ),
+      lastModified: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_modified'],
+      ),
+      contentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_type'],
+      ),
+      snapshotIcsBody: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot_ics_body'],
+      )!,
+      rawBodyHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}raw_body_hash'],
+      )!,
+      semanticHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}semantic_hash'],
+      )!,
+      refreshMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}refresh_mode'],
+      )!,
+      serverRefreshIntervalSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_refresh_interval_seconds'],
+      ),
+      nextRefreshAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}next_refresh_at_utc'],
+      )!,
+      lastCheckedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_checked_at_utc'],
+      ),
+      lastSuccessfulSyncAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_successful_sync_at_utc'],
+      ),
+      lastChangedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_changed_at_utc'],
+      ),
+      consecutiveFailureCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}consecutive_failure_count'],
+      )!,
+      lastFailureCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_failure_code'],
+      ),
+      lastFailureHttpStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_failure_http_status'],
+      ),
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation'],
+      )!,
+      parserVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}parser_version'],
+      )!,
+      projectionVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}projection_version'],
+      )!,
+      projectionRangeStartUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}projection_range_start_utc'],
+      ),
+      projectionRangeEndUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}projection_range_end_utc'],
+      ),
+      createdAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_at_utc'],
+      )!,
+      updatedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}updated_at_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $WebCalSubscriptionsTable createAlias(String alias) {
+    return $WebCalSubscriptionsTable(attachedDatabase, alias);
+  }
+}
+
+class WebCalSubscription extends DataClass
+    implements Insertable<WebCalSubscription> {
+  final String id;
+  final String accountId;
+  final String calendarSourceId;
+  final String feedFingerprint;
+  final String safeOrigin;
+  final String? validatorTargetFingerprint;
+  final String? etag;
+  final String? lastModified;
+  final String? contentType;
+  final String snapshotIcsBody;
+  final String rawBodyHash;
+  final String semanticHash;
+  final String refreshMode;
+  final int? serverRefreshIntervalSeconds;
+  final String nextRefreshAtUtc;
+  final String? lastCheckedAtUtc;
+  final String? lastSuccessfulSyncAtUtc;
+  final String? lastChangedAtUtc;
+  final int consecutiveFailureCount;
+  final String? lastFailureCode;
+  final int? lastFailureHttpStatus;
+  final int generation;
+  final int parserVersion;
+  final int projectionVersion;
+  final String? projectionRangeStartUtc;
+  final String? projectionRangeEndUtc;
+  final String createdAtUtc;
+  final String updatedAtUtc;
+  const WebCalSubscription({
+    required this.id,
+    required this.accountId,
+    required this.calendarSourceId,
+    required this.feedFingerprint,
+    required this.safeOrigin,
+    this.validatorTargetFingerprint,
+    this.etag,
+    this.lastModified,
+    this.contentType,
+    required this.snapshotIcsBody,
+    required this.rawBodyHash,
+    required this.semanticHash,
+    required this.refreshMode,
+    this.serverRefreshIntervalSeconds,
+    required this.nextRefreshAtUtc,
+    this.lastCheckedAtUtc,
+    this.lastSuccessfulSyncAtUtc,
+    this.lastChangedAtUtc,
+    required this.consecutiveFailureCount,
+    this.lastFailureCode,
+    this.lastFailureHttpStatus,
+    required this.generation,
+    required this.parserVersion,
+    required this.projectionVersion,
+    this.projectionRangeStartUtc,
+    this.projectionRangeEndUtc,
+    required this.createdAtUtc,
+    required this.updatedAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['account_id'] = Variable<String>(accountId);
+    map['calendar_source_id'] = Variable<String>(calendarSourceId);
+    map['feed_fingerprint'] = Variable<String>(feedFingerprint);
+    map['safe_origin'] = Variable<String>(safeOrigin);
+    if (!nullToAbsent || validatorTargetFingerprint != null) {
+      map['validator_target_fingerprint'] = Variable<String>(
+        validatorTargetFingerprint,
+      );
+    }
+    if (!nullToAbsent || etag != null) {
+      map['etag'] = Variable<String>(etag);
+    }
+    if (!nullToAbsent || lastModified != null) {
+      map['last_modified'] = Variable<String>(lastModified);
+    }
+    if (!nullToAbsent || contentType != null) {
+      map['content_type'] = Variable<String>(contentType);
+    }
+    map['snapshot_ics_body'] = Variable<String>(snapshotIcsBody);
+    map['raw_body_hash'] = Variable<String>(rawBodyHash);
+    map['semantic_hash'] = Variable<String>(semanticHash);
+    map['refresh_mode'] = Variable<String>(refreshMode);
+    if (!nullToAbsent || serverRefreshIntervalSeconds != null) {
+      map['server_refresh_interval_seconds'] = Variable<int>(
+        serverRefreshIntervalSeconds,
+      );
+    }
+    map['next_refresh_at_utc'] = Variable<String>(nextRefreshAtUtc);
+    if (!nullToAbsent || lastCheckedAtUtc != null) {
+      map['last_checked_at_utc'] = Variable<String>(lastCheckedAtUtc);
+    }
+    if (!nullToAbsent || lastSuccessfulSyncAtUtc != null) {
+      map['last_successful_sync_at_utc'] = Variable<String>(
+        lastSuccessfulSyncAtUtc,
+      );
+    }
+    if (!nullToAbsent || lastChangedAtUtc != null) {
+      map['last_changed_at_utc'] = Variable<String>(lastChangedAtUtc);
+    }
+    map['consecutive_failure_count'] = Variable<int>(consecutiveFailureCount);
+    if (!nullToAbsent || lastFailureCode != null) {
+      map['last_failure_code'] = Variable<String>(lastFailureCode);
+    }
+    if (!nullToAbsent || lastFailureHttpStatus != null) {
+      map['last_failure_http_status'] = Variable<int>(lastFailureHttpStatus);
+    }
+    map['generation'] = Variable<int>(generation);
+    map['parser_version'] = Variable<int>(parserVersion);
+    map['projection_version'] = Variable<int>(projectionVersion);
+    if (!nullToAbsent || projectionRangeStartUtc != null) {
+      map['projection_range_start_utc'] = Variable<String>(
+        projectionRangeStartUtc,
+      );
+    }
+    if (!nullToAbsent || projectionRangeEndUtc != null) {
+      map['projection_range_end_utc'] = Variable<String>(projectionRangeEndUtc);
+    }
+    map['created_at_utc'] = Variable<String>(createdAtUtc);
+    map['updated_at_utc'] = Variable<String>(updatedAtUtc);
+    return map;
+  }
+
+  WebCalSubscriptionsCompanion toCompanion(bool nullToAbsent) {
+    return WebCalSubscriptionsCompanion(
+      id: Value(id),
+      accountId: Value(accountId),
+      calendarSourceId: Value(calendarSourceId),
+      feedFingerprint: Value(feedFingerprint),
+      safeOrigin: Value(safeOrigin),
+      validatorTargetFingerprint:
+          validatorTargetFingerprint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(validatorTargetFingerprint),
+      etag: etag == null && nullToAbsent ? const Value.absent() : Value(etag),
+      lastModified: lastModified == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastModified),
+      contentType: contentType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contentType),
+      snapshotIcsBody: Value(snapshotIcsBody),
+      rawBodyHash: Value(rawBodyHash),
+      semanticHash: Value(semanticHash),
+      refreshMode: Value(refreshMode),
+      serverRefreshIntervalSeconds:
+          serverRefreshIntervalSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverRefreshIntervalSeconds),
+      nextRefreshAtUtc: Value(nextRefreshAtUtc),
+      lastCheckedAtUtc: lastCheckedAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCheckedAtUtc),
+      lastSuccessfulSyncAtUtc: lastSuccessfulSyncAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSuccessfulSyncAtUtc),
+      lastChangedAtUtc: lastChangedAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastChangedAtUtc),
+      consecutiveFailureCount: Value(consecutiveFailureCount),
+      lastFailureCode: lastFailureCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFailureCode),
+      lastFailureHttpStatus: lastFailureHttpStatus == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFailureHttpStatus),
+      generation: Value(generation),
+      parserVersion: Value(parserVersion),
+      projectionVersion: Value(projectionVersion),
+      projectionRangeStartUtc: projectionRangeStartUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(projectionRangeStartUtc),
+      projectionRangeEndUtc: projectionRangeEndUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(projectionRangeEndUtc),
+      createdAtUtc: Value(createdAtUtc),
+      updatedAtUtc: Value(updatedAtUtc),
+    );
+  }
+
+  factory WebCalSubscription.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WebCalSubscription(
+      id: serializer.fromJson<String>(json['id']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      calendarSourceId: serializer.fromJson<String>(json['calendarSourceId']),
+      feedFingerprint: serializer.fromJson<String>(json['feedFingerprint']),
+      safeOrigin: serializer.fromJson<String>(json['safeOrigin']),
+      validatorTargetFingerprint: serializer.fromJson<String?>(
+        json['validatorTargetFingerprint'],
+      ),
+      etag: serializer.fromJson<String?>(json['etag']),
+      lastModified: serializer.fromJson<String?>(json['lastModified']),
+      contentType: serializer.fromJson<String?>(json['contentType']),
+      snapshotIcsBody: serializer.fromJson<String>(json['snapshotIcsBody']),
+      rawBodyHash: serializer.fromJson<String>(json['rawBodyHash']),
+      semanticHash: serializer.fromJson<String>(json['semanticHash']),
+      refreshMode: serializer.fromJson<String>(json['refreshMode']),
+      serverRefreshIntervalSeconds: serializer.fromJson<int?>(
+        json['serverRefreshIntervalSeconds'],
+      ),
+      nextRefreshAtUtc: serializer.fromJson<String>(json['nextRefreshAtUtc']),
+      lastCheckedAtUtc: serializer.fromJson<String?>(json['lastCheckedAtUtc']),
+      lastSuccessfulSyncAtUtc: serializer.fromJson<String?>(
+        json['lastSuccessfulSyncAtUtc'],
+      ),
+      lastChangedAtUtc: serializer.fromJson<String?>(json['lastChangedAtUtc']),
+      consecutiveFailureCount: serializer.fromJson<int>(
+        json['consecutiveFailureCount'],
+      ),
+      lastFailureCode: serializer.fromJson<String?>(json['lastFailureCode']),
+      lastFailureHttpStatus: serializer.fromJson<int?>(
+        json['lastFailureHttpStatus'],
+      ),
+      generation: serializer.fromJson<int>(json['generation']),
+      parserVersion: serializer.fromJson<int>(json['parserVersion']),
+      projectionVersion: serializer.fromJson<int>(json['projectionVersion']),
+      projectionRangeStartUtc: serializer.fromJson<String?>(
+        json['projectionRangeStartUtc'],
+      ),
+      projectionRangeEndUtc: serializer.fromJson<String?>(
+        json['projectionRangeEndUtc'],
+      ),
+      createdAtUtc: serializer.fromJson<String>(json['createdAtUtc']),
+      updatedAtUtc: serializer.fromJson<String>(json['updatedAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'accountId': serializer.toJson<String>(accountId),
+      'calendarSourceId': serializer.toJson<String>(calendarSourceId),
+      'feedFingerprint': serializer.toJson<String>(feedFingerprint),
+      'safeOrigin': serializer.toJson<String>(safeOrigin),
+      'validatorTargetFingerprint': serializer.toJson<String?>(
+        validatorTargetFingerprint,
+      ),
+      'etag': serializer.toJson<String?>(etag),
+      'lastModified': serializer.toJson<String?>(lastModified),
+      'contentType': serializer.toJson<String?>(contentType),
+      'snapshotIcsBody': serializer.toJson<String>(snapshotIcsBody),
+      'rawBodyHash': serializer.toJson<String>(rawBodyHash),
+      'semanticHash': serializer.toJson<String>(semanticHash),
+      'refreshMode': serializer.toJson<String>(refreshMode),
+      'serverRefreshIntervalSeconds': serializer.toJson<int?>(
+        serverRefreshIntervalSeconds,
+      ),
+      'nextRefreshAtUtc': serializer.toJson<String>(nextRefreshAtUtc),
+      'lastCheckedAtUtc': serializer.toJson<String?>(lastCheckedAtUtc),
+      'lastSuccessfulSyncAtUtc': serializer.toJson<String?>(
+        lastSuccessfulSyncAtUtc,
+      ),
+      'lastChangedAtUtc': serializer.toJson<String?>(lastChangedAtUtc),
+      'consecutiveFailureCount': serializer.toJson<int>(
+        consecutiveFailureCount,
+      ),
+      'lastFailureCode': serializer.toJson<String?>(lastFailureCode),
+      'lastFailureHttpStatus': serializer.toJson<int?>(lastFailureHttpStatus),
+      'generation': serializer.toJson<int>(generation),
+      'parserVersion': serializer.toJson<int>(parserVersion),
+      'projectionVersion': serializer.toJson<int>(projectionVersion),
+      'projectionRangeStartUtc': serializer.toJson<String?>(
+        projectionRangeStartUtc,
+      ),
+      'projectionRangeEndUtc': serializer.toJson<String?>(
+        projectionRangeEndUtc,
+      ),
+      'createdAtUtc': serializer.toJson<String>(createdAtUtc),
+      'updatedAtUtc': serializer.toJson<String>(updatedAtUtc),
+    };
+  }
+
+  WebCalSubscription copyWith({
+    String? id,
+    String? accountId,
+    String? calendarSourceId,
+    String? feedFingerprint,
+    String? safeOrigin,
+    Value<String?> validatorTargetFingerprint = const Value.absent(),
+    Value<String?> etag = const Value.absent(),
+    Value<String?> lastModified = const Value.absent(),
+    Value<String?> contentType = const Value.absent(),
+    String? snapshotIcsBody,
+    String? rawBodyHash,
+    String? semanticHash,
+    String? refreshMode,
+    Value<int?> serverRefreshIntervalSeconds = const Value.absent(),
+    String? nextRefreshAtUtc,
+    Value<String?> lastCheckedAtUtc = const Value.absent(),
+    Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
+    Value<String?> lastChangedAtUtc = const Value.absent(),
+    int? consecutiveFailureCount,
+    Value<String?> lastFailureCode = const Value.absent(),
+    Value<int?> lastFailureHttpStatus = const Value.absent(),
+    int? generation,
+    int? parserVersion,
+    int? projectionVersion,
+    Value<String?> projectionRangeStartUtc = const Value.absent(),
+    Value<String?> projectionRangeEndUtc = const Value.absent(),
+    String? createdAtUtc,
+    String? updatedAtUtc,
+  }) => WebCalSubscription(
+    id: id ?? this.id,
+    accountId: accountId ?? this.accountId,
+    calendarSourceId: calendarSourceId ?? this.calendarSourceId,
+    feedFingerprint: feedFingerprint ?? this.feedFingerprint,
+    safeOrigin: safeOrigin ?? this.safeOrigin,
+    validatorTargetFingerprint: validatorTargetFingerprint.present
+        ? validatorTargetFingerprint.value
+        : this.validatorTargetFingerprint,
+    etag: etag.present ? etag.value : this.etag,
+    lastModified: lastModified.present ? lastModified.value : this.lastModified,
+    contentType: contentType.present ? contentType.value : this.contentType,
+    snapshotIcsBody: snapshotIcsBody ?? this.snapshotIcsBody,
+    rawBodyHash: rawBodyHash ?? this.rawBodyHash,
+    semanticHash: semanticHash ?? this.semanticHash,
+    refreshMode: refreshMode ?? this.refreshMode,
+    serverRefreshIntervalSeconds: serverRefreshIntervalSeconds.present
+        ? serverRefreshIntervalSeconds.value
+        : this.serverRefreshIntervalSeconds,
+    nextRefreshAtUtc: nextRefreshAtUtc ?? this.nextRefreshAtUtc,
+    lastCheckedAtUtc: lastCheckedAtUtc.present
+        ? lastCheckedAtUtc.value
+        : this.lastCheckedAtUtc,
+    lastSuccessfulSyncAtUtc: lastSuccessfulSyncAtUtc.present
+        ? lastSuccessfulSyncAtUtc.value
+        : this.lastSuccessfulSyncAtUtc,
+    lastChangedAtUtc: lastChangedAtUtc.present
+        ? lastChangedAtUtc.value
+        : this.lastChangedAtUtc,
+    consecutiveFailureCount:
+        consecutiveFailureCount ?? this.consecutiveFailureCount,
+    lastFailureCode: lastFailureCode.present
+        ? lastFailureCode.value
+        : this.lastFailureCode,
+    lastFailureHttpStatus: lastFailureHttpStatus.present
+        ? lastFailureHttpStatus.value
+        : this.lastFailureHttpStatus,
+    generation: generation ?? this.generation,
+    parserVersion: parserVersion ?? this.parserVersion,
+    projectionVersion: projectionVersion ?? this.projectionVersion,
+    projectionRangeStartUtc: projectionRangeStartUtc.present
+        ? projectionRangeStartUtc.value
+        : this.projectionRangeStartUtc,
+    projectionRangeEndUtc: projectionRangeEndUtc.present
+        ? projectionRangeEndUtc.value
+        : this.projectionRangeEndUtc,
+    createdAtUtc: createdAtUtc ?? this.createdAtUtc,
+    updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+  );
+  WebCalSubscription copyWithCompanion(WebCalSubscriptionsCompanion data) {
+    return WebCalSubscription(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      calendarSourceId: data.calendarSourceId.present
+          ? data.calendarSourceId.value
+          : this.calendarSourceId,
+      feedFingerprint: data.feedFingerprint.present
+          ? data.feedFingerprint.value
+          : this.feedFingerprint,
+      safeOrigin: data.safeOrigin.present
+          ? data.safeOrigin.value
+          : this.safeOrigin,
+      validatorTargetFingerprint: data.validatorTargetFingerprint.present
+          ? data.validatorTargetFingerprint.value
+          : this.validatorTargetFingerprint,
+      etag: data.etag.present ? data.etag.value : this.etag,
+      lastModified: data.lastModified.present
+          ? data.lastModified.value
+          : this.lastModified,
+      contentType: data.contentType.present
+          ? data.contentType.value
+          : this.contentType,
+      snapshotIcsBody: data.snapshotIcsBody.present
+          ? data.snapshotIcsBody.value
+          : this.snapshotIcsBody,
+      rawBodyHash: data.rawBodyHash.present
+          ? data.rawBodyHash.value
+          : this.rawBodyHash,
+      semanticHash: data.semanticHash.present
+          ? data.semanticHash.value
+          : this.semanticHash,
+      refreshMode: data.refreshMode.present
+          ? data.refreshMode.value
+          : this.refreshMode,
+      serverRefreshIntervalSeconds: data.serverRefreshIntervalSeconds.present
+          ? data.serverRefreshIntervalSeconds.value
+          : this.serverRefreshIntervalSeconds,
+      nextRefreshAtUtc: data.nextRefreshAtUtc.present
+          ? data.nextRefreshAtUtc.value
+          : this.nextRefreshAtUtc,
+      lastCheckedAtUtc: data.lastCheckedAtUtc.present
+          ? data.lastCheckedAtUtc.value
+          : this.lastCheckedAtUtc,
+      lastSuccessfulSyncAtUtc: data.lastSuccessfulSyncAtUtc.present
+          ? data.lastSuccessfulSyncAtUtc.value
+          : this.lastSuccessfulSyncAtUtc,
+      lastChangedAtUtc: data.lastChangedAtUtc.present
+          ? data.lastChangedAtUtc.value
+          : this.lastChangedAtUtc,
+      consecutiveFailureCount: data.consecutiveFailureCount.present
+          ? data.consecutiveFailureCount.value
+          : this.consecutiveFailureCount,
+      lastFailureCode: data.lastFailureCode.present
+          ? data.lastFailureCode.value
+          : this.lastFailureCode,
+      lastFailureHttpStatus: data.lastFailureHttpStatus.present
+          ? data.lastFailureHttpStatus.value
+          : this.lastFailureHttpStatus,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      parserVersion: data.parserVersion.present
+          ? data.parserVersion.value
+          : this.parserVersion,
+      projectionVersion: data.projectionVersion.present
+          ? data.projectionVersion.value
+          : this.projectionVersion,
+      projectionRangeStartUtc: data.projectionRangeStartUtc.present
+          ? data.projectionRangeStartUtc.value
+          : this.projectionRangeStartUtc,
+      projectionRangeEndUtc: data.projectionRangeEndUtc.present
+          ? data.projectionRangeEndUtc.value
+          : this.projectionRangeEndUtc,
+      createdAtUtc: data.createdAtUtc.present
+          ? data.createdAtUtc.value
+          : this.createdAtUtc,
+      updatedAtUtc: data.updatedAtUtc.present
+          ? data.updatedAtUtc.value
+          : this.updatedAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WebCalSubscription(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('calendarSourceId: $calendarSourceId, ')
+          ..write('feedFingerprint: $feedFingerprint, ')
+          ..write('safeOrigin: $safeOrigin, ')
+          ..write('validatorTargetFingerprint: $validatorTargetFingerprint, ')
+          ..write('etag: $etag, ')
+          ..write('lastModified: $lastModified, ')
+          ..write('contentType: $contentType, ')
+          ..write('snapshotIcsBody: $snapshotIcsBody, ')
+          ..write('rawBodyHash: $rawBodyHash, ')
+          ..write('semanticHash: $semanticHash, ')
+          ..write('refreshMode: $refreshMode, ')
+          ..write(
+            'serverRefreshIntervalSeconds: $serverRefreshIntervalSeconds, ',
+          )
+          ..write('nextRefreshAtUtc: $nextRefreshAtUtc, ')
+          ..write('lastCheckedAtUtc: $lastCheckedAtUtc, ')
+          ..write('lastSuccessfulSyncAtUtc: $lastSuccessfulSyncAtUtc, ')
+          ..write('lastChangedAtUtc: $lastChangedAtUtc, ')
+          ..write('consecutiveFailureCount: $consecutiveFailureCount, ')
+          ..write('lastFailureCode: $lastFailureCode, ')
+          ..write('lastFailureHttpStatus: $lastFailureHttpStatus, ')
+          ..write('generation: $generation, ')
+          ..write('parserVersion: $parserVersion, ')
+          ..write('projectionVersion: $projectionVersion, ')
+          ..write('projectionRangeStartUtc: $projectionRangeStartUtc, ')
+          ..write('projectionRangeEndUtc: $projectionRangeEndUtc, ')
+          ..write('createdAtUtc: $createdAtUtc, ')
+          ..write('updatedAtUtc: $updatedAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    accountId,
+    calendarSourceId,
+    feedFingerprint,
+    safeOrigin,
+    validatorTargetFingerprint,
+    etag,
+    lastModified,
+    contentType,
+    snapshotIcsBody,
+    rawBodyHash,
+    semanticHash,
+    refreshMode,
+    serverRefreshIntervalSeconds,
+    nextRefreshAtUtc,
+    lastCheckedAtUtc,
+    lastSuccessfulSyncAtUtc,
+    lastChangedAtUtc,
+    consecutiveFailureCount,
+    lastFailureCode,
+    lastFailureHttpStatus,
+    generation,
+    parserVersion,
+    projectionVersion,
+    projectionRangeStartUtc,
+    projectionRangeEndUtc,
+    createdAtUtc,
+    updatedAtUtc,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WebCalSubscription &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.calendarSourceId == this.calendarSourceId &&
+          other.feedFingerprint == this.feedFingerprint &&
+          other.safeOrigin == this.safeOrigin &&
+          other.validatorTargetFingerprint == this.validatorTargetFingerprint &&
+          other.etag == this.etag &&
+          other.lastModified == this.lastModified &&
+          other.contentType == this.contentType &&
+          other.snapshotIcsBody == this.snapshotIcsBody &&
+          other.rawBodyHash == this.rawBodyHash &&
+          other.semanticHash == this.semanticHash &&
+          other.refreshMode == this.refreshMode &&
+          other.serverRefreshIntervalSeconds ==
+              this.serverRefreshIntervalSeconds &&
+          other.nextRefreshAtUtc == this.nextRefreshAtUtc &&
+          other.lastCheckedAtUtc == this.lastCheckedAtUtc &&
+          other.lastSuccessfulSyncAtUtc == this.lastSuccessfulSyncAtUtc &&
+          other.lastChangedAtUtc == this.lastChangedAtUtc &&
+          other.consecutiveFailureCount == this.consecutiveFailureCount &&
+          other.lastFailureCode == this.lastFailureCode &&
+          other.lastFailureHttpStatus == this.lastFailureHttpStatus &&
+          other.generation == this.generation &&
+          other.parserVersion == this.parserVersion &&
+          other.projectionVersion == this.projectionVersion &&
+          other.projectionRangeStartUtc == this.projectionRangeStartUtc &&
+          other.projectionRangeEndUtc == this.projectionRangeEndUtc &&
+          other.createdAtUtc == this.createdAtUtc &&
+          other.updatedAtUtc == this.updatedAtUtc);
+}
+
+class WebCalSubscriptionsCompanion extends UpdateCompanion<WebCalSubscription> {
+  final Value<String> id;
+  final Value<String> accountId;
+  final Value<String> calendarSourceId;
+  final Value<String> feedFingerprint;
+  final Value<String> safeOrigin;
+  final Value<String?> validatorTargetFingerprint;
+  final Value<String?> etag;
+  final Value<String?> lastModified;
+  final Value<String?> contentType;
+  final Value<String> snapshotIcsBody;
+  final Value<String> rawBodyHash;
+  final Value<String> semanticHash;
+  final Value<String> refreshMode;
+  final Value<int?> serverRefreshIntervalSeconds;
+  final Value<String> nextRefreshAtUtc;
+  final Value<String?> lastCheckedAtUtc;
+  final Value<String?> lastSuccessfulSyncAtUtc;
+  final Value<String?> lastChangedAtUtc;
+  final Value<int> consecutiveFailureCount;
+  final Value<String?> lastFailureCode;
+  final Value<int?> lastFailureHttpStatus;
+  final Value<int> generation;
+  final Value<int> parserVersion;
+  final Value<int> projectionVersion;
+  final Value<String?> projectionRangeStartUtc;
+  final Value<String?> projectionRangeEndUtc;
+  final Value<String> createdAtUtc;
+  final Value<String> updatedAtUtc;
+  final Value<int> rowid;
+  const WebCalSubscriptionsCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.calendarSourceId = const Value.absent(),
+    this.feedFingerprint = const Value.absent(),
+    this.safeOrigin = const Value.absent(),
+    this.validatorTargetFingerprint = const Value.absent(),
+    this.etag = const Value.absent(),
+    this.lastModified = const Value.absent(),
+    this.contentType = const Value.absent(),
+    this.snapshotIcsBody = const Value.absent(),
+    this.rawBodyHash = const Value.absent(),
+    this.semanticHash = const Value.absent(),
+    this.refreshMode = const Value.absent(),
+    this.serverRefreshIntervalSeconds = const Value.absent(),
+    this.nextRefreshAtUtc = const Value.absent(),
+    this.lastCheckedAtUtc = const Value.absent(),
+    this.lastSuccessfulSyncAtUtc = const Value.absent(),
+    this.lastChangedAtUtc = const Value.absent(),
+    this.consecutiveFailureCount = const Value.absent(),
+    this.lastFailureCode = const Value.absent(),
+    this.lastFailureHttpStatus = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.parserVersion = const Value.absent(),
+    this.projectionVersion = const Value.absent(),
+    this.projectionRangeStartUtc = const Value.absent(),
+    this.projectionRangeEndUtc = const Value.absent(),
+    this.createdAtUtc = const Value.absent(),
+    this.updatedAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WebCalSubscriptionsCompanion.insert({
+    required String id,
+    required String accountId,
+    required String calendarSourceId,
+    required String feedFingerprint,
+    required String safeOrigin,
+    this.validatorTargetFingerprint = const Value.absent(),
+    this.etag = const Value.absent(),
+    this.lastModified = const Value.absent(),
+    this.contentType = const Value.absent(),
+    required String snapshotIcsBody,
+    required String rawBodyHash,
+    required String semanticHash,
+    required String refreshMode,
+    this.serverRefreshIntervalSeconds = const Value.absent(),
+    required String nextRefreshAtUtc,
+    this.lastCheckedAtUtc = const Value.absent(),
+    this.lastSuccessfulSyncAtUtc = const Value.absent(),
+    this.lastChangedAtUtc = const Value.absent(),
+    this.consecutiveFailureCount = const Value.absent(),
+    this.lastFailureCode = const Value.absent(),
+    this.lastFailureHttpStatus = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.parserVersion = const Value.absent(),
+    this.projectionVersion = const Value.absent(),
+    this.projectionRangeStartUtc = const Value.absent(),
+    this.projectionRangeEndUtc = const Value.absent(),
+    required String createdAtUtc,
+    required String updatedAtUtc,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       accountId = Value(accountId),
+       calendarSourceId = Value(calendarSourceId),
+       feedFingerprint = Value(feedFingerprint),
+       safeOrigin = Value(safeOrigin),
+       snapshotIcsBody = Value(snapshotIcsBody),
+       rawBodyHash = Value(rawBodyHash),
+       semanticHash = Value(semanticHash),
+       refreshMode = Value(refreshMode),
+       nextRefreshAtUtc = Value(nextRefreshAtUtc),
+       createdAtUtc = Value(createdAtUtc),
+       updatedAtUtc = Value(updatedAtUtc);
+  static Insertable<WebCalSubscription> custom({
+    Expression<String>? id,
+    Expression<String>? accountId,
+    Expression<String>? calendarSourceId,
+    Expression<String>? feedFingerprint,
+    Expression<String>? safeOrigin,
+    Expression<String>? validatorTargetFingerprint,
+    Expression<String>? etag,
+    Expression<String>? lastModified,
+    Expression<String>? contentType,
+    Expression<String>? snapshotIcsBody,
+    Expression<String>? rawBodyHash,
+    Expression<String>? semanticHash,
+    Expression<String>? refreshMode,
+    Expression<int>? serverRefreshIntervalSeconds,
+    Expression<String>? nextRefreshAtUtc,
+    Expression<String>? lastCheckedAtUtc,
+    Expression<String>? lastSuccessfulSyncAtUtc,
+    Expression<String>? lastChangedAtUtc,
+    Expression<int>? consecutiveFailureCount,
+    Expression<String>? lastFailureCode,
+    Expression<int>? lastFailureHttpStatus,
+    Expression<int>? generation,
+    Expression<int>? parserVersion,
+    Expression<int>? projectionVersion,
+    Expression<String>? projectionRangeStartUtc,
+    Expression<String>? projectionRangeEndUtc,
+    Expression<String>? createdAtUtc,
+    Expression<String>? updatedAtUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (calendarSourceId != null) 'calendar_source_id': calendarSourceId,
+      if (feedFingerprint != null) 'feed_fingerprint': feedFingerprint,
+      if (safeOrigin != null) 'safe_origin': safeOrigin,
+      if (validatorTargetFingerprint != null)
+        'validator_target_fingerprint': validatorTargetFingerprint,
+      if (etag != null) 'etag': etag,
+      if (lastModified != null) 'last_modified': lastModified,
+      if (contentType != null) 'content_type': contentType,
+      if (snapshotIcsBody != null) 'snapshot_ics_body': snapshotIcsBody,
+      if (rawBodyHash != null) 'raw_body_hash': rawBodyHash,
+      if (semanticHash != null) 'semantic_hash': semanticHash,
+      if (refreshMode != null) 'refresh_mode': refreshMode,
+      if (serverRefreshIntervalSeconds != null)
+        'server_refresh_interval_seconds': serverRefreshIntervalSeconds,
+      if (nextRefreshAtUtc != null) 'next_refresh_at_utc': nextRefreshAtUtc,
+      if (lastCheckedAtUtc != null) 'last_checked_at_utc': lastCheckedAtUtc,
+      if (lastSuccessfulSyncAtUtc != null)
+        'last_successful_sync_at_utc': lastSuccessfulSyncAtUtc,
+      if (lastChangedAtUtc != null) 'last_changed_at_utc': lastChangedAtUtc,
+      if (consecutiveFailureCount != null)
+        'consecutive_failure_count': consecutiveFailureCount,
+      if (lastFailureCode != null) 'last_failure_code': lastFailureCode,
+      if (lastFailureHttpStatus != null)
+        'last_failure_http_status': lastFailureHttpStatus,
+      if (generation != null) 'generation': generation,
+      if (parserVersion != null) 'parser_version': parserVersion,
+      if (projectionVersion != null) 'projection_version': projectionVersion,
+      if (projectionRangeStartUtc != null)
+        'projection_range_start_utc': projectionRangeStartUtc,
+      if (projectionRangeEndUtc != null)
+        'projection_range_end_utc': projectionRangeEndUtc,
+      if (createdAtUtc != null) 'created_at_utc': createdAtUtc,
+      if (updatedAtUtc != null) 'updated_at_utc': updatedAtUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WebCalSubscriptionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? accountId,
+    Value<String>? calendarSourceId,
+    Value<String>? feedFingerprint,
+    Value<String>? safeOrigin,
+    Value<String?>? validatorTargetFingerprint,
+    Value<String?>? etag,
+    Value<String?>? lastModified,
+    Value<String?>? contentType,
+    Value<String>? snapshotIcsBody,
+    Value<String>? rawBodyHash,
+    Value<String>? semanticHash,
+    Value<String>? refreshMode,
+    Value<int?>? serverRefreshIntervalSeconds,
+    Value<String>? nextRefreshAtUtc,
+    Value<String?>? lastCheckedAtUtc,
+    Value<String?>? lastSuccessfulSyncAtUtc,
+    Value<String?>? lastChangedAtUtc,
+    Value<int>? consecutiveFailureCount,
+    Value<String?>? lastFailureCode,
+    Value<int?>? lastFailureHttpStatus,
+    Value<int>? generation,
+    Value<int>? parserVersion,
+    Value<int>? projectionVersion,
+    Value<String?>? projectionRangeStartUtc,
+    Value<String?>? projectionRangeEndUtc,
+    Value<String>? createdAtUtc,
+    Value<String>? updatedAtUtc,
+    Value<int>? rowid,
+  }) {
+    return WebCalSubscriptionsCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      calendarSourceId: calendarSourceId ?? this.calendarSourceId,
+      feedFingerprint: feedFingerprint ?? this.feedFingerprint,
+      safeOrigin: safeOrigin ?? this.safeOrigin,
+      validatorTargetFingerprint:
+          validatorTargetFingerprint ?? this.validatorTargetFingerprint,
+      etag: etag ?? this.etag,
+      lastModified: lastModified ?? this.lastModified,
+      contentType: contentType ?? this.contentType,
+      snapshotIcsBody: snapshotIcsBody ?? this.snapshotIcsBody,
+      rawBodyHash: rawBodyHash ?? this.rawBodyHash,
+      semanticHash: semanticHash ?? this.semanticHash,
+      refreshMode: refreshMode ?? this.refreshMode,
+      serverRefreshIntervalSeconds:
+          serverRefreshIntervalSeconds ?? this.serverRefreshIntervalSeconds,
+      nextRefreshAtUtc: nextRefreshAtUtc ?? this.nextRefreshAtUtc,
+      lastCheckedAtUtc: lastCheckedAtUtc ?? this.lastCheckedAtUtc,
+      lastSuccessfulSyncAtUtc:
+          lastSuccessfulSyncAtUtc ?? this.lastSuccessfulSyncAtUtc,
+      lastChangedAtUtc: lastChangedAtUtc ?? this.lastChangedAtUtc,
+      consecutiveFailureCount:
+          consecutiveFailureCount ?? this.consecutiveFailureCount,
+      lastFailureCode: lastFailureCode ?? this.lastFailureCode,
+      lastFailureHttpStatus:
+          lastFailureHttpStatus ?? this.lastFailureHttpStatus,
+      generation: generation ?? this.generation,
+      parserVersion: parserVersion ?? this.parserVersion,
+      projectionVersion: projectionVersion ?? this.projectionVersion,
+      projectionRangeStartUtc:
+          projectionRangeStartUtc ?? this.projectionRangeStartUtc,
+      projectionRangeEndUtc:
+          projectionRangeEndUtc ?? this.projectionRangeEndUtc,
+      createdAtUtc: createdAtUtc ?? this.createdAtUtc,
+      updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (calendarSourceId.present) {
+      map['calendar_source_id'] = Variable<String>(calendarSourceId.value);
+    }
+    if (feedFingerprint.present) {
+      map['feed_fingerprint'] = Variable<String>(feedFingerprint.value);
+    }
+    if (safeOrigin.present) {
+      map['safe_origin'] = Variable<String>(safeOrigin.value);
+    }
+    if (validatorTargetFingerprint.present) {
+      map['validator_target_fingerprint'] = Variable<String>(
+        validatorTargetFingerprint.value,
+      );
+    }
+    if (etag.present) {
+      map['etag'] = Variable<String>(etag.value);
+    }
+    if (lastModified.present) {
+      map['last_modified'] = Variable<String>(lastModified.value);
+    }
+    if (contentType.present) {
+      map['content_type'] = Variable<String>(contentType.value);
+    }
+    if (snapshotIcsBody.present) {
+      map['snapshot_ics_body'] = Variable<String>(snapshotIcsBody.value);
+    }
+    if (rawBodyHash.present) {
+      map['raw_body_hash'] = Variable<String>(rawBodyHash.value);
+    }
+    if (semanticHash.present) {
+      map['semantic_hash'] = Variable<String>(semanticHash.value);
+    }
+    if (refreshMode.present) {
+      map['refresh_mode'] = Variable<String>(refreshMode.value);
+    }
+    if (serverRefreshIntervalSeconds.present) {
+      map['server_refresh_interval_seconds'] = Variable<int>(
+        serverRefreshIntervalSeconds.value,
+      );
+    }
+    if (nextRefreshAtUtc.present) {
+      map['next_refresh_at_utc'] = Variable<String>(nextRefreshAtUtc.value);
+    }
+    if (lastCheckedAtUtc.present) {
+      map['last_checked_at_utc'] = Variable<String>(lastCheckedAtUtc.value);
+    }
+    if (lastSuccessfulSyncAtUtc.present) {
+      map['last_successful_sync_at_utc'] = Variable<String>(
+        lastSuccessfulSyncAtUtc.value,
+      );
+    }
+    if (lastChangedAtUtc.present) {
+      map['last_changed_at_utc'] = Variable<String>(lastChangedAtUtc.value);
+    }
+    if (consecutiveFailureCount.present) {
+      map['consecutive_failure_count'] = Variable<int>(
+        consecutiveFailureCount.value,
+      );
+    }
+    if (lastFailureCode.present) {
+      map['last_failure_code'] = Variable<String>(lastFailureCode.value);
+    }
+    if (lastFailureHttpStatus.present) {
+      map['last_failure_http_status'] = Variable<int>(
+        lastFailureHttpStatus.value,
+      );
+    }
+    if (generation.present) {
+      map['generation'] = Variable<int>(generation.value);
+    }
+    if (parserVersion.present) {
+      map['parser_version'] = Variable<int>(parserVersion.value);
+    }
+    if (projectionVersion.present) {
+      map['projection_version'] = Variable<int>(projectionVersion.value);
+    }
+    if (projectionRangeStartUtc.present) {
+      map['projection_range_start_utc'] = Variable<String>(
+        projectionRangeStartUtc.value,
+      );
+    }
+    if (projectionRangeEndUtc.present) {
+      map['projection_range_end_utc'] = Variable<String>(
+        projectionRangeEndUtc.value,
+      );
+    }
+    if (createdAtUtc.present) {
+      map['created_at_utc'] = Variable<String>(createdAtUtc.value);
+    }
+    if (updatedAtUtc.present) {
+      map['updated_at_utc'] = Variable<String>(updatedAtUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WebCalSubscriptionsCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('calendarSourceId: $calendarSourceId, ')
+          ..write('feedFingerprint: $feedFingerprint, ')
+          ..write('safeOrigin: $safeOrigin, ')
+          ..write('validatorTargetFingerprint: $validatorTargetFingerprint, ')
+          ..write('etag: $etag, ')
+          ..write('lastModified: $lastModified, ')
+          ..write('contentType: $contentType, ')
+          ..write('snapshotIcsBody: $snapshotIcsBody, ')
+          ..write('rawBodyHash: $rawBodyHash, ')
+          ..write('semanticHash: $semanticHash, ')
+          ..write('refreshMode: $refreshMode, ')
+          ..write(
+            'serverRefreshIntervalSeconds: $serverRefreshIntervalSeconds, ',
+          )
+          ..write('nextRefreshAtUtc: $nextRefreshAtUtc, ')
+          ..write('lastCheckedAtUtc: $lastCheckedAtUtc, ')
+          ..write('lastSuccessfulSyncAtUtc: $lastSuccessfulSyncAtUtc, ')
+          ..write('lastChangedAtUtc: $lastChangedAtUtc, ')
+          ..write('consecutiveFailureCount: $consecutiveFailureCount, ')
+          ..write('lastFailureCode: $lastFailureCode, ')
+          ..write('lastFailureHttpStatus: $lastFailureHttpStatus, ')
+          ..write('generation: $generation, ')
+          ..write('parserVersion: $parserVersion, ')
+          ..write('projectionVersion: $projectionVersion, ')
+          ..write('projectionRangeStartUtc: $projectionRangeStartUtc, ')
+          ..write('projectionRangeEndUtc: $projectionRangeEndUtc, ')
+          ..write('createdAtUtc: $createdAtUtc, ')
+          ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -22660,6 +24847,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $CalendarEventsTable calendarEvents = $CalendarEventsTable(this);
+  late final $IcalImportReceiptsTable icalImportReceipts =
+      $IcalImportReceiptsTable(this);
+  late final $WebCalSubscriptionsTable webCalSubscriptions =
+      $WebCalSubscriptionsTable(this);
   late final $CalendarEventAttendeesTable calendarEventAttendees =
       $CalendarEventAttendeesTable(this);
   late final $CalendarEventRemindersTable calendarEventReminders =
@@ -22691,6 +24882,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncRuns,
     calendarSources,
     calendarEvents,
+    icalImportReceipts,
+    webCalSubscriptions,
     calendarEventAttendees,
     calendarEventReminders,
     syncCursors,
@@ -22888,6 +25081,27 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('calendar_events', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'calendar_sources',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('ical_import_receipts', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('web_cal_subscriptions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'calendar_sources',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('web_cal_subscriptions', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -23200,6 +25414,33 @@ final class $$AccountsTableReferences
     ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_calendarEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $WebCalSubscriptionsTable,
+    List<WebCalSubscription>
+  >
+  _webCalSubscriptionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.webCalSubscriptions,
+        aliasName: $_aliasNameGenerator(
+          db.accounts.id,
+          db.webCalSubscriptions.accountId,
+        ),
+      );
+
+  $$WebCalSubscriptionsTableProcessedTableManager get webCalSubscriptionsRefs {
+    final manager = $$WebCalSubscriptionsTableTableManager(
+      $_db,
+      $_db.webCalSubscriptions,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _webCalSubscriptionsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -23625,6 +25866,31 @@ class $$AccountsTableFilterComposer
           }) => $$CalendarEventsTableFilterComposer(
             $db: $db,
             $table: $db.calendarEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> webCalSubscriptionsRefs(
+    Expression<bool> Function($$WebCalSubscriptionsTableFilterComposer f) f,
+  ) {
+    final $$WebCalSubscriptionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.webCalSubscriptions,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$WebCalSubscriptionsTableFilterComposer(
+            $db: $db,
+            $table: $db.webCalSubscriptions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -24160,6 +26426,32 @@ class $$AccountsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> webCalSubscriptionsRefs<T extends Object>(
+    Expression<T> Function($$WebCalSubscriptionsTableAnnotationComposer a) f,
+  ) {
+    final $$WebCalSubscriptionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.webCalSubscriptions,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$WebCalSubscriptionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.webCalSubscriptions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> syncCursorsRefs<T extends Object>(
     Expression<T> Function($$SyncCursorsTableAnnotationComposer a) f,
   ) {
@@ -24262,6 +26554,7 @@ class $$AccountsTableTableManager
             bool syncRunsRefs,
             bool calendarSourcesRefs,
             bool calendarEventsRefs,
+            bool webCalSubscriptionsRefs,
             bool syncCursorsRefs,
             bool scheduleItemOverridesRefs,
             bool notificationScheduleRefs,
@@ -24386,6 +26679,7 @@ class $$AccountsTableTableManager
                 syncRunsRefs = false,
                 calendarSourcesRefs = false,
                 calendarEventsRefs = false,
+                webCalSubscriptionsRefs = false,
                 syncCursorsRefs = false,
                 scheduleItemOverridesRefs = false,
                 notificationScheduleRefs = false,
@@ -24403,6 +26697,7 @@ class $$AccountsTableTableManager
                     if (syncRunsRefs) db.syncRuns,
                     if (calendarSourcesRefs) db.calendarSources,
                     if (calendarEventsRefs) db.calendarEvents,
+                    if (webCalSubscriptionsRefs) db.webCalSubscriptions,
                     if (syncCursorsRefs) db.syncCursors,
                     if (scheduleItemOverridesRefs) db.scheduleItemOverrides,
                     if (notificationScheduleRefs) db.notificationSchedule,
@@ -24620,6 +26915,27 @@ class $$AccountsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (webCalSubscriptionsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          WebCalSubscription
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._webCalSubscriptionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).webCalSubscriptionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (syncCursorsRefs)
                         await $_getPrefetchedData<
                           Account,
@@ -24714,6 +27030,7 @@ typedef $$AccountsTableProcessedTableManager =
         bool syncRunsRefs,
         bool calendarSourcesRefs,
         bool calendarEventsRefs,
+        bool webCalSubscriptionsRefs,
         bool syncCursorsRefs,
         bool scheduleItemOverridesRefs,
         bool notificationScheduleRefs,
@@ -29612,6 +31929,7 @@ typedef $$TaskListsTableCreateCompanionBuilder =
       Value<bool> serverMissing,
       Value<bool> localDirty,
       Value<bool> pendingDelete,
+      Value<bool> remindersEnabled,
       Value<String?> lastSyncedAtUtc,
       required String createdLocalAtUtc,
       required String updatedLocalAtUtc,
@@ -29636,6 +31954,7 @@ typedef $$TaskListsTableUpdateCompanionBuilder =
       Value<bool> serverMissing,
       Value<bool> localDirty,
       Value<bool> pendingDelete,
+      Value<bool> remindersEnabled,
       Value<String?> lastSyncedAtUtc,
       Value<String> createdLocalAtUtc,
       Value<String> updatedLocalAtUtc,
@@ -29769,6 +32088,11 @@ class $$TaskListsTableFilterComposer
 
   ColumnFilters<bool> get pendingDelete => $composableBuilder(
     column: $table.pendingDelete,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29918,6 +32242,11 @@ class $$TaskListsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lastSyncedAtUtc => $composableBuilder(
     column: $table.lastSyncedAtUtc,
     builder: (column) => ColumnOrderings(column),
@@ -30046,6 +32375,11 @@ class $$TaskListsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get remindersEnabled => $composableBuilder(
+    column: $table.remindersEnabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get lastSyncedAtUtc => $composableBuilder(
     column: $table.lastSyncedAtUtc,
     builder: (column) => column,
@@ -30153,6 +32487,7 @@ class $$TaskListsTableTableManager
                 Value<bool> serverMissing = const Value.absent(),
                 Value<bool> localDirty = const Value.absent(),
                 Value<bool> pendingDelete = const Value.absent(),
+                Value<bool> remindersEnabled = const Value.absent(),
                 Value<String?> lastSyncedAtUtc = const Value.absent(),
                 Value<String> createdLocalAtUtc = const Value.absent(),
                 Value<String> updatedLocalAtUtc = const Value.absent(),
@@ -30175,6 +32510,7 @@ class $$TaskListsTableTableManager
                 serverMissing: serverMissing,
                 localDirty: localDirty,
                 pendingDelete: pendingDelete,
+                remindersEnabled: remindersEnabled,
                 lastSyncedAtUtc: lastSyncedAtUtc,
                 createdLocalAtUtc: createdLocalAtUtc,
                 updatedLocalAtUtc: updatedLocalAtUtc,
@@ -30199,6 +32535,7 @@ class $$TaskListsTableTableManager
                 Value<bool> serverMissing = const Value.absent(),
                 Value<bool> localDirty = const Value.absent(),
                 Value<bool> pendingDelete = const Value.absent(),
+                Value<bool> remindersEnabled = const Value.absent(),
                 Value<String?> lastSyncedAtUtc = const Value.absent(),
                 required String createdLocalAtUtc,
                 required String updatedLocalAtUtc,
@@ -30221,6 +32558,7 @@ class $$TaskListsTableTableManager
                 serverMissing: serverMissing,
                 localDirty: localDirty,
                 pendingDelete: pendingDelete,
+                remindersEnabled: remindersEnabled,
                 lastSyncedAtUtc: lastSyncedAtUtc,
                 createdLocalAtUtc: createdLocalAtUtc,
                 updatedLocalAtUtc: updatedLocalAtUtc,
@@ -34055,6 +36393,8 @@ typedef $$CalendarSourcesTableCreateCompanionBuilder =
       Value<String?> colorId,
       Value<String?> timeZone,
       Value<String?> accessRole,
+      Value<String?> dataOwner,
+      Value<bool?> isRemovable,
       Value<bool> isDeleted,
       Value<String?> rawJson,
       required int createdAtLocal,
@@ -34080,6 +36420,8 @@ typedef $$CalendarSourcesTableUpdateCompanionBuilder =
       Value<String?> colorId,
       Value<String?> timeZone,
       Value<String?> accessRole,
+      Value<String?> dataOwner,
+      Value<bool?> isRemovable,
       Value<bool> isDeleted,
       Value<String?> rawJson,
       Value<int> createdAtLocal,
@@ -34153,6 +36495,63 @@ final class $$CalendarSourcesTableReferences
         );
 
     final cache = $_typedResult.readTableOrNull(_calendarEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$IcalImportReceiptsTable, List<IcalImportReceipt>>
+  _icalImportReceiptsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.icalImportReceipts,
+        aliasName: $_aliasNameGenerator(
+          db.calendarSources.id,
+          db.icalImportReceipts.calendarSourceId,
+        ),
+      );
+
+  $$IcalImportReceiptsTableProcessedTableManager get icalImportReceiptsRefs {
+    final manager =
+        $$IcalImportReceiptsTableTableManager(
+          $_db,
+          $_db.icalImportReceipts,
+        ).filter(
+          (f) => f.calendarSourceId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _icalImportReceiptsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $WebCalSubscriptionsTable,
+    List<WebCalSubscription>
+  >
+  _webCalSubscriptionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.webCalSubscriptions,
+        aliasName: $_aliasNameGenerator(
+          db.calendarSources.id,
+          db.webCalSubscriptions.calendarSourceId,
+        ),
+      );
+
+  $$WebCalSubscriptionsTableProcessedTableManager get webCalSubscriptionsRefs {
+    final manager =
+        $$WebCalSubscriptionsTableTableManager(
+          $_db,
+          $_db.webCalSubscriptions,
+        ).filter(
+          (f) => f.calendarSourceId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _webCalSubscriptionsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -34264,6 +36663,16 @@ class $$CalendarSourcesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get dataOwner => $composableBuilder(
+    column: $table.dataOwner,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isRemovable => $composableBuilder(
+    column: $table.isRemovable,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get isDeleted => $composableBuilder(
     column: $table.isDeleted,
     builder: (column) => ColumnFilters(column),
@@ -34346,6 +36755,56 @@ class $$CalendarSourcesTableFilterComposer
           }) => $$CalendarEventsTableFilterComposer(
             $db: $db,
             $table: $db.calendarEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> icalImportReceiptsRefs(
+    Expression<bool> Function($$IcalImportReceiptsTableFilterComposer f) f,
+  ) {
+    final $$IcalImportReceiptsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.icalImportReceipts,
+      getReferencedColumn: (t) => t.calendarSourceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IcalImportReceiptsTableFilterComposer(
+            $db: $db,
+            $table: $db.icalImportReceipts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> webCalSubscriptionsRefs(
+    Expression<bool> Function($$WebCalSubscriptionsTableFilterComposer f) f,
+  ) {
+    final $$WebCalSubscriptionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.webCalSubscriptions,
+      getReferencedColumn: (t) => t.calendarSourceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$WebCalSubscriptionsTableFilterComposer(
+            $db: $db,
+            $table: $db.webCalSubscriptions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -34462,6 +36921,16 @@ class $$CalendarSourcesTableOrderingComposer
 
   ColumnOrderings<String> get accessRole => $composableBuilder(
     column: $table.accessRole,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dataOwner => $composableBuilder(
+    column: $table.dataOwner,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isRemovable => $composableBuilder(
+    column: $table.isRemovable,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -34600,6 +37069,14 @@ class $$CalendarSourcesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get dataOwner =>
+      $composableBuilder(column: $table.dataOwner, builder: (column) => column);
+
+  GeneratedColumn<bool> get isRemovable => $composableBuilder(
+    column: $table.isRemovable,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get isDeleted =>
       $composableBuilder(column: $table.isDeleted, builder: (column) => column);
 
@@ -34687,6 +37164,58 @@ class $$CalendarSourcesTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> icalImportReceiptsRefs<T extends Object>(
+    Expression<T> Function($$IcalImportReceiptsTableAnnotationComposer a) f,
+  ) {
+    final $$IcalImportReceiptsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.icalImportReceipts,
+          getReferencedColumn: (t) => t.calendarSourceId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$IcalImportReceiptsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.icalImportReceipts,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> webCalSubscriptionsRefs<T extends Object>(
+    Expression<T> Function($$WebCalSubscriptionsTableAnnotationComposer a) f,
+  ) {
+    final $$WebCalSubscriptionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.webCalSubscriptions,
+          getReferencedColumn: (t) => t.calendarSourceId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$WebCalSubscriptionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.webCalSubscriptions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> syncCursorsRefs<T extends Object>(
     Expression<T> Function($$SyncCursorsTableAnnotationComposer a) f,
   ) {
@@ -34730,6 +37259,8 @@ class $$CalendarSourcesTableTableManager
             bool accountId,
             bool davCollectionId,
             bool calendarEventsRefs,
+            bool icalImportReceiptsRefs,
+            bool webCalSubscriptionsRefs,
             bool syncCursorsRefs,
           })
         > {
@@ -34765,6 +37296,8 @@ class $$CalendarSourcesTableTableManager
                 Value<String?> colorId = const Value.absent(),
                 Value<String?> timeZone = const Value.absent(),
                 Value<String?> accessRole = const Value.absent(),
+                Value<String?> dataOwner = const Value.absent(),
+                Value<bool?> isRemovable = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<String?> rawJson = const Value.absent(),
                 Value<int> createdAtLocal = const Value.absent(),
@@ -34788,6 +37321,8 @@ class $$CalendarSourcesTableTableManager
                 colorId: colorId,
                 timeZone: timeZone,
                 accessRole: accessRole,
+                dataOwner: dataOwner,
+                isRemovable: isRemovable,
                 isDeleted: isDeleted,
                 rawJson: rawJson,
                 createdAtLocal: createdAtLocal,
@@ -34813,6 +37348,8 @@ class $$CalendarSourcesTableTableManager
                 Value<String?> colorId = const Value.absent(),
                 Value<String?> timeZone = const Value.absent(),
                 Value<String?> accessRole = const Value.absent(),
+                Value<String?> dataOwner = const Value.absent(),
+                Value<bool?> isRemovable = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<String?> rawJson = const Value.absent(),
                 required int createdAtLocal,
@@ -34836,6 +37373,8 @@ class $$CalendarSourcesTableTableManager
                 colorId: colorId,
                 timeZone: timeZone,
                 accessRole: accessRole,
+                dataOwner: dataOwner,
+                isRemovable: isRemovable,
                 isDeleted: isDeleted,
                 rawJson: rawJson,
                 createdAtLocal: createdAtLocal,
@@ -34855,12 +37394,16 @@ class $$CalendarSourcesTableTableManager
                 accountId = false,
                 davCollectionId = false,
                 calendarEventsRefs = false,
+                icalImportReceiptsRefs = false,
+                webCalSubscriptionsRefs = false,
                 syncCursorsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (calendarEventsRefs) db.calendarEvents,
+                    if (icalImportReceiptsRefs) db.icalImportReceipts,
+                    if (webCalSubscriptionsRefs) db.webCalSubscriptions,
                     if (syncCursorsRefs) db.syncCursors,
                   ],
                   addJoins:
@@ -34935,6 +37478,48 @@ class $$CalendarSourcesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (icalImportReceiptsRefs)
+                        await $_getPrefetchedData<
+                          CalendarSource,
+                          $CalendarSourcesTable,
+                          IcalImportReceipt
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CalendarSourcesTableReferences
+                              ._icalImportReceiptsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CalendarSourcesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).icalImportReceiptsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.calendarSourceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (webCalSubscriptionsRefs)
+                        await $_getPrefetchedData<
+                          CalendarSource,
+                          $CalendarSourcesTable,
+                          WebCalSubscription
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CalendarSourcesTableReferences
+                              ._webCalSubscriptionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CalendarSourcesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).webCalSubscriptionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.calendarSourceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (syncCursorsRefs)
                         await $_getPrefetchedData<
                           CalendarSource,
@@ -34980,6 +37565,8 @@ typedef $$CalendarSourcesTableProcessedTableManager =
         bool accountId,
         bool davCollectionId,
         bool calendarEventsRefs,
+        bool icalImportReceiptsRefs,
+        bool webCalSubscriptionsRefs,
         bool syncCursorsRefs,
       })
     >;
@@ -36832,6 +39419,1246 @@ typedef $$CalendarEventsTableProcessedTableManager =
         bool calendarEventAttendeesRefs,
         bool calendarEventRemindersRefs,
       })
+    >;
+typedef $$IcalImportReceiptsTableCreateCompanionBuilder =
+    IcalImportReceiptsCompanion Function({
+      required String calendarSourceId,
+      required String icalUid,
+      Value<String?> eventId,
+      required String importedAtUtc,
+      Value<int> rowid,
+    });
+typedef $$IcalImportReceiptsTableUpdateCompanionBuilder =
+    IcalImportReceiptsCompanion Function({
+      Value<String> calendarSourceId,
+      Value<String> icalUid,
+      Value<String?> eventId,
+      Value<String> importedAtUtc,
+      Value<int> rowid,
+    });
+
+final class $$IcalImportReceiptsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $IcalImportReceiptsTable,
+          IcalImportReceipt
+        > {
+  $$IcalImportReceiptsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CalendarSourcesTable _calendarSourceIdTable(_$AppDatabase db) =>
+      db.calendarSources.createAlias(
+        $_aliasNameGenerator(
+          db.icalImportReceipts.calendarSourceId,
+          db.calendarSources.id,
+        ),
+      );
+
+  $$CalendarSourcesTableProcessedTableManager get calendarSourceId {
+    final $_column = $_itemColumn<String>('calendar_source_id')!;
+
+    final manager = $$CalendarSourcesTableTableManager(
+      $_db,
+      $_db.calendarSources,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_calendarSourceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$IcalImportReceiptsTableFilterComposer
+    extends Composer<_$AppDatabase, $IcalImportReceiptsTable> {
+  $$IcalImportReceiptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get icalUid => $composableBuilder(
+    column: $table.icalUid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get eventId => $composableBuilder(
+    column: $table.eventId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get importedAtUtc => $composableBuilder(
+    column: $table.importedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CalendarSourcesTableFilterComposer get calendarSourceId {
+    final $$CalendarSourcesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.calendarSourceId,
+      referencedTable: $db.calendarSources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarSourcesTableFilterComposer(
+            $db: $db,
+            $table: $db.calendarSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IcalImportReceiptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $IcalImportReceiptsTable> {
+  $$IcalImportReceiptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get icalUid => $composableBuilder(
+    column: $table.icalUid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get eventId => $composableBuilder(
+    column: $table.eventId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get importedAtUtc => $composableBuilder(
+    column: $table.importedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CalendarSourcesTableOrderingComposer get calendarSourceId {
+    final $$CalendarSourcesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.calendarSourceId,
+      referencedTable: $db.calendarSources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarSourcesTableOrderingComposer(
+            $db: $db,
+            $table: $db.calendarSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IcalImportReceiptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $IcalImportReceiptsTable> {
+  $$IcalImportReceiptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get icalUid =>
+      $composableBuilder(column: $table.icalUid, builder: (column) => column);
+
+  GeneratedColumn<String> get eventId =>
+      $composableBuilder(column: $table.eventId, builder: (column) => column);
+
+  GeneratedColumn<String> get importedAtUtc => $composableBuilder(
+    column: $table.importedAtUtc,
+    builder: (column) => column,
+  );
+
+  $$CalendarSourcesTableAnnotationComposer get calendarSourceId {
+    final $$CalendarSourcesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.calendarSourceId,
+      referencedTable: $db.calendarSources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarSourcesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.calendarSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IcalImportReceiptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $IcalImportReceiptsTable,
+          IcalImportReceipt,
+          $$IcalImportReceiptsTableFilterComposer,
+          $$IcalImportReceiptsTableOrderingComposer,
+          $$IcalImportReceiptsTableAnnotationComposer,
+          $$IcalImportReceiptsTableCreateCompanionBuilder,
+          $$IcalImportReceiptsTableUpdateCompanionBuilder,
+          (IcalImportReceipt, $$IcalImportReceiptsTableReferences),
+          IcalImportReceipt,
+          PrefetchHooks Function({bool calendarSourceId})
+        > {
+  $$IcalImportReceiptsTableTableManager(
+    _$AppDatabase db,
+    $IcalImportReceiptsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$IcalImportReceiptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$IcalImportReceiptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$IcalImportReceiptsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> calendarSourceId = const Value.absent(),
+                Value<String> icalUid = const Value.absent(),
+                Value<String?> eventId = const Value.absent(),
+                Value<String> importedAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => IcalImportReceiptsCompanion(
+                calendarSourceId: calendarSourceId,
+                icalUid: icalUid,
+                eventId: eventId,
+                importedAtUtc: importedAtUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String calendarSourceId,
+                required String icalUid,
+                Value<String?> eventId = const Value.absent(),
+                required String importedAtUtc,
+                Value<int> rowid = const Value.absent(),
+              }) => IcalImportReceiptsCompanion.insert(
+                calendarSourceId: calendarSourceId,
+                icalUid: icalUid,
+                eventId: eventId,
+                importedAtUtc: importedAtUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$IcalImportReceiptsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({calendarSourceId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (calendarSourceId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.calendarSourceId,
+                                referencedTable:
+                                    $$IcalImportReceiptsTableReferences
+                                        ._calendarSourceIdTable(db),
+                                referencedColumn:
+                                    $$IcalImportReceiptsTableReferences
+                                        ._calendarSourceIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$IcalImportReceiptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $IcalImportReceiptsTable,
+      IcalImportReceipt,
+      $$IcalImportReceiptsTableFilterComposer,
+      $$IcalImportReceiptsTableOrderingComposer,
+      $$IcalImportReceiptsTableAnnotationComposer,
+      $$IcalImportReceiptsTableCreateCompanionBuilder,
+      $$IcalImportReceiptsTableUpdateCompanionBuilder,
+      (IcalImportReceipt, $$IcalImportReceiptsTableReferences),
+      IcalImportReceipt,
+      PrefetchHooks Function({bool calendarSourceId})
+    >;
+typedef $$WebCalSubscriptionsTableCreateCompanionBuilder =
+    WebCalSubscriptionsCompanion Function({
+      required String id,
+      required String accountId,
+      required String calendarSourceId,
+      required String feedFingerprint,
+      required String safeOrigin,
+      Value<String?> validatorTargetFingerprint,
+      Value<String?> etag,
+      Value<String?> lastModified,
+      Value<String?> contentType,
+      required String snapshotIcsBody,
+      required String rawBodyHash,
+      required String semanticHash,
+      required String refreshMode,
+      Value<int?> serverRefreshIntervalSeconds,
+      required String nextRefreshAtUtc,
+      Value<String?> lastCheckedAtUtc,
+      Value<String?> lastSuccessfulSyncAtUtc,
+      Value<String?> lastChangedAtUtc,
+      Value<int> consecutiveFailureCount,
+      Value<String?> lastFailureCode,
+      Value<int?> lastFailureHttpStatus,
+      Value<int> generation,
+      Value<int> parserVersion,
+      Value<int> projectionVersion,
+      Value<String?> projectionRangeStartUtc,
+      Value<String?> projectionRangeEndUtc,
+      required String createdAtUtc,
+      required String updatedAtUtc,
+      Value<int> rowid,
+    });
+typedef $$WebCalSubscriptionsTableUpdateCompanionBuilder =
+    WebCalSubscriptionsCompanion Function({
+      Value<String> id,
+      Value<String> accountId,
+      Value<String> calendarSourceId,
+      Value<String> feedFingerprint,
+      Value<String> safeOrigin,
+      Value<String?> validatorTargetFingerprint,
+      Value<String?> etag,
+      Value<String?> lastModified,
+      Value<String?> contentType,
+      Value<String> snapshotIcsBody,
+      Value<String> rawBodyHash,
+      Value<String> semanticHash,
+      Value<String> refreshMode,
+      Value<int?> serverRefreshIntervalSeconds,
+      Value<String> nextRefreshAtUtc,
+      Value<String?> lastCheckedAtUtc,
+      Value<String?> lastSuccessfulSyncAtUtc,
+      Value<String?> lastChangedAtUtc,
+      Value<int> consecutiveFailureCount,
+      Value<String?> lastFailureCode,
+      Value<int?> lastFailureHttpStatus,
+      Value<int> generation,
+      Value<int> parserVersion,
+      Value<int> projectionVersion,
+      Value<String?> projectionRangeStartUtc,
+      Value<String?> projectionRangeEndUtc,
+      Value<String> createdAtUtc,
+      Value<String> updatedAtUtc,
+      Value<int> rowid,
+    });
+
+final class $$WebCalSubscriptionsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $WebCalSubscriptionsTable,
+          WebCalSubscription
+        > {
+  $$WebCalSubscriptionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias(
+        $_aliasNameGenerator(db.webCalSubscriptions.accountId, db.accounts.id),
+      );
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $CalendarSourcesTable _calendarSourceIdTable(_$AppDatabase db) =>
+      db.calendarSources.createAlias(
+        $_aliasNameGenerator(
+          db.webCalSubscriptions.calendarSourceId,
+          db.calendarSources.id,
+        ),
+      );
+
+  $$CalendarSourcesTableProcessedTableManager get calendarSourceId {
+    final $_column = $_itemColumn<String>('calendar_source_id')!;
+
+    final manager = $$CalendarSourcesTableTableManager(
+      $_db,
+      $_db.calendarSources,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_calendarSourceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$WebCalSubscriptionsTableFilterComposer
+    extends Composer<_$AppDatabase, $WebCalSubscriptionsTable> {
+  $$WebCalSubscriptionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get feedFingerprint => $composableBuilder(
+    column: $table.feedFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get safeOrigin => $composableBuilder(
+    column: $table.safeOrigin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get validatorTargetFingerprint => $composableBuilder(
+    column: $table.validatorTargetFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastModified => $composableBuilder(
+    column: $table.lastModified,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snapshotIcsBody => $composableBuilder(
+    column: $table.snapshotIcsBody,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rawBodyHash => $composableBuilder(
+    column: $table.rawBodyHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get refreshMode => $composableBuilder(
+    column: $table.refreshMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverRefreshIntervalSeconds => $composableBuilder(
+    column: $table.serverRefreshIntervalSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nextRefreshAtUtc => $composableBuilder(
+    column: $table.nextRefreshAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastCheckedAtUtc => $composableBuilder(
+    column: $table.lastCheckedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastSuccessfulSyncAtUtc => $composableBuilder(
+    column: $table.lastSuccessfulSyncAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastChangedAtUtc => $composableBuilder(
+    column: $table.lastChangedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get consecutiveFailureCount => $composableBuilder(
+    column: $table.consecutiveFailureCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastFailureCode => $composableBuilder(
+    column: $table.lastFailureCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastFailureHttpStatus => $composableBuilder(
+    column: $table.lastFailureHttpStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get projectionRangeStartUtc => $composableBuilder(
+    column: $table.projectionRangeStartUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get projectionRangeEndUtc => $composableBuilder(
+    column: $table.projectionRangeEndUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CalendarSourcesTableFilterComposer get calendarSourceId {
+    final $$CalendarSourcesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.calendarSourceId,
+      referencedTable: $db.calendarSources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarSourcesTableFilterComposer(
+            $db: $db,
+            $table: $db.calendarSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$WebCalSubscriptionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $WebCalSubscriptionsTable> {
+  $$WebCalSubscriptionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get feedFingerprint => $composableBuilder(
+    column: $table.feedFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get safeOrigin => $composableBuilder(
+    column: $table.safeOrigin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get validatorTargetFingerprint => $composableBuilder(
+    column: $table.validatorTargetFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastModified => $composableBuilder(
+    column: $table.lastModified,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snapshotIcsBody => $composableBuilder(
+    column: $table.snapshotIcsBody,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rawBodyHash => $composableBuilder(
+    column: $table.rawBodyHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get refreshMode => $composableBuilder(
+    column: $table.refreshMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverRefreshIntervalSeconds => $composableBuilder(
+    column: $table.serverRefreshIntervalSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nextRefreshAtUtc => $composableBuilder(
+    column: $table.nextRefreshAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastCheckedAtUtc => $composableBuilder(
+    column: $table.lastCheckedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastSuccessfulSyncAtUtc => $composableBuilder(
+    column: $table.lastSuccessfulSyncAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastChangedAtUtc => $composableBuilder(
+    column: $table.lastChangedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get consecutiveFailureCount => $composableBuilder(
+    column: $table.consecutiveFailureCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastFailureCode => $composableBuilder(
+    column: $table.lastFailureCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastFailureHttpStatus => $composableBuilder(
+    column: $table.lastFailureHttpStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get projectionRangeStartUtc => $composableBuilder(
+    column: $table.projectionRangeStartUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get projectionRangeEndUtc => $composableBuilder(
+    column: $table.projectionRangeEndUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CalendarSourcesTableOrderingComposer get calendarSourceId {
+    final $$CalendarSourcesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.calendarSourceId,
+      referencedTable: $db.calendarSources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarSourcesTableOrderingComposer(
+            $db: $db,
+            $table: $db.calendarSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$WebCalSubscriptionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WebCalSubscriptionsTable> {
+  $$WebCalSubscriptionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get feedFingerprint => $composableBuilder(
+    column: $table.feedFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get safeOrigin => $composableBuilder(
+    column: $table.safeOrigin,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get validatorTargetFingerprint => $composableBuilder(
+    column: $table.validatorTargetFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get etag =>
+      $composableBuilder(column: $table.etag, builder: (column) => column);
+
+  GeneratedColumn<String> get lastModified => $composableBuilder(
+    column: $table.lastModified,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get snapshotIcsBody => $composableBuilder(
+    column: $table.snapshotIcsBody,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rawBodyHash => $composableBuilder(
+    column: $table.rawBodyHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get semanticHash => $composableBuilder(
+    column: $table.semanticHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get refreshMode => $composableBuilder(
+    column: $table.refreshMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get serverRefreshIntervalSeconds => $composableBuilder(
+    column: $table.serverRefreshIntervalSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get nextRefreshAtUtc => $composableBuilder(
+    column: $table.nextRefreshAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastCheckedAtUtc => $composableBuilder(
+    column: $table.lastCheckedAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastSuccessfulSyncAtUtc => $composableBuilder(
+    column: $table.lastSuccessfulSyncAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastChangedAtUtc => $composableBuilder(
+    column: $table.lastChangedAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get consecutiveFailureCount => $composableBuilder(
+    column: $table.consecutiveFailureCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastFailureCode => $composableBuilder(
+    column: $table.lastFailureCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastFailureHttpStatus => $composableBuilder(
+    column: $table.lastFailureHttpStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get parserVersion => $composableBuilder(
+    column: $table.parserVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get projectionVersion => $composableBuilder(
+    column: $table.projectionVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get projectionRangeStartUtc => $composableBuilder(
+    column: $table.projectionRangeStartUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get projectionRangeEndUtc => $composableBuilder(
+    column: $table.projectionRangeEndUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CalendarSourcesTableAnnotationComposer get calendarSourceId {
+    final $$CalendarSourcesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.calendarSourceId,
+      referencedTable: $db.calendarSources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CalendarSourcesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.calendarSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$WebCalSubscriptionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $WebCalSubscriptionsTable,
+          WebCalSubscription,
+          $$WebCalSubscriptionsTableFilterComposer,
+          $$WebCalSubscriptionsTableOrderingComposer,
+          $$WebCalSubscriptionsTableAnnotationComposer,
+          $$WebCalSubscriptionsTableCreateCompanionBuilder,
+          $$WebCalSubscriptionsTableUpdateCompanionBuilder,
+          (WebCalSubscription, $$WebCalSubscriptionsTableReferences),
+          WebCalSubscription,
+          PrefetchHooks Function({bool accountId, bool calendarSourceId})
+        > {
+  $$WebCalSubscriptionsTableTableManager(
+    _$AppDatabase db,
+    $WebCalSubscriptionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WebCalSubscriptionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WebCalSubscriptionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$WebCalSubscriptionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<String> calendarSourceId = const Value.absent(),
+                Value<String> feedFingerprint = const Value.absent(),
+                Value<String> safeOrigin = const Value.absent(),
+                Value<String?> validatorTargetFingerprint =
+                    const Value.absent(),
+                Value<String?> etag = const Value.absent(),
+                Value<String?> lastModified = const Value.absent(),
+                Value<String?> contentType = const Value.absent(),
+                Value<String> snapshotIcsBody = const Value.absent(),
+                Value<String> rawBodyHash = const Value.absent(),
+                Value<String> semanticHash = const Value.absent(),
+                Value<String> refreshMode = const Value.absent(),
+                Value<int?> serverRefreshIntervalSeconds = const Value.absent(),
+                Value<String> nextRefreshAtUtc = const Value.absent(),
+                Value<String?> lastCheckedAtUtc = const Value.absent(),
+                Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
+                Value<String?> lastChangedAtUtc = const Value.absent(),
+                Value<int> consecutiveFailureCount = const Value.absent(),
+                Value<String?> lastFailureCode = const Value.absent(),
+                Value<int?> lastFailureHttpStatus = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<int> parserVersion = const Value.absent(),
+                Value<int> projectionVersion = const Value.absent(),
+                Value<String?> projectionRangeStartUtc = const Value.absent(),
+                Value<String?> projectionRangeEndUtc = const Value.absent(),
+                Value<String> createdAtUtc = const Value.absent(),
+                Value<String> updatedAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => WebCalSubscriptionsCompanion(
+                id: id,
+                accountId: accountId,
+                calendarSourceId: calendarSourceId,
+                feedFingerprint: feedFingerprint,
+                safeOrigin: safeOrigin,
+                validatorTargetFingerprint: validatorTargetFingerprint,
+                etag: etag,
+                lastModified: lastModified,
+                contentType: contentType,
+                snapshotIcsBody: snapshotIcsBody,
+                rawBodyHash: rawBodyHash,
+                semanticHash: semanticHash,
+                refreshMode: refreshMode,
+                serverRefreshIntervalSeconds: serverRefreshIntervalSeconds,
+                nextRefreshAtUtc: nextRefreshAtUtc,
+                lastCheckedAtUtc: lastCheckedAtUtc,
+                lastSuccessfulSyncAtUtc: lastSuccessfulSyncAtUtc,
+                lastChangedAtUtc: lastChangedAtUtc,
+                consecutiveFailureCount: consecutiveFailureCount,
+                lastFailureCode: lastFailureCode,
+                lastFailureHttpStatus: lastFailureHttpStatus,
+                generation: generation,
+                parserVersion: parserVersion,
+                projectionVersion: projectionVersion,
+                projectionRangeStartUtc: projectionRangeStartUtc,
+                projectionRangeEndUtc: projectionRangeEndUtc,
+                createdAtUtc: createdAtUtc,
+                updatedAtUtc: updatedAtUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String accountId,
+                required String calendarSourceId,
+                required String feedFingerprint,
+                required String safeOrigin,
+                Value<String?> validatorTargetFingerprint =
+                    const Value.absent(),
+                Value<String?> etag = const Value.absent(),
+                Value<String?> lastModified = const Value.absent(),
+                Value<String?> contentType = const Value.absent(),
+                required String snapshotIcsBody,
+                required String rawBodyHash,
+                required String semanticHash,
+                required String refreshMode,
+                Value<int?> serverRefreshIntervalSeconds = const Value.absent(),
+                required String nextRefreshAtUtc,
+                Value<String?> lastCheckedAtUtc = const Value.absent(),
+                Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
+                Value<String?> lastChangedAtUtc = const Value.absent(),
+                Value<int> consecutiveFailureCount = const Value.absent(),
+                Value<String?> lastFailureCode = const Value.absent(),
+                Value<int?> lastFailureHttpStatus = const Value.absent(),
+                Value<int> generation = const Value.absent(),
+                Value<int> parserVersion = const Value.absent(),
+                Value<int> projectionVersion = const Value.absent(),
+                Value<String?> projectionRangeStartUtc = const Value.absent(),
+                Value<String?> projectionRangeEndUtc = const Value.absent(),
+                required String createdAtUtc,
+                required String updatedAtUtc,
+                Value<int> rowid = const Value.absent(),
+              }) => WebCalSubscriptionsCompanion.insert(
+                id: id,
+                accountId: accountId,
+                calendarSourceId: calendarSourceId,
+                feedFingerprint: feedFingerprint,
+                safeOrigin: safeOrigin,
+                validatorTargetFingerprint: validatorTargetFingerprint,
+                etag: etag,
+                lastModified: lastModified,
+                contentType: contentType,
+                snapshotIcsBody: snapshotIcsBody,
+                rawBodyHash: rawBodyHash,
+                semanticHash: semanticHash,
+                refreshMode: refreshMode,
+                serverRefreshIntervalSeconds: serverRefreshIntervalSeconds,
+                nextRefreshAtUtc: nextRefreshAtUtc,
+                lastCheckedAtUtc: lastCheckedAtUtc,
+                lastSuccessfulSyncAtUtc: lastSuccessfulSyncAtUtc,
+                lastChangedAtUtc: lastChangedAtUtc,
+                consecutiveFailureCount: consecutiveFailureCount,
+                lastFailureCode: lastFailureCode,
+                lastFailureHttpStatus: lastFailureHttpStatus,
+                generation: generation,
+                parserVersion: parserVersion,
+                projectionVersion: projectionVersion,
+                projectionRangeStartUtc: projectionRangeStartUtc,
+                projectionRangeEndUtc: projectionRangeEndUtc,
+                createdAtUtc: createdAtUtc,
+                updatedAtUtc: updatedAtUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$WebCalSubscriptionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({accountId = false, calendarSourceId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable:
+                                        $$WebCalSubscriptionsTableReferences
+                                            ._accountIdTable(db),
+                                    referencedColumn:
+                                        $$WebCalSubscriptionsTableReferences
+                                            ._accountIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (calendarSourceId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.calendarSourceId,
+                                    referencedTable:
+                                        $$WebCalSubscriptionsTableReferences
+                                            ._calendarSourceIdTable(db),
+                                    referencedColumn:
+                                        $$WebCalSubscriptionsTableReferences
+                                            ._calendarSourceIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$WebCalSubscriptionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $WebCalSubscriptionsTable,
+      WebCalSubscription,
+      $$WebCalSubscriptionsTableFilterComposer,
+      $$WebCalSubscriptionsTableOrderingComposer,
+      $$WebCalSubscriptionsTableAnnotationComposer,
+      $$WebCalSubscriptionsTableCreateCompanionBuilder,
+      $$WebCalSubscriptionsTableUpdateCompanionBuilder,
+      (WebCalSubscription, $$WebCalSubscriptionsTableReferences),
+      WebCalSubscription,
+      PrefetchHooks Function({bool accountId, bool calendarSourceId})
     >;
 typedef $$CalendarEventAttendeesTableCreateCompanionBuilder =
     CalendarEventAttendeesCompanion Function({
@@ -39575,6 +43402,10 @@ class $AppDatabaseManager {
       $$CalendarSourcesTableTableManager(_db, _db.calendarSources);
   $$CalendarEventsTableTableManager get calendarEvents =>
       $$CalendarEventsTableTableManager(_db, _db.calendarEvents);
+  $$IcalImportReceiptsTableTableManager get icalImportReceipts =>
+      $$IcalImportReceiptsTableTableManager(_db, _db.icalImportReceipts);
+  $$WebCalSubscriptionsTableTableManager get webCalSubscriptions =>
+      $$WebCalSubscriptionsTableTableManager(_db, _db.webCalSubscriptions);
   $$CalendarEventAttendeesTableTableManager get calendarEventAttendees =>
       $$CalendarEventAttendeesTableTableManager(
         _db,

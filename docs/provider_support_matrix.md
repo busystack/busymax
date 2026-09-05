@@ -11,6 +11,20 @@ access from a provider name.
 | Microsoft | Microsoft Calendar | Microsoft To Do | OAuth public client |
 | Apple iCloud | iCloud Calendar | Not supported; Apple Reminders is not supported | Apple app-specific password over HTTPS |
 | Nextcloud | `VEVENT` collections | `VTODO` collections | Login Flow v2 in the default browser |
+| WebCal | Read-only calendar subscriptions | Not supported | Subscription URL stored as a secret |
+
+## Collection creation
+
+| Capability | Google | Microsoft | Nextcloud | Apple iCloud | WebCal |
+|---|---|---|---|---|---|
+| Create calendar | Yes | Yes | Yes | No | No |
+| Create task list | Yes | Yes | Yes | No | No |
+
+Nextcloud event calendars are created remotely with CalDAV `MKCALENDAR` and
+an event-only (`VEVENT`) component set. Nextcloud task lists continue to use
+their existing `VTODO` collection implementation. This is Nextcloud-specific;
+BusyMax does not claim generic CalDAV collection creation. Apple collection
+creation remains unsupported, and WebCal subscriptions remain read-only.
 
 ## CalDAV synchronization
 
@@ -24,7 +38,8 @@ access from a provider name.
 | Recurrence rules and exceptions | Supported | Supported | Supported; see the editable subset below |
 | `VALARM` preservation | Supported | Supported | Supported |
 | Read-only and shared collections | Supported | Supported | Supported |
-| Collection create, rename, delete, or unshare | Not supported | Not supported | Supported online when permitted |
+| Collection creation | Not supported | Supported online through `MKCALENDAR` | Supported online when permitted |
+| Collection rename, delete, or unshare | Not supported | Not supported | Supported online when permitted |
 | Collection color or order editing | Not supported | Not supported | Not supported |
 | Cross-list task moves | Not applicable | Not applicable | Supported between writable Nextcloud task collections |
 | Clear completed tasks | Not applicable | Not applicable | Supported |

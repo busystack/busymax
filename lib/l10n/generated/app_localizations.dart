@@ -125,6 +125,7 @@ abstract class AppLocalizations {
     Locale('ja'),
     Locale('ko'),
     Locale('pt'),
+    Locale('pt', 'PT'),
     Locale('ru'),
     Locale('vi'),
     Locale('zh'),
@@ -132,13 +133,136 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @windowsSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Support'**
+  String get windowsSupport;
+
+  /// No description provided for @windowsThirdPartyLicenses.
+  ///
+  /// In en, this message translates to:
+  /// **'Third-party licenses'**
+  String get windowsThirdPartyLicenses;
+
+  /// No description provided for @windowsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get windowsSearch;
+
+  /// No description provided for @windowsStartupDisabledByUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by the user in Windows Settings.'**
+  String get windowsStartupDisabledByUser;
+
+  /// No description provided for @windowsStartupDisabledByPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by Windows policy.'**
+  String get windowsStartupDisabledByPolicy;
+
+  /// No description provided for @windowsStartupUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available after BusyMax is installed from an MSIX package.'**
+  String get windowsStartupUnavailable;
+
+  /// No description provided for @windowsReminderExitNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders stop when BusyMax is fully quit. Keep it running in the background to receive them.'**
+  String get windowsReminderExitNotice;
+
+  /// No description provided for @windowsProductVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Product version'**
+  String get windowsProductVersionLabel;
+
+  /// No description provided for @windowsPackageVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows package version'**
+  String get windowsPackageVersionLabel;
+
+  /// No description provided for @windowsUnpackaged.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpackaged'**
+  String get windowsUnpackaged;
+
+  /// No description provided for @windowsAgendaLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more agenda items'**
+  String get windowsAgendaLoadMore;
+
+  /// Sentence-form weekday used inside a weekly recurrence summary. {dayKey} is MO through SU; {day} is the locale-formatted fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} other{{day}}}'**
+  String repeatWeeklyDaySummary(String dayKey, String day);
+
+  /// Sentence fragment for a monthly recurrence on exactly two dates.
+  ///
+  /// In en, this message translates to:
+  /// **'on days {first} and {second}'**
+  String repeatOnTwoMonthDaysSummary(String first, String second);
+
+  /// Complete yearly recurrence summary for exactly two dates in one month.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {firstDay} and {secondDay} of {month}'**
+  String repeatYearlyOnTwoMonthDaysSummary(
+    String frequency,
+    String month,
+    String firstDay,
+    String secondDay,
+  );
+
+  /// Complete yearly recurrence summary for one date in exactly two months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on day {day} of {firstMonth} and {secondMonth}'**
+  String repeatYearlyInTwoMonthsOnMonthDaySummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String day,
+  );
+
+  /// Complete yearly recurrence summary for exactly two dates in exactly two months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {firstDay} and {secondDay} of {firstMonth} and {secondMonth}'**
+  String repeatYearlyInTwoMonthsOnTwoMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String firstDay,
+    String secondDay,
+  );
+
+  /// Complete yearly recurrence summary for three or more dates in exactly two months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {days} of {firstMonth} and {secondMonth}'**
+  String repeatYearlyInTwoMonthsOnMonthDaysSummary(
+    String frequency,
+    String firstMonth,
+    String secondMonth,
+    String days,
+  );
+
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
   /// **'BusyMax'**
   String get appTitle;
 
-  /// No description provided for @connectGoogleAccount.
+  /// Shown in account onboarding and settings; names the supported account providers.
   ///
   /// In en, this message translates to:
   /// **'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.'**
@@ -180,7 +304,7 @@ abstract class AppLocalizations {
   /// **'Connect accounts'**
   String get onboardingAccountsStepTitle;
 
-  /// No description provided for @onboardingAccountsStepDescription.
+  /// Onboarding explanation of the account data BusyMax synchronizes.
   ///
   /// In en, this message translates to:
   /// **'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.'**
@@ -330,6 +454,60 @@ abstract class AppLocalizations {
   /// **'Calendars'**
   String get calendars;
 
+  /// No description provided for @newCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'New calendar'**
+  String get newCalendar;
+
+  /// No description provided for @calendarColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar color'**
+  String get calendarColor;
+
+  /// No description provided for @calendarColorOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Color {number}'**
+  String calendarColorOption(int number);
+
+  /// No description provided for @calendarManagementUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This provider does not support calendar management in BusyMax.'**
+  String get calendarManagementUnsupported;
+
+  /// No description provided for @primaryCalendarCannotDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'The primary calendar cannot be deleted.'**
+  String get primaryCalendarCannotDelete;
+
+  /// No description provided for @calendarCreateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create the calendar: {error}'**
+  String calendarCreateFailed(String error);
+
+  /// No description provided for @calendarCreatedRefreshPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The calendar was created, but BusyMax could not refresh the account. It will appear after the next sync.'**
+  String get calendarCreatedRefreshPending;
+
+  /// No description provided for @calendarUpdateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update the calendar: {error}'**
+  String calendarUpdateFailed(String error);
+
+  /// No description provided for @calendarDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete the calendar: {error}'**
+  String calendarDeleteFailed(String error);
+
   /// No description provided for @newEvent.
   ///
   /// In en, this message translates to:
@@ -443,6 +621,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open BusyMax'**
   String get trayOpenBusyMax;
+
+  /// No description provided for @trayShowBusyMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Show BusyMax'**
+  String get trayShowBusyMax;
+
+  /// No description provided for @trayNewEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'New event…'**
+  String get trayNewEvent;
+
+  /// No description provided for @trayNewTask.
+  ///
+  /// In en, this message translates to:
+  /// **'New task…'**
+  String get trayNewTask;
+
+  /// No description provided for @trayToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get trayToday;
+
+  /// No description provided for @trayAllDay.
+  ///
+  /// In en, this message translates to:
+  /// **'All day'**
+  String get trayAllDay;
+
+  /// No description provided for @trayNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Now'**
+  String get trayNow;
+
+  /// No description provided for @trayCalendarEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar event'**
+  String get trayCalendarEvent;
+
+  /// No description provided for @trayUntitledEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Untitled event'**
+  String get trayUntitledEvent;
+
+  /// No description provided for @trayNothingElseToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing else today'**
+  String get trayNothingElseToday;
+
+  /// No description provided for @trayTasksDueToday.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 task due today} other{{count} tasks due today}}'**
+  String trayTasksDueToday(int count);
+
+  /// No description provided for @trayOpenTodayAgenda.
+  ///
+  /// In en, this message translates to:
+  /// **'Open today’s agenda'**
+  String get trayOpenTodayAgenda;
+
+  /// No description provided for @traySyncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get traySyncNow;
+
+  /// No description provided for @traySyncing.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing…'**
+  String get traySyncing;
+
+  /// No description provided for @trayNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected'**
+  String get trayNotConnected;
+
+  /// No description provided for @trayNotYetSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Not yet synced'**
+  String get trayNotYetSynced;
+
+  /// No description provided for @trayLastSyncedJustNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Last synced just now'**
+  String get trayLastSyncedJustNow;
+
+  /// No description provided for @trayLastSyncedMinutesAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Last synced 1 minute ago} other{Last synced {count} minutes ago}}'**
+  String trayLastSyncedMinutesAgo(int count);
+
+  /// No description provided for @trayLastSyncedHoursAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Last synced 1 hour ago} other{Last synced {count} hours ago}}'**
+  String trayLastSyncedHoursAgo(int count);
+
+  /// No description provided for @trayLastSyncedDaysAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Last synced 1 day ago} other{Last synced {count} days ago}}'**
+  String trayLastSyncedDaysAgo(int count);
+
+  /// No description provided for @traySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get traySettings;
+
+  /// No description provided for @trayQuitBusyMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit BusyMax'**
+  String get trayQuitBusyMax;
 
   /// No description provided for @agendaLoadMoreOverdue.
   ///
@@ -1287,7 +1591,7 @@ abstract class AppLocalizations {
   /// No description provided for @feedbackTechnicalDetailsDisclosure.
   ///
   /// In en, this message translates to:
-  /// **'Adds only your Linux operating-system version and application locale. No logs, account data, file names, or other diagnostics are included.'**
+  /// **'Adds only your operating-system name and version and application locale. No logs, account data, file names, or other diagnostics are included.'**
   String get feedbackTechnicalDetailsDisclosure;
 
   /// No description provided for @feedbackCategoryRequired.
@@ -1833,7 +2137,7 @@ abstract class AppLocalizations {
   /// No description provided for @taskStatusInProcess.
   ///
   /// In en, this message translates to:
-  /// **'In process'**
+  /// **'In progress'**
   String get taskStatusInProcess;
 
   /// No description provided for @taskStatusCompleted.
@@ -2028,7 +2332,7 @@ abstract class AppLocalizations {
   /// **'Before the task starts'**
   String get beforeTaskStarts;
 
-  /// No description provided for @beforeTaskDue.
+  /// Reminder timing relative to the task's due time/deadline, not task completion.
   ///
   /// In en, this message translates to:
   /// **'Before the task is due'**
@@ -2220,13 +2524,13 @@ abstract class AppLocalizations {
   /// **'Yearly'**
   String get repeatYearly;
 
-  /// No description provided for @repeatEvery.
+  /// Standalone label for the numeric interval used by daily, weekly, monthly, and yearly recurrence.
   ///
   /// In en, this message translates to:
-  /// **'Repeat every'**
+  /// **'Interval'**
   String get repeatEvery;
 
-  /// No description provided for @repeatOn.
+  /// Recurrence editor label introducing the selected weekdays, month days, or ordinal weekday.
   ///
   /// In en, this message translates to:
   /// **'Repeat on'**
@@ -2346,6 +2650,12 @@ abstract class AppLocalizations {
   /// **'Weekend day'**
   String get repeatWeekendDay;
 
+  /// Sentence-form day label used inside ordinal recurrence summaries. {dayKey} is MO through SU, day, weekday, or weekend; {day} is the locale-formatted weekday fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} day{day} weekday{weekday} weekend{weekend day} other{{day}}}'**
+  String repeatOrdinalDaySummary(String dayKey, String day);
+
   /// No description provided for @repeatEveryDays.
   ///
   /// In en, this message translates to:
@@ -2370,37 +2680,37 @@ abstract class AppLocalizations {
   /// **'Every {count} years'**
   String repeatEveryYears(int count);
 
-  /// No description provided for @repeatOnDaysSummary.
+  /// Sentence fragment appended to a recurrence summary; {days} is a localized list of weekdays.
   ///
   /// In en, this message translates to:
   /// **'on {days}'**
   String repeatOnDaysSummary(String days);
 
-  /// No description provided for @repeatOnMonthDaysSummary.
+  /// Sentence fragment appended to a recurrence summary; {days} is a localized list of day-of-month numbers.
   ///
   /// In en, this message translates to:
   /// **'on day {days}'**
   String repeatOnMonthDaysSummary(String days);
 
-  /// No description provided for @repeatOnOrdinalSummary.
+  /// Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.
   ///
   /// In en, this message translates to:
-  /// **'on the {ordinal} {days}'**
-  String repeatOnOrdinalSummary(String ordinal, String days);
+  /// **'{position, select, first{on the first {days}} second{on the second {days}} third{on the third {days}} fourth{on the fourth {days}} fifth{on the fifth {days}} secondToLast{on the second to last {days}} last{on the last {days}} other{on {days}}}'**
+  String repeatOnOrdinalSummary(String position, String days);
 
-  /// No description provided for @repeatInMonthsSummary.
+  /// Sentence fragment for selected recurrence months; {months} is a localized list of month names.
   ///
   /// In en, this message translates to:
   /// **'in {months}'**
   String repeatInMonthsSummary(String months);
 
-  /// No description provided for @repeatTimesSummary.
+  /// Sentence fragment summarizing a finite recurrence count.
   ///
   /// In en, this message translates to:
-  /// **'{count} times'**
+  /// **'{count, plural, one{{count} time} other{{count} times}}'**
   String repeatTimesSummary(int count);
 
-  /// No description provided for @repeatUntilSummary.
+  /// Sentence fragment for the recurrence end date.
   ///
   /// In en, this message translates to:
   /// **'until {date}'**
@@ -2411,6 +2721,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This recurrence rule uses options that this editor does not change.'**
   String get unsupportedRecurrencePreserved;
+
+  /// No description provided for @recurrenceUnsupportedByProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'This recurrence cannot be used with {provider}.'**
+  String recurrenceUnsupportedByProvider(String provider);
 
   /// No description provided for @importance.
   ///
@@ -2592,7 +2908,7 @@ abstract class AppLocalizations {
   /// **'Updated'**
   String get updated;
 
-  /// No description provided for @parent.
+  /// Metadata label for the immediate parent task of a subtask.
   ///
   /// In en, this message translates to:
   /// **'Parent'**
@@ -2646,11 +2962,17 @@ abstract class AppLocalizations {
   /// **'Sync'**
   String get sync;
 
-  /// No description provided for @manualFullSync.
+  /// Troubleshooting action that forces a complete resynchronization of every connected account.
   ///
   /// In en, this message translates to:
-  /// **'Manual full sync'**
-  String get manualFullSync;
+  /// **'Force full resync'**
+  String get forceFullResync;
+
+  /// Explanation shown above the force-full-resync troubleshooting action in Diagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Completely reload data from every connected account. Use this only to troubleshoot synchronization problems.'**
+  String get forceFullResyncDescription;
 
   /// No description provided for @runInBackgroundWhenClosed.
   ///
@@ -2730,6 +3052,12 @@ abstract class AppLocalizations {
   /// **'Event reminders'**
   String get eventReminders;
 
+  /// No description provided for @onState.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get onState;
+
   /// No description provided for @taskReminders.
   ///
   /// In en, this message translates to:
@@ -2784,6 +3112,24 @@ abstract class AppLocalizations {
   /// **'Notifications'**
   String get notifications;
 
+  /// No description provided for @windowsNotificationsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows notifications are unavailable'**
+  String get windowsNotificationsUnavailable;
+
+  /// No description provided for @windowsNotificationsUnpackaged.
+  ///
+  /// In en, this message translates to:
+  /// **'This unpackaged development run cannot use Windows notifications. Install the test-signed MSIX to test reminders.'**
+  String get windowsNotificationsUnpackaged;
+
+  /// No description provided for @windowsNotificationsInstalledFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax could not initialize Windows notifications. Reminders will not appear until this installation problem is resolved.'**
+  String get windowsNotificationsInstalledFailure;
+
   /// No description provided for @appearance.
   ///
   /// In en, this message translates to:
@@ -2801,6 +3147,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'System'**
   String get themeSystem;
+
+  /// Standalone noun used for the System section in the Settings sidebar and page heading.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get settingsSystem;
 
   /// No description provided for @themeLight.
   ///
@@ -3066,7 +3418,7 @@ abstract class AppLocalizations {
   /// **'Snooze 10 minutes'**
   String get notificationSnoozeAction;
 
-  /// No description provided for @notificationDismissAction.
+  /// Non-destructive action that closes or dismisses a desktop notification. Translate distinctly from reject, discard, or cancel.
   ///
   /// In en, this message translates to:
   /// **'Dismiss'**
@@ -3513,19 +3865,55 @@ abstract class AppLocalizations {
   /// No description provided for @singleOccurrence.
   ///
   /// In en, this message translates to:
-  /// **'This occurrence'**
+  /// **'This event'**
   String get singleOccurrence;
+
+  /// No description provided for @thisAndFollowingEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'This and following events'**
+  String get thisAndFollowingEvents;
 
   /// No description provided for @thisAndFutureUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'This and future (not available)'**
+  /// **'Not supported by this provider.'**
   String get thisAndFutureUnavailable;
 
-  /// No description provided for @chooseRecurringEventScope.
+  /// No description provided for @thisAndFutureMoveUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'Choose whether this change applies to the entire series or only this occurrence.'**
+  /// **'This and following events cannot be moved safely. Choose this event or the entire series.'**
+  String get thisAndFutureMoveUnavailable;
+
+  /// No description provided for @entireSeriesMoveUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The recurrence rule is not available locally. Move this event instead.'**
+  String get entireSeriesMoveUnavailable;
+
+  /// No description provided for @copyEventAndDeleteOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy event and delete original?'**
+  String get copyEventAndDeleteOriginal;
+
+  /// No description provided for @copyEventMoveWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax cannot move this event directly from {source} to {destination}. It will create the copy first and delete the original only after the copy succeeds. Event IDs will change; attendee response statuses may reset and invitations or cancellations may be sent; conference links, attachments, reminders, provider-specific fields, and recurrence exceptions may not carry over.'**
+  String copyEventMoveWarning(String source, String destination);
+
+  /// No description provided for @copyAndDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy and delete'**
+  String get copyAndDelete;
+
+  /// Explains the three recurring-event scope choices: entire series, one occurrence, or this and following events.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose whether this change applies to the entire series, only this occurrence, or this and following events.'**
   String get chooseRecurringEventScope;
 
   /// No description provided for @taskDueBeforeStart.
@@ -3546,6 +3934,318 @@ abstract class AppLocalizations {
   /// **'Delete \"{title}\"?'**
   String deleteCalendarConfirmation(String title);
 
+  /// No description provided for @setCustomCalendarName.
+  ///
+  /// In en, this message translates to:
+  /// **'Set custom name'**
+  String get setCustomCalendarName;
+
+  /// No description provided for @setAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Set'**
+  String get setAction;
+
+  /// No description provided for @removeFromMyCalendars.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from my calendars'**
+  String get removeFromMyCalendars;
+
+  /// No description provided for @removeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get removeAction;
+
+  /// No description provided for @removeCalendarConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove \"{title}\" from your Google Calendar list? The shared calendar and its events will not be deleted.'**
+  String removeCalendarConfirmation(String title);
+
+  /// No description provided for @calendarCannotRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'This calendar cannot be deleted or removed from this account.'**
+  String get calendarCannotRemove;
+
+  /// No description provided for @calendarPendingChangesPreventRemoval.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for this calendar’s pending changes to finish syncing before deleting or removing it.'**
+  String get calendarPendingChangesPreventRemoval;
+
+  /// No description provided for @calendarSubscriptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar subscriptions'**
+  String get calendarSubscriptions;
+
+  /// No description provided for @calendarSubscriptionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Add read-only calendars that refresh from a secure WebCal URL.'**
+  String get calendarSubscriptionsDescription;
+
+  /// No description provided for @addCalendarSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Add calendar subscription'**
+  String get addCalendarSubscription;
+
+  /// No description provided for @subscriptionName.
+  ///
+  /// In en, this message translates to:
+  /// **'Local name'**
+  String get subscriptionName;
+
+  /// No description provided for @subscriptionUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription URL'**
+  String get subscriptionUrl;
+
+  /// No description provided for @subscriptionUrlHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an HTTPS or webcal URL. BusyMax keeps the complete URL in secure storage.'**
+  String get subscriptionUrlHelp;
+
+  /// No description provided for @subscriptionUrlInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid HTTPS or webcal URL without user information or a fragment.'**
+  String get subscriptionUrlInvalid;
+
+  /// No description provided for @subscriptionColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Local color'**
+  String get subscriptionColor;
+
+  /// No description provided for @subscriptionColorHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a six-digit color such as #3584E4.'**
+  String get subscriptionColorHelp;
+
+  /// No description provided for @subscriptionColorInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a six-digit hexadecimal color.'**
+  String get subscriptionColorInvalid;
+
+  /// No description provided for @subscriptionRefreshMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh frequency'**
+  String get subscriptionRefreshMode;
+
+  /// No description provided for @subscriptionAutomatic.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get subscriptionAutomatic;
+
+  /// No description provided for @subscriptionHourly.
+  ///
+  /// In en, this message translates to:
+  /// **'Hourly'**
+  String get subscriptionHourly;
+
+  /// No description provided for @subscriptionSixHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Every six hours'**
+  String get subscriptionSixHours;
+
+  /// No description provided for @subscriptionDaily.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily'**
+  String get subscriptionDaily;
+
+  /// No description provided for @subscriptionSafeOrigin.
+  ///
+  /// In en, this message translates to:
+  /// **'Source: {origin}'**
+  String subscriptionSafeOrigin(String origin);
+
+  /// No description provided for @subscriptionSafeOriginUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid URL to preview its safe origin.'**
+  String get subscriptionSafeOriginUnavailable;
+
+  /// No description provided for @subscriptionReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only subscription'**
+  String get subscriptionReadOnly;
+
+  /// No description provided for @subscriptionNeverRefreshed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not refreshed yet'**
+  String get subscriptionNeverRefreshed;
+
+  /// No description provided for @subscriptionLastRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Last successful refresh: {time}'**
+  String subscriptionLastRefresh(String time);
+
+  /// No description provided for @subscriptionNextRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Next refresh: {time}'**
+  String subscriptionNextRefresh(String time);
+
+  /// No description provided for @subscriptionStatusHealthy.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to date'**
+  String get subscriptionStatusHealthy;
+
+  /// No description provided for @subscriptionStatusIssue.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh issue: {code}'**
+  String subscriptionStatusIssue(String code);
+
+  /// No description provided for @refreshNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh now'**
+  String get refreshNow;
+
+  /// No description provided for @unsubscribe.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsubscribe'**
+  String get unsubscribe;
+
+  /// No description provided for @unsubscribeCalendarTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsubscribe from “{name}”?'**
+  String unsubscribeCalendarTitle(String name);
+
+  /// No description provided for @unsubscribeCalendarConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the local subscription and its cached events. The published calendar is not changed.'**
+  String get unsubscribeCalendarConfirmation;
+
+  /// No description provided for @addSubscriptionAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Add subscription'**
+  String get addSubscriptionAction;
+
+  /// No description provided for @subscriptionOperationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar subscription failed: {error}'**
+  String subscriptionOperationFailed(String error);
+
+  /// No description provided for @subscriptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscriptions'**
+  String get subscriptions;
+
+  /// No description provided for @calendarImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar import'**
+  String get calendarImport;
+
+  /// No description provided for @calendarImportDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a file, review its events, then choose the writable calendar that should receive them.'**
+  String get calendarImportDescription;
+
+  /// No description provided for @importIcsFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Import .ics file'**
+  String get importIcsFile;
+
+  /// No description provided for @importIcsPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Import calendar events'**
+  String get importIcsPreview;
+
+  /// No description provided for @importEventsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Importable event sets: {count}'**
+  String importEventsFound(int count);
+
+  /// No description provided for @importInvalidEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid events: {count}'**
+  String importInvalidEvents(int count);
+
+  /// No description provided for @importFieldsOmitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Intentionally omitted: {fields}'**
+  String importFieldsOmitted(String fields);
+
+  /// No description provided for @noWritableCalendars.
+  ///
+  /// In en, this message translates to:
+  /// **'No writable destination calendar is available.'**
+  String get noWritableCalendars;
+
+  /// No description provided for @importDestinationCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Destination calendar'**
+  String get importDestinationCalendar;
+
+  /// No description provided for @importIcsConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Import events'**
+  String get importIcsConfirm;
+
+  /// No description provided for @importIcsComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Import complete'**
+  String get importIcsComplete;
+
+  /// No description provided for @importQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported or queued: {count}'**
+  String importQueued(int count);
+
+  /// No description provided for @importDuplicatesSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicates skipped: {count}'**
+  String importDuplicatesSkipped(int count);
+
+  /// No description provided for @importUnsupportedSets.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported recurrence sets: {count}'**
+  String importUnsupportedSets(int count);
+
+  /// No description provided for @importIcsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not import the calendar file: {error}'**
+  String importIcsFailed(String error);
+
   /// No description provided for @networkOffline.
   ///
   /// In en, this message translates to:
@@ -3563,6 +4263,140 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You’re offline. Connect to the internet and try again.'**
   String get networkOfflineTryAgain;
+
+  /// Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.
+  ///
+  /// In en, this message translates to:
+  /// **'on days {days}'**
+  String repeatOnMonthDaysSummaryMultiple(String days);
+
+  /// Separator inserted between the base recurrence frequency and a following day or ordinal phrase.
+  ///
+  /// In en, this message translates to:
+  /// **' '**
+  String get repeatSummarySeparator;
+
+  /// Localized day-of-month value used when composing a list of recurrence days.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}'**
+  String repeatMonthDayValue(String day);
+
+  /// Joins the final two weekday names in a recurrence summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{first} and {second}'**
+  String repeatWeekdayListPair(String first, String second);
+
+  /// Prepends a weekday name to an already localized recurrence weekday list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}, {rest}'**
+  String repeatWeekdayListStart(String first, String rest);
+
+  /// Joins the final two day-of-month values in a monthly recurrence summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{first} and {second}'**
+  String repeatMonthDayListPair(String first, String second);
+
+  /// Prepends a day-of-month value to an already localized monthly recurrence day list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}, {rest}'**
+  String repeatMonthDayListStart(String first, String rest);
+
+  /// Month value used in yearly recurrence sentences. Locales may select an inflected form with {monthKey}; {month} is the CLDR abbreviated month fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'{monthKey, select, other{{month}}}'**
+  String repeatYearlyMonthValue(String month, String monthKey);
+
+  /// Joins the final two localized day-of-month values in a yearly recurrence summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{first} and {second}'**
+  String repeatYearlyMonthDayListPair(String first, String second);
+
+  /// Prepends a localized day-of-month value to an already localized yearly recurrence day list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}, {rest}'**
+  String repeatYearlyMonthDayListStart(String first, String rest);
+
+  /// Joins the final two localized month names in a yearly recurrence summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{first} and {second}'**
+  String repeatYearlyMonthListPair(String first, String second);
+
+  /// Prepends a localized month name to an already localized yearly recurrence month list.
+  ///
+  /// In en, this message translates to:
+  /// **'{first}, {rest}'**
+  String repeatYearlyMonthListStart(String first, String rest);
+
+  /// Complete yearly recurrence summary for one day in one month.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on {month} {day}'**
+  String repeatYearlyOnMonthDaySummary(
+    String frequency,
+    String month,
+    String day,
+  );
+
+  /// Complete yearly recurrence summary for multiple days in one month.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {days} of {month}'**
+  String repeatYearlyOnMonthDaysSummary(
+    String frequency,
+    String month,
+    String days,
+  );
+
+  /// Complete yearly recurrence summary for one day in multiple months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on day {day} of {months}'**
+  String repeatYearlyInMonthsOnMonthDaySummary(
+    String frequency,
+    String months,
+    String day,
+  );
+
+  /// Complete yearly recurrence summary for multiple days in multiple months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} on days {days} of {months}'**
+  String repeatYearlyInMonthsOnMonthDaysSummary(
+    String frequency,
+    String months,
+    String days,
+  );
+
+  /// Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} {position, select, first{on the first {days} of {month}} second{on the second {days} of {month}} third{on the third {days} of {month}} fourth{on the fourth {days} of {month}} fifth{on the fifth {days} of {month}} secondToLast{on the second to last {days} of {month}} last{on the last {days} of {month}} other{on {days} of {month}}}'**
+  String repeatYearlyOnOrdinalSummary(
+    String frequency,
+    String month,
+    String position,
+    String days,
+  );
+
+  /// Complete yearly ordinal-weekday recurrence summary for multiple months.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} {position, select, first{on the first {days} of {months}} second{on the second {days} of {months}} third{on the third {days} of {months}} fourth{on the fourth {days} of {months}} fifth{on the fifth {days} of {months}} secondToLast{on the second to last {days} of {months}} last{on the last {days} of {months}} other{on {days} of {months}}}'**
+  String repeatYearlyInMonthsOnOrdinalSummary(
+    String frequency,
+    String months,
+    String position,
+    String days,
+  );
 }
 
 class _AppLocalizationsDelegate
@@ -3608,6 +4442,18 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
             return AppLocalizationsZhHans();
           case 'Hant':
             return AppLocalizationsZhHant();
+        }
+        break;
+      }
+  }
+
+  // Lookup logic when language+country codes are specified.
+  switch (locale.languageCode) {
+    case 'pt':
+      {
+        switch (locale.countryCode) {
+          case 'PT':
+            return AppLocalizationsPtPt();
         }
         break;
       }

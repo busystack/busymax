@@ -71,13 +71,19 @@ void main() {
     expect(tasks.single.serverMissing, isTrue);
   });
 
-  test('incremental sync uses updatedMin with two minute overlap', () async {
+  test('incremental sync checkpoints from the successful run start', () async {
     await (database.update(
       database.accounts,
     )..where((row) => row.id.equals('account'))).write(
       const AccountsCompanion(
-        lastSuccessfulSyncAtUtc: Value('2026-06-04T00:10:00.000Z'),
+        lastSuccessfulSyncAtUtc: Value('2026-06-04T00:15:00.000Z'),
       ),
+    );
+    await _insertSuccessfulRun(
+      database,
+      id: 'previous-run',
+      startedAtUtc: '2026-06-04T00:10:00.000Z',
+      finishedAtUtc: '2026-06-04T00:15:00.000Z',
     );
     apiClient.taskListsPages = [
       TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
@@ -90,11 +96,72 @@ void main() {
       database: database,
       apiClient: apiClient,
       accountId: 'account',
-      nowUtc: () => DateTime.utc(2026, 6, 4),
+      nowUtc: () => DateTime.utc(2026, 6, 4, 0, 20),
     ).incrementalSync();
 
     expect(apiClient.lastUpdatedMin, DateTime.utc(2026, 6, 4, 0, 8));
+    final account = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals('account'))).getSingle();
+    expect(account.lastSuccessfulSyncAtUtc, '2026-06-04T00:20:00.000Z');
   });
+
+  test(
+    'Google incremental sync reconciles lists but not omitted tasks',
+    () async {
+      await (database.update(
+        database.accounts,
+      )..where((row) => row.id.equals('account'))).write(
+        const AccountsCompanion(
+          lastSuccessfulSyncAtUtc: Value('2026-06-04T00:15:00.000Z'),
+        ),
+      );
+      await _insertSuccessfulRun(
+        database,
+        id: 'previous-run',
+        startedAtUtc: '2026-06-04T00:10:00.000Z',
+        finishedAtUtc: '2026-06-04T00:15:00.000Z',
+      );
+      await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList('deleted-list'),
+      );
+      await database.tasksDao.upsertTask(_localTask('unchanged-task'));
+      await database.tasksDao.upsertTask(
+        _localTask('cached-task', taskListId: 'deleted-list'),
+      );
+      apiClient.taskListsPages = [
+        TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+      ];
+      apiClient.taskPages['list-1'] = [
+        const TasksPageDto(items: [], rawJson: {}),
+      ];
+
+      await SyncEngine(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).incrementalSync();
+
+      final lists = await database.taskListsDao.listTaskLists('account');
+      final activeTasks = await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      );
+      final deletedListTasks = await database.tasksDao.listTasks(
+        'account',
+        'deleted-list',
+      );
+      expect(
+        lists.singleWhere((list) => list.id == 'deleted-list').serverMissing,
+        isTrue,
+      );
+      expect(activeTasks.single.serverMissing, isFalse);
+      expect(deletedListTasks.single.serverMissing, isTrue);
+      expect(apiClient.lastUpdatedMin, DateTime.utc(2026, 6, 4, 0, 8));
+    },
+  );
 
   test('full-refresh-only incremental sync does not send updatedMin', () async {
     await (database.update(
@@ -604,6 +671,24 @@ class FakeTaskRemoteClient
   ) => throw UnimplementedError();
 }
 
+Future<void> _insertSuccessfulRun(
+  AppDatabase database, {
+  required String id,
+  required String startedAtUtc,
+  required String finishedAtUtc,
+}) {
+  return database.syncRunsDao.insertRun(
+    SyncRunsCompanion.insert(
+      id: id,
+      accountId: 'account',
+      mode: 'incremental',
+      startedAtUtc: startedAtUtc,
+      finishedAtUtc: Value(finishedAtUtc),
+      status: 'success',
+    ),
+  );
+}
+
 Future<void> _insertAccount(AppDatabase database) {
   return database
       .into(database.accounts)
@@ -648,10 +733,11 @@ TasksCompanion _localTask(
   String id, {
   String title = 'Local task',
   bool localDirty = false,
+  String taskListId = 'list-1',
 }) {
   return TasksCompanion.insert(
     accountId: 'account',
-    taskListId: 'list-1',
+    taskListId: taskListId,
     id: id,
     title: title,
     rawJson: '{}',

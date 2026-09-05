@@ -11,10 +11,12 @@ void main() {
       'canEdit': true,
       'hexColor': '#123456',
       'color': 'lightBlue',
+      'isRemovable': false,
     });
 
     expect(source.backgroundColor, '#123456');
     expect(source.colorId, 'lightBlue');
+    expect(source.isRemovable, isFalse);
   });
 
   test(
@@ -145,5 +147,13 @@ void main() {
 
     expect(body['isOnlineMeeting'], isTrue);
     expect(body['onlineMeetingProvider'], 'teamsForBusiness');
+  });
+
+  test('Microsoft event create serializes the transaction ID', () {
+    final body = microsoftEventMutationToJson(
+      const CalendarEventMutation(transactionId: 'transaction-1'),
+    );
+
+    expect(body['transactionId'], 'transaction-1');
   });
 }

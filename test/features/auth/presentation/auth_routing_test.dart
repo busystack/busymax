@@ -23,6 +23,7 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -657,7 +658,7 @@ Future<void> _disposeApp(WidgetTester tester) async {
 Future<void> _openSettings(WidgetTester tester) async {
   final schedule = find.byType(ScheduleWorkspace);
   expect(schedule, findsOneWidget);
-  GoRouter.of(tester.element(schedule)).go('/settings');
+  GoRouter.of(tester.element(schedule)).go('/settings?page=accounts');
   await tester.pumpAndSettle();
   expect(find.byType(SettingsScreen), findsOneWidget);
 }
@@ -716,7 +717,6 @@ Future<void> _pumpApp(
         signedInSyncRunnerProvider.overrideWithValue(
           onSignedIn ?? (accountId, initial) async {},
         ),
-        syncEngineProvider.overrideWithValue(null),
         linuxHeaderBarServiceProvider.overrideWith((ref) {
           final service = LinuxHeaderBarService(isLinux: false);
           ref.onDispose(service.dispose);

@@ -13,6 +13,114 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('calendar RGB color updates the Google CalendarList entry', () async {
+    late http.Request captured;
+    final client = _client((request) {
+      captured = request;
+      return _json({
+        'id': 'calendar@example.com',
+        'summary': 'Work',
+        'backgroundColor': '#3584e4',
+        'foregroundColor': '#ffffff',
+        'accessRole': 'owner',
+      });
+    });
+
+    final source = await client.updateCalendar(
+      'calendar@example.com',
+      const CalendarMutation(
+        backgroundColor: '#3584e4',
+        foregroundColor: '#ffffff',
+      ),
+    );
+
+    expect(captured.method, 'PATCH');
+    expect(
+      captured.url.path,
+      '/calendar/v3/users/me/calendarList/calendar%40example.com',
+    );
+    expect(captured.url.queryParameters, {'colorRgbFormat': 'true'});
+    expect(jsonDecode(captured.body), {
+      'backgroundColor': '#3584e4',
+      'foregroundColor': '#ffffff',
+    });
+    expect(source.backgroundColor, '#3584e4');
+  });
+
+  test('calendar rename updates the calendar resource', () async {
+    final requests = <http.Request>[];
+    final client = _client((request) {
+      requests.add(request);
+      return _json({
+        'id': 'calendar@example.com',
+        'summary': 'Renamed',
+        'dataOwner': 'owner@example.com',
+        'accessRole': 'owner',
+      });
+    });
+
+    await client.updateCalendar(
+      'calendar@example.com',
+      const CalendarMutation(summary: 'Renamed'),
+    );
+
+    expect(requests, hasLength(2));
+    expect(requests[0].method, 'PATCH');
+    expect(
+      requests[0].url.path,
+      '/calendar/v3/calendars/calendar%40example.com',
+    );
+    expect(requests[0].url.queryParameters, isEmpty);
+    expect(jsonDecode(requests[0].body), {'summary': 'Renamed'});
+    expect(requests[1].method, 'GET');
+    expect(
+      requests[1].url.path,
+      '/calendar/v3/users/me/calendarList/calendar%40example.com',
+    );
+  });
+
+  test('personal calendar name updates summaryOverride', () async {
+    late http.Request captured;
+    final client = _client((request) {
+      captured = request;
+      return _json({
+        'id': 'shared@example.com',
+        'summary': 'Team',
+        'summaryOverride': 'My team',
+        'dataOwner': 'owner@example.com',
+      });
+    });
+
+    final source = await client.updateCalendarListEntry(
+      'shared@example.com',
+      const CalendarMutation(summary: 'My team'),
+    );
+
+    expect(captured.method, 'PATCH');
+    expect(
+      captured.url.path,
+      '/calendar/v3/users/me/calendarList/shared%40example.com',
+    );
+    expect(jsonDecode(captured.body), {'summaryOverride': 'My team'});
+    expect(source.summary, 'My team');
+  });
+
+  test('shared calendar removal deletes only the CalendarList entry', () async {
+    late http.Request captured;
+    final client = _client((request) {
+      captured = request;
+      return http.Response('', 204);
+    });
+
+    await client.deleteCalendarListEntry('shared@example.com');
+
+    expect(captured.method, 'DELETE');
+    expect(
+      captured.url.path,
+      '/calendar/v3/users/me/calendarList/shared%40example.com',
+    );
+  });
+
   test('event mutations always send an explicit guest update policy', () async {
     final requests = <http.Request>[];
     final client = _client((request) {
@@ -42,6 +150,32 @@ void main() {
     expect(requests[2].url.queryParameters['sendUpdates'], 'none');
     expect(requests[0].url.queryParameters['conferenceDataVersion'], '1');
     expect(requests[1].url.queryParameters['conferenceDataVersion'], '1');
+    expect(jsonDecode(requests[1].body), {'summary': 'Updated'});
+  });
+
+  test('native event move sends destination and guest update policy', () async {
+    late http.Request captured;
+    final client = _client((request) {
+      captured = request;
+      return _json(_googleEventJson());
+    });
+
+    await client.moveEvent(
+      sourceCalendarId: 'source@example.com',
+      eventId: 'event-1',
+      destinationCalendarId: 'destination@example.com',
+      guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+    );
+
+    expect(captured.method, 'POST');
+    expect(
+      captured.url.path,
+      '/calendar/v3/calendars/source%40example.com/events/event-1/move',
+    );
+    expect(captured.url.queryParameters, {
+      'destination': 'destination@example.com',
+      'sendUpdates': 'none',
+    });
   });
 
   test('Google RSVP updates only the signed-in attendee response', () async {

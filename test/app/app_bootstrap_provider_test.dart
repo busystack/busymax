@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,11 +10,15 @@ import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
   test('repositories are not created without an active account', () async {
@@ -204,6 +210,255 @@ void main() {
       expect(account.authState, accountAuthStateReauthRequired);
     },
   );
+
+  test(
+    'production DAV sync rebuilds schedules before checking notifications',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final secrets = InMemorySecretStore();
+      await _seedNextcloudNotificationAccount(database, secrets);
+      final eventStartUtc = DateTime.now().toUtc().add(const Duration(days: 2));
+      var syncReports = 0;
+      final client = MockClient((request) async {
+        if (request.method == 'REPORT' &&
+            request.body.contains('sync-collection')) {
+          syncReports += 1;
+          if (syncReports == 1) {
+            return http.Response(
+              _davSyncResponse(token: 'token-1', etag: '"v1"'),
+              207,
+            );
+          }
+          return http.Response(
+            _davSyncResponse(token: 'token-2', deleted: true),
+            207,
+          );
+        }
+        if (request.method == 'REPORT' &&
+            request.body.contains('calendar-multiget')) {
+          return http.Response(_davMultigetResponse(eventStartUtc), 207);
+        }
+        fail('Unexpected ${request.method} ${request.url}');
+      });
+      final scheduler = _TrackingNotificationScheduler(database);
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          secretStoreProvider.overrideWithValue(secrets),
+          baseHttpClientProvider.overrideWithValue(client),
+          notificationSchedulerProvider.overrideWithValue(scheduler),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        client.close();
+        await database.close();
+      });
+
+      await container
+          .read(davAccountSyncEngineFactoryProvider)('nextcloud-account')
+          .synchronize();
+
+      expect(syncReports, 1);
+      final objects = await database.select(database.davObjects).get();
+      expect(objects, hasLength(1));
+      expect(objects.single.lastParseStatus, 'parsed');
+      final events = await database.select(database.calendarEvents).get();
+      expect(events, hasLength(1));
+      expect(events.single.remindersJson, contains('DISPLAY'));
+      var schedules = await database
+          .select(database.notificationSchedule)
+          .get();
+      expect(schedules, hasLength(1));
+      expect(schedules.single.sourceType, 'event');
+      expect(schedules.single.title, 'Remote reminder');
+      expect(scheduler.scheduleCountsAtCheck, [1]);
+
+      await container
+          .read(davAccountSyncEngineFactoryProvider)('nextcloud-account')
+          .synchronize();
+
+      schedules = await database.select(database.notificationSchedule).get();
+      expect(schedules, isEmpty);
+      expect(scheduler.scheduleCountsAtCheck, [1, 0]);
+    },
+  );
+}
+
+const _nextcloudCollectionHref = '/cloud/remote.php/dav/calendars/alex/work/';
+const _nextcloudEventHref = '${_nextcloudCollectionHref}reminder.ics';
+
+Future<void> _seedNextcloudNotificationAccount(
+  AppDatabase database,
+  InMemorySecretStore secrets,
+) async {
+  final now = DateTime.now().toUtc();
+  final timestamp = now.toIso8601String();
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'nextcloud-account',
+          provider: 'nextcloud',
+          authority: 'https://cloud.example.test/cloud',
+          providerAccountId: 'alex',
+          credentialKind: 'nextcloud_app_password',
+          authState: const Value('signed_in'),
+          createdAtUtc: timestamp,
+          updatedAtUtc: timestamp,
+        ),
+      );
+  await secrets.saveCredential(
+    'nextcloud-account',
+    NextcloudSecretRecord(
+      canonicalServer: Uri.parse('https://cloud.example.test/cloud'),
+      loginName: 'alex',
+      appPassword: 'secret-app-password',
+    ),
+  );
+  await database
+      .into(database.davAccountServices)
+      .insert(
+        DavAccountServicesCompanion.insert(
+          accountId: 'nextcloud-account',
+          providerProfileVersion: const Value(davProviderProfileVersion),
+          canonicalServiceUri:
+              'https://cloud.example.test/cloud/remote.php/dav/',
+          canonicalOrigin: 'https://cloud.example.test',
+          principalHref: const Value(
+            'https://cloud.example.test/cloud/remote.php/dav/principals/users/alex/',
+          ),
+          calendarHomeHref: const Value(
+            'https://cloud.example.test/cloud/remote.php/dav/calendars/alex/',
+          ),
+          capabilitiesJson: const Value(
+            '{"hasPrincipal":true,"hasCalendarHome":true}',
+          ),
+          discoveredAtUtc: timestamp,
+          lastValidatedAtUtc: Value(timestamp),
+        ),
+      );
+  await database
+      .into(database.davCollections)
+      .insert(
+        DavCollectionsCompanion.insert(
+          id: 'nextcloud-collection',
+          accountId: 'nextcloud-account',
+          hrefKey: _nextcloudCollectionHref,
+          requestUri: 'https://cloud.example.test$_nextcloudCollectionHref',
+          displayName: 'Work',
+          supportedComponentMask: const Value(1),
+          supportedReportsJson: const Value(
+            '["{DAV:}sync-collection",'
+            '"{urn:ietf:params:xml:ns:caldav}calendar-multiget"]',
+          ),
+          currentUserPrivilegesJson: const Value(
+            '["{DAV:}read","{DAV:}write"]',
+          ),
+          readOnly: const Value(false),
+          eventProjectionEnabled: const Value(true),
+          lastInventoryAtUtc: Value(timestamp),
+          createdAtUtc: timestamp,
+          updatedAtUtc: timestamp,
+        ),
+      );
+  await database
+      .into(database.calendarSources)
+      .insert(
+        CalendarSourcesCompanion.insert(
+          id: 'dav-calendar-nextcloud-collection',
+          accountId: 'nextcloud-account',
+          provider: 'nextcloud',
+          providerCalendarId: _nextcloudCollectionHref,
+          davCollectionId: const Value('nextcloud-collection'),
+          summary: 'Work',
+          createdAtLocal: now.millisecondsSinceEpoch,
+          updatedAtLocal: now.millisecondsSinceEpoch,
+        ),
+      );
+}
+
+String _davSyncResponse({
+  required String token,
+  String? etag,
+  bool deleted = false,
+}) =>
+    '''<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:">
+  ${etag == null && !deleted ? '' : '''<d:response>
+    <d:href>$_nextcloudEventHref</d:href>
+    ${deleted ? '<d:status>HTTP/1.1 404 Not Found</d:status>' : '''<d:propstat><d:prop><d:getetag>$etag</d:getetag></d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status></d:propstat>'''}
+  </d:response>'''}
+  <d:sync-token>$token</d:sync-token>
+</d:multistatus>''';
+
+String _davMultigetResponse(DateTime eventStartUtc) {
+  final start = _icalUtc(eventStartUtc);
+  final end = _icalUtc(eventStartUtc.add(const Duration(hours: 1)));
+  return '''<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>$_nextcloudEventHref</d:href>
+    <d:propstat><d:prop>
+      <d:getetag>"v1"</d:getetag>
+      <c:calendar-data content-type="text/calendar"><![CDATA[BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//BusyMax Test//EN
+BEGIN:VEVENT
+UID:reminder@example.test
+DTSTART:$start
+DTEND:$end
+SUMMARY:Remote reminder
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT15M
+DESCRIPTION:Reminder
+END:VALARM
+END:VEVENT
+END:VCALENDAR
+]]></c:calendar-data>
+    </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+  </d:response>
+</d:multistatus>''';
+}
+
+String _icalUtc(DateTime value) {
+  final utc = value.toUtc();
+  String twoDigits(int part) => part.toString().padLeft(2, '0');
+  return '${utc.year.toString().padLeft(4, '0')}'
+      '${twoDigits(utc.month)}${twoDigits(utc.day)}T'
+      '${twoDigits(utc.hour)}${twoDigits(utc.minute)}'
+      '${twoDigits(utc.second)}Z';
+}
+
+final class _TrackingNotificationScheduler implements NotificationScheduler {
+  _TrackingNotificationScheduler(this.database);
+
+  final AppDatabase database;
+  final List<int> scheduleCountsAtCheck = [];
+
+  @override
+  Future<void> checkNow() async {
+    scheduleCountsAtCheck.add(
+      await database
+          .select(database.notificationSchedule)
+          .get()
+          .then((rows) => rows.length),
+    );
+  }
+
+  @override
+  Future<void> handleActivation({
+    required String notificationScheduleId,
+    required String action,
+  }) async {}
+
+  @override
+  void start() {}
+
+  @override
+  void stop() {}
 }
 
 Future<void> _seedSignedInGoogleAccount(AppDatabase database) {

@@ -48,6 +48,62 @@ END:VCALENDAR\r
     expect(moved.summary, 'Moved');
   });
 
+  test('applies THISANDFUTURE while retaining later explicit exceptions', () {
+    final document = IcalSemanticDocument.parse('''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:range@example.test\r
+DTSTART;TZID=America/Vancouver:20260803T090000\r
+DTEND;TZID=America/Vancouver:20260803T100000\r
+RRULE:FREQ=WEEKLY;COUNT=5\r
+SUMMARY:Master\r
+END:VEVENT\r
+BEGIN:VEVENT\r
+UID:range@example.test\r
+RECURRENCE-ID;TZID=America/Vancouver;RANGE=THISANDFUTURE:20260817T090000\r
+DTSTART;TZID=America/Vancouver:20260817T110000\r
+DTEND;TZID=America/Vancouver:20260817T123000\r
+SUMMARY:Following\r
+END:VEVENT\r
+BEGIN:VEVENT\r
+UID:range@example.test\r
+RECURRENCE-ID;TZID=America/Vancouver:20260824T090000\r
+DTSTART;TZID=America/Vancouver:20260824T080000\r
+DTEND;TZID=America/Vancouver:20260824T090000\r
+SUMMARY:Explicit\r
+END:VEVENT\r
+END:VCALENDAR\r
+''');
+
+    final occurrences = IcalRecurrenceExpander().expand(
+      document,
+      rangeStartUtc: DateTime.utc(2026, 8),
+      rangeEndUtc: DateTime.utc(2026, 9, 8),
+    );
+
+    expect(occurrences.map((occurrence) => occurrence.start.rawValue), [
+      '20260803T090000',
+      '20260810T090000',
+      '20260817T110000',
+      '20260824T080000',
+      '20260831T110000',
+    ]);
+    expect(occurrences.map((occurrence) => occurrence.summary), [
+      'Master',
+      'Master',
+      'Following',
+      'Explicit',
+      'Following',
+    ]);
+    expect(occurrences.last.end?.rawValue, '20260831T123000');
+    expect(occurrences.last.override, isNull);
+    expect(
+      occurrences.last.inheritedOverride?.recurrenceRange,
+      'THISANDFUTURE',
+    );
+  });
+
   test('preserves wall time across a TZID daylight-saving transition', () {
     final document = IcalSemanticDocument.parse(
       _eventWithRule(

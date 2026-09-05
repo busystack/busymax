@@ -1,10 +1,12 @@
 # BusyMax
 
-BusyMax is a Linux desktop calendar and task manager built with Flutter.
+BusyMax is a Linux and Windows desktop calendar and task manager built with
+Flutter.
 
-It brings calendar events and tasks into a native-feeling Linux desktop
-interface. BusyMax connects directly to Google, Microsoft, Apple iCloud
-Calendar, and Nextcloud. Apple Reminders is not supported.
+It brings calendar events and tasks into a native-feeling desktop interface:
+Yaru with the existing GTK integrations on Linux, and Fluent UI with the native
+title bar on Windows 11. BusyMax connects directly to Google, Microsoft, Apple
+iCloud Calendar, and Nextcloud. Apple Reminders is not supported.
 
 [![busymax](https://snapcraft.io/busymax/badge.svg)](https://snapcraft.io/busymax)
 
@@ -20,7 +22,7 @@ Calendar, and Nextcloud. Apple Reminders is not supported.
 
 ## Highlights
 
-- Linux desktop app built with Flutter.
+- First-class Linux Yaru and Windows 11 Fluent desktop applications.
 - Calendar views for day, week, month, year, and agenda planning.
 - Task creation with lists, start/due dates, reminders, repeat options,
   subtasks, status, progress, priority, categories, location, and URL.
@@ -88,6 +90,7 @@ Calendar, and Nextcloud. Apple Reminders is not supported.
 ## Prerequisites
 
 - [Flutter SDK](https://docs.flutter.dev/install)
+- Flutter is pinned to 3.44.4 for both platforms.
 - GTK 3 and libhandy development packages (`libgtk-3-dev` and
   `libhandy-1-dev` on Ubuntu/Debian)
 - `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`; see
@@ -101,26 +104,31 @@ Apple and Nextcloud do not require compile-time client credentials:
 - [Nextcloud setup](docs/nextcloud_setup.md) requires an HTTPS server and
   completes authorization in the default browser.
 
-## Run locally
+Windows targets Windows 11 24H2 or newer on x64 only. See
+[Windows development](docs/windows_development.md) for Visual Studio and SDK
+requirements, exact development commands, and the source-side validation
+workflow.
+
+## Run locally on Linux
 
 Register the development launcher once so GNOME can associate BusyMax's native
 Wayland windows with its desktop icon. The helper is idempotent and defaults to
 the Flutter debug bundle:
 
 ```bash
-tools/install_linux_dev_desktop.sh
+tool/install_linux_dev_desktop.sh
 ```
 
 Then run BusyMax normally:
 
 ```bash
-flutter run -d linux \
+flutter run -d linux -t lib/main_linux.dart \
   --dart-define=GOOGLE_OAUTH_CLIENT_ID=<google-client-id> \
   --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<google-secret-if-needed> \
   --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
 ```
 
-Use `tools/install_linux_dev_desktop.sh --uninstall` to remove the development
+Use `tool/install_linux_dev_desktop.sh --uninstall` to remove the development
 launcher. Remove it before testing an installed Snap so the user-level launcher
 does not take precedence; packaged Snaps register their own launcher.
 
@@ -129,7 +137,7 @@ does not take precedence; packaged Snaps register their own launcher.
 The native **Send feedback** form in the About dialog sends JSON to
 `POST https://busystack.org/api/feedback`. Every submission contains a new
 submission UUID, the application identifier `busymax`, the application version
-and build number, the `linux` platform identifier, category, subject, message,
+and build number, the runtime platform identifier, category, subject, message,
 and optional reply email. A successful response has this form:
 
 ```json
@@ -137,9 +145,9 @@ and optional reply email. A successful response has this form:
 ```
 
 The optional technical-details checkbox is off by default. When the user
-explicitly enables it, BusyMax adds only the Linux operating-system version and
+explicitly enables it, BusyMax adds only the operating-system version and
 application locale. BusyMax does not attach logs, account or calendar data,
-file names, screenshots, environment variables, or other diagnostics.
+file names, screenshots, environment variables, tokens, or other diagnostics.
 
 For local website development, override the endpoint through the existing
 compile-time configuration mechanism:
@@ -166,3 +174,16 @@ and iCloud integration tests.
 See [Snap Build and Beta Release](docs/beta_snap_release.md) for OAuth build
 configuration, canonical Snapcraft packaging, local installation, artifact
 verification, Store review, and beta release instructions.
+
+## Windows architecture and packaging
+
+Windows uses the separate `lib/main_windows.dart` entrypoint and a Fluent UI
+composition. Linux continues to use `lib/main_linux.dart`, Yaru, GTK, the XDG
+tray, and the existing Snap package. The Windows Store MSIX workflow is local
+and CI-only; it never deploys an artifact.
+
+- [Windows architecture](docs/windows_architecture.md)
+- [Windows UI](docs/windows_ui.md)
+- [Windows packaging](docs/windows_packaging.md)
+- [Windows release checklist](docs/windows_release_checklist.md)
+- [Privacy and data map](docs/privacy_data_map.md)

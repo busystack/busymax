@@ -15,6 +15,8 @@ class CalendarSourceDto {
     this.colorId,
     this.timeZone,
     this.accessRole,
+    this.dataOwner,
+    this.isRemovable,
     this.isDeleted = false,
     this.rawJson = const {},
   });
@@ -32,6 +34,8 @@ class CalendarSourceDto {
   final String? colorId;
   final String? timeZone;
   final String? accessRole;
+  final String? dataOwner;
+  final bool? isRemovable;
   final bool isDeleted;
   final Map<String, Object?> rawJson;
 }

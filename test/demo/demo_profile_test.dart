@@ -140,6 +140,7 @@ const _demoConfig = BuildConfig(
 );
 
 const _feedback = FeedbackSubmission(
+  platform: 'linux',
   submissionId: 'demo-submission',
   appVersion: '1.0.0',
   buildNumber: '1',

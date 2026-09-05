@@ -3,6 +3,10 @@ template-arb-file: app_en.arb
 output-dir: lib/l10n/generated
 output-localization-file: app_localizations.dart
 nullable-getter: false
+# Flutter requires a base `pt` fallback before it will generate `pt_PT`.
+# The base stub is not exposed by BusyMax; target-catalog parity is enforced by
+# test/app/localization_audit_test.dart.
+untranslated-messages-file: .dart_tool/pt_fallback_untranslated.json
 header: |
   // coverage:ignore-file
   // GENERATED CODE - DO NOT MODIFY BY HAND

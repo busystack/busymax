@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:desktop_notifications/desktop_notifications.dart';
-
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_settings.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../l10n/locale_resolution.dart';
 import '../sync/sync_failure_notification_policy.dart';
+import 'desktop_notification_backend.dart';
 
-typedef DesktopNotificationActionHandler = Future<void> Function(String action);
+export 'desktop_notification_backend.dart';
 
 enum ReminderNotificationAction { open, snooze, dismiss }
 
@@ -36,53 +35,6 @@ final class ReminderDeliveryResult {
 
 typedef ReminderNotificationActionHandler =
     Future<void> Function(ReminderNotificationAction action);
-
-abstract class DesktopNotificationBackend {
-  Future<void> notify(
-    String summary, {
-    String body = '',
-    List<NotificationHint> hints = const [],
-    List<NotificationAction> actions = const [],
-    DesktopNotificationActionHandler? onAction,
-  });
-
-  Future<void> close();
-}
-
-class FreedesktopNotificationBackend implements DesktopNotificationBackend {
-  FreedesktopNotificationBackend({NotificationsClient? client})
-    : _client = client ?? NotificationsClient();
-
-  final NotificationsClient _client;
-
-  @override
-  Future<void> notify(
-    String summary, {
-    String body = '',
-    List<NotificationHint> hints = const [],
-    List<NotificationAction> actions = const [],
-    DesktopNotificationActionHandler? onAction,
-  }) async {
-    final notification = await _client.notify(
-      summary,
-      appName: 'BusyMax',
-      appIcon: 'io.busystack.busymax',
-      body: body,
-      hints: hints,
-      actions: actions,
-    );
-    if (onAction != null) {
-      unawaited(
-        notification.action
-            .then(onAction)
-            .catchError((Object _) => Future<void>.value()),
-      );
-    }
-  }
-
-  @override
-  Future<void> close() => _client.close();
-}
 
 class DesktopNotificationService {
   DesktopNotificationService({
@@ -141,7 +93,8 @@ class DesktopNotificationService {
     await _safeNotify(
       _strings.syncFailureTitle,
       body,
-      NotificationCategory.networkError(),
+      BusyMaxNotificationCategory.networkError,
+      stableId: 'sync-failure',
     );
   }
 
@@ -155,7 +108,8 @@ class DesktopNotificationService {
     await _safeNotify(
       _strings.conflictTitle,
       body,
-      NotificationCategory.deviceError(),
+      BusyMaxNotificationCategory.conflict,
+      stableId: 'conflict',
     );
   }
 
@@ -166,13 +120,16 @@ class DesktopNotificationService {
     await _safeNotify(
       _strings.dueTodayTitle,
       _strings.dueTodayBody(count),
-      NotificationCategory.device(),
+      BusyMaxNotificationCategory.reminder,
+      stableId: 'due-today',
     );
   }
 
   Future<ReminderDeliveryResult> notifyEventReminder(
     String title,
     String? body, {
+    String stableId = 'event-reminder',
+    Map<String, String>? payload,
     Future<void> Function()? onActivated,
     ReminderNotificationActionHandler? onAction,
   }) async {
@@ -189,7 +146,10 @@ class DesktopNotificationService {
       private
           ? _strings.detailsHidden
           : _nonEmpty(redactForLog(body ?? ''), _strings.eventReminderBody),
-      NotificationCategory.device(),
+      BusyMaxNotificationCategory.reminder,
+      stableId: stableId,
+      payload: payload,
+      private: private,
       onActivated: onActivated,
       onReminderAction: onAction,
       transient: false,
@@ -204,6 +164,8 @@ class DesktopNotificationService {
   Future<ReminderDeliveryResult> notifyTaskReminder(
     String title,
     String? body, {
+    String stableId = 'task-reminder',
+    Map<String, String>? payload,
     Future<void> Function()? onActivated,
     ReminderNotificationActionHandler? onAction,
   }) async {
@@ -220,7 +182,10 @@ class DesktopNotificationService {
       private
           ? _strings.detailsHidden
           : _nonEmpty(redactForLog(body ?? ''), _strings.taskReminderBody),
-      NotificationCategory.device(),
+      BusyMaxNotificationCategory.reminder,
+      stableId: stableId,
+      payload: payload,
+      private: private,
       onActivated: onActivated,
       onReminderAction: onAction,
       transient: false,
@@ -240,7 +205,10 @@ class DesktopNotificationService {
   Future<bool> _safeNotify(
     String summary,
     String body,
-    NotificationCategory category, {
+    BusyMaxNotificationCategory category, {
+    required String stableId,
+    Map<String, String>? payload,
+    bool private = false,
     Future<void> Function()? onActivated,
     ReminderNotificationActionHandler? onReminderAction,
     bool transient = true,
@@ -248,20 +216,30 @@ class DesktopNotificationService {
     try {
       final hasActions = onActivated != null || onReminderAction != null;
       await _backend.notify(
-        summary,
-        body: body,
-        actions: !hasActions
-            ? const []
-            : [
-                NotificationAction('default', _strings.openAction),
-                if (onReminderAction != null)
-                  NotificationAction('snooze', _strings.snoozeAction),
-                if (onReminderAction != null)
-                  NotificationAction('dismiss', _strings.dismissAction),
-              ],
+        BusyMaxNotificationRequest(
+          stableId: stableId,
+          title: summary,
+          body: body,
+          category: category,
+          payload: payload,
+          transient: transient,
+          private: private,
+          actions: !hasActions
+              ? const []
+              : [
+                  BusyMaxNotificationAction('default', _strings.openAction),
+                  if (onReminderAction != null)
+                    BusyMaxNotificationAction('snooze', _strings.snoozeAction),
+                  if (onReminderAction != null)
+                    BusyMaxNotificationAction(
+                      'dismiss',
+                      _strings.dismissAction,
+                    ),
+                ],
+        ),
         onAction: !hasActions
             ? null
-            : (action) async {
+            : (action, _) async {
                 switch (action) {
                   case 'default':
                     if (onReminderAction != null) {
@@ -279,14 +257,11 @@ class DesktopNotificationService {
                     );
                 }
               },
-        hints: [
-          NotificationHint.category(category),
-          if (transient) NotificationHint.transient(),
-        ],
       );
       return true;
     } on Object {
-      // DBus notifications may be unavailable in tests or headless sessions.
+      // A desktop notification backend may be unavailable in tests or a
+      // headless session.
       return false;
     }
   }
@@ -372,7 +347,7 @@ class NotificationStrings {
   factory NotificationStrings.forLocales(List<Locale>? locales) {
     final supportedLocale = resolveBusyMaxLocales(
       locales,
-      AppLocalizations.supportedLocales,
+      busyMaxSupportedLocales,
     );
     return NotificationStrings.fromLocalizations(
       lookupAppLocalizations(supportedLocale),

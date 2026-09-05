@@ -1,14 +1,31 @@
 {
   "@@locale": "ko",
+  "windowsSupport": "지원",
+  "windowsThirdPartyLicenses": "타사 라이선스",
+  "windowsSearch": "검색",
+  "windowsStartupDisabledByUser": "Windows 설정에서 사용자가 사용하지 않도록 설정했습니다.",
+  "windowsStartupDisabledByPolicy": "Windows 정책에 의해 사용하지 않도록 설정되었습니다.",
+  "windowsStartupUnavailable": "BusyMax를 MSIX 패키지로 설치하면 사용할 수 있습니다.",
+  "windowsReminderExitNotice": "BusyMax를 완전히 종료하면 미리 알림이 중지됩니다. 받으려면 백그라운드에서 계속 실행하세요.",
+  "windowsProductVersionLabel": "제품 버전",
+  "windowsPackageVersionLabel": "Windows 패키지 버전",
+  "windowsUnpackaged": "패키지되지 않음",
+  "windowsAgendaLoadMore": "일정 항목 더 불러오기",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{월요일} TU{화요일} WE{수요일} TH{목요일} FR{금요일} SA{토요일} SU{일요일} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "{first}과 {second}",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} {month}의 {firstDay}과 {secondDay}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} {firstMonth}과 {secondMonth}의 {day}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} {firstMonth}과 {secondMonth}의 {firstDay}과 {secondDay}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} {firstMonth}과 {secondMonth}의 {days}",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "connectGoogleAccount": "Google, Microsoft, Apple iCloud Calendar 또는 Nextcloud 계정을 연결하세요.",
   "googlePermissionsConsentNotice": "Google 권한 화면에서 캘린더와 할 일 권한을 모두 선택하세요.",
   "googlePermissionsRequiredRetry": "Google Calendar 및 Google Tasks 권한이 필요합니다. 다시 시도하여 두 체크박스를 모두 선택하세요.",
   "finishSetup": "설정 완료",
   "continueSetup": "계속",
   "onboardingSetupTitle": "BusyMax 설정",
   "onboardingAccountsStepTitle": "계정 연결",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "onboardingAccountsStepDescription": "사용할 모든 계정을 추가하세요. BusyMax는 각 계정의 지원되는 캘린더, 일정, 할 일 목록 및 할 일을 동기화합니다.",
   "onboardingPreferencesStepTitle": "시스템 설정 선택",
   "onboardingPreferencesStepDescription": "일정을 열기 전에 데스크톱 동작, 미리 알림, 알림 세부 수준 및 화면 모양을 설정하세요.",
   "signInWithGoogle": "Google로 로그인",
@@ -33,6 +50,43 @@
   "calendarTasks": "할 일",
   "calendar": "캘린더",
   "calendars": "캘린더",
+  "newCalendar": "새 캘린더",
+  "calendarColor": "캘린더 색상",
+  "calendarColorOption": "색상 {number}",
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarManagementUnsupported": "이 공급자는 BusyMax에서 캘린더 관리를 지원하지 않습니다.",
+  "primaryCalendarCannotDelete": "기본 캘린더는 삭제할 수 없습니다.",
+  "calendarCreateFailed": "캘린더를 만들 수 없습니다: {error}",
+  "calendarCreatedRefreshPending": "캘린더가 생성되었지만 BusyMax에서 계정을 새로 고치지 못했습니다. 다음 동기화 후에 표시됩니다.",
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarUpdateFailed": "캘린더를 업데이트할 수 없습니다: {error}",
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarDeleteFailed": "캘린더를 삭제할 수 없습니다: {error}",
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "newEvent": "새 일정",
   "refreshCalendar": "캘린더 새로 고침",
   "openInProvider": "서비스에서 열기",
@@ -52,6 +106,55 @@
   "scheduleNoSearchResultsDescription": "다른 검색어를 사용하거나 현재 필터를 지우세요.",
   "refresh": "새로 고침",
   "trayOpenBusyMax": "BusyMax 열기",
+  "trayShowBusyMax": "BusyMax 표시",
+  "trayNewEvent": "새 일정…",
+  "trayNewTask": "새 할 일…",
+  "trayToday": "오늘",
+  "trayAllDay": "종일",
+  "trayNow": "지금",
+  "trayCalendarEvent": "캘린더 일정",
+  "trayUntitledEvent": "제목 없는 일정",
+  "trayNothingElseToday": "오늘은 더 이상 없음",
+  "trayTasksDueToday": "{count, plural, =1{오늘 마감인 할 일 1개} other{오늘 마감인 할 일 {count}개}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "오늘 일정 열기",
+  "traySyncNow": "지금 동기화",
+  "traySyncing": "동기화 중…",
+  "trayNotConnected": "연결되지 않음",
+  "trayNotYetSynced": "아직 동기화되지 않음",
+  "trayLastSyncedJustNow": "방금 동기화됨",
+  "trayLastSyncedMinutesAgo": "{count, plural, =1{1분 전에 동기화됨} other{{count}분 전에 동기화됨}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, =1{1시간 전에 동기화됨} other{{count}시간 전에 동기화됨}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, =1{1일 전에 동기화됨} other{{count}일 전에 동기화됨}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traySettings": "설정",
+  "trayQuitBusyMax": "BusyMax 종료",
   "agendaLoadMoreOverdue": "기한이 지난 할 일 더 불러오기",
   "agendaLoadMoreNoDate": "날짜 없는 할 일 더 불러오기",
   "viewDay": "일",
@@ -154,7 +257,7 @@
   "feedbackDetailedMessage": "자세한 내용",
   "feedbackReplyEmail": "답변 받을 이메일 주소(선택 사항)",
   "feedbackIncludeTechnicalDetails": "기술 세부 정보 포함",
-  "feedbackTechnicalDetailsDisclosure": "Linux 운영 체제 버전과 앱 로캘만 추가됩니다. 로그, 계정 데이터, 파일 이름 또는 기타 진단 정보는 포함되지 않습니다.",
+  "feedbackTechnicalDetailsDisclosure": "운영 체제 이름과 버전 및 앱 로캘만 추가됩니다. 로그, 계정 데이터, 파일 이름 또는 기타 진단 정보는 포함되지 않습니다.",
   "feedbackCategoryRequired": "범주를 선택하세요.",
   "feedbackSubjectLengthError": "제목은 3~120자여야 합니다.",
   "feedbackMessageLengthError": "메시지는 10~5,000자여야 합니다.",
@@ -179,8 +282,8 @@
   "removeAccount": "계정 삭제…",
   "removingAccount": "계정 삭제 중…",
   "removeAccountDescription": "동기화를 중지하고 이 기기에서 이 계정의 데이터를 삭제합니다.",
-  "removeAccountTitle": "BusyMax에서 {account} 계정을 삭제할까요?",
-  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
+  "removeAccountTitle": "{account}을(를) BusyMax에서 삭제할까요?",
+  "removeAccountConfirmation": "이 작업은 이 기기에서 캐시된 할 일, 캘린더, 일정, 알림 및 보류 중인 오프라인 변경사항을 삭제합니다. 동기화되지 않은 변경사항은 손실됩니다. 제공업체의 캘린더, 일정, 할 일 목록 및 할 일 사본은 삭제되지 않습니다.",
   "revokeGoogleAccess": "이 Google 계정에 대한 BusyMax의 액세스 권한도 취소",
   "revokeGoogleAccessDescription": "다시 연결하기 전에 액세스 권한을 다시 부여해야 합니다.",
   "removeAccountAction": "계정 삭제",
@@ -196,7 +299,7 @@
   "deleteList": "목록 삭제",
   "builtInMicrosoftList": "기본 제공",
   "builtInMicrosoftListCannotRenameDelete": "Microsoft To Do의 기본 제공 목록은 이름을 바꾸거나 삭제할 수 없습니다.",
-  "deleteListConfirmation": "Google Tasks에서 “{title}” 목록을 삭제할까요?",
+  "deleteListConfirmation": "Google Tasks에서 “{title}”을(를) 삭제할까요?",
   "deleteEvent": "일정 삭제",
   "title": "제목",
   "create": "만들기",
@@ -245,7 +348,7 @@
   "reminderDate": "미리 알림 날짜",
   "reminderTime": "미리 알림 시간",
   "reminder": "미리 알림",
-  "addReminder": "미리 알림 추가",
+  "addReminder": "알림 추가",
   "addGuest": "참석자 추가",
   "addGuestEmail": "참석자 이메일 추가",
   "removeReminder": "미리 알림 삭제",
@@ -291,7 +394,8 @@
   "synced": "동기화됨",
   "account": "계정",
   "sync": "동기화",
-  "manualFullSync": "수동 전체 동기화",
+  "forceFullResync": "전체 재동기화 강제 실행",
+  "forceFullResyncDescription": "연결된 모든 계정의 데이터를 완전히 다시 불러옵니다. 동기화 문제를 해결할 때만 사용하세요.",
   "runInBackgroundWhenClosed": "창을 닫아도 계속 실행",
   "showTrayIcon": "트레이 아이콘 표시",
   "startMinimizedToTray": "트레이에 최소화하여 시작",
@@ -305,6 +409,7 @@
   "notifyConflicts": "충돌 알림",
   "notifyDueToday": "오늘 마감인 할 일 알림",
   "eventReminders": "일정 미리 알림",
+  "onState": "켬",
   "taskReminders": "할 일 미리 알림",
   "notificationDetailLevel": "알림 세부 수준",
   "notificationDetailPrivate": "비공개",
@@ -314,9 +419,13 @@
   "quietHoursStart": "방해 금지 시작 시간",
   "quietHoursEnd": "방해 금지 종료 시간",
   "notifications": "알림",
+  "windowsNotificationsUnavailable": "Windows 알림을 사용할 수 없음",
+  "windowsNotificationsUnpackaged": "패키징되지 않은 이 개발 실행에서는 Windows 알림을 사용할 수 없습니다. 미리 알림을 테스트하려면 테스트 서명된 MSIX를 설치하세요.",
+  "windowsNotificationsInstalledFailure": "BusyMax에서 Windows 알림을 초기화하지 못했습니다. 이 설치 문제가 해결될 때까지 미리 알림이 표시되지 않습니다.",
   "appearance": "화면 모양",
   "theme": "테마",
   "themeSystem": "시스템",
+  "settingsSystem": "시스템",
   "themeLight": "라이트",
   "themeDark": "다크",
   "themeFamily": "테마 계열",
@@ -352,7 +461,7 @@
   "syncFailureNotificationTitle": "BusyMax 동기화 실패",
   "syncFailureNotificationBody": "백그라운드 동기화에 실패했습니다. {message}",
   "conflictNotificationTitle": "BusyMax 동기화 충돌",
-  "conflictNotificationBody": "보류 중인 로컬 변경 사항이 차단되었습니다. {summary}",
+  "conflictNotificationBody": "보류 중인 로컬 변경사항이 차단되었습니다. {summary}",
   "dueTodayNotificationTitle": "오늘 마감인 할 일",
   "dueTodayNotificationBody": "{count, plural, =1{오늘 마감인 할 일이 1개 있습니다.} other{오늘 마감인 할 일이 {count}개 있습니다.}}",
   "eventReminderNotificationTitle": "일정 미리 알림",
@@ -361,7 +470,7 @@
   "taskReminderNotificationBody": "할 일 마감이 얼마 남지 않았습니다.",
   "notificationOpenAction": "열기",
   "notificationSnoozeAction": "10분 후 다시 알림",
-  "notificationDismissAction": "해제",
+  "notificationDismissAction": "닫기",
   "notificationDetailsHidden": "개인정보 보호 설정에 따라 세부 정보가 숨겨졌습니다.",
   "previousMonth": "이전 달",
   "nextMonth": "다음 달",
@@ -375,51 +484,51 @@
   "readOnlyCalendar": "이 캘린더는 읽기 전용입니다.",
   "selectTimeZone": "시간대 선택",
   "searchLocations": "위치 검색",
-  "noLocationsFound": "위치를 찾을 수 없습니다",
-  "requiredField": "This field is required.",
-  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
-  "appleICloudProvider": "Apple iCloud Calendar",
+  "noLocationsFound": "위치를 찾을 수 없음",
+  "requiredField": "이 필드는 필수입니다.",
+  "providerConnectionDescription": "다음 제공업체 중 하나에서 캘린더와 할 일을 연결하세요.",
+  "appleICloudProvider": "Apple iCloud 캘린더",
   "nextcloudProvider": "Nextcloud",
   "appleICloudTasksProvider": "Apple iCloud",
-  "nextcloudTasksProvider": "Nextcloud Tasks",
-  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
-  "addNextcloudAccount": "Add Nextcloud account",
-  "waitingForAppleICloud": "Connecting to Apple iCloud…",
-  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
-  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
-  "appleAccountEmail": "Apple Account email",
-  "appleAppSpecificPassword": "App-specific password",
-  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
-  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
-  "connectNextcloudTitle": "Connect Nextcloud",
-  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
-  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
-  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
-  "connectAccountAction": "Connect",
-  "cancelAccountConnection": "Cancel connection",
-  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
-  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
-  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
-  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
-  "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Calendars and task lists",
-  "calendarContent": "Calendar events",
-  "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only",
-  "pendingLocally": "Pending locally",
-  "conflictBlocked": "Blocked by conflict",
-  "authenticationBlocked": "Blocked until reconnect",
-  "operationFailed": "Operation failed",
-  "keepServerVersion": "Keep server version",
-  "reapplyLocalChange": "Review and reapply local change",
-  "duplicateLocalItem": "Duplicate as new item",
+  "nextcloudTasksProvider": "Nextcloud 할 일",
+  "addAppleICloudAccount": "Apple iCloud 캘린더 계정 추가",
+  "addNextcloudAccount": "Nextcloud 계정 추가",
+  "waitingForAppleICloud": "Apple iCloud에 연결 중…",
+  "waitingForNextcloud": "Nextcloud 인증 대기 중…",
+  "connectAppleICloudTitle": "Apple iCloud 캘린더 연결",
+  "appleAccountEmail": "Apple 계정 이메일",
+  "appleAppSpecificPassword": "앱 전용 암호",
+  "appleAppSpecificPasswordHelp": "Apple 계정에서 이중 인증을 활성화한 후 앱 전용 암호를 생성하세요.",
+  "appleAppSpecificPasswordResetWarning": "Apple 계정 암호를 재설정하면 앱 전용 암호가 취소됩니다.",
+  "connectNextcloudTitle": "Nextcloud 연결",
+  "nextcloudServerUrl": "Nextcloud 서버 또는 CalDAV 주소",
+  "nextcloudServerUrlHelp": "Nextcloud 서버 URL을 입력하거나 Nextcloud에서 복사한 기본 CalDAV 주소를 붙여넣으세요.",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax가 브라우저를 엽니다. 그곳에서 액세스를 승인한 다음 BusyMax로 돌아오세요.",
+  "connectAccountAction": "연결",
+  "cancelAccountConnection": "연결 취소",
+  "nextcloudAccountRemovedRevokeFailed": "계정은 로컬에서 삭제되었지만 Nextcloud 앱 암호를 취소할 수 없습니다.",
+  "davCachedOfflineNotice": "오프라인 사용을 위해 캘린더 및 할 일 데이터가 로컬에 캐시됩니다.",
+  "davReauthenticationRequired": "동기화를 재개하려면 이 계정을 다시 연결하세요.",
+  "davTemporarilyUnavailable": "이 계정은 일시적으로 사용할 수 없습니다.",
+  "davPermissionChanged": "서버 권한이 변경되었습니다. 보류 중인 편집이 일시 중지되었습니다.",
+  "davUnsupportedServer": "이 서버 또는 제공업체 프로필은 지원되지 않습니다.",
+  "collectionSettings": "캘린더 및 할 일 목록",
+  "calendarContent": "캘린더 일정",
+  "taskContent": "할 일",
+  "readOnlySharedCollection": "읽기 전용",
+  "pendingLocally": "로컬에서 보류 중",
+  "conflictBlocked": "충돌로 차단됨",
+  "authenticationBlocked": "다시 연결할 때까지 차단됨",
+  "operationFailed": "작업 실패",
+  "keepServerVersion": "서버 버전 유지",
+  "reapplyLocalChange": "로컬 변경사항 검토 후 다시 적용",
+  "duplicateLocalItem": "새 항목으로 복제",
   "deleteCalendarConfirmation": "“{title}” 캘린더를 삭제할까요?",
-  "davConnectionState": "Connection state",
-  "davConnected": "Connected",
-  "davConnecting": "Connecting…",
-  "davSignedOut": "Signed out",
-  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "davConnectionState": "연결 상태",
+  "davConnected": "연결됨",
+  "davConnecting": "연결 중…",
+  "davSignedOut": "로그아웃됨",
+  "davLastSuccessfulSync": "마지막으로 성공한 동기화: {time}",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -427,9 +536,9 @@
       }
     }
   },
-  "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh calendars and task lists",
-  "nextcloudServerHost": "Server: {host}",
+  "davNeverSynced": "아직 동기화되지 않음",
+  "refreshCollections": "캘린더 및 할 일 목록 새로 고침",
+  "nextcloudServerHost": "서버: {host}",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -437,12 +546,12 @@
       }
     }
   },
-  "collectionSupportsEvents": "Event calendar",
-  "collectionSupportsTasks": "Task list",
-  "collectionSupportsEventsAndTasks": "Events and tasks",
-  "writableCollection": "Writable",
-  "sharedCollection": "Shared",
-  "collectionLastSynced": "Last synchronized: {time}",
+  "collectionSupportsEvents": "일정 캘린더",
+  "collectionSupportsTasks": "할 일 목록",
+  "collectionSupportsEventsAndTasks": "일정 및 할 일",
+  "writableCollection": "쓰기 가능",
+  "sharedCollection": "공유됨",
+  "collectionLastSynced": "마지막 동기화: {time}",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -450,7 +559,7 @@
       }
     }
   },
-  "collectionSyncError": "Sync issue: {code}",
+  "collectionSyncError": "동기화 문제: {code}",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -458,8 +567,8 @@
       }
     }
   },
-  "syncConflicts": "Synchronization conflicts",
-  "remoteChangedAt": "Server changed: {time}",
+  "syncConflicts": "동기화 충돌",
+  "remoteChangedAt": "서버 변경: {time}",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -467,7 +576,7 @@
       }
     }
   },
-  "localPendingEdit": "Local edit: {summary}",
+  "localPendingEdit": "로컬 편집: {summary}",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -475,144 +584,366 @@
       }
     }
   },
-  "conflictResolutionFailed": "The conflict could not be resolved.",
-  "recurringEventScope": "Recurring event scope",
-  "entireSeries": "Entire series",
-  "singleOccurrence": "This occurrence",
-  "thisAndFutureUnavailable": "This and future (not available)",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "conflictResolutionFailed": "충돌을 해결할 수 없습니다.",
+  "recurringEventScope": "반복 일정 범위",
+  "entireSeries": "전체 시리즈",
+  "singleOccurrence": "이 일정",
+  "thisAndFollowingEvents": "이 일정 및 향후 일정",
+  "thisAndFutureUnavailable": "이 제공업체에서는 지원되지 않습니다.",
+  "thisAndFutureMoveUnavailable": "이 일정과 이후 일정을 안전하게 이동할 수 없습니다. 이 일정 또는 전체 반복 일정을 선택하세요.",
+  "entireSeriesMoveUnavailable": "반복 규칙을 로컬에서 사용할 수 없습니다. 이 일정만 이동하세요.",
+  "copyEventAndDeleteOriginal": "일정을 복사하고 원본을 삭제할까요?",
+  "copyEventMoveWarning": "BusyMax는 이 일정을 {source}에서 {destination}(으)로 직접 이동할 수 없습니다. 먼저 복사본을 만들고 복사가 성공한 뒤에만 원본을 삭제합니다. 일정 ID가 변경되고 참석자 응답 상태가 초기화되며 초대 또는 취소가 전송될 수 있습니다. 회의 링크, 첨부 파일, 미리 알림, 제공업체별 필드 및 반복 예외는 이전되지 않을 수 있습니다.",
+  "copyAndDelete": "복사 후 삭제",
+  "chooseRecurringEventScope": "이 변경을 전체 시리즈, 이 일정만 또는 이 일정과 이후 일정에 적용할지 선택하세요.",
   "taskDueBeforeStart": "마감은 시작보다 빠를 수 없습니다.",
   "taskStartDueTimeModeMismatch": "시작과 마감에 모두 시간을 설정하거나 작업을 종일로 설정하세요.",
-  "taskListCreateFailed": "Could not create the task list: {error}",
-  "taskListRenameFailed": "Could not rename the task list: {error}",
-  "taskListDeleteFailed": "Could not delete the task list: {error}",
+  "taskListCreateFailed": "할 일 목록을 만들 수 없습니다: {error}",
+  "taskListRenameFailed": "할 일 목록 이름을 바꿀 수 없습니다: {error}",
+  "taskListDeleteFailed": "할 일 목록을 삭제할 수 없습니다: {error}",
   "unshare": "공유 해제",
-  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
-  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
-  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "taskStatus": "Status",
-  "taskStatusNone": "No status",
-  "taskStatusNeedsAction": "Needs action",
-  "taskStatusInProcess": "In process",
-  "taskStatusCompleted": "완료됨",
-  "taskStatusCancelled": "Cancelled",
-  "completionPercent": "{percent}% completed",
-  "completionDate": "Completion date",
-  "priority": "우선 순위",
-  "priorityNone": "No priority",
-  "priorityHighValue": "Priority {priority} · High",
-  "priorityMediumValue": "Priority {priority} · Medium",
-  "priorityLowValue": "Priority {priority} · Low",
-  "taskUrl": "URL",
-  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
-  "classification": "Classification",
-  "classificationPublic": "When shared, show the full task",
-  "classificationConfidential": "When shared, show only busy",
-  "classificationPrivate": "When shared, hide this task",
-  "pinTask": "Pin task",
-  "reminders": "Reminders",
-  "noReminders": "No reminders",
-  "editReminder": "Edit reminder",
-  "beforeTaskStarts": "Before the task starts",
-  "beforeTaskDue": "Before the task is due",
-  "afterTaskStarts": "After the task starts",
-  "afterTaskDue": "After the task is due",
-  "relativeToTaskStart": "Relative to the task start date",
-  "relativeToTaskDue": "Relative to the task due date",
-  "reminderTimeOfDay": "Time of day",
-  "absoluteReminder": "At a date and time",
-  "reminderAmount": "Amount",
-  "reminderUnitSeconds": "Seconds",
-  "reminderUnitMinutes": "Minutes",
-  "reminderUnitHours": "Hours",
-  "reminderUnitDays": "Days",
-  "reminderUnitWeeks": "Weeks",
-  "reminderAtTaskStart": "At the task start",
-  "reminderAtTaskDue": "At the task due time",
-  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
-  "relatedRemindersTitle": "Keep related reminders?",
-  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
-  "discardRelatedReminders": "Discard reminders",
-  "keepRelatedReminders": "Keep reminders",
-  "repeatEvery": "반복 주기",
-  "repeatOn": "Repeat on",
+  "readOnlyTaskListCannotRename": "이 할 일 목록은 읽기 전용이므로 이름을 바꿀 수 없습니다.",
+  "taskListCannotDelete": "현재 권한으로는 이 할 일 목록을 삭제할 수 없습니다.",
+  "deleteTaskListConfirmation": "“{title}” 및 모든 할 일을 삭제할까요?",
+  "unshareTaskListConfirmation": "이 계정에서 “{title}” 공유를 해제할까요?",
+  "taskStatus": "상태",
+  "taskStatusNone": "상태 없음",
+  "taskStatusNeedsAction": "조치 필요",
+  "taskStatusInProcess": "진행 중",
+  "taskStatusCompleted": "완료",
+  "taskStatusCancelled": "취소됨",
+  "completionPercent": "{percent}% 완료",
+  "completionDate": "완료 날짜",
+  "priority": "우선순위",
+  "priorityNone": "우선순위 없음",
+  "priorityHighValue": "우선순위 {priority} · 높음",
+  "priorityMediumValue": "우선순위 {priority} · 중간",
+  "priorityLowValue": "우선순위 {priority} · 낮음",
+  "taskUrl": "할 일 URL",
+  "invalidTaskUrl": "스킴을 포함한 절대 URL을 입력하세요.",
+  "classification": "분류",
+  "classificationPublic": "공유할 때 전체 할 일 표시",
+  "classificationConfidential": "공유할 때 바쁨 상태만 표시",
+  "classificationPrivate": "공유할 때 이 할 일 숨기기",
+  "pinTask": "할 일 고정",
+  "reminders": "알림",
+  "noReminders": "알림 없음",
+  "editReminder": "알림 수정",
+  "beforeTaskStarts": "할 일 시작 전",
+  "beforeTaskDue": "할 일 마감 전",
+  "afterTaskStarts": "할 일 시작 후",
+  "afterTaskDue": "할 일 마감 후",
+  "relativeToTaskStart": "할 일 시작일 기준",
+  "relativeToTaskDue": "할 일 마감일 기준",
+  "reminderTimeOfDay": "시간",
+  "absoluteReminder": "날짜 및 시간에",
+  "reminderAmount": "수량",
+  "reminderUnitSeconds": "초",
+  "reminderUnitMinutes": "분",
+  "reminderUnitHours": "시간",
+  "reminderUnitDays": "일",
+  "reminderUnitWeeks": "주",
+  "reminderAtTaskStart": "할 일 시작 시",
+  "reminderAtTaskDue": "할 일 마감 시",
+  "unsupportedReminder": "이 알림 유형은 유지되지만 시간을 수정할 수 없습니다.",
+  "relatedRemindersTitle": "관련 알림을 유지할까요?",
+  "relatedRemindersDescription": "이 날짜에 관련 알림이 {count}개 있습니다. 현재 날짜와 시간에 유지할까요?",
+  "discardRelatedReminders": "알림 삭제",
+  "keepRelatedReminders": "알림 유지",
+  "repeatEvery": "반복 간격",
+  "repeatOn": "반복 요일",
   "repeatEnd": "반복 종료",
-  "repeatNever": "Never",
-  "repeatUntil": "On date",
-  "repeatAfter": "After a number of occurrences",
-  "repeatCount": "Occurrences",
-  "repeatDayOfMonth": "Days of month",
-  "repeatMonths": "Months",
-  "repeatOrdinal": "Weekday position",
-  "repeatSpecificDays": "Specific days",
-  "repeatFirst": "First",
-  "repeatSecond": "Second",
-  "repeatThird": "Third",
-  "repeatFourth": "Fourth",
-  "repeatFifth": "Fifth",
-  "repeatSecondToLast": "Second to last",
-  "repeatLast": "Last",
-  "repeatAnyDay": "Day",
-  "repeatWeekday": "Weekday",
-  "repeatWeekendDay": "Weekend day",
-  "repeatEveryDays": "Every {count} days",
-  "repeatEveryWeeks": "Every {count} weeks",
-  "repeatEveryMonths": "Every {count} months",
-  "repeatEveryYears": "Every {count} years",
-  "repeatOnDaysSummary": "on {days}",
-  "repeatOnMonthDaysSummary": "on day {days}",
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "repeatInMonthsSummary": "in {months}",
-  "repeatTimesSummary": "{count}회",
-  "repeatUntilSummary": "until {date}",
-  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
-  "duplicateTask": "Duplicate task",
-  "taskDuplicated": "Task duplicated.",
-  "taskDuplicateFailed": "Could not duplicate the task: {error}",
-  "hideSubtasks": "Hide subtasks",
-  "hideClosedSubtasks": "Hide closed subtasks",
-  "reminderUnit": "Unit",
-  "attendeeRequired": "Required",
-  "attendeeOptional": "Optional",
-  "meetingSection": "Meeting",
-  "addGoogleMeet": "Add Google Meet",
-  "addTeamsMeeting": "Add Microsoft Teams meeting",
-  "onlineMeetingAdded": "Online meeting added",
-  "requestResponses": "Request responses",
-  "requestResponsesDescription": "Ask guests to respond to the invitation.",
-  "hideGuestList": "Hide guest list",
-  "hideGuestListDescription": "Guests cannot see who else was invited.",
-  "allowNewTimeProposals": "Allow new time proposals",
-  "allowNewTimeProposalsDescription": "Guests can suggest a different meeting time.",
-  "notifyGuestsTitle": "Notify guests?",
-  "notifyGuestsSaveMessage": "This meeting has guests. Send invitations or event updates when it is saved?",
-  "notifyGuestsDeleteMessage": "This meeting has guests. Send a cancellation when it is deleted?",
-  "sendUpdates": "Send updates",
-  "sendCancellation": "Send cancellation",
-  "doNotSend": "Don’t send",
-  "microsoftNotifyGuestsSaveTitle": "Save meeting?",
-  "microsoftNotifyGuestsSaveMessage": "Microsoft will send invitations or event updates to guests.",
-  "microsoftNotifyGuestsDeleteTitle": "Delete meeting?",
-  "microsoftNotifyGuestsDeleteMessage": "Microsoft will send a cancellation to guests.",
-  "organizer": "Organizer",
-  "yourResponse": "Your response",
-  "guestResponses": "Guest responses",
-  "respond": "Respond",
-  "acceptInvitation": "Accept",
-  "tentativeInvitation": "Tentative",
-  "declineInvitation": "Decline",
-  "joinMeeting": "Join meeting",
-  "responseAccepted": "Accepted",
-  "responseTentative": "Tentative",
-  "responseDeclined": "Declined",
-  "responseNeedsAction": "Awaiting response",
-  "responseNotResponded": "Not responded",
-  "responseOrganizer": "Organizer",
-  "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
-  "joinMeetingFailed": "Could not open the meeting link.",
+  "repeatNever": "안 함",
+  "repeatUntil": "날짜까지",
+  "repeatAfter": "지정한 횟수 후",
+  "repeatCount": "반복 횟수",
+  "repeatDayOfMonth": "월의 날짜",
+  "repeatMonths": "월",
+  "repeatOrdinal": "요일 순서",
+  "repeatSpecificDays": "특정 요일",
+  "repeatFirst": "첫 번째",
+  "repeatSecond": "두 번째",
+  "repeatThird": "세 번째",
+  "repeatFourth": "네 번째",
+  "repeatFifth": "다섯 번째",
+  "repeatSecondToLast": "끝에서 두 번째",
+  "repeatLast": "마지막",
+  "repeatAnyDay": "요일",
+  "repeatWeekday": "평일",
+  "repeatWeekendDay": "주말",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{월요일} TU{화요일} WE{수요일} TH{목요일} FR{금요일} SA{토요일} SU{일요일} day{날} weekday{평일} weekend{주말} other{{day}}}",
+  "repeatEveryDays": "{count}일마다",
+  "repeatEveryWeeks": "{count}주마다",
+  "repeatEveryMonths": "{count}개월마다",
+  "repeatEveryYears": "{count}년마다",
+  "repeatOnDaysSummary": "{days}에",
+  "repeatOnMonthDaysSummary": "{days}",
+  "repeatOnOrdinalSummary": "{position, select, first{첫 번째 {days}} second{두 번째 {days}} third{세 번째 {days}} fourth{네 번째 {days}} fifth{다섯 번째 {days}} secondToLast{끝에서 두 번째 {days}} last{마지막 {days}} other{{days}}}",
+  "repeatInMonthsSummary": "{months}에",
+  "repeatTimesSummary": "{count, plural, other{{count}회}}",
+  "repeatUntilSummary": "{date}까지",
+  "unsupportedRecurrencePreserved": "이 반복 규칙에는 이 편집기에서 변경하지 않는 옵션이 사용됩니다.",
+  "recurrenceUnsupportedByProvider": "이 반복은 {provider}에서 사용할 수 없습니다.",
+  "duplicateTask": "할 일 복제",
+  "taskDuplicated": "할 일이 복제되었습니다.",
+  "taskDuplicateFailed": "할 일을 복제할 수 없습니다: {error}",
+  "hideSubtasks": "하위 할 일 숨기기",
+  "hideClosedSubtasks": "완료된 하위 할 일 숨기기",
+  "reminderUnit": "단위",
+  "attendeeRequired": "필수",
+  "attendeeOptional": "선택사항",
+  "meetingSection": "회의",
+  "addGoogleMeet": "Google Meet 추가",
+  "addTeamsMeeting": "Microsoft Teams 회의 추가",
+  "onlineMeetingAdded": "온라인 회의가 추가됨",
+  "requestResponses": "응답 요청",
+  "requestResponsesDescription": "참석자에게 초대에 응답하도록 요청합니다.",
+  "hideGuestList": "참석자 목록 숨기기",
+  "hideGuestListDescription": "참석자는 다른 초대 대상자를 볼 수 없습니다.",
+  "allowNewTimeProposals": "새 시간 제안 허용",
+  "allowNewTimeProposalsDescription": "참석자가 다른 회의 시간을 제안할 수 있습니다.",
+  "notifyGuestsTitle": "참석자에게 알릴까요?",
+  "notifyGuestsSaveMessage": "이 회의에는 참석자가 있습니다. 저장할 때 초대 또는 일정 업데이트를 보낼까요?",
+  "notifyGuestsDeleteMessage": "이 회의에는 참석자가 있습니다. 삭제할 때 취소를 보낼까요?",
+  "sendUpdates": "업데이트 보내기",
+  "sendCancellation": "취소 보내기",
+  "doNotSend": "보내지 않음",
+  "microsoftNotifyGuestsSaveTitle": "회의를 저장할까요?",
+  "microsoftNotifyGuestsSaveMessage": "Microsoft에서 참석자에게 초대 또는 일정 업데이트를 보냅니다.",
+  "microsoftNotifyGuestsDeleteTitle": "회의를 삭제할까요?",
+  "microsoftNotifyGuestsDeleteMessage": "Microsoft에서 참석자에게 취소를 보냅니다.",
+  "organizer": "주최자",
+  "yourResponse": "내 응답",
+  "guestResponses": "참석자 응답",
+  "respond": "응답",
+  "acceptInvitation": "수락",
+  "tentativeInvitation": "미정",
+  "declineInvitation": "거절",
+  "joinMeeting": "회의 참가",
+  "responseAccepted": "수락됨",
+  "responseTentative": "미정",
+  "responseDeclined": "거절됨",
+  "responseNeedsAction": "응답 대기 중",
+  "responseNotResponded": "응답하지 않음",
+  "responseOrganizer": "주최자",
+  "invitationResponseFailed": "응답을 보낼 수 없습니다: {error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "회의 링크를 열 수 없습니다.",
+  "setCustomCalendarName": "맞춤 이름 설정",
+  "setAction": "설정",
+  "removeFromMyCalendars": "내 캘린더에서 삭제",
+  "removeAction": "삭제",
+  "removeCalendarConfirmation": "Google Calendar 목록에서 \"{title}\"을(를) 삭제할까요? 공유 캘린더와 일정은 삭제되지 않습니다.",
+  "calendarCannotRemove": "이 캘린더는 이 계정에서 삭제하거나 제거할 수 없습니다.",
+  "calendarPendingChangesPreventRemoval": "삭제하거나 제거하기 전에 이 캘린더의 보류 중인 변경사항이 동기화될 때까지 기다리세요.",
+  "calendarSubscriptions": "캘린더 구독",
+  "calendarSubscriptionsDescription": "보안 WebCal URL에서 새로 고침되는 읽기 전용 캘린더를 추가하세요.",
+  "addCalendarSubscription": "캘린더 구독 추가",
+  "subscriptionName": "로컬 이름",
+  "subscriptionUrl": "구독 URL",
+  "subscriptionUrlHelp": "HTTPS 또는 webcal URL을 입력하세요. BusyMax는 전체 URL을 안전한 저장소에 보관합니다.",
+  "subscriptionUrlInvalid": "사용자 정보나 프래그먼트가 없는 올바른 HTTPS 또는 webcal URL을 입력하세요.",
+  "subscriptionColor": "로컬 색상",
+  "subscriptionColorHelp": "#3584E4와 같은 6자리 색상을 사용하세요.",
+  "subscriptionColorInvalid": "6자리 16진수 색상을 입력하세요.",
+  "subscriptionRefreshMode": "새로 고침 빈도",
+  "subscriptionAutomatic": "자동",
+  "subscriptionHourly": "매시간",
+  "subscriptionSixHours": "6시간마다",
+  "subscriptionDaily": "매일",
+  "subscriptionSafeOrigin": "소스: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "안전한 원본을 미리 보려면 올바른 URL을 입력하세요.",
+  "subscriptionReadOnly": "읽기 전용 구독",
+  "subscriptionNeverRefreshed": "아직 새로 고치지 않음",
+  "subscriptionLastRefresh": "마지막으로 성공한 새로 고침: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "다음 새로 고침: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "최신 상태",
+  "subscriptionStatusIssue": "새로 고침 문제: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "지금 새로 고침",
+  "unsubscribe": "구독 취소",
+  "unsubscribeCalendarTitle": "“{name}” 구독을 취소할까요?",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "로컬 구독과 캐시된 일정을 제거합니다. 게시된 캘린더는 변경되지 않습니다.",
+  "addSubscriptionAction": "구독 추가",
+  "subscriptionOperationFailed": "캘린더 구독 실패: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "구독",
+  "calendarImport": "캘린더 가져오기",
+  "calendarImportDescription": "파일을 선택하고 일정을 검토한 다음 이를 받을 쓰기 가능한 캘린더를 선택하세요.",
+  "importIcsFile": ".ics 파일 가져오기",
+  "importIcsPreview": "캘린더 일정 가져오기",
+  "importEventsFound": "가져올 수 있는 일정 세트: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importInvalidEvents": "잘못된 일정: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importFieldsOmitted": "의도적으로 생략됨: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "쓰기 가능한 대상 캘린더가 없습니다.",
+  "importDestinationCalendar": "대상 캘린더",
+  "importIcsConfirm": "일정 가져오기",
+  "importIcsComplete": "가져오기 완료",
+  "importQueued": "가져왔거나 대기열에 추가됨: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "중복 건너뜀: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importUnsupportedSets": "지원되지 않는 반복 세트: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importIcsFailed": "캘린더 파일을 가져올 수 없습니다: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "networkOffline": "오프라인",
   "networkOfflineDescription": "연결이 복구되면 변경 사항이 동기화됩니다.",
-  "networkOfflineTryAgain": "오프라인 상태입니다. 인터넷에 연결한 후 다시 시도하세요."
+  "networkOfflineTryAgain": "오프라인 상태입니다. 인터넷에 연결한 후 다시 시도하세요.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "{days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatSummarySeparator": " ",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}일",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatWeekdayListPair": "{first}과 {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first}과 {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first}과 {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first}과 {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} {month} {day}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months}의 {day}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months}의 {days}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {months}의 {position, select, first{첫 번째 {days}} second{두 번째 {days}} third{세 번째 {days}} fourth{네 번째 {days}} fifth{다섯 번째 {days}} secondToLast{끝에서 두 번째 {days}} last{마지막 {days}} other{{days}}}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month}의 {days}",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency} {month}의 {position, select, first{첫 번째 {days}} second{두 번째 {days}} third{세 번째 {days}} fourth{네 번째 {days}} fifth{다섯 번째 {days}} secondToLast{끝에서 두 번째 {days}} last{마지막 {days}} other{{days}}}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  }
 }

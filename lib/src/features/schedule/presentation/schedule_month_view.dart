@@ -1,12 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
@@ -45,7 +45,6 @@ class ScheduleMonthView extends StatelessWidget {
   Widget build(BuildContext context) {
     final days = _daysInRange(range);
     final rows = (days.length / DateTime.daysPerWeek).ceil();
-    final locale = Localizations.localeOf(context).toLanguageTag();
     final month = DateTime(selectedDate.year, selectedDate.month);
     final grouped = ScheduleProjection.groupByDay(items);
     final theme = Theme.of(context);
@@ -64,7 +63,11 @@ class ScheduleMonthView extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: Text(
-                        DateFormat.E(locale).format(_weekdayDate(weekday)),
+                        localizedWeekdayLabel(
+                          Localizations.localeOf(context).toLanguageTag(),
+                          _weekdayDate(weekday),
+                          abbreviated: true,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelMedium?.copyWith(

@@ -76,6 +76,42 @@ void main() {
     expect(title.style?.fontWeight, FontWeight.bold);
   });
 
+  testWidgets('day toolbar uses a localized standalone date heading', (
+    tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(1600, 900)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        locale: const Locale('ru'),
+        child: Scaffold(
+          body: SizedBox(
+            width: 2000,
+            child: ScheduleToolbar(
+              mode: ScheduleViewMode.day,
+              range: ScheduleRange.day(DateTime(2026, 9, 7)),
+              selectedDate: DateTime(2026, 9, 7),
+              onToday: () {},
+              onPrevious: () {},
+              onNext: () {},
+              onModeChanged: (_) {},
+              canCreateEvent: false,
+              canCreateTask: false,
+              onCreateEvent: () {},
+              onCreateTask: () {},
+              onRefresh: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Понедельник, 7 сентября 2026 г.'), findsOneWidget);
+  });
+
   testWidgets('Today is an accessible icon-only action', (tester) async {
     final semantics = tester.ensureSemantics();
     var activations = 0;
@@ -161,6 +197,7 @@ void main() {
         'label': 'Event',
         'icon': 'x-office-calendar-symbolic',
         'enabled': true,
+        'role': 'command',
         'selected': false,
         'shortcut': 'E',
       },
@@ -168,6 +205,7 @@ void main() {
         'label': 'Task',
         'icon': 'checkbox-checked-symbolic',
         'enabled': true,
+        'role': 'command',
         'selected': false,
         'shortcut': 'T',
       },

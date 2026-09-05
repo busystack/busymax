@@ -6,11 +6,15 @@ import 'package:busymax/src/providers/busy_provider.dart';
 
 CalendarSourceDto googleCalendarSourceFromJson(Map<String, Object?> json) {
   final accessRole = json['accessRole']?.toString();
+  final summaryOverride = json['summaryOverride']?.toString().trim();
+  final providerSummary = json['summary']?.toString().trim();
   return CalendarSourceDto(
     provider: BusyProvider.google,
     providerCalendarId: json['id']?.toString() ?? '',
-    summary: json['summary']?.toString().trim().isNotEmpty == true
-        ? json['summary']!.toString()
+    summary: summaryOverride?.isNotEmpty == true
+        ? summaryOverride!
+        : providerSummary?.isNotEmpty == true
+        ? providerSummary!
         : 'Calendar',
     description: json['description']?.toString(),
     primaryCalendar: json['primary'] == true,
@@ -22,6 +26,7 @@ CalendarSourceDto googleCalendarSourceFromJson(Map<String, Object?> json) {
     colorId: json['colorId']?.toString(),
     timeZone: json['timeZone']?.toString(),
     accessRole: accessRole,
+    dataOwner: json['dataOwner']?.toString(),
     isDeleted: json['deleted'] == true,
     rawJson: json,
   );
@@ -97,6 +102,16 @@ Map<String, Object?> googleCalendarListMutationToJson(
   });
 }
 
+Map<String, Object?> googleCalendarListColorMutationToJson(
+  CalendarMutation mutation,
+) {
+  return _compact({
+    'backgroundColor': mutation.backgroundColor,
+    'foregroundColor': mutation.foregroundColor,
+    'colorId': mutation.colorId,
+  });
+}
+
 Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
   final allDay = mutation.allDay ?? mutation.startDate != null;
   final start = allDay
@@ -112,26 +127,58 @@ Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
           'timeZone': mutation.endTimeZone,
         });
 
-  return _compact({
-    'summary': mutation.title,
-    'description': mutation.description,
-    'location': mutation.location,
-    if (start.isNotEmpty) 'start': start,
-    if (end.isNotEmpty) 'end': end,
-    'recurrence': mutation.clearRecurrence
-        ? const <Object?>[]
-        : mutation.recurrence,
-    'reminders': mutation.reminders,
-    'attendees': mutation.clearAttendees
-        ? const <Object?>[]
-        : mutation.attendees,
-    'colorId': mutation.colorId,
-    'visibility': mutation.visibility,
-    'transparency': mutation.transparencyOrShowAs,
-    if (mutation.hideAttendees != null)
-      'guestsCanSeeOtherGuests': !mutation.hideAttendees!,
-    'conferenceData': mutation.conference,
-  });
+  return {
+    ..._googleWritableEventFields(mutation.providerRaw),
+    ..._compact({
+      'id': mutation.providerEventId,
+      'summary': mutation.title,
+      'description': mutation.description,
+      'location': mutation.location,
+      if (start.isNotEmpty) 'start': start,
+      if (end.isNotEmpty) 'end': end,
+      'recurrence': mutation.clearRecurrence
+          ? const <Object?>[]
+          : mutation.recurrence,
+      'reminders': mutation.reminders,
+      'attendees': mutation.clearAttendees
+          ? const <Object?>[]
+          : mutation.attendees,
+      'colorId': mutation.colorId,
+      'visibility': mutation.visibility,
+      'transparency': mutation.transparencyOrShowAs,
+      if (mutation.hideAttendees != null)
+        'guestsCanSeeOtherGuests': !mutation.hideAttendees!,
+      'conferenceData': mutation.conference,
+    }),
+  };
+}
+
+Map<String, Object?> _googleWritableEventFields(Map<String, Object?>? source) {
+  if (source == null) return const {};
+  const writable = {
+    'summary',
+    'description',
+    'location',
+    'start',
+    'end',
+    'recurrence',
+    'attendees',
+    'reminders',
+    'attachments',
+    'colorId',
+    'visibility',
+    'transparency',
+    'guestsCanInviteOthers',
+    'guestsCanModify',
+    'guestsCanSeeOtherGuests',
+    'extendedProperties',
+    'source',
+    'conferenceData',
+  };
+  return {
+    for (final entry in source.entries)
+      if (writable.contains(entry.key)) entry.key: entry.value,
+  };
 }
 
 String jsonOrNull(Object? value) {

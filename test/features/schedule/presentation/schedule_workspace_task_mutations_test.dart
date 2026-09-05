@@ -6,6 +6,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_workspace.da
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../accounts/data/accounts_repository.dart';
@@ -177,13 +178,16 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
               )),
             )
             .valueOrNull,
-      BusyProvider.google || BusyProvider.microsoft => null,
+      BusyProvider.google ||
+      BusyProvider.microsoft ||
+      BusyProvider.webCal => null,
     };
     final capabilities = switch (account.provider) {
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud => davCapabilities ?? noTaskCollectionCapabilities,
       BusyProvider.google || BusyProvider.microsoft =>
         adapterDefaultTaskCapabilities(account.provider),
+      BusyProvider.webCal => noTaskCollectionCapabilities,
     };
 
     return StreamBuilder<TaskEntity?>(
@@ -776,6 +780,7 @@ String _providerEditorLabel(BuildContext context, BusyProvider provider) {
     BusyProvider.microsoft => l10n.microsoftTodoProvider,
     BusyProvider.appleICloud => 'Apple iCloud',
     BusyProvider.nextcloud => 'Nextcloud Tasks',
+    BusyProvider.webCal => 'WebCal',
   };
 }
 

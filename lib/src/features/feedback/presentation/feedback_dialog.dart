@@ -324,6 +324,7 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
         subject: subject,
         message: message,
         replyEmail: replyEmail,
+        platform: Platform.operatingSystem,
         technicalDetails: includeTechnicalDetails
             ? FeedbackTechnicalDetails(
                 osVersion:

@@ -1,34 +1,43 @@
 import 'dart:convert';
 
+import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../db/app_database.dart';
+import '../calendar/data/calendar_repository.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
 import '../tasks/domain/task_remote_client.dart';
 import '../tasks/domain/task_remote_error.dart';
-import 'sync_engine.dart';
 
 class PendingOpResolutionService {
   PendingOpResolutionService({
     required AppDatabase database,
-    required TaskRemoteClient apiClient,
+    TaskRemoteClient? apiClient,
+    CloudCalendarClient? calendarClient,
     required String accountId,
-    required SyncEngine syncEngine,
+    required Future<void> Function() syncTasks,
+    required Future<void> Function() syncCalendar,
     DateTime Function()? nowUtc,
   }) : _database = database,
        _apiClient = apiClient,
+       _calendarClient = calendarClient,
        _accountId = accountId,
-       _syncEngine = syncEngine,
+       _syncTasks = syncTasks,
+       _syncCalendar = syncCalendar,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
-  final TaskRemoteClient _apiClient;
+  final TaskRemoteClient? _apiClient;
+  final CloudCalendarClient? _calendarClient;
   final String _accountId;
-  final SyncEngine _syncEngine;
+  final Future<void> Function() _syncTasks;
+  final Future<void> Function() _syncCalendar;
   final DateTime Function() _nowUtc;
 
   Future<void> retryNow(String opId) async {
+    final op = await _database.pendingOpsDao.getOp(opId);
+    if (op == null) return;
     await _database.pendingOpsDao.retryNow(opId, _nowUtc());
-    await _syncEngine.incrementalSync();
+    await _syncAfterResolution(op);
   }
 
   Future<void> discard(String opId) async {
@@ -37,24 +46,73 @@ class PendingOpResolutionService {
       return;
     }
 
-    await _refreshOrRemoveLocalState(op);
+    final syncAfterDiscard = await _refreshOrRemoveLocalState(op);
     await _database.pendingOpsDao.deleteOp(op.id);
-    await _syncEngine.incrementalSync();
+    if (syncAfterDiscard) {
+      await _syncAfterResolution(op);
+    }
   }
 
-  Future<void> _refreshOrRemoveLocalState(PendingOp op) async {
+  Future<bool> _refreshOrRemoveLocalState(PendingOp op) async {
+    if (op.entityType == 'calendar') {
+      final repository = CalendarRepository(database: _database, now: _nowUtc);
+      switch (_operationType(op)) {
+        case 'calendar.create':
+          await repository.discardPendingCalendarCreation(op);
+          return false;
+        case 'calendar.delete' || 'calendar.remove':
+          await repository.restoreSourceAfterRemovalFailure(op);
+          return true;
+        case 'calendar.patch':
+          await repository.restoreSourceAfterPatchDiscard(op);
+          return true;
+      }
+      return false;
+    }
+
+    if (op.entityType == 'event') {
+      final repository = CalendarRepository(database: _database, now: _nowUtc);
+      if (_operationType(op) == 'event.create') {
+        await repository.discardPendingEventCreation(op);
+        return false;
+      }
+      await repository.restoreEventAfterMutationDiscard(
+        op,
+        fetchProviderEvent: _calendarClient == null
+            ? null
+            : ({required calendarId, required eventId}) => _calendarClient
+                  .getEvent(calendarId: calendarId, eventId: eventId),
+      );
+      return true;
+    }
+
     if (op.entityType == 'task' && op.taskListId != null && op.taskId != null) {
       if (op.operation == 'move_task') {
         await _refreshOrRemoveMovedTask(op);
-        return;
+        return true;
       }
       await _refreshOrRemoveTask(op.taskListId!, op.taskId!);
-      return;
+      return true;
     }
 
     if (op.entityType == 'task_list' && op.taskListId != null) {
       await _refreshOrRemoveTaskList(op.taskListId!);
+      return true;
     }
+    return false;
+  }
+
+  Future<void> _syncAfterResolution(PendingOp op) async {
+    if (op.entityType == 'calendar' || op.entityType == 'event') {
+      await _syncCalendar();
+      return;
+    }
+    await _syncTasks();
+  }
+
+  TaskRemoteClient get _requiredTaskClient {
+    return _apiClient ??
+        (throw StateError('Task operation recovery is unavailable.'));
   }
 
   Future<void> _refreshOrRemoveMovedTask(PendingOp op) async {
@@ -63,7 +121,7 @@ class PendingOpResolutionService {
     final destinationTaskListId = _destinationTaskListId(op);
 
     try {
-      final dto = await _apiClient.getTask(
+      final dto = await _requiredTaskClient.getTask(
         taskListId: sourceTaskListId,
         taskId: taskId,
       );
@@ -96,7 +154,7 @@ class PendingOpResolutionService {
 
   Future<void> _refreshOrRemoveTask(String taskListId, String taskId) async {
     try {
-      final dto = await _apiClient.getTask(
+      final dto = await _requiredTaskClient.getTask(
         taskListId: taskListId,
         taskId: taskId,
       );
@@ -113,7 +171,7 @@ class PendingOpResolutionService {
 
   Future<void> _refreshOrRemoveTaskList(String taskListId) async {
     try {
-      final dto = await _apiClient.getTaskList(taskListId);
+      final dto = await _requiredTaskClient.getTaskList(taskListId);
       await _database.taskListsDao.upsertTaskList(
         taskListFromDto(_accountId, dto, _now()),
       );
@@ -128,6 +186,10 @@ class PendingOpResolutionService {
   String? _destinationTaskListId(PendingOp op) {
     final request = (jsonDecode(op.requestJson) as Map).cast<String, Object?>();
     return request['destinationTasklist']?.toString();
+  }
+
+  String _operationType(PendingOp op) {
+    return op.operationType ?? '${op.entityType}.${op.operation}';
   }
 
   String _now() => _nowUtc().toIso8601String();

@@ -95,6 +95,18 @@ class NotificationScheduleService {
     final isDav =
         provider == BusyProvider.appleICloud ||
         provider == BusyProvider.nextcloud;
+    final reminderEnabledTaskListIds = {
+      for (final list
+          in await (_database.select(_database.taskLists)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.remindersEnabled.equals(true) &
+                    row.pendingDelete.equals(false) &
+                    row.serverMissing.equals(false),
+              ))
+              .get())
+        list.id,
+    };
     final rows =
         await (_database.select(_database.tasks)..where(
               (row) =>
@@ -106,6 +118,9 @@ class NotificationScheduleService {
             ))
             .get();
     for (final task in rows) {
+      if (!reminderEnabledTaskListIds.contains(task.taskListId)) {
+        continue;
+      }
       if (task.status == 'completed') {
         continue;
       }
@@ -456,7 +471,8 @@ List<_EventReminder> _eventReminders(
     ], startUtc: startUtc);
   }
   if ((provider == BusyProvider.appleICloud ||
-          provider == BusyProvider.nextcloud) &&
+          provider == BusyProvider.nextcloud ||
+          provider == BusyProvider.webCal) &&
       decoded is Map) {
     return _davEventReminders(
       decoded.cast<String, Object?>(),

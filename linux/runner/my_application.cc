@@ -18,6 +18,8 @@ constexpr char kNativeMenuChannel[] = "busymax/native_menus";
 constexpr char kWindowChannel[] = "io.busystack.busymax/window";
 constexpr char kHeaderBarChannel[] = "io.busystack.busymax/headerbar";
 constexpr char kGtkSettingsChannel[] = "io.busystack.busymax/gtk_settings";
+constexpr char kExternalCalendarOpenChannel[] =
+    "io.busystack.busymax/external_calendar_open";
 constexpr char kGtkFontSettingsEventChannel[] =
     "io.busystack.busymax/gtk_font_settings";
 constexpr char kGtkThemeColorsEventChannel[] =
@@ -98,6 +100,9 @@ struct _MyApplication {
   FlMethodChannel* window_channel;
   FlMethodChannel* header_bar_channel;
   FlMethodChannel* gtk_settings_channel;
+  FlMethodChannel* external_calendar_open_channel;
+  GQueue* pending_external_opens;
+  gboolean external_calendar_open_ready;
   FlEventChannel* gtk_font_settings_event_channel;
   FlEventChannel* gtk_theme_colors_event_channel;
   gulong gtk_font_settings_signal_id;
@@ -202,6 +207,19 @@ struct _MyApplication {
   gboolean header_onboarding_controls_visible;
   gint header_onboarding_content_width;
 };
+
+struct PendingExternalOpen {
+  gchar* kind;
+  gchar* value;
+};
+
+static void pending_external_open_free(gpointer data) {
+  auto* item = static_cast<PendingExternalOpen*>(data);
+  if (item == nullptr) return;
+  g_free(item->kind);
+  g_free(item->value);
+  g_free(item);
+}
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
@@ -1380,7 +1398,28 @@ struct NativeMenuSession {
 struct NativeMenuHandlerData {
   GtkWidget* view;
   NativeMenuSession* active;
+  GdkEvent* trigger_event;
+  gulong trigger_event_signal_id;
 };
+
+static void native_menu_event_after_cb(GtkWidget*,
+                                       GdkEvent* event,
+                                       gpointer user_data) {
+  switch (event->type) {
+    case GDK_BUTTON_PRESS:
+    case GDK_BUTTON_RELEASE:
+    case GDK_KEY_PRESS:
+    case GDK_KEY_RELEASE:
+    case GDK_TOUCH_BEGIN:
+    case GDK_TOUCH_END:
+      break;
+    default:
+      return;
+  }
+  auto* data = static_cast<NativeMenuHandlerData*>(user_data);
+  g_clear_pointer(&data->trigger_event, gdk_event_free);
+  data->trigger_event = gdk_event_copy(event);
+}
 
 static void native_menu_session_respond(NativeMenuSession* session,
                                         gint selected_index) {
@@ -1461,6 +1500,12 @@ static void native_menu_action_activated_cb(GSimpleAction* action,
                                             GVariant*,
                                             gpointer user_data) {
   auto* session = static_cast<NativeMenuSession*>(user_data);
+  g_autoptr(GVariant) state = g_action_get_state(G_ACTION(action));
+  if (state != nullptr &&
+      g_variant_is_of_type(state, G_VARIANT_TYPE_BOOLEAN)) {
+    g_simple_action_set_state(
+        action, g_variant_new_boolean(!g_variant_get_boolean(state)));
+  }
   session->pending_selected_index =
       GPOINTER_TO_INT(
           g_object_get_data(G_OBJECT(action), kNativeMenuActionIndexKey)) -
@@ -1675,38 +1720,51 @@ static void show_native_menu(NativeMenuHandlerData* data,
     return;
   }
 
-  size_t selected_entry_count = 0;
-  gboolean has_disabled_entry = FALSE;
+  size_t radio_entry_count = 0;
+  size_t selected_radio_entry_count = 0;
+  gboolean has_disabled_radio_entry = FALSE;
   for (size_t index = 0; index < fl_value_get_length(entries); index++) {
     FlValue* entry = fl_value_get_list_value(entries, index);
     const gchar* label = fl_lookup_string_arg(entry, "label");
     FlValue* icon = fl_value_lookup_string(entry, "icon");
     FlValue* shortcut = fl_value_lookup_string(entry, "shortcut");
+    const gchar* role = fl_lookup_string_arg(entry, "role");
     gboolean enabled = TRUE;
     gboolean selected = FALSE;
     if (label == nullptr ||
         (icon != nullptr && fl_value_get_type(icon) != FL_VALUE_TYPE_STRING) ||
         (shortcut != nullptr &&
          fl_value_get_type(shortcut) != FL_VALUE_TYPE_STRING) ||
+        (role != nullptr && g_strcmp0(role, "command") != 0 &&
+         g_strcmp0(role, "radio") != 0 && g_strcmp0(role, "toggle") != 0) ||
         !fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled) ||
         !fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected)) {
       respond_native_menu_argument_error(
           method_call,
           "each entry must contain a label, optional string icon and shortcut, "
-          "and optional boolean enabled and selected values.");
+          "a command, radio, or toggle role, and optional boolean enabled and "
+          "selected values.");
       return;
     }
-    if (selected) {
-      selected_entry_count++;
+    const gboolean is_radio = g_strcmp0(role, "radio") == 0;
+    const gboolean is_toggle = g_strcmp0(role, "toggle") == 0;
+    if (selected && !is_radio && !is_toggle) {
+      respond_native_menu_argument_error(
+          method_call, "command entries cannot be selected.");
+      return;
     }
-    has_disabled_entry = has_disabled_entry || !enabled;
+    if (is_radio) {
+      radio_entry_count++;
+      selected_radio_entry_count += selected ? 1 : 0;
+      has_disabled_radio_entry = has_disabled_radio_entry || !enabled;
+    }
   }
-  if (selected_entry_count > 1 ||
-      (selected_entry_count == 1 && has_disabled_entry)) {
+  if ((radio_entry_count > 0 && selected_radio_entry_count != 1) ||
+      has_disabled_radio_entry) {
     respond_native_menu_argument_error(
         method_call,
-        "single-choice menus require exactly one selected entry and all "
-        "entries enabled.");
+        "single-choice menus require exactly one selected radio entry and all "
+        "radio entries enabled.");
     return;
   }
 
@@ -1727,13 +1785,14 @@ static void show_native_menu(NativeMenuHandlerData* data,
 
   GSimpleAction* selection_action = nullptr;
   g_autofree gchar* detailed_selection_action = nullptr;
-  if (selected_entry_count == 1) {
+  if (radio_entry_count > 0) {
     g_autofree gchar* selected_target = nullptr;
     for (size_t index = 0; index < fl_value_get_length(entries); index++) {
       FlValue* entry = fl_value_get_list_value(entries, index);
       gboolean selected = FALSE;
       fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected);
-      if (selected) {
+      if (selected &&
+          g_strcmp0(fl_lookup_string_arg(entry, "role"), "radio") == 0) {
         selected_target = g_strdup_printf("%zu", index);
         break;
       }
@@ -1755,17 +1814,24 @@ static void show_native_menu(NativeMenuHandlerData* data,
     const gchar* label = fl_lookup_string_arg(entry, "label");
     const gchar* icon_name = fl_lookup_string_arg(entry, "icon");
     const gchar* shortcut = fl_lookup_string_arg(entry, "shortcut");
+    const gchar* role = fl_lookup_string_arg(entry, "role");
     gboolean enabled = TRUE;
+    gboolean selected = FALSE;
     fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled);
+    fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected);
 
     g_autoptr(GMenuItem) item = g_menu_item_new(label, nullptr);
-    if (selection_action != nullptr) {
+    if (g_strcmp0(role, "radio") == 0) {
       g_autofree gchar* target = g_strdup_printf("%zu", index);
       g_menu_item_set_action_and_target_value(
           item, detailed_selection_action, g_variant_new_string(target));
     } else {
       g_autofree gchar* action_name = g_strdup_printf("select-%zu", index);
-      GSimpleAction* action = g_simple_action_new(action_name, nullptr);
+      GSimpleAction* action = g_strcmp0(role, "toggle") == 0
+                                  ? g_simple_action_new_stateful(
+                                        action_name, nullptr,
+                                        g_variant_new_boolean(selected))
+                                  : g_simple_action_new(action_name, nullptr);
       g_simple_action_set_enabled(action, enabled);
       g_object_set_data(G_OBJECT(action), kNativeMenuActionIndexKey,
                         GINT_TO_POINTER(static_cast<gint>(index) + 1));
@@ -1826,10 +1892,16 @@ static void show_native_menu(NativeMenuHandlerData* data,
   // widget whose GdkWindow belongs to the toplevel. Anchor to the translated
   // rectangle directly: moving a hidden proxy widget would only queue a later
   // size allocation, so an immediate popup would still see its old position.
+  g_autoptr(GdkEvent) current_event = gtk_get_current_event();
+  const GdkEvent* trigger_event = current_event != nullptr
+                                      ? current_event
+                                      : data->trigger_event;
   gtk_menu_popup_at_rect(
       GTK_MENU(session->menu), rect_window, &window_anchor,
       open_above ? GDK_GRAVITY_NORTH_WEST : GDK_GRAVITY_SOUTH_WEST,
-      open_above ? GDK_GRAVITY_SOUTH_WEST : GDK_GRAVITY_NORTH_WEST, nullptr);
+      open_above ? GDK_GRAVITY_SOUTH_WEST : GDK_GRAVITY_NORTH_WEST,
+      trigger_event);
+  g_clear_pointer(&data->trigger_event, gdk_event_free);
   if (focus_first) {
     gtk_menu_shell_select_first(GTK_MENU_SHELL(session->menu), TRUE);
   } else {
@@ -1844,10 +1916,15 @@ static void native_menu_handler_data_free(gpointer user_data) {
     native_menu_session_dispose(data->active);
   }
   if (data->view != nullptr) {
+    if (data->trigger_event_signal_id != 0) {
+      g_signal_handler_disconnect(data->view,
+                                  data->trigger_event_signal_id);
+    }
     g_object_remove_weak_pointer(
         G_OBJECT(data->view),
         reinterpret_cast<gpointer*>(&data->view));
   }
+  g_clear_pointer(&data->trigger_event, gdk_event_free);
   g_free(data);
 }
 
@@ -1882,6 +1959,8 @@ static FlMethodChannel* create_native_menu_channel(FlView* view) {
   data->view = GTK_WIDGET(view);
   g_object_add_weak_pointer(G_OBJECT(data->view),
                             reinterpret_cast<gpointer*>(&data->view));
+  data->trigger_event_signal_id = g_signal_connect(
+      data->view, "event-after", G_CALLBACK(native_menu_event_after_cb), data);
   fl_method_channel_set_method_call_handler(
       channel, native_menu_method_call_cb, data,
       native_menu_handler_data_free);
@@ -4834,6 +4913,77 @@ static void window_method_call_cb(FlMethodChannel* channel,
   }
 }
 
+static void flush_external_calendar_opens(MyApplication* self) {
+  if (!self->external_calendar_open_ready ||
+      self->external_calendar_open_channel == nullptr ||
+      self->pending_external_opens == nullptr) {
+    return;
+  }
+  while (!g_queue_is_empty(self->pending_external_opens)) {
+    auto* item = static_cast<PendingExternalOpen*>(
+        g_queue_pop_head(self->pending_external_opens));
+    g_autoptr(FlValue) args = fl_value_new_map();
+    fl_value_set_string_take(args, "kind", fl_value_new_string(item->kind));
+    fl_value_set_string_take(args, "value", fl_value_new_string(item->value));
+    fl_method_channel_invoke_method(self->external_calendar_open_channel,
+                                    "openItem", args, nullptr, nullptr,
+                                    nullptr);
+    pending_external_open_free(item);
+  }
+}
+
+static void external_calendar_open_method_call_cb(FlMethodChannel*,
+                                                  FlMethodCall* method_call,
+                                                  gpointer user_data) {
+  auto* self = MY_APPLICATION(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (g_strcmp0(method, "ready") != 0) {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+    return;
+  }
+  self->external_calendar_open_ready = TRUE;
+  fl_method_call_respond_success(method_call, nullptr, nullptr);
+  flush_external_calendar_opens(self);
+}
+
+static void register_external_calendar_open_channel(MyApplication* self,
+                                                    FlView* view) {
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  self->external_calendar_open_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      kExternalCalendarOpenChannel, FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->external_calendar_open_channel,
+      external_calendar_open_method_call_cb, self, nullptr);
+}
+
+static void queue_external_calendar_open(MyApplication* self,
+                                         const gchar* kind,
+                                         const gchar* value) {
+  if (kind == nullptr || value == nullptr || value[0] == '\0') return;
+  auto* item = g_new0(PendingExternalOpen, 1);
+  item->kind = g_strdup(kind);
+  item->value = g_strdup(value);
+  g_queue_push_tail(self->pending_external_opens, item);
+  flush_external_calendar_opens(self);
+}
+
+static gboolean queue_supported_external_file(MyApplication* self,
+                                              GFile* file) {
+  g_autofree gchar* uri = g_file_get_uri(file);
+  if (uri != nullptr && g_ascii_strncasecmp(uri, "webcal:", 7) == 0) {
+    queue_external_calendar_open(self, "webcal", uri);
+    return TRUE;
+  }
+  if (!g_file_is_native(file)) return FALSE;
+  g_autofree gchar* path = g_file_get_path(file);
+  if (path == nullptr) return FALSE;
+  g_autofree gchar* lower = g_ascii_strdown(path, -1);
+  if (!g_str_has_suffix(lower, ".ics")) return FALSE;
+  queue_external_calendar_open(self, "ics", path);
+  return TRUE;
+}
+
 static void register_window_channel(MyApplication* self, FlView* view) {
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   self->window_channel = fl_method_channel_new(
@@ -4912,6 +5062,7 @@ static void my_application_activate(GApplication* application) {
   register_native_date_time_picker(self, view, window);
   register_native_dialogs(self, view, window);
   register_native_menus(self, view);
+  register_external_calendar_open_channel(self, view);
   register_window_channel(self, view);
   register_header_bar_channel(self, view);
   register_gtk_settings_channel(self, view);
@@ -4920,19 +5071,49 @@ static void my_application_activate(GApplication* application) {
   schedule_header_bar_focus_state_refresh(self);
 }
 
+// Implements GApplication::open.
+static void my_application_open(GApplication* application,
+                                GFile** files,
+                                gint file_count,
+                                const gchar*) {
+  MyApplication* self = MY_APPLICATION(application);
+  gboolean accepted = FALSE;
+  for (gint index = 0; index < file_count; index++) {
+    accepted = queue_supported_external_file(self, files[index]) || accepted;
+  }
+  if (!accepted) {
+    if (self->main_window == nullptr) {
+      g_application_activate(application);
+    }
+    return;
+  }
+  self->start_minimized = FALSE;
+  if (self->main_window == nullptr) {
+    g_application_activate(application);
+  } else {
+    restore_main_window(self);
+  }
+}
+
 // Implements GApplication::local_command_line.
 static gboolean my_application_local_command_line(GApplication* application,
                                                   gchar*** arguments,
                                                   int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
-  // Strip out the first argument as it is the binary name.
-  self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
+  g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   self->start_minimized = FALSE;
+  g_autoptr(GPtrArray) files = g_ptr_array_new_with_free_func(g_object_unref);
   for (gchar** argument = *arguments + 1; *argument != nullptr; argument++) {
     if (g_strcmp0(*argument, "--start-minimized") == 0) {
       self->start_minimized = TRUE;
-      break;
+      continue;
     }
+    if ((*argument)[0] == '-') continue;
+    g_ptr_array_add(files, g_file_new_for_commandline_arg(*argument));
+  }
+  self->dart_entrypoint_arguments = g_new0(gchar*, 2);
+  if (self->start_minimized) {
+    self->dart_entrypoint_arguments[0] = g_strdup("--start-minimized");
   }
 
   g_autoptr(GError) error = nullptr;
@@ -4942,7 +5123,12 @@ static gboolean my_application_local_command_line(GApplication* application,
     return TRUE;
   }
 
-  g_application_activate(application);
+  if (files->len > 0) {
+    g_application_open(
+        application, reinterpret_cast<GFile**>(files->pdata), files->len, "");
+  } else {
+    g_application_activate(application);
+  }
   *exit_status = 0;
 
   return TRUE;
@@ -4979,6 +5165,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->window_channel);
   g_clear_object(&self->header_bar_channel);
   g_clear_object(&self->gtk_settings_channel);
+  g_clear_object(&self->external_calendar_open_channel);
   disconnect_gtk_font_settings_signal(self);
   g_clear_object(&self->gtk_font_settings_event_channel);
   g_clear_object(&self->gtk_theme_colors_event_channel);
@@ -5068,11 +5255,17 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_keyboard_shortcuts_shortcut, g_free);
   g_clear_pointer(&self->header_search_query, g_free);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  if (self->pending_external_opens != nullptr) {
+    g_queue_free_full(
+        self->pending_external_opens, pending_external_open_free);
+    self->pending_external_opens = nullptr;
+  }
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 
 static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
+  G_APPLICATION_CLASS(klass)->open = my_application_open;
   G_APPLICATION_CLASS(klass)->local_command_line =
       my_application_local_command_line;
   G_APPLICATION_CLASS(klass)->startup = my_application_startup;
@@ -5088,6 +5281,9 @@ static void my_application_init(MyApplication* self) {
   self->window_channel = nullptr;
   self->header_bar_channel = nullptr;
   self->gtk_settings_channel = nullptr;
+  self->external_calendar_open_channel = nullptr;
+  self->pending_external_opens = g_queue_new();
+  self->external_calendar_open_ready = FALSE;
   self->gtk_font_settings_event_channel = nullptr;
   self->gtk_theme_colors_event_channel = nullptr;
   self->gtk_font_settings_signal_id = 0;
@@ -5205,6 +5401,6 @@ MyApplication* my_application_new() {
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID, "flags",
-                                     static_cast<GApplicationFlags>(0),
+                                     G_APPLICATION_HANDLES_OPEN,
                                      nullptr));
 }

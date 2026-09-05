@@ -7,6 +7,31 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('calendar update sends the documented Microsoft color enum', () async {
+    late http.Request captured;
+    final client = _client((request) {
+      captured = request;
+      return _json({
+        'id': 'cal-1',
+        'name': 'Work',
+        'color': 'lightBlue',
+        'hexColor': '#0078D4',
+        'canEdit': true,
+      });
+    });
+
+    final source = await client.updateCalendar(
+      'cal-1',
+      const CalendarMutation(colorId: 'lightBlue'),
+    );
+
+    expect(captured.method, 'PATCH');
+    expect(captured.url.path, '/v1.0/me/calendars/cal-1');
+    expect(jsonDecode(captured.body), {'color': 'lightBlue'});
+    expect(source.colorId, 'lightBlue');
+    expect(source.backgroundColor, '#0078D4');
+  });
+
   test(
     'event create, update, and delete use Microsoft Graph endpoints',
     () async {

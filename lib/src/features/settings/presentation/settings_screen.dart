@@ -25,10 +25,14 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../platform/linux_header_bar_provider.dart';
+import '../../../webcal/webcal_subscription_service.dart';
+import '../../../webcal/webcal_uri.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_connection_state.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../calendar/presentation/ical_import_flow.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../feedback/presentation/feedback_dialog.dart';
@@ -40,7 +44,7 @@ final _settingsLogger = RedactingLogger(Logger('SettingsScreen'));
 const _systemLocaleTag = 'system';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key, this.initialPage = SettingsPage.accounts});
+  const SettingsScreen({super.key, this.initialPage = SettingsPage.system});
 
   final SettingsPage initialPage;
 
@@ -57,6 +61,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   BusyProvider? _connectingProvider;
   DavCancellationToken? _davCancellation;
   final _removingAccountIds = <String>{};
+  final _busySubscriptionIds = <String>{};
 
   @override
   void initState() {
@@ -93,6 +98,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ref.watch(davCollectionsStreamProvider).valueOrNull ?? const [];
     final davConflicts =
         ref.watch(davConflictsStreamProvider).valueOrNull ?? const [];
+    final subscriptions =
+        ref.watch(webCalSubscriptionsProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final launchAtLogin = ref.watch(launchAtLoginEnabledProvider);
@@ -116,8 +123,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onCancelConnection: _cancelAccountConnection,
         onReconnect: (account) =>
             unawaited(_connectAccount(account.provider, reconnecting: account)),
-        onCreateTaskList: (accountId) =>
-            _createTaskList(context, ref, accountId),
         removingAccountIds: _removingAccountIds,
         onRemoveAccount: (account) =>
             unawaited(_removeAccount(context, ref, account)),
@@ -137,6 +142,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         onResolveConflict: (conflict, resolution) =>
             unawaited(_resolveConflict(conflict, resolution)),
+        onImportIcs: () => unawaited(showIcsImportFlow(context, ref)),
+        subscriptions: subscriptions,
+        busySubscriptionIds: _busySubscriptionIds,
+        onAddSubscription: () => unawaited(_addSubscription()),
+        onRefreshSubscription: (subscription) =>
+            unawaited(_refreshSubscription(subscription)),
+        onRenameSubscription: (subscription) =>
+            unawaited(_renameSubscription(subscription)),
+        onChangeSubscriptionColor: (subscription) =>
+            unawaited(_changeSubscriptionColor(subscription)),
+        onUnsubscribe: (subscription) => unawaited(_unsubscribe(subscription)),
       ),
       SettingsPage.schedule => BusyMaxGroupedList(
         title: l10n.scheduleDisplaySettings,
@@ -162,16 +178,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.system => BusyMaxGroupedList(
-        title: l10n.themeSystem,
+        title: l10n.settingsSystem,
         filled: true,
         children: [
-          BusyMaxActionRow(
-            title: l10n.manualFullSync,
-            leading: const Icon(YaruIcons.sync),
-            enabled: accounts.isNotEmpty,
-            onTap: accounts.isEmpty
-                ? null
-                : () => _fullSync(context, ref, accounts),
+          BusyMaxComboRow<String>(
+            title: l10n.currentLocale,
+            leading: const Icon(Icons.language),
+            values: [
+              _systemLocaleTag,
+              for (final option in busyMaxLocaleOptions) option.tag,
+            ],
+            selected: settings.localeTag ?? _systemLocaleTag,
+            labelFor: (tag) => tag == _systemLocaleTag
+                ? l10n.themeSystem
+                : busyMaxLocaleEndonym(tag),
+            onSelected: (tag) => settingsController.setLocaleTag(
+              tag == _systemLocaleTag ? null : tag,
+            ),
           ),
           BusyMaxSwitchRow(
             title: l10n.showTrayIcon,
@@ -211,21 +234,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             selected: settings.themeModePreference,
             labelFor: (value) => _themeModeLabel(context, value),
             onSelected: themeController.setThemeMode,
-          ),
-          BusyMaxComboRow<String>(
-            title: l10n.currentLocale,
-            leading: const Icon(Icons.language),
-            values: [
-              _systemLocaleTag,
-              for (final option in busyMaxLocaleOptions) option.tag,
-            ],
-            selected: settings.localeTag ?? _systemLocaleTag,
-            labelFor: (tag) => tag == _systemLocaleTag
-                ? l10n.themeSystem
-                : busyMaxLocaleEndonym(tag),
-            onSelected: (tag) => settingsController.setLocaleTag(
-              tag == _systemLocaleTag ? null : tag,
-            ),
           ),
         ],
       ),
@@ -314,7 +322,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ],
       ),
-      SettingsPage.diagnostics => const DiagnosticsPanel(scrollable: false),
+      SettingsPage.diagnostics => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(l10n.sync, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: BusyMaxSpacing.sm),
+          Text(l10n.forceFullResyncDescription),
+          BusyMaxGroupedList(
+            key: const ValueKey('diagnostics-full-resync-section'),
+            filled: true,
+            children: [
+              BusyMaxActionRow(
+                title: l10n.forceFullResync,
+                leading: const Icon(YaruIcons.sync),
+                enabled: accounts.isNotEmpty,
+                onTap: accounts.isEmpty
+                    ? null
+                    : () => _forceFullResync(context, ref, accounts),
+              ),
+            ],
+          ),
+          const SizedBox(height: BusyMaxSpacing.lg),
+          const DiagnosticsPanel(scrollable: false),
+        ],
+      ),
     };
 
     return Scaffold(
@@ -378,6 +409,102 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _addSubscription({String? initialUrl}) async {
+    await showAddCalendarSubscriptionFlow(context, ref, initialUrl: initialUrl);
+  }
+
+  Future<void> _refreshSubscription(
+    WebCalSubscriptionEntity subscription,
+  ) async {
+    await _runSubscriptionOperation(subscription.id, () async {
+      await ref
+          .read(webCalSubscriptionServiceProvider)
+          .refreshSubscription(subscription.id, force: true);
+    });
+  }
+
+  Future<void> _renameSubscription(
+    WebCalSubscriptionEntity subscription,
+  ) async {
+    final value = await showBusyMaxTextPrompt(
+      context,
+      title: context.l10n.rename,
+      label: context.l10n.subscriptionName,
+      actionLabel: context.l10n.rename,
+      initialValue: subscription.name,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+    );
+    if (value == null || !mounted) return;
+    await _runSubscriptionOperation(subscription.id, () async {
+      await ref
+          .read(webCalSubscriptionServiceProvider)
+          .renameSubscription(subscription.id, value);
+    });
+  }
+
+  Future<void> _changeSubscriptionColor(
+    WebCalSubscriptionEntity subscription,
+  ) async {
+    final value = await showBusyMaxTextPrompt(
+      context,
+      title: context.l10n.calendarColor,
+      label: context.l10n.subscriptionColor,
+      actionLabel: context.l10n.save,
+      initialValue: subscription.color,
+      message: context.l10n.subscriptionColorHelp,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+    );
+    if (value == null || !mounted) return;
+    await _runSubscriptionOperation(subscription.id, () async {
+      await ref
+          .read(webCalSubscriptionServiceProvider)
+          .changeSubscriptionColor(subscription.id, value);
+    });
+  }
+
+  Future<void> _unsubscribe(WebCalSubscriptionEntity subscription) async {
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: context.l10n.unsubscribeCalendarTitle(subscription.name),
+      message: context.l10n.unsubscribeCalendarConfirmation,
+      confirmLabel: context.l10n.unsubscribe,
+      destructive: true,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+    );
+    if (!confirmed || !mounted) return;
+    await _runSubscriptionOperation(subscription.id, () async {
+      await ref
+          .read(webCalSubscriptionServiceProvider)
+          .unsubscribe(subscription.id);
+    });
+  }
+
+  Future<void> _runSubscriptionOperation(
+    String subscriptionId,
+    Future<void> Function() operation,
+  ) async {
+    if (_busySubscriptionIds.contains(subscriptionId)) return;
+    setState(() => _busySubscriptionIds.add(subscriptionId));
+    try {
+      await operation();
+    } on Object catch (error) {
+      if (mounted) _showSubscriptionError(error);
+    } finally {
+      if (mounted) setState(() => _busySubscriptionIds.remove(subscriptionId));
+    }
+  }
+
+  void _showSubscriptionError(Object error) {
+    final code = switch (error) {
+      WebCalSubscriptionException(:final code) => code,
+      WebCalUriException(:final code) => code,
+      _ => 'WebCalOperationFailed',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.subscriptionOperationFailed(code))),
+    );
+  }
+
   Future<void> _setLaunchAtLogin(BuildContext context, bool enabled) async {
     try {
       await ref.read(linuxAutostartServiceProvider).setEnabled(enabled);
@@ -433,7 +560,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
     if (action == BusyMaxHeaderBarAction.settings) {
-      _selectPage(SettingsPage.accounts);
+      _selectPage(SettingsPage.system);
       return;
     }
     if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
@@ -597,6 +724,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   enteredServer: nextcloudServer!,
                   cancellationToken: cancellation,
                 )).accountId;
+        case BusyProvider.webCal:
+          throw StateError(
+            'WebCal subscriptions use the calendar subscription dialog.',
+          );
       }
       if (accountId != null) {
         unawaited(_syncConnectedAccount(runSync, accountId));
@@ -707,40 +838,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _createTaskList(
-    BuildContext context,
-    WidgetRef ref,
-    String accountId,
-  ) async {
-    final title = await _taskListTitleDialog(
-      context,
-      ref.read(linuxHeaderBarServiceProvider),
-    );
-    if (title == null || title.trim().isEmpty) {
-      return;
-    }
-
-    try {
-      await ref
-          .read(taskListsRepositoryForAccountProvider(accountId))
-          .createTaskList(title.trim());
-    } on Object catch (error) {
-      _settingsLogger.warning('Task-list creation failed: $error');
-      if (context.mounted) {
-        _showMessage(
-          context,
-          context.l10n.taskListCreateFailed(
-            syncFailureMessage(
-              error,
-              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _fullSync(
+  Future<void> _forceFullResync(
     BuildContext context,
     WidgetRef ref,
     List<AccountEntity> accounts,
@@ -864,6 +962,7 @@ class _SettingsPageSelector extends StatelessWidget {
               value: page,
               label: _settingsPageLabel(context, page),
               icon: _settingsPageIcon(page),
+              role: BusyMaxMenuEntryRole.radio,
               selected: page == selected,
             ),
         ],
@@ -935,9 +1034,9 @@ class _SettingsFallbackHeader extends StatelessWidget {
 }
 
 enum SettingsPage {
+  system,
   accounts,
   schedule,
-  system,
   notifications,
   privacy,
   diagnostics,
@@ -945,12 +1044,13 @@ enum SettingsPage {
 
 SettingsPage settingsPageFromRouteValue(String? value) {
   return switch (value) {
+    'accounts' => SettingsPage.accounts,
     'schedule' => SettingsPage.schedule,
     'system' => SettingsPage.system,
     'notifications' => SettingsPage.notifications,
     'privacy' => SettingsPage.privacy,
     'diagnostics' => SettingsPage.diagnostics,
-    _ => SettingsPage.accounts,
+    _ => SettingsPage.system,
   };
 }
 
@@ -961,7 +1061,7 @@ String _settingsPageLabel(BuildContext context, SettingsPage page) {
   return switch (page) {
     SettingsPage.accounts => l10n.accounts,
     SettingsPage.schedule => l10n.scheduleSettings,
-    SettingsPage.system => l10n.themeSystem,
+    SettingsPage.system => l10n.settingsSystem,
     SettingsPage.notifications => l10n.notifications,
     SettingsPage.privacy => l10n.privacy,
     SettingsPage.diagnostics => l10n.diagnostics,
@@ -1004,19 +1104,6 @@ String _timeOfDayLabel(BuildContext context, int minute) {
   );
 }
 
-Future<String?> _taskListTitleDialog(
-  BuildContext context,
-  LinuxHeaderBarService headerBarService,
-) {
-  return showBusyMaxTextPrompt(
-    context,
-    title: context.l10n.newTaskList,
-    label: context.l10n.title,
-    actionLabel: context.l10n.create,
-    headerBarService: headerBarService,
-  );
-}
-
 class _AccountManagementSection extends StatelessWidget {
   const _AccountManagementSection({
     required this.accounts,
@@ -1029,7 +1116,6 @@ class _AccountManagementSection extends StatelessWidget {
     required this.onAddNextcloud,
     required this.onCancelConnection,
     required this.onReconnect,
-    required this.onCreateTaskList,
     required this.removingAccountIds,
     required this.onRemoveAccount,
     required this.davCollections,
@@ -1038,6 +1124,14 @@ class _AccountManagementSection extends StatelessWidget {
     required this.onEventsSelected,
     required this.onTasksSelected,
     required this.onResolveConflict,
+    required this.onImportIcs,
+    required this.subscriptions,
+    required this.busySubscriptionIds,
+    required this.onAddSubscription,
+    required this.onRefreshSubscription,
+    required this.onRenameSubscription,
+    required this.onChangeSubscriptionColor,
+    required this.onUnsubscribe,
   });
 
   final List<AccountEntity> accounts;
@@ -1050,7 +1144,6 @@ class _AccountManagementSection extends StatelessWidget {
   final VoidCallback onAddNextcloud;
   final VoidCallback onCancelConnection;
   final void Function(AccountEntity account) onReconnect;
-  final void Function(String accountId) onCreateTaskList;
   final Set<String> removingAccountIds;
   final void Function(AccountEntity account) onRemoveAccount;
   final List<DavCollectionSettingsEntity> davCollections;
@@ -1065,6 +1158,17 @@ class _AccountManagementSection extends StatelessWidget {
     DavConflictResolution resolution,
   )
   onResolveConflict;
+  final VoidCallback onImportIcs;
+  final List<WebCalSubscriptionEntity> subscriptions;
+  final Set<String> busySubscriptionIds;
+  final VoidCallback onAddSubscription;
+  final void Function(WebCalSubscriptionEntity subscription)
+  onRefreshSubscription;
+  final void Function(WebCalSubscriptionEntity subscription)
+  onRenameSubscription;
+  final void Function(WebCalSubscriptionEntity subscription)
+  onChangeSubscriptionColor;
+  final void Function(WebCalSubscriptionEntity subscription) onUnsubscribe;
 
   @override
   Widget build(BuildContext context) {
@@ -1128,12 +1232,6 @@ class _AccountManagementSection extends StatelessWidget {
             onReconnect: connecting || removingAccountIds.contains(account.id)
                 ? null
                 : () => onReconnect(account),
-            onCreateTaskList:
-                account.provider == BusyProvider.google ||
-                    account.provider == BusyProvider.microsoft ||
-                    account.provider == BusyProvider.nextcloud
-                ? () => onCreateTaskList(account.id)
-                : null,
             onRefreshCollections:
                 account.provider == BusyProvider.appleICloud ||
                     account.provider == BusyProvider.nextcloud
@@ -1162,7 +1260,340 @@ class _AccountManagementSection extends StatelessWidget {
               onResolve: onResolveConflict,
             ),
         ],
+        _CalendarImportCard(onImport: onImportIcs),
+        _CalendarSubscriptionsCard(
+          subscriptions: subscriptions,
+          busySubscriptionIds: busySubscriptionIds,
+          onAdd: onAddSubscription,
+          onRefresh: onRefreshSubscription,
+          onRename: onRenameSubscription,
+          onChangeColor: onChangeSubscriptionColor,
+          onUnsubscribe: onUnsubscribe,
+        ),
       ],
+    );
+  }
+}
+
+class _CalendarImportCard extends StatelessWidget {
+  const _CalendarImportCard({required this.onImport});
+
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxGroupedList(
+      title: context.l10n.calendarImport,
+      description: context.l10n.calendarImportDescription,
+      filled: true,
+      children: [
+        BusyMaxActionRow(
+          key: const ValueKey('import-ics-file'),
+          title: context.l10n.importIcsFile,
+          leading: const Icon(Icons.file_open_outlined),
+          onTap: onImport,
+        ),
+      ],
+    );
+  }
+}
+
+class _CalendarSubscriptionsCard extends StatelessWidget {
+  const _CalendarSubscriptionsCard({
+    required this.subscriptions,
+    required this.busySubscriptionIds,
+    required this.onAdd,
+    required this.onRefresh,
+    required this.onRename,
+    required this.onChangeColor,
+    required this.onUnsubscribe,
+  });
+
+  final List<WebCalSubscriptionEntity> subscriptions;
+  final Set<String> busySubscriptionIds;
+  final VoidCallback onAdd;
+  final void Function(WebCalSubscriptionEntity) onRefresh;
+  final void Function(WebCalSubscriptionEntity) onRename;
+  final void Function(WebCalSubscriptionEntity) onChangeColor;
+  final void Function(WebCalSubscriptionEntity) onUnsubscribe;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BusyMaxGroupedList(
+          title: l10n.calendarSubscriptions,
+          description: l10n.calendarSubscriptionsDescription,
+          filled: true,
+          children: [
+            BusyMaxActionRow(
+              key: const ValueKey('add-calendar-subscription'),
+              title: l10n.addCalendarSubscription,
+              leading: const Icon(YaruIcons.plus),
+              onTap: onAdd,
+            ),
+          ],
+        ),
+        for (final subscription in subscriptions)
+          BusyMaxGroupedList(
+            key: ValueKey('calendar-subscription-${subscription.id}'),
+            title: subscription.name,
+            description: subscription.safeOrigin,
+            filled: true,
+            children: [
+              BusyMaxActionRow(
+                title: l10n.subscriptionReadOnly,
+                subtitle: _subscriptionTiming(context, subscription),
+                leading: _DavCollectionIndicator(color: subscription.color),
+              ),
+              BusyMaxActionRow(
+                title: subscription.lastFailureCode == null
+                    ? l10n.subscriptionStatusHealthy
+                    : l10n.subscriptionStatusIssue(
+                        subscription.lastFailureCode!,
+                      ),
+                subtitle: l10n.subscriptionNextRefresh(
+                  _formatDavDateTime(context, subscription.nextRefreshAtUtc),
+                ),
+                leading: Icon(
+                  subscription.lastFailureCode == null
+                      ? YaruIcons.checkmark
+                      : YaruIcons.warning,
+                ),
+              ),
+              BusyMaxActionRow(
+                title: l10n.refreshNow,
+                leading: const Icon(YaruIcons.sync),
+                onTap: busySubscriptionIds.contains(subscription.id)
+                    ? null
+                    : () => onRefresh(subscription),
+              ),
+              BusyMaxActionRow(
+                title: l10n.rename,
+                leading: const Icon(Icons.edit_outlined),
+                onTap: busySubscriptionIds.contains(subscription.id)
+                    ? null
+                    : () => onRename(subscription),
+              ),
+              BusyMaxActionRow(
+                title: l10n.calendarColor,
+                leading: const Icon(Icons.palette_outlined),
+                onTap: busySubscriptionIds.contains(subscription.id)
+                    ? null
+                    : () => onChangeColor(subscription),
+              ),
+              BusyMaxActionRow(
+                title: l10n.unsubscribe,
+                leading: Icon(
+                  YaruIcons.trash,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                destructive: true,
+                onTap: busySubscriptionIds.contains(subscription.id)
+                    ? null
+                    : () => onUnsubscribe(subscription),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+String _subscriptionTiming(
+  BuildContext context,
+  WebCalSubscriptionEntity subscription,
+) {
+  final last = subscription.lastSuccessfulSyncAtUtc;
+  return last == null
+      ? context.l10n.subscriptionNeverRefreshed
+      : context.l10n.subscriptionLastRefresh(_formatDavDateTime(context, last));
+}
+
+final class _WebCalAddInput {
+  const _WebCalAddInput({
+    required this.url,
+    required this.name,
+    required this.color,
+    required this.refreshMode,
+  });
+
+  final String url;
+  final String? name;
+  final String? color;
+  final WebCalRefreshMode refreshMode;
+}
+
+class _WebCalAddDialog extends StatefulWidget {
+  const _WebCalAddDialog({this.initialUrl});
+
+  final String? initialUrl;
+
+  @override
+  State<_WebCalAddDialog> createState() => _WebCalAddDialogState();
+}
+
+class _WebCalAddDialogState extends State<_WebCalAddDialog> {
+  late final TextEditingController _urlController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _colorController;
+  var _refreshMode = WebCalRefreshMode.automatic;
+
+  @override
+  void initState() {
+    super.initState();
+    _urlController = TextEditingController(text: widget.initialUrl)
+      ..addListener(_changed);
+    _nameController = TextEditingController();
+    _colorController = TextEditingController()..addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    _urlController
+      ..removeListener(_changed)
+      ..dispose();
+    _nameController.dispose();
+    _colorController
+      ..removeListener(_changed)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _changed() => setState(() {});
+
+  NormalizedWebCalUri? get _normalized {
+    try {
+      return normalizeWebCalUri(_urlController.text);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  bool get _colorValid {
+    final value = _colorController.text.trim();
+    return value.isEmpty || RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final normalized = _normalized;
+    return BusyMaxDialogShell(
+      title: l10n.addCalendarSubscription,
+      maxWidth: BusyMaxSizes.compactDetailsWidth,
+      actions: [
+        BusyMaxPushButton.standard(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.cancel),
+        ),
+        BusyMaxPushButton.suggested(
+          key: const ValueKey('confirm-add-subscription'),
+          onPressed: normalized == null || !_colorValid
+              ? null
+              : () => Navigator.of(context).pop(
+                  _WebCalAddInput(
+                    url: _urlController.text,
+                    name: _nameController.text.trim().isEmpty
+                        ? null
+                        : _nameController.text.trim(),
+                    color: _colorController.text.trim().isEmpty
+                        ? null
+                        : _colorController.text.trim(),
+                    refreshMode: _refreshMode,
+                  ),
+                ),
+          child: Text(l10n.addSubscriptionAction),
+        ),
+      ],
+      children: [
+        TextField(
+          key: const ValueKey('subscription-url'),
+          controller: _urlController,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: l10n.subscriptionUrl,
+            helperText: l10n.subscriptionUrlHelp,
+            errorText:
+                _urlController.text.trim().isNotEmpty && normalized == null
+                ? l10n.subscriptionUrlInvalid
+                : null,
+          ),
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        TextField(
+          controller: _nameController,
+          decoration: InputDecoration(labelText: l10n.subscriptionName),
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        TextField(
+          controller: _colorController,
+          decoration: InputDecoration(
+            labelText: l10n.subscriptionColor,
+            helperText: l10n.subscriptionColorHelp,
+            errorText: _colorValid ? null : l10n.subscriptionColorInvalid,
+          ),
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        BusyMaxComboRow<WebCalRefreshMode>(
+          title: l10n.subscriptionRefreshMode,
+          values: WebCalRefreshMode.values,
+          selected: _refreshMode,
+          labelFor: (mode) => _refreshModeLabel(context, mode),
+          onSelected: (value) => setState(() => _refreshMode = value),
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        Text(
+          normalized == null
+              ? l10n.subscriptionSafeOriginUnavailable
+              : l10n.subscriptionSafeOrigin(normalized.safeOrigin.toString()),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+String _refreshModeLabel(BuildContext context, WebCalRefreshMode mode) =>
+    switch (mode) {
+      WebCalRefreshMode.automatic => context.l10n.subscriptionAutomatic,
+      WebCalRefreshMode.hourly => context.l10n.subscriptionHourly,
+      WebCalRefreshMode.sixHours => context.l10n.subscriptionSixHours,
+      WebCalRefreshMode.daily => context.l10n.subscriptionDaily,
+    };
+
+Future<void> showAddCalendarSubscriptionFlow(
+  BuildContext context,
+  WidgetRef ref, {
+  String? initialUrl,
+}) async {
+  final input = await showBusyMaxModalDialog<_WebCalAddInput>(
+    context,
+    headerBarService: ref.read(linuxHeaderBarServiceProvider),
+    barrierDismissible: false,
+    builder: (dialogContext) => _WebCalAddDialog(initialUrl: initialUrl),
+  );
+  if (input == null || !context.mounted) return;
+  try {
+    await ref
+        .read(webCalSubscriptionServiceProvider)
+        .addSubscription(
+          subscriptionUrl: input.url,
+          localName: input.name,
+          color: input.color,
+          refreshMode: input.refreshMode,
+        );
+  } on Object catch (error) {
+    if (!context.mounted) return;
+    final code = switch (error) {
+      WebCalSubscriptionException(:final code) => code,
+      WebCalUriException(:final code) => code,
+      _ => 'WebCalOperationFailed',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.subscriptionOperationFailed(code))),
     );
   }
 }
@@ -1172,7 +1603,6 @@ class _AccountManagementCard extends StatelessWidget {
     required this.account,
     required this.removing,
     required this.onReconnect,
-    required this.onCreateTaskList,
     required this.onRefreshCollections,
     required this.onRemoveAccount,
   });
@@ -1180,7 +1610,6 @@ class _AccountManagementCard extends StatelessWidget {
   final AccountEntity account;
   final bool removing;
   final VoidCallback? onReconnect;
-  final VoidCallback? onCreateTaskList;
   final VoidCallback? onRefreshCollections;
   final VoidCallback onRemoveAccount;
 
@@ -1235,14 +1664,7 @@ class _AccountManagementCard extends StatelessWidget {
               color: Theme.of(context).colorScheme.error,
             ),
             onTap: account.needsReconnect ? onReconnect : null,
-          )
-        else if (onCreateTaskList != null) ...[
-          BusyMaxActionRow(
-            title: l10n.newTaskList,
-            leading: const Icon(YaruIcons.plus),
-            onTap: removing ? null : onCreateTaskList,
           ),
-        ],
         if (onRefreshCollections != null)
           BusyMaxActionRow(
             title: l10n.refreshCollections,
@@ -1571,6 +1993,7 @@ String _accountProviderLabel(BuildContext context, BusyProvider provider) {
     BusyProvider.microsoft => context.l10n.microsoftProvider,
     BusyProvider.appleICloud => context.l10n.appleICloudProvider,
     BusyProvider.nextcloud => context.l10n.nextcloudProvider,
+    BusyProvider.webCal => 'WebCal',
   };
 }
 

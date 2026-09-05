@@ -26,6 +26,7 @@ import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../../../l10n/l10n.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../platform/linux_header_bar_provider.dart';
 import '../../sync/sync_auth_error.dart';
 
 enum _OnboardingStep { accounts, preferences }
@@ -179,6 +180,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                     ),
                                     onAddNextcloud: () =>
                                         _signIn(_OnboardingProvider.nextcloud),
+                                    onAddSubscription: () =>
+                                        context.go('/settings?page=accounts'),
                                     onCancelSignIn: _cancelSignIn,
                                   ),
                                 _OnboardingStep.preferences =>
@@ -479,6 +482,7 @@ class _AccountsOnboardingStep extends StatelessWidget {
     required this.onAddMicrosoft,
     required this.onAddApple,
     required this.onAddNextcloud,
+    required this.onAddSubscription,
     required this.onCancelSignIn,
   });
 
@@ -495,6 +499,7 @@ class _AccountsOnboardingStep extends StatelessWidget {
   final VoidCallback onAddMicrosoft;
   final VoidCallback onAddApple;
   final VoidCallback onAddNextcloud;
+  final VoidCallback onAddSubscription;
   final VoidCallback onCancelSignIn;
 
   @override
@@ -563,6 +568,16 @@ class _AccountsOnboardingStep extends StatelessWidget {
           loading: isNextcloudSigningIn,
           tooltip: l10n.addNextcloudAccount,
           onPressed: onAddNextcloud,
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        _ProviderSignInButton(
+          label: l10n.addCalendarSubscription,
+          loadingLabel: l10n.addCalendarSubscription,
+          configured: true,
+          enabled: !isSigningIn,
+          loading: false,
+          tooltip: l10n.calendarSubscriptionsDescription,
+          onPressed: onAddSubscription,
         ),
         if (accounts.isNotEmpty) ...[
           const SizedBox(height: BusyMaxSpacing.lg),

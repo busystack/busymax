@@ -36,36 +36,42 @@ class SyncEngine {
   final DateTime Function() _nowUtc;
 
   Future<void> fullSync() {
-    return _runSync(mode: 'full', updatedMin: null, markMissing: true);
+    return _runSync(mode: 'full', updatedMin: null, markMissingTasks: true);
   }
 
   Future<void> incrementalSync() async {
     if (_fullRefreshOnly) {
       // Microsoft To Do sync uses full refresh in this version. Graph delta
       // endpoints exist in the low-level client but are not used by app sync.
-      await _runSync(mode: 'incremental', updatedMin: null, markMissing: true);
+      await _runSync(
+        mode: 'incremental',
+        updatedMin: null,
+        markMissingTasks: true,
+      );
       return;
     }
 
-    final account = await (_database.select(
-      _database.accounts,
-    )..where((row) => row.id.equals(_accountId))).getSingleOrNull();
-    final lastSync = account?.lastSuccessfulSyncAtUtc == null
+    final lastSuccessfulRun = await _database.syncRunsDao.latestSuccessfulRun(
+      _accountId,
+    );
+    // A completion-time checkpoint can skip changes made to an early list
+    // while later lists are still being synchronized.
+    final checkpoint = lastSuccessfulRun == null
         ? null
-        : DateTime.parse(account!.lastSuccessfulSyncAtUtc!).toUtc();
-    final updatedMin = lastSync?.subtract(const Duration(minutes: 2));
+        : DateTime.parse(lastSuccessfulRun.startedAtUtc).toUtc();
+    final updatedMin = checkpoint?.subtract(const Duration(minutes: 2));
 
     await _runSync(
       mode: 'incremental',
       updatedMin: updatedMin,
-      markMissing: false,
+      markMissingTasks: false,
     );
   }
 
   Future<void> _runSync({
     required String mode,
     required DateTime? updatedMin,
-    required bool markMissing,
+    required bool markMissingTasks,
   }) async {
     final runId = _uuid.v4();
     final startedAt = _now();
@@ -91,6 +97,7 @@ class SyncEngine {
         onConflictBlocked: _onConflictBlocked,
       ).replayDueOps();
       final listIds = await _pullTaskLists();
+      await _reconcileTaskListMembership(listIds);
       taskListsSeen = listIds.length;
       final tasksByList = <String, Set<String>>{};
       for (final taskListId in listIds) {
@@ -99,8 +106,8 @@ class SyncEngine {
         tasksSeen += taskIds.length;
       }
 
-      if (markMissing) {
-        await _markMissingRows(listIds, tasksByList);
+      if (markMissingTasks) {
+        await _markMissingTasks(tasksByList);
       }
       await NotificationScheduleService(
         database: _database,
@@ -108,7 +115,7 @@ class SyncEngine {
       ).rebuildUpcomingTaskNotifications(_accountId);
 
       final finishedAt = _now();
-      await _updateAccountSyncTimestamps(mode, finishedAt);
+      await _updateAccountSyncCompletion(mode, finishedAt);
       await _database.syncRunsDao.finishRun(
         id: runId,
         finishedAtUtc: DateTime.parse(finishedAt),
@@ -281,30 +288,49 @@ class SyncEngine {
             row.localCreated);
   }
 
-  Future<void> _markMissingRows(
-    Set<String> seenTaskListIds,
-    Map<String, Set<String>> seenTaskIdsByList,
-  ) async {
+  Future<void> _reconcileTaskListMembership(Set<String> seenTaskListIds) async {
     final lists = await _database.taskListsDao.listTaskLists(_accountId);
-    for (final list in lists) {
-      if (!seenTaskListIds.contains(list.id) && !list.localDirty) {
+    await _database.transaction(() async {
+      for (final list in lists) {
+        if (seenTaskListIds.contains(list.id)) {
+          if (list.serverMissing) {
+            await (_database.update(_database.taskLists)..where(
+                  (row) =>
+                      row.accountId.equals(_accountId) & row.id.equals(list.id),
+                ))
+                .write(const TaskListsCompanion(serverMissing: Value(false)));
+          }
+          continue;
+        }
+        if (list.localDirty) continue;
         await (_database.update(_database.taskLists)..where(
               (row) =>
                   row.accountId.equals(_accountId) & row.id.equals(list.id),
             ))
             .write(const TaskListsCompanion(serverMissing: Value(true)));
+        await (_database.update(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(list.id) &
+                  row.localDirty.equals(false),
+            ))
+            .write(const TasksCompanion(serverMissing: Value(true)));
       }
-    }
+    });
+  }
 
-    for (final list in lists) {
-      final seenTaskIds = seenTaskIdsByList[list.id] ?? const <String>{};
-      final tasks = await _database.tasksDao.listTasks(_accountId, list.id);
+  Future<void> _markMissingTasks(
+    Map<String, Set<String>> seenTaskIdsByList,
+  ) async {
+    for (final entry in seenTaskIdsByList.entries) {
+      final seenTaskIds = entry.value;
+      final tasks = await _database.tasksDao.listTasks(_accountId, entry.key);
       for (final task in tasks) {
         if (!seenTaskIds.contains(task.id) && !task.localDirty) {
           await (_database.update(_database.tasks)..where(
                 (row) =>
                     row.accountId.equals(_accountId) &
-                    row.taskListId.equals(list.id) &
+                    row.taskListId.equals(entry.key) &
                     row.id.equals(task.id),
               ))
               .write(const TasksCompanion(serverMissing: Value(true)));
@@ -313,7 +339,7 @@ class SyncEngine {
     }
   }
 
-  Future<void> _updateAccountSyncTimestamps(String mode, String timestamp) {
+  Future<void> _updateAccountSyncCompletion(String mode, String timestamp) {
     final update = _database.update(_database.accounts)
       ..where((row) => row.id.equals(_accountId));
     return update.write(

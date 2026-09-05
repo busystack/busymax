@@ -5,6 +5,8 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/core/secrets/portal_encrypted_secret_store.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/platform/linux/linux_secret_storage_presentation.dart';
+import 'package:busymax/src/platform/windows/windows_secret_storage_presentation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,6 +55,69 @@ void main() {
   );
 
   test(
+    'platform secure-storage guidance never crosses OS boundaries',
+    () async {
+      Future<SecretStoreException> failure(
+        SecretStoragePresentation presentation,
+      ) async {
+        final store = SecureSecretStore(
+          _ThrowingSecureStorage(
+            PlatformException(
+              code: 'Unavailable',
+              message: 'password=must-not-appear',
+            ),
+          ),
+          presentation: presentation,
+        );
+        try {
+          await store.readActiveAccountId();
+          fail('Expected secure storage failure.');
+        } on SecretStoreException catch (error) {
+          return error;
+        }
+      }
+
+      final windows = await failure(windowsSecretStoragePresentation);
+      expect(windows.message, contains('Windows credential storage'));
+      expect(windows.message.toLowerCase(), isNot(contains('keyring')));
+      expect(windows.message.toLowerCase(), isNot(contains('portal')));
+      expect(windows.message.toLowerCase(), isNot(contains('snap')));
+
+      final linux = await failure(linuxSecretStoragePresentation);
+      expect(linux.message.toLowerCase(), contains('system keyring'));
+    },
+  );
+
+  test('secure-storage diagnostics are platform-owned and redacted', () {
+    final error = PlatformException(
+      code: 'BackendFailure',
+      message: 'password=credential-value',
+      details: {'token': 'another-secret'},
+    );
+    final windows = sanitizedFlutterSecureStorageError(
+      error,
+      backendDomain: windowsSecretStoragePresentation.backendDomain,
+    );
+    final linux = sanitizedFlutterSecureStorageError(
+      error,
+      backendDomain: linuxSecretStoragePresentation.backendDomain,
+    );
+    expect(windows, contains('domain=busymax.secure_storage.windows'));
+    expect(windows, isNot(contains('credential-value')));
+    expect(windows, isNot(contains('another-secret')));
+    expect(windows, isNot(contains('flutter_secure_storage_linux')));
+    expect(linux, contains('domain=busymax.secure_storage.linux'));
+    expect(linux, isNot(contains('credential-value')));
+
+    final unsafeCode = sanitizedFlutterSecureStorageError(
+      PlatformException(code: 'token=credential-value'),
+      backendDomain: windowsSecretStoragePresentation.backendDomain,
+    );
+    expect(unsafeCode, contains('code=backend-error'));
+    expect(unsafeCode, isNot(contains('credential-value')));
+  });
+
+  test(
     'credential records are versioned, typed, and redacted in diagnostics',
     () {
       final records = <SecretRecord>[
@@ -65,6 +130,10 @@ void main() {
           canonicalServer: Uri.parse('https://cloud.example.test/nextcloud'),
           loginName: 'alex',
           appPassword: 'nextcloud-app-secret',
+        ),
+        WebCalSecretRecord(
+          normalizedSubscriptionUri:
+              'https://calendar.example.test/feed?token=webcal-secret',
         ),
       ];
 
@@ -84,6 +153,26 @@ void main() {
       }
     },
   );
+
+  test('credential decoding rejects mismatched provider and kind', () {
+    final webCal = WebCalSecretRecord(
+      normalizedSubscriptionUri:
+          'https://calendar.example.test/feed?token=secret',
+    ).toJson();
+    webCal['provider'] = BusyProvider.google.storageValue;
+
+    expect(
+      () => SecretRecord.fromJson(webCal),
+      throwsA(isA<SecretStoreCorruptException>()),
+    );
+    expect(
+      () => OAuthSecretRecord(
+        provider: BusyProvider.appleICloud,
+        tokenSet: _tokenSet(),
+      ),
+      throwsA(isA<SecretStoreCorruptException>()),
+    );
+  });
 
   test('typed reads reject a credential from another provider', () async {
     final store = InMemorySecretStore();
@@ -191,6 +280,7 @@ void main() {
       expect((await storageFile.stat()).mode & 0x1ff, 0x180);
       expect((await storageFile.parent.stat()).mode & 0x1ff, 0x1c0);
     },
+    skip: !Platform.isLinux,
   );
 
   test('portal encrypted token store maps portal failures', () async {

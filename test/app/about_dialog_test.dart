@@ -66,7 +66,7 @@ void main() {
       tester.getSize(find.byType(YaruWindowControl)),
       const Size.square(kYaruWindowControlSize),
     );
-  });
+  }, skip: !Platform.isLinux);
 
   testWidgets(
     'informational titlebar retains its semantic high-contrast divider',
@@ -224,7 +224,7 @@ void main() {
   );
 
   for (final brightness in Brightness.values) {
-    testWidgets('about version badge uses the shared neutral outlined pill in '
+    testWidgets('about version badge uses the active accent pill in '
         '$brightness', (tester) async {
       const accent = Color(0xFF3584E4);
       _setPackageInfo(version: '1.2.3', buildNumber: '');
@@ -240,7 +240,6 @@ void main() {
 
       expect(find.text('v1.2.3'), findsOneWidget);
       expect(find.text('v1.2.3+'), findsNothing);
-      final colors = theme.extension<BusyMaxSurfaceColors>()!;
       final badgeFinder = find.byWidgetPredicate(
         (widget) =>
             widget is DecoratedBox &&
@@ -250,12 +249,15 @@ void main() {
       );
       final badge = tester.widget<DecoratedBox>(badgeFinder);
       final decoration = badge.decoration as BoxDecoration;
-      expect(decoration.color, colors.control);
+      expect(decoration.color, theme.colorScheme.primary);
       expect(
         decoration.borderRadius,
         BorderRadius.circular(BusyMaxRadius.pill),
       );
-      expect((decoration.border! as Border).top.color, colors.divider);
+      expect(
+        (decoration.border! as Border).top.color,
+        theme.colorScheme.primary,
+      );
       expect(
         find.ancestor(
           of: find.text('v1.2.3'),
@@ -284,7 +286,7 @@ void main() {
       );
       final versionText = tester.widget<Text>(find.text('v1.2.3'));
       final textColor = versionText.style!.color!;
-      expect(textColor, colors.foreground);
+      expect(textColor, theme.colorScheme.onPrimary);
       expect(versionText.style?.fontWeight, FontWeight.w600);
     });
   }

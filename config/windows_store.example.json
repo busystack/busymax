@@ -1,0 +1,17 @@
+{
+  "production": true,
+  "identityName": "REPLACE_WITH_PARTNER_CENTER_IDENTITY_NAME",
+  "publisher": "CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER",
+  "publisherDisplayName": "REPLACE_WITH_PUBLISHER_DISPLAY_NAME",
+  "msixVersion": "REPLACE_WITH_FOUR_PART_VERSION",
+  "previousMsixVersion": "",
+  "privacyPolicyUrl": "https://REPLACE_WITH_PRIVACY_POLICY_URL",
+  "supportUrl": "https://REPLACE_WITH_SUPPORT_URL",
+  "homepageUrl": "https://busystack.org",
+  "googleOAuthClientId": "REPLACE_WITH_GOOGLE_DESKTOP_CLIENT_ID",
+  "googleOAuthClientSecret": "REPLACE_WITH_GOOGLE_DESKTOP_CLIENT_SECRET",
+  "microsoftOAuthClientId": "REPLACE_WITH_MICROSOFT_PUBLIC_CLIENT_ID",
+  "microsoftOAuthAuthorityTenant": "common",
+  "fakeData": false,
+  "developmentBackend": false
+}

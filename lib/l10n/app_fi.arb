@@ -1,14 +1,31 @@
 {
   "@@locale": "fi",
+  "windowsSupport": "Tuki",
+  "windowsThirdPartyLicenses": "Kolmannen osapuolen lisenssit",
+  "windowsSearch": "Haku",
+  "windowsStartupDisabledByUser": "Käyttäjä on poistanut toiminnon käytöstä Windowsin asetuksissa.",
+  "windowsStartupDisabledByPolicy": "Windows-käytäntö on poistanut toiminnon käytöstä.",
+  "windowsStartupUnavailable": "Käytettävissä, kun BusyMax on asennettu MSIX-paketista.",
+  "windowsReminderExitNotice": "Muistutukset lakkaavat, kun BusyMax suljetaan kokonaan. Jätä se toimimaan taustalle saadaksesi muistutukset.",
+  "windowsProductVersionLabel": "Tuoteversio",
+  "windowsPackageVersionLabel": "Windows-paketin versio",
+  "windowsUnpackaged": "Pakkaamaton",
+  "windowsAgendaLoadMore": "Lataa lisää esityslistan kohteita",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{maanantaisin} TU{tiistaisin} WE{keskiviikkoisin} TH{torstaisin} FR{perjantaisin} SA{lauantaisin} SU{sunnuntaisin} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "kuukauden {first} ja {second} päivänä",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency} {month} {firstDay} ja {secondDay} päivänä",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} {firstMonth} ja {secondMonth} {day} päivänä",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} {firstMonth} ja {secondMonth} {firstDay} ja {secondDay} päivänä",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} {firstMonth} ja {secondMonth} {days} päivänä",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "connectGoogleAccount": "Yhdistä Google-, Microsoft-, Apple iCloud Calendar- tai Nextcloud-tilit.",
   "googlePermissionsConsentNotice": "Valitse Googlen käyttöoikeusnäkymässä sekä Kalenteri- että Tehtävät-käyttöoikeudet.",
   "googlePermissionsRequiredRetry": "Google Kalenterin ja Google Tasksin käyttöoikeudet vaaditaan. Yritä uudelleen ja valitse molemmat valintaruudut.",
   "finishSetup": "Viimeistele määritys",
   "continueSetup": "Jatka",
   "onboardingSetupTitle": "Määritä BusyMax",
   "onboardingAccountsStepTitle": "Yhdistä tilit",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "onboardingAccountsStepDescription": "Lisää kaikki tilit, joita haluat käyttää. BusyMax synkronoi tuetut kalenterit, tapahtumat, tehtäväluettelot ja tehtävät jokaiselta tililtä.",
   "onboardingPreferencesStepTitle": "Valitse järjestelmäasetukset",
   "onboardingPreferencesStepDescription": "Määritä sovelluksen toiminta työpöydällä, muistutukset, ilmoitusten yksityiskohtaisuus ja ulkoasu ennen aikataulun avaamista.",
   "signInWithGoogle": "Kirjaudu Google-tilillä",
@@ -33,6 +50,43 @@
   "calendarTasks": "Tehtävät",
   "calendar": "Kalenteri",
   "calendars": "Kalenterit",
+  "newCalendar": "Uusi kalenteri",
+  "calendarColor": "Kalenterin väri",
+  "calendarColorOption": "Väri {number}",
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarManagementUnsupported": "Tämä palveluntarjoaja ei tue kalenterien hallintaa BusyMaxissa.",
+  "primaryCalendarCannotDelete": "Ensisijaista kalenteria ei voi poistaa.",
+  "calendarCreateFailed": "Kalenteria ei voitu luoda: {error}",
+  "calendarCreatedRefreshPending": "Kalenteri luotiin, mutta BusyMax ei voinut päivittää tiliä. Se tulee näkyviin seuraavan synkronoinnin jälkeen.",
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarUpdateFailed": "Kalenteria ei voitu päivittää: {error}",
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarDeleteFailed": "Kalenteria ei voitu poistaa: {error}",
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "newEvent": "Uusi tapahtuma",
   "refreshCalendar": "Päivitä kalenteri",
   "openInProvider": "Avaa palvelussa",
@@ -40,7 +94,7 @@
   "showInSchedule": "Näytä aikataulussa",
   "noCalendarsSynced": "Kalentereita ei ole vielä synkronoitu.",
   "allDay": "Koko päivä",
-  "moreItems": "+{count} muuta",
+  "moreItems": "{count, plural, one{+1 muu} other{+{count} muuta}}",
   "noEventsOrTasks": "Ei tapahtumia tai tehtäviä",
   "scheduleLoading": "Ladataan aikataulua...",
   "scheduleUnavailable": "Aikataulu ei ole käytettävissä",
@@ -52,13 +106,62 @@
   "scheduleNoSearchResultsDescription": "Kokeile toista hakua tai tyhjennä nykyiset suodattimet.",
   "refresh": "Päivitä",
   "trayOpenBusyMax": "Avaa BusyMax",
+  "trayShowBusyMax": "Näytä BusyMax",
+  "trayNewEvent": "Uusi tapahtuma…",
+  "trayNewTask": "Uusi tehtävä…",
+  "trayToday": "Tänään",
+  "trayAllDay": "Koko päivä",
+  "trayNow": "Nyt",
+  "trayCalendarEvent": "Kalenteritapahtuma",
+  "trayUntitledEvent": "Nimetön tapahtuma",
+  "trayNothingElseToday": "Ei muuta tänään",
+  "trayTasksDueToday": "{count, plural, =1{1 tehtävä erääntyy tänään} other{{count} tehtävää erääntyy tänään}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "Avaa tämän päivän agenda",
+  "traySyncNow": "Synkronoi nyt",
+  "traySyncing": "Synkronoidaan…",
+  "trayNotConnected": "Ei yhteyttä",
+  "trayNotYetSynced": "Ei vielä synkronoitu",
+  "trayLastSyncedJustNow": "Synkronoitu juuri nyt",
+  "trayLastSyncedMinutesAgo": "{count, plural, =1{Synkronoitu minuutti sitten} other{Synkronoitu {count} minuuttia sitten}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, =1{Synkronoitu tunti sitten} other{Synkronoitu {count} tuntia sitten}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, =1{Synkronoitu päivä sitten} other{Synkronoitu {count} päivää sitten}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traySettings": "Asetukset",
+  "trayQuitBusyMax": "Lopeta BusyMax",
   "agendaLoadMoreOverdue": "Lataa lisää myöhässä olevia tehtäviä",
   "agendaLoadMoreNoDate": "Lataa lisää päiväämättömiä tehtäviä",
   "viewDay": "Päivä",
   "viewWeek": "Viikko",
   "viewMonth": "Kuukausi",
   "viewYear": "Vuosi",
-  "viewAgenda": "Agenda",
+  "viewAgenda": "Agendanäkymä",
   "scheduleSettings": "Aikataulu",
   "scheduleDisplaySettings": "Aikataulun näyttö",
   "scheduleDisplayHoursDescription": "Päivä- ja viikkonäkymät näyttävät aluksi tämän aikavälin. Aikaisemmat ja myöhemmät kohteet laajentavat sitä tarvittaessa.",
@@ -154,7 +257,7 @@
   "feedbackDetailedMessage": "Yksityiskohtainen viesti",
   "feedbackReplyEmail": "Sähköpostiosoite vastausta varten (valinnainen)",
   "feedbackIncludeTechnicalDetails": "Sisällytä tekniset tiedot",
-  "feedbackTechnicalDetailsDisclosure": "Lisää vain Linux-käyttöjärjestelmäsi version ja sovelluksen alueasetuksen. Lokeja, tilitietoja, tiedostonimiä tai muita diagnostiikkatietoja ei lisätä.",
+  "feedbackTechnicalDetailsDisclosure": "Lisää vain käyttöjärjestelmäsi nimen ja version sekä sovelluksen alueasetuksen. Lokeja, tilitietoja, tiedostonimiä tai muita diagnostiikkatietoja ei lisätä.",
   "feedbackCategoryRequired": "Valitse luokka.",
   "feedbackSubjectLengthError": "Aiheen pituuden on oltava 3–120 merkkiä.",
   "feedbackMessageLengthError": "Viestin pituuden on oltava 10–5 000 merkkiä.",
@@ -180,7 +283,7 @@
   "removingAccount": "Poistetaan tiliä…",
   "removeAccountDescription": "Lopeta synkronointi ja poista tämän tilin tiedot tältä laitteelta.",
   "removeAccountTitle": "Poistetaanko {account} BusyMaxista?",
-  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
+  "removeAccountConfirmation": "Tämä poistaa laitteelta välimuistiin tallennetut tehtävät, kalenterit, tapahtumat, muistutukset ja odottavat offline-muutokset. Synkronoimattomat muutokset menetetään. Palveluntarjoajan kalenteri-, tapahtuma-, tehtäväluettelo- ja tehtäväkopioita ei poisteta.",
   "revokeGoogleAccess": "Peruuta myös BusyMaxin käyttöoikeus tähän Google-tiliin",
   "revokeGoogleAccessDescription": "Käyttöoikeus on myönnettävä uudelleen ennen tilin yhdistämistä.",
   "removeAccountAction": "Poista tili",
@@ -196,7 +299,7 @@
   "deleteList": "Poista luettelo",
   "builtInMicrosoftList": "Sisäänrakennettu",
   "builtInMicrosoftListCannotRenameDelete": "Microsoft To Do -sovelluksen sisäänrakennettuja luetteloita ei voi nimetä uudelleen tai poistaa.",
-  "deleteListConfirmation": "Poistetaanko \"{title}\" Google Tasksista?",
+  "deleteListConfirmation": "Poistetaanko ”{title}” Google Tasksista?",
   "deleteEvent": "Poista tapahtuma",
   "title": "Nimi",
   "create": "Luo",
@@ -291,7 +394,8 @@
   "synced": "Synkronoitu",
   "account": "Tili",
   "sync": "Synkronointi",
-  "manualFullSync": "Manuaalinen täysi synkronointi",
+  "forceFullResync": "Pakota täydellinen uudelleensynkronointi",
+  "forceFullResyncDescription": "Lataa kaikkien yhdistettyjen tilien tiedot kokonaan uudelleen. Käytä tätä vain synkronointiongelmien vianmääritykseen.",
   "runInBackgroundWhenClosed": "Jatka toimintaa, kun ikkuna suljetaan",
   "showTrayIcon": "Näytä ilmoitusalueen kuvake",
   "startMinimizedToTray": "Käynnistä pienennettynä ilmoitusalueelle",
@@ -305,6 +409,7 @@
   "notifyConflicts": "Ilmoita ristiriidoista",
   "notifyDueToday": "Ilmoita tänään erääntyvistä",
   "eventReminders": "Tapahtumamuistutukset",
+  "onState": "Käytössä",
   "taskReminders": "Tehtävämuistutukset",
   "notificationDetailLevel": "Ilmoitusten yksityiskohtaisuus",
   "notificationDetailPrivate": "Yksityinen",
@@ -314,9 +419,13 @@
   "quietHoursStart": "Hiljaisen ajan alku",
   "quietHoursEnd": "Hiljaisen ajan loppu",
   "notifications": "Ilmoitukset",
+  "windowsNotificationsUnavailable": "Windows-ilmoitukset eivät ole käytettävissä",
+  "windowsNotificationsUnpackaged": "Tämä paketoimaton kehitysajo ei voi käyttää Windows-ilmoituksia. Testaa muistutukset asentamalla testivarmenteella allekirjoitettu MSIX.",
+  "windowsNotificationsInstalledFailure": "BusyMax ei voinut alustaa Windows-ilmoituksia. Muistutuksia ei näytetä, ennen kuin tämä asennusongelma on ratkaistu.",
   "appearance": "Ulkoasu",
   "theme": "Teema",
   "themeSystem": "Järjestelmä",
+  "settingsSystem": "Järjestelmä",
   "themeLight": "Vaalea",
   "themeDark": "Tumma",
   "themeFamily": "Teemaperhe",
@@ -361,7 +470,7 @@
   "taskReminderNotificationBody": "Tehtävän määräaika lähestyy.",
   "notificationOpenAction": "Avaa",
   "notificationSnoozeAction": "Torkuta 10 minuuttia",
-  "notificationDismissAction": "Hylkää",
+  "notificationDismissAction": "Sulje",
   "notificationDetailsHidden": "Yksityiskohdat on piilotettu tietosuoja-asetusten vuoksi.",
   "previousMonth": "Edellinen kuukausi",
   "nextMonth": "Seuraava kuukausi",
@@ -376,50 +485,50 @@
   "selectTimeZone": "Valitse aikavyöhyke",
   "searchLocations": "Hae sijainteja",
   "noLocationsFound": "Sijainteja ei löytynyt",
-  "requiredField": "This field is required.",
-  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
-  "appleICloudProvider": "Apple iCloud Calendar",
+  "requiredField": "Tämä kenttä on pakollinen.",
+  "providerConnectionDescription": "Yhdistä kalenterit ja tehtävät johonkin näistä palveluntarjoajista.",
+  "appleICloudProvider": "Apple iCloud -kalenteri",
   "nextcloudProvider": "Nextcloud",
   "appleICloudTasksProvider": "Apple iCloud",
-  "nextcloudTasksProvider": "Nextcloud Tasks",
-  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
-  "addNextcloudAccount": "Add Nextcloud account",
-  "waitingForAppleICloud": "Connecting to Apple iCloud…",
-  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
-  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
-  "appleAccountEmail": "Apple Account email",
-  "appleAppSpecificPassword": "App-specific password",
-  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
-  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
-  "connectNextcloudTitle": "Connect Nextcloud",
-  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
-  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
-  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
-  "connectAccountAction": "Connect",
-  "cancelAccountConnection": "Cancel connection",
-  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
-  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
-  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
-  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
-  "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Calendars and task lists",
-  "calendarContent": "Calendar events",
-  "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only",
-  "pendingLocally": "Pending locally",
-  "conflictBlocked": "Blocked by conflict",
-  "authenticationBlocked": "Blocked until reconnect",
-  "operationFailed": "Operation failed",
-  "keepServerVersion": "Keep server version",
-  "reapplyLocalChange": "Review and reapply local change",
-  "duplicateLocalItem": "Duplicate as new item",
+  "nextcloudTasksProvider": "Nextcloud-tehtävät",
+  "addAppleICloudAccount": "Lisää Apple iCloud -kalenteritili",
+  "addNextcloudAccount": "Lisää Nextcloud-tili",
+  "waitingForAppleICloud": "Yhdistetään Apple iCloudiin…",
+  "waitingForNextcloud": "Odotetaan Nextcloud-valtuutusta…",
+  "connectAppleICloudTitle": "Yhdistä Apple iCloud -kalenteri",
+  "appleAccountEmail": "Apple-tilin sähköposti",
+  "appleAppSpecificPassword": "Sovelluskohtainen salasana",
+  "appleAppSpecificPasswordHelp": "Luo sovelluskohtainen salasana, kun olet ottanut kaksivaiheisen todennuksen käyttöön Apple-tililläsi.",
+  "appleAppSpecificPasswordResetWarning": "Apple-tilin salasanan vaihtaminen mitätöi sovelluskohtaiset salasanat.",
+  "connectNextcloudTitle": "Yhdistä Nextcloud",
+  "nextcloudServerUrl": "Nextcloud-palvelin tai CalDAV-osoite",
+  "nextcloudServerUrlHelp": "Anna Nextcloud-palvelimesi URL-osoite tai liitä Nextcloudista kopioitu ensisijainen CalDAV-osoite.",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax avaa selaimesi. Hyväksy käyttö siellä ja palaa sitten BusyMaxiin.",
+  "connectAccountAction": "Yhdistä",
+  "cancelAccountConnection": "Peruuta yhteys",
+  "nextcloudAccountRemovedRevokeFailed": "Tili poistettiin paikallisesti, mutta Nextcloudin sovellussalasanaa ei voitu kumota.",
+  "davCachedOfflineNotice": "Kalenteri- ja tehtävätiedot tallennetaan paikallisesti offline-käyttöä varten.",
+  "davReauthenticationRequired": "Yhdistä tämä tili uudelleen jatkaaksesi synkronointia.",
+  "davTemporarilyUnavailable": "Tämä tili ei ole tilapäisesti käytettävissä.",
+  "davPermissionChanged": "Palvelimen käyttöoikeudet muuttuivat. Odottavat muokkaukset on keskeytetty.",
+  "davUnsupportedServer": "Tätä palvelinta tai palveluntarjoajan profiilia ei tueta.",
+  "collectionSettings": "Kalenterit ja tehtäväluettelot",
+  "calendarContent": "Kalenteritapahtumat",
+  "taskContent": "Tehtävät",
+  "readOnlySharedCollection": "Vain luku",
+  "pendingLocally": "Paikallisesti odottava",
+  "conflictBlocked": "Ristiriidan estämä",
+  "authenticationBlocked": "Estetty, kunnes yhteys muodostetaan uudelleen",
+  "operationFailed": "Toiminto epäonnistui",
+  "keepServerVersion": "Säilytä palvelinversio",
+  "reapplyLocalChange": "Tarkista ja ota paikallinen muutos uudelleen käyttöön",
+  "duplicateLocalItem": "Monista uudeksi kohteeksi",
   "deleteCalendarConfirmation": "Poistetaanko \"{title}\"?",
-  "davConnectionState": "Connection state",
-  "davConnected": "Connected",
-  "davConnecting": "Connecting…",
-  "davSignedOut": "Signed out",
-  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "davConnectionState": "Yhteyden tila",
+  "davConnected": "Yhdistetty",
+  "davConnecting": "Yhdistetään…",
+  "davSignedOut": "Kirjautunut ulos",
+  "davLastSuccessfulSync": "Viimeisin onnistunut synkronointi: {time}",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -427,9 +536,9 @@
       }
     }
   },
-  "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh calendars and task lists",
-  "nextcloudServerHost": "Server: {host}",
+  "davNeverSynced": "Ei vielä synkronoitu",
+  "refreshCollections": "Päivitä kalenterit ja tehtäväluettelot",
+  "nextcloudServerHost": "Palvelin: {host}",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -437,12 +546,12 @@
       }
     }
   },
-  "collectionSupportsEvents": "Event calendar",
-  "collectionSupportsTasks": "Task list",
-  "collectionSupportsEventsAndTasks": "Events and tasks",
-  "writableCollection": "Writable",
-  "sharedCollection": "Shared",
-  "collectionLastSynced": "Last synchronized: {time}",
+  "collectionSupportsEvents": "Tapahtumakalenteri",
+  "collectionSupportsTasks": "Tehtäväluettelo",
+  "collectionSupportsEventsAndTasks": "Tapahtumat ja tehtävät",
+  "writableCollection": "Muokattava",
+  "sharedCollection": "Jaettu",
+  "collectionLastSynced": "Viimeksi synkronoitu: {time}",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -450,7 +559,7 @@
       }
     }
   },
-  "collectionSyncError": "Sync issue: {code}",
+  "collectionSyncError": "Synkronointiongelma: {code}",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -458,8 +567,8 @@
       }
     }
   },
-  "syncConflicts": "Synchronization conflicts",
-  "remoteChangedAt": "Server changed: {time}",
+  "syncConflicts": "Synkronointiristiriidat",
+  "remoteChangedAt": "Palvelin muuttui: {time}",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -467,7 +576,7 @@
       }
     }
   },
-  "localPendingEdit": "Local edit: {summary}",
+  "localPendingEdit": "Paikallinen muokkaus: {summary}",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -475,144 +584,366 @@
       }
     }
   },
-  "conflictResolutionFailed": "The conflict could not be resolved.",
-  "recurringEventScope": "Recurring event scope",
-  "entireSeries": "Entire series",
-  "singleOccurrence": "This occurrence",
-  "thisAndFutureUnavailable": "This and future (not available)",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "conflictResolutionFailed": "Ristiriitaa ei voitu ratkaista.",
+  "recurringEventScope": "Toistuvan tapahtuman laajuus",
+  "entireSeries": "Koko sarja",
+  "singleOccurrence": "Tämä tapahtuma",
+  "thisAndFollowingEvents": "Tämä ja seuraavat tapahtumat",
+  "thisAndFutureUnavailable": "Tämä palveluntarjoaja ei tue tätä.",
+  "thisAndFutureMoveUnavailable": "Tätä ja seuraavia tapahtumia ei voi siirtää turvallisesti. Valitse tämä tapahtuma tai koko sarja.",
+  "entireSeriesMoveUnavailable": "Toistumissääntö ei ole saatavilla paikallisesti. Siirrä sen sijaan vain tämä tapahtuma.",
+  "copyEventAndDeleteOriginal": "Kopioidaanko tapahtuma ja poistetaanko alkuperäinen?",
+  "copyEventMoveWarning": "BusyMax ei voi siirtää tätä tapahtumaa suoraan kalenterista {source} kalenteriin {destination}. Kopio luodaan ensin, ja alkuperäinen poistetaan vasta onnistuneen kopioinnin jälkeen. Tapahtuman tunnisteet muuttuvat; osallistujien vastaustilat voivat nollautua ja kutsuja tai peruutuksia voidaan lähettää; kokouslinkit, liitteet, muistutukset, palveluntarjoajakohtaiset kentät ja toistumisen poikkeukset eivät välttämättä siirry.",
+  "copyAndDelete": "Kopioi ja poista",
+  "chooseRecurringEventScope": "Valitse, koskeeko tämä muutos koko sarjaa, vain tätä tapahtumaa vai tätä ja seuraavia tapahtumia.",
   "taskDueBeforeStart": "Määräaika ei saa olla ennen alkamisaikaa.",
   "taskStartDueTimeModeMismatch": "Aseta kellonaika sekä alkamiselle että määräajalle tai tee tehtävästä koko päivän tehtävä.",
-  "taskListCreateFailed": "Could not create the task list: {error}",
-  "taskListRenameFailed": "Could not rename the task list: {error}",
-  "taskListDeleteFailed": "Could not delete the task list: {error}",
+  "taskListCreateFailed": "Tehtäväluettelon luominen epäonnistui: {error}",
+  "taskListRenameFailed": "Tehtäväluettelon uudelleennimeäminen epäonnistui: {error}",
+  "taskListDeleteFailed": "Tehtäväluettelon poistaminen epäonnistui: {error}",
   "unshare": "Lopeta jakaminen",
-  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
-  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
-  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "taskStatus": "Status",
-  "taskStatusNone": "No status",
+  "readOnlyTaskListCannotRename": "Tämä tehtäväluettelo on vain luku -tilassa, eikä sitä voi nimetä uudelleen.",
+  "taskListCannotDelete": "Tätä tehtäväluetteloa ei voi poistaa nykyisillä käyttöoikeuksillasi.",
+  "deleteTaskListConfirmation": "Poistetaanko ”{title}” ja kaikki sen tehtävät?",
+  "unshareTaskListConfirmation": "Lopetetaanko kohteen ”{title}” jakaminen tämän tilin kanssa?",
+  "taskStatus": "Tila",
+  "taskStatusNone": "Ei tilaa",
   "taskStatusNeedsAction": "Vaatii toimenpiteitä",
   "taskStatusInProcess": "Käsittelyssä",
-  "taskStatusCompleted": "Valmiina",
-  "taskStatusCancelled": "Cancelled",
-  "completionPercent": "{percent}% completed",
-  "completionDate": "Completion date",
+  "taskStatusCompleted": "Valmis",
+  "taskStatusCancelled": "Peruutettu",
+  "completionPercent": "Valmis {percent} %",
+  "completionDate": "Valmistumispäivä",
   "priority": "Tärkeys",
-  "priorityNone": "No priority",
-  "priorityHighValue": "Priority {priority} · High",
-  "priorityMediumValue": "Priority {priority} · Medium",
-  "priorityLowValue": "Priority {priority} · Low",
-  "taskUrl": "URL",
-  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
-  "classification": "Classification",
-  "classificationPublic": "When shared, show the full task",
-  "classificationConfidential": "When shared, show only busy",
-  "classificationPrivate": "When shared, hide this task",
-  "pinTask": "Pin task",
-  "reminders": "Reminders",
-  "noReminders": "No reminders",
-  "editReminder": "Edit reminder",
-  "beforeTaskStarts": "Before the task starts",
-  "beforeTaskDue": "Before the task is due",
-  "afterTaskStarts": "After the task starts",
-  "afterTaskDue": "After the task is due",
-  "relativeToTaskStart": "Relative to the task start date",
-  "relativeToTaskDue": "Relative to the task due date",
-  "reminderTimeOfDay": "Time of day",
-  "absoluteReminder": "At a date and time",
-  "reminderAmount": "Amount",
-  "reminderUnitSeconds": "Seconds",
-  "reminderUnitMinutes": "Minutes",
-  "reminderUnitHours": "Hours",
-  "reminderUnitDays": "Days",
-  "reminderUnitWeeks": "Weeks",
-  "reminderAtTaskStart": "At the task start",
-  "reminderAtTaskDue": "At the task due time",
-  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
-  "relatedRemindersTitle": "Keep related reminders?",
-  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
-  "discardRelatedReminders": "Discard reminders",
-  "keepRelatedReminders": "Keep reminders",
-  "repeatEvery": "Toista joka",
-  "repeatOn": "Repeat on",
+  "priorityNone": "Ei tärkeyttä",
+  "priorityHighValue": "Tärkeys {priority} · korkea",
+  "priorityMediumValue": "Tärkeys {priority} · keskitaso",
+  "priorityLowValue": "Tärkeys {priority} · matala",
+  "taskUrl": "Tehtävän URL",
+  "invalidTaskUrl": "Anna absoluuttinen URL-osoite skeemoineen.",
+  "classification": "Luokittelu",
+  "classificationPublic": "Näytä koko tehtävä jaettaessa",
+  "classificationConfidential": "Näytä jaettaessa vain varattu-aika",
+  "classificationPrivate": "Piilota tämä tehtävä jaettaessa",
+  "pinTask": "Kiinnitä tehtävä",
+  "reminders": "Muistutukset",
+  "noReminders": "Ei muistutuksia",
+  "editReminder": "Muokkaa muistutusta",
+  "beforeTaskStarts": "Ennen tehtävän alkamista",
+  "beforeTaskDue": "Ennen tehtävän määräaikaa",
+  "afterTaskStarts": "Tehtävän alkamisen jälkeen",
+  "afterTaskDue": "Tehtävän määräajan jälkeen",
+  "relativeToTaskStart": "Suhteessa tehtävän aloituspäivään",
+  "relativeToTaskDue": "Suhteessa tehtävän määräpäivään",
+  "reminderTimeOfDay": "Kellonaika",
+  "absoluteReminder": "Tiettynä päivänä ja kellonaikana",
+  "reminderAmount": "Määrä",
+  "reminderUnitSeconds": "Sekunnit",
+  "reminderUnitMinutes": "Minuutit",
+  "reminderUnitHours": "Tunnit",
+  "reminderUnitDays": "Päivät",
+  "reminderUnitWeeks": "Viikot",
+  "reminderAtTaskStart": "Tehtävän alkaessa",
+  "reminderAtTaskDue": "Tehtävän määräaikana",
+  "unsupportedReminder": "Tämä muistutustyyppi säilytetään, mutta sen aikaa ei voi muokata.",
+  "relatedRemindersTitle": "Säilytetäänkö liittyvät muistutukset?",
+  "relatedRemindersDescription": "Tällä päivämäärällä on {count} liittyvää muistutusta. Säilytetäänkö ne nykyisessä päivämäärässä ja kellonajassa?",
+  "discardRelatedReminders": "Hylkää muistutukset",
+  "keepRelatedReminders": "Säilytä muistutukset",
+  "repeatEvery": "Toistoväli",
+  "repeatOn": "Toistopäivät",
   "repeatEnd": "Lopeta toisto",
-  "repeatNever": "Never",
-  "repeatUntil": "On date",
-  "repeatAfter": "After a number of occurrences",
-  "repeatCount": "Occurrences",
-  "repeatDayOfMonth": "Days of month",
-  "repeatMonths": "Months",
-  "repeatOrdinal": "Weekday position",
-  "repeatSpecificDays": "Specific days",
-  "repeatFirst": "First",
-  "repeatSecond": "Second",
-  "repeatThird": "Third",
-  "repeatFourth": "Fourth",
-  "repeatFifth": "Fifth",
-  "repeatSecondToLast": "Second to last",
-  "repeatLast": "Last",
-  "repeatAnyDay": "Day",
-  "repeatWeekday": "Weekday",
-  "repeatWeekendDay": "Weekend day",
-  "repeatEveryDays": "Every {count} days",
-  "repeatEveryWeeks": "Every {count} weeks",
-  "repeatEveryMonths": "Every {count} months",
-  "repeatEveryYears": "Every {count} years",
-  "repeatOnDaysSummary": "on {days}",
-  "repeatOnMonthDaysSummary": "päivänä {days}",
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
-  "repeatInMonthsSummary": "in {months}",
-  "repeatTimesSummary": "{count} kertaa",
+  "repeatNever": "Ei koskaan",
+  "repeatUntil": "Päivämääränä",
+  "repeatAfter": "Toistokertojen jälkeen",
+  "repeatCount": "Toistokerrat",
+  "repeatDayOfMonth": "Kuukauden päivät",
+  "repeatMonths": "Kuukaudet",
+  "repeatOrdinal": "Viikonpäivän järjestys",
+  "repeatSpecificDays": "Tietyt päivät",
+  "repeatFirst": "Ensimmäinen",
+  "repeatSecond": "Toinen",
+  "repeatThird": "Kolmas",
+  "repeatFourth": "Neljäs",
+  "repeatFifth": "Viides",
+  "repeatSecondToLast": "Toiseksi viimeinen",
+  "repeatLast": "Viimeinen",
+  "repeatAnyDay": "Päivä",
+  "repeatWeekday": "Arkipäivä",
+  "repeatWeekendDay": "Viikonlopun päivä",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{maanantaina} TU{tiistaina} WE{keskiviikkona} TH{torstaina} FR{perjantaina} SA{lauantaina} SU{sunnuntaina} day{päivänä} weekday{arkipäivänä} weekend{viikonlopun päivänä} other{{day}}}",
+  "repeatEveryDays": "Joka {count}. päivä",
+  "repeatEveryWeeks": "Joka {count}. viikko",
+  "repeatEveryMonths": "Joka {count}. kuukausi",
+  "repeatEveryYears": "Joka {count}. vuosi",
+  "repeatOnDaysSummary": "{days}",
+  "repeatOnMonthDaysSummary": "kuukauden {days} päivänä",
+  "repeatOnOrdinalSummary": "{position, select, first{ensimmäisenä {days}} second{toisena {days}} third{kolmantena {days}} fourth{neljäntenä {days}} fifth{viidentenä {days}} secondToLast{toiseksi viimeisenä {days}} last{viimeisenä {days}} other{päivinä {days}}}",
+  "repeatInMonthsSummary": "{months} aikana",
+  "repeatTimesSummary": "{count, plural, one{{count} kerran} other{{count} kertaa}}",
   "repeatUntilSummary": "{date} asti",
-  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
-  "duplicateTask": "Duplicate task",
-  "taskDuplicated": "Task duplicated.",
-  "taskDuplicateFailed": "Could not duplicate the task: {error}",
+  "unsupportedRecurrencePreserved": "Tämä toistosääntö käyttää asetuksia, joita tämä muokkain ei muuta.",
+  "recurrenceUnsupportedByProvider": "Tätä toistoa ei voi käyttää palvelussa {provider}.",
+  "duplicateTask": "Monista tehtävä",
+  "taskDuplicated": "Tehtävä monistettiin.",
+  "taskDuplicateFailed": "Tehtävän monistaminen epäonnistui: {error}",
   "hideSubtasks": "Piilota alitehtävät",
   "hideClosedSubtasks": "Piilota suljetut alitehtävät",
-  "reminderUnit": "Unit",
-  "attendeeRequired": "Required",
-  "attendeeOptional": "Optional",
-  "meetingSection": "Meeting",
-  "addGoogleMeet": "Add Google Meet",
-  "addTeamsMeeting": "Add Microsoft Teams meeting",
-  "onlineMeetingAdded": "Online meeting added",
-  "requestResponses": "Request responses",
-  "requestResponsesDescription": "Ask guests to respond to the invitation.",
-  "hideGuestList": "Hide guest list",
-  "hideGuestListDescription": "Guests cannot see who else was invited.",
-  "allowNewTimeProposals": "Allow new time proposals",
-  "allowNewTimeProposalsDescription": "Guests can suggest a different meeting time.",
-  "notifyGuestsTitle": "Notify guests?",
-  "notifyGuestsSaveMessage": "This meeting has guests. Send invitations or event updates when it is saved?",
-  "notifyGuestsDeleteMessage": "This meeting has guests. Send a cancellation when it is deleted?",
-  "sendUpdates": "Send updates",
-  "sendCancellation": "Send cancellation",
-  "doNotSend": "Don’t send",
-  "microsoftNotifyGuestsSaveTitle": "Save meeting?",
-  "microsoftNotifyGuestsSaveMessage": "Microsoft will send invitations or event updates to guests.",
-  "microsoftNotifyGuestsDeleteTitle": "Delete meeting?",
-  "microsoftNotifyGuestsDeleteMessage": "Microsoft will send a cancellation to guests.",
-  "organizer": "Organizer",
-  "yourResponse": "Your response",
-  "guestResponses": "Guest responses",
-  "respond": "Respond",
-  "acceptInvitation": "Accept",
-  "tentativeInvitation": "Tentative",
-  "declineInvitation": "Decline",
-  "joinMeeting": "Join meeting",
-  "responseAccepted": "Accepted",
-  "responseTentative": "Tentative",
-  "responseDeclined": "Declined",
-  "responseNeedsAction": "Awaiting response",
-  "responseNotResponded": "Not responded",
-  "responseOrganizer": "Organizer",
-  "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
-  "joinMeetingFailed": "Could not open the meeting link.",
+  "reminderUnit": "Yksikkö",
+  "attendeeRequired": "Pakollinen",
+  "attendeeOptional": "Valinnainen",
+  "meetingSection": "Kokous",
+  "addGoogleMeet": "Lisää Google Meet",
+  "addTeamsMeeting": "Lisää Microsoft Teams -kokous",
+  "onlineMeetingAdded": "Verkkokokous lisätty",
+  "requestResponses": "Pyydä vastauksia",
+  "requestResponsesDescription": "Pyydä vieraita vastaamaan kutsuun.",
+  "hideGuestList": "Piilota vierasluettelo",
+  "hideGuestListDescription": "Vieraat eivät näe, keitä muita on kutsuttu.",
+  "allowNewTimeProposals": "Salli uudet aikaehdotukset",
+  "allowNewTimeProposalsDescription": "Vieraat voivat ehdottaa toista kokousaikaa.",
+  "notifyGuestsTitle": "Ilmoitetaanko vieraille?",
+  "notifyGuestsSaveMessage": "Tässä kokouksessa on vieraita. Lähetetäänkö kutsut tai tapahtumapäivitykset tallennettaessa?",
+  "notifyGuestsDeleteMessage": "Tässä kokouksessa on vieraita. Lähetetäänkö peruutus, kun kokous poistetaan?",
+  "sendUpdates": "Lähetä päivitykset",
+  "sendCancellation": "Lähetä peruutus",
+  "doNotSend": "Älä lähetä",
+  "microsoftNotifyGuestsSaveTitle": "Tallennetaanko kokous?",
+  "microsoftNotifyGuestsSaveMessage": "Microsoft lähettää vieraille kutsut tai tapahtumapäivitykset.",
+  "microsoftNotifyGuestsDeleteTitle": "Poistetaanko kokous?",
+  "microsoftNotifyGuestsDeleteMessage": "Microsoft lähettää vieraille peruutuksen.",
+  "organizer": "Järjestäjä",
+  "yourResponse": "Vastauksesi",
+  "guestResponses": "Vieraiden vastaukset",
+  "respond": "Vastaa",
+  "acceptInvitation": "Hyväksy",
+  "tentativeInvitation": "Alustava",
+  "declineInvitation": "Hylkää",
+  "joinMeeting": "Liity kokoukseen",
+  "responseAccepted": "Hyväksytty",
+  "responseTentative": "Alustava",
+  "responseDeclined": "Hylätty",
+  "responseNeedsAction": "Vastausta odotetaan",
+  "responseNotResponded": "Ei vastausta",
+  "responseOrganizer": "Järjestäjä",
+  "invitationResponseFailed": "Vastauksesi lähetys epäonnistui: {error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "Kokouslinkkiä ei voitu avata.",
+  "setCustomCalendarName": "Aseta mukautettu nimi",
+  "setAction": "Aseta",
+  "removeFromMyCalendars": "Poista omista kalentereistani",
+  "removeAction": "Poista",
+  "removeCalendarConfirmation": "Poistetaanko ”{title}” Google Kalenterin luettelostasi? Jaettua kalenteria tai sen tapahtumia ei poisteta.",
+  "calendarCannotRemove": "Tätä kalenteria ei voi poistaa tai irrottaa tästä tilistä.",
+  "calendarPendingChangesPreventRemoval": "Odota tämän kalenterin odottavien muutosten synkronointia ennen poistamista tai irrottamista.",
+  "calendarSubscriptions": "Kalenteritilaukset",
+  "calendarSubscriptionsDescription": "Lisää vain luku -kalentereita, jotka päivittyvät suojatusta WebCal-URL-osoitteesta.",
+  "addCalendarSubscription": "Lisää kalenteritilaus",
+  "subscriptionName": "Paikallinen nimi",
+  "subscriptionUrl": "Tilauksen URL",
+  "subscriptionUrlHelp": "Anna HTTPS- tai webcal-URL. BusyMax säilyttää täydellisen URL-osoitteen suojatussa tallennustilassa.",
+  "subscriptionUrlInvalid": "Anna kelvollinen HTTPS- tai webcal-URL ilman käyttäjätietoja tai fragmenttia.",
+  "subscriptionColor": "Paikallinen väri",
+  "subscriptionColorHelp": "Käytä kuusinumeroista väriä, kuten #3584E4.",
+  "subscriptionColorInvalid": "Anna kuusinumeroinen heksadesimaaliväri.",
+  "subscriptionRefreshMode": "Päivitystiheys",
+  "subscriptionAutomatic": "Automaattinen",
+  "subscriptionHourly": "Tunneittain",
+  "subscriptionSixHours": "Kuuden tunnin välein",
+  "subscriptionDaily": "Päivittäin",
+  "subscriptionSafeOrigin": "Lähde: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "Anna kelvollinen URL esikatsellaksesi sen suojattua alkuperää.",
+  "subscriptionReadOnly": "Vain luku -tilaus",
+  "subscriptionNeverRefreshed": "Ei vielä päivitetty",
+  "subscriptionLastRefresh": "Viimeisin onnistunut päivitys: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "Seuraava päivitys: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "Ajan tasalla",
+  "subscriptionStatusIssue": "Päivitysongelma: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "Päivitä nyt",
+  "unsubscribe": "Peruuta tilaus",
+  "unsubscribeCalendarTitle": "Perutaanko tilaus kalenterista ”{name}”?",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "Tämä poistaa paikallisen tilauksen ja sen välimuistissa olevat tapahtumat. Julkaistua kalenteria ei muuteta.",
+  "addSubscriptionAction": "Lisää tilaus",
+  "subscriptionOperationFailed": "Kalenteritilaus epäonnistui: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "Tilaukset",
+  "calendarImport": "Kalenterin tuonti",
+  "calendarImportDescription": "Valitse tiedosto, tarkista sen tapahtumat ja valitse sitten muokattava kalenteri, joka vastaanottaa ne.",
+  "importIcsFile": "Tuo .ics-tiedosto",
+  "importIcsPreview": "Tuo kalenteritapahtumat",
+  "importEventsFound": "Tuotavat tapahtumajoukot: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importInvalidEvents": "Virheelliset tapahtumat: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importFieldsOmitted": "Jätetty tarkoituksella pois: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "Muokattavaa kohdekalenteria ei ole saatavilla.",
+  "importDestinationCalendar": "Kohdekalenteri",
+  "importIcsConfirm": "Tuo tapahtumat",
+  "importIcsComplete": "Tuonti valmis",
+  "importQueued": "Tuotu tai jonossa: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "Ohitetut kaksoiskappaleet: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importUnsupportedSets": "Tukemattomat toistojoukot: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importIcsFailed": "Kalenteritiedostoa ei voitu tuoda: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "networkOffline": "Ei verkkoyhteyttä",
   "networkOfflineDescription": "Muutokset synkronoidaan, kun yhteys palautuu.",
-  "networkOfflineTryAgain": "Verkkoyhteyttä ei ole. Yhdistä internetiin ja yritä uudelleen."
+  "networkOfflineTryAgain": "Verkkoyhteyttä ei ole. Yhdistä internetiin ja yritä uudelleen.",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "kuukauden {days} päivänä",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatSummarySeparator": " ",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}.",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatWeekdayListPair": "{first} ja {second}",
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "repeatMonthDayListPair": "{first} ja {second}",
+  "repeatMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthValue": "{monthKey, select, jan{tammikuun} feb{helmikuun} mar{maaliskuun} apr{huhtikuun} may{toukokuun} jun{kesäkuun} jul{heinäkuun} aug{elokuun} sep{syyskuun} oct{lokakuun} nov{marraskuun} dec{joulukuun} other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first} ja {second}",
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "repeatYearlyMonthListPair": "{first} ja {second}",
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency} {month} {day} päivänä",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} {months} {day} päivänä",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} {months} {days} päivänä",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {months} {position, select, first{ensimmäisenä} second{toisena} third{kolmantena} fourth{neljäntenä} fifth{viidentenä} secondToLast{toiseksi viimeisenä} last{viimeisenä} other{}} {days}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency} {month} {days} päivänä",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency} {month} {position, select, first{ensimmäisenä} second{toisena} third{kolmantena} fourth{neljäntenä} fifth{viidentenä} secondToLast{toiseksi viimeisenä} last{viimeisenä} other{}} {days}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  }
 }

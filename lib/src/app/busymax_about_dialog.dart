@@ -10,7 +10,6 @@ import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
 import 'busymax_dialog_identity.dart';
 import 'busymax_dialogs.dart';
-import 'busymax_surface_colors.dart';
 
 const _busyMaxWebsiteUrl = 'https://busystack.org';
 const _busyMaxRepositoryUrl = 'https://github.com/busystack/busymax/';
@@ -142,13 +141,13 @@ class _VersionTag extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final theme = Theme.of(context);
-    final colors = BusyMaxSurfaceColors.of(context);
+    final colorScheme = theme.colorScheme;
     return Center(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colors.control,
+          color: colorScheme.primary,
           borderRadius: BorderRadius.circular(BusyMaxRadius.pill),
-          border: Border.all(color: colors.divider),
+          border: Border.all(color: colorScheme.primary),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -163,7 +162,7 @@ class _VersionTag extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: theme.textTheme.labelMedium?.copyWith(
-                color: colors.foreground,
+                color: colorScheme.onPrimary,
                 fontWeight: FontWeight.w600,
               ),
             ),

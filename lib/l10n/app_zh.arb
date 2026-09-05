@@ -1,14 +1,31 @@
 {
   "@@locale": "zh",
+  "windowsSupport": "支持",
+  "windowsThirdPartyLicenses": "第三方许可证",
+  "windowsSearch": "搜索",
+  "windowsStartupDisabledByUser": "用户已在 Windows 设置中禁用。",
+  "windowsStartupDisabledByPolicy": "已由 Windows 策略禁用。",
+  "windowsStartupUnavailable": "从 MSIX 包安装 BusyMax 后可用。",
+  "windowsReminderExitNotice": "完全退出 BusyMax 后，提醒将停止。请让应用在后台运行以接收提醒。",
+  "windowsProductVersionLabel": "产品版本",
+  "windowsPackageVersionLabel": "Windows 包版本",
+  "windowsUnpackaged": "未打包",
+  "windowsAgendaLoadMore": "載入更多議程項目",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{星期一} TU{星期二} WE{星期三} TH{星期四} FR{星期五} SA{星期六} SU{星期日} other{{day}}}",
+  "repeatOnTwoMonthDaysSummary": "{first}、{second}",
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency}{month}的{firstDay}和{secondDay}",
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency}{firstMonth}和{secondMonth}的{day}",
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency}{firstMonth}和{secondMonth}的{firstDay}和{secondDay}",
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency}{firstMonth}和{secondMonth}的{days}",
   "appTitle": "BusyMax",
-  "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
+  "connectGoogleAccount": "连接 Google、Microsoft、Apple iCloud Calendar 或 Nextcloud 账户。",
   "googlePermissionsConsentNotice": "在 Google 权限页面上，同时选择日历和任务权限。",
   "googlePermissionsRequiredRetry": "必须授予 Google 日历和 Google Tasks 权限。请重试并选中两个复选框。",
   "finishSetup": "完成设置",
   "continueSetup": "继续",
   "onboardingSetupTitle": "设置 BusyMax",
-  "onboardingAccountsStepTitle": "连接帐户",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
+  "onboardingAccountsStepTitle": "连接账户",
+  "onboardingAccountsStepDescription": "添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、日程、任务列表和任务。",
   "onboardingPreferencesStepTitle": "选择系统设置",
   "onboardingPreferencesStepDescription": "打开日程前，请设置桌面行为、提醒、通知详细程度和外观。",
   "signInWithGoogle": "使用 Google 登录",
@@ -33,6 +50,43 @@
   "calendarTasks": "任务",
   "calendar": "日历",
   "calendars": "日历",
+  "newCalendar": "新建日历",
+  "calendarColor": "日历颜色",
+  "calendarColorOption": "颜色 {number}",
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarManagementUnsupported": "此提供商不支持 BusyMax 中的日历管理。",
+  "primaryCalendarCannotDelete": "无法删除主日历。",
+  "calendarCreateFailed": "无法创建日历：{error}",
+  "calendarCreatedRefreshPending": "日历已创建，但 BusyMax 无法刷新账户。它将在下次同步后显示。",
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarUpdateFailed": "无法更新日历：{error}",
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarDeleteFailed": "无法删除日历：{error}",
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "newEvent": "新建日程",
   "refreshCalendar": "刷新日历",
   "openInProvider": "在服务中打开",
@@ -46,12 +100,61 @@
   "scheduleUnavailable": "日程不可用",
   "scheduleNoSources": "没有可见的日历或任务列表",
   "scheduleNoSourcesDescription": "请在设置中选择要显示的内容，然后刷新。",
-  "scheduleSignInRequired": "连接帐户",
+  "scheduleSignInRequired": "连接账户",
   "scheduleSignInDescription": "登录以同步日历和任务。",
   "scheduleNoSearchResults": "没有匹配的日程或任务",
   "scheduleNoSearchResultsDescription": "请尝试其他搜索内容或清除当前筛选条件。",
   "refresh": "刷新",
   "trayOpenBusyMax": "打开 BusyMax",
+  "trayShowBusyMax": "显示 BusyMax",
+  "trayNewEvent": "新日程…",
+  "trayNewTask": "新任务…",
+  "trayToday": "今天",
+  "trayAllDay": "全天",
+  "trayNow": "现在",
+  "trayCalendarEvent": "日历日程",
+  "trayUntitledEvent": "无标题日程",
+  "trayNothingElseToday": "今天没有其他内容",
+  "trayTasksDueToday": "{count, plural, =1{今天有 1 个任务到期} other{今天有 {count} 个任务到期}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "打开今天的日程",
+  "traySyncNow": "立即同步",
+  "traySyncing": "正在同步…",
+  "trayNotConnected": "未连接",
+  "trayNotYetSynced": "尚未同步",
+  "trayLastSyncedJustNow": "刚刚同步",
+  "trayLastSyncedMinutesAgo": "{count, plural, =1{1 分钟前同步} other{{count} 分钟前同步}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, =1{1 小时前同步} other{{count} 小时前同步}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, =1{1 天前同步} other{{count} 天前同步}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "traySettings": "设置",
+  "trayQuitBusyMax": "退出 BusyMax",
   "agendaLoadMoreOverdue": "加载更多逾期任务",
   "agendaLoadMoreNoDate": "加载更多无日期任务",
   "viewDay": "日",
@@ -78,7 +181,7 @@
   "doesNotRepeat": "不重复",
   "defaultReminder": "默认提醒",
   "guests": "参与者",
-  "noGuests": "没有参与者",
+  "noGuests": "无参与者",
   "description": "说明",
   "availabilityShowAs": "空闲状态 / 显示为",
   "busy": "忙碌",
@@ -154,7 +257,7 @@
   "feedbackDetailedMessage": "详细信息",
   "feedbackReplyEmail": "用于接收回复的电子邮件地址（可选）",
   "feedbackIncludeTechnicalDetails": "包含技术详情",
-  "feedbackTechnicalDetailsDisclosure": "仅添加您的 Linux 操作系统版本和应用区域设置。不包含日志、帐户数据、文件名或其他诊断信息。",
+  "feedbackTechnicalDetailsDisclosure": "仅添加您的操作系统名称和版本以及应用区域设置。不包含日志、账户数据、文件名或其他诊断信息。",
   "feedbackCategoryRequired": "请选择类别。",
   "feedbackSubjectLengthError": "主题必须为 3 至 120 个字符。",
   "feedbackMessageLengthError": "消息必须为 10 至 5,000 个字符。",
@@ -168,25 +271,25 @@
   "toggleSidebar": "显示或隐藏侧边栏",
   "showSidebar": "显示侧边栏面板",
   "hideSidebar": "隐藏侧边栏面板",
-  "accounts": "帐户",
-  "currentAccount": "当前帐户",
-  "switchAccount": "切换帐户",
-  "addGoogleAccount": "添加 Google 帐户",
-  "addMicrosoftAccount": "添加 Microsoft 帐户",
+  "accounts": "账户",
+  "currentAccount": "当前账户",
+  "switchAccount": "切换账户",
+  "addGoogleAccount": "添加 Google 账户",
+  "addMicrosoftAccount": "添加 Microsoft 账户",
   "googleProvider": "Google",
   "microsoftProvider": "Microsoft",
   "signedInAccount": "已登录",
-  "removeAccount": "移除帐户…",
-  "removingAccount": "正在移除帐户…",
-  "removeAccountDescription": "停止同步并从此设备移除此帐户的数据。",
+  "removeAccount": "移除账户…",
+  "removingAccount": "正在移除账户…",
+  "removeAccountDescription": "停止同步并从此设备移除此账户的数据。",
   "removeAccountTitle": "从 BusyMax 中移除 {account}？",
-  "removeAccountConfirmation": "This deletes cached tasks, calendars, events, reminders, and pending offline changes from this device. Unsynced changes will be lost. Provider copies of calendars, events, task lists, and tasks are not deleted.",
-  "revokeGoogleAccess": "同时撤销 BusyMax 对此 Google 帐户的访问权限",
+  "removeAccountConfirmation": "这会从此设备删除缓存的任务、日历、日程、提醒和待处理的离线更改。未同步的更改将会丢失。提供商中的日历、日程、任务列表和任务副本不会被删除。",
+  "revokeGoogleAccess": "同时撤销 BusyMax 对此 Google 账户的访问权限",
   "revokeGoogleAccessDescription": "重新连接之前，您需要再次授予访问权限。",
-  "removeAccountAction": "移除帐户",
-  "removeAccountFailed": "无法完成帐户移除。请重试。",
-  "accountRemovedGoogleRevokeFailed": "该帐户已从此设备移除，但无法撤销 BusyMax 对您的 Google 帐户的访问权限。您可以在 Google 帐户中手动撤销该权限。",
-  "newTaskList": "新建任务列表",
+  "removeAccountAction": "移除账户",
+  "removeAccountFailed": "无法完成账户移除。请重试。",
+  "accountRemovedGoogleRevokeFailed": "该账户已从此设备移除，但无法撤销 BusyMax 对您的 Google 账户的访问权限。您可以在 Google 账户中手动撤销该权限。",
+  "newTaskList": "新任务列表",
   "signInToViewTaskLists": "登录以查看任务列表。",
   "noTaskListsSynced": "尚未同步任何任务列表。",
   "listActions": "列表操作",
@@ -196,7 +299,7 @@
   "deleteList": "删除列表",
   "builtInMicrosoftList": "内置",
   "builtInMicrosoftListCannotRenameDelete": "无法重命名或删除 Microsoft To Do 内置列表。",
-  "deleteListConfirmation": "从 Google Tasks 中删除“{title}”？",
+  "deleteListConfirmation": "要从 Google Tasks 中删除“{title}”吗？",
   "deleteEvent": "删除日程",
   "title": "标题",
   "create": "新建",
@@ -205,7 +308,7 @@
   "refreshList": "刷新列表",
   "refreshAll": "全部刷新",
   "listRefreshed": "列表已刷新。",
-  "allTasksRefreshed": "所有帐户均已刷新。",
+  "allTasksRefreshed": "所有账户均已刷新。",
   "exportedFile": "已导出到 {path}",
   "exportFailed": "导出失败：{error}",
   "refreshFailed": "刷新失败：{error}",
@@ -213,7 +316,7 @@
   "signInToViewTasks": "登录以查看任务。",
   "noTasks": "没有任务。",
   "noTasksYet": "还没有任务",
-  "noTasksYetMessage": "创建任务或刷新帐户以开始使用。",
+  "noTasksYetMessage": "创建任务或刷新账户以开始使用。",
   "noTasksInList": "此列表中没有任务。",
   "overdue": "已逾期",
   "today": "今天",
@@ -271,7 +374,7 @@
   "advancedSection": "高级",
   "addCategory": "添加类别",
   "list": "列表",
-  "microsoftMoveUnsupported": "此版本不支持在 Microsoft To Do 帐户的列表之间移动任务。",
+  "microsoftMoveUnsupported": "此版本不支持在 Microsoft To Do 账户的列表之间移动任务。",
   "createSubtask": "创建子任务",
   "subtasks": "子任务",
   "moveToTop": "移到顶部",
@@ -289,9 +392,10 @@
   "localState": "本地状态",
   "pendingSync": "等待同步",
   "synced": "已同步",
-  "account": "帐户",
+  "account": "账户",
   "sync": "同步",
-  "manualFullSync": "手动完整同步",
+  "forceFullResync": "强制完全重新同步",
+  "forceFullResyncDescription": "从每个已连接的账号中重新完整加载所有数据。请仅在排查同步问题时使用此功能。",
   "runInBackgroundWhenClosed": "窗口关闭后继续在后台运行",
   "showTrayIcon": "显示托盘图标",
   "startMinimizedToTray": "启动时最小化到托盘",
@@ -305,6 +409,7 @@
   "notifyConflicts": "冲突通知",
   "notifyDueToday": "今天到期任务通知",
   "eventReminders": "日程提醒",
+  "onState": "开启",
   "taskReminders": "任务提醒",
   "notificationDetailLevel": "通知详细程度",
   "notificationDetailPrivate": "私密",
@@ -314,9 +419,13 @@
   "quietHoursStart": "免打扰开始时间",
   "quietHoursEnd": "免打扰结束时间",
   "notifications": "通知",
+  "windowsNotificationsUnavailable": "Windows 通知不可用",
+  "windowsNotificationsUnpackaged": "此未打包的开发版本无法使用 Windows 通知。请安装测试签名的 MSIX 以测试提醒。",
+  "windowsNotificationsInstalledFailure": "BusyMax 无法初始化 Windows 通知。在解决此安装问题之前，提醒不会显示。",
   "appearance": "外观",
   "theme": "主题",
   "themeSystem": "系统",
+  "settingsSystem": "系统",
   "themeLight": "浅色",
   "themeDark": "深色",
   "themeFamily": "主题系列",
@@ -361,7 +470,7 @@
   "taskReminderNotificationBody": "任务即将到期。",
   "notificationOpenAction": "打开",
   "notificationSnoozeAction": "10 分钟后提醒",
-  "notificationDismissAction": "忽略",
+  "notificationDismissAction": "关闭",
   "notificationDetailsHidden": "根据隐私设置，详细信息已隐藏。",
   "previousMonth": "上个月",
   "nextMonth": "下个月",
@@ -376,50 +485,50 @@
   "selectTimeZone": "选择时区",
   "searchLocations": "搜索地点",
   "noLocationsFound": "未找到地点",
-  "requiredField": "This field is required.",
-  "providerConnectionDescription": "Connect calendars and tasks from one of these providers.",
-  "appleICloudProvider": "Apple iCloud Calendar",
+  "requiredField": "此字段为必填项。",
+  "providerConnectionDescription": "连接以下任一提供商中的日历和任务。",
+  "appleICloudProvider": "Apple iCloud 日历",
   "nextcloudProvider": "Nextcloud",
   "appleICloudTasksProvider": "Apple iCloud",
-  "nextcloudTasksProvider": "Nextcloud Tasks",
-  "addAppleICloudAccount": "Add Apple iCloud Calendar account",
-  "addNextcloudAccount": "Add Nextcloud account",
-  "waitingForAppleICloud": "Connecting to Apple iCloud…",
-  "waitingForNextcloud": "Waiting for Nextcloud authorization…",
-  "connectAppleICloudTitle": "Connect Apple iCloud Calendar",
-  "appleAccountEmail": "Apple Account email",
-  "appleAppSpecificPassword": "App-specific password",
-  "appleAppSpecificPasswordHelp": "Create an app-specific password after enabling two-factor authentication for your Apple Account.",
-  "appleAppSpecificPasswordResetWarning": "Resetting your Apple Account password revokes app-specific passwords.",
-  "connectNextcloudTitle": "Connect Nextcloud",
-  "nextcloudServerUrl": "Nextcloud server or CalDAV address",
-  "nextcloudServerUrlHelp": "Enter your Nextcloud server URL, or paste the primary CalDAV address copied from Nextcloud.",
-  "nextcloudBrowserAuthorizationHelp": "BusyMax will open your browser. Approve access there, then return to BusyMax.",
-  "connectAccountAction": "Connect",
-  "cancelAccountConnection": "Cancel connection",
-  "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
-  "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
-  "davTemporarilyUnavailable": "This account is temporarily unavailable.",
-  "davPermissionChanged": "Server permissions changed. Pending edits are paused.",
-  "davUnsupportedServer": "This server or provider profile is not supported.",
-  "collectionSettings": "Calendars and task lists",
-  "calendarContent": "Calendar events",
-  "taskContent": "Tasks",
-  "readOnlySharedCollection": "Read-only",
-  "pendingLocally": "Pending locally",
-  "conflictBlocked": "Blocked by conflict",
-  "authenticationBlocked": "Blocked until reconnect",
-  "operationFailed": "Operation failed",
-  "keepServerVersion": "Keep server version",
-  "reapplyLocalChange": "Review and reapply local change",
-  "duplicateLocalItem": "Duplicate as new item",
+  "nextcloudTasksProvider": "Nextcloud 任务",
+  "addAppleICloudAccount": "添加 Apple iCloud 日历账户",
+  "addNextcloudAccount": "添加 Nextcloud 账户",
+  "waitingForAppleICloud": "正在连接 Apple iCloud…",
+  "waitingForNextcloud": "正在等待 Nextcloud 授权…",
+  "connectAppleICloudTitle": "连接 Apple iCloud 日历",
+  "appleAccountEmail": "Apple 账户电子邮件",
+  "appleAppSpecificPassword": "App 专用密码",
+  "appleAppSpecificPasswordHelp": "为 Apple 账户启用双重认证后，创建 App 专用密码。",
+  "appleAppSpecificPasswordResetWarning": "重置 Apple 账户密码会撤销 App 专用密码。",
+  "connectNextcloudTitle": "连接 Nextcloud",
+  "nextcloudServerUrl": "Nextcloud 服务器或 CalDAV 地址",
+  "nextcloudServerUrlHelp": "输入 Nextcloud 服务器 URL，或粘贴从 Nextcloud 复制的主要 CalDAV 地址。",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax 将打开浏览器。请在那里批准访问，然后返回 BusyMax。",
+  "connectAccountAction": "连接",
+  "cancelAccountConnection": "取消连接",
+  "nextcloudAccountRemovedRevokeFailed": "账户已在本地移除，但无法撤销 Nextcloud App 密码。",
+  "davCachedOfflineNotice": "日历和任务数据会缓存在本地，以供离线使用。",
+  "davReauthenticationRequired": "重新连接此账户以恢复同步。",
+  "davTemporarilyUnavailable": "此账户暂时不可用。",
+  "davPermissionChanged": "服务器权限已更改。待处理的编辑已暂停。",
+  "davUnsupportedServer": "不支持此服务器或提供商配置。",
+  "collectionSettings": "日历和任务列表",
+  "calendarContent": "日历日程",
+  "taskContent": "任务",
+  "readOnlySharedCollection": "只读",
+  "pendingLocally": "本地待处理",
+  "conflictBlocked": "因冲突而阻止",
+  "authenticationBlocked": "重新连接前阻止",
+  "operationFailed": "操作失败",
+  "keepServerVersion": "保留服务器版本",
+  "reapplyLocalChange": "查看并重新应用本地更改",
+  "duplicateLocalItem": "复制为新项目",
   "deleteCalendarConfirmation": "删除“{title}”？",
-  "davConnectionState": "Connection state",
-  "davConnected": "Connected",
-  "davConnecting": "Connecting…",
-  "davSignedOut": "Signed out",
-  "davLastSuccessfulSync": "Last successful sync: {time}",
+  "davConnectionState": "连接状态",
+  "davConnected": "已连接",
+  "davConnecting": "正在连接…",
+  "davSignedOut": "已退出登录",
+  "davLastSuccessfulSync": "上次成功同步：{time}",
   "@davLastSuccessfulSync": {
     "placeholders": {
       "time": {
@@ -427,9 +536,9 @@
       }
     }
   },
-  "davNeverSynced": "Not synchronized yet",
-  "refreshCollections": "Refresh calendars and task lists",
-  "nextcloudServerHost": "Server: {host}",
+  "davNeverSynced": "尚未同步",
+  "refreshCollections": "刷新日历和任务列表",
+  "nextcloudServerHost": "服务器：{host}",
   "@nextcloudServerHost": {
     "placeholders": {
       "host": {
@@ -437,12 +546,12 @@
       }
     }
   },
-  "collectionSupportsEvents": "Event calendar",
-  "collectionSupportsTasks": "Task list",
-  "collectionSupportsEventsAndTasks": "Events and tasks",
-  "writableCollection": "Writable",
-  "sharedCollection": "Shared",
-  "collectionLastSynced": "Last synchronized: {time}",
+  "collectionSupportsEvents": "日程日历",
+  "collectionSupportsTasks": "任务列表",
+  "collectionSupportsEventsAndTasks": "日程和任务",
+  "writableCollection": "可写",
+  "sharedCollection": "已共享",
+  "collectionLastSynced": "上次同步：{time}",
   "@collectionLastSynced": {
     "placeholders": {
       "time": {
@@ -450,7 +559,7 @@
       }
     }
   },
-  "collectionSyncError": "Sync issue: {code}",
+  "collectionSyncError": "同步问题：{code}",
   "@collectionSyncError": {
     "placeholders": {
       "code": {
@@ -458,8 +567,8 @@
       }
     }
   },
-  "syncConflicts": "Synchronization conflicts",
-  "remoteChangedAt": "Server changed: {time}",
+  "syncConflicts": "同步冲突",
+  "remoteChangedAt": "服务器更改：{time}",
   "@remoteChangedAt": {
     "placeholders": {
       "time": {
@@ -467,7 +576,7 @@
       }
     }
   },
-  "localPendingEdit": "Local edit: {summary}",
+  "localPendingEdit": "本地编辑：{summary}",
   "@localPendingEdit": {
     "placeholders": {
       "summary": {
@@ -475,144 +584,366 @@
       }
     }
   },
-  "conflictResolutionFailed": "The conflict could not be resolved.",
-  "recurringEventScope": "Recurring event scope",
-  "entireSeries": "Entire series",
-  "singleOccurrence": "This occurrence",
-  "thisAndFutureUnavailable": "This and future (not available)",
-  "chooseRecurringEventScope": "Choose whether this change applies to the entire series or only this occurrence.",
+  "conflictResolutionFailed": "无法解决冲突。",
+  "recurringEventScope": "重复日程范围",
+  "entireSeries": "整个系列",
+  "singleOccurrence": "此事件",
+  "thisAndFollowingEvents": "此事件及后续事件",
+  "thisAndFutureUnavailable": "此提供商不支持。",
+  "thisAndFutureMoveUnavailable": "无法安全移动此日程及后续日程。请选择此日程或整个系列。",
+  "entireSeriesMoveUnavailable": "本地没有可用的重复规则。请仅移动此日程。",
+  "copyEventAndDeleteOriginal": "复制日程并删除原日程？",
+  "copyEventMoveWarning": "BusyMax 无法将此日程直接从 {source} 移动到 {destination}。应用会先创建副本，并且仅在复制成功后删除原日程。日程 ID 将发生变化；参与者的回复状态可能会重置，并可能发送邀请或取消通知；会议链接、附件、提醒、提供商特有的字段和重复例外可能无法保留。",
+  "copyAndDelete": "复制并删除",
+  "chooseRecurringEventScope": "选择此更改适用于整个系列、仅此日程，还是此日程及后续日程。",
   "taskDueBeforeStart": "截止时间不能早于开始时间。",
   "taskStartDueTimeModeMismatch": "请同时设置开始和截止时间，或将任务设为全天。",
-  "taskListCreateFailed": "Could not create the task list: {error}",
-  "taskListRenameFailed": "Could not rename the task list: {error}",
-  "taskListDeleteFailed": "Could not delete the task list: {error}",
+  "taskListCreateFailed": "无法创建任务列表：{error}",
+  "taskListRenameFailed": "无法重命名任务列表：{error}",
+  "taskListDeleteFailed": "无法删除任务列表：{error}",
   "unshare": "取消共享",
-  "readOnlyTaskListCannotRename": "This task list is read-only and cannot be renamed.",
-  "taskListCannotDelete": "This task list cannot be deleted with your current permissions.",
-  "deleteTaskListConfirmation": "Delete \"{title}\" and all of its tasks?",
-  "unshareTaskListConfirmation": "Unshare \"{title}\" from this account?",
-  "taskStatus": "Status",
-  "taskStatusNone": "No status",
+  "readOnlyTaskListCannotRename": "此任务列表为只读，无法重命名。",
+  "taskListCannotDelete": "使用当前权限无法删除此任务列表。",
+  "deleteTaskListConfirmation": "要删除“{title}”及其所有任务吗？",
+  "unshareTaskListConfirmation": "要取消此账户对“{title}”的共享吗？",
+  "taskStatus": "状态",
+  "taskStatusNone": "无状态",
   "taskStatusNeedsAction": "需要操作",
-  "taskStatusInProcess": "处理中",
-  "taskStatusCompleted": "完成",
-  "taskStatusCancelled": "Cancelled",
-  "completionPercent": "{percent}% completed",
-  "completionDate": "Completion date",
+  "taskStatusInProcess": "进行中",
+  "taskStatusCompleted": "已完成",
+  "taskStatusCancelled": "已取消",
+  "completionPercent": "已完成 {percent}%",
+  "completionDate": "完成日期",
   "priority": "优先级",
-  "priorityNone": "No priority",
-  "priorityHighValue": "Priority {priority} · High",
-  "priorityMediumValue": "Priority {priority} · Medium",
-  "priorityLowValue": "Priority {priority} · Low",
-  "taskUrl": "URL",
-  "invalidTaskUrl": "Enter an absolute URL, including its scheme.",
-  "classification": "Classification",
-  "classificationPublic": "When shared, show the full task",
-  "classificationConfidential": "When shared, show only busy",
-  "classificationPrivate": "When shared, hide this task",
-  "pinTask": "Pin task",
-  "reminders": "Reminders",
+  "priorityNone": "无优先级",
+  "priorityHighValue": "优先级 {priority} · 高",
+  "priorityMediumValue": "优先级 {priority} · 中",
+  "priorityLowValue": "优先级 {priority} · 低",
+  "taskUrl": "任务 URL",
+  "invalidTaskUrl": "请输入包含方案的绝对 URL。",
+  "classification": "分类",
+  "classificationPublic": "共享时显示完整任务",
+  "classificationConfidential": "共享时仅显示忙碌状态",
+  "classificationPrivate": "共享时隐藏此任务",
+  "pinTask": "固定任务",
+  "reminders": "提醒",
   "noReminders": "无提醒",
-  "editReminder": "Edit reminder",
+  "editReminder": "编辑提醒",
   "beforeTaskStarts": "任务开始前",
-  "beforeTaskDue": "任务截止前",
-  "afterTaskStarts": "After the task starts",
-  "afterTaskDue": "After the task is due",
-  "relativeToTaskStart": "Relative to the task start date",
-  "relativeToTaskDue": "Relative to the task due date",
-  "reminderTimeOfDay": "Time of day",
-  "absoluteReminder": "At a date and time",
-  "reminderAmount": "Amount",
-  "reminderUnitSeconds": "Seconds",
-  "reminderUnitMinutes": "Minutes",
-  "reminderUnitHours": "Hours",
-  "reminderUnitDays": "Days",
-  "reminderUnitWeeks": "Weeks",
-  "reminderAtTaskStart": "At the task start",
-  "reminderAtTaskDue": "At the task due time",
-  "unsupportedReminder": "This reminder type is preserved but its time cannot be edited.",
-  "relatedRemindersTitle": "Keep related reminders?",
-  "relatedRemindersDescription": "This date has {count} related reminders. Keep them at their current date and time?",
+  "beforeTaskDue": "任务到期前",
+  "afterTaskStarts": "任务开始后",
+  "afterTaskDue": "任务到期后",
+  "relativeToTaskStart": "相对于任务开始日期",
+  "relativeToTaskDue": "相对于任务到期日期",
+  "reminderTimeOfDay": "时间",
+  "absoluteReminder": "在指定日期和时间",
+  "reminderAmount": "数量",
+  "reminderUnitSeconds": "秒",
+  "reminderUnitMinutes": "分钟",
+  "reminderUnitHours": "小时",
+  "reminderUnitDays": "天",
+  "reminderUnitWeeks": "周",
+  "reminderAtTaskStart": "任务开始时",
+  "reminderAtTaskDue": "任务到期时",
+  "unsupportedReminder": "此提醒类型会保留，但无法编辑其时间。",
+  "relatedRemindersTitle": "保留相关提醒？",
+  "relatedRemindersDescription": "此日期有 {count} 个相关提醒。要保留它们当前的日期和时间吗？",
   "discardRelatedReminders": "舍弃提醒",
   "keepRelatedReminders": "保留提醒",
-  "repeatEvery": "重复每",
-  "repeatOn": "Repeat on",
+  "repeatEvery": "重复间隔",
+  "repeatOn": "重复日期",
   "repeatEnd": "结束重复",
-  "repeatNever": "Never",
-  "repeatUntil": "On date",
-  "repeatAfter": "After a number of occurrences",
-  "repeatCount": "Occurrences",
-  "repeatDayOfMonth": "Days of month",
-  "repeatMonths": "Months",
-  "repeatOrdinal": "Weekday position",
-  "repeatSpecificDays": "Specific days",
-  "repeatFirst": "First",
-  "repeatSecond": "Second",
-  "repeatThird": "Third",
-  "repeatFourth": "Fourth",
-  "repeatFifth": "Fifth",
-  "repeatSecondToLast": "Second to last",
-  "repeatLast": "Last",
-  "repeatAnyDay": "Day",
-  "repeatWeekday": "Weekday",
-  "repeatWeekendDay": "Weekend day",
-  "repeatEveryDays": "Every {count} days",
-  "repeatEveryWeeks": "Every {count} weeks",
-  "repeatEveryMonths": "Every {count} months",
-  "repeatEveryYears": "Every {count} years",
+  "repeatNever": "从不",
+  "repeatUntil": "指定日期",
+  "repeatAfter": "指定次数后",
+  "repeatCount": "重复次数",
+  "repeatDayOfMonth": "每月日期",
+  "repeatMonths": "月份",
+  "repeatOrdinal": "星期位置",
+  "repeatSpecificDays": "特定日期",
+  "repeatFirst": "第一",
+  "repeatSecond": "第二",
+  "repeatThird": "第三",
+  "repeatFourth": "第四",
+  "repeatFifth": "第五",
+  "repeatSecondToLast": "倒数第二",
+  "repeatLast": "最后",
+  "repeatAnyDay": "日期",
+  "repeatWeekday": "工作日",
+  "repeatWeekendDay": "周末",
+  "repeatOrdinalDaySummary": "{dayKey, select, MO{星期一} TU{星期二} WE{星期三} TH{星期四} FR{星期五} SA{星期六} SU{星期日} day{日期} weekday{工作日} weekend{周末} other{{day}}}",
+  "repeatEveryDays": "每 {count} 天",
+  "repeatEveryWeeks": "每 {count} 周",
+  "repeatEveryMonths": "每 {count} 个月",
+  "repeatEveryYears": "每 {count} 年",
   "repeatOnDaysSummary": "在 {days}",
-  "repeatOnMonthDaysSummary": "在第 {days} 天",
-  "repeatOnOrdinalSummary": "on the {ordinal} {days}",
+  "repeatOnMonthDaysSummary": "{days}",
+  "repeatOnOrdinalSummary": "{position, select, first{第一个{days}} second{第二个{days}} third{第三个{days}} fourth{第四个{days}} fifth{第五个{days}} secondToLast{倒数第二个{days}} last{最后一个{days}} other{{days}}}",
   "repeatInMonthsSummary": "在 {months}",
-  "repeatTimesSummary": "{count}次",
-  "repeatUntilSummary": "至 {date}",
-  "unsupportedRecurrencePreserved": "This recurrence rule uses options that this editor does not change.",
+  "repeatTimesSummary": "{count, plural, other{重复 {count} 次}}",
+  "repeatUntilSummary": "直到 {date}",
+  "unsupportedRecurrencePreserved": "此重复规则使用了编辑器不会更改的选项。",
+  "recurrenceUnsupportedByProvider": "此重复规则不能用于 {provider}。",
   "duplicateTask": "复制任务",
-  "taskDuplicated": "Task duplicated.",
-  "taskDuplicateFailed": "Could not duplicate the task: {error}",
+  "taskDuplicated": "任务已复制。",
+  "taskDuplicateFailed": "无法复制任务：{error}",
   "hideSubtasks": "隐藏子任务",
-  "hideClosedSubtasks": "隐藏关闭的子任务",
-  "reminderUnit": "Unit",
-  "attendeeRequired": "Required",
-  "attendeeOptional": "Optional",
-  "meetingSection": "Meeting",
-  "addGoogleMeet": "Add Google Meet",
-  "addTeamsMeeting": "Add Microsoft Teams meeting",
-  "onlineMeetingAdded": "Online meeting added",
-  "requestResponses": "Request responses",
-  "requestResponsesDescription": "Ask guests to respond to the invitation.",
-  "hideGuestList": "Hide guest list",
-  "hideGuestListDescription": "Guests cannot see who else was invited.",
-  "allowNewTimeProposals": "Allow new time proposals",
-  "allowNewTimeProposalsDescription": "Guests can suggest a different meeting time.",
-  "notifyGuestsTitle": "Notify guests?",
-  "notifyGuestsSaveMessage": "This meeting has guests. Send invitations or event updates when it is saved?",
-  "notifyGuestsDeleteMessage": "This meeting has guests. Send a cancellation when it is deleted?",
-  "sendUpdates": "Send updates",
-  "sendCancellation": "Send cancellation",
-  "doNotSend": "Don’t send",
-  "microsoftNotifyGuestsSaveTitle": "Save meeting?",
-  "microsoftNotifyGuestsSaveMessage": "Microsoft will send invitations or event updates to guests.",
-  "microsoftNotifyGuestsDeleteTitle": "Delete meeting?",
-  "microsoftNotifyGuestsDeleteMessage": "Microsoft will send a cancellation to guests.",
-  "organizer": "Organizer",
-  "yourResponse": "Your response",
-  "guestResponses": "Guest responses",
-  "respond": "Respond",
-  "acceptInvitation": "Accept",
-  "tentativeInvitation": "Tentative",
-  "declineInvitation": "Decline",
-  "joinMeeting": "Join meeting",
-  "responseAccepted": "Accepted",
-  "responseTentative": "Tentative",
-  "responseDeclined": "Declined",
-  "responseNeedsAction": "Awaiting response",
-  "responseNotResponded": "Not responded",
-  "responseOrganizer": "Organizer",
-  "invitationResponseFailed": "Could not send your response: {error}",
-  "@invitationResponseFailed": {"placeholders": {"error": {"type": "String"}}},
-  "joinMeetingFailed": "Could not open the meeting link.",
+  "hideClosedSubtasks": "隐藏已关闭的子任务",
+  "reminderUnit": "单位",
+  "attendeeRequired": "必需",
+  "attendeeOptional": "可选",
+  "meetingSection": "会议",
+  "addGoogleMeet": "添加 Google Meet",
+  "addTeamsMeeting": "添加 Microsoft Teams 会议",
+  "onlineMeetingAdded": "已添加在线会议",
+  "requestResponses": "请求回复",
+  "requestResponsesDescription": "要求参与者回复邀请。",
+  "hideGuestList": "隐藏参与者列表",
+  "hideGuestListDescription": "参与者无法查看其他受邀者。",
+  "allowNewTimeProposals": "允许提出新时间",
+  "allowNewTimeProposalsDescription": "参与者可以建议其他会议时间。",
+  "notifyGuestsTitle": "通知参与者？",
+  "notifyGuestsSaveMessage": "此会议有参与者。保存时发送邀请或日程更新吗？",
+  "notifyGuestsDeleteMessage": "此会议有参与者。删除时发送取消通知吗？",
+  "sendUpdates": "发送更新",
+  "sendCancellation": "发送取消通知",
+  "doNotSend": "不发送",
+  "microsoftNotifyGuestsSaveTitle": "保存会议？",
+  "microsoftNotifyGuestsSaveMessage": "Microsoft 将向参与者发送邀请或日程更新。",
+  "microsoftNotifyGuestsDeleteTitle": "删除会议？",
+  "microsoftNotifyGuestsDeleteMessage": "Microsoft 将向参与者发送取消通知。",
+  "organizer": "组织者",
+  "yourResponse": "你的回复",
+  "guestResponses": "参与者回复",
+  "respond": "回复",
+  "acceptInvitation": "接受",
+  "tentativeInvitation": "暂定",
+  "declineInvitation": "拒绝",
+  "joinMeeting": "加入会议",
+  "responseAccepted": "已接受",
+  "responseTentative": "暂定",
+  "responseDeclined": "已拒绝",
+  "responseNeedsAction": "等待回复",
+  "responseNotResponded": "未回复",
+  "responseOrganizer": "组织者",
+  "invitationResponseFailed": "无法发送回复：{error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "无法打开会议链接。",
+  "setCustomCalendarName": "设置自定义名称",
+  "setAction": "设置",
+  "removeFromMyCalendars": "从“我的日历”中移除",
+  "removeAction": "移除",
+  "removeCalendarConfirmation": "要从您的 Google 日历列表中移除“{title}”吗？共享日历及其日程不会被删除。",
+  "calendarCannotRemove": "无法从此账户删除或移除此日历。",
+  "calendarPendingChangesPreventRemoval": "请等待此日历的待处理更改完成同步，然后再删除或移除它。",
+  "calendarSubscriptions": "日历订阅",
+  "calendarSubscriptionsDescription": "添加从安全 WebCal URL 刷新的只读日历。",
+  "addCalendarSubscription": "添加日历订阅",
+  "subscriptionName": "本地名称",
+  "subscriptionUrl": "订阅 URL",
+  "subscriptionUrlHelp": "输入 HTTPS 或 webcal URL。BusyMax 会将完整 URL 保存在安全存储中。",
+  "subscriptionUrlInvalid": "请输入不含用户信息或片段的有效 HTTPS 或 webcal URL。",
+  "subscriptionColor": "本地颜色",
+  "subscriptionColorHelp": "使用六位颜色，例如 #3584E4。",
+  "subscriptionColorInvalid": "请输入六位十六进制颜色。",
+  "subscriptionRefreshMode": "刷新频率",
+  "subscriptionAutomatic": "自动",
+  "subscriptionHourly": "每小时",
+  "subscriptionSixHours": "每六小时",
+  "subscriptionDaily": "每天",
+  "subscriptionSafeOrigin": "来源：{origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "请输入有效 URL 以预览其安全来源。",
+  "subscriptionReadOnly": "只读订阅",
+  "subscriptionNeverRefreshed": "尚未刷新",
+  "subscriptionLastRefresh": "上次成功刷新：{time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "下次刷新：{time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "已是最新",
+  "subscriptionStatusIssue": "刷新问题：{code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "立即刷新",
+  "unsubscribe": "取消订阅",
+  "unsubscribeCalendarTitle": "要取消订阅“{name}”吗？",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "这会移除本地订阅及其缓存的日程。已发布的日历不会更改。",
+  "addSubscriptionAction": "添加订阅",
+  "subscriptionOperationFailed": "日历订阅失败：{error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "订阅",
+  "calendarImport": "日历导入",
+  "calendarImportDescription": "选择文件，查看其中的日程，然后选择接收这些日程的可写日历。",
+  "importIcsFile": "导入 .ics 文件",
+  "importIcsPreview": "导入日历日程",
+  "importEventsFound": "可导入日程集：{count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importInvalidEvents": "无效日程：{count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importFieldsOmitted": "有意省略：{fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "没有可用的可写目标日历。",
+  "importDestinationCalendar": "目标日历",
+  "importIcsConfirm": "导入日程",
+  "importIcsComplete": "导入完成",
+  "importQueued": "已导入或已排队：{count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "已跳过重复项：{count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importUnsupportedSets": "不支持的重复集：{count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importIcsFailed": "无法导入日历文件：{error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "networkOffline": "离线",
   "networkOfflineDescription": "恢复连接后将同步更改。",
-  "networkOfflineTryAgain": "您当前处于离线状态。请连接互联网后重试。"
+  "networkOfflineTryAgain": "您当前处于离线状态。请连接互联网后重试。",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummaryMultiple": "{days}",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatSummarySeparator": "",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}日",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatWeekdayListPair": "{first}和{second}",
+  "repeatWeekdayListStart": "{first}、{rest}",
+  "repeatMonthDayListPair": "{first}、{second}",
+  "repeatMonthDayListStart": "{first}、{rest}",
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "repeatYearlyMonthDayListPair": "{first}和{second}",
+  "repeatYearlyMonthDayListStart": "{first}、{rest}",
+  "repeatYearlyMonthListPair": "{first}和{second}",
+  "repeatYearlyMonthListStart": "{first}、{rest}",
+  "repeatYearlyOnMonthDaySummary": "{frequency}{month}{day}",
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency}{months}的{day}",
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency}{months}的{days}",
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency}{months}的{position, select, first{第一个{days}} second{第二个{days}} third{第三个{days}} fourth{第四个{days}} fifth{第五个{days}} secondToLast{倒数第二个{days}} last{最后一个{days}} other{{days}}}",
+  "repeatYearlyOnMonthDaysSummary": "{frequency}{month}的{days}",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency}{month}的{position, select, first{第一个{days}} second{第二个{days}} third{第三个{days}} fourth{第四个{days}} fifth{第五个{days}} secondToLast{倒数第二个{days}} last{最后一个{days}} other{{days}}}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {"type": "String"},
+      "month": {"type": "String"},
+      "position": {"type": "String"},
+      "days": {"type": "String"}
+    }
+  }
 }

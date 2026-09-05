@@ -47,4 +47,14 @@ app.*.map.json
 .snap-local/
 
 # Local Snap packages contain compiled build-time configuration.
-/*.snap
+*.snap
+**/*.snap
+
+# Local Windows Store identity, certificates, and signing material.
+config/windows_store.local.json
+*.pfx
+*.cer
+*.p12
+*.pem
+*.key
+*.crt

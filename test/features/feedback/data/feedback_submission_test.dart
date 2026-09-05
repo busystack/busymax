@@ -84,6 +84,7 @@ void main() {
       subject: '  Privacy question  ',
       message: '  Please explain this behavior.  ',
       replyEmail: '  person@example.com  ',
+      platform: 'linux',
     );
 
     expect(submission.toJson(), {
@@ -108,6 +109,7 @@ void main() {
       subject: 'Calendar issue',
       message: 'The calendar view did not update.',
       replyEmail: '   ',
+      platform: 'linux',
       technicalDetails: FeedbackTechnicalDetails(
         osVersion: 'Linux 6.8.0',
         locale: 'en-CA',

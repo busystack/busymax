@@ -2,7 +2,10 @@ import 'package:flutter/foundation.dart' show immutable, visibleForTesting;
 import 'package:timezone/data/latest_all.dart' as time_zone_data;
 import 'package:timezone/timezone.dart' as time_zone;
 
-import 'linux_gweather_location_source.dart';
+import 'system_time_zone_location.dart';
+
+typedef BusyMaxSystemTimeZoneLocationLoader =
+    Future<List<BusyMaxSystemTimeZoneLocation>> Function();
 
 @immutable
 class BusyMaxTimeZoneLocation {
@@ -72,6 +75,17 @@ abstract final class BusyMaxTimeZoneCatalog {
   static List<BusyMaxSystemTimeZoneLocation>? _systemLocations;
   static Future<List<BusyMaxSystemTimeZoneLocation>>? _systemLocationLoad;
   static List<BusyMaxTimeZoneSearchResult>? _locationSearchOptions;
+  static BusyMaxSystemTimeZoneLocationLoader _systemLocationLoader =
+      _emptySystemLocations;
+
+  static void configureSystemLocationLoader(
+    BusyMaxSystemTimeZoneLocationLoader loader,
+  ) {
+    _systemLocationLoader = loader;
+    _systemLocations = null;
+    _systemLocationLoad = null;
+    _locationSearchOptions = null;
+  }
 
   static List<BusyMaxTimeZoneLocation> get locations {
     return _locations ??= _buildLocations();
@@ -103,9 +117,12 @@ abstract final class BusyMaxTimeZoneCatalog {
   static bool get isLocationSearchReady => _systemLocations != null;
 
   static Future<void> prepareLocationSearch() async {
-    final load = _systemLocationLoad ??= loadLinuxSystemTimeZoneLocations();
+    final load = _systemLocationLoad ??= _systemLocationLoader();
     _systemLocations ??= await load;
   }
+
+  static Future<List<BusyMaxSystemTimeZoneLocation>>
+  _emptySystemLocations() async => const [];
 
   static Future<List<BusyMaxTimeZoneSearchResult>> searchLocations(
     String query,

@@ -3,7 +3,6 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:desktop_notifications/desktop_notifications.dart';
 import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -143,7 +142,7 @@ void main() {
         );
 
     await _waitUntil(() => backend.notifications.isNotEmpty);
-    await backend.notifications.single.onAction?.call('default');
+    await backend.notifications.single.invoke('default');
 
     expect(activatedRow?.id, 'event|event-1|5');
     expect(activatedRow?.sourceType, 'event');
@@ -263,7 +262,7 @@ void main() {
     await _insertDueTaskNotification(database, now);
 
     await scheduler.checkNow();
-    await backend.notifications.single.onAction?.call('snooze');
+    await backend.notifications.single.invoke('snooze');
 
     var row = await database.select(database.notificationSchedule).getSingle();
     expect(row.sentAtUtc, null);
@@ -308,12 +307,12 @@ void main() {
 
     await scheduler.checkNow();
     final notification = backend.notifications.single;
-    expect(notification.actions.map((action) => action.key), [
+    expect(notification.actions.map((action) => action.id), [
       'default',
       'snooze',
       'dismiss',
     ]);
-    await notification.onAction?.call('dismiss');
+    await notification.invoke('dismiss');
 
     final row = await database
         .select(database.notificationSchedule)
@@ -322,6 +321,33 @@ void main() {
     now = now.add(const Duration(hours: 1));
     await scheduler.checkNow();
     expect(backend.notifications, hasLength(1));
+  });
+
+  test('duplicate Windows activation is idempotent', () async {
+    await _insertDueTaskNotification(database, now);
+    await scheduler.checkNow();
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+
+    await scheduler.handleActivation(
+      notificationScheduleId: row.id,
+      action: 'snooze',
+    );
+    final first = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    now = now.add(const Duration(minutes: 1));
+    await scheduler.handleActivation(
+      notificationScheduleId: row.id,
+      action: 'snooze',
+    );
+    final duplicate = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+
+    expect(duplicate.snoozedUntilUtc, first.snoozedUntilUtc);
+    expect(duplicate.updatedAtLocal, first.updatedAtLocal);
   });
 
   test('does not notify for a signed-out account', () async {
@@ -403,36 +429,37 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
 
   @override
   Future<void> notify(
-    String summary, {
-    String body = '',
-    List<NotificationHint> hints = const [],
-    List<NotificationAction> actions = const [],
+    BusyMaxNotificationRequest request, {
     DesktopNotificationActionHandler? onAction,
   }) async {
     final failure = error;
     if (failure != null) throw failure;
-    notifications.add(_NotificationRecord(summary, body, actions, onAction));
+    notifications.add(_NotificationRecord(request, onAction));
     final immediateAction = actionBeforeReturn;
     if (immediateAction != null) {
       actionBeforeReturn = null;
-      await onAction?.call(immediateAction);
+      await onAction?.call(immediateAction, request.payload);
     }
   }
+
+  @override
+  Future<void> cancel(String stableId) async {}
 
   @override
   Future<void> close() async {}
 }
 
 class _NotificationRecord {
-  const _NotificationRecord(
-    this.summary,
-    this.body,
-    this.actions,
-    this.onAction,
-  );
+  const _NotificationRecord(this.request, this.onAction);
 
-  final String summary;
-  final String body;
-  final List<NotificationAction> actions;
+  final BusyMaxNotificationRequest request;
   final DesktopNotificationActionHandler? onAction;
+
+  String get summary => request.title;
+  String get body => request.body;
+  List<BusyMaxNotificationAction> get actions => request.actions;
+
+  Future<void> invoke(String action) async {
+    await onAction?.call(action, request.payload);
+  }
 }

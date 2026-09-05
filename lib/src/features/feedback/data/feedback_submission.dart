@@ -31,12 +31,11 @@ class FeedbackSubmission {
     required this.subject,
     required this.message,
     required this.replyEmail,
+    required this.platform,
     this.technicalDetails,
   });
 
   static const applicationId = 'busymax';
-  static const platform = 'linux';
-
   final String submissionId;
   final String appVersion;
   final String buildNumber;
@@ -44,6 +43,7 @@ class FeedbackSubmission {
   final String subject;
   final String message;
   final String? replyEmail;
+  final String platform;
   final FeedbackTechnicalDetails? technicalDetails;
 
   Map<String, Object?> toJson() => {

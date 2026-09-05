@@ -142,6 +142,56 @@ void main() {
     },
   );
 
+  test('same-account Nextcloud event move uses WebDAV MOVE', () async {
+    await _seedDestinationCalendar(database);
+    const href = '${_collectionHref}move-event.ics';
+    const keep = 'X-KEEP-EXACT;X-QUOTE="a,b":opaque';
+    const alarm = [
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:Imported reminder',
+      'TRIGGER:-PT17M',
+      'X-ALARM-KEEP:opaque',
+      'END:VALARM',
+    ];
+    final baseline = _eventResource(
+      uid: 'move-event@example.test',
+      summary: 'Server title',
+      extra: const [keep, ...alarm],
+    );
+    await _commitObjects(objectRepository, [
+      _prepared(href: href, etag: '"move-event"', body: baseline),
+    ]);
+    final event = await database.select(database.calendarEvents).getSingle();
+
+    await calendarRepository.updateLocalEvent(
+      _draftForEvent(event).copyWith(
+        sourceId: _destinationCalendarSourceId,
+        providerCalendarId: _destinationCollectionHref,
+        title: 'Moved title',
+      ),
+    );
+
+    final operation = await database.select(database.pendingOps).getSingle();
+    expect(operation.operationType, 'dav.move');
+    expect(operation.davCollectionId, _collectionId);
+    expect(operation.destinationCollectionId, _destinationCollectionId);
+    expect(operation.baselineRawIcs, baseline);
+    final patch = DavMutationPatch.fromJsonString(operation.mutationPatchJson!);
+    final movedRaw = patch.applyTo(operation.baselineRawIcs!, nowUtc: _now);
+    expect(movedRaw, contains('SUMMARY:Moved title'));
+    expect(movedRaw, contains(keep));
+    expect(movedRaw, contains(alarm.join('\r\n')));
+
+    final projected = await database
+        .select(database.calendarEvents)
+        .getSingle();
+    expect(projected.calendarSourceId, _destinationCalendarSourceId);
+    expect(projected.providerCalendarId, _destinationCollectionHref);
+    expect(projected.davCollectionId, _destinationCollectionId);
+    expect(projected.syncStatus, 'pending');
+  });
+
   test(
     'DAV event attendee mutation is rejected without local side effects',
     () async {
@@ -263,6 +313,51 @@ void main() {
   });
 
   test(
+    'this-and-following DAV edit projects the RFC range immediately',
+    () async {
+      const href = '${_collectionHref}range-edit.ics';
+      final baseline = _recurringEventResource();
+      await _commitObjects(objectRepository, [
+        _prepared(href: href, etag: '"series-etag"', body: baseline),
+      ]);
+      final occurrence = (await database.select(database.calendarEvents).get())
+          .singleWhere((event) => event.recurrenceIdKey != null);
+
+      await calendarRepository.updateLocalEvent(
+        _draftForEvent(occurrence).copyWith(
+          title: 'Changed following events',
+          start: DateTime.utc(2026, 8, 9, 13),
+          end: DateTime.utc(2026, 8, 9, 14),
+          recurringMutationScope: RecurringEventMutationScope.thisAndFuture,
+        ),
+      );
+
+      final operation = await database.select(database.pendingOps).getSingle();
+      final patch = DavMutationPatch.fromJsonString(
+        operation.mutationPatchJson!,
+      );
+      final candidate = patch.applyTo(baseline, nowUtc: _now);
+      final range = IcalSemanticDocument.parse(
+        candidate,
+      ).components.singleWhere((component) => component.recurrenceId != null);
+      expect(range.recurrenceRange, 'THISANDFUTURE');
+
+      final projected = await database.select(database.calendarEvents).get();
+      final target = projected.singleWhere(
+        (event) => event.occurrenceKey!.contains('2026-08-09T09:00:00'),
+      );
+      final following = projected.singleWhere(
+        (event) => event.occurrenceKey!.contains('2026-08-10T09:00:00'),
+      );
+      expect(target.title, 'Changed following events');
+      expect(target.startDateTime, '2026-08-09T13:00:00.000Z');
+      expect(following.title, 'Changed following events');
+      expect(following.startDateTime, '2026-08-10T13:00:00.000Z');
+      expect(following.recurrenceIdKey, isNull);
+    },
+  );
+
+  test(
     'entire-series edit patches the master anchor and preserves exceptions',
     () async {
       const href = '${_collectionHref}whole-series.ics';
@@ -345,6 +440,44 @@ void main() {
       expect(projected.isCancelled, isTrue);
     },
   );
+
+  test('this-and-following DAV delete cancels the projected range', () async {
+    const href = '${_collectionHref}range-delete.ics';
+    final baseline = _recurringEventResource();
+    await _commitObjects(objectRepository, [
+      _prepared(href: href, etag: '"series-etag"', body: baseline),
+    ]);
+    final occurrence = (await database.select(database.calendarEvents).get())
+        .singleWhere((event) => event.recurrenceIdKey != null);
+
+    await calendarRepository.deleteLocalEvent(
+      occurrence.id,
+      recurringScope: RecurringEventMutationScope.thisAndFuture,
+    );
+
+    final operation = await database.select(database.pendingOps).getSingle();
+    expect(operation.operationType, 'dav.update');
+    final candidate = DavMutationPatch.fromJsonString(
+      operation.mutationPatchJson!,
+    ).applyTo(baseline, nowUtc: _now);
+    final exception = IcalSemanticDocument.parse(
+      candidate,
+    ).components.singleWhere((component) => component.recurrenceId != null);
+    expect(exception.status, 'CANCELLED');
+    expect(exception.recurrenceRange, 'THISANDFUTURE');
+
+    final projected = await database.select(database.calendarEvents).get();
+    expect(
+      projected
+          .where(
+            (event) =>
+                event.occurrenceKey!.contains('2026-08-09T09:00:00') ||
+                event.occurrenceKey!.contains('2026-08-10T09:00:00'),
+          )
+          .every((event) => event.isCancelled),
+      isTrue,
+    );
+  });
 
   test(
     'event delete removes only VEVENT when an unknown sibling is present',
@@ -1198,6 +1331,50 @@ Future<void> _seedDestinationTaskList(AppDatabase database) async {
       );
 }
 
+Future<void> _seedDestinationCalendar(AppDatabase database) async {
+  final now = _now.toIso8601String();
+  await database
+      .into(database.davCollections)
+      .insert(
+        DavCollectionsCompanion.insert(
+          id: _destinationCollectionId,
+          accountId: _accountId,
+          hrefKey: _destinationCollectionHref,
+          requestUri: 'https://cloud.example.test$_destinationCollectionHref',
+          displayName: 'Home',
+          supportedComponentMask: const Value(1),
+          supportedReportsJson: Value(
+            jsonEncode([
+              '{DAV:}sync-collection',
+              '{urn:ietf:params:xml:ns:caldav}calendar-multiget',
+            ]),
+          ),
+          currentUserPrivilegesJson: Value(
+            jsonEncode(['{DAV:}read', '{DAV:}write']),
+          ),
+          readOnly: const Value(false),
+          eventProjectionEnabled: const Value(true),
+          taskProjectionEnabled: const Value(false),
+          createdAtUtc: now,
+          updatedAtUtc: now,
+        ),
+      );
+  await database
+      .into(database.calendarSources)
+      .insert(
+        CalendarSourcesCompanion.insert(
+          id: _destinationCalendarSourceId,
+          accountId: _accountId,
+          provider: 'nextcloud',
+          providerCalendarId: _destinationCollectionHref,
+          davCollectionId: const Value(_destinationCollectionId),
+          summary: 'Home',
+          createdAtLocal: _now.millisecondsSinceEpoch,
+          updatedAtLocal: _now.millisecondsSinceEpoch,
+        ),
+      );
+}
+
 String _eventResource({
   required String uid,
   required String summary,
@@ -1301,5 +1478,6 @@ const _taskListId = 'dav-task-list-collection';
 const _destinationCollectionId = 'destination-collection';
 const _destinationCollectionHref = '/remote.php/dav/calendars/alex/home/';
 const _destinationTaskListId = 'dav-task-list-destination-collection';
+const _destinationCalendarSourceId = 'dav-calendar-destination-collection';
 final _now = DateTime.utc(2026, 8, 8, 12);
 final _later = DateTime.utc(2026, 8, 9, 12);

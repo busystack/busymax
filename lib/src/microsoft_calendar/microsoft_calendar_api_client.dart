@@ -182,6 +182,19 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
   }
 
   @override
+  Future<CalendarEventDto> moveEvent({
+    required String sourceCalendarId,
+    required String eventId,
+    required String destinationCalendarId,
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+  }) {
+    throw UnsupportedError(
+      'Microsoft Graph does not expose an event move operation.',
+    );
+  }
+
+  @override
   Future<CalendarEventDto?> respondToEvent({
     required String calendarId,
     required String eventId,

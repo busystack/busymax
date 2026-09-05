@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:desktop_notifications/desktop_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -105,12 +104,12 @@ class BusyMaxDemoProfile {
       ),
       syncSchedulerProvider.overrideWith((ref) {
         final scheduler = AllAccountsSyncScheduler(
-          listSignedInAccounts: () async => const [],
+          listSyncEligibleAccounts: () async => const [],
           syncAccount: (_) async {},
           onSyncFailure: (_) async {},
           interval: Duration.zero,
         );
-        ref.onDispose(scheduler.stop);
+        ref.onDispose(() => unawaited(scheduler.dispose()));
         return scheduler;
       }),
       notificationSchedulerProvider.overrideWith((ref) {
@@ -208,11 +207,11 @@ class DemoDesktopNotificationBackend implements DesktopNotificationBackend {
   Future<void> close() async {}
 
   @override
+  Future<void> cancel(String stableId) async {}
+
+  @override
   Future<void> notify(
-    String summary, {
-    String body = '',
-    List<NotificationHint> hints = const [],
-    List<NotificationAction> actions = const [],
+    BusyMaxNotificationRequest request, {
     DesktopNotificationActionHandler? onAction,
   }) async {}
 }

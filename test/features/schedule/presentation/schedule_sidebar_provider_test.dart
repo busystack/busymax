@@ -111,6 +111,7 @@ AccountEntity _account(BusyProvider provider) {
       BusyProvider.microsoft => 'https://login.microsoftonline.com/common',
       BusyProvider.appleICloud => 'https://caldav.icloud.com',
       BusyProvider.nextcloud => 'https://cloud.example.test/nextcloud',
+      BusyProvider.webCal => 'https://calendar.example.test',
     },
     providerAccountId: 'account',
     authState: accountAuthStateSignedIn,

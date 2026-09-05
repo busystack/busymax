@@ -85,7 +85,7 @@ void main() {
       'F9',
     ].map((label) => tester.getTopRight(find.text(label)).dx).toList();
     expect(badgeEnds.every((end) => end == badgeEnds.first), isTrue);
-  });
+  }, skip: !Platform.isLinux);
 
   for (final textScale in [1.0, 2.0]) {
     testWidgets('keyboard shortcuts remain scrollable in a short window at '

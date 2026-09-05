@@ -2,10 +2,11 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
-const busyMaxAutostartFileName = 'io.busystack.busymax-autostart.desktop';
-const busyMaxStartMinimizedArgument = '--start-minimized';
+import 'common/desktop_services.dart';
 
-final class LinuxAutostartService {
+const busyMaxAutostartFileName = 'io.busystack.busymax-autostart.desktop';
+
+final class LinuxAutostartService implements DesktopAutostartService {
   LinuxAutostartService({
     Map<String, String>? environment,
     String? executable,
@@ -23,6 +24,14 @@ final class LinuxAutostartService {
     return _autostartFile().exists();
   }
 
+  @override
+  Future<DesktopAutostartState> state() async {
+    return await isEnabled()
+        ? DesktopAutostartState.enabled
+        : DesktopAutostartState.disabled;
+  }
+
+  @override
   Future<void> setEnabled(bool enabled) async {
     if (!_isLinux) {
       throw UnsupportedError('Launch at login is supported only on Linux.');

@@ -570,6 +570,30 @@ void main() {
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
 
+  test('task-list reminder policy controls scheduled task reminders', () async {
+    await _insertTaskReminder(database, status: 'needsAction');
+    await service.rebuildUpcomingTaskNotifications('microsoft:m');
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
+
+    await database
+        .update(database.taskLists)
+        .write(const TaskListsCompanion(remindersEnabled: Value(false)));
+    await service.rebuildUpcomingTaskNotifications('microsoft:m');
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
+
+    await database
+        .update(database.taskLists)
+        .write(const TaskListsCompanion(remindersEnabled: Value(true)));
+    await service.rebuildUpcomingTaskNotifications('microsoft:m');
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      hasLength(1),
+    );
+  });
+
   test('server-missing task removes scheduled task reminder', () async {
     await _insertTaskReminder(database, status: 'needsAction');
     await service.rebuildUpcomingTaskNotifications('microsoft:m');
@@ -625,12 +649,14 @@ Future<void> _insertAccount(
             BusyProvider.google => 'https://accounts.google.com',
             BusyProvider.appleICloud => 'https://caldav.icloud.com',
             BusyProvider.nextcloud => 'https://cloud.example.com',
+            BusyProvider.webCal => 'https://calendar.example.com',
           },
           providerAccountId: id,
           credentialKind: switch (provider) {
             BusyProvider.google || BusyProvider.microsoft => 'oauth',
             BusyProvider.appleICloud => 'apple_app_specific_password',
             BusyProvider.nextcloud => 'nextcloud_app_password',
+            BusyProvider.webCal => 'webcal_subscription',
           },
           authState: const Value('signed_in'),
           grantedScopes: const Value(''),
