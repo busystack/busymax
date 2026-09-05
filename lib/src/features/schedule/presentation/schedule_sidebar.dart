@@ -547,11 +547,13 @@ class _AccountHeaderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final secondaryLabel = account.secondaryLabel;
+    final hasSecondaryLabel =
+        secondaryLabel != null && secondaryLabel.isNotEmpty;
     final providerName = _accountProviderName(context, account.provider);
     final accountSemanticsLabel = [
       providerName,
       account.displayLabel,
-      if (secondaryLabel != null && secondaryLabel.isNotEmpty) secondaryLabel,
+      if (hasSecondaryLabel) secondaryLabel,
     ].join(', ');
     return Padding(
       padding: const EdgeInsetsDirectional.only(
@@ -568,37 +570,45 @@ class _AccountHeaderRow extends StatelessWidget {
               container: true,
               label: accountSemanticsLabel,
               child: ExcludeSemantics(
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _AccountProviderIndicator(
-                      key: ValueKey(('account-provider-indicator', account.id)),
-                      provider: account.provider,
-                      providerName: providerName,
-                    ),
-                    const SizedBox(width: BusyMaxSpacing.sm),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            account.displayLabel,
+                    if (hasSecondaryLabel)
+                      Text(
+                        account.displayLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    Row(
+                      children: [
+                        _AccountProviderIndicator(
+                          key: ValueKey((
+                            'account-provider-indicator',
+                            account.id,
+                          )),
+                          provider: account.provider,
+                          providerName: providerName,
+                        ),
+                        const SizedBox(width: BusyMaxSpacing.xs),
+                        Expanded(
+                          child: Text(
+                            hasSecondaryLabel
+                                ? secondaryLabel
+                                : account.displayLabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelLarge,
-                          ),
-                          if (secondaryLabel != null &&
-                              secondaryLabel.isNotEmpty)
-                            Text(
-                              secondaryLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
+                            style: hasSecondaryLabel
+                                ? Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.copyWith(
                                     color: colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                        ],
-                      ),
+                                  )
+                                : Theme.of(context).textTheme.labelLarge,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -679,7 +689,7 @@ class _AccountProviderIndicator extends StatelessWidget {
     required this.providerName,
   });
 
-  static const double _diameter = 24;
+  static const double _diameter = 16;
 
   final BusyProvider provider;
   final String providerName;

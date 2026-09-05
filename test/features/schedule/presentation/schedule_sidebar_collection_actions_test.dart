@@ -141,7 +141,7 @@ void main() {
           const ValueKey(('account-provider-indicator', accountId)),
         );
         final indicatorRect = tester.getRect(indicator);
-        expect(indicatorRect.size, const Size.square(24));
+        expect(indicatorRect.size, const Size.square(16));
         expect(indicatorRect.left, greaterThanOrEqualTo(0));
         expect(indicatorRect.right, lessThanOrEqualTo(240));
         final decoration =
@@ -169,17 +169,19 @@ void main() {
         expect(name.overflow, TextOverflow.ellipsis);
         expect(address.maxLines, 1);
         expect(address.overflow, TextOverflow.ellipsis);
-        expect(
-          tester.getTopLeft(find.text(displayName)).dy,
-          lessThan(tester.getTopLeft(find.text(email)).dy),
-        );
+        final nameRect = tester.getRect(find.text(displayName));
+        final addressRect = tester.getRect(find.text(email));
+        expect(nameRect.top, lessThan(addressRect.top));
+        expect(nameRect.left, closeTo(indicatorRect.left, 0.01));
+        expect(addressRect.left, greaterThan(indicatorRect.right));
+        expect(addressRect.center.dy, closeTo(indicatorRect.center.dy, 0.01));
 
         await tester.tap(
           find.byKey(const ValueKey(('account-collapse', accountId))),
         );
         await tester.pumpAndSettle();
         expect(indicator, findsOneWidget);
-        expect(tester.getRect(indicator).size, const Size.square(24));
+        expect(tester.getRect(indicator).size, const Size.square(16));
         expect(tester.takeException(), isNull);
       }
     },
